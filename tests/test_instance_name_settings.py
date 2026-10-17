@@ -49,3 +49,26 @@ def test_name_over_255_chars_is_rejected(monkeypatch) -> None:
 def test_name_of_255_chars_is_accepted(monkeypatch) -> None:
     monkeypatch.setenv("APP_INSTANCE_NAME", "a" * 255)
     assert AppSettings(_env_file=None).instance_name == "a" * 255
+
+
+def test_name_of_255_chars_with_surrounding_spaces_is_accepted(monkeypatch) -> None:
+    monkeypatch.setenv("APP_INSTANCE_NAME", f"  {'a' * 255}  ")
+    assert AppSettings(_env_file=None).instance_name == "a" * 255
+
+
+@pytest.mark.parametrize("dot_name", [".", "..", " .. "])
+def test_dot_segment_name_is_rejected(monkeypatch, dot_name: str) -> None:
+    monkeypatch.setenv("APP_INSTANCE_NAME", dot_name)
+    with pytest.raises(ValidationError, match="APP_INSTANCE_NAME"):
+        AppSettings(_env_file=None)
+
+
+def test_name_starting_with_a_dot_is_accepted(monkeypatch) -> None:
+    monkeypatch.setenv("APP_INSTANCE_NAME", ".edge")
+    assert AppSettings(_env_file=None).instance_name == ".edge"
+
+
+@pytest.mark.parametrize("control_name", ["a\nb", "a\x00b"], ids=["newline", "nul"])
+def test_name_with_control_character_is_rejected(control_name: str) -> None:
+    with pytest.raises(ValidationError, match="APP_INSTANCE_NAME"):
+        AppSettings(_env_file=None, instance_name=control_name)

@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import unicodedata
 import warnings
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
@@ -1245,10 +1246,11 @@ class AppSettings(BaseSettings):
         default=None,
         description=(
             "Name this instance goes by on Settings > Agents, where the head "
-            "lists every instance that reports in. Unset, an agent is called "
-            "agent and the head is called head. Set it on every agent: two "
+            "lists every instance that reports in. Unset, agents show as "
+            '"agent" and the head as "head". Set it on every agent. Two '
             "unnamed agents share one name and overwrite each other's status. "
-            "Up to 255 characters, no slashes."
+            "Up to 255 characters, no slashes, no control characters, and "
+            'not "." or "..".'
         ),
     )
 
@@ -1263,6 +1265,10 @@ class AppSettings(BaseSettings):
             return None
         if "/" in stripped:
             raise ValueError("APP_INSTANCE_NAME must not contain '/'")
+        if stripped in {".", ".."}:
+            raise ValueError("APP_INSTANCE_NAME must not be '.' or '..'")
+        if any(unicodedata.category(character) == "Cc" for character in stripped):
+            raise ValueError("APP_INSTANCE_NAME must not contain control characters")
         if len(stripped) > 255:
             raise ValueError("APP_INSTANCE_NAME must be at most 255 characters")
         return stripped
