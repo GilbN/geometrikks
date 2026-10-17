@@ -112,14 +112,14 @@ export function GeoLogsFilterBar() {
     </FilterField>
   )
   const server = (inDrawer: boolean) => (
-    <FilterField label="Hostname" hideLabel={!inDrawer}>
+    <FilterField label="Server" hideLabel={!inDrawer}>
       <FilterCombobox
-        label="Hostname"
+        label="Server"
         options={facets?.servers ?? []}
         selected={filters.servers}
         onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
         loading={!facets}
-        emptyText="No hostnames"
+        emptyText="No servers"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
         forceInline={inDrawer}
       />

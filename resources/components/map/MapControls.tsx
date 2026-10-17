@@ -84,15 +84,15 @@ interface MapControlsProps {
   frameRateEnabled: boolean
   onFrameRateChange: (enabled: boolean) => void
   onRouteEffectsChange: (enabled: boolean) => void
-  routeHomeAvailable: boolean
-  homeMarkerEnabled: boolean
-  onHomeMarkerChange: (enabled: boolean) => void
+  serverLocationAvailable: boolean
+  serverMarkersEnabled: boolean
+  onServerMarkersChange: (enabled: boolean) => void
   /** True until the status query says CrowdSec is disabled; hides the Banned tab when false. */
   bannedAvailable: boolean
   banned: BannedSummary
   onFitBounds: () => void
-  /** Fly to the resolved map home location; button hidden when routeHomeAvailable is false. */
-  onGoHome?: () => void
+  /** Fly to the resolved server location; button hidden when serverLocationAvailable is false. */
+  onGoToServerLocation?: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
   topIPs: TopIPDTO[]
@@ -225,13 +225,13 @@ export function MapControls({
   frameRateEnabled,
   onFrameRateChange,
   onRouteEffectsChange,
-  routeHomeAvailable,
-  homeMarkerEnabled,
-  onHomeMarkerChange,
+  serverLocationAvailable,
+  serverMarkersEnabled,
+  onServerMarkersChange,
   bannedAvailable,
   banned,
   onFitBounds,
-  onGoHome,
+  onGoToServerLocation,
   isLoading = false,
   featureStats,
   topIPs,
@@ -277,13 +277,13 @@ export function MapControls({
             Fit to data bounds
           </DropdownMenuItem>
         )}
-        {routeHomeAvailable && onGoHome && (
-          <DropdownMenuItem onSelect={onGoHome}>
+        {serverLocationAvailable && onGoToServerLocation && (
+          <DropdownMenuItem onSelect={onGoToServerLocation}>
             <Home className="h-4 w-4" />
-            Go to home location
+            Go to server location
           </DropdownMenuItem>
         )}
-        {(isMobile || (routeHomeAvailable && onGoHome)) && <DropdownMenuSeparator />}
+        {(isMobile || (serverLocationAvailable && onGoToServerLocation)) && <DropdownMenuSeparator />}
         <DropdownMenuCheckboxItem
           checked={frameRateEnabled}
           onCheckedChange={onFrameRateChange}
@@ -332,12 +332,12 @@ export function MapControls({
       />
       {(serverOptions.length >= 2 || selectedServers.length > 0) && (
         <FilterCombobox
-          label="Source"
+          label="Server"
           options={serverOptions}
           selected={selectedServers}
           onChange={onServersChange}
           loading={serversLoading}
-          emptyText="No sources recorded"
+          emptyText="No servers recorded"
           forceInline={isMobile}
           className="w-full justify-between"
         />
@@ -407,19 +407,19 @@ export function MapControls({
         />
         <SwitchRow
           icon={Sparkles}
-          label={routeHomeAvailable ? "Route effects" : "Home unavailable"}
-          checked={routeEffectsEnabled && routeHomeAvailable}
-          disabled={!routeHomeAvailable}
+          label={serverLocationAvailable ? "Route effects" : "No server location"}
+          checked={routeEffectsEnabled && serverLocationAvailable}
+          disabled={!serverLocationAvailable}
           onCheckedChange={onRouteEffectsChange}
-          title={routeHomeAvailable ? "Show or hide animated network routes" : "No map home location could be resolved"}
+          title={serverLocationAvailable ? "Show or hide animated network routes" : "No server location could be resolved"}
         />
-        {routeHomeAvailable && (
+        {serverLocationAvailable && (
           <SwitchRow
             icon={Home}
-            label="Home marker"
-            checked={homeMarkerEnabled}
-            onCheckedChange={onHomeMarkerChange}
-            title="Show a beacon at the server home location"
+            label="Server markers"
+            checked={serverMarkersEnabled}
+            onCheckedChange={onServerMarkersChange}
+            title="Show a beacon at each server location"
           />
         )}
         {/* The rail only mounts at md and up; below that the vitals pill is the

@@ -64,7 +64,7 @@ function LiveRequestDetail({
           </span>
         }
       />
-      {request.server && <Row label="Source" value={request.server} />}
+      {request.server && <Row label="Server" value={request.server} />}
       <Row
         label="Location"
         value={

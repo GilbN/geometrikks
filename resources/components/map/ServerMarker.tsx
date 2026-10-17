@@ -1,12 +1,12 @@
 /**
- * Map pin for a site's location (its "home": where the recording server
- * lives, which may just as well be a datacenter as a house).
+ * Map pin for a server's location, which may just as well be a datacenter
+ * as a house.
  *
  * A teardrop pin with the home glyph in its head, anchored so the tip sits
  * on the exact coordinate. Because the body floats above the point, data
- * markers at (or near) home stay visible. A DOM marker rather than a map
- * layer so it stays crisp at every zoom level. The ground ripple pauses when
- * the user prefers reduced motion. Clicking the pin head flies the map to
+ * markers at (or near) the server location stay visible. A DOM marker
+ * rather than a map layer so it stays crisp at every zoom level. The ground
+ * ripple pauses when the user prefers reduced motion. Clicking the pin head flies the map to
  * the beacon's coordinate; only the head is interactive so data markers
  * under the tip stay clickable.
  */
@@ -15,13 +15,13 @@ import { Home } from "lucide-react"
 
 type Coordinate = [longitude: number, latitude: number]
 
-export function HomeMarker({
+export function ServerMarker({
   coordinates,
   label,
   onClick,
 }: {
   coordinates: Coordinate | null
-  /** Tooltip/accessibility name, e.g. "Site location: nginx-01". */
+  /** Tooltip/accessibility name, e.g. "Server location: nginx-01". */
   label: string
   onClick?: () => void
 }) {
@@ -57,7 +57,7 @@ export function HomeMarker({
         {/* Home glyph centered in the pin head (head center is at y=13 of 40) */}
         <Home className="absolute top-[6px] left-1/2 h-3.5 w-3.5 -translate-x-1/2 text-primary" />
         {/* Only the head is clickable; the stem and tip pass clicks through so
-            data markers sharing the home coordinate remain reachable. */}
+            data markers sharing the server coordinate remain reachable. */}
         <button
           type="button"
           onClick={(event) => {

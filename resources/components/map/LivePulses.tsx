@@ -2,7 +2,7 @@
  * Animated live network routes.
  *
  * Each geo event becomes a great-circle route from the request origin to its
- * source's resolved home (falling back to the instance default). A single
+ * server's resolved location (falling back to the instance default). A single
  * GeoJSON source and rAF loop drive every layer so concurrent traffic
  * remains inexpensive for MapLibre to render.
  */
@@ -209,8 +209,9 @@ function buildFrame(transmissions: Transmission[], now: number): FeatureCollecti
   const visibleTransmissions = new Set<Transmission>()
   const visibleLanes = new Set<string>()
   const visiblePacketCells = new Set<string>()
-  // Keyed by destination coordinate: each distinct home gets its own arrival
-  // ripple, aggregated across every transmission currently landing there.
+  // Keyed by destination coordinate: each distinct server location gets its
+  // own arrival ripple, aggregated across every transmission currently
+  // landing there.
   const arrivals = new Map<string, DestinationArrival>()
 
   // Prefer the most recent packet in each corridor. Working backwards makes

@@ -142,17 +142,17 @@ export function AccessLogsFilterBar() {
   )
   const serverPair = (inDrawer: boolean) => (
     <FilterPair
-      label="Hostname"
-      excludeLabel="Exclude hostname"
+      label="Server"
+      excludeLabel="Exclude server"
       stacked={inDrawer}
       include={
         <FilterCombobox
-          label="Hostname"
+          label="Server"
           options={facets?.servers ?? []}
           selected={filters.servers}
           onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
           loading={!facets}
-          emptyText="No hostnames"
+          emptyText="No servers"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
           forceInline={inDrawer}
         />

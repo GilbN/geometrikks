@@ -21,6 +21,10 @@ describe("geo log columns", () => {
     expect(defaults(false)).toEqual(GEO_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
   })
 
+  it("labels the servers column", () => {
+    expect(GEO_LOG_COLUMNS.find((c) => c.key === "servers")?.label).toBe("Servers")
+  })
+
   it("leaves servers unsortable", () => {
     expect(GEO_LOG_COLUMNS.find((c) => c.key === "servers")?.sortField).toBeUndefined()
   })

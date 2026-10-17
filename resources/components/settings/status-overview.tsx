@@ -103,10 +103,10 @@ function Counter({ label, value }: { label: string; value: number | undefined })
 
 /** Settings > Status: per-component health so a sidebar "Degraded" state is
  *  explainable in-app. Read-only; each card degrades independently. */
-/** One site-home line. Auto rows can be removed (a retired source's beacon
- *  otherwise stays on the map forever); override rows point at the env var
- *  that owns them. */
-function SiteHomeLine({ row }: { row: ServerLocationRow }) {
+/** One server location line. Auto rows can be removed (a retired server's
+ *  beacon otherwise stays on the map forever); override rows point at the env
+ *  var that owns them. */
+function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   const [confirming, setConfirming] = useState(false)
   const remove = useDeleteServerLocation()
   return (
@@ -123,7 +123,7 @@ function SiteHomeLine({ row }: { row: ServerLocationRow }) {
               override
             </Badge>
           </TooltipTrigger>
-          <TooltipContent>Pinned by MAP_HOME_LOCATIONS; edit it there.</TooltipContent>
+          <TooltipContent>Pinned by MAP_SERVER_LOCATIONS; edit it there.</TooltipContent>
         </Tooltip>
       ) : (
         <>
@@ -132,7 +132,7 @@ function SiteHomeLine({ row }: { row: ServerLocationRow }) {
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label={`Remove home for ${row.server}`}
+            aria-label={`Remove location for ${row.server}`}
             className="text-muted-foreground hover:text-destructive"
             onClick={() => setConfirming(true)}
           >
@@ -141,10 +141,10 @@ function SiteHomeLine({ row }: { row: ServerLocationRow }) {
           <AlertDialog open={confirming} onOpenChange={setConfirming}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Remove the home for {row.server}?</AlertDialogTitle>
+                <AlertDialogTitle>Remove the location for {row.server}?</AlertDialogTitle>
                 <AlertDialogDescription>
                   Its beacon leaves the map and live routes stop flying to it. If an agent still
-                  ingests as {row.server}, the home comes back at that agent's next refresh.
+                  ingests as {row.server}, the location comes back at that agent's next refresh.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -546,7 +546,7 @@ export function StatusOverview() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Only shown when at least one source has a resolved home: makes the
+        {/* Only shown when at least one server has a resolved location: makes the
             auto/override split visible in-app for CGNAT diagnosis, matching
             the failure-mode table's promise that source is inspectable. */}
         {locationRows.length > 0 && (
@@ -555,14 +555,14 @@ export function StatusOverview() {
               <div className="flex items-center gap-3">
                 <SectionIcon icon={MapPin} />
                 <div>
-                  <CardTitle className="text-base">Site homes</CardTitle>
-                  <CardDescription>Per-source home location used for map beacons and route origins</CardDescription>
+                  <CardTitle className="text-base">Server locations</CardTitle>
+                  <CardDescription>Where each server sits on the map and where its live routes land</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {locationRows.map((row) => (
-                <SiteHomeLine key={row.server} row={row} />
+                <ServerLocationLine key={row.server} row={row} />
               ))}
             </CardContent>
           </Card>

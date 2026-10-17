@@ -59,7 +59,7 @@ export function GeoLogDetailSheet({
           <DetailField label="Last seen" value={entry.lastSeen ? new Date(entry.lastSeen).toLocaleString() : null} />
           <DetailField label="Latitude" value={entry.latitude.toFixed(4)} mono />
           <DetailField label="Longitude" value={entry.longitude.toFixed(4)} mono />
-          <DetailField label="Hostnames" value={entry.servers.length ? entry.servers.join(", ") : null} mono />
+          <DetailField label="Servers" value={entry.servers.length ? entry.servers.join(", ") : null} mono />
         </dl>
       )}
     </DetailSheet>

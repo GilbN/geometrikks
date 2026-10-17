@@ -42,7 +42,7 @@ export const GEO_LOG_COLUMNS = [
   { key: "longitude", label: "Long", sortField: "longitude", defaultVisible: true, align: "right", mobileHidden: true },
   { key: "eventCount", label: "Count", sortField: "eventCount", defaultVisible: true, align: "right" },
   { key: "lastSeen", label: "Last seen", sortField: "lastSeen", defaultVisible: true, mobileHidden: true },
-  { key: "servers", grow: true, label: "Hostnames", defaultVisible: false },
+  { key: "servers", grow: true, label: "Servers", defaultVisible: false },
   { key: "asn", label: "ASN", sortField: "asn", defaultVisible: false, mobileHidden: true },
   { key: "asOrganization", label: "Organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly GeoLogColumn[] as readonly GeoLogColumn[]

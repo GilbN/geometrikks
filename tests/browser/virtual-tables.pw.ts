@@ -49,7 +49,7 @@ const truncationCases = [
   {
     path: "geo-logs", endpoint: "/api/v1/geo-events/logs",
     row: { ...geoRows[0], servers: [longText] },
-    fields: [{ key: "servers", label: "Hostnames", value: longText }],
+    fields: [{ key: "servers", label: "Servers", value: longText }],
   },
 ]
 

@@ -81,7 +81,7 @@ describe("toLiveRequests", () => {
     expect(toLiveRequests([envelope(null, null)], new Map(), 1000)).toEqual([])
   })
 
-  it("keeps records from different sites sharing an IP and second distinct", () => {
+  it("keeps records from different servers sharing an IP and second distinct", () => {
     // Two agents seeing the same client in the same second: each record is
     // whole on arrival, whatever the publish interleaving was.
     const requests = toLiveRequests(

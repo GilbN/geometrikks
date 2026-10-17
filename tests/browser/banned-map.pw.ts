@@ -23,7 +23,7 @@ async function setup(page: Page, data = collection([group("2", 25)])) {
   await page.addInitScript(() => {
     localStorage.setItem("geometrikks-map-layer", "banned")
     localStorage.setItem("geometrikks-map-live", "false")
-    localStorage.setItem("geometrikks-home-marker-enabled", "false")
+    localStorage.setItem("geometrikks-server-markers-enabled", "false")
   })
   let socket: WebSocketRoute | undefined
   await page.routeWebSocket("**/ws/crowdsec", (ws) => { socket = ws })
@@ -37,7 +37,7 @@ async function setup(page: Page, data = collection([group("2", 25)])) {
     id: i + 1, ip: new URL(route.request().url()).searchParams.get("ip"), type: i ? "captcha" : "ban", scope: "Ip", origin: i ? "CAPI" : "crowdsec", scenario: i ? "community-list" : "http-probing", duration: "2h", countryCode: null, countryName: null, city: null, requestCount24h: null,
   })) }))
   // clickCenter expects the fixtures (10E 50N) in the middle of the map, so
-  // pin the first view there instead of letting the server's homes pick it.
+  // pin the first view there instead of letting the server locations pick it.
   await page.route("**/api/v1/settings", async (route) => {
     const settings = await (await route.fetch()).json()
     settings.map.defaultView = { latitude: 50, longitude: 10, zoom: 3 }
@@ -209,7 +209,7 @@ test("filters, fit-to-data and style changes use the banned dataset", async ({ p
   for (const [label, option, parameter, value] of [
     ["Country", "Norway (NO)", "countryCode", "NO"],
     ["City", "Oslo", "city", "Oslo"],
-    ["Source", "a.test", "serverIn", "a.test"],
+    ["Server", "a.test", "serverIn", "a.test"],
   ]) {
     await page.getByRole("combobox").filter({ hasText: new RegExp(`^${label}$`) }).click()
     await page.getByRole("option", { name: option, exact: true }).click()

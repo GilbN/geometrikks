@@ -27,7 +27,7 @@ import {
   useServerLocations,
   useIpLocations,
 } from "@/lib/queries"
-import { beaconLabel, buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
+import { beaconLabel, buildServerLocationResolver, serverBeacons, type Coordinate, type ServerLocationsData } from "@/lib/server-locations"
 import { FIT_PADDING, initialMapView, WORLD_VIEW } from "@/lib/map-initial-view"
 import { useMapStyle } from "./hooks/useMapStyle"
 import { useMapStartFailure } from "./hooks/useMapStartFailure"
@@ -46,7 +46,7 @@ import {
 import { MapControls, type BannedSummary } from "./MapControls"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
-import { HomeMarker } from "./HomeMarker"
+import { ServerMarker } from "./ServerMarker"
 import { BannedMapPopup } from "./BannedMapPopup"
 import { DecisionAlertSheet, type DecisionRef } from "@/components/security/alert-detail-sheet"
 import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
@@ -81,8 +81,8 @@ export type LayerType = "heatmap" | "markers" | "banned"
 export type MapProjection = "mercator" | "globe"
 
 // The desktop map controls open expanded over the map's right edge. The
-// panel is 240px wide and sits 16px in, and the first view keeps homes out
-// from under it.
+// panel is 240px wide and sits 16px in, and the first view keeps server
+// locations out from under it.
 const DESKTOP_CONTROLS_INSET = 240 + 16
 
 // Placeholder until initialMapView resolves. The map mounts only after that.
@@ -126,7 +126,7 @@ function markerTarget(features: Feature<Point>[], locationId: number): ClusterTa
 
 const ROUTE_EFFECTS_STORAGE_KEY = "geometrikks-route-effects-enabled"
 const MAP_PROJECTION_STORAGE_KEY = "geometrikks-map-projection"
-const HOME_MARKER_STORAGE_KEY = "geometrikks-home-marker-enabled"
+const SERVER_MARKERS_STORAGE_KEY = "geometrikks-server-markers-enabled"
 
 function loadRouteEffectsPreference(): boolean {
   try {
@@ -136,9 +136,9 @@ function loadRouteEffectsPreference(): boolean {
   }
 }
 
-function loadHomeMarkerPreference(): boolean {
+function loadServerMarkersPreference(): boolean {
   try {
-    return localStorage.getItem(HOME_MARKER_STORAGE_KEY) !== "false"
+    return localStorage.getItem(SERVER_MARKERS_STORAGE_KEY) !== "false"
   } catch {
     return true
   }
@@ -212,7 +212,7 @@ function GeoMapInner({
   const serverOptions = facets?.servers ?? []
   const { data: globalTopIPs, isLoading: isLoadingTopIPs } = useGlobalTopIPs({ enabled: activeLayer !== "banned" })
   const { data: runtimeSettings, isPending: runtimeSettingsPending } = useRuntimeSettings()
-  const homeDestination = useMemo<Coordinate | null>(() => {
+  const defaultServerLocation = useMemo<Coordinate | null>(() => {
     const latitude = runtimeSettings?.map.serverLatitude
     const longitude = runtimeSettings?.map.serverLongitude
     return typeof latitude === "number" && typeof longitude === "number"
@@ -223,16 +223,16 @@ function GeoMapInner({
   // Falls back to this instance's own location while server-locations is
   // unavailable (DB-degraded 500, or just the first fetch in flight) so
   // beacons don't go empty and flash in once the query resolves.
-  const serverLocationsData = useMemo<SiteHomesData | undefined>(
+  const serverLocationsData = useMemo<ServerLocationsData | undefined>(
     () =>
       serverLocations ??
-      (homeDestination
-        ? { locations: [], default: { latitude: homeDestination[1], longitude: homeDestination[0] } }
+      (defaultServerLocation
+        ? { locations: [], default: { latitude: defaultServerLocation[1], longitude: defaultServerLocation[0] } }
         : undefined),
-    [serverLocations, homeDestination],
+    [serverLocations, defaultServerLocation],
   )
-  const resolveDestination = useMemo(() => buildHomeResolver(serverLocationsData), [serverLocationsData])
-  const beacons = useMemo(() => homeBeacons(serverLocationsData), [serverLocationsData])
+  const resolveDestination = useMemo(() => buildServerLocationResolver(serverLocationsData), [serverLocationsData])
+  const beacons = useMemo(() => serverBeacons(serverLocationsData), [serverLocationsData])
 
   const isLoading = isLoadingGeoJSON || isLoadingTopIPs
 
@@ -245,7 +245,7 @@ function GeoMapInner({
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [frameRateEnabled, setFrameRateEnabled] = useState(loadFrameRatePreference)
   useEffect(() => saveFrameRatePreference(frameRateEnabled), [frameRateEnabled])
-  const [homeMarkerEnabled, setHomeMarkerEnabled] = useState(loadHomeMarkerPreference)
+  const [serverMarkersEnabled, setServerMarkersEnabled] = useState(loadServerMarkersPreference)
   const [liveOverlays, setLiveOverlays] = useState<LiveOverlayPreferences>(loadLiveOverlays)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
 
@@ -470,11 +470,11 @@ function GeoMapInner({
 
   useEffect(() => {
     try {
-      localStorage.setItem(HOME_MARKER_STORAGE_KEY, String(homeMarkerEnabled))
+      localStorage.setItem(SERVER_MARKERS_STORAGE_KEY, String(serverMarkersEnabled))
     } catch {
       // Storage may be blocked; keep the in-memory preference for this session.
     }
-  }, [homeMarkerEnabled])
+  }, [serverMarkersEnabled])
 
   useEffect(() => {
     try {
@@ -565,20 +565,20 @@ function GeoMapInner({
     })
   }, [])
 
-  // With exactly one source selected, "home" is that source's own resolved
-  // location when it resolves; otherwise (including an unresolved single
-  // source) it falls back to the instance-wide default.
-  const goHomeDestination = useMemo<Coordinate | null>(() => {
+  // With exactly one server selected, the recenter target is that server's
+  // own location when it resolves; otherwise (including an unresolved single
+  // server) it falls back to the instance-wide default.
+  const recenterTarget = useMemo<Coordinate | null>(() => {
     if (selectedServers.length === 1) {
-      return resolveDestination(selectedServers[0]) ?? homeDestination
+      return resolveDestination(selectedServers[0]) ?? defaultServerLocation
     }
-    return homeDestination
-  }, [selectedServers, resolveDestination, homeDestination])
+    return defaultServerLocation
+  }, [selectedServers, resolveDestination, defaultServerLocation])
 
-  const goToHome = useCallback(() => {
-    if (!goHomeDestination) return
-    flyToCoordinate(goHomeDestination)
-  }, [goHomeDestination, flyToCoordinate])
+  const goToServerLocation = useCallback(() => {
+    if (!recenterTarget) return
+    flyToCoordinate(recenterTarget)
+  }, [recenterTarget, flyToCoordinate])
 
   const changeProjection = useCallback((nextProjection: MapProjection) => {
     if (nextProjection === projection) return
@@ -869,15 +869,15 @@ function GeoMapInner({
           </Source>
         )}
 
-        {/* Live requests travelling from their GeoIP origin to their source's home. */}
+        {/* Live requests travelling from their GeoIP origin to their server's location. */}
         <LivePulses
           enabled={liveMode && routeEffectsEnabled}
           resolveDestination={resolveDestination}
         />
 
-        {/* One beacon per site home, plus the default when it is distinct. */}
-        {homeMarkerEnabled && beacons.map((beacon) => (
-          <HomeMarker
+        {/* One beacon per server location, plus the default when it is distinct. */}
+        {serverMarkersEnabled && beacons.map((beacon) => (
+          <ServerMarker
             key={`${beacon.coordinate[0]},${beacon.coordinate[1]}`}
             coordinates={beacon.coordinate}
             label={beaconLabel(beacon)}
@@ -975,13 +975,13 @@ function GeoMapInner({
         frameRateEnabled={frameRateEnabled}
         onFrameRateChange={setFrameRateEnabled}
         onRouteEffectsChange={setRouteEffectsEnabled}
-        routeHomeAvailable={goHomeDestination !== null}
-        homeMarkerEnabled={homeMarkerEnabled}
-        onHomeMarkerChange={setHomeMarkerEnabled}
+        serverLocationAvailable={recenterTarget !== null}
+        serverMarkersEnabled={serverMarkersEnabled}
+        onServerMarkersChange={setServerMarkersEnabled}
         bannedAvailable={crowdsecStatus?.enabled !== false}
         banned={bannedSummary}
         onFitBounds={fitToBounds}
-        onGoHome={goToHome}
+        onGoToServerLocation={goToServerLocation}
         isLoading={activeLayer === "banned" ? bannedSummary.loading : isLoading}
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
         topIPs={activeLayer === "banned" ? bannedTopIps : globalTopIPs?.topIps ?? []}
