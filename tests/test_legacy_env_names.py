@@ -212,3 +212,35 @@ def test_blank_old_name_does_not_conflict_with_new_name(monkeypatch: pytest.Monk
 
     assert settings.loki.server_names == ["edge-01"]
     assert settings.legacy_env_names_in_use() == []
+
+
+def test_empty_old_server_locations_counts_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", "{}")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.map.server_locations == {}
+    assert settings.legacy_env_names_in_use() == []
+
+
+def test_empty_old_server_locations_does_not_conflict_with_new_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MAP_HOME_LOCATIONS", "{}")
+    monkeypatch.setenv("MAP_SERVER_LOCATIONS", '{"a": [1, 2]}')
+
+    settings = Settings(_env_file=None)
+
+    assert settings.map.server_locations == {"a": (1.0, 2.0)}
+    assert settings.legacy_env_names_in_use() == []
+
+
+def test_old_name_set_to_false_still_counts_as_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MAP_AUTO_DETECT_HOME", "false")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.map.auto_detect_server_location is False
+    assert settings.legacy_env_names_in_use() == [
+        LegacyEnvName(old="MAP_AUTO_DETECT_HOME", new="MAP_AUTO_DETECT_SERVER_LOCATION")
+    ]

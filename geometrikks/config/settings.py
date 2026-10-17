@@ -88,11 +88,12 @@ class LegacyEnvNamesSettings(BaseSettings):
     def _merge_legacy_fields(self) -> None:
         """Copy each set legacy value onto its replacement field.
 
-        A blank value such as ``LOKI_HOST_NAMES=`` counts as unset. Call this
-        first in the section's after-validator, so checks that read the new
-        fields see the merged values. Both names set to different
-        parsed values is an error: silently preferring one would leave an
-        edit to the other doing nothing.
+        A blank or empty value such as ``LOKI_HOST_NAMES=`` or
+        ``MAP_HOME_LOCATIONS={}`` counts as unset, but ``false`` and ``0`` are
+        set. Call this first in the section's after-validator, so checks that
+        read the new fields see the merged values. Both names set to different
+        parsed values is an error: silently preferring one would leave an edit
+        to the other doing nothing.
         """
         model = type(self)
         legacy_env_names: list[LegacyEnvName] = []
@@ -101,7 +102,7 @@ class LegacyEnvNamesSettings(BaseSettings):
             if new_field_name is None:
                 continue
             legacy_value = getattr(self, legacy_field_name)
-            if legacy_value is None or legacy_value == "" or legacy_value == []:
+            if legacy_value is None or legacy_value in ("", [], {}):
                 continue
             legacy_env_name = LegacyEnvName(
                 old=_env_var_name(model, legacy_field_name),
