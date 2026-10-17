@@ -6,6 +6,7 @@ import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
+  apiV1GeoLocationsServerLocationsDeleteServerLocation,
   apiV1GeoLocationsServerLocationsServerLocations,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
@@ -1019,9 +1020,7 @@ export async function fetchServerLocations(): Promise<ServerLocationsResponse> {
 }
 
 export async function deleteServerLocation(server: string): Promise<void> {
-  // The generated SDK encodes path params itself. Passing this encoded
-  // segment through it double-encodes "edge 01" and the delete 404s.
-  await api.delete(`/geo-locations/server-locations/${encodeURIComponent(server)}`)
+  await apiV1GeoLocationsServerLocationsDeleteServerLocation({ path: { server }, throwOnError: true })
 }
 
 // ============================================================================
