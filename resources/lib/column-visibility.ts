@@ -36,7 +36,7 @@ export function loadColumnOverrides(
     const renamed: ColumnOverrides = {}
     for (const [key, value] of Object.entries(parsed)) {
       if (typeof value !== "boolean") continue
-      if (key in renamedKeys) renamed[renamedKeys[key]] = value
+      if (Object.hasOwn(renamedKeys, key)) renamed[renamedKeys[key]] = value
       else overrides[key] = value
     }
     // An override already saved under the current key is newer, so it wins.

@@ -79,6 +79,11 @@ describe("renamed column keys", () => {
     expect(loadColumnOverrides("k", { hostname: "server" })).toEqual({ server: false })
   })
 
+  it("keeps a saved key that matches an Object prototype name", () => {
+    store.set("k", JSON.stringify({ constructor: true, toString: false }))
+    expect(loadColumnOverrides("k", { hostname: "server" })).toEqual({ constructor: true, toString: false })
+  })
+
   it("shows the access-log server column for a saved hostname: true", () => {
     store.set("k", JSON.stringify({ hostname: true }))
     const overrides = loadColumnOverrides("k", ACCESS_LOG_RENAMED_COLUMN_KEYS)
