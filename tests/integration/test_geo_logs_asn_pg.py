@@ -23,7 +23,7 @@ async def _insert_event(
 ) -> None:
     for _ in range(n):
         await session.execute(text(
-            "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id, "
+            "INSERT INTO geo_events (timestamp, ip_address, server, location_id, "
             " autonomous_system_number, autonomous_system_organization) "
             "VALUES (:ts, :ip, :hostname, :loc, :asn, :org)"
         ), {"ts": ts, "ip": ip, "hostname": hostname, "loc": location_id, "asn": asn, "org": org})
@@ -221,7 +221,7 @@ class TestAsnFacet:
             await session.commit()
         await refresh_caggs_range(
             pg_engine, start=NOW - timedelta(days=1), end=NOW + timedelta(hours=1),
-            caggs=["asn_daily_stats", "hostname_daily_stats"],
+            caggs=["asn_daily_stats", "server_daily_stats"],
         )
         async with pg_session_maker() as session:
             facets = await GeoEventService(session=session).get_facets()

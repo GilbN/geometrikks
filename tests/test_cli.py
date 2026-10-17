@@ -295,7 +295,7 @@ def test_backfill_hostname_plain_refreshes_caggs(monkeypatch) -> None:
     assert "access_logs NULL hostnames filled: 7" in result.output
     assert "Refreshing hostname CAGGs ..." in result.output
     refreshed = [call.kwargs["caggs"] for call in refresh.await_args_list]
-    assert refreshed == [["hostname_daily_stats"], ["log_source_daily_stats"]]
+    assert refreshed == [["server_daily_stats"], ["log_source_daily_stats"]]
 
 
 def test_backfill_hostname_no_changes_skips_refresh(monkeypatch) -> None:
@@ -713,7 +713,7 @@ def test_backfill_timings_narrows_by_hostname_and_before(monkeypatch) -> None:
     )
     assert result.exit_code == 0, result.output
     preview_call = engine.connect.return_value.execute.await_args_list[0]
-    assert "hostname = :hostname" in str(preview_call.args[0])
+    assert "server = :hostname" in str(preview_call.args[0])
     assert "timestamp < :before" in str(preview_call.args[0])
     assert preview_call.args[1]["hostname"] == "nginx-01"
     assert preview_call.args[1]["before"] == datetime(2026, 8, 20, tzinfo=timezone.utc)

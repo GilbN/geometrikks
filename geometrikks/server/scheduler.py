@@ -151,7 +151,7 @@ async def refresh_site_home_job(
     settings: "Settings",
     app: "Litestar | None" = None,
 ) -> None:
-    """Re-detect this process's home and refresh its site_homes rows.
+    """Re-detect this process's home and refresh its server_locations rows.
 
     Homelab IPs change; agents run for weeks. A UI head tails nothing and
     records no events under its own hostname, so it has nothing to write.
@@ -323,7 +323,7 @@ async def create_scheduler(
 
     # A composed UI head needs this job only when automatic detection can
     # refresh its process-local map home. Ingesting instances also persist the
-    # result to site_homes.
+    # result to server_locations.
     if settings.logparser.enabled or (
         app is not None and settings.map.auto_detect_server_location
     ):

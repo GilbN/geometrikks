@@ -302,12 +302,12 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "Persistent failures usually mean a schema mismatch or a full disk."
             ),
         ))
-    pollution = timescale.get_hostname_pollution()
+    pollution = timescale.get_server_name_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
-    hostname_pollution_active = bool(
-        pollution and pollution.polluted and not timescale.location_caggs_have_hostname()
+    server_name_pollution_active = bool(
+        pollution and pollution.polluted and not timescale.location_caggs_have_server()
     )
-    if hostname_pollution_active and pollution and pollution.reason == "container-ids":
+    if server_name_pollution_active and pollution and pollution.reason == "container-ids":
         advisories.append(Advisory(
             id="hostname-pollution",
             severity="warning",
@@ -324,13 +324,13 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
             ),
             remedy="litestar backfill-hostname <hostname> --consolidate",
         ))
-    elif hostname_pollution_active and pollution:
+    elif server_name_pollution_active and pollution:
         advisories.append(Advisory(
             id="hostname-count",
             severity="warning",
             summary=(
                 f"{pollution.distinct_label} distinct recording hostnames is "
-                f"above the {timescale.DISTINCT_HOSTNAME_CEILING} ceiling; the "
+                f"above the {timescale.DISTINCT_SERVER_CEILING} ceiling; the "
                 "map source filter runs unaggregated."
             ),
             detail=(

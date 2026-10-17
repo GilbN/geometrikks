@@ -159,7 +159,7 @@ async def _claim_row(
             return loki_import.id, loki_import.cursor, stored, loki_import.cursor
         loki_import = await repo.add(
             LokiImport(
-                hostname=source.hostname,
+                server=source.hostname,
                 range_start=since,
                 range_end=before,
                 cursor=since,

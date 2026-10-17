@@ -78,8 +78,8 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
         ).scalars().all()
         hostnames = (
             await session.execute(text(
-                "SELECT DISTINCT hostname FROM log_source_daily_stats "
-                "WHERE hostname IS NOT NULL ORDER BY hostname"
+                "SELECT DISTINCT server FROM log_source_daily_stats "
+                "WHERE server IS NOT NULL ORDER BY server"
             ))
         ).scalars().all()
         log_formats = (

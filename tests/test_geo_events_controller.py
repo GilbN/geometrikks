@@ -160,7 +160,7 @@ class TestFiltersSqlConditions:
         assert "AND gl.city = ANY(:filter_cities)" in sql
         assert "AND ge.ip_address = ANY(CAST(:filter_ips AS inet[]))" in sql
         assert "AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))" in sql
-        assert "AND ge.hostname = ANY(:filter_hostnames)" in sql
+        assert "AND ge.server = ANY(:filter_hostnames)" in sql
         assert params["filter_countries"] == ["NO"]  # normalized upper-case
         assert params["filter_ips"] == ["10.0.0.1"]
         assert params["filter_ips_excl"] == ["10.0.0.2"]

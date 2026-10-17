@@ -8,7 +8,7 @@ the ASN column, and the operator-host classification.
 
 The report goes to a third party, so nothing here returns the columns that
 describe the operator's side of the request: ``host`` (the vhost),
-``hostname`` (the GeoMetrikks instance), ``referrer`` and ``remote_user``.
+``server`` (the GeoMetrikks instance), ``referrer`` and ``remote_user``.
 The repository still reads hosts, but only to scrub the operator's names
 and address from the paths and user agents that go out.
 
@@ -466,10 +466,10 @@ _ROW_NAMES = text(f"""
     {_WINDOW}
       AND host IS NOT NULL
     UNION
-    SELECT DISTINCT hostname AS name, 'hostname' AS kind
+    SELECT DISTINCT server AS name, 'server' AS kind
     FROM access_logs
     {_WINDOW}
-      AND hostname IS NOT NULL
+      AND server IS NOT NULL
 """)
 
 
@@ -534,7 +534,7 @@ class AbuseReportRepository:
         redact = Redactor(redaction_terms(
             list(operator_hosts),
             [r.name for r in names if r.kind == "host"],
-            [r.name for r in names if r.kind == "hostname"],
+            [r.name for r in names if r.kind == "server"],
         ))
 
         for r in (await self.session.execute(_TOTALS, params)).fetchall():

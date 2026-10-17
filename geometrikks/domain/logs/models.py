@@ -74,10 +74,10 @@ class AccessLog(base.BigIntBase):
     autonomous_system_organization: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Multi-source separation: which GeoMetrikks instance wrote the row
-    # (LOGPARSER_HOST_NAME, mirrors geo_events.hostname) and which format
+    # (LOGPARSER_SERVER_NAME, mirrors geo_events.server) and which format
     # adapter parsed it ('nginx', 'traefik-json'). NULL on pre-feature rows
     # the backfill could not attribute.
-    hostname: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    hostname: Mapped[str | None] = mapped_column("server", String(255), nullable=True)
     log_format: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Indexes for common queries
@@ -87,7 +87,7 @@ class AccessLog(base.BigIntBase):
         Index("ix_access_logs_status_code", "status_code"),
         Index("ix_access_logs_host", "host"),
         Index("ix_access_logs_method_status", "method", "status_code"),
-        Index("ix_access_logs_hostname", "hostname"),
+        Index("ix_access_logs_server", "server"),
         Index("ix_access_logs_asn", "autonomous_system_number"),
     )
     

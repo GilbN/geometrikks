@@ -85,16 +85,16 @@ async def test_resume_and_overlap_with_null_tenant(pg_session_maker, clean_table
 
     async with pg_session_maker() as session:
         rows = (await session.execute(text(
-            "SELECT tenant_id, cursor, records_written, hostname FROM loki_imports"
+            "SELECT tenant_id, cursor, records_written, server FROM loki_imports"
         ))).all()
         timestamps = (await session.execute(text(
-            "SELECT timestamp FROM access_logs WHERE hostname = 'edge-01' ORDER BY timestamp"
+            "SELECT timestamp FROM access_logs WHERE server = 'edge-01' ORDER BY timestamp"
         ))).scalars().all()
     assert len(rows) == 1
     assert rows[0].tenant_id is None
     assert rows[0].cursor == before
     assert rows[0].records_written == 3
-    assert rows[0].hostname == "edge-01"
+    assert rows[0].server == "edge-01"
     assert timestamps == [SINCE + timedelta(hours=hour, minutes=30) for hour in range(3)]
 
 
@@ -132,7 +132,7 @@ async def test_row_that_never_imported_anything_does_not_block_an_overlapping_ra
     parser = LogParser(source_label="loki", send_logs=True)
     async with pg_session_maker() as session:
         await session.execute(text(
-            "INSERT INTO loki_imports (url, tenant_id, query, hostname, range_start, range_end, "
+            "INSERT INTO loki_imports (url, tenant_id, query, server, range_start, range_end, "
             "cursor, lines_total, lines_skipped, records_written, created_at, updated_at) "
             "VALUES ('http://loki:3100', NULL, :query, 'edge-01', :start, :end, :start, 0, 0, 0, "
             "now(), now())"
@@ -191,7 +191,7 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
             url="http://loki:3100", tenant_id=None, query=QUERY, since=SINCE
         ) is None
         await session.execute(text(
-            "INSERT INTO loki_imports (url, tenant_id, query, hostname, range_start, range_end, "
+            "INSERT INTO loki_imports (url, tenant_id, query, server, range_start, range_end, "
             "cursor, lines_total, lines_skipped, records_written, created_at, updated_at) VALUES "
             "('http://loki:3100', NULL, :query, 'edge-01', :later, :later_end, :later_end, 0, 0, 0, now(), now()), "
             "('http://loki:3100', NULL, :query, 'edge-01', :start, :end, :first_hour, 0, 0, 0, now(), now()), "
@@ -229,7 +229,7 @@ async def test_covered_start_and_unfinished_run_lookups(pg_session_maker, clean_
 
     async with pg_session_maker() as session:
         await session.execute(text(
-            "INSERT INTO loki_imports (url, tenant_id, query, hostname, range_start, range_end, "
+            "INSERT INTO loki_imports (url, tenant_id, query, server, range_start, range_end, "
             "cursor, lines_total, lines_skipped, records_written, time_start, created_at, "
             "updated_at) VALUES "
             "('http://loki:3100', NULL, :query, 'edge-01', :start, :end8, :start, 0, 0, 0, "

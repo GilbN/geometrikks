@@ -1,4 +1,4 @@
-"""Location CAGGs with hostname: shape, correctness, and the pollution gate."""
+"""Location CAGGs with server: shape, correctness, and the pollution gate."""
 from __future__ import annotations
 
 import asyncio
@@ -47,7 +47,7 @@ async def _seed_geo_events(session_maker, hostnames: list[str], per_host: int = 
         for host in hostnames:
             for i in range(per_host):
                 await session.execute(text(
-                    "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                    "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
                     "VALUES (:ts, '203.0.113.7', :host, :loc)"
                 ), {"ts": NOW - timedelta(days=2, minutes=i), "host": host, "loc": loc})
         await session.commit()
@@ -61,7 +61,7 @@ async def test_location_caggs_carry_hostname_column(pg_engine):
         ))
         cols = {(r.table_name, r.column_name) for r in rows}
     for view in ("location_hourly_stats", "location_daily_stats"):
-        assert (view, "hostname") in cols
+        assert (view, "server") in cols
 
 
 async def test_filtered_cagg_counts_match_raw(pg_engine, pg_session_maker, clean_tables):
@@ -73,7 +73,7 @@ async def test_filtered_cagg_counts_match_raw(pg_engine, pg_session_maker, clean
     async with pg_engine.connect() as conn:
         filtered = (await conn.execute(text(
             "SELECT COALESCE(SUM(event_count), 0) FROM location_hourly_stats "
-            "WHERE hostname = 'nginx-01'"
+            "WHERE server = 'nginx-01'"
         ))).scalar_one()
         unfiltered = (await conn.execute(text(
             "SELECT COALESCE(SUM(event_count), 0) FROM location_hourly_stats"
@@ -83,7 +83,7 @@ async def test_filtered_cagg_counts_match_raw(pg_engine, pg_session_maker, clean
 
 
 async def test_upgrade_replaces_old_shape(pg_engine, clean_tables):
-    """Drop to the pre-hostname shape, rerun setup, assert the new shape."""
+    """Drop to the pre-server shape, rerun setup, assert the new shape."""
     await _drop_caggs_with_retry(
         pg_engine, "location_hourly_stats", "location_daily_stats"
     )
@@ -108,14 +108,14 @@ async def test_upgrade_replaces_old_shape(pg_engine, clean_tables):
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name = 'location_hourly_stats'"
         ))}
-    assert "hostname" in cols
-    assert timescale.location_caggs_have_hostname() is True
+    assert "server" in cols
+    assert timescale.location_caggs_have_server() is True
 
 
 async def test_mixed_shape_upgrade_covers_both_caggs(pg_engine, clean_tables):
-    """One CAGG upgraded, the other still pre-hostname (external drift):
+    """One CAGG upgraded, the other still pre-server (external drift):
     setup must migrate the laggard rather than declare the pair done and
-    hand hostname-filtered queries a view without the column."""
+    hand server-filtered queries a view without the column."""
     await _drop_caggs_with_retry(pg_engine, "location_daily_stats")
     async with pg_engine.begin() as conn:
         await conn.execute(text(
@@ -131,8 +131,8 @@ async def test_mixed_shape_upgrade_covers_both_caggs(pg_engine, clean_tables):
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name = 'location_daily_stats'"
         ))}
-    assert "hostname" in cols
-    assert timescale.location_caggs_have_hostname() is True
+    assert "server" in cols
+    assert timescale.location_caggs_have_server() is True
 
 
 async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean_tables):
@@ -167,23 +167,23 @@ async def test_pollution_gate_keeps_old_shape(pg_engine, pg_session_maker, clean
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name = 'location_hourly_stats'"
         ))}
-    assert "hostname" not in cols
-    assert timescale.location_caggs_have_hostname() is False
-    pollution = timescale.get_hostname_pollution()
+    assert "server" not in cols
+    assert timescale.location_caggs_have_server() is False
+    pollution = timescale.get_server_name_pollution()
     assert pollution is not None
     assert pollution.polluted is True
 
     # Consolidate (the remedy) and rerun setup: migration happens.
     async with pg_engine.begin() as conn:
-        await conn.execute(text("UPDATE geo_events SET hostname = 'geometrikks'"))
+        await conn.execute(text("UPDATE geo_events SET server = 'geometrikks'"))
     await setup_timescaledb(pg_engine, get_settings().analytics)
     async with pg_engine.connect() as conn:
         cols = {r.column_name for r in await conn.execute(text(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_name = 'location_hourly_stats'"
         ))}
-    assert "hostname" in cols
-    assert timescale.location_caggs_have_hostname() is True
+    assert "server" in cols
+    assert timescale.location_caggs_have_server() is True
 
 
 async def test_repository_hostname_filter_reads_cagg(pg_engine, pg_session_maker, clean_tables):

@@ -1,4 +1,4 @@
-"""site_homes: migration shape, upsert precedence, override reconcile."""
+"""server_locations: migration shape, upsert precedence, override reconcile."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -25,16 +25,16 @@ async def test_site_homes_table_exists_with_expected_columns(pg_engine):
     async with pg_engine.connect() as conn:
         cols = {r.column_name for r in await conn.execute(text(
             "SELECT column_name FROM information_schema.columns "
-            "WHERE table_name = 'site_homes'"
+            "WHERE table_name = 'server_locations'"
         ))}
-    assert {"hostname", "latitude", "longitude", "source", "detected_at"} <= cols
+    assert {"server", "latitude", "longitude", "source", "detected_at"} <= cols
 
 
 async def _rows(pg_session_maker) -> dict[str, tuple[float, float, str]]:
     async with pg_session_maker() as session:
         return {
-            h.hostname: (h.latitude, h.longitude, h.source)
-            for h in await fetch_site_homes(session)
+            server_location.server: (server_location.latitude, server_location.longitude, server_location.source)
+            for server_location in await fetch_site_homes(session)
         }
 
 
@@ -87,8 +87,8 @@ async def test_site_homes_source_is_db_constrained(pg_session_maker, clean_site_
     async with pg_session_maker() as session:
         with pytest.raises(IntegrityError):
             await session.execute(text(
-                "INSERT INTO site_homes "
-                "(hostname, latitude, longitude, source, created_at, updated_at) "
+                "INSERT INTO server_locations "
+                "(server, latitude, longitude, source, created_at, updated_at) "
                 "VALUES ('x', 1.0, 2.0, 'bogus', now(), now())"
             ))
 
@@ -116,7 +116,7 @@ async def test_delete_refuses_override_and_missing_rows(pg_session_maker, clean_
 async def test_last_event_days_reports_the_latest_day_per_hostname(
     pg_engine, pg_session_maker, clean_tables, clean_site_homes
 ):
-    """Reads the daily hostname aggregate. Real-time aggregation only covers
+    """Reads the daily server aggregate. Real-time aggregation only covers
     buckets past the materialization watermark, and earlier tests may have
     refreshed the aggregate beyond the seed day, so refresh the seed window
     explicitly instead of relying on it."""
@@ -131,7 +131,7 @@ async def test_last_event_days_reports_the_latest_day_per_hostname(
         ))).scalar_one()
         for ts in (day - timedelta(days=3), day):
             await session.execute(text(
-                "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
                 "VALUES (:ts, '203.0.113.7', 'seen-01', :location_id)"
             ), {"ts": ts, "location_id": location_id})
         await session.commit()
@@ -139,7 +139,7 @@ async def test_last_event_days_reports_the_latest_day_per_hostname(
     async with pg_engine.connect() as conn:
         raw = await conn.get_raw_connection()
         await raw.driver_connection.execute(
-            "CALL refresh_continuous_aggregate('hostname_daily_stats', $1::timestamptz, $2::timestamptz)",
+            "CALL refresh_continuous_aggregate('server_daily_stats', $1::timestamptz, $2::timestamptz)",
             day - timedelta(days=4),
             day + timedelta(days=1),
         )

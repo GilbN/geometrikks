@@ -126,7 +126,7 @@ async def seed_geo_event(session, *, ip: str, age: timedelta, lat: float, lon: f
     )
     await session.execute(
         text(
-            "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+            "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
             "VALUES (:timestamp, :ip, :hostname, :location_id)"
         ),
         {"timestamp": NOW - age, "ip": ip, "hostname": hostname, "location_id": result.scalar_one()},
@@ -283,7 +283,7 @@ async def test_banned_map_materialized_buckets_match_raw_presence(
         ips = [f"192.0.2.{i}" for i in range(1, 6)]
         result = await SecurityEnrichmentRepository(session).locations(ips, start=start, end=end, hostnames=["a.test"])
         assert [(row.ip, row.event_count) for row in result] == [("192.0.2.2", 1), ("192.0.2.3", 1), ("192.0.2.4", 1)]
-        raw = await session.execute(text("SELECT DISTINCT host(ip_address) FROM geo_events WHERE timestamp >= :start AND timestamp < :end AND hostname = 'a.test'"), {"start": start, "end": end})
+        raw = await session.execute(text("SELECT DISTINCT host(ip_address) FROM geo_events WHERE timestamp >= :start AND timestamp < :end AND server = 'a.test'"), {"start": start, "end": end})
         assert {row.ip for row in result} == set(raw.scalars())
 
 
@@ -306,7 +306,7 @@ async def test_banned_map_hostname_filter_ignores_unfilled_aggregate_history(
             FROM timescaledb_information.continuous_aggregates
             WHERE view_name = 'ip_location_hourly_stats'
         """))).scalar_one()
-        await conn.execute(text(f"UPDATE {table} SET hostname_hits = NULL, hostnames = NULL"))
+        await conn.execute(text(f"UPDATE {table} SET server_hits = NULL, servers = NULL"))
     async with pg_session_maker() as session:
         repo = SecurityEnrichmentRepository(session)
         start = NOW - timedelta(days=5)

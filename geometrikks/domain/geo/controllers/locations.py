@@ -103,7 +103,7 @@ class GeoLocationController(Controller):
         location with its coordinates and properties including the event count.
         An IP or ASN filter always forces a raw geo_events scan, bounded by
         raw retention. A hostname filter forces the raw scan only until the
-        location CAGGs carry the hostname dimension (pre-upgrade or
+        location CAGGs carry the server dimension (pre-upgrade or
         pollution-skipped installs); once they do, it reads the CAGGs.
         Args:
             from_datetime: Start datetime for filtering events.
@@ -167,7 +167,7 @@ class GeoLocationController(Controller):
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> SiteHomesResponse:
-        """Merged site_homes rows plus the instance default home.
+        """Merged server_locations rows plus the instance default home.
 
         The default mirrors read_settings's fallback: the app-state home
         resolved at startup, or the configured coordinates if resolution
@@ -185,14 +185,18 @@ class GeoLocationController(Controller):
         return SiteHomesResponse(
             homes=[
                 SiteHomeView(
-                    hostname=r.hostname,
-                    latitude=r.latitude,
-                    longitude=r.longitude,
-                    source=cast(Literal["auto", "override"], r.source),
-                    detected_at=r.detected_at.isoformat() if r.detected_at else None,
-                    last_event_day=last_days[r.hostname].date().isoformat() if r.hostname in last_days else None,
+                    hostname=server_location.server,
+                    latitude=server_location.latitude,
+                    longitude=server_location.longitude,
+                    source=cast(Literal["auto", "override"], server_location.source),
+                    detected_at=server_location.detected_at.isoformat() if server_location.detected_at else None,
+                    last_event_day=(
+                        last_days[server_location.server].date().isoformat()
+                        if server_location.server in last_days
+                        else None
+                    ),
                 )
-                for r in rows
+                for server_location in rows
             ],
             default=DefaultHomeView(latitude=home.latitude, longitude=home.longitude) if home else None,
         )

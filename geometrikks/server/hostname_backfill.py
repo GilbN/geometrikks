@@ -24,7 +24,7 @@ async def pending_hostname_range(
         raise ValueError(f"Unknown per-IP aggregate: {view}")
     row = (await conn.execute(text(
         f"SELECT MIN(bucket), MAX(bucket) FROM {view} "
-        "WHERE hostname_hits IS NULL AND bucket >= :start AND bucket < :end"
+        "WHERE server_hits IS NULL AND bucket >= :start AND bucket < :end"
     ), {"start": start, "end": end})).one()
     if row[0] is None:
         return None
@@ -48,9 +48,9 @@ async def hostname_backfill_ranges(
         ), {"views": IP_LOCATION_CAGGS_NAMES})
     }
     for view in IP_LOCATION_CAGGS_NAMES:
-        if not all((view, column) in columns for column in ("hostnames", "hostname_hits")):
+        if not all((view, column) in columns for column in ("servers", "server_hits")):
             raise ValueError(
-                f"{view} is missing hostname columns. Start the updated app first. "
+                f"{view} is missing server columns. Start the updated app first. "
                 "If adding the columns failed, check its database setup log; "
                 "in-place column upgrades require TimescaleDB 2.28 or later."
             )

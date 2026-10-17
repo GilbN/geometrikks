@@ -728,7 +728,7 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
     try:
         async with engine.connect() as conn:
             distinct = (await conn.execute(text(
-                "SELECT hostname, COUNT(*) FROM geo_events GROUP BY hostname ORDER BY hostname"
+                "SELECT server, COUNT(*) FROM geo_events GROUP BY server ORDER BY server"
             ))).all()
 
         if consolidate:
@@ -740,19 +740,19 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
                 click.echo("Aborted.")
                 return
 
-        # Cheap EXISTS probes (hostname is indexed) so a rerun with nothing
+        # Cheap EXISTS probes (server is indexed) so a rerun with nothing
         # left to change exits before the expensive decompression below.
         async with engine.connect() as conn:
             async def _exists(sql: str) -> bool:
                 return bool((await conn.execute(text(sql), {"n": name})).scalar())
 
             needs_fill = await _exists(
-                "SELECT EXISTS (SELECT 1 FROM access_logs WHERE hostname IS NULL)")
+                "SELECT EXISTS (SELECT 1 FROM access_logs WHERE server IS NULL)")
             needs_logs_rewrite = consolidate and await _exists(
                 "SELECT EXISTS (SELECT 1 FROM access_logs "
-                "WHERE hostname IS NOT NULL AND hostname <> :n)")
+                "WHERE server IS NOT NULL AND server <> :n)")
             needs_geo_rewrite = consolidate and await _exists(
-                "SELECT EXISTS (SELECT 1 FROM geo_events WHERE hostname <> :n)")
+                "SELECT EXISTS (SELECT 1 FROM geo_events WHERE server <> :n)")
             timescale = await _exists(
                 "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb')")
 
@@ -783,18 +783,18 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
 
         async with engine.begin() as conn:
             filled = (await conn.execute(
-                text("UPDATE access_logs SET hostname = :n WHERE hostname IS NULL"),
+                text("UPDATE access_logs SET server = :n WHERE server IS NULL"),
                 {"n": name},
             )).rowcount
             rewritten_geo = rewritten_logs = 0
             if consolidate:
                 rewritten_geo = (await conn.execute(
-                    text("UPDATE geo_events SET hostname = :n WHERE hostname <> :n"),
+                    text("UPDATE geo_events SET server = :n WHERE server <> :n"),
                     {"n": name},
                 )).rowcount
                 rewritten_logs = (await conn.execute(
-                    text("UPDATE access_logs SET hostname = :n "
-                         "WHERE hostname IS NOT NULL AND hostname <> :n"),
+                    text("UPDATE access_logs SET server = :n "
+                         "WHERE server IS NOT NULL AND server <> :n"),
                     {"n": name},
                 )).rowcount
 
@@ -803,11 +803,11 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
             click.echo(f"geo_events hostnames rewritten: {rewritten_geo:,}")
             click.echo(f"access_logs hostnames rewritten: {rewritten_logs:,}")
 
-        # The hostname CAGGs still show the old values until refreshed. The
+        # The server CAGGs still show the old values until refreshed. The
         # plain fill path needs this too: without it log_source_daily_stats
-        # keeps hostname NULL for history, and once raw retention drops the
+        # keeps server NULL for history, and once raw retention drops the
         # access_logs rows the facet can never be corrected.
-        # Ranges are computed per source table: hostname_daily_stats reads
+        # Ranges are computed per source table: server_daily_stats reads
         # geo_events while log_source_daily_stats reads access_logs, and
         # the two tables' time bounds differ (access logs exist for rows
         # that never produced a geo event).
@@ -815,7 +815,7 @@ async def _run_backfill_hostname(name: str, *, consolidate: bool, yes: bool) -> 
             click.echo("Refreshing hostname CAGGs ...")
             async with engine.connect() as conn:
                 for table, cagg in (
-                    ("geo_events", "hostname_daily_stats"),
+                    ("geo_events", "server_daily_stats"),
                     ("access_logs", "log_source_daily_stats"),
                 ):
                     bounds = (await conn.execute(text(
@@ -1161,7 +1161,7 @@ async def _run_backfill_timings(*, hostname: str | None, before: datetime | None
     where = "log_format = 'nginx' AND host IS NULL AND request_time = 0"
     params: dict[str, object] = {}
     if hostname is not None:
-        where += " AND hostname = :hostname"
+        where += " AND server = :hostname"
         params["hostname"] = hostname
     if before is not None:
         where += " AND timestamp < :before"

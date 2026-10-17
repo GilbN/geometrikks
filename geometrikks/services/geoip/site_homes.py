@@ -1,4 +1,4 @@
-"""Persistence for per-source home locations (the site_homes table).
+"""Persistence for per-source home locations (the server_locations table).
 
 Raw pg_insert instead of the service layer: the auto upsert needs a
 conditional ON CONFLICT DO UPDATE ... WHERE source <> 'override', which
@@ -15,7 +15,7 @@ from sqlalchemy import CursorResult, delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
-from geometrikks.domain.geo.models import SiteHome
+from geometrikks.domain.geo.models import ServerLocation
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -47,23 +47,23 @@ async def upsert_auto_homes(
         # same order to avoid a deadlock.
         for hostname in sorted(dict.fromkeys(hostnames)):
             stmt = (
-                pg_insert(SiteHome)
+                pg_insert(ServerLocation)
                 .values(
-                    hostname=hostname,
+                    server=hostname,
                     latitude=home.latitude,
                     longitude=home.longitude,
                     source="auto",
                     detected_at=now,
                 )
                 .on_conflict_do_update(
-                    index_elements=["hostname"],
+                    index_elements=["server"],
                     set_={
                         "latitude": home.latitude,
                         "longitude": home.longitude,
                         "detected_at": now,
                         "updated_at": now,
                     },
-                    where=(SiteHome.source != "override"),
+                    where=(ServerLocation.source != "override"),
                 )
             )
             result = await session.execute(stmt)
@@ -91,16 +91,16 @@ async def reconcile_override_homes(
         # Sorted, not dict order: consistent lock order across concurrent writers.
         for hostname, (latitude, longitude) in sorted(overrides.items()):
             stmt = (
-                pg_insert(SiteHome)
+                pg_insert(ServerLocation)
                 .values(
-                    hostname=hostname,
+                    server=hostname,
                     latitude=latitude,
                     longitude=longitude,
                     source="override",
                     detected_at=None,
                 )
                 .on_conflict_do_update(
-                    index_elements=["hostname"],
+                    index_elements=["server"],
                     set_={
                         "latitude": latitude,
                         "longitude": longitude,
@@ -113,35 +113,35 @@ async def reconcile_override_homes(
             await session.execute(stmt)
         if overrides:
             await session.execute(
-                delete(SiteHome).where(
-                    SiteHome.source == "override",
-                    SiteHome.hostname.not_in(list(overrides)),
+                delete(ServerLocation).where(
+                    ServerLocation.source == "override",
+                    ServerLocation.server.not_in(list(overrides)),
                 )
             )
         else:
-            await session.execute(delete(SiteHome).where(SiteHome.source == "override"))
+            await session.execute(delete(ServerLocation).where(ServerLocation.source == "override"))
         await session.commit()
     if overrides:
         logger.info("site_homes_overrides_reconciled", hostnames=sorted(overrides))
 
 
-async def fetch_site_homes(session: "AsyncSession") -> list[SiteHome]:
-    result = await session.execute(select(SiteHome).order_by(SiteHome.hostname))
+async def fetch_site_homes(session: "AsyncSession") -> list[ServerLocation]:
+    result = await session.execute(select(ServerLocation).order_by(ServerLocation.server))
     return list(result.scalars())
 
 
 async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
     """Most recent day with traffic per recording hostname.
 
-    Reads the hostname_daily_stats aggregate, not geo_events: the raw table
-    only has a single-column hostname index, so a per-hostname max(timestamp)
+    Reads the server_daily_stats aggregate, not geo_events: the raw table
+    only has a single-column server index, so a per-server max(timestamp)
     would walk every row of a busy source. Day precision is enough to tell a
     retired source from a live one.
     """
     result = await session.execute(
-        text("SELECT hostname, max(bucket) AS last_day FROM hostname_daily_stats GROUP BY hostname")
+        text("SELECT server, max(bucket) AS last_day FROM server_daily_stats GROUP BY server")
     )
-    return {row.hostname: row.last_day for row in result}
+    return {row.server: row.last_day for row in result}
 
 
 async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str) -> None:
@@ -152,7 +152,7 @@ async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str
     mislead. A deleted auto row comes back at the owning agent's next home
     refresh if that agent still runs; the delete is for retired sources.
     """
-    row = (await session.execute(select(SiteHome).where(SiteHome.hostname == hostname))).scalar_one_or_none()
+    row = (await session.execute(select(ServerLocation).where(ServerLocation.server == hostname))).scalar_one_or_none()
     if row is None:
         raise DomainNotFoundError(f"No home recorded for hostname {hostname!r}")
     if row.source == "override":

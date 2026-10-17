@@ -136,7 +136,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                     MAX(ge.timestamp) AS last_seen,
                     MAX(ge.autonomous_system_number) AS asn,
                     MAX(ge.autonomous_system_organization) AS as_organization,
-                    array_agg(DISTINCT ge.hostname) AS hostnames
+                    array_agg(DISTINCT ge.server) AS servers
                 FROM geo_events ge
                 JOIN geo_locations gl ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
@@ -177,37 +177,37 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         count_stmt = text(f"SELECT COUNT(*) FROM ({source}) grouped")
         total = (await self._session.execute(count_stmt, params)).scalar_one()
 
-        hostnames_by_group: dict[tuple[int, str], list[str]] = {
-            (row.location_id, row.ip_address): sorted(row.hostnames) if row.hostnames else []
+        servers_by_group: dict[tuple[int, str], list[str]] = {
+            (row.location_id, row.ip_address): sorted(row.servers) if row.servers else []
             for row in rows
         } if use_raw else {}
-        from geometrikks.server.timescale import hostname_cagg_available
+        from geometrikks.server.timescale import server_cagg_available
 
-        if not use_raw and rows and hostname_cagg_available(f"ip_location_{granularity.value}_stats"):
+        if not use_raw and rows and server_cagg_available(f"ip_location_{granularity.value}_stats"):
             # Expand arrays only for the displayed groups, separately from
-            # counts so multiple hostnames cannot multiply event_count.
-            hostname_stmt = text(f"""
-                {stitched_ip_location_cte(granularity, include_hostnames=True)}
+            # counts so multiple servers cannot multiply event_count.
+            servers_stmt = text(f"""
+                {stitched_ip_location_cte(granularity, include_servers=True)}
                 SELECT c.location_id, host(c.ip_address) AS ip_address,
-                       array_agg(DISTINCT h.hostname ORDER BY h.hostname) AS hostnames
+                       array_agg(DISTINCT recorded.server ORDER BY recorded.server) AS servers
                 FROM combined c
                 JOIN unnest(CAST(:location_ids AS bigint[]), CAST(:ip_addresses AS inet[]))
                      AS requested(location_id, ip_address)
                   ON c.location_id = requested.location_id AND c.ip_address = requested.ip_address
                 JOIN geo_locations gl ON c.location_id = gl.id
-                CROSS JOIN LATERAL unnest(c.hostnames) AS h(hostname)
-                WHERE h.hostname IS NOT NULL
+                CROSS JOIN LATERAL unnest(c.servers) AS recorded(server)
+                WHERE recorded.server IS NOT NULL
                 {filter_sql}
                 GROUP BY c.location_id, c.ip_address
             """)
-            hostname_rows = await self._session.execute(hostname_stmt, {
+            server_rows = await self._session.execute(servers_stmt, {
                 **params,
                 "location_ids": [row.location_id for row in rows],
                 "ip_addresses": [row.ip_address for row in rows],
             })
-            hostnames_by_group = {
-                (row.location_id, row.ip_address): list(row.hostnames)
-                for row in hostname_rows
+            servers_by_group = {
+                (row.location_id, row.ip_address): list(row.servers)
+                for row in server_rows
             }
 
         return [
@@ -226,7 +226,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 last_seen=row.last_seen,
                 asn=row.asn,
                 as_organization=row.as_organization,
-                hostnames=hostnames_by_group.get((row.location_id, row.ip_address), []),
+                hostnames=servers_by_group.get((row.location_id, row.ip_address), []),
             )
             for row in rows
         ], total
@@ -668,7 +668,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
 
         Countries are deduped by code (a non-null name wins) and sorted by
         the displayed name, mirroring AccessLogService.get_facets. Hostnames
-        come from hostname_daily_stats (real-time aggregated) rather than a
+        come from server_daily_stats (real-time aggregated) rather than a
         DISTINCT over raw geo_events, whose cost scales with total volume;
         values persist beyond raw retention like the access-log facets. The
         ASN list falls back to the geo per-IP rollup because an install with
@@ -694,7 +694,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         ).scalars().all()
         hostnames = (
             await session.execute(text(
-                "SELECT DISTINCT hostname FROM hostname_daily_stats ORDER BY hostname"
+                "SELECT DISTINCT server FROM server_daily_stats ORDER BY server"
             ))
         ).scalars().all()
         # The access-log ASN rollup already holds every ASN and organization

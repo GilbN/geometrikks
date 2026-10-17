@@ -207,7 +207,7 @@ class GeoEventFilters:
         """WHERE-clause fragment (leading ``AND``) plus bound params.
 
         ``events_alias`` is the geo_events (or stitched ``combined``) alias
-        carrying ip_address/hostname; ``locations_alias`` the joined
+        carrying ip_address/server; ``locations_alias`` the joined
         geo_locations alias. ``asn_column`` is the ASN column on
         ``events_alias``: ``autonomous_system_number`` on raw geo_events,
         ``asn`` on ``combined``. IP lists are cast to inet[] so asyncpg binds
@@ -230,7 +230,7 @@ class GeoEventFilters:
             )
             params["filter_ips_excl"] = list(self.ip_exclude)
         if self.hostnames:
-            clauses.append(f"AND {events_alias}.hostname = ANY(:filter_hostnames)")
+            clauses.append(f"AND {events_alias}.server = ANY(:filter_hostnames)")
             params["filter_hostnames"] = list(self.hostnames)
         asn = f"{events_alias}.{asn_column}"
         if self.asn_include:

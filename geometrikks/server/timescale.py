@@ -14,8 +14,8 @@ CAGG Structure:
 - log_ip_{hourly,daily}_stats: Per-IP access-log counts (top IPs/countries/cities, facets)
 - url_{hourly,daily}_stats: Per-host-and-URL access-log counts (top URLs)
 - user_agent_{hourly,daily}_stats: Per-user-agent counts (top user agents)
-- host_daily_stats / hostname_daily_stats: Daily host rollups for facet dropdowns
-- log_source_daily_stats: Daily hostname/log_format rollups for source facets
+- host_daily_stats / server_daily_stats: Daily host and server rollups for facet dropdowns
+- log_source_daily_stats: Daily server/log_format rollups for source facets
 """
 
 from __future__ import annotations
@@ -40,21 +40,22 @@ logger = get_logger(__name__)
 
 
 # =============================================================================
-# Hostname Pollution Detection
+# Server Name Pollution Detection
 # =============================================================================
 
-# Docker stamps the short container ID as hostname when LOGPARSER_HOST_NAME
-# is unset; 12 lowercase hex chars is that exact shape.
+# Docker's default container hostname is the short container ID, and it
+# becomes the server name when LOGPARSER_SERVER_NAME is unset; 12 lowercase
+# hex chars is that exact shape.
 CONTAINER_ID_RE = re.compile(r"^[0-9a-f]{12}$")
 CONTAINER_ID_THRESHOLD = 10
-DISTINCT_HOSTNAME_CEILING = 50
+DISTINCT_SERVER_CEILING = 50
 # +1: fetching one past the ceiling proves it was exceeded without an
 # unbounded DISTINCT over the hypertable.
-_POLLUTION_PROBE_LIMIT = DISTINCT_HOSTNAME_CEILING + 1
+_POLLUTION_PROBE_LIMIT = DISTINCT_SERVER_CEILING + 1
 
 
 @dataclass(frozen=True)
-class HostnamePollution:
+class ServerNamePollution:
     distinct_count: int
     container_id_count: int
 
@@ -67,16 +68,16 @@ class HostnamePollution:
     def distinct_label(self) -> str:
         """Renders a capped count as `50+` so messages do not understate."""
         if self.probe_capped:
-            return f"{DISTINCT_HOSTNAME_CEILING}+"
+            return f"{DISTINCT_SERVER_CEILING}+"
         return str(self.distinct_count)
 
     @property
-    def reason(self) -> Literal["container-ids", "hostname-count"] | None:
+    def reason(self) -> Literal["container-ids", "server-count"] | None:
         """Which threshold tripped; callers word their message from this."""
         if self.container_id_count >= CONTAINER_ID_THRESHOLD:
             return "container-ids"
-        if self.distinct_count > DISTINCT_HOSTNAME_CEILING:
-            return "hostname-count"
+        if self.distinct_count > DISTINCT_SERVER_CEILING:
+            return "server-count"
         return None
 
     @property
@@ -84,38 +85,38 @@ class HostnamePollution:
         return self.reason is not None
 
 
-def classify_hostnames(hostnames: list[str]) -> HostnamePollution:
+def classify_server_names(server_names: list[str]) -> ServerNamePollution:
     """Pure classification so the heuristics are unit-testable without a DB."""
-    return HostnamePollution(
-        distinct_count=len(hostnames),
-        container_id_count=sum(1 for h in hostnames if CONTAINER_ID_RE.match(h)),
+    return ServerNamePollution(
+        distinct_count=len(server_names),
+        container_id_count=sum(1 for server_name in server_names if CONTAINER_ID_RE.match(server_name)),
     )
 
 
-async def detect_hostname_pollution(conn: "AsyncConnection") -> HostnamePollution:
-    """Bounded distinct-hostname probe against geo_events.
+async def detect_server_name_pollution(conn: "AsyncConnection") -> ServerNamePollution:
+    """Bounded distinct-server probe against geo_events.
 
-    GROUP BY + LIMIT streams groups off ix_geo_events_hostname and stops at
+    GROUP BY + LIMIT streams groups off ix_geo_events_server and stops at
     the cap, so this stays cheap on large hypertables and does not depend on
     facet-CAGG freshness.
     """
     result = await conn.execute(text(
-        "SELECT hostname FROM geo_events GROUP BY hostname ORDER BY hostname LIMIT :cap"
+        "SELECT server FROM geo_events GROUP BY server ORDER BY server LIMIT :cap"
     ), {"cap": _POLLUTION_PROBE_LIMIT})
-    return classify_hostnames([row.hostname for row in result])
+    return classify_server_names([row.server for row in result])
 
 
-_hostname_pollution: HostnamePollution | None = None
+_server_name_pollution: ServerNamePollution | None = None
 
 
-def get_hostname_pollution() -> HostnamePollution | None:
+def get_server_name_pollution() -> ServerNamePollution | None:
     """Result of the startup probe; None before setup_timescaledb ran."""
-    return _hostname_pollution
+    return _server_name_pollution
 
 
-def _set_hostname_pollution(value: HostnamePollution | None) -> None:
-    global _hostname_pollution
-    _hostname_pollution = value
+def _set_server_name_pollution(value: ServerNamePollution | None) -> None:
+    global _server_name_pollution
+    _server_name_pollution = value
 
 
 @dataclass(frozen=True)
@@ -202,6 +203,80 @@ async def _create_hypertables(conn: "AsyncConnection") -> None:
         except Exception as e:
             logger.exception("Hypertable %s setup failed: %s", table, e)
             raise
+
+
+# Alembic renames the base columns; the views over them keep working under
+# their legacy column names until this step catches up.
+_LEGACY_SERVER_VIEW_RENAMES = (("hostname_daily_stats", "server_daily_stats"),)
+_LEGACY_SERVER_COLUMN_RENAMES = (
+    ("location_hourly_stats", "hostname", "server"),
+    ("location_daily_stats", "hostname", "server"),
+    ("ip_location_hourly_stats", "hostnames", "servers"),
+    ("ip_location_hourly_stats", "hostname_hits", "server_hits"),
+    ("ip_location_daily_stats", "hostnames", "servers"),
+    ("ip_location_daily_stats", "hostname_hits", "server_hits"),
+    ("server_daily_stats", "hostname", "server"),
+    ("log_source_daily_stats", "hostname", "server"),
+)
+_LEGACY_SERVER_INDEX_RENAMES = (
+    ("location_hourly_stats", "ix_location_hourly_hostname", "ix_location_hourly_server"),
+    ("location_daily_stats", "ix_location_daily_hostname", "ix_location_daily_server"),
+    ("server_daily_stats", "ix_hostname_daily_stats_bucket", "ix_server_daily_stats_bucket"),
+)
+
+
+async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
+    """Rename the CAGG objects that still carry the legacy hostname names.
+
+    Every rename is a catalog change guarded by an existence check, so a
+    fresh install, a rerun and a start interrupted halfway all finish here.
+    Runs before every probe that looks for the new column names.
+
+    Returns:
+        ``"<object>: <old> -> <new>"`` for each rename done.
+    """
+    renamed: list[str] = []
+    for legacy_view, view in _LEGACY_SERVER_VIEW_RENAMES:
+        view_presence = (await conn.execute(text("""
+            SELECT
+                to_regclass(:legacy) IS NOT NULL AS has_legacy,
+                to_regclass(:current) IS NOT NULL AS has_current
+        """), {"legacy": f"public.{legacy_view}", "current": f"public.{view}"})).one()
+        if view_presence.has_legacy and not view_presence.has_current:
+            await conn.execute(text(f"ALTER MATERIALIZED VIEW {legacy_view} RENAME TO {view}"))
+            renamed.append(f"{legacy_view}: {legacy_view} -> {view}")
+
+    view_columns = {
+        (row.table_name, row.column_name)
+        for row in await conn.execute(text("""
+            SELECT table_name, column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = ANY(:views)
+        """), {"views": sorted({view for view, _, _ in _LEGACY_SERVER_COLUMN_RENAMES})})
+    }
+    for view, legacy_column, column in _LEGACY_SERVER_COLUMN_RENAMES:
+        if (view, legacy_column) in view_columns and (view, column) not in view_columns:
+            await conn.execute(text(
+                f"ALTER MATERIALIZED VIEW {view} RENAME COLUMN {legacy_column} TO {column}"
+            ))
+            renamed.append(f"{view}: {legacy_column} -> {column}")
+
+    index_schemas = {
+        row.indexname: row.schemaname
+        for row in await conn.execute(text("""
+            SELECT indexname, schemaname FROM pg_indexes WHERE indexname = ANY(:names)
+        """), {"names": [name for _, legacy, new in _LEGACY_SERVER_INDEX_RENAMES for name in (legacy, new)]})
+    }
+    for view, legacy_index, index in _LEGACY_SERVER_INDEX_RENAMES:
+        # A CAGG's indexes sit on its materialization hypertable in
+        # _timescaledb_internal; an unqualified ALTER INDEX does not find them.
+        schema = index_schemas.get(legacy_index)
+        if schema is not None and index not in index_schemas:
+            await conn.execute(text(f'ALTER INDEX "{schema}".{legacy_index} RENAME TO {index}'))
+            renamed.append(f"{view}: {legacy_index} -> {index}")
+
+    if renamed:
+        logger.info("legacy_server_objects_renamed", renamed=renamed)
+    return renamed
 
 
 # =============================================================================
@@ -315,10 +390,10 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
         SELECT
             time_bucket('1 hour', timestamp) AS bucket,
             location_id,
-            hostname,
+            server,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, location_id, hostname
+        GROUP BY bucket, location_id, server
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: location_hourly_stats")
@@ -329,10 +404,10 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
         SELECT
             time_bucket('1 day', timestamp) AS bucket,
             location_id,
-            hostname,
+            server,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, location_id, hostname
+        GROUP BY bucket, location_id, server
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: location_daily_stats")
@@ -347,17 +422,17 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
             CREATE INDEX IF NOT EXISTS ix_location_{suffix}_location
             ON location_{suffix}_stats (location_id)
         """))
-        # Pollution-gated skip leaves the pre-hostname view in place: probe
+        # Pollution-gated skip leaves the pre-server view in place: probe
         # before creating, since a CREATE INDEX on a missing column would
         # abort the whole setup transaction (not just this statement).
-        has_hostname = (await conn.execute(text(
+        has_server = (await conn.execute(text(
             "SELECT 1 FROM information_schema.columns "
-            "WHERE table_name = :table AND column_name = 'hostname' LIMIT 1"
+            "WHERE table_name = :table AND column_name = 'server' LIMIT 1"
         ), {"table": f"location_{suffix}_stats"})).scalar()
-        if has_hostname:
+        if has_server:
             await conn.execute(text(f"""
-                CREATE INDEX IF NOT EXISTS ix_location_{suffix}_hostname
-                ON location_{suffix}_stats (hostname, bucket DESC)
+                CREATE INDEX IF NOT EXISTS ix_location_{suffix}_server
+                ON location_{suffix}_stats (server, bucket DESC)
             """))
 
 
@@ -384,8 +459,8 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
                 MAX(autonomous_system_number) AS asn,
                 MAX(autonomous_system_organization) AS as_org,
                 COUNT(autonomous_system_number) AS asn_hits,
-                array_agg(DISTINCT hostname) AS hostnames,
-                COUNT(hostname) AS hostname_hits
+                array_agg(DISTINCT server) AS servers,
+                COUNT(server) AS server_hits
             FROM geo_events
             GROUP BY bucket, location_id, ip_address
             WITH NO DATA
@@ -545,7 +620,7 @@ async def _create_asn_caggs(conn: "AsyncConnection") -> None:
 
 
 async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
-    """Create tiny daily host/hostname/log-source CAGGs for the facet dropdowns.
+    """Create tiny daily host/server/log-source CAGGs for the facet dropdowns.
 
     A DISTINCT over the raw hypertables scans every chunk (compressed chunks
     carry no usable btree for a loose index scan), which costs ~600ms at 18M
@@ -571,20 +646,20 @@ async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
     """))
 
     await conn.execute(text("""
-        CREATE MATERIALIZED VIEW IF NOT EXISTS hostname_daily_stats
+        CREATE MATERIALIZED VIEW IF NOT EXISTS server_daily_stats
         WITH (timescaledb.continuous) AS
         SELECT
             time_bucket('1 day', timestamp) AS bucket,
-            hostname,
+            server,
             COUNT(*) AS event_count
         FROM geo_events
-        GROUP BY bucket, hostname
+        GROUP BY bucket, server
         WITH NO DATA
     """))
-    logger.info("CAGG created/verified: hostname_daily_stats")
+    logger.info("CAGG created/verified: server_daily_stats")
     await conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS ix_hostname_daily_stats_bucket
-        ON hostname_daily_stats (bucket DESC)
+        CREATE INDEX IF NOT EXISTS ix_server_daily_stats_bucket
+        ON server_daily_stats (bucket DESC)
     """))
 
     await conn.execute(text("""
@@ -592,12 +667,12 @@ async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
         WITH (timescaledb.continuous) AS
         SELECT
             time_bucket('1 day', timestamp) AS bucket,
-            hostname,
+            server,
             log_format,
             COUNT(*) AS hits
         FROM access_logs
-        WHERE hostname IS NOT NULL OR log_format IS NOT NULL
-        GROUP BY bucket, hostname, log_format
+        WHERE server IS NOT NULL OR log_format IS NOT NULL
+        GROUP BY bucket, server, log_format
         WITH NO DATA
     """))
     logger.info("CAGG created/verified: log_source_daily_stats")
@@ -636,7 +711,7 @@ CAGG_REFRESH_CONFIG = [
     ("user_agent_daily_stats", "3 days", "1 hour"),
     ("asn_daily_stats", "3 days", "1 hour"),
     ("host_daily_stats", "3 days", "1 hour"),
-    ("hostname_daily_stats", "3 days", "1 hour"),
+    ("server_daily_stats", "3 days", "1 hour"),
     ("log_source_daily_stats", "3 days", "1 hour"),
 ]
 
@@ -911,7 +986,7 @@ ALL_CAGGS = [
     "asn_hourly_stats",
     "asn_daily_stats",
     "host_daily_stats",
-    "hostname_daily_stats",
+    "server_daily_stats",
     "log_source_daily_stats",
 ]
 
@@ -1048,9 +1123,9 @@ _IP_LOCATION_GENERATIONS: tuple[CaggGeneration, ...] = (
         CaggColumn("as_org", "varchar(255)", "MAX(autonomous_system_organization)"),
         CaggColumn("asn_hits", "bigint", "COUNT(autonomous_system_number)"),
     )),
-    CaggGeneration("hostname_hits", (
-        CaggColumn("hostnames", "varchar(255)[]", "array_agg(DISTINCT hostname)"),
-        CaggColumn("hostname_hits", "bigint", "COUNT(hostname)"),
+    CaggGeneration("server_hits", (
+        CaggColumn("servers", "varchar(255)[]", "array_agg(DISTINCT server)"),
+        CaggColumn("server_hits", "bigint", "COUNT(server)"),
     ), manual_backfill=True),
 )
 
@@ -1128,12 +1203,12 @@ async def _cagg_columns_need_upgrade(
 
 
 # A server without in-place ADD COLUMN keeps its old per-IP aggregates.
-# Readers omit hostnames instead of referencing a column that could not be added.
-_hostname_columns_unavailable: set[str] = set()
+# Readers omit servers instead of referencing a column that could not be added.
+_server_columns_unavailable: set[str] = set()
 
 
-def hostname_cagg_available(view: str) -> bool:
-    return view not in _hostname_columns_unavailable
+def server_cagg_available(view: str) -> bool:
+    return view not in _server_columns_unavailable
 
 
 async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[str]:
@@ -1181,9 +1256,9 @@ async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[s
                 logger.info("cagg_column_added", view=view, column=column.name)
         except Exception as exc:
             if adding_manual:
-                _hostname_columns_unavailable.add(view)
+                _server_columns_unavailable.add(view)
                 logger.warning(
-                    "hostname_cagg_columns_unavailable", view=view, error=str(exc),
+                    "server_cagg_columns_unavailable", view=view, error=str(exc),
                     detail="Existing counts preserved. In-place aggregate columns require "
                     "TimescaleDB 2.28 or later. Check the database error and restart after fixing it.",
                 )
@@ -1234,26 +1309,26 @@ async def _upgrade_summary_caggs(conn: "AsyncConnection") -> None:
 
 LOCATION_CAGGS = ["location_hourly_stats", "location_daily_stats"]
 
-_location_caggs_have_hostname: bool = False
+_location_caggs_have_server: bool = False
 
 
-def location_caggs_have_hostname() -> bool:
-    """Startup-cached CAGG capability; False means hostname filters go raw."""
-    return _location_caggs_have_hostname
+def location_caggs_have_server() -> bool:
+    """Startup-cached CAGG capability; False means server filters go raw."""
+    return _location_caggs_have_server
 
 
-def _set_location_caggs_have_hostname(value: bool) -> None:
-    global _location_caggs_have_hostname
-    _location_caggs_have_hostname = value
+def _set_location_caggs_have_server(value: bool) -> None:
+    global _location_caggs_have_server
+    _location_caggs_have_server = value
 
 
 async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
-    """True when any existing location CAGG is in the pre-hostname shape.
+    """True when any existing location CAGG is in the pre-server shape.
 
     Every existing CAGG must carry the column, not just one of them: the
     upgrade drops and recreates the pair, so declaring victory on a partial
     match would strand the laggard in the old shape forever while the
-    capability flag sends hostname-filtered queries at it.
+    capability flag sends server-filtered queries at it.
     """
     existing = (await conn.execute(text("""
         SELECT count(*) FROM information_schema.views
@@ -1261,11 +1336,11 @@ async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     """), {"views": LOCATION_CAGGS})).scalar_one()
     if not existing:
         return False
-    with_hostname = (await conn.execute(text("""
+    with_server = (await conn.execute(text("""
         SELECT count(DISTINCT table_name) FROM information_schema.columns
-        WHERE table_name = ANY(:views) AND column_name = 'hostname' AND table_schema = 'public'
+        WHERE table_name = ANY(:views) AND column_name = 'server' AND table_schema = 'public'
     """), {"views": LOCATION_CAGGS})).scalar_one()
-    return with_hostname < existing
+    return with_server < existing
 
 
 URL_CAGGS = ["url_hourly_stats", "url_daily_stats"]
@@ -1331,7 +1406,7 @@ async def setup_timescaledb(
     """
     check_refresh_offsets(raw_retention_days=analytics.raw_retention_days)
     _reset_policy_failures()
-    _hostname_columns_unavailable.clear()
+    _server_columns_unavailable.clear()
 
     async with engine.begin() as conn:
         # Enable extensions
@@ -1339,6 +1414,8 @@ async def setup_timescaledb(
 
         # Create hypertables
         await _create_hypertables(conn)
+
+        await _rename_legacy_server_objects(conn)
 
         # Upgrade pre-percentile_agg summary CAGGs (drop; recreated below)
         upgraded = await _summary_caggs_need_upgrade(conn)
@@ -1359,7 +1436,7 @@ async def setup_timescaledb(
             )
 
         # Add upgrade columns before CREATE IF NOT EXISTS. Detect automatic
-        # refreshes separately so hostname history stays a manual backfill.
+        # refreshes separately so server history stays a manual backfill.
         # Probed before the CREATE step:
         # CREATE IF NOT EXISTS never alters an existing view. The forced
         # refresh runs after policies, outside the transaction (CALL cannot
@@ -1375,13 +1452,13 @@ async def setup_timescaledb(
             if recreated:
                 logger.info("cagg_views_recreated", views=recreated)
 
-        # Upgrade pre-hostname location CAGGs, gated on hostname pollution:
-        # migrating polluted (container-ID) hostnames would make the map's
-        # per-source filter useless, so the old shape is kept until the
-        # deployment consolidates hostnames and restarts.
+        # Upgrade pre-server location CAGGs, gated on server name pollution:
+        # migrating polluted (container-ID) server names would make the map's
+        # per-server filter useless, so the old shape is kept until the
+        # deployment consolidates server names and restarts.
         location_upgrade = await _location_caggs_need_upgrade(conn)
-        pollution = await detect_hostname_pollution(conn)
-        _set_hostname_pollution(pollution)
+        pollution = await detect_server_name_pollution(conn)
+        _set_server_name_pollution(pollution)
         if location_upgrade and pollution.polluted:
             if pollution.reason == "container-ids":
                 logger.warning(
@@ -1398,14 +1475,14 @@ async def setup_timescaledb(
                     "recording hostnames is above the %d ceiling. Map source "
                     "filtering stays on raw scans.",
                     pollution.distinct_label,
-                    DISTINCT_HOSTNAME_CEILING,
+                    DISTINCT_SERVER_CEILING,
                 )
             location_upgrade = False
         elif location_upgrade:
             for cagg in LOCATION_CAGGS:
                 await conn.execute(text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE"))
             logger.warning(
-                "Recreating location CAGGs with a hostname dimension; history "
+                "Recreating location CAGGs with a server dimension; history "
                 "older than the raw retention window cannot be rebuilt and is "
                 "discarded."
             )
@@ -1421,7 +1498,7 @@ async def setup_timescaledb(
         await _create_asn_caggs(conn)
         await _create_host_facet_caggs(conn)
 
-        _set_location_caggs_have_hostname(
+        _set_location_caggs_have_server(
             not await _location_caggs_need_upgrade(conn)
         )
 
@@ -1637,7 +1714,7 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
     "asn_hourly_stats": "access_logs",
     "asn_daily_stats": "access_logs",
     "host_daily_stats": "access_logs",
-    "hostname_daily_stats": "geo_events",
+    "server_daily_stats": "geo_events",
     "log_source_daily_stats": "access_logs",
 }
 

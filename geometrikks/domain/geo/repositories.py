@@ -72,13 +72,13 @@ def resolve_locations_granularity(
 ) -> StatsGranularity:
     """Routing with filters: ``has_ip_filter`` covers any filter that needs
     per-event columns (IP or ASN) and always forces RAW; hostname filters
-    force RAW only until the location CAGGs carry the hostname dimension."""
+    force RAW only until the location CAGGs carry the server dimension."""
     from geometrikks.server import timescale
 
     granularity = get_stats_granularity(from_timestamp, to_timestamp)
     if has_ip_filter:
         return StatsGranularity.RAW
-    if has_hostname_filter and not timescale.location_caggs_have_hostname():
+    if has_hostname_filter and not timescale.location_caggs_have_server():
         return StatsGranularity.RAW
     return granularity
 
@@ -139,7 +139,7 @@ def stitch_params(
 
 
 def stitched_ip_location_cte(
-    granularity: StatsGranularity, *, include_hostnames: bool = False
+    granularity: StatsGranularity, *, include_servers: bool = False
 ) -> str:
     """WITH clause exposing ``combined`` for a per-IP CAGG read.
 
@@ -155,25 +155,25 @@ def stitched_ip_location_cte(
     exact rather than summing per-bucket counts. ``last_seen`` is bucket-granular
     for CAGG rows and exact for the raw edge rows.
 
-    Hostname arrays are optional so count-only readers do not fetch them.
+    Server arrays are optional so count-only readers do not fetch them.
     """
     table, _ = IP_LOCATION_CAGGS[granularity]
     return f"""
         WITH combined AS (
             SELECT s.location_id, s.ip_address, s.event_count, s.bucket AS last_seen,
-                   s.asn, s.as_org{", s.hostnames" if include_hostnames else ""}
+                   s.asn, s.as_org{", s.servers" if include_servers else ""}
             FROM {table} s
             WHERE s.bucket >= :a_start AND s.bucket < :a_end
             UNION ALL
             SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp,
                    ge.autonomous_system_number, ge.autonomous_system_organization
-                   {", ARRAY[ge.hostname] AS hostnames" if include_hostnames else ""}
+                   {", ARRAY[ge.server] AS servers" if include_servers else ""}
             FROM geo_events ge
             WHERE ge.timestamp >= :start AND ge.timestamp < :a_start
             UNION ALL
             SELECT ge.location_id, ge.ip_address, CAST(1 AS BIGINT), ge.timestamp,
                    ge.autonomous_system_number, ge.autonomous_system_organization
-                   {", ARRAY[ge.hostname] AS hostnames" if include_hostnames else ""}
+                   {", ARRAY[ge.server] AS servers" if include_servers else ""}
             FROM geo_events ge
             WHERE ge.timestamp >= :a_end AND ge.timestamp < :end
         )
@@ -245,8 +245,8 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         An IP or ASN filter always forces the RAW branch regardless of
         range: the location CAGGs carry neither dimension, and such queries
         are bounded by raw retention (default 180d). A hostname filter
-        forces RAW only until the location CAGGs carry the hostname
-        dimension (see ``timescale.location_caggs_have_hostname``); once
+        forces RAW only until the location CAGGs carry the server
+        dimension (see ``timescale.location_caggs_have_server``); once
         they do, hostname filters read the CAGGs like any other range-only
         query.
 
@@ -313,13 +313,13 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             params["filter_asns_excl"] = [int(a) for a in asns_exclude]
 
         # Hostname is aliased per branch: ge in RAW, ls in the CAGGs (only
-        # reachable there once the hostname dimension exists).
+        # reachable there once the server dimension exists).
         hostname_sql = ""
         cagg_hostname_sql = ""
         if hostnames:
             params["filter_hostnames"] = list(hostnames)
-            hostname_sql = " AND ge.hostname = ANY(:filter_hostnames)"
-            cagg_hostname_sql = " AND ls.hostname = ANY(:filter_hostnames)"
+            hostname_sql = " AND ge.server = ANY(:filter_hostnames)"
+            cagg_hostname_sql = " AND ls.server = ANY(:filter_hostnames)"
 
         if granularity == StatsGranularity.RAW:
             # Query raw geo_events table for exact time range granularity

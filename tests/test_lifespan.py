@@ -437,7 +437,7 @@ async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
 
 
 async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
-    """A timed-out schema wait leaves site_homes untouched: the agent is
+    """A timed-out schema wait leaves server_locations untouched: the agent is
     already going degraded, there is nothing trustworthy to record."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings

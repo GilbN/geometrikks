@@ -318,6 +318,7 @@ async def test_successful_setup_resets_previous_policy_failures(
     for name in (
         "_enable_extensions",
         "_create_hypertables",
+        "_rename_legacy_server_objects",
         "_create_summary_caggs",
         "_create_geo_summary_caggs",
         "_create_location_caggs",
@@ -348,8 +349,8 @@ async def test_successful_setup_resets_previous_policy_failures(
     )
     monkeypatch.setattr(
         timescale,
-        "detect_hostname_pollution",
-        AsyncMock(return_value=timescale.classify_hostnames([])),
+        "detect_server_name_pollution",
+        AsyncMock(return_value=timescale.classify_server_names([])),
     )
     analytics = SimpleNamespace(
         raw_retention_days=180,

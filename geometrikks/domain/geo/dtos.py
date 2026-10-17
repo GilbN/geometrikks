@@ -137,7 +137,7 @@ class SiteHomeView(msgspec.Struct, rename="camel"):
 
 
 class DefaultHomeView(msgspec.Struct, rename="camel"):
-    """Instance-wide fallback home used when a hostname has no site_homes row."""
+    """Instance-wide fallback home used when a hostname has no server_locations row."""
 
     latitude: float
     longitude: float

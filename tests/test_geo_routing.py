@@ -118,18 +118,18 @@ def _location_repo(session: _RecordingSession) -> GeoLocationRepository:
 
 
 async def test_hostname_filter_uses_cagg_when_capable(monkeypatch):
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", True)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", True)
     session = _RecordingSession()
     await _location_repo(session).get_all_with_event_counts(
         WEEK_START, NOW, hostnames=["nginx-01"]
     )
     sql = session.statements[0]
     assert "location_hourly_stats" in sql
-    assert "ls.hostname = ANY(:filter_hostnames)" in sql
+    assert "ls.server = ANY(:filter_hostnames)" in sql
 
 
 async def test_hostname_filter_forces_raw_without_capability(monkeypatch):
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", False)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", False)
     session = _RecordingSession()
     await _location_repo(session).get_all_with_event_counts(
         WEEK_START, NOW, hostnames=["nginx-01"]
@@ -137,11 +137,11 @@ async def test_hostname_filter_forces_raw_without_capability(monkeypatch):
     sql = session.statements[0]
     assert "location_hourly_stats" not in sql
     assert "JOIN geo_events" in sql
-    assert "ge.hostname = ANY(:filter_hostnames)" in sql
+    assert "ge.server = ANY(:filter_hostnames)" in sql
 
 
 async def test_ip_filter_always_forces_raw(monkeypatch):
-    monkeypatch.setattr(timescale, "_location_caggs_have_hostname", True)
+    monkeypatch.setattr(timescale, "_location_caggs_have_server", True)
     session = _RecordingSession()
     await _location_repo(session).get_all_with_event_counts(
         WEEK_START, NOW, ip_addresses=["1.1.1.1"], hostnames=["nginx-01"]

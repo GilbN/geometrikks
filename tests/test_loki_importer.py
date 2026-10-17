@@ -157,7 +157,7 @@ async def test_walks_the_range_in_hour_windows(fake, geoip_reader, deps) -> None
     [row] = FakeLokiImportRepo.rows
     assert row.cursor == SINCE + timedelta(hours=3)
     assert row.records_written == 3
-    assert row.hostname == "edge-01"
+    assert row.server == "edge-01"
     assert all(record.hostname == "edge-01" for record in flushed_records(service))
 
 
@@ -378,7 +378,7 @@ async def test_force_resumes_an_unfinished_run_of_the_same_range(fake, geoip_rea
 
     def stored_row(row_id: int, range_start: datetime, range_end: datetime, cursor: datetime):
         return MagicMock(
-            id=row_id, url=source.url, tenant_id=None, query=QUERY, hostname="edge-01",
+            id=row_id, url=source.url, tenant_id=None, query=QUERY, server="edge-01",
             range_start=range_start, range_end=range_end, cursor=cursor,
             lines_total=0, lines_skipped=0, records_written=0, time_start=None, time_end=None,
         )
@@ -430,7 +430,7 @@ async def test_abandoned_tail_does_not_count_as_imported(fake, geoip_reader, dep
     source = make_source(fake)
     parser = LogParser(source_label="loki", send_logs=True)
     row = MagicMock(
-        id=1, url=source.url, tenant_id=None, query=QUERY, hostname="edge-01",
+        id=1, url=source.url, tenant_id=None, query=QUERY, server="edge-01",
         range_start=SINCE, range_end=SINCE + timedelta(hours=4), cursor=SINCE + timedelta(hours=1),
         lines_total=0, lines_skipped=0, records_written=0, time_start=None, time_end=None,
     )
@@ -493,7 +493,7 @@ async def test_resume_refuses_a_range_another_run_filled_in(fake, geoip_reader, 
     source = make_source(fake)
     def stored_row(row_id: int, range_start: datetime, range_end: datetime, cursor: datetime):
         return MagicMock(
-            id=row_id, url=source.url, tenant_id=None, query=QUERY, hostname="edge-01",
+            id=row_id, url=source.url, tenant_id=None, query=QUERY, server="edge-01",
             range_start=range_start, range_end=range_end, cursor=cursor,
             lines_total=0, lines_skipped=0, records_written=0, time_start=None, time_end=None,
         )

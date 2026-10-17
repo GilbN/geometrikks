@@ -24,7 +24,7 @@ async def _insert_log(
 ):
     await session.execute(text(
         "INSERT INTO access_logs (timestamp, ip_address, method, url, http_version, host, "
-        "status_code, bytes_sent, user_agent, referrer, hostname, country_code, "
+        "status_code, bytes_sent, user_agent, referrer, server, country_code, "
         "autonomous_system_number, autonomous_system_organization) "
         "VALUES (:ts, CAST(:ip AS inet), 'GET', :url, 'HTTP/1.1', :host, :status, 10, :ua, "
         "'https://blog.example.com/', :hostname, 'US', :asn, :org)"

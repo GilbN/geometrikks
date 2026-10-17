@@ -58,7 +58,7 @@ async def _insert_events(session, *, ts, ip: str, hostname: str, location_id: in
     for _ in range(n):
         await session.execute(
             text(
-                "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
                 "VALUES (:ts, :ip, :hostname, :location_id)"
             ),
             {"ts": ts, "ip": ip, "hostname": hostname, "location_id": location_id},
@@ -680,13 +680,13 @@ class TestLocationTopIpsMisaligned:
 class TestFacets:
     async def test_distinct_sorted_values(self, pg_engine, pg_session_maker, clean_tables):
         await seed_raw(pg_session_maker)
-        # Hostnames now read hostname_daily_stats: refresh the window so stale
+        # Hostnames now read server_daily_stats: refresh the window so stale
         # materialized buckets from earlier tests are wiped.
         await refresh_caggs_range(
             pg_engine,
             start=NOW - timedelta(days=1),
             end=NOW + timedelta(hours=1),
-            caggs=["hostname_daily_stats"],
+            caggs=["server_daily_stats"],
         )
         async with pg_session_maker() as session:
             facets = await GeoEventService(session=session).get_facets()

@@ -4,7 +4,7 @@ Same question as the parser's PeerWindow, answered from the database so
 agent-tailed sources appear on the head's Status page. Private peers are
 out of reach here: those lines are dropped before storage.
 
-State is module-level like timescale._hostname_pollution: the scheduler job
+State is module-level like timescale._server_name_pollution: the scheduler job
 writes it, /health reads it synchronously. A failed run keeps the last good
 findings and records the error so /health can say the scan is broken rather
 than silently dropping the cards.
@@ -146,21 +146,21 @@ async def _query_scan_rows(
     exclude = sorted(exclude_hostnames)
 
     groups_sql = (
-        "SELECT hostname, log_format, COUNT(*) AS row_count, "
+        "SELECT server, log_format, COUNT(*) AS row_count, "
         "COUNT(*) FILTER (WHERE autonomous_system_number IN :asns) AS cdn_rows "
         f"FROM access_logs WHERE timestamp > now() - interval '{SCAN_WINDOW_MINUTES} minutes' "
-        "AND hostname IS NOT NULL"
+        "AND server IS NOT NULL"
     )
     providers_sql = (
-        "SELECT hostname, autonomous_system_number AS asn, COUNT(*) AS hits "
+        "SELECT server, autonomous_system_number AS asn, COUNT(*) AS hits "
         f"FROM access_logs WHERE timestamp > now() - interval '{SCAN_WINDOW_MINUTES} minutes' "
-        "AND hostname IS NOT NULL AND autonomous_system_number IN :asns"
+        "AND server IS NOT NULL AND autonomous_system_number IN :asns"
     )
     if exclude:
-        groups_sql += " AND hostname NOT IN :excluded"
-        providers_sql += " AND hostname NOT IN :excluded"
-    groups_sql += " GROUP BY hostname, log_format"
-    providers_sql += " GROUP BY hostname, autonomous_system_number"
+        groups_sql += " AND server NOT IN :excluded"
+        providers_sql += " AND server NOT IN :excluded"
+    groups_sql += " GROUP BY server, log_format"
+    providers_sql += " GROUP BY server, autonomous_system_number"
 
     params: dict[str, object] = {"asns": asns}
     if exclude:
@@ -171,7 +171,7 @@ async def _query_scan_rows(
         stmt = stmt.bindparams(bindparam("excluded", expanding=True))
     result = await session.execute(stmt, params)
     groups = [
-        ScanGroup(row.hostname, row.log_format, row.row_count, row.cdn_rows)
+        ScanGroup(row.server, row.log_format, row.row_count, row.cdn_rows)
         for row in result
     ]
 
@@ -179,7 +179,7 @@ async def _query_scan_rows(
     if exclude:
         stmt = stmt.bindparams(bindparam("excluded", expanding=True))
     result = await session.execute(stmt, params)
-    providers = [ScanProvider(row.hostname, row.asn, row.hits) for row in result]
+    providers = [ScanProvider(row.server, row.asn, row.hits) for row in result]
     return groups, providers
 
 

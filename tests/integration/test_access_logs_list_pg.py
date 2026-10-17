@@ -45,7 +45,7 @@ async def _insert(
             text(
                 "INSERT INTO access_logs (timestamp, ip_address, method, url, host, "
                 " status_code, bytes_sent, request_time, country_code, country_name, city, "
-                " hostname, log_format) "
+                " server, log_format) "
                 "VALUES (:ts, :ip, :method, :url, :host, :status, 100, 0.01, "
                 " :country_code, :country_name, :city, :hostname, :log_format)"
             ),

@@ -50,7 +50,7 @@ def _make_settings(migrated_database_url: str, **map_kwargs) -> Settings:
         ),
         scheduler=SchedulerSettings(enabled=False),
         # Ingestion disabled: its own startup auto-upsert would otherwise add
-        # this machine's hostname to site_homes and pollute the assertions.
+        # this machine's hostname to server_locations and pollute the assertions.
         logparser=LogParserSettings(enabled=False),
         # Static home location so startup never geolocates over the network.
         map=MapSettings(server_latitude=59.91, server_longitude=10.75, **map_kwargs),
@@ -64,7 +64,7 @@ async def test_site_homes_endpoint_returns_merged_rows_and_default(
         pg_session_maker, ["nginx-01"], HomeLocation(latitude=60.39, longitude=5.32, source="external_ip")
     )
     # The override row comes from MAP_SERVER_LOCATIONS, reconciled into
-    # site_homes by the app's own startup lifecycle (not seeded directly):
+    # server_locations by the app's own startup lifecycle (not seeded directly):
     # that reconcile always runs and would otherwise delete an override row
     # not present in this settings object.
     settings = _make_settings(migrated_database_url, server_locations={"nginx-02": (51.5, -0.12)})

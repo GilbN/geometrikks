@@ -151,9 +151,9 @@ async def test_hostname_upgrade_resumes_after_interrupted_refresh(
         after = (await conn.execute(text(f"SELECT '{view}'::regclass::oid"))).scalar_one()
         assert after == before, "the aggregate must not be dropped"
         rows = (await conn.execute(text(
-            f"SELECT event_count, hostnames, hostname_hits FROM {view} WHERE location_id = :loc"
+            f"SELECT event_count, servers, server_hits FROM {view} WHERE location_id = :loc"
         ), {"loc": locs["no"]})).all()
-        assert [(r.event_count, sorted(r.hostnames), r.hostname_hits) for r in rows] == [
+        assert [(r.event_count, sorted(r.servers), r.server_hits) for r in rows] == [
             (5, ["web1", "web2"], 5),
         ]
         assert view not in await timescale._cagg_columns_need_upgrade(conn, raw_retention_days=retention)
@@ -187,10 +187,10 @@ async def test_hostname_upgrade_preserves_counts_beyond_raw_retention(
     await _run_cli(pg_engine, monkeypatch)
     async with pg_engine.connect() as conn:
         rows = (await conn.execute(text(
-            f"SELECT event_count, hostnames, hostname_hits FROM {view} "
+            f"SELECT event_count, servers, server_hits FROM {view} "
             "WHERE location_id = :loc ORDER BY bucket"
         ), {"loc": locs["no"]})).all()
-        assert [(r.event_count, r.hostnames, r.hostname_hits) for r in rows] == [
+        assert [(r.event_count, r.servers, r.server_hits) for r in rows] == [
             (2, None, None), (2, ["recent"], 2),
         ]
         assert view not in await timescale._cagg_columns_need_upgrade(conn, raw_retention_days=retention)
@@ -214,7 +214,7 @@ async def test_hostname_lookup_keeps_asn_filters(pg_engine, pg_session_maker, cl
         locs = await _seed_locations(session)
         for day, name, asn in [(3, "included", 1221), (2, "excluded", 13335)]:
             await session.execute(text("""
-                INSERT INTO geo_events (timestamp, ip_address, hostname, location_id,
+                INSERT INTO geo_events (timestamp, ip_address, server, location_id,
                                         autonomous_system_number)
                 VALUES (:ts, '1.1.1.1', :name, :loc, :asn)
             """), {"ts": NOW - timedelta(days=day), "name": name, "loc": locs["no"], "asn": asn})
