@@ -287,21 +287,69 @@ async def _refresh_and_compress(engine: AsyncEngine, views: list[str]) -> None:
         assert compressed_cagg_chunks, "location_daily_stats had no chunk to compress"
 
 
-async def _snapshot(engine: AsyncEngine, view_names: dict[str, str], server_column: str) -> dict[str, object]:
-    """Row counts per table and view, plus the per-server map counts."""
+async def _compressed_chunks(conn, hypertable: str) -> list[str]:
+    return list((await conn.execute(text(
+        "SELECT chunk_name FROM timescaledb_information.chunks "
+        "WHERE hypertable_name = :hypertable AND is_compressed ORDER BY chunk_name"
+    ), {"hypertable": hypertable})).scalars())
+
+
+async def _snapshot(engine: AsyncEngine, view_names: dict[str, str], *, legacy: bool) -> dict[str, object]:
+    """What a rename must keep: rows, aggregate contents, view identity, compression.
+
+    Keyed by the legacy view name so a before and an after snapshot compare equal.
+    """
+    server_column, servers_column, server_hits_column = (
+        ("hostname", "hostnames", "hostname_hits") if legacy else ("server", "servers", "server_hits")
+    )
     async with engine.connect() as conn:
         counts = {
             table: (await conn.execute(text(f"SELECT count(*) FROM {table}"))).scalar_one()
             for table in ("geo_events", "access_logs", "loki_imports")
         }
+        view_oids: dict[str, int] = {}
+        materialization_hypertable_ids: dict[str, int] = {}
         for legacy_view, current_view in view_names.items():
             counts[legacy_view] = (
                 await conn.execute(text(f"SELECT count(*) FROM {current_view}"))
             ).scalar_one()
+            view_oids[legacy_view] = (await conn.execute(
+                text("SELECT CAST(to_regclass(CAST(:view AS text)) AS oid)"),
+                {"view": f"public.{current_view}"},
+            )).scalar_one()
+            materialization_hypertable_ids[legacy_view] = (await conn.execute(text(
+                "SELECT mat_hypertable_id FROM _timescaledb_catalog.continuous_agg "
+                "WHERE user_view_schema = 'public' AND user_view_name = :view"
+            ), {"view": current_view})).scalar_one()
         per_server = dict((await conn.execute(text(
             f"SELECT {server_column}, sum(event_count) FROM location_daily_stats GROUP BY 1"
         ))).tuples().all())
-    return {"counts": counts, "per_server": per_server}
+        ip_location_servers = [
+            tuple(row) for row in await conn.execute(text(
+                "SELECT location_id, host(ip_address), bucket, "
+                f"ARRAY(SELECT unnest({servers_column}) ORDER BY 1), {server_hits_column} "
+                "FROM ip_location_daily_stats ORDER BY 1, 2, 3"
+            ))
+        ]
+        location_daily_hypertable = (await conn.execute(text(
+            "SELECT materialization_hypertable_name FROM timescaledb_information.continuous_aggregates "
+            "WHERE view_schema = 'public' AND view_name = 'location_daily_stats'"
+        ))).scalar_one()
+        compressed_chunks = {
+            "geo_events": await _compressed_chunks(conn, "geo_events"),
+            "access_logs": await _compressed_chunks(conn, "access_logs"),
+            "location_daily_stats": await _compressed_chunks(conn, location_daily_hypertable),
+        }
+    assert all(compressed_chunks.values()), compressed_chunks
+    assert ip_location_servers, "ip_location_daily_stats has no materialized rows"
+    return {
+        "counts": counts,
+        "per_server": per_server,
+        "ip_location_servers": ip_location_servers,
+        "view_oids": view_oids,
+        "materialization_hypertable_ids": materialization_hypertable_ids,
+        "compressed_chunks": compressed_chunks,
+    }
 
 
 def _build_legacy_database(*, location_has_hostname: bool) -> dict[str, object]:
@@ -318,9 +366,7 @@ def _build_legacy_database(*, location_has_hostname: bool) -> dict[str, object]:
             await _refresh_and_compress(engine, list(LEGACY_TO_NEW_VIEWS))
             if not location_has_hostname:
                 return {}
-            return await _snapshot(
-                engine, {view: view for view in LEGACY_TO_NEW_VIEWS}, server_column="hostname"
-            )
+            return await _snapshot(engine, {view: view for view in LEGACY_TO_NEW_VIEWS}, legacy=True)
         finally:
             await engine.dispose()
 
@@ -398,7 +444,7 @@ async def test_upgrade_renames_in_place(legacy_database, rename_engine):
         await _start_up(rename_engine)
 
     await _assert_server_names(rename_engine)
-    after = await _snapshot(rename_engine, LEGACY_TO_NEW_VIEWS, server_column="server")
+    after = await _snapshot(rename_engine, LEGACY_TO_NEW_VIEWS, legacy=False)
     assert after == legacy_database
     assert after["per_server"] == {"Nostromo": 3, "edge-01": 4}
     async with rename_engine.connect() as conn:
@@ -450,10 +496,7 @@ async def test_location_caggs_without_server_dimension(
 ):
     await _start_up(rename_engine)
 
-    columns = await _public_columns(rename_engine)
-    assert ("location_hourly_stats", "server") in columns
-    assert ("location_daily_stats", "server") in columns
-    assert ("server_daily_stats", "server") in columns
+    await _assert_server_names(rename_engine)
     assert timescale.location_caggs_have_server() is True
 
 
@@ -474,3 +517,75 @@ async def test_downgrade_restores_legacy_table_names(legacy_database, rename_eng
 
     await _start_up(rename_engine)
     await _assert_server_names(rename_engine)
+
+
+DECOY_INDEX_NAMES = {
+    "ix_geo_events_hostname",
+    "ix_geo_events_server",
+    "ix_location_hourly_hostname",
+    "ix_location_hourly_server",
+    "ix_hostname_daily_stats_bucket",
+    "ix_server_daily_stats_bucket",
+}
+
+
+async def _owned_index_names(engine: AsyncEngine) -> set[tuple[str, str]]:
+    """(owner, index) for the hypertables in public and each CAGG's materialization."""
+    async with engine.connect() as conn:
+        rows = await conn.execute(text("""
+            SELECT tablename AS owner, indexname FROM pg_indexes
+            WHERE schemaname = 'public' AND tablename IN ('geo_events', 'access_logs')
+            UNION ALL
+            SELECT c.view_name, i.indexname
+            FROM timescaledb_information.continuous_aggregates c
+            JOIN pg_indexes i
+              ON i.schemaname = c.materialization_hypertable_schema
+             AND i.tablename = c.materialization_hypertable_name
+            WHERE c.view_schema = 'public'
+        """))
+        return {(row.owner, row.indexname) for row in rows}
+
+
+async def test_same_named_indexes_in_another_schema_are_left_alone(legacy_database, rename_engine):
+    async with rename_engine.begin() as conn:
+        await conn.execute(text("CREATE SCHEMA decoy"))
+        await conn.execute(text("CREATE TABLE decoy.lookalike (value integer)"))
+        for index_name in sorted(DECOY_INDEX_NAMES):
+            await conn.execute(text(f"CREATE INDEX {index_name} ON decoy.lookalike (value)"))
+
+    await _start_up(rename_engine)
+
+    owned = await _owned_index_names(rename_engine)
+    assert {
+        ("geo_events", "ix_geo_events_server"),
+        ("access_logs", "ix_access_logs_server"),
+        ("location_hourly_stats", "ix_location_hourly_server"),
+        ("location_daily_stats", "ix_location_daily_server"),
+        ("server_daily_stats", "ix_server_daily_stats_bucket"),
+    } <= owned
+    assert not {index_name for _, index_name in owned} & {
+        "ix_geo_events_hostname", "ix_access_logs_hostname", "ix_location_hourly_hostname",
+        "ix_location_daily_hostname", "ix_hostname_daily_stats_bucket",
+    }
+    async with rename_engine.connect() as conn:
+        decoys = set((await conn.execute(text(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = 'decoy'"
+        ))).scalars())
+    assert decoys == DECOY_INDEX_NAMES
+
+
+async def test_teardown_drops_legacy_views_before_drop_all(legacy_database, rename_engine):
+    """DB_DROP_ON_STARTUP on a database the upgrade has not reached yet."""
+    from advanced_alchemy import base
+
+    import geometrikks.domain.geo.models  # noqa: F401
+    import geometrikks.domain.imports.models  # noqa: F401
+    import geometrikks.domain.logs.models  # noqa: F401
+
+    async with rename_engine.begin() as conn:
+        await timescale.teardown_timescaledb(conn)
+        await conn.run_sync(base.DefaultBase.metadata.drop_all)
+
+    assert await _relation_names(
+        rename_engine, {"hostname_daily_stats", "geo_events", "access_logs"}
+    ) == set()

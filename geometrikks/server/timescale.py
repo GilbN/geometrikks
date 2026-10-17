@@ -260,18 +260,25 @@ async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
             ))
             renamed.append(f"{view}: {legacy_column} -> {column}")
 
-    index_schemas = {
-        row.indexname: row.schemaname
-        for row in await conn.execute(text("""
-            SELECT indexname, schemaname FROM pg_indexes WHERE indexname = ANY(:names)
-        """), {"names": [name for _, legacy, new in _LEGACY_SERVER_INDEX_RENAMES for name in (legacy, new)]})
-    }
     for view, legacy_index, index in _LEGACY_SERVER_INDEX_RENAMES:
         # A CAGG's indexes sit on its materialization hypertable in
         # _timescaledb_internal; an unqualified ALTER INDEX does not find them.
-        schema = index_schemas.get(legacy_index)
-        if schema is not None and index not in index_schemas:
-            await conn.execute(text(f'ALTER INDEX "{schema}".{legacy_index} RENAME TO {index}'))
+        rename_statements = {
+            row.indexname: row.rename_statement
+            for row in await conn.execute(text("""
+                SELECT i.indexname,
+                       format('ALTER INDEX %I.%I RENAME TO %I', i.schemaname, i.indexname,
+                              CAST(:index AS text)) AS rename_statement
+                FROM timescaledb_information.continuous_aggregates c
+                JOIN pg_indexes i
+                  ON i.schemaname = c.materialization_hypertable_schema
+                 AND i.tablename = c.materialization_hypertable_name
+                WHERE c.view_schema = 'public' AND c.view_name = :view
+                  AND i.indexname IN (:legacy_index, :index)
+            """), {"view": view, "legacy_index": legacy_index, "index": index})
+        }
+        if legacy_index in rename_statements and index not in rename_statements:
+            await conn.execute(text(rename_statements[legacy_index]))
             renamed.append(f"{view}: {legacy_index} -> {index}")
 
     if renamed:
@@ -1011,8 +1018,10 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
         logger.exception("Could not check TimescaleDB extension")
         return
 
-    # 1. Drop CAGGs
-    for cagg in ALL_CAGGS:
+    # 1. Drop CAGGs, including legacy names a not-yet-upgraded database
+    # still carries: drop_all cannot drop a table a view depends on.
+    legacy_views = [legacy_view for legacy_view, _ in _LEGACY_SERVER_VIEW_RENAMES]
+    for cagg in [*ALL_CAGGS, *legacy_views]:
         try:
             await conn.execute(
                 text(f"DROP MATERIALIZED VIEW IF EXISTS {cagg} CASCADE")
@@ -1024,9 +1033,12 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
     # 2. Drop hypertables
     for table, _, _, _ in HYPERTABLES:
         try:
-            await conn.execute(text("""
-                SELECT drop_hypertable(:table, if_exists => TRUE)
-            """), {"table": table})
+            # Savepoint: TimescaleDB 2.x has no drop_hypertable(), and the
+            # failed call would abort the caller's transaction before drop_all.
+            async with conn.begin_nested():
+                await conn.execute(text("""
+                    SELECT drop_hypertable(:table, if_exists => TRUE)
+                """), {"table": table})
             logger.debug("Dropped hypertable: %s", table)
         except Exception as e:
             logger.warning("Failed to drop hypertable %s: %s", table, e)

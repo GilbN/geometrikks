@@ -23,8 +23,8 @@ TABLE_COLUMN_RENAMES = (
     ("loki_imports", "hostname", "server"),
 )
 INDEX_RENAMES = (
-    ("ix_geo_events_hostname", "ix_geo_events_server"),
-    ("ix_access_logs_hostname", "ix_access_logs_server"),
+    ("geo_events", "ix_geo_events_hostname", "ix_geo_events_server"),
+    ("access_logs", "ix_access_logs_hostname", "ix_access_logs_server"),
 )
 SERVER_LOCATIONS_RENAME = ("site_homes", "server_locations")
 SERVER_LOCATIONS_SEQUENCE_RENAME = ("site_homes_id_seq", "server_locations_id_seq")
@@ -49,10 +49,28 @@ CAGG_COLUMN_RENAMES = (
     ("log_source_daily_stats", "hostname", "server"),
 )
 CAGG_INDEX_RENAMES = (
-    ("ix_location_hourly_hostname", "ix_location_hourly_server"),
-    ("ix_location_daily_hostname", "ix_location_daily_server"),
-    ("ix_hostname_daily_stats_bucket", "ix_server_daily_stats_bucket"),
+    ("location_hourly_stats", "ix_location_hourly_hostname", "ix_location_hourly_server"),
+    ("location_daily_stats", "ix_location_daily_hostname", "ix_location_daily_server"),
+    ("server_daily_stats", "ix_hostname_daily_stats_bucket", "ix_server_daily_stats_bucket"),
 )
+
+TABLE_INDEX_LOOKUP = """
+    SELECT indexname,
+           format('ALTER INDEX %I.%I RENAME TO %I', schemaname, indexname, CAST(:new AS text))
+    FROM pg_indexes
+    WHERE schemaname = 'public' AND tablename = :owner AND indexname IN (:old, :new)
+"""
+# A continuous aggregate's indexes sit on its materialization hypertable in
+# _timescaledb_internal, not on the view.
+CAGG_INDEX_LOOKUP = """
+    SELECT i.indexname,
+           format('ALTER INDEX %I.%I RENAME TO %I', i.schemaname, i.indexname, CAST(:new AS text))
+    FROM timescaledb_information.continuous_aggregates c
+    JOIN pg_indexes i
+      ON i.schemaname = c.materialization_hypertable_schema
+     AND i.tablename = c.materialization_hypertable_name
+    WHERE c.view_schema = 'public' AND c.view_name = :owner AND i.indexname IN (:old, :new)
+"""
 
 
 def _relation_exists(name: str) -> bool:
@@ -78,32 +96,29 @@ def _rename_relation(kind: str, old: str, new: str) -> None:
         op.execute(f"ALTER {kind} {old} RENAME TO {new}")
 
 
-def _rename_index(old: str, new: str) -> None:
-    """Continuous-aggregate indexes live in _timescaledb_internal, not public."""
-    bind = op.get_bind()
-    schema = bind.execute(
-        sa.text("SELECT schemaname FROM pg_indexes WHERE indexname = :name"), {"name": old}
-    ).scalar()
-    already_renamed = bind.execute(
-        sa.text("SELECT 1 FROM pg_indexes WHERE indexname = :name"), {"name": new}
-    ).scalar()
-    if schema is not None and not already_renamed:
-        op.execute(f'ALTER INDEX "{schema}".{old} RENAME TO {new}')
+def _rename_index(lookup: str, owner: str, old: str, new: str) -> None:
+    """Rename an index of ``owner`` only; same-named indexes elsewhere are ignored."""
+    rename_statements = dict(op.get_bind().execute(
+        sa.text(lookup), {"owner": owner, "old": old, "new": new}
+    ).tuples().all())
+    if old in rename_statements and new not in rename_statements:
+        op.execute(rename_statements[old])
 
 
 def _rename_constraint(table: str, old: str, new: str) -> None:
-    exists = op.get_bind().execute(sa.text(
-        "SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass(:table) AND conname = :name"
-    ), {"table": f"public.{table}", "name": old}).scalar()
-    if exists:
+    constraint_names = set(op.get_bind().execute(sa.text(
+        "SELECT conname FROM pg_constraint "
+        "WHERE conrelid = to_regclass(:table) AND conname IN (:old, :new)"
+    ), {"table": f"public.{table}", "old": old, "new": new}).scalars())
+    if old in constraint_names and new not in constraint_names:
         op.execute(f"ALTER TABLE {table} RENAME CONSTRAINT {old} TO {new}")
 
 
 def upgrade() -> None:
     for table, old, new in TABLE_COLUMN_RENAMES:
         _rename_column("TABLE", table, old, new)
-    for old, new in INDEX_RENAMES:
-        _rename_index(old, new)
+    for table, old, new in INDEX_RENAMES:
+        _rename_index(TABLE_INDEX_LOOKUP, table, old, new)
 
     legacy_table, table = SERVER_LOCATIONS_RENAME
     _rename_relation("TABLE", legacy_table, table)
@@ -116,10 +131,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     for view, legacy_column, column in CAGG_COLUMN_RENAMES:
         _rename_column("MATERIALIZED VIEW", view, column, legacy_column)
+    for view, legacy_index, index in CAGG_INDEX_RENAMES:
+        _rename_index(CAGG_INDEX_LOOKUP, view, index, legacy_index)
     for legacy_view, view in CAGG_VIEW_RENAMES:
         _rename_relation("MATERIALIZED VIEW", view, legacy_view)
-    for legacy_index, index in CAGG_INDEX_RENAMES:
-        _rename_index(index, legacy_index)
 
     legacy_table, table = SERVER_LOCATIONS_RENAME
     for legacy_constraint, constraint in SERVER_LOCATIONS_CONSTRAINT_RENAMES:
@@ -129,7 +144,7 @@ def downgrade() -> None:
     _rename_column("TABLE", table, "server", "hostname")
     _rename_relation("TABLE", table, legacy_table)
 
-    for legacy_index, index in INDEX_RENAMES:
-        _rename_index(index, legacy_index)
+    for table_name, legacy_index, index in INDEX_RENAMES:
+        _rename_index(TABLE_INDEX_LOOKUP, table_name, index, legacy_index)
     for table_name, legacy_column, column in TABLE_COLUMN_RENAMES:
         _rename_column("TABLE", table_name, column, legacy_column)
