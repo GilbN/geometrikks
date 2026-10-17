@@ -91,7 +91,8 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     crowdsec: CrowdSecHealth
     timestamp: str
     # Additive: agent-mode reporting (Task 5/6). schema_wait is None in full
-    # mode, since only agent startup ever sets app.state.schema_wait_result.
+    # mode, since only agent startup ever sets app.state.schema_wait_result,
+    # and "waiting" in an agent that has not recorded a result yet.
     mode: Literal["full", "agent"] = "full"
     schema_wait: str | None = None
     # Additive: generic operator advisories; empty when nothing needs
@@ -442,17 +443,14 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
-@get(
-    "/health",
-    tags=["Health"],
-    dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
-)
-async def health(
-    request: Request,
-    ingestion_service: NamedDependency[LogIngestionService | None],
-    settings: NamedDependency[SkipValidation[Settings]],
+def build_health_response(
+    app: Litestar,
+    settings: Settings,
+    ingestion_service: LogIngestionService | None,
+    *,
+    db_reachable: bool,
 ) -> HealthResponse:
-    """Liveness + component detail. Always 200 while the app is up."""
+    """The /health payload, shared with the heartbeat writer."""
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
@@ -464,10 +462,9 @@ async def health(
         ingestion_service.unavailable_sources if ingestion_service else []
     )
     missing_files = [source.label for source in unavailable_sources]
-    db_reachable = await _database_reachable(request.app)
-    services_active = runtime.is_db_available(request.app, default=True)
+    services_active = runtime.is_db_available(app, default=True)
 
-    poller = runtime.get_crowdsec_poller(request.app)
+    poller = runtime.get_crowdsec_poller(app)
 
     # LOGPARSER_ENABLED=false is an operator choice, not an outage: it must
     # report "disabled", not "degraded", and must not flip overall status.
@@ -490,7 +487,7 @@ async def health(
             and ingestion_status != "degraded"
         )
         else "degraded",
-        started_at=_iso(runtime.get_started_at(request.app)),
+        started_at=_iso(runtime.get_started_at(app)),
         ingestion=IngestionHealth(
             running=is_running,
             parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
@@ -524,11 +521,11 @@ async def health(
         # GeoLite2 build, not the file's mtime.
         geoip=GeoIPHealth(
             # default=True: don't report degraded while startup is still running.
-            available=runtime.is_geoip_available(request.app, default=True),
+            available=runtime.is_geoip_available(app, default=True),
             db_build_date=_iso(geoip_info(settings.geoip.db_path).build_date),
             asn_available=(
                 settings.geoip.asn_enabled
-                and runtime.is_asn_available(request.app, default=True)
+                and runtime.is_asn_available(app, default=True)
             ),
             asn_db_build_date=_iso(geoip_info(settings.geoip.asn_db_path).build_date),
         ),
@@ -536,17 +533,34 @@ async def health(
         # `status`. lapi_reachable is the stream poller's cached verdict;
         # null when disabled, DB-degraded, or before the first poll.
         crowdsec=CrowdSecHealth(
-            enabled=runtime.get_crowdsec_service(request.app) is not None,
+            enabled=runtime.get_crowdsec_service(app) is not None,
             lapi_reachable=poller.lapi_reachable if poller is not None else None,
         ),
         timestamp=datetime.now(timezone.utc).isoformat(),
         mode="agent" if settings.is_agent else "full",
         schema_wait=(
-            getattr(request.app.state, "schema_wait_result", None)
+            (getattr(app.state, "schema_wait_result", None) or "waiting")
             if settings.is_agent
             else None
         ),
-        advisories=_collect_advisories(request.app, settings),
+        advisories=_collect_advisories(app, settings),
+    )
+
+
+@get(
+    "/health",
+    tags=["Health"],
+    dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
+)
+async def health(
+    request: Request,
+    ingestion_service: NamedDependency[LogIngestionService | None],
+    settings: NamedDependency[SkipValidation[Settings]],
+) -> HealthResponse:
+    """Liveness + component detail. Always 200 while the app is up."""
+    db_reachable = await _database_reachable(request.app)
+    return build_health_response(
+        request.app, settings, ingestion_service, db_reachable=db_reachable
     )
 
 

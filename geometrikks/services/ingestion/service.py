@@ -74,6 +74,17 @@ class UnavailableSource:
     reason: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class BatchError:
+    """The most recent write failure, kept for the heartbeat payload."""
+
+    message: str
+    at: datetime
+
+
+BATCH_ERROR_MAX_CHARS = 500
+
+
 @dataclass
 class IngestionRepos:
     """The four repositories used by one flush cycle, all bound to the same session."""
@@ -191,6 +202,7 @@ class LogIngestionService:
         self.publish_dropped: int = 0
         self.failed_batches: int = 0
         self.failed_records: int = 0
+        self.last_batch_error: BatchError | None = None
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -840,6 +852,7 @@ class LogIngestionService:
                             raw_line=(record.raw_line or "")[:100],
                         )
                         batch_failed = True
+                        self._record_batch_error(e)
                         lost_records += rolled_back_records
                         committed_candidates = []
                         try:
@@ -871,6 +884,7 @@ class LogIngestionService:
                         error=str(e),
                     )
                     batch_failed = True
+                    self._record_batch_error(e)
                     lost_records += commit_lost_records
                     try:
                         await session.rollback()
@@ -892,6 +906,11 @@ class LogIngestionService:
             flushed["geo"],
             flushed["log"],
             flushed["debug"],
+        )
+
+    def _record_batch_error(self, error: Exception) -> None:
+        self.last_batch_error = BatchError(
+            message=str(error)[:BATCH_ERROR_MAX_CHARS], at=datetime.now(timezone.utc)
         )
 
     async def flush_records(self, records: list[ParsedLogRecord]) -> None:
