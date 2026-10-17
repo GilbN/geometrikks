@@ -1033,8 +1033,9 @@ async def teardown_timescaledb(conn: "AsyncConnection") -> None:
     # 2. Drop hypertables
     for table, _, _, _ in HYPERTABLES:
         try:
-            # A savepoint, because TimescaleDB 2.x has no drop_hypertable() and
-            # the failed call would abort the caller's transaction before drop_all.
+            # The savepoint matters because TimescaleDB 2.x has no
+            # drop_hypertable(), and the failed call would otherwise abort the
+            # caller's transaction before drop_all.
             async with conn.begin_nested():
                 await conn.execute(text("""
                     SELECT drop_hypertable(:table, if_exists => TRUE)
@@ -1218,7 +1219,7 @@ async def _cagg_columns_need_upgrade(
     return pending
 
 
-# A database without in-place ADD COLUMN keeps its old per-IP aggregates.
+# A TimescaleDB version without in-place ADD COLUMN keeps its old per-IP aggregates.
 # Readers omit servers instead of referencing a column that could not be added.
 _server_columns_unavailable: set[str] = set()
 

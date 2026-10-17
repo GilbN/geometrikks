@@ -807,8 +807,8 @@ async def _run_backfill_server(name: str, *, consolidate: bool, yes: bool) -> No
         # plain fill path needs this too. Without it, log_source_daily_stats
         # keeps server NULL for history, and once raw retention drops the
         # access_logs rows the facet can never be corrected.
-        # Each CAGG's range comes from its own source table. server_daily_stats
-        # reads geo_events while log_source_daily_stats reads access_logs, and
+        # Each CAGG's refresh range comes from its own source table.
+        # server_daily_stats reads geo_events while log_source_daily_stats reads access_logs, and
         # the two tables' time bounds differ (access logs exist for rows
         # that never produced a geo event).
         if filled or rewritten_geo or rewritten_logs:

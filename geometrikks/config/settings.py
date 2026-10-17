@@ -90,9 +90,9 @@ class LegacyEnvNamesSettings(BaseSettings):
 
         An empty ``MAP_HOME_LOCATIONS={}`` counts as unset, but ``false`` and
         ``0`` are set. Call this first in the section's after-validator, so
-        checks that read the new fields see the merged values. Both names set
-        to different parsed values raise, because preferring one would make
-        an edit to the other do nothing.
+        checks that read the new fields see the merged values. Setting both
+        names to different parsed values raises ValueError, because preferring
+        one would make an edit to the other do nothing.
         """
         model = type(self)
         legacy_env_names: list[LegacyEnvName] = []

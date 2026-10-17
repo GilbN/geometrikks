@@ -247,9 +247,10 @@ function AbuseReportBody({
       <p className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
         <ShieldAlert className="mt-px size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
         <span>
-          The report leaves out your server names, Host headers, referrers and manual ban reasons. It tries to strip
-          the hostnames you serve, your public address and any server name with a dot from paths and user agents, and
-          credentials such as API keys from paths. It can miss some, so read it before you send it.
+          The report leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user
+          agents it tries to strip the hostnames you serve, your public address and any server name with a dot. It
+          also tries to strip credentials such as API keys from paths. It can miss some, so read it before you send
+          it.
         </span>
       </p>
 
