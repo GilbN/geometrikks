@@ -186,3 +186,29 @@ def test_old_coordinate_alone_fails_the_pair_check(monkeypatch: pytest.MonkeyPat
 
     with pytest.raises(ValidationError, match="must be set together"):
         Settings(_env_file=None)
+
+
+@pytest.mark.parametrize("blank_value", ["", "  ", "[]"])
+def test_blank_old_name_counts_as_unset(
+    monkeypatch: pytest.MonkeyPatch, blank_value: str
+) -> None:
+    monkeypatch.setenv("LOKI_URL", "http://loki:3100")
+    monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
+    monkeypatch.setenv("LOKI_HOST_NAMES", blank_value)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.loki.server_names == []
+    assert settings.legacy_env_names_in_use() == []
+
+
+def test_blank_old_name_does_not_conflict_with_new_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LOKI_URL", "http://loki:3100")
+    monkeypatch.setenv("LOKI_QUERIES", '{job="traefik"}')
+    monkeypatch.setenv("LOKI_HOST_NAMES", "")
+    monkeypatch.setenv("LOKI_SERVER_NAMES", "edge-01")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.loki.server_names == ["edge-01"]
+    assert settings.legacy_env_names_in_use() == []

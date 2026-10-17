@@ -44,7 +44,6 @@ def get_installed_version() -> str:
 OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback"
 
 
-# Key in a legacy field's json_schema_extra naming the field that replaced it.
 LEGACY_FIELD_MARKER = "replaced_by"
 
 
@@ -89,8 +88,9 @@ class LegacyEnvNamesSettings(BaseSettings):
     def _merge_legacy_fields(self) -> None:
         """Copy each set legacy value onto its replacement field.
 
-        Call this first in the section's after-validator, so checks that read
-        the new fields see the merged values. Both names set to different
+        A blank value such as ``LOKI_HOST_NAMES=`` counts as unset. Call this
+        first in the section's after-validator, so checks that read the new
+        fields see the merged values. Both names set to different
         parsed values is an error: silently preferring one would leave an
         edit to the other doing nothing.
         """
@@ -101,7 +101,7 @@ class LegacyEnvNamesSettings(BaseSettings):
             if new_field_name is None:
                 continue
             legacy_value = getattr(self, legacy_field_name)
-            if legacy_value is None:
+            if legacy_value is None or legacy_value == "" or legacy_value == []:
                 continue
             legacy_env_name = LegacyEnvName(
                 old=_env_var_name(model, legacy_field_name),
@@ -688,8 +688,7 @@ class LokiSettings(LegacyEnvNamesSettings):
 
     @model_validator(mode="after")
     def validate_sources(self) -> "LokiSettings":
-        """Take LOKI_HOST_NAMES, then check that URL and queries go together and
-        the per-query lists match the queries."""
+        """Take LOKI_HOST_NAMES, then check the URL, queries and per-query lists agree."""
         from geometrikks.services.logparser.formats import FORMATS
 
         self._merge_legacy_fields()
