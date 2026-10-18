@@ -5,11 +5,10 @@
  * Selecting a row opens the alert's context, events and decisions.
  */
 import { useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
+import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -20,12 +19,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useCrowdsecAlertScenarios, useCrowdsecAlerts, useTrimCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import {
   ALERT_KIND_OPTIONS,
-  MAX_ALERT_SCENARIOS,
+  activeAlertFilters,
   alertHistoryFooter,
   alertsEmptyMessage,
   groupConsecutiveAlerts,
@@ -36,8 +36,15 @@ import {
   scenarioOptionLabel,
   scenarioOptions,
   toggleRun,
+  type AlertFilterGroup,
   type AlertKindFilter,
 } from "@/lib/crowdsec-alerts"
+import {
+  AlertFilterChips,
+  AlertIpFilter,
+  AlertKindRadioGroup,
+  AlertScenarioFilter,
+} from "@/components/security/alert-filter-controls"
 import { AlertKindHelp } from "@/components/security/alert-kind-help"
 import { AlertRunRows } from "@/components/security/alert-run-rows"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
@@ -76,6 +83,7 @@ export function AlertsTable() {
   const [ipText, setIpText] = useState("")
   const [scenarios, setScenarios] = useState<string[]>([])
   const [scenarioPickerOpened, setScenarioPickerOpened] = useState(false)
+  const isMobile = useIsMobile()
   const kindParam = kind === "all" ? undefined : kind
   const alertParams = { since, kind: kindParam, ip, scenarios: [...scenarios].sort() }
   const {
@@ -126,6 +134,46 @@ export function AlertsTable() {
     if (!scenarioFilterAllowed(nextKind)) setScenarios([])
   }
 
+  const clearIp = () => {
+    setIpText("")
+    setIp(undefined)
+  }
+  const activeFilters = activeAlertFilters({ kind, scenarios, ip })
+  const clearFilterGroup = (group: AlertFilterGroup) => {
+    if (group === "kind") changeKind("all")
+    else if (group === "scenario") setScenarios([])
+    else clearIp()
+  }
+  const clearFilters = () => {
+    changeKind("all")
+    setScenarios([])
+    clearIp()
+  }
+
+  const scenarioFilter = (inDrawer: boolean) => (
+    <AlertScenarioFilter
+      inDrawer={inDrawer}
+      disabled={!scenarioPickerEnabled}
+      options={scenarioOptions(scenarioCounts, scenarios)}
+      selected={scenarios}
+      onChange={(picked) => setScenarios((current) => pickScenarios(current, picked))}
+      labelFor={(scenario) => scenarioOptionLabel(scenario, countByScenario.get(scenario))}
+      loading={scenarioCountsPending}
+      emptyText={scenarioCountsFailed ? "Could not load scenarios" : "No alerts in this window"}
+      onOpenChange={(open) => open && setScenarioPickerOpened(true)}
+    />
+  )
+  const ipFilter = (inDrawer: boolean) => (
+    <AlertIpFilter
+      inDrawer={inDrawer}
+      text={ipText}
+      applied={ip}
+      onTextChange={setIpText}
+      onApply={() => setIp(ipText.trim() || undefined)}
+      onClear={clearIp}
+    />
+  )
+
   return (
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
@@ -140,75 +188,37 @@ export function AlertsTable() {
           </TabsList>
         </Tabs>
       </CardHeader>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2 -mt-6">
-        <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
-          <Tabs
-            value={kind}
-            onValueChange={(value) => changeKind(value as AlertKindFilter)}
-            className="min-w-0 flex-1 sm:flex-none"
-          >
-            <TabsList
-              aria-label="Alert kind"
-              className="grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto sm:inline-flex sm:w-fit sm:group-data-horizontal/tabs:h-9"
-            >
-              {ALERT_KIND_OPTIONS.map((option) => (
-                <TabsTrigger key={option.key} value={option.key} className="h-8 sm:h-[calc(100%-1px)]">
-                  {option.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <AlertKindHelp />
+      {isMobile ? (
+        <div className="flex flex-col items-start gap-2 px-6 pb-2 -mt-6">
+          <div onClick={() => setScenarioPickerOpened(true)}>
+            <FiltersDrawer activeCount={activeFilters.length} onClear={clearFilters}>
+              <AlertKindRadioGroup kind={kind} onChange={changeKind} />
+              {scenarioFilter(true)}
+              {ipFilter(true)}
+            </FiltersDrawer>
+          </div>
+          <AlertFilterChips chips={activeFilters} onRemove={clearFilterGroup} />
         </div>
-        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
-          <span title={scenarioPickerEnabled ? undefined : "Bot detection already picks its own scenarios"}>
-            <FilterCombobox
-              label="Scenario"
-              options={scenarioOptions(scenarioCounts, scenarios)}
-              selected={scenarios}
-              onChange={(picked) => setScenarios((current) => pickScenarios(current, picked))}
-              labelFor={(scenario) => scenarioOptionLabel(scenario, countByScenario.get(scenario))}
-              loading={scenarioCountsPending}
-              emptyText={scenarioCountsFailed ? "Could not load scenarios" : "No alerts in this window"}
-              contentClassName="min-w-72"
-              onOpenChange={(open) => open && setScenarioPickerOpened(true)}
-              disabled={!scenarioPickerEnabled}
-              maxSelected={MAX_ALERT_SCENARIOS}
-            />
-          </span>
-          <form
-            className="min-w-0 flex-1 sm:flex-none"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setIp(ipText.trim() || undefined)
-            }}
-          >
-            <InputGroup className="h-8 w-full sm:w-[180px]">
-              <InputGroupInput
-                name="ip"
-                value={ipText}
-                onChange={(event) => setIpText(event.target.value)}
-                placeholder="Filter by IP (Enter)"
-                aria-label="Filter alerts by IP"
-              />
-              {ip && (
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    size="icon-xs"
-                    aria-label="Clear IP filter"
-                    onClick={() => {
-                      setIpText("")
-                      setIp(undefined)
-                    }}
-                  >
-                    <X />
-                  </InputGroupButton>
-                </InputGroupAddon>
-              )}
-            </InputGroup>
-          </form>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2 -mt-6">
+          <div className="flex items-center gap-1">
+            <Tabs value={kind} onValueChange={(value) => changeKind(value as AlertKindFilter)}>
+              <TabsList aria-label="Alert kind">
+                {ALERT_KIND_OPTIONS.map((option) => (
+                  <TabsTrigger key={option.key} value={option.key}>
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <AlertKindHelp />
+          </div>
+          <div className="flex items-center gap-2">
+            {scenarioFilter(false)}
+            {ipFilter(false)}
+          </div>
         </div>
-      </div>
+      )}
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
           <Table>

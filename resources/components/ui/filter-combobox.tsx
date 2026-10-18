@@ -159,6 +159,14 @@ export function FilterCombobox<T extends string | number>({
   const triggerLabel = `${label}${count > 0 ? ` (${count})` : ""}`
 
   if (forceInline) {
+    if (disabled) {
+      return (
+        <Button variant="outline" size="sm" disabled className={cn("h-8 justify-between pointer-coarse:h-10", className)}>
+          {label}
+          <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      )
+    }
     return (
       <FilterComboboxBody
         options={options}

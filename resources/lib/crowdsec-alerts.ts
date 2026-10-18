@@ -12,12 +12,20 @@ export type AlertKindFilter = "all" | "crowdsec" | "waf" | "bot"
 
 // The kinds an engine produces on its own. Blocklist pulls are left out of
 // the history already, and Console orders are rare enough to live under All.
-export const ALERT_KIND_OPTIONS: readonly { key: AlertKindFilter; label: string }[] = [
-  { key: "all", label: "All kinds" },
-  { key: "crowdsec", label: "Log scenarios" },
-  { key: "waf", label: "WAF" },
-  { key: "bot", label: "Bot detection" },
+export const ALERT_KIND_OPTIONS: readonly { key: AlertKindFilter; label: string; description: string | null }[] = [
+  { key: "all", label: "All kinds", description: null },
+  {
+    key: "crowdsec",
+    label: "Log scenarios",
+    description: "A scenario overflowed on your logs. Most bans come from here.",
+  },
+  { key: "waf", label: "WAF", description: "An AppSec rule matched a request. Many never ban." },
+  { key: "bot", label: "Bot detection", description: "Bot challenge rejections and the bans they lead to." },
 ]
+
+export const KIND_FILTER_NEEDS_NOTE = "Filtering by kind needs CrowdSec 1.7 or newer."
+
+export const BOT_SCENARIO_NOTE = "Bot detection already picks its own scenarios."
 
 const EMPTY_MESSAGES: Record<AlertKindFilter, string> = {
   all: "No alerts in this window.",
@@ -42,10 +50,39 @@ export function scenarioOptions(counts: readonly ScenarioCount[] | undefined, se
   return [...counted, ...selected.filter((scenario) => !countedNames.has(scenario))]
 }
 
+function scenarioShortName(scenario: string): string {
+  return scenario.split("/").at(-1) ?? scenario
+}
+
 /** "http-probing · 41", or the bare name while the count is unknown. */
 export function scenarioOptionLabel(scenario: string, count: number | undefined): string {
-  const name = scenario.split("/").at(-1) ?? scenario
+  const name = scenarioShortName(scenario)
   return count === undefined ? name : `${name} · ${count}`
+}
+
+export type AlertFilterGroup = "kind" | "scenario" | "ip"
+
+/** One entry per filter group in use, in the order the filter chips show them. */
+export function activeAlertFilters({
+  kind,
+  scenarios,
+  ip,
+}: {
+  kind: AlertKindFilter
+  scenarios: readonly string[]
+  ip: string | undefined
+}): { group: AlertFilterGroup; label: string }[] {
+  const active: { group: AlertFilterGroup; label: string }[] = []
+  if (kind !== "all") {
+    active.push({ group: "kind", label: ALERT_KIND_OPTIONS.find((option) => option.key === kind)?.label ?? kind })
+  }
+  if (scenarios.length === 1) {
+    active.push({ group: "scenario", label: `Scenario: ${scenarioShortName(scenarios[0])}` })
+  } else if (scenarios.length > 1) {
+    active.push({ group: "scenario", label: `${scenarios.length} scenarios` })
+  }
+  if (ip) active.push({ group: "ip", label: ip })
+  return active
 }
 
 /** The new pick, or the current one when the new pick passes the cap. */

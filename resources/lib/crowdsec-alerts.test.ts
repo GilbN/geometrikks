@@ -7,6 +7,7 @@ import {
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
   MAX_ALERT_SCENARIOS,
+  activeAlertFilters,
   alertBadge,
   alertDescription,
   alertOutcome,
@@ -679,5 +680,52 @@ describe("onlyScenario", () => {
       kind: "all",
       scenarios: ["crowdsecurity/appsec-bot-challenge-too-many-requests"],
     })
+  })
+})
+
+describe("activeAlertFilters", () => {
+  it("lists nothing while no filter is set", () => {
+    expect(activeAlertFilters({ kind: "all", scenarios: [], ip: undefined })).toEqual([])
+  })
+
+  it("labels the kind with its tab label", () => {
+    expect(activeAlertFilters({ kind: "waf", scenarios: [], ip: undefined })).toEqual([{ group: "kind", label: "WAF" }])
+    expect(activeAlertFilters({ kind: "bot", scenarios: [], ip: undefined })).toEqual([
+      { group: "kind", label: "Bot detection" },
+    ])
+  })
+
+  it("names a single scenario by its short name and counts several", () => {
+    expect(activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing"], ip: undefined })).toEqual([
+      { group: "scenario", label: "Scenario: http-probing" },
+    ])
+    expect(
+      activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"], ip: undefined }),
+    ).toEqual([{ group: "scenario", label: "2 scenarios" }])
+  })
+
+  it("keeps the kind, scenario, IP order and one entry per group", () => {
+    expect(
+      activeAlertFilters({ kind: "crowdsec", scenarios: ["crowdsecurity/ssh-bf"], ip: "203.0.113.7" }),
+    ).toEqual([
+      { group: "kind", label: "Log scenarios" },
+      { group: "scenario", label: "Scenario: ssh-bf" },
+      { group: "ip", label: "203.0.113.7" },
+    ])
+  })
+
+  it("treats an empty IP as no IP filter", () => {
+    expect(activeAlertFilters({ kind: "all", scenarios: [], ip: "" })).toEqual([])
+  })
+})
+
+describe("ALERT_KIND_OPTIONS descriptions", () => {
+  it("explains every kind but All kinds", () => {
+    expect(ALERT_KIND_OPTIONS.map((option) => option.description)).toEqual([
+      null,
+      "A scenario overflowed on your logs. Most bans come from here.",
+      "An AppSec rule matched a request. Many never ban.",
+      "Bot challenge rejections and the bans they lead to.",
+    ])
   })
 })

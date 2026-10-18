@@ -1,5 +1,6 @@
 import { Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { KIND_FILTER_NEEDS_NOTE } from "@/lib/crowdsec-alerts"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 export function AlertKindHelp() {
@@ -23,7 +24,7 @@ export function AlertKindHelp() {
           <strong>Bot detection.</strong> The AppSec bot challenge. A rejected browser submission is logged as an
           alert and never bans. Repeated failures raise a bot ban.
         </p>
-        <p className="text-muted-foreground">Filtering by kind needs CrowdSec 1.7 or newer.</p>
+        <p className="text-muted-foreground">{KIND_FILTER_NEEDS_NOTE}</p>
       </PopoverContent>
     </Popover>
   )
