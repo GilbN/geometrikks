@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security > Alert history shows the alert kinds as tabs with an explanation of each, and "Detections" is now "Log scenarios". An empty WAF or Bot detection view says what that kind needs.
 - Security > Alert history: Bot detection now also lists the bans the bot challenge raises, marked "Bot ban", next to rejected submissions, now marked "Bot rejected".
 - Alert history's Outcome column says what each alert did, such as "Ban, active" or "Alert only". The Banned badge next to the IP says it's the IP's current state.
+- Without CrowdSec machine credentials, the Security page shows what Alert history needs instead of leaving it out.
 
 ### Fixed
 

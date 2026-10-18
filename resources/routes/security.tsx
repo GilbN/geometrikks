@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { ShieldBan } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertsTable } from "@/components/security/alerts-table"
+import { AlertHistoryUnavailable, AlertsTable } from "@/components/security/alerts-table"
 import { CrowdsecUnreachableBanner } from "@/components/security/crowdsec-unreachable-banner"
 import { DecisionsTable } from "@/components/security/decisions-table"
 import { SecurityStatCards } from "@/components/security/security-stat-cards"
@@ -75,7 +75,7 @@ function SecurityPage() {
       <CrowdsecUnreachableBanner />
       <SecurityStatCards />
       <DecisionsTable />
-      {status.writeEnabled && <AlertsTable />}
+      {status.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />}
     </div>
   )
 }

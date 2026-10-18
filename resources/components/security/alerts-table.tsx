@@ -44,6 +44,25 @@ const SINCE_OPTIONS = [
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 
+const MACHINE_CREDENTIAL_CODE_CLASS = "rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
+
+export function AlertHistoryUnavailable() {
+  return (
+    <Card className="py-4">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
+      </CardHeader>
+      <CardContent className="px-6 py-8 text-center text-sm leading-relaxed text-muted-foreground">
+        <p>Alert history needs CrowdSec machine credentials.</p>
+        <p>
+          Set <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_ID</code> and{" "}
+          <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_PASSWORD</code>, then restart.
+        </p>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
   const [kind, setKind] = useState<AlertKindFilter>("all")
