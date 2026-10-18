@@ -1,24 +1,66 @@
-# Theme palettes
+# Themes
 
-Color mode (`light`, `dark`, `system`), dark appearance, and accent are independent
-preferences. Existing storage keys are defined in `lib/theme.ts` and must remain
-stable. `system` resolves against the device preference while retaining the chosen
-dark appearance.
+A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge and Black
+ship today. Two independent preferences pick what the page paints.
 
-To add a dark appearance:
+| Preference | Values | Storage key |
+| --- | --- | --- |
+| Color mode | `system`, `light`, `dark` | `geometrikks-theme` |
+| Theme | `aurora`, `moss`, `forge`, `black` | `geometrikks-color-theme` |
 
-1. Add its label, description, browser color, and startup foreground to
-   `DARK_APPEARANCE_CATALOG` in `resources/lib/theme.ts`. IDs come from the catalog
-   keys, so parsing, settings, menus, previews, and startup pick up the entry.
-2. Add `resources/themes/<id>.css`, scoped to
-   `.dark[data-dark-appearance="<id>"]`, and import it after `aurora.css` in
-   `resources/main.css`. The default `.dark` palette supplies Aurora values; new
-   appearances override the values they need. Use the same file name and catalog ID.
+Mode defaults to `dark` and theme to `aurora`. `system` follows
+`prefers-color-scheme` and re-resolves when the OS setting changes. The chosen theme
+stays across that switch and across reloads.
+
+Browsers that saved an accent before themes existed have only
+`geometrikks-accent`. It is read, never written: `teal` becomes `aurora`, `green`
+becomes `moss` and `copper` becomes `forge`. A valid `geometrikks-color-theme` wins
+over it. A junk theme value falls back to the legacy accent's theme, then to Aurora.
+`geometrikks-dark-appearance` is no longer read. The rule lives in `parseColorTheme`
+in `resources/lib/theme.ts`, and the startup script repeats it.
+
+## Adding a theme
+
+1. Add an entry to `THEME_CATALOG` in `resources/lib/theme.ts` with a label, a
+   description, and `themeColor` and `foreground` for each of `light` and `dark`.
+   `themeColor` is the hex of that scheme's computed `--background`. It paints before
+   the stylesheet loads, and the first-paint test compares the two. IDs come from the
+   catalog keys, so parsing, the settings cards, the startup script and the previews
+   pick up the entry.
+2. Add `resources/themes/<id>.css` with the two selectors below, and import it after
+   `black.css` in `resources/main.css`. Use the catalog ID as the file name.
 3. Run the checks below and inspect the development preview.
 
-`light.css` provides the shared token contract. Palette overrides are checked
-against it, so adding a new component role requires a default here. Keep related
-roles separate even when their colors happen to match:
+| Scheme | Selector |
+| --- | --- |
+| Light | `[data-theme="<id>"]:not(.dark) { ... }` |
+| Dark | `.dark[data-theme="<id>"] { ... }` |
+
+Aurora is the baseline. `light.css` holds its light palette under
+`:root, .light, .dark`, and `aurora.css` holds its dark palette under `.dark`. Every
+other theme overrides only the tokens it changes. `light.css` also provides the shared
+token contract, and the palette test checks each override against it, so a new
+component role needs a default there.
+
+### Selector rules
+
+`data-theme` and `.light` or `.dark` sit on the same element: `<html>` for the page,
+and the preview wrapper for the cards in Settings > Appearance. Scope every palette
+with a compound selector on that element. Never use a descendant selector such as
+`.dark [data-theme="x"]`. A light preview inside a dark page sits below an ancestor
+with `.dark`, so a descendant selector would match it and paint the dark palette in
+the light preview. Compound selectors only match the element's own classes. The
+`:root, .light, .dark` baseline resets every token on the preview element first, so
+each preview shows its own values, derived tokens like `--glass-card` included.
+`theme-palettes.test.ts` rejects descendant selectors.
+
+The same applies to Tailwind. A `dark:` variant matches any `.dark` ancestor, so it
+fires inside a light preview on a dark page. Preview markup uses token classes only
+(`bg-card`, `border-border`), never `dark:`.
+
+### Roles
+
+Keep related roles separate even when their colors happen to match:
 
 | Role | Tokens |
 | --- | --- |
@@ -31,33 +73,37 @@ roles separate even when their colors happen to match:
 | Decoration visibility | `--theme-decoration-display` |
 | Sidebar selection | `--nav-active-bg`, `--nav-indicator-opacity`, `--nav-inactive-*` |
 
-Components consume these roles without checking appearance IDs. The sidebar's
-selected icon continues to use the independent accent color and glow. Charts
-retain their categorical palette.
+Components consume these roles without checking theme IDs. Charts keep their
+categorical palette (`--chart-1` to `--chart-5`) and the live map routes keep their
+status colors in every theme.
 
 Preserve functional selection cues in every palette: navigation accent bars and
 selected option fills stay visible. `--theme-decoration-display` is reserved for
 background artwork, never for controls, selection markers, or status indicators.
 
-`index.html` contains a `theme-head` marker. `lib/theme-html-plugin.ts` fills it using the
-same catalog as the app. `index.html` is a Vite build entry so production receives
-the same synchronous startup script as development. Do not add theme-specific
-branches or colors to the HTML. The startup fallback colors cover loading before
-the stylesheet; CSS variables then supply the exact palette values.
+`index.html` contains a `theme-head` marker. `lib/theme-html-plugin.ts` fills it with
+the script from `lib/theme-bootstrap.ts`, built from the same catalog as the app. The
+script sets the scheme class, `data-theme`, `color-scheme`, the `theme-color` meta tag
+and the startup colors before the first paint. `index.html` is a Vite build entry so
+production receives the same synchronous script as development. Do not add
+theme-specific branches or colors to the HTML. The startup colors cover loading
+before the stylesheet; CSS variables then supply the exact palette values.
 
-With the full development app running, open
-`/static/resources/dev/themes.html`. It uses the real UI components and is not
-included in the production build. Switch palettes and accents, open the drawer
-and dialog, and inspect hover, selection, keyboard focus, and map translucency.
+With the full development app running, open `/static/resources/dev/themes.html`. It
+uses the real UI components and is not included in the production build. Switch
+themes and modes, open the drawer and dialog, and inspect hover, selection, keyboard
+focus, and map translucency. It also renders a light and a dark preview side by side
+inside the current page.
 
 ```sh
-bun run test resources/lib/theme.test.ts resources/lib/theme-palettes.test.ts resources/lib/design-system.test.ts resources/lib/accent.test.ts
+bun run test resources/lib/theme.test.ts resources/lib/theme-palettes.test.ts resources/lib/design-system.test.ts
 SMOKE_BASE_URL=http://ripley.lan:8888 npx playwright test --project=themes
 bun run build
 ```
 
-The browser checks cover all registered appearances at desktop and phone widths,
-including control contrast and accent independence. They save drawer screenshots
+The browser checks cover every scheme of every theme at desktop and phone widths,
+including control contrast, first paint, legacy accent migration, previews inside
+pages of the other scheme, and live System switching. They save drawer screenshots
 under `smoke-artifacts/test-results`. The preview needs the Vite development
 server; the unit tests and production build do not.
 Playwright runs under Node via `npx`, matching CI. Its `themes` project contains

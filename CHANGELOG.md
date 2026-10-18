@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Black dark appearance with neutral near-black surfaces, a monochrome login scene, and translucent map panels. Choose it in the theme menu or Settings > Appearance independently of Light/Dark/System mode and the accent color.
+- Themes. Settings > Appearance offers Aurora, Moss, Forge and Black, each with a light and a dark palette that follow Light, Dark or System. Black uses plain white in light mode and near-black in dark mode, with grey-scale buttons, links and logo.
 - `import-logs` reads Nginx Proxy Manager's own per-host access logs with `--format npm`, and `--format auto` detects them. You can backfill the history from before you set up the JSON log. Imported NPM rows have no response times, protocol or remote user. Live tailing doesn't accept the format. `LOGPARSER_LOG_FORMATS=npm` fails at startup, and a tailed file in that format logs a warning that points to the JSON setup.
 - `import-logs --before` leaves out lines stamped at or after a given date or time, so an import can stop where an already ingested log begins. Running a file again with a later `--before`, or none, imports only the lines in between.
 - GeoMetrikks can read access logs from Grafana Loki instead of a file. Set `LOKI_URL` and `LOKI_QUERIES`, with one LogQL stream selector per source. Loki lines get the same format detection, parsing and GeoIP lookup as a tailed file. The Status page lists each Loki source, and `/health` lists one that can't be reached or that refuses the query under `ingestion.unavailableSources`. See "Loki setup" in the README.
@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Settings > Appearance separates Color mode, Dark appearance, and Accent. The theme menu marks the selected mode and dark appearance.
+- Themes replace the accent color picker, which is gone from the header and from Settings. A saved teal, green or copper accent becomes Aurora, Moss or Forge. Moss and Forge now tint the page and panels to match their color.
+- Settings > Appearance shows Light, Dark and System as preview cards drawn in the current theme.
 - Tabs, switches, checkboxes, menu items and select options show the pointer cursor on hover, like buttons already did.
 - In dark mode, menu and list highlights are a faint tint of the accent color instead of the solid accent, and primary buttons use the same tint.
 - The Ban button in the Ban IP dialog and the Remove button in the site home confirmation are red. The dialog's Cancel button has a border like other secondary buttons.
