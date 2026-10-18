@@ -221,18 +221,36 @@ async def test_cursor_alert_and_everything_older_deleted_ends_the_history():
     assert lapi.calls[-1]["created_before"] is None
 
 
-async def test_flood_newer_than_the_cursor_past_the_cap_conflicts(monkeypatch):
-    # 151 alerts at or after the cursor, MAX_FETCH 100: neither the margin
-    # pass nor the clock-free pass reaches an older alert.
+async def test_flood_inside_the_margin_past_the_cap_pages_through_with_agreeing_clocks(monkeypatch):
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
     alerts, cursor = cursor_flood()
     lapi = SimulatedLapi(alerts)
+    page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
+    assert page.next_cursor is None
+    age_seconds = int((NOW - T0).total_seconds())
+    age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
+    ]
+
+
+async def test_deleted_cursor_inside_a_margin_flood_is_an_accepted_conflict(monkeypatch):
+    # With the cursor alert gone, the exact-age answer holds nothing at or
+    # after the cursor, so it cannot rule out a LAPI clock behind ours. The
+    # clock-free pass then has to get past all 150 newer alerts, more than
+    # MAX_FETCH, and the page answers 409 although older alerts exist.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    alerts, cursor = cursor_flood()
+    lapi = SimulatedLapi([alert for alert in alerts if alert.id != cursor.id])
     with pytest.raises(DomainConflictError) as conflict:
         await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert conflict.value.detail == alert_history.FLOOD_CONFLICT
+    age_seconds = int((NOW - T0).total_seconds())
     age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
-        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (50, None), (100, None),
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
+        (50, None), (100, None),
     ]
 
 
@@ -252,11 +270,37 @@ async def test_full_answer_at_the_cap_with_a_few_older_rows_keeps_a_cursor(monke
     assert bool(clock_free) == (skew != timedelta(0))
 
 
-async def test_cursor_younger_than_the_margin_pages_without_a_cutoff(monkeypatch):
+async def test_cursor_younger_than_the_margin_starts_without_a_cutoff(monkeypatch):
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
     fresh = NOW - timedelta(minutes=2)
     lapi = SimulatedLapi([make_alert(id, fresh) for id in range(1, 301)])
     cursor = AlertCursor(created_at=fresh, id=150)
+    with pytest.raises(DomainConflictError):
+        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    # The exact-age pass still runs; the flood shares the cursor's second.
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, None), (100, None), (100, "120s"),
+    ]
+
+
+async def test_flood_after_a_cursor_younger_than_the_margin_pages_through(monkeypatch):
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    fresh = NOW - timedelta(minutes=2)
+    older = [make_alert(id, fresh - timedelta(seconds=11 - id)) for id in range(1, 11)]
+    cursor_alert = make_alert(11, fresh)
+    newer = [make_alert(id, fresh + timedelta(seconds=1 + (id - 12) * 109 // 149)) for id in range(12, 162)]
+    lapi = SimulatedLapi(older + [cursor_alert] + newer)
+    cursor = AlertCursor(created_at=fresh, id=11)
+    page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
+    assert page.next_cursor is None
+    assert lapi.calls[-1]["created_before"] == "120s"
+
+
+async def test_cursor_from_this_second_skips_the_exact_age_pass(monkeypatch):
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    lapi = SimulatedLapi([make_alert(id, NOW) for id in range(1, 301)])
+    cursor = AlertCursor(created_at=NOW, id=150)
     with pytest.raises(DomainConflictError):
         await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [(50, None), (100, None)]
