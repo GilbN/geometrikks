@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { AlertView } from "@/generated/api/types.gen"
 import {
   ALERT_KIND_OPTIONS,
   ALERT_MAX_PAGES,
@@ -17,11 +18,13 @@ import {
   decisionHasAlert,
   eventExtras,
   formatGoDuration,
+  groupConsecutiveAlerts,
   hasHttpEvents,
   isChallengeEvent,
   kindBadgeClass,
   kindLabel,
   parseScoreReasons,
+  runScenarioLabel,
   shortFingerprint,
   signalNote,
 } from "./crowdsec-alerts"
@@ -430,5 +433,87 @@ describe("alertOutcome", () => {
       text: "3 decisions, 0 active",
       muted: true,
     })
+  })
+
+  it("falls back to Alert only when a decision count comes without its type", () => {
+    expect(alertOutcome({ decisionTypes: [], decisionCount: 1, activeDecisionCount: 1 })).toEqual({
+      text: "Alert only",
+      muted: true,
+    })
+  })
+})
+
+let nextAlertId = 1
+
+function makeAlert(value: string, kind: string | null, scenario = "crowdsecurity/http-probing"): AlertView {
+  const id = nextAlertId++
+  return {
+    id,
+    value,
+    kind,
+    scenario,
+    scope: "Ip",
+    createdAt: "2026-09-28T10:43:44Z",
+    message: "",
+    eventsCount: 1,
+    machineId: "localhost",
+    asName: null,
+    countryCode: null,
+    countryName: null,
+    decisionCount: 0,
+    decisionTypes: [],
+    activeDecisionCount: 0,
+  }
+}
+
+const runSizes = (alerts: AlertView[]) => groupConsecutiveAlerts(alerts).map((alertRun) => alertRun.alerts.length)
+
+describe("groupConsecutiveAlerts", () => {
+  it("merges adjacent alerts with the same source and kind across scenarios", () => {
+    const alerts = [
+      makeAlert("136.113.203.55", "waf", "crowdsecurity/vpatch-CVE-2023-1"),
+      makeAlert("136.113.203.55", "waf", "crowdsecurity/vpatch-CVE-2024-2"),
+      makeAlert("136.113.203.55", "waf", "crowdsecurity/vpatch-CVE-2023-1"),
+    ]
+    const runs = groupConsecutiveAlerts(alerts)
+    expect(runs).toHaveLength(1)
+    expect(runs[0].alerts).toEqual(alerts)
+    expect(runs[0].key).toBe(String(alerts[0].id))
+  })
+
+  it("keeps an interrupted run apart", () => {
+    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("2.2.2.2", "waf"), makeAlert("1.1.1.1", "waf")])).toEqual([
+      1, 1, 1,
+    ])
+  })
+
+  it("keeps different kinds apart", () => {
+    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "crowdsec")])).toEqual([1, 1])
+  })
+
+  it("treats a missing kind as its own kind", () => {
+    expect(runSizes([makeAlert("1.1.1.1", null), makeAlert("1.1.1.1", null)])).toEqual([2])
+    expect(runSizes([makeAlert("1.1.1.1", null), makeAlert("1.1.1.1", "crowdsec")])).toEqual([1, 1])
+  })
+
+  it("merges runs across page boundaries", () => {
+    const page1 = [makeAlert("2.2.2.2", "crowdsec"), makeAlert("1.1.1.1", "waf")]
+    const page2 = [makeAlert("1.1.1.1", "waf"), makeAlert("3.3.3.3", "waf")]
+    expect(runSizes(page1.concat(page2))).toEqual([1, 2, 1])
+  })
+})
+
+describe("runScenarioLabel", () => {
+  it("is null when every alert in the run has the same scenario", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    expect(runScenarioLabel({ key: "1", alerts })).toBeNull()
+  })
+
+  it("counts the distinct scenarios of a mixed run", () => {
+    const scenarios = ["a", "b", "c", "d"]
+    const alerts = Array.from({ length: 12 }, (_, index) =>
+      makeAlert("1.1.1.1", "waf", `crowdsecurity/vpatch-${scenarios[index % 4]}`),
+    )
+    expect(runScenarioLabel({ key: "1", alerts })).toBe("4 scenarios")
   })
 })

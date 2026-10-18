@@ -4,10 +4,11 @@
  * Selecting a row opens the alert's context, events and decisions.
  */
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
-import { CountryLabel } from "@/components/country-flag"
+import { Loader2, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -24,19 +25,13 @@ import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import {
   ALERT_KIND_OPTIONS,
   alertHistoryFooter,
-  alertOutcome,
   alertsEmptyMessage,
-  alertSummary,
+  groupConsecutiveAlerts,
   type AlertKindFilter,
 } from "@/lib/crowdsec-alerts"
 import { AlertKindHelp } from "@/components/security/alert-kind-help"
-import { AlertKindBadge } from "@/components/security/alert-kind-badge"
-import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { AlertRunRows } from "@/components/security/alert-run-rows"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
-import { cn } from "@/lib/utils"
 
 const SINCE_OPTIONS = [
   { key: "24h", label: "Last 24h" },
@@ -49,6 +44,8 @@ type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
   const [kind, setKind] = useState<AlertKindFilter>("all")
+  const [ip, setIp] = useState<string | undefined>(undefined)
+  const [scenario, setScenario] = useState<string | undefined>(undefined)
   const {
     data,
     isLoading,
@@ -62,6 +59,8 @@ export function AlertsTable() {
   } = useCrowdsecAlerts({
     since,
     kind: kind === "all" ? undefined : kind,
+    ip,
+    scenario,
   })
   const alerts = data?.pages.flatMap((page) => page.alerts)
   const footer = alertHistoryFooter({
@@ -71,6 +70,12 @@ export function AlertsTable() {
     isPlaceholderData,
   })
   const [selected, setSelected] = useState<AlertView | null>(null)
+
+  const filterScenario = (clickedScenario: string) => {
+    setScenario(clickedScenario)
+    // The backend answers 400 to the bot group combined with a scenario.
+    if (kind === "bot") setKind("all")
+  }
 
   return (
     <Card className="py-4">
@@ -87,20 +92,50 @@ export function AlertsTable() {
         </Tabs>
       </CardHeader>
       <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2 -mt-6">
-        <div className="flex min-w-0 items-center gap-1">
-          <div className="min-w-0 overflow-x-auto">
-            <Tabs value={kind} onValueChange={(value) => setKind(value as AlertKindFilter)}>
-              <TabsList aria-label="Alert kind">
-                {ALERT_KIND_OPTIONS.map((option) => (
-                  <TabsTrigger key={option.key} value={option.key} className="shrink-0 whitespace-nowrap">
-                    {option.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
+          <div className="flex min-w-0 items-center gap-1">
+            <div className="min-w-0 overflow-x-auto">
+              <Tabs value={kind} onValueChange={(value) => setKind(value as AlertKindFilter)}>
+                <TabsList aria-label="Alert kind">
+                  {ALERT_KIND_OPTIONS.map((option) => (
+                    <TabsTrigger key={option.key} value={option.key} className="shrink-0 whitespace-nowrap">
+                      {option.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+            <AlertKindHelp />
           </div>
-          <AlertKindHelp />
+          {scenario && (
+            <Badge variant="secondary" className="min-w-0 max-w-full shrink gap-1 pr-0.5" title={scenario}>
+              <span className="truncate">Scenario: {scenario.split("/").at(-1)}</span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="size-4 rounded-full"
+                aria-label="Clear scenario filter"
+                onClick={() => setScenario(undefined)}
+              >
+                <X />
+              </Button>
+            </Badge>
+          )}
         </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            const value = new FormData(event.currentTarget).get("ip")
+            setIp(typeof value === "string" && value.trim() ? value.trim() : undefined)
+          }}
+        >
+          <Input
+            name="ip"
+            className="h-8 w-[180px]"
+            placeholder="Filter by IP"
+            aria-label="Filter alerts by IP"
+          />
+        </form>
       </div>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
@@ -128,55 +163,14 @@ export function AlertsTable() {
                       ))}
                     </TableRow>
                   ))
-                : alerts?.map((alert) => (
-                    <TableRow
-                      key={alert.id}
-                      aria-label={`Alert ${alert.id}, ${alert.scenario}, ${alert.value}`}
-                      {...(alert.id !== null && rowActivation<HTMLTableRowElement>(() => setSelected(alert)))}
-                    >
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {new Date(alert.createdAt).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="max-w-[280px]" title={alertSummary(alert.message)}>
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate font-mono text-xs">{alert.scenario}</span>
-                          <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-mono">
-                        {alert.value}
-                        {alert.scope === "Ip" && (
-                          <span {...stopRowActivation}>
-                            <IpBanControls
-                              ip={alert.value}
-                              badgeTitle={(decisionType) =>
-                                `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
-                              }
-                            >
-                              <InspectIpButton ip={alert.value} className="ml-1" />
-                              <FlyToIpButton ip={alert.value} />
-                            </IpBanControls>
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {alert.countryCode || alert.countryName ? (
-                          <CountryLabel code={alert.countryCode} name={alert.countryName} />
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell className="max-w-[160px] truncate" title={alert.asName ?? undefined}>
-                        {alert.asName ?? "-"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {alert.machineId ?? "-"}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {alert.eventsCount}
-                      </TableCell>
-                      <TableCell className={cn(alertOutcome(alert).muted && "text-muted-foreground")}>
-                        {alertOutcome(alert).text}
-                      </TableCell>
-                    </TableRow>
+                : alerts &&
+                  groupConsecutiveAlerts(alerts).map((alertRun) => (
+                    <AlertRunRows
+                      key={alertRun.key}
+                      run={alertRun}
+                      onOpenAlert={setSelected}
+                      onFilterScenario={filterScenario}
+                    />
                   ))}
               {!isLoading && isError && !alerts && (
                 <TableRow>

@@ -265,13 +265,38 @@ export function alertOutcome(
   alert: Pick<AlertView, "decisionTypes" | "decisionCount" | "activeDecisionCount">,
 ): { text: string; muted: boolean } {
   const muted = alert.activeDecisionCount === 0
-  if (alert.decisionCount === 0) return { text: "Alert only", muted }
+  const [decisionType] = alert.decisionTypes
+  if (alert.decisionCount === 0 || decisionType === undefined) return { text: "Alert only", muted: true }
   if (alert.decisionCount === 1) {
-    const [decisionType] = alert.decisionTypes
     const label = decisionType.charAt(0).toUpperCase() + decisionType.slice(1)
     return { text: `${label}, ${muted ? "expired" : "active"}`, muted }
   }
   return { text: `${alert.decisionCount} decisions, ${alert.activeDecisionCount} active`, muted }
+}
+
+/** Back-to-back alerts from one source, newest first. */
+export type AlertRun = { key: string; alerts: AlertView[] }
+
+/** Collapses adjacent alerts with the same source and kind into one run, so
+ *  a flood of WAF hits from one IP reads as one row. Scenarios may differ. */
+export function groupConsecutiveAlerts(alerts: AlertView[]): AlertRun[] {
+  const alertRuns: AlertRun[] = []
+  for (const alert of alerts) {
+    const currentRun = alertRuns.at(-1)
+    const newest = currentRun?.alerts[0]
+    if (currentRun && newest && newest.value === alert.value && newest.kind === alert.kind) {
+      currentRun.alerts.push(alert)
+    } else {
+      alertRuns.push({ key: String(alert.id), alerts: [alert] })
+    }
+  }
+  return alertRuns
+}
+
+/** "4 scenarios" for a run that mixes scenarios, or null when they all match. */
+export function runScenarioLabel(alertRun: AlertRun): string | null {
+  const scenarios = new Set(alertRun.alerts.map((alert) => alert.scenario))
+  return scenarios.size > 1 ? `${scenarios.size} scenarios` : null
 }
 
 export function contextLabel(key: string): string {
