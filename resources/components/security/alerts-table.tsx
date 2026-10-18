@@ -85,7 +85,7 @@ export function AlertsTable() {
           </TabsList>
         </Tabs>
       </CardHeader>
-      <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2 -mt-6">
         <div className="flex min-w-0 items-center gap-1">
           <div className="min-w-0 overflow-x-auto">
             <Tabs value={kind} onValueChange={(value) => setKind(value as AlertKindFilter)}>

@@ -10,7 +10,7 @@ export function AlertKindHelp() {
           <Info />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 text-sm">
+      <PopoverContent aria-label="What the alert kinds mean" className="w-80 text-sm">
         <p>
           <strong>Log scenarios.</strong> A scenario overflowed on events from your logs. This includes the bot
           challenge&apos;s ban scenarios. Most bans come from here.
