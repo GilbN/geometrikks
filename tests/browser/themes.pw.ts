@@ -276,6 +276,9 @@ test("settings page selects schemes and themes as radio groups", async ({ contex
     await expect(themeRadio(THEME_CATALOG[id].label)).toHaveAttribute("aria-checked", String(id === "aurora"))
   }
 
+  const lightMossOrb = themeRadio("Moss").locator('.light[data-theme="moss"]')
+  expect(await lightMossOrb.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(lightMossBackground)
+
   await themeRadio("Black").click()
   await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
   await expect(themeRadio("Black")).toHaveAttribute("aria-checked", "true")
@@ -288,14 +291,22 @@ test("settings page selects schemes and themes as radio groups", async ({ contex
 
   await themeRadio("Black").focus()
   // Radix checks a radio only if the arrow key is still down when focus lands,
-  // and it moves focus in a timeout, so an instant press never selects.
-  await page.keyboard.press("ArrowLeft", { delay: 50 })
-  await expect(themeRadio("Forge")).toHaveAttribute("aria-checked", "true")
-  await expect(themeRadio("Forge")).toBeFocused()
+  // and it moves focus in a timeout, so a press that releases at once never selects.
+  await page.keyboard.down("ArrowLeft")
+  try {
+    await expect(themeRadio("Forge")).toHaveAttribute("aria-checked", "true")
+    await expect(themeRadio("Forge")).toBeFocused()
+  } finally {
+    await page.keyboard.up("ArrowLeft")
+  }
   await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
+  const outline = await themeRadio("Forge").evaluate((el) => {
+    const style = getComputedStyle(el)
+    return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) }
+  })
+  expect(outline.style).not.toBe("none")
+  expect(outline.width).toBeGreaterThan(0)
 
-  const lightMossOrb = themeRadio("Moss").locator('.light[data-theme="moss"]')
-  expect(await lightMossOrb.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(lightMossBackground)
 
   await page.setViewportSize({ width: 390, height: 900 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)

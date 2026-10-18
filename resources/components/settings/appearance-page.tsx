@@ -118,12 +118,14 @@ function ThemeCard({ colorTheme }: { colorTheme: ColorTheme }) {
 
 export function AppearancePage() {
   const { theme, setTheme, colorTheme, setColorTheme } = useTheme()
+  const schemeHeadingId = useId()
+  const themesHeadingId = useId()
 
   return (
     <div className="space-y-8">
-      <section aria-labelledby="scheme-heading" className="space-y-3">
+      <section aria-labelledby={schemeHeadingId} className="space-y-3">
         <div className="space-y-1">
-          <h2 id="scheme-heading" className={HEADING}>Color scheme</h2>
+          <h2 id={schemeHeadingId} className={HEADING}>Color scheme</h2>
           <p className="text-[13px] text-muted-foreground">
             System follows the device and switches live when it does.
           </p>
@@ -145,8 +147,8 @@ export function AppearancePage() {
         </RadioGroup>
       </section>
 
-      <section aria-labelledby="themes-heading" className="space-y-3">
-        <h2 id="themes-heading" className={HEADING}>Themes</h2>
+      <section aria-labelledby={themesHeadingId} className="space-y-3">
+        <h2 id={themesHeadingId} className={HEADING}>Themes</h2>
         <RadioGroup
           aria-label="Theme"
           value={colorTheme}

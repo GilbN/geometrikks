@@ -21,6 +21,7 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-border: #e3e3e3;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 6%);
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 6%);
 }
 
 .dark[data-theme="black"] {
@@ -49,7 +50,7 @@
   --sidebar-accent: #141414;
   --sidebar-accent-foreground: #e8e8e8;
   --sidebar-border: #1d1d1d;
-  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 7%);
   --glass-card: var(--card);
   --glass-card-strong: var(--card);
   --brand-panel: color-mix(in oklab, var(--card) 55%, transparent);
