@@ -9,18 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Alert history can be filtered by IP, and clicking a scenario shows only that scenario. Back-to-back alerts of the same kind from one IP collapse into one row that expands.
+- Security > Alert history can be filtered by IP, and clicking a scenario shows only that scenario. Back-to-back alerts of the same kind from one IP collapse into one row that expands.
 
 ### Changed
 
 - Security > Alert history shows the alert kinds as tabs with an explanation of each, and "Detections" is now "Log scenarios". An empty WAF or Bot detection view says what that kind needs.
-- Security > Alert history: Bot detection now also lists the bans the bot challenge raises, marked "Bot ban", next to rejected submissions, now marked "Bot rejected".
-- Alert history's Outcome column says what each alert did, such as "Ban, active" or "Alert only". The Banned badge next to the IP says it's the IP's current state.
-- Without CrowdSec machine credentials, the Security page shows what Alert history needs instead of leaving it out.
+- Security > Alert history lists the bans the bot challenge raises under Bot detection, marked "Bot ban", next to rejected submissions, now marked "Bot rejected".
+- Security > Alert history has an Outcome column that says what each alert did, such as "Ban, active" or "Alert only". The Banned badge next to the IP shows the IP's current state.
+- Security > Alert history says which settings it needs when CrowdSec machine credentials are missing. Before, the Security page left the card out.
 
 ### Fixed
 
-- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back.
+- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. While older alerts are loaded the list stops refreshing, and "Back to newest" returns to the latest alerts and turns refreshing back on.
 
 ## [0.21.0] - 2026-10-18
 

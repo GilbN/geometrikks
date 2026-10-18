@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from "react"
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -79,6 +79,7 @@ import {
   type AccessLogDebugPage,
   type AccessLogDebugSortField,
   type AccessLogDebugStats,
+  type AlertPageView,
 } from "./api"
 import {
   applyBannedIpsDelta,
@@ -437,13 +438,27 @@ export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: s
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: status?.writeEnabled === true,
-    // A refetch reloads every loaded page in turn, one LAPI request each,
-    // so a deep view refreshes only on a filter change or invalidation.
+    // A refetch reloads every loaded page in turn, one LAPI request each, so
+    // a deep view stops refreshing. Nothing else invalidates this key on new
+    // alerts: the footer says updates pause and offers useTrimCrowdsecAlerts.
     refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
     refetchOnWindowFocus: (query) => (query.state.data?.pages.length ?? 0) <= 1,
     placeholderData: keepPreviousData,
     retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
   })
+}
+
+/** Drops every page but the newest from the alert history and refetches it,
+ *  which brings back the 60 s refresh a deep view turns off. */
+export function useTrimCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenario?: string }) {
+  const queryClient = useQueryClient()
+  return () => {
+    const queryKey = queryKeys.crowdsec.alerts(params)
+    queryClient.setQueryData<InfiniteData<AlertPageView, string | undefined>>(queryKey, (data) =>
+      data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+    )
+    return queryClient.refetchQueries({ queryKey, exact: true })
+  }
 }
 
 /** Detail for the alert sheet. Fetches once a row opens it. */

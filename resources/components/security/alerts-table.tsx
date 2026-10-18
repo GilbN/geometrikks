@@ -1,6 +1,7 @@
 /**
  * Alert history: which scenarios fired, against whom, and what they decided.
- * Machine credentials required (the card only renders when writeEnabled).
+ * AlertsTable needs machine credentials and renders only when writeEnabled;
+ * AlertHistoryUnavailable takes its place otherwise.
  * Selecting a row opens the alert's context, events and decisions.
  */
 import { useState } from "react"
@@ -8,7 +9,7 @@ import { Loader2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -19,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useCrowdsecAlerts } from "@/lib/queries"
+import { useCrowdsecAlerts, useTrimCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import {
@@ -67,7 +68,9 @@ export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
   const [kind, setKind] = useState<AlertKindFilter>("all")
   const [ip, setIp] = useState<string | undefined>(undefined)
+  const [ipText, setIpText] = useState("")
   const [scenario, setScenario] = useState<string | undefined>(undefined)
+  const alertParams = { since, kind: kind === "all" ? undefined : kind, ip, scenario }
   const {
     data,
     isLoading,
@@ -78,18 +81,15 @@ export function AlertsTable() {
     fetchNextPage,
     isFetchingNextPage,
     isFetchNextPageError,
-  } = useCrowdsecAlerts({
-    since,
-    kind: kind === "all" ? undefined : kind,
-    ip,
-    scenario,
-  })
+  } = useCrowdsecAlerts(alertParams)
+  const backToNewest = useTrimCrowdsecAlerts(alertParams)
   const alerts = data?.pages.flatMap((page) => page.alerts)
   const footer = alertHistoryFooter({
     rowCount: alerts?.length ?? 0,
     pageCount: data?.pages.length ?? 0,
     hasNextPage,
     isPlaceholderData,
+    kind,
   })
   const [selected, setSelected] = useState<AlertView | null>(null)
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<ReadonlySet<string>>(() => new Set())
@@ -152,16 +152,32 @@ export function AlertsTable() {
         <form
           onSubmit={(event) => {
             event.preventDefault()
-            const value = new FormData(event.currentTarget).get("ip")
-            setIp(typeof value === "string" && value.trim() ? value.trim() : undefined)
+            setIp(ipText.trim() || undefined)
           }}
         >
-          <Input
-            name="ip"
-            className="h-8 w-[180px]"
-            placeholder="Filter by IP"
-            aria-label="Filter alerts by IP"
-          />
+          <InputGroup className="h-8 w-[180px]">
+            <InputGroupInput
+              name="ip"
+              value={ipText}
+              onChange={(event) => setIpText(event.target.value)}
+              placeholder="Filter by IP (Enter)"
+              aria-label="Filter alerts by IP"
+            />
+            {ip && (
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  aria-label="Clear IP filter"
+                  onClick={() => {
+                    setIpText("")
+                    setIp(undefined)
+                  }}
+                >
+                  <X />
+                </InputGroupButton>
+              </InputGroupAddon>
+            )}
+          </InputGroup>
         </form>
       </div>
       <CardContent className="px-0 pb-0">
@@ -230,6 +246,11 @@ export function AlertsTable() {
               >
                 {isFetchingNextPage && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 Load older
+              </Button>
+            )}
+            {footer.showBackToNewest && (
+              <Button variant="outline" size="sm" disabled={isFetchingNextPage} onClick={() => void backToNewest()}>
+                Back to newest
               </Button>
             )}
             {isFetchNextPageError && (

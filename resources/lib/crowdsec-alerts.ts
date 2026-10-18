@@ -36,27 +36,36 @@ export function alertsEmptyMessage(kind: AlertKindFilter): string {
   return EMPTY_MESSAGES[kind]
 }
 
-/** Footer text under the alert history, and whether "Load older" shows. */
+/** Footer text under the alert history, and which of its buttons show. */
 export function alertHistoryFooter({
   rowCount,
   pageCount,
   hasNextPage,
   isPlaceholderData,
+  kind,
 }: {
   rowCount: number
   pageCount: number
   hasNextPage: boolean
   isPlaceholderData: boolean
-}): { text: string; showLoadOlder: boolean } {
+  kind: AlertKindFilter
+}): { text: string; showLoadOlder: boolean; showBackToNewest: boolean } {
   const showing = `Showing ${rowCount.toLocaleString()} ${rowCount === 1 ? "alert" : "alerts"}`
   // While the previous filter's rows stand in, hasNextPage reads the new
   // filter's query, which has no pages yet.
-  if (isPlaceholderData) return { text: showing, showLoadOlder: false }
-  if (!hasNextPage) return { text: `${showing}. No older alerts in this window.`, showLoadOlder: false }
-  if (pageCount >= ALERT_MAX_PAGES) {
-    return { text: `${showing}. Filter by IP or scenario to go further back.`, showLoadOlder: false }
+  if (isPlaceholderData) return { text: showing, showLoadOlder: false, showBackToNewest: false }
+  const notes: string[] = []
+  if (!hasNextPage) notes.push("No older alerts in this window.")
+  else if (pageCount >= ALERT_MAX_PAGES) {
+    notes.push(scenarioFilterAllowed(kind) ? "Filter by IP or scenario to go further back." : "Filter by IP to go further back.")
   }
-  return { text: showing, showLoadOlder: true }
+  const pagedBack = pageCount > 1
+  if (pagedBack) notes.push("Updates pause while older alerts are loaded.")
+  return {
+    text: notes.length > 0 ? `${showing}. ${notes.join(" ")}` : showing,
+    showLoadOlder: hasNextPage && pageCount < ALERT_MAX_PAGES,
+    showBackToNewest: pagedBack,
+  }
 }
 
 /** Event meta keys the events table shows as their own columns. */
