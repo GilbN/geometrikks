@@ -92,3 +92,19 @@ def test_server_filter_params_replace_hostname_params(monkeypatch):
         operation for operation, names in params_by_operation.items() if "serverIn" in names
     ]
     assert len(operations_with_server_in) == 11, operations_with_server_in
+
+
+def test_instances_routes_present_in_full_mode(monkeypatch):
+    monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+    from geometrikks.server.core import create_app
+    paths = _route_paths(create_app())
+    assert "/api/v1/instances" in paths
+    assert "/api/v1/instances/{instance_name:str}" in paths
+
+
+def test_instances_routes_absent_in_agent_mode(monkeypatch):
+    monkeypatch.setenv("APP_MODE", "agent")
+    monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+    from geometrikks.server.core import create_app
+    paths = _route_paths(create_app())
+    assert not any("/instances" in path for path in paths)

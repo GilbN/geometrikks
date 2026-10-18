@@ -8,6 +8,8 @@ import {
   apiV1GeoEventsLogsGetGeoLogs,
   apiV1GeoLocationsServerLocationsDeleteServerLocation,
   apiV1GeoLocationsServerLocationsServerLocations,
+  apiV1InstancesInstanceNameDeleteInstance,
+  apiV1InstancesListInstances,
   apiV1GeoEventsSummaryGetGeoLogSummary,
   apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries,
   apiV1GeoEventsTopAsnsGetGeoLogTopAsns,
@@ -52,6 +54,7 @@ import type {
   LogoutResponse,
   ServerLocationsResponse,
   LokiSourceStats,
+  InstancesResponse,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -1021,6 +1024,20 @@ export async function fetchServerLocations(): Promise<ServerLocationsResponse> {
 
 export async function deleteServerLocation(server: string): Promise<void> {
   await apiV1GeoLocationsServerLocationsDeleteServerLocation({ path: { server }, throwOnError: true })
+}
+
+/** Every instance writing heartbeats to this database, the head included,
+ *  each with its evaluated status and problems. */
+export async function fetchInstances(): Promise<InstancesResponse> {
+  const { data } = await apiV1InstancesListInstances({ throwOnError: true })
+  return data
+}
+
+export async function deleteInstance(instanceName: string): Promise<void> {
+  await apiV1InstancesInstanceNameDeleteInstance({
+    path: { instance_name: instanceName },
+    throwOnError: true,
+  })
 }
 
 // ============================================================================

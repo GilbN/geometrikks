@@ -82,7 +82,7 @@ class FakeSession:
     async def commit(self) -> None:
         if self.repos.fail_next_commits:
             self.repos.fail_next_commits -= 1
-            raise RuntimeError("simulated integrity error at commit")
+            raise RuntimeError(self.repos.commit_error_text)
         self.commits += 1
         self._assign_ids()
         for obj in self.pending:
@@ -143,6 +143,7 @@ class FakeRepos:
         self.access_log_debug = FakeRepo(None)
         # failure injection: consumed by FakeSession
         self.fail_next_commits = 0
+        self.commit_error_text = "simulated integrity error at commit"
         self.fail_next_rollbacks = 0
         self.fail_flush_calls: set[int] = set()  # 1-based flush call numbers
         self.flush_calls = 0
@@ -1393,6 +1394,53 @@ async def test_commit_failure_counts_lost_records_once_and_success_does_not_incr
 
     assert service.failed_batches == 1
     assert service.failed_records == 2
+
+
+async def test_failed_batch_records_last_error() -> None:
+    service, repos, _sessions = make_service([])
+    assert service.last_batch_error is None
+    repos.fail_next_commits = 1
+    before = datetime.now(timezone.utc)
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.last_batch_error is not None
+    assert "simulated" in service.last_batch_error.message
+    assert len(service.last_batch_error.message) <= 500
+    assert before <= service.last_batch_error.at <= datetime.now(timezone.utc)
+
+
+async def test_record_failure_records_last_error() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_flush_calls = {1}
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.last_batch_error is not None
+    assert "simulated integrity error" in service.last_batch_error.message
+
+
+async def test_last_batch_error_names_the_type_when_the_message_is_empty() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+    repos.commit_error_text = ""
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.last_batch_error is not None
+    assert service.last_batch_error.message == "RuntimeError"
+
+
+async def test_last_batch_error_is_truncated() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 1
+    repos.commit_error_text = "simulated " + "x" * 2000
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+
+    assert service.last_batch_error is not None
+    assert service.last_batch_error.message.startswith("simulated xxx")
+    assert len(service.last_batch_error.message) == 500
 
 
 async def test_later_record_failure_counts_earlier_rolled_back_candidates() -> None:

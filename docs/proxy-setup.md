@@ -258,10 +258,12 @@ proxy config, and correct addresses start from the next line it writes.
 - The CDN advisory for sources tailed by an agent instance (`APP_MODE=agent`)
   appears on the head's Settings > Status page within about 5 minutes. The
   head scans the shared database's last hour of access-log rows every 5
-  minutes. The private-peer advisory cannot be produced this way, since
-  those lines are never stored, and still reports only on the agent's own
-  `/health` and logs. The scan covers only sources storing access logs
+  minutes. The scan covers only sources storing access logs
   (`LOGPARSER_SEND_LOGS=true`).
+- The private-peer advisory for an agent's sources cannot come from that
+  scan, since those lines are never stored. The agent reports it in its own
+  `/health` and logs, and its heartbeat carries it to that agent's row on
+  the head's Settings > Agents page.
 - CDN detection needs the GeoLite2 ASN database. Without it, every peer
   classifies as "other" or "private," and CDN traffic never raises the
   advisory even at 100% share.

@@ -30,6 +30,7 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventR
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
+from geometrikks.domain.instances.schemas import ERROR_MESSAGE_MAX_CHARS
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
@@ -72,6 +73,14 @@ class UnavailableSource:
     kind: str
     label: str
     reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class BatchError:
+    """The most recent write failure, kept for the heartbeat payload."""
+
+    message: str
+    at: datetime
 
 
 @dataclass
@@ -191,6 +200,7 @@ class LogIngestionService:
         self.publish_dropped: int = 0
         self.failed_batches: int = 0
         self.failed_records: int = 0
+        self.last_batch_error: BatchError | None = None
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -840,6 +850,7 @@ class LogIngestionService:
                             raw_line=(record.raw_line or "")[:100],
                         )
                         batch_failed = True
+                        self._record_batch_error(e)
                         lost_records += rolled_back_records
                         committed_candidates = []
                         try:
@@ -871,6 +882,7 @@ class LogIngestionService:
                         error=str(e),
                     )
                     batch_failed = True
+                    self._record_batch_error(e)
                     lost_records += commit_lost_records
                     try:
                         await session.rollback()
@@ -892,6 +904,12 @@ class LogIngestionService:
             flushed["geo"],
             flushed["log"],
             flushed["debug"],
+        )
+
+    def _record_batch_error(self, error: Exception) -> None:
+        self.last_batch_error = BatchError(
+            message=(str(error) or type(error).__name__)[:ERROR_MESSAGE_MAX_CHARS],
+            at=datetime.now(timezone.utc),
         )
 
     async def flush_records(self, records: list[ParsedLogRecord]) -> None:

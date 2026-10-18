@@ -2530,6 +2530,23 @@ export const GroupedDecisionViewSchema = {
   type: "object",
 } as const;
 
+export const HeadIdentityViewSchema = {
+  properties: {
+    appVersion: {
+      type: "string",
+    },
+    instanceName: {
+      type: "string",
+    },
+    schemaRevision: {
+      type: "string",
+    },
+  },
+  required: ["appVersion", "instanceName", "schemaRevision"],
+  title: "HeadIdentityView",
+  type: "object",
+} as const;
+
 export const HealthResponseSchema = {
   properties: {
     advisories: {
@@ -2593,6 +2610,88 @@ export const HealthResponseSchema = {
     "timestamp",
   ],
   title: "HealthResponse",
+  type: "object",
+} as const;
+
+export const HeartbeatPayloadSchema = {
+  properties: {
+    failed5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    health: {
+      additionalProperties: {},
+      type: "object",
+    },
+    instanceNameSource: {
+      default: "fallback",
+      type: "string",
+    },
+    jobs: {
+      items: {
+        $ref: "#/components/schemas/JobReport",
+      },
+      type: "array",
+    },
+    lastError: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/LastErrorReport",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lines5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    nameConflictAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    recentStarts: {
+      items: {
+        format: "date-time",
+        type: "string",
+      },
+      type: "array",
+    },
+    serverNames: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    sources: {
+      items: {
+        $ref: "#/components/schemas/SourceReport",
+      },
+      type: "array",
+    },
+  },
+  required: [],
+  title: "HeartbeatPayload",
   type: "object",
 } as const;
 
@@ -2765,6 +2864,146 @@ export const IngestionStatsResponseSchema = {
     "totalSkippedLines",
   ],
   title: "IngestionStatsResponse",
+  type: "object",
+} as const;
+
+export const InstanceServerLocationViewSchema = {
+  properties: {
+    detectedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    server: {
+      type: "string",
+    },
+    source: {
+      type: "string",
+    },
+  },
+  required: ["detectedAt", "latitude", "longitude", "server", "source"],
+  title: "InstanceServerLocationView",
+  type: "object",
+} as const;
+
+export const InstanceViewSchema = {
+  properties: {
+    appVersion: {
+      type: "string",
+    },
+    bootId: {
+      type: "string",
+    },
+    checkingIn: {
+      type: "boolean",
+    },
+    health: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/HealthResponse",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    instanceName: {
+      type: "string",
+    },
+    isSelf: {
+      type: "boolean",
+    },
+    lastSeen: {
+      format: "date-time",
+      type: "string",
+    },
+    mode: {
+      type: "string",
+    },
+    payload: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/HeartbeatPayload",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    problems: {
+      items: {
+        $ref: "#/components/schemas/Advisory",
+      },
+      type: "array",
+    },
+    schemaRevision: {
+      type: "string",
+    },
+    serverLocations: {
+      items: {
+        $ref: "#/components/schemas/InstanceServerLocationView",
+      },
+      type: "array",
+    },
+    startedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    status: {
+      enum: ["ok", "warning", "critical"],
+      type: "string",
+    },
+  },
+  required: [
+    "appVersion",
+    "bootId",
+    "checkingIn",
+    "health",
+    "instanceName",
+    "isSelf",
+    "lastSeen",
+    "mode",
+    "payload",
+    "problems",
+    "schemaRevision",
+    "serverLocations",
+    "startedAt",
+    "status",
+  ],
+  title: "InstanceView",
+  type: "object",
+} as const;
+
+export const InstancesResponseSchema = {
+  properties: {
+    checkedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    head: {
+      $ref: "#/components/schemas/HeadIdentityView",
+    },
+    instances: {
+      items: {
+        $ref: "#/components/schemas/InstanceView",
+      },
+      type: "array",
+    },
+  },
+  required: ["checkedAt", "head", "instances"],
+  title: "InstancesResponse",
   type: "object",
 } as const;
 
@@ -3023,6 +3262,87 @@ export const IpProfileUserAgentDTOSchema = {
   },
   required: ["hits", "userAgent"],
   title: "IpProfileUserAgentDTO",
+  type: "object",
+} as const;
+
+export const JobReportSchema = {
+  properties: {
+    id: {
+      default: "",
+      type: "string",
+    },
+    lastError: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastStart: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastStatus: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      default: "",
+      type: "string",
+    },
+    nextRunTime: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [],
+  title: "JobReport",
+  type: "object",
+} as const;
+
+export const LastErrorReportSchema = {
+  properties: {
+    at: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    message: {
+      default: "",
+      type: "string",
+    },
+  },
+  required: [],
+  title: "LastErrorReport",
   type: "object",
 } as const;
 
@@ -4836,6 +5156,54 @@ export const SettingsSectionViewSchema = {
   },
   required: ["description", "fields", "name", "title"],
   title: "SettingsSectionView",
+  type: "object",
+} as const;
+
+export const SourceReportSchema = {
+  properties: {
+    available: {
+      default: true,
+      type: "boolean",
+    },
+    kind: {
+      default: "",
+      type: "string",
+    },
+    label: {
+      default: "",
+      type: "string",
+    },
+    logFormat: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    parsedLines: {
+      default: 0,
+      type: "integer",
+    },
+    reason: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    serverName: {
+      default: "",
+      type: "string",
+    },
+  },
+  required: [],
+  title: "SourceReport",
   type: "object",
 } as const;
 

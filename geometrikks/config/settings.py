@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import unicodedata
 import warnings
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
@@ -1241,6 +1242,36 @@ class AppSettings(BaseSettings):
             "(Tailscale-only access, a CDN you front on purpose)."
         ),
     )
+    instance_name: str | None = Field(
+        default=None,
+        description=(
+            "Name this instance goes by on Settings > Agents, where the head "
+            "lists every instance that reports in. Unset, agents show as "
+            '"agent" and the head as "head". Set it on every agent. Two '
+            "unnamed agents share one name and overwrite each other's status. "
+            "Up to 255 characters, no slashes, no control characters, and "
+            'not "." or "..".'
+        ),
+    )
+
+    @field_validator("instance_name")
+    @classmethod
+    def validate_instance_name(cls, value: str | None) -> str | None:
+        """Strip whitespace; blank means unset; reject names the API cannot route."""
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if "/" in stripped:
+            raise ValueError("APP_INSTANCE_NAME must not contain '/'")
+        if stripped in {".", ".."}:
+            raise ValueError("APP_INSTANCE_NAME must not be '.' or '..'")
+        if any(unicodedata.category(character) == "Cc" for character in stripped):
+            raise ValueError("APP_INSTANCE_NAME must not contain control characters")
+        if len(stripped) > 255:
+            raise ValueError("APP_INSTANCE_NAME must be at most 255 characters")
+        return stripped
 
 
 class Settings(BaseSettings):
@@ -1437,6 +1468,18 @@ class Settings(BaseSettings):
     def is_agent(self) -> bool:
         """Check if running in agent mode."""
         return self.app.mode == "agent"
+
+    @property
+    def resolved_instance_name(self) -> str:
+        """The configured APP_INSTANCE_NAME, else agent or head by mode."""
+        if self.app.instance_name is not None:
+            return self.app.instance_name
+        return "agent" if self.is_agent else "head"
+
+    @property
+    def instance_name_source(self) -> Literal["configured", "fallback"]:
+        """Whether resolved_instance_name came from APP_INSTANCE_NAME."""
+        return "configured" if self.app.instance_name is not None else "fallback"
 
     @property
     def is_production(self) -> bool:

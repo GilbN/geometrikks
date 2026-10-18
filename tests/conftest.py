@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import pytest
 
 # Tests must never read a developer's .env. Every settings section resolves
@@ -70,6 +72,19 @@ def baseline_settings_env():
         # Log parser
         "LOGPARSER_LOG_PATHS": "/var/log/access/access.log",
     })
+
+
+@pytest.fixture(autouse=True)
+def disable_heartbeat_writer(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Keep unit-test lifespans from writing heartbeat rows into the developer's database.
+
+    Integration tests (scratch database) and modules that redefine this fixture keep the real writer.
+    """
+    if not request.node.path.is_relative_to(Path(__file__).parent / "integration"):
+        from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+
+        monkeypatch.setattr(HeartbeatWriter, "start", lambda self: None)
+    yield
 
 
 @pytest.fixture(autouse=True)

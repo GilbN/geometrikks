@@ -1177,3 +1177,15 @@ async def test_oidc_lifespan_is_a_no_op_without_a_client():
     app = SimpleNamespace(state=SimpleNamespace())
     async with lc.oidc_lifespan(cast("Any", app)):
         pass
+
+
+async def test_heartbeat_starts_before_the_database_gate():
+    from geometrikks.server import lifecycle as lc
+
+    assert lc.LIFESPAN.index(lc.heartbeat_lifespan) < lc.LIFESPAN.index(lc.database_lifespan)
+
+
+async def test_heartbeat_stops_before_every_other_manager():
+    from geometrikks.server import lifecycle as lc
+
+    assert lc.LIFESPAN[-1] is lc.heartbeat_shutdown_lifespan

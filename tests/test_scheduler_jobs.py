@@ -191,3 +191,60 @@ async def test_server_location_job_is_registered_under_its_id_and_name():
     assert job.func is sched.refresh_server_location_job
     assert job.name == "Re-detect this server's location"
     assert scheduler.get_job("site-home-refresh") is None
+
+
+async def test_agent_health_check_registered_for_head_only():
+    from geometrikks.config.settings import SchedulerSettings, Settings
+
+    settings = Settings(scheduler=SchedulerSettings(enabled=True, _env_file=None))
+    head_scheduler = await sched.create_scheduler(MagicMock(), settings, mode="full", app=MagicMock())
+    agent_scheduler = await sched.create_scheduler(MagicMock(), settings, mode="agent", app=MagicMock())
+
+    job = head_scheduler.get_job("agent-health-check")
+    assert job is not None
+    assert job.func is sched.agent_health_check_job
+    assert job.name == "Check agent heartbeats"
+    assert job.max_instances == 1
+    assert agent_scheduler.get_job("agent-health-check") is None
+
+
+async def test_agent_health_check_job_feeds_the_monitor(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from uuid import uuid4
+
+    from structlog.testing import capture_logs
+
+    from geometrikks.domain.instances import repositories, services
+    from geometrikks.domain.instances.evaluation import HeadIdentity
+    from geometrikks.domain.instances.models import InstanceHeartbeat
+    from geometrikks.domain.instances.monitor import InstanceMonitor
+
+    now = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+    head = HeadIdentity(
+        boot_id=uuid4(),
+        instance_name="head",
+        app_version="0.20.0",
+        schema_revision="7c1e9a",
+        known_revisions=frozenset({"7c1e9a"}),
+    )
+    stale_agent = InstanceHeartbeat(
+        instance_name="edge",
+        boot_id=uuid4(),
+        mode="agent",
+        app_version="0.20.0",
+        schema_revision="7c1e9a",
+        started_at=now - timedelta(hours=1),
+        last_seen=now - timedelta(minutes=10),
+        payload={},
+    )
+    monkeypatch.setattr(services, "head_identity", lambda app, settings: head)
+    monkeypatch.setattr(repositories, "fetch_heartbeats", AsyncMock(return_value=[stale_agent]))
+    monkeypatch.setattr(repositories, "database_now", AsyncMock(return_value=now))
+    app = MagicMock()
+    app.state.instance_monitor = InstanceMonitor()
+    app.state.instance_monitor.observe([], head)
+
+    with capture_logs() as logs:
+        await sched.agent_health_check_job(_session_factory(MagicMock()), app)
+
+    assert [log["event"] for log in logs] == ["agent_seen", "agent_down"]

@@ -32,6 +32,8 @@ import {
   fetchGeoEventFacets,
   deleteServerLocation,
   fetchServerLocations,
+  deleteInstance,
+  fetchInstances,
   fetchRuntimeSettings,
   fetchSystemSettings,
   fetchSchedulerJobs,
@@ -113,6 +115,7 @@ export const queryKeys = {
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
+    instances: ["system", "instances"] as const,
   },
   crowdsec: {
     status: ["crowdsec", "status"] as const,
@@ -1422,6 +1425,28 @@ export function useDeleteServerLocation() {
   return useMutation({
     mutationFn: (server: string) => deleteServerLocation(server),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations }),
+  })
+}
+
+export function useInstances() {
+  return useQuery({
+    queryKey: queryKeys.system.instances,
+    queryFn: fetchInstances,
+    refetchInterval: 30_000,
+    retry: 1,
+  })
+}
+
+export function useDeleteInstance() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (instanceName: string) => deleteInstance(instanceName),
+    // Settled, not success: a 404 means another tab already removed it. Not
+    // returned, so mutate() callbacks run before the refetch unmounts the row
+    // that called them; TanStack skips callbacks of unmounted observers.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.system.instances })
+    },
   })
 }
 

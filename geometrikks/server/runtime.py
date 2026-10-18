@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from litestar import Litestar
 
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.domain.instances.monitor import InstanceMonitor
     from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -41,6 +43,17 @@ def get_advisories(app: Litestar) -> AdvisoryRegistry:
         registry = AdvisoryRegistry()
         app.state.advisories = registry
     return registry
+
+
+def get_instance_monitor(app: Litestar) -> InstanceMonitor:
+    """The head's agent-state monitor, created on first access."""
+    monitor: InstanceMonitor | None = getattr(app.state, "instance_monitor", None)
+    if monitor is None:
+        from geometrikks.domain.instances.monitor import InstanceMonitor
+
+        monitor = InstanceMonitor()
+        app.state.instance_monitor = monitor
+    return monitor
 
 
 def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:
@@ -72,6 +85,11 @@ def get_scheduler_tracker(app: Litestar) -> JobRunTracker:
 def get_started_at(app: Litestar) -> datetime | None:
     """Process start time; None before lifespan startup has run."""
     return getattr(app.state, "started_at", None)
+
+
+def get_heartbeat_writer(app: Litestar) -> HeartbeatWriter | None:
+    """None before the heartbeat lifespan has started the writer."""
+    return getattr(app.state, "heartbeat_writer", None)
 
 
 def get_self_location(app: Litestar) -> SelfLocation | None:

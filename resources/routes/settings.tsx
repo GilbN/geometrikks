@@ -16,6 +16,7 @@ export const Route = createFileRoute("/settings")({
 
 const tabs = [
   { to: "/settings/status", label: "Status" },
+  { to: "/settings/agents", label: "Agents" },
   { to: "/settings/environment", label: "Environment" },
   { to: "/settings/scheduler", label: "Scheduler" },
   { to: "/settings/logs", label: "Logs" },

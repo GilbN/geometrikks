@@ -23,7 +23,7 @@ from geometrikks.server.timescale import ALL_CAGGS
 
 if TYPE_CHECKING:
     from litestar import Litestar
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from geometrikks.config.settings import Settings
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -197,6 +197,23 @@ async def proxy_scan_job(
     await run_proxy_scan(session_factory, exclude)
 
 
+async def agent_health_check_job(
+    session_factory: "async_sessionmaker[AsyncSession]", app: "Litestar"
+) -> None:
+    """Evaluate the agent heartbeats and log what changed since the last run."""
+    from geometrikks.config.settings import get_settings
+    from geometrikks.domain.instances.evaluation import HeartbeatRow, evaluate_instances
+    from geometrikks.domain.instances.repositories import database_now, fetch_heartbeats
+    from geometrikks.domain.instances.services import head_identity
+    from geometrikks.server import runtime
+
+    head = head_identity(app, get_settings())
+    async with session_factory() as session:
+        heartbeat_rows = [HeartbeatRow.from_model(model) for model in await fetch_heartbeats(session)]
+        checked_at = await database_now(session)
+    runtime.get_instance_monitor(app).observe(evaluate_instances(heartbeat_rows, head, checked_at), head)
+
+
 async def refresh_geoip_job(settings: "Settings", app: "Litestar | None") -> None:
     """Refresh the GeoLite2 databases, then reload the ingestion readers when
     a file on disk no longer matches what the readers have open.
@@ -249,6 +266,7 @@ async def create_scheduler(
     - Full CAGG refresh: Every 6 hours (catches up any missed data)
     - GeoLite2 refresh: weekly by default
     - Proxy peer scan: every 5 minutes, when APP_PROXY_ADVISORY is on
+    - Agent health check: every minute, logs agent state changes
     - CrowdSec decision-stream poll, when the integration is on
 
     An agent instance (mode="agent") only tails logs into a schema the
@@ -353,6 +371,20 @@ async def create_scheduler(
             replace_existing=True,
         )
         logger.info("Scheduled proxy peer scan every 5 minutes")
+
+    # Head-only: agents write heartbeats, the head reads them. The app is
+    # needed for the head's boot ID, so a scheduler built without one skips it.
+    if mode != "agent" and app is not None:
+        scheduler.add_job(
+            agent_health_check_job,
+            IntervalTrigger(minutes=1),
+            id="agent-health-check",
+            name="Check agent heartbeats",
+            args=[session_factory, app],
+            max_instances=1,
+            replace_existing=True,
+        )
+        logger.info("Scheduled agent health check every minute")
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;

@@ -19,6 +19,7 @@ export type DateTime = string;
 /** All available route names */
 export type RouteName =
   | 'ban'
+  | 'delete_instance'
   | 'delete_server_location'
   | 'download'
   | 'get_about'
@@ -70,6 +71,7 @@ export type RouteName =
   | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
+  | 'list_instances'
   | 'login'
   | 'logout'
   | 'lookup_decisions'
@@ -91,6 +93,9 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'ban': Record<string, never>;
+  'delete_instance': {
+    instance_name: string;
+  };
   'delete_server_location': {
     server: string;
   };
@@ -153,6 +158,7 @@ export interface RoutePathParams {
   'list_files': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
+  'list_instances': Record<string, never>;
   'login': Record<string, never>;
   'logout': Record<string, never>;
   'lookup_decisions': Record<string, never>;
@@ -177,6 +183,7 @@ export interface RoutePathParams {
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
   'ban': Record<string, never>;
+  'delete_instance': Record<string, never>;
   'delete_server_location': Record<string, never>;
   'download': Record<string, never>;
   'get_about': Record<string, never>;
@@ -487,6 +494,7 @@ export interface RouteQueryParams {
     currentPage?: number;
     pageSize?: number;
   };
+  'list_instances': Record<string, never>;
   'login': Record<string, never>;
   'logout': Record<string, never>;
   'lookup_decisions': {
@@ -529,6 +537,13 @@ export const routeDefinitions = {
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'delete_instance': {
+    path: '/api/v1/instances/{instance_name}',
+    methods: ['DELETE'] as const,
+    method: 'delete',
+    pathParams: ['instance_name'] as const,
     queryParams: [] as const,
   },
   'delete_server_location': {
@@ -887,6 +902,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['currentPage', 'pageSize'] as const,
+  },
+  'list_instances': {
+    path: '/api/v1/instances',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'login': {
     path: '/api/v1/auth/login',

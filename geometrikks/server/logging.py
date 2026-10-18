@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 from litestar.logging.config import LoggingConfig, StructLoggingConfig
-from litestar.status_codes import HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND
+from litestar.status_codes import HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND, HTTP_503_SERVICE_UNAVAILABLE
 
 if TYPE_CHECKING:
     from litestar.types import Scope
@@ -368,6 +368,10 @@ def _log_dir_write_error(log_dir: "Path") -> str | None:
 # traceback when log_exceptions="always", which buries the records that
 # matter. These get one line instead.
 QUIET_STATUS_CODES = frozenset({HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND})
+# A 503 comes from a route refusing to run while the app is DB-degraded.
+# Startup already logged why, and the SPA polls some of these routes, so a
+# traceback per request would bury that record.
+UNAVAILABLE_STATUS_CODES = frozenset({HTTP_503_SERVICE_UNAVAILABLE})
 
 
 def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandler":
@@ -383,11 +387,11 @@ def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandl
     def _log_exception(logger: Any, scope: "Scope", _tb: list[str]) -> None:
         exc = sys.exc_info()[1]
         status_code = getattr(exc, "status_code", None)
-        if not debug and status_code in QUIET_STATUS_CODES:
+        if not debug and status_code in QUIET_STATUS_CODES | UNAVAILABLE_STATUS_CODES:
             # warning(), not exception(): the latter implies exc_info=True,
             # which _capture_exc_info turns into a rendered traceback.
             logger.warning(
-                "client_error",
+                "client_error" if status_code in QUIET_STATUS_CODES else "service_unavailable",
                 status_code=status_code,
                 connection_type=scope["type"],
                 path=scope["path"],

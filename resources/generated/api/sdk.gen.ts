@@ -143,6 +143,12 @@ import type {
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsData,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors,
   ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponses,
+  ApiV1InstancesInstanceNameDeleteInstanceData,
+  ApiV1InstancesInstanceNameDeleteInstanceErrors,
+  ApiV1InstancesInstanceNameDeleteInstanceResponses,
+  ApiV1InstancesListInstancesData,
+  ApiV1InstancesListInstancesErrors,
+  ApiV1InstancesListInstancesResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
   ApiV1LogsFilesKindNameDownloadResponses,
@@ -1621,6 +1627,66 @@ export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
       },
     ],
     url: "/api/v1/geo-locations/{location_id}/top-ips",
+    ...options,
+  });
+
+/**
+ * ListInstances
+ *
+ * List the head and every agent that reports a heartbeat, the head first, with a status and a list of problems for each.
+ */
+export const apiV1InstancesListInstances = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1InstancesListInstancesData, ThrowOnError>,
+): RequestResult<
+  ApiV1InstancesListInstancesResponses,
+  ApiV1InstancesListInstancesErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1InstancesListInstancesResponses,
+    ApiV1InstancesListInstancesErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/instances",
+    ...options,
+  });
+
+/**
+ * DeleteInstance
+ *
+ * Remove a retired instance from the list. An instance that is still running reappears at its next heartbeat. The head cannot remove itself.
+ */
+export const apiV1InstancesInstanceNameDeleteInstance = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1InstancesInstanceNameDeleteInstanceData, ThrowOnError>,
+): RequestResult<
+  ApiV1InstancesInstanceNameDeleteInstanceResponses,
+  ApiV1InstancesInstanceNameDeleteInstanceErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    ApiV1InstancesInstanceNameDeleteInstanceResponses,
+    ApiV1InstancesInstanceNameDeleteInstanceErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/instances/{instance_name}",
     ...options,
   });
 

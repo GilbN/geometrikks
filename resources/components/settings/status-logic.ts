@@ -127,34 +127,57 @@ export type SidebarIngestionVariant =
 
 /** Semantics of the sidebar's ingestion-health dot; the component maps the
  * variant to colors/labels. Degraded wins over advisories, which win over the
- * configured-off state. */
+ * configured-off state. An agent needing attention counts as an advisory, but
+ * the head's own offline and degraded states still come first. */
 export function sidebarIngestionVariant(
   health: HealthResponse | undefined,
   isError: boolean,
+  agentAttentionCount = 0,
 ): SidebarIngestionVariant {
   if (isError) return "offline"
   if (!health) return "inactive"
   if (health.status === "degraded") return "degraded"
-  if ((health.advisories ?? []).length > 0) return "attention"
+  if ((health.advisories ?? []).length > 0 || agentAttentionCount > 0) return "attention"
   if (health.ingestion.status === "disabled") return "disabled"
   if (health.ingestion.running) return "running"
   return "inactive"
+}
+
+function countedAttention(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? `${singular} needs` : `${plural} need`} attention.`
 }
 
 export function sidebarStatusTooltip(
   base: string,
   advisoryCount: number,
   variant: "degraded" | "attention",
+  agentAttentionCount = 0,
 ): string {
-  if (advisoryCount === 0) return base
-  const noun = advisoryCount === 1 ? "advisory needs" : "advisories need"
-  const countedAdvisories = `${advisoryCount} ${noun} attention.`
+  const counts: string[] = []
+  if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
+  if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
+  if (counts.length === 0) return base
+  const countText = counts.join(" ")
   if (variant === "attention") {
-    return `${countedAdvisories} See Settings > Status.`
+    const page = advisoryCount === 0 ? "Settings > Agents" : "Settings > Status"
+    return `${countText} See ${page}.`
   }
   const separator = /[.!?]$/.test(base) ? " " : ". "
   const statusLink = base.includes("Settings > Status") ? "" : " See Settings > Status."
-  return `${base}${separator}${countedAdvisories}${statusLink}`
+  return `${base}${separator}${countText}${statusLink}`
+}
+
+/** The tail of an agent's Status card, after its worst problem. */
+export function agentMoreProblemsText(moreCount: number): string | null {
+  if (moreCount <= 0) return null
+  return `And ${moreCount} more ${moreCount === 1 ? "problem" : "problems"}.`
+}
+
+/** The bottom Status grid holds Recent errors after the optional Agents and
+ *  Server locations cards. Spanning both columns only when those pair up
+ *  keeps a hole out of either row. */
+export function recentErrorsFillsRow(cardsBefore: number): boolean {
+  return cardsBefore % 2 === 0
 }
 
 export function databaseState(health: HealthResponse | undefined): CardState {
