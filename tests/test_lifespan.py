@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import MutableMapping
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -60,6 +61,53 @@ async def test_core_state_lifespan_initializes_advisory_registry():
     app = SimpleNamespace(state=SimpleNamespace())
     async with lc.core_state_lifespan(cast("Any", app)):
         assert isinstance(app.state.advisories, AdvisoryRegistry)
+
+
+def _legacy_env_events(
+    captured: list[MutableMapping[str, Any]],
+) -> list[MutableMapping[str, Any]]:
+    return [log_entry for log_entry in captured if log_entry["event"] == "legacy_env_names_in_use"]
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+async def test_startup_logs_old_env_names_once(monkeypatch, mode):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("APP_MODE", mode)
+    monkeypatch.setenv("LOGPARSER_HOST_NAME", "edge-01")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    ingestion_service_kwargs = cast("MagicMock", lc.LogIngestionService).call_args.kwargs
+    assert ingestion_service_kwargs["server"] == "edge-01"
+    legacy_env_events = _legacy_env_events(captured)
+    assert len(legacy_env_events) == 1
+    assert legacy_env_events[0]["names"] == [
+        {"old": "LOGPARSER_HOST_NAME", "new": "LOGPARSER_SERVER_NAME"}
+    ]
+
+
+async def test_startup_without_old_env_names_logs_nothing(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", "edge-01")
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    assert _legacy_env_events(captured) == []
 
 
 async def test_startup_failure_unwinds_started_managers(monkeypatch):
@@ -186,7 +234,7 @@ async def test_degraded_start_registers_advisory_and_defers_the_poller(monkeypat
         assert app.state.crowdsec_stream_poller_deferred is poller
         ids = [a.id for a in runtime.get_advisories(cast("Any", app)).snapshot()]
         # Membership, not equality: geoip_lifespan may register the
-        # map-home advisory too (Task 16).
+        # server-location advisory too.
         assert "database-unavailable" in ids
 
 
@@ -363,9 +411,9 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
     cast("MagicMock", lc.LogIngestionService).assert_not_called()
 
 
-async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
-    """A successful schema wait records this agent's detected home for each
-    hostname it tails."""
+async def test_agent_schema_ready_triggers_server_location_upsert(monkeypatch):
+    """A successful schema wait records this agent's detected location for
+    each server name it tails."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
 
@@ -375,7 +423,7 @@ async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
     )
     monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
     upsert = AsyncMock()
-    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+    monkeypatch.setattr(lc, "upsert_auto_server_locations", upsert)
 
     app = SimpleNamespace(state=SimpleNamespace())
     app.state.settings = Settings()
@@ -384,12 +432,12 @@ async def test_agent_schema_ready_triggers_home_upsert(monkeypatch):
 
     upsert.assert_awaited_once()
     assert upsert.await_args is not None
-    hostnames = upsert.await_args.args[1]
-    assert hostnames == Settings().logparser.resolved_hostnames()
+    server_names = upsert.await_args.args[1]
+    assert server_names == Settings().ingest_server_names()
 
 
-async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
-    """A timed-out schema wait leaves site_homes untouched: the agent is
+async def test_agent_schema_timeout_skips_server_location_upsert(monkeypatch):
+    """A timed-out schema wait leaves server_locations untouched: the agent is
     already going degraded, there is nothing trustworthy to record."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
@@ -400,7 +448,7 @@ async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
     )
     monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="timeout"))
     upsert = AsyncMock()
-    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+    monkeypatch.setattr(lc, "upsert_auto_server_locations", upsert)
 
     app = SimpleNamespace(state=SimpleNamespace())
     app.state.settings = Settings()
@@ -411,8 +459,8 @@ async def test_agent_schema_timeout_skips_home_upsert(monkeypatch):
 
 
 async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
-    """A primary instance always reconciles MAP_HOME_LOCATIONS overrides and,
-    when it also tails logs, records its own auto-detected home."""
+    """A primary instance always reconciles MAP_SERVER_LOCATIONS overrides and,
+    when it also tails logs, records its own auto-detected location."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
 
@@ -421,8 +469,8 @@ async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
     )
     reconcile = AsyncMock()
     upsert = AsyncMock()
-    monkeypatch.setattr(lc, "reconcile_override_homes", reconcile)
-    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+    monkeypatch.setattr(lc, "reconcile_override_server_locations", reconcile)
+    monkeypatch.setattr(lc, "upsert_auto_server_locations", upsert)
 
     app = SimpleNamespace(state=SimpleNamespace())
     app.state.settings = Settings()
@@ -434,7 +482,7 @@ async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
 
 
 async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
-    """LOGPARSER_ENABLED=false tails nothing under its own hostname, so it
+    """LOGPARSER_ENABLED=false tails nothing under its own server name, so it
     still reconciles overrides but skips the auto upsert."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
@@ -445,8 +493,8 @@ async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
     )
     reconcile = AsyncMock()
     upsert = AsyncMock()
-    monkeypatch.setattr(lc, "reconcile_override_homes", reconcile)
-    monkeypatch.setattr(lc, "upsert_auto_homes", upsert)
+    monkeypatch.setattr(lc, "reconcile_override_server_locations", reconcile)
+    monkeypatch.setattr(lc, "upsert_auto_server_locations", upsert)
 
     app = SimpleNamespace(state=SimpleNamespace())
     app.state.settings = Settings()
@@ -457,8 +505,8 @@ async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
     upsert.assert_not_awaited()
 
 
-async def test_full_startup_site_home_failure_does_not_block_startup(monkeypatch):
-    """Site homes are presentation data: a write failure logs a warning and
+async def test_full_startup_server_location_failure_does_not_block_startup(monkeypatch):
+    """Server locations are presentation data: a write failure logs a warning and
     startup still reaches a healthy, DB-available state."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
@@ -467,7 +515,7 @@ async def test_full_startup_site_home_failure_does_not_block_startup(monkeypatch
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
     )
     monkeypatch.setattr(
-        lc, "reconcile_override_homes", AsyncMock(side_effect=RuntimeError("db boom"))
+        lc, "reconcile_override_server_locations", AsyncMock(side_effect=RuntimeError("db boom"))
     )
 
     app = SimpleNamespace(state=SimpleNamespace())
@@ -476,14 +524,14 @@ async def test_full_startup_site_home_failure_does_not_block_startup(monkeypatch
         assert app.state.db_available is True
 
 
-async def test_ingestion_wires_per_file_hostnames(monkeypatch):
-    """Each tailed file's source gets its positional hostname; the service
-    fallback gets the first resolved hostname."""
+async def test_ingestion_wires_per_file_server_names(monkeypatch):
+    """Each tailed file's source gets its positional server name; the service
+    fallback gets the first resolved server name."""
     from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
 
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
-    monkeypatch.setenv("LOGPARSER_HOST_NAME", '["vps-1", "vps-2"]')
+    monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
     )
@@ -494,14 +542,14 @@ async def test_ingestion_wires_per_file_hostnames(monkeypatch):
     async with enter_lifespan(app):
         pass
 
-    hostnames = [
-        call.kwargs["hostname"] for call in cast("MagicMock", lc.FileSource).call_args_list
+    server_names = [
+        call.kwargs["server"] for call in cast("MagicMock", lc.FileSource).call_args_list
     ]
-    assert hostnames == ["vps-1", "vps-2"]
+    assert server_names == ["vps-1", "vps-2"]
     assert all(
-        "hostname" not in call.kwargs for call in cast("MagicMock", lc.LogParser).call_args_list
+        "server" not in call.kwargs for call in cast("MagicMock", lc.LogParser).call_args_list
     )
-    assert cast("MagicMock", lc.LogIngestionService).call_args.kwargs["hostname"] == "vps-1"
+    assert cast("MagicMock", lc.LogIngestionService).call_args.kwargs["server"] == "vps-1"
 
 
 class _StartupWaitClock:
@@ -651,8 +699,8 @@ def _patch_recovery(monkeypatch, lc, answers: list[bool]) -> _RecoveryClock:
     clock = _RecoveryClock()
     monkeypatch.setattr(lc._SYSTEM_CLOCK, "sleep", clock.sleep)
     monkeypatch.setattr(lc, "_db_available", AsyncMock(side_effect=[False, *answers]))
-    monkeypatch.setattr(lc, "reconcile_override_homes", AsyncMock())
-    monkeypatch.setattr(lc, "upsert_auto_homes", AsyncMock())
+    monkeypatch.setattr(lc, "reconcile_override_server_locations", AsyncMock())
+    monkeypatch.setattr(lc, "upsert_auto_server_locations", AsyncMock())
     return clock
 
 
@@ -680,8 +728,8 @@ async def test_recovery_runs_deferred_startup_with_capped_backoff(monkeypatch):
 
         cast("AsyncMock", lc.migrate_database).assert_awaited_once()
         cast("AsyncMock", lc.setup_timescaledb).assert_awaited_once()
-        cast("AsyncMock", lc.reconcile_override_homes).assert_awaited_once()
-        cast("AsyncMock", lc.upsert_auto_homes).assert_awaited_once()
+        cast("AsyncMock", lc.reconcile_override_server_locations).assert_awaited_once()
+        cast("AsyncMock", lc.upsert_auto_server_locations).assert_awaited_once()
         backend.recover.assert_awaited_once()
         assert app.state.crowdsec_stream_poller is poller
         assert app.state.crowdsec_stream_poller_deferred is None
@@ -1129,3 +1177,15 @@ async def test_oidc_lifespan_is_a_no_op_without_a_client():
     app = SimpleNamespace(state=SimpleNamespace())
     async with lc.oidc_lifespan(cast("Any", app)):
         pass
+
+
+async def test_heartbeat_starts_before_the_database_gate():
+    from geometrikks.server import lifecycle as lc
+
+    assert lc.LIFESPAN.index(lc.heartbeat_lifespan) < lc.LIFESPAN.index(lc.database_lifespan)
+
+
+async def test_heartbeat_stops_before_every_other_manager():
+    from geometrikks.server import lifecycle as lc
+
+    assert lc.LIFESPAN[-1] is lc.heartbeat_shutdown_lifespan

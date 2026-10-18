@@ -13,7 +13,7 @@ export const geoLogsSearchSchema = z.object({
   city: z.array(z.string()).optional().catch(undefined),
   ip: z.array(z.string()).optional().catch(undefined),
   ipx: z.array(z.string()).optional().catch(undefined),
-  host: z.array(z.string()).optional().catch(undefined),
+  server: z.array(z.string()).optional().catch(undefined),
   asn: z.array(z.number().int()).optional().catch(undefined),
   asnx: z.array(z.number().int()).optional().catch(undefined),
   page: z.number().int().min(1).optional().catch(undefined),
@@ -49,7 +49,7 @@ export function decodeGeoLogsSearch(search: GeoLogsSearch): GeoLogFilterState {
     cities: search.city ?? [],
     ips: search.ip ?? [],
     ipsExclude: search.ipx ?? [],
-    hostnames: search.host ?? [],
+    servers: search.server ?? [],
     asns: search.asn ?? [],
     asnsExclude: search.asnx ?? [],
   }
@@ -61,7 +61,7 @@ export function encodeGeoLogFilters(filters: GeoLogFilterState): Partial<GeoLogs
     city: arrayParam(filters.cities),
     ip: arrayParam(filters.ips),
     ipx: arrayParam(filters.ipsExclude),
-    host: arrayParam(filters.hostnames),
+    server: arrayParam(filters.servers),
     asn: arrayParam(filters.asns),
     asnx: arrayParam(filters.asnsExclude),
   }

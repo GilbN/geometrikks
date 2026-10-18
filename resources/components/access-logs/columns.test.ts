@@ -22,4 +22,8 @@ describe("access log columns", () => {
   it("shows every desktop default on desktop", () => {
     expect(defaults(false)).toEqual(ACCESS_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
   })
+
+  it("labels the server column", () => {
+    expect(ACCESS_LOG_COLUMNS.find((c) => c.key === "server")?.label).toBe("Server")
+  })
 })

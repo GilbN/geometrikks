@@ -11,7 +11,8 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { BrandMark } from "../components/brand/brand-mark"
-import { ACCENTS, DEFAULT_ACCENT } from "./accent"
+import { themeHead } from "./theme-bootstrap"
+import { COLOR_THEMES, THEME_STORAGE_KEYS } from "./theme"
 
 const resources = new URL("../", import.meta.url)
 const repo = new URL("../../", import.meta.url)
@@ -46,28 +47,30 @@ describe("tokens", () => {
     expect(linesMatching(/geo-cyan|geo-glow/)).toEqual([])
   })
 
-  it("declares a light and a dark block for every accent, the default included", () => {
-    // The default has no attribute on <html>, but scoped previews need its rule.
-    const css = read("main.css")
-    for (const accent of ACCENTS) {
-      expect(css).toMatch(new RegExp(`^\\[data-accent="${accent}"\\] \\{`, "m"))
-      expect(css).toMatch(new RegExp(`^\\.dark\\[data-accent="${accent}"\\]`, "m"))
-    }
+  it("boots the stored theme before first paint with the keys the provider uses", () => {
+    const html = themeHead()
+    const provider = read("components/theme-provider.tsx")
+    expect(read("index.html", repo)).toContain("<!-- theme-head -->")
+    for (const key of Object.values(THEME_STORAGE_KEYS)) expect(html).toContain(JSON.stringify(key))
+    for (const id of COLOR_THEMES) expect(html).toContain(JSON.stringify(id))
+    for (const key of ["mode", "lightTheme", "darkTheme"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
   })
 
-  it("boots the stored theme and accent before first paint with the keys the provider uses", () => {
-    const html = read("index.html", repo)
-    const provider = read("components/theme-provider.tsx")
-    const root = read("routes/__root.tsx")
-    const themeKey = root.match(/storageKey="([^"]+)"/)?.[1]
-    const accentKey = provider.match(/accentStorageKey = "([^"]+)"/)?.[1]
-    expect(themeKey).toBeTruthy()
-    expect(accentKey).toBeTruthy()
-    expect(html).toContain(`'${themeKey}'`)
-    expect(html).toContain(`'${accentKey}'`)
-    for (const accent of ACCENTS.filter((a) => a !== DEFAULT_ACCENT)) {
-      expect(html).toContain(`'${accent}'`)
+  it("keeps theme colors out of the HTML entry points", () => {
+    for (const html of [read("index.html", repo), read("dev/themes.html")]) {
+      expect(html).not.toMatch(/name="theme-color"/)
+      expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     }
+    expect(themeHead().match(/<meta name="theme-color"/g)).toHaveLength(1)
+    expect(themeHead().indexOf('<meta name="theme-color"')).toBeLessThan(themeHead().indexOf("<script>"))
+  })
+
+  it("takes the default mode from the catalog instead of repeating the literal", () => {
+    for (const file of ["routes/__root.tsx", "dev/themes.tsx"]) expect(read(file)).not.toContain('defaultTheme="dark"')
+  })
+
+  it("has no retired accent or dark appearance attributes", () => {
+    expect(linesMatching(/data-accent|data-dark-appearance/)).toEqual([])
   })
 })
 

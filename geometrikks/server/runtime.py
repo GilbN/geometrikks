@@ -21,10 +21,12 @@ if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from litestar import Litestar
 
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.domain.instances.monitor import InstanceMonitor
     from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
-    from geometrikks.services.geoip.home import HomeLocation
+    from geometrikks.services.geoip.self_location import SelfLocation
     from geometrikks.services.ingestion import LogIngestionService
     from geometrikks.services.oidc import OidcClient
 
@@ -41,6 +43,17 @@ def get_advisories(app: Litestar) -> AdvisoryRegistry:
         registry = AdvisoryRegistry()
         app.state.advisories = registry
     return registry
+
+
+def get_instance_monitor(app: Litestar) -> InstanceMonitor:
+    """The head's agent-state monitor, created on first access."""
+    monitor: InstanceMonitor | None = getattr(app.state, "instance_monitor", None)
+    if monitor is None:
+        from geometrikks.domain.instances.monitor import InstanceMonitor
+
+        monitor = InstanceMonitor()
+        app.state.instance_monitor = monitor
+    return monitor
 
 
 def get_crowdsec_service(app: Litestar) -> CrowdSecService | None:
@@ -74,9 +87,14 @@ def get_started_at(app: Litestar) -> datetime | None:
     return getattr(app.state, "started_at", None)
 
 
-def get_map_home_location(app: Litestar) -> HomeLocation | None:
-    """Resolved map home location; None before startup or when undetectable."""
-    return getattr(app.state, "map_home_location", None)
+def get_heartbeat_writer(app: Litestar) -> HeartbeatWriter | None:
+    """None before the heartbeat lifespan has started the writer."""
+    return getattr(app.state, "heartbeat_writer", None)
+
+
+def get_self_location(app: Litestar) -> SelfLocation | None:
+    """This server's resolved location; None before startup or when undetectable."""
+    return getattr(app.state, "self_location", None)
 
 
 def is_geoip_available(app: Litestar, *, default: bool = False) -> bool:

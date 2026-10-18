@@ -30,6 +30,7 @@ from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventR
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
 from geometrikks.domain.geo.utils import make_point
+from geometrikks.domain.instances.schemas import ERROR_MESSAGE_MAX_CHARS
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
@@ -72,6 +73,14 @@ class UnavailableSource:
     kind: str
     label: str
     reason: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class BatchError:
+    """The most recent write failure, kept for the heartbeat payload."""
+
+    message: str
+    at: datetime
 
 
 @dataclass
@@ -147,7 +156,7 @@ class LogIngestionService:
         asn_db_path: Path | str | None = None,
         *,
         repos_factory: Callable[[AsyncSession], IngestionRepos] = IngestionRepos.from_session,
-        hostname: str = "localhost",
+        server: str = "localhost",
         batch_size: int = 100,
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
@@ -164,9 +173,9 @@ class LogIngestionService:
             asn_db_path: Optional GeoLite2-ASN database path; None or an
                 unreadable file means requests ingest without ASN enrichment.
             repos_factory: Builds the IngestionRepos bundle from a session.
-            hostname: Fallback hostname for records whose source has none.
-                Records read from a source carry the source's hostname, and
-                imported records get this one when they are stored.
+            server: Fallback server name for records whose source has none.
+                Records read from a source carry the source's server name,
+                and imported records get this one when they are stored.
             batch_size: Maximum records before forced commit.
             commit_interval: Maximum seconds between commits.
             store_debug_lines: If True, store all raw lines in debug table.
@@ -176,7 +185,7 @@ class LogIngestionService:
                 nothing.
         """
         self.inputs: list[LogInput] = inputs
-        self.hostname: str = hostname
+        self.server: str = server
         self._session_maker = session_maker
         self._repos_factory = repos_factory
         self._batch: list[ParsedLogRecord] = []
@@ -191,6 +200,7 @@ class LogIngestionService:
         self.publish_dropped: int = 0
         self.failed_batches: int = 0
         self.failed_records: int = 0
+        self.last_batch_error: BatchError | None = None
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -295,9 +305,9 @@ class LogIngestionService:
             self.commit_interval,
         )
 
-    def hostname_for(self, log_input: LogInput) -> str:
-        """The hostname stamped on records from this input: the source's own, or the service default."""
-        return log_input.source.hostname or self.hostname
+    def server_for(self, log_input: LogInput) -> str:
+        """Server name stamped on this input's records, falling back to the service default."""
+        return log_input.source.server or self.server
 
     async def _run_input(self, log_input: LogInput, skip_validation: bool) -> None:
         """Read one source, pushing parsed records onto the shared queue."""
@@ -319,7 +329,7 @@ class LogIngestionService:
                 record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
                 if record is None:
                     continue  # ignored IP
-                record.hostname = self.hostname_for(log_input)
+                record.server = self.server_for(log_input)
                 await self._queue.put(record)
         except Exception:
             logger.exception("ingestion_input_failed", source=log_input.source.label)
@@ -663,7 +673,7 @@ class LogIngestionService:
                 geo_event = GeoEvent(
                     timestamp=record.geo_data.timestamp,
                     ip_address=record.ip_address,
-                    hostname=record.hostname or self.hostname,
+                    server=record.server or self.server,
                     location_id=location_id,
                     autonomous_system_number=record.geo_data.autonomous_system_number,
                     autonomous_system_organization=record.geo_data.autonomous_system_organization,
@@ -680,7 +690,7 @@ class LogIngestionService:
             access_log_model = self._to_access_log_model(
                 record.access_log,
                 log_format=record.log_format,
-                hostname=record.hostname or self.hostname,
+                server=record.server or self.server,
             )
             repos.access_log.session.add(access_log_model)
             self.total_log_records += 1
@@ -840,6 +850,7 @@ class LogIngestionService:
                             raw_line=(record.raw_line or "")[:100],
                         )
                         batch_failed = True
+                        self._record_batch_error(e)
                         lost_records += rolled_back_records
                         committed_candidates = []
                         try:
@@ -871,6 +882,7 @@ class LogIngestionService:
                         error=str(e),
                     )
                     batch_failed = True
+                    self._record_batch_error(e)
                     lost_records += commit_lost_records
                     try:
                         await session.rollback()
@@ -892,6 +904,12 @@ class LogIngestionService:
             flushed["geo"],
             flushed["log"],
             flushed["debug"],
+        )
+
+    def _record_batch_error(self, error: Exception) -> None:
+        self.last_batch_error = BatchError(
+            message=(str(error) or type(error).__name__)[:ERROR_MESSAGE_MAX_CHARS],
+            at=datetime.now(timezone.utc),
         )
 
     async def flush_records(self, records: list[ParsedLogRecord]) -> None:
@@ -934,7 +952,7 @@ class LogIngestionService:
 
     def _to_access_log_model(
         self, parsed: ParsedAccessLog, log_format: str | None = None,
-        hostname: str | None = None,
+        server: str | None = None,
     ) -> AccessLog:
         """Convert ParsedAccessLog schema to ORM model, stamping source info.
 
@@ -942,8 +960,8 @@ class LogIngestionService:
             parsed: The parsed access log fields.
             log_format: The format adapter that produced this record (e.g.
                 'nginx', 'traefik-json'), stamped onto the row alongside the
-                source hostname.
-            hostname: Source hostname for the row; empty/None falls back to the service default.
+                server name.
+            server: Server name for the row; empty/None falls back to the service default.
 
         Returns:
             An unpersisted AccessLog ORM instance ready to be added to a
@@ -968,7 +986,7 @@ class LogIngestionService:
             city=parsed.city,
             autonomous_system_number=parsed.autonomous_system_number,
             autonomous_system_organization=parsed.autonomous_system_organization,
-            hostname=hostname or self.hostname,
+            server=server or self.server,
             log_format=log_format,
         )
 

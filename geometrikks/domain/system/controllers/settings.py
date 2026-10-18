@@ -15,7 +15,7 @@ from litestar.params import SkipValidation
 
 from geometrikks.config.settings import Settings
 from geometrikks.server import runtime
-from geometrikks.services.geoip.home import HomeLocation, HomeLocationSource
+from geometrikks.services.geoip.self_location import SelfLocation, SelfLocationSource
 
 
 class LogparserSettingsView(msgspec.Struct, rename="camel"):
@@ -38,9 +38,9 @@ class DefaultMapView(msgspec.Struct, rename="camel"):
 
 
 class MapSettingsView(msgspec.Struct, rename="camel"):
-    home_latitude: float | None
-    home_longitude: float | None
-    home_source: HomeLocationSource | None
+    server_latitude: float | None
+    server_longitude: float | None
+    server_location_source: SelfLocationSource | None
     carto_api_key: str | None
     default_view: DefaultMapView | None
 
@@ -68,11 +68,11 @@ async def read_settings(
 ) -> SafeSettingsResponse:
     """Whitelisted runtime settings (no credentials, ever)."""
     s = settings
-    home: HomeLocation | None = runtime.get_map_home_location(request.app)
-    if home is None and s.map.home_latitude is not None and s.map.home_longitude is not None:
-        home = HomeLocation(
-            latitude=s.map.home_latitude,
-            longitude=s.map.home_longitude,
+    self_location: SelfLocation | None = runtime.get_self_location(request.app)
+    if self_location is None and s.map.server_latitude is not None and s.map.server_longitude is not None:
+        self_location = SelfLocation(
+            latitude=s.map.server_latitude,
+            longitude=s.map.server_longitude,
             source="configured",
         )
     return SafeSettingsResponse(
@@ -95,9 +95,9 @@ async def read_settings(
             compression_after_days=s.analytics.compression_after_days,
         ),
         map=MapSettingsView(
-            home_latitude=home.latitude if home else None,
-            home_longitude=home.longitude if home else None,
-            home_source=home.source if home else None,
+            server_latitude=self_location.latitude if self_location else None,
+            server_longitude=self_location.longitude if self_location else None,
+            server_location_source=self_location.source if self_location else None,
             carto_api_key=s.map.carto_api_key or None,
             default_view=(
                 DefaultMapView(

@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import pytest
 
 # Tests must never read a developer's .env. Every settings section resolves
@@ -13,7 +15,7 @@ os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 # must not change test results. Values tests do rely on are re-set in
 # baseline_settings_env below; tests needing others use monkeypatch.setenv.
 _SETTINGS_ENV_PREFIXES = (
-    "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "ANALYTICS_",
+    "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "LOKI_", "ANALYTICS_",
     "SCHEDULER_", "MAP_", "CROWDSEC_", "OIDC_", "VITE_", "MAXMINDDB_",
 )
 for _key in [k for k in os.environ if k.startswith(_SETTINGS_ENV_PREFIXES)]:
@@ -66,10 +68,23 @@ def baseline_settings_env():
         # GeoIP
         "GEOIP_DB_PATH": "tests/GeoLite2-City-Test.mmdb",
         # Map (tests must never depend on an external public-IP service)
-        "MAP_AUTO_DETECT_HOME": "false",
+        "MAP_AUTO_DETECT_SERVER_LOCATION": "false",
         # Log parser
         "LOGPARSER_LOG_PATHS": "/var/log/access/access.log",
     })
+
+
+@pytest.fixture(autouse=True)
+def disable_heartbeat_writer(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Keep unit-test lifespans from writing heartbeat rows into the developer's database.
+
+    Integration tests (scratch database) and modules that redefine this fixture keep the real writer.
+    """
+    if not request.node.path.is_relative_to(Path(__file__).parent / "integration"):
+        from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+
+        monkeypatch.setattr(HeartbeatWriter, "start", lambda self: None)
+    yield
 
 
 @pytest.fixture(autouse=True)

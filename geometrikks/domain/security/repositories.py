@@ -92,7 +92,7 @@ class SecurityEnrichmentRepository:
         end: datetime | None = None,
         country_codes: list[str] | None = None,
         cities: list[str] | None = None,
-        hostnames: list[str] | None = None,
+        servers: list[str] | None = None,
     ) -> list[IpLocation]:
         """One observed location per IP, with its event total, in the
         filtered ``[start, end)`` window.
@@ -105,9 +105,9 @@ class SecurityEnrichmentRepository:
         ``geo_events``; longer ones read the per-IP CAGGs stitched with raw
         edge slices. On the CAGG path the newest bucket wins and ties inside
         it go to the busiest location, so the result is an observed location,
-        not an exact last hit. A hostname filter forces the raw path like
-        every other per-IP query, because the CAGGs carry hostname sets, not
-        counts, and buckets older than the hostname backfill carry none at all.
+        not an exact last hit. A server filter forces the raw path like
+        every other per-IP query, because the CAGGs carry server sets, not
+        counts, and buckets older than the server backfill carry none at all.
         """
         valid_ips = [ip for ip in ips if _is_ip(ip)]
         now = datetime.now(timezone.utc)
@@ -116,7 +116,7 @@ class SecurityEnrichmentRepository:
         if not valid_ips or start_ts >= end_ts:
             return []
 
-        filters = GeoEventFilters(country_codes=country_codes, cities=cities, hostnames=hostnames)
+        filters = GeoEventFilters(country_codes=country_codes, cities=cities, servers=servers)
         granularity = get_stats_granularity(start_ts, end_ts)
         if granularity == StatsGranularity.RAW or filters.forces_raw:
             granularity = StatsGranularity.RAW

@@ -78,7 +78,7 @@ async def seed(session_maker, *, days_back: int, per_day: int) -> None:
                 )
                 await session.execute(
                     text(
-                        "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                        "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
                         "VALUES (:timestamp, :ip_address, 'it-test', :location_id)"
                     ),
                     {

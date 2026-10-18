@@ -57,7 +57,7 @@ def app_settings(migrated_database_url: str) -> Settings:
         ),
         scheduler=SchedulerSettings(enabled=False),
         # Static home location so startup never geolocates over the network.
-        map=MapSettings(home_latitude=59.91, home_longitude=10.75),
+        map=MapSettings(server_latitude=59.91, server_longitude=10.75),
     )
 
 

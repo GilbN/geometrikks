@@ -2,6 +2,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "./themes/light.css";
+@import "./themes/aurora.css";
+@import "./themes/moss.css";
+@import "./themes/forge.css";
+@import "./themes/night.css";
 
 @font-face {
   font-family: "runr";
@@ -27,6 +32,15 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-glass-card: var(--glass-card);
+  --color-glass-card-strong: var(--glass-card-strong);
+  --color-brand-panel: var(--brand-panel);
+  --color-floating: var(--floating-surface);
+  --color-control: var(--control-bg);
+  --color-control-hover: var(--control-hover-bg);
+  --color-panel: var(--panel-bg);
+  --color-map-panel: var(--map-panel-bg);
+  --color-drawer-handle: var(--drawer-handle);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
@@ -68,148 +82,31 @@
   -moz-osx-font-smoothing: grayscale;
 
   --radius: 0.625rem;
-
-  /* Brand accent, decomposed so [data-accent] variants override only these
-     three numbers. Default: aurora teal. */
-  --brand-l: 0.52;
-  --brand-c: 0.115;
-  --brand-h: 178;
-
-  /* Light theme: "Fjord mist" - cool blue-tinted surfaces, dark ink. */
-  --background: oklch(0.97 0.008 220);
-  --foreground: oklch(0.22 0.03 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.03 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.03 250);
-  --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  --primary-foreground: oklch(0.985 0.005 200);
-  --secondary: oklch(0.94 0.012 225);
-  --secondary-foreground: oklch(0.3 0.03 250);
-  --muted: oklch(0.94 0.012 225);
-  --muted-foreground: oklch(0.5 0.02 245);
-  --accent: oklch(0.93 calc(var(--brand-c) * 0.2) var(--brand-h));
-  --accent-foreground: oklch(0.32 calc(var(--brand-c) * 0.7) var(--brand-h));
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.01 230);
-  --input: oklch(0.9 0.01 230);
-  --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  /* CVD-validated categorical slots (fixed order - assign series 1..5, never
-     cycle). Adjacent-pair deltas checked on white; aqua/yellow are sub-3:1 on
-     the surface, so multi-series charts must keep a legend or table view. */
-  --chart-1: #2a78d6;
-  --chart-2: #1baf7a;
-  --chart-3: #eda100;
-  --chart-4: #008300;
-  --chart-5: #4a3aa7;
-  --sidebar: oklch(0.985 0.006 220);
-  --sidebar-foreground: oklch(0.22 0.03 250);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: oklch(0.985 0.005 200);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
-  --sidebar-border: oklch(0.9 0.01 230);
-  --sidebar-ring: var(--ring);
-
-  /* Accent derivatives: a darker step for gradients and a soft halo. */
-  --primary-dim: oklch(calc(var(--brand-l) - 0.1) calc(var(--brand-c) * 0.87) var(--brand-h));
-  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
-
-  /* Popups derive from semantic tokens; var() resolves against the scrolling
-     element's own theme, so one definition serves both themes. */
-  --popup-bg: var(--card);
-  --popup-fg: var(--foreground);
-  --popup-border: var(--border);
-  --popup-muted: var(--muted-foreground);
-  --popup-badge-bg: color-mix(in oklab, var(--primary) 15%, transparent);
-  --popup-badge-text: var(--primary);
-  --popup-code-bg: var(--muted);
-
-  /* The one panel shadow: soft in light, none in dark (borders carry depth). */
-  --shadow-card: 0 1px 2px oklch(0.3 0.03 250 / 6%);
 }
 
-.dark {
-  /* Dark theme: "Aurora night". Accent lifts into the glow band. */
-  --brand-l: 0.78;
-  --brand-c: 0.15;
-
-  --background: oklch(0.13 0.025 245);
-  --foreground: oklch(0.95 0.01 220);
-  --card: oklch(0.17 0.028 245);
-  --card-foreground: oklch(0.95 0.01 220);
-  --popover: oklch(0.17 0.028 245);
-  --popover-foreground: oklch(0.95 0.01 220);
-  --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  --primary-foreground: oklch(0.13 0.025 245);
-  --secondary: oklch(0.22 0.03 245);
-  --secondary-foreground: oklch(0.95 0.01 220);
-  --muted: oklch(0.22 0.03 245);
-  --muted-foreground: oklch(0.66 0.02 240);
-  --accent: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  --accent-foreground: oklch(0.13 0.025 245);
-  --destructive: oklch(0.65 0.22 25);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
-  /* Same brand hues re-stepped into the dark lightness band and validated
-     as a set against the card surface (all >= 3:1, worst adjacent CVD 30). */
-  --chart-1: #00a9a6;
-  --chart-2: #00a764;
-  --chart-3: #b58800;
-  --chart-4: #9e64ee;
-  --chart-5: #e9523f;
-  --sidebar: oklch(0.145 0.026 245);
-  --sidebar-foreground: oklch(0.92 0.01 220);
-  --sidebar-primary: var(--primary);
-  --sidebar-primary-foreground: oklch(0.13 0.025 245);
-  --sidebar-accent: oklch(0.2 0.028 245);
-  --sidebar-accent-foreground: oklch(0.95 0.01 220);
-  --sidebar-border: oklch(1 0 0 / 6%);
-  --sidebar-ring: var(--ring);
-
-  --primary-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
-  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
-
-  --shadow-card: 0 0 #0000;
+/* Shared component styling consumes palette values without knowing theme IDs. */
+.theme-decoration {
+  display: var(--theme-decoration-display);
 }
 
-/* Accent variants, chosen from the header's accent picker and applied as
-   data-accent on <html>.
-   Teal is the default and needs no attribute. Light values target ~4.5:1 on
-   white cards; dark values sit in the same glow band as teal. */
-/* Teal is the default and <html> carries no attribute for it, but a scoped
-   preview (the accent picker's swatches) needs the rule to exist or it
-   inherits whatever accent is active. */
-[data-accent="teal"] {
-  --brand-l: 0.52;
-  --brand-c: 0.115;
-  --brand-h: 178;
+.brand-backdrop {
+  --primary: var(--brand-backdrop-primary);
+  --muted-foreground: var(--brand-backdrop-muted);
+  --primary-glow: var(--brand-backdrop-glow);
+  --theme-decoration-display: block;
 }
-.dark[data-accent="teal"],
-.dark [data-accent="teal"] {
-  --brand-l: 0.78;
-  --brand-c: 0.15;
+
+:where(
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="sheet-content"],
+  [data-slot="drawer-content"]
+) {
+  --border: var(--panel-border);
 }
-[data-accent="green"] {
-  --brand-h: 155;
-  --brand-c: 0.13;
-  --brand-l: 0.5;
-}
-.dark[data-accent="green"],
-.dark [data-accent="green"] {
-  --brand-l: 0.76;
-  --brand-c: 0.17;
-}
-[data-accent="copper"] {
-  --brand-h: 60;
-  --brand-c: 0.1;
-  --brand-l: 0.52;
-}
-.dark[data-accent="copper"],
-.dark [data-accent="copper"] {
-  --brand-l: 0.72;
-  --brand-c: 0.11;
+
+[data-slot="map-overlay"] {
+  --border: var(--map-panel-border);
 }
 
 @layer base {
@@ -223,6 +120,24 @@
   }
   html {
     @apply font-sans;
+  }
+
+  /* Tailwind v4 dropped the pointer cursor on buttons, and Base UI renders
+     some controls as spans with a role, so both need covering here. */
+  :where(
+      button,
+      summary,
+      [role="button"],
+      [role="tab"],
+      [role="switch"],
+      [role="checkbox"],
+      [role="radio"],
+      [role="option"],
+      [role="menuitem"],
+      [role="menuitemcheckbox"],
+      [role="menuitemradio"]
+    ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
   }
 
   /*
@@ -281,19 +196,19 @@
 
 /* Style the tip using CSS variable */
 .maplibregl-popup-anchor-bottom > .maplibregl-popup-tip {
-  border-top-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  border-top-color: var(--floating-surface) !important;
 }
 
 .maplibregl-popup-anchor-top > .maplibregl-popup-tip {
-  border-bottom-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  border-bottom-color: var(--floating-surface) !important;
 }
 
 .maplibregl-popup-anchor-left > .maplibregl-popup-tip {
-  border-right-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  border-right-color: var(--floating-surface) !important;
 }
 
 .maplibregl-popup-anchor-right > .maplibregl-popup-tip {
-  border-left-color: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  border-left-color: var(--floating-surface) !important;
 }
 
 /* Corner anchors, where the popup flipped on both axes to stay inside the
@@ -309,7 +224,7 @@
 
 /* MapLibre GL Control Styles - Light Mode */
 .maplibregl-ctrl-group {
-  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  background: var(--floating-surface) !important;
   backdrop-filter: blur(8px);
   border-radius: var(--radius) !important;
   border: 1px solid var(--border) !important;
@@ -344,7 +259,7 @@
 
 /* MapLibre GL Control Styles - Dark Mode */
 .dark .maplibregl-ctrl-group {
-  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  background: var(--floating-surface) !important;
   backdrop-filter: blur(8px);
   border: 1px solid var(--border) !important;
 }
@@ -369,7 +284,7 @@
    zoom/compass group. MapLibre paints its "i" as a black background-image,
    so it is redrawn here as a mask filled with the text colour. */
 .maplibregl-ctrl-attrib.maplibregl-compact {
-  background: color-mix(in oklab, var(--background) 85%, transparent) !important;
+  background: var(--floating-surface) !important;
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: var(--radius) !important;
@@ -451,7 +366,7 @@
    are off (no richColors), so this covers every variant; only the icon
    tells them apart. The .toaster class outranks sonner's stylesheet. */
 .toaster [data-sonner-toast][data-styled='true'] {
-  background: color-mix(in oklab, var(--background) 85%, transparent);
+  background: var(--floating-surface);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: var(--radius);

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-18
+
+### Added
+
+- Themes. Settings > Appearance offers Aurora, Moss, Forge and Night, each with a light and a dark palette that follow Light, Dark or System. Pick one theme for both modes or mix them, such as Moss in light mode and Forge in dark mode. Night uses white and light grey in light mode and near-black in dark mode, with grey-scale buttons, links and logo.
+- `import-logs` reads Nginx Proxy Manager's own per-host access logs with `--format npm`, and `--format auto` detects them. You can backfill the history from before you set up the JSON log. Imported NPM rows have no response times, protocol or remote user. Live tailing doesn't accept the format. `LOGPARSER_LOG_FORMATS=npm` fails at startup, and a tailed file in that format logs a warning that points to the JSON setup.
+- `import-logs --before` leaves out lines stamped at or after a given date or time, so an import can stop where an already ingested log begins. Running a file again with a later `--before`, or none, imports only the lines in between.
+- GeoMetrikks can read access logs from Grafana Loki instead of a file. Set `LOKI_URL` and `LOKI_QUERIES`, with one LogQL stream selector per source. Loki lines get the same format detection, parsing and GeoIP lookup as a tailed file. The Status page lists each Loki source, and `/health` lists one that can't be reached or that refuses the query under `ingestion.unavailableSources`. See "Loki setup" in the README.
+- `import-loki` backfills history from Grafana Loki. `litestar import-loki --since 2026-09-01` reads that range of every `LOKI_QUERIES` selector with the same format detection, parsing and GeoIP lookup as live reading. Without `--before` it stops where the data already in the database begins. Rerun an interrupted import with the same range and it picks up at the last completed hour. The command refuses a range that overlaps an earlier import unless you pass `--force`. See "import-loki" in the README.
+- Settings > Agents lists every agent writing to the database, with its version, servers, recent lines and failures, and when it last checked in. Click a row for that agent's ingestion, GeoIP, scheduled jobs, log sources and last error. You can remove an agent that has stopped checking in. An agent with a problem, such as one that stopped checking in, runs another version or can't read one of its logs, gets a card on Settings > Status and turns the sidebar status dot amber. Agents show up once they run this release. See "Multi-source setup" in the README.
+- `APP_INSTANCE_NAME` names an instance on the Agents page. Set it on every agent. Unset, agents go by `agent` and the full instance by `head`, so two unnamed agents overwrite each other's status. The page flags an agent running under the default name and a name that more than one process uses.
+
+### Changed
+
+- Themes replace the accent color picker, which is gone from the header and from Settings. A saved teal, green or copper accent becomes Aurora, Moss or Forge. Moss and Forge now tint the page and panels to match their color.
+- Settings > Appearance shows Light, Dark and System as preview cards drawn in the current theme.
+- Tabs, switches, checkboxes, menu items and select options show the pointer cursor on hover, like buttons already did.
+- In dark mode, menu and list highlights are a faint tint of the theme color instead of a solid fill, and primary buttons use a faint tint too.
+- The Ban button in the Ban IP dialog and the Remove button in the server location confirmation are red. The dialog's Cancel button has a border like other secondary buttons.
+- Dialogs blur the page behind them, as confirmation prompts already did.
+- "Server" is now the one name for whatever recorded a request: a GeoMetrikks instance, a tailed file or a Loki selector. It replaces "hostname", "recorded by", "source" and "site home" across the UI. Access Logs has a Server filter and column. Geo Logs has a Server filter and a Servers column. The map has a Server filter, a Server markers toggle and "Go to server location". Settings > Status lists Server locations. Saved table column layouts carry over. If you had turned off the map's home markers, the Server markers toggle is on again after the upgrade.
+- Six environment variables have new names. `LOGPARSER_HOST_NAME` is `LOGPARSER_SERVER_NAME`, `MAP_HOME_LOCATIONS` is `MAP_SERVER_LOCATIONS`, `MAP_HOME_LATITUDE` and `MAP_HOME_LONGITUDE` are `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE`, `MAP_AUTO_DETECT_HOME` is `MAP_AUTO_DETECT_SERVER_LOCATION`, and `MAP_HOME_REFRESH_HOURS` is `MAP_SERVER_LOCATION_REFRESH_HOURS`. The old names work until 1.0. A process that reads any old name shows a `legacy-env-names` advisory in its own `/health` and logs a warning at startup. The full instance's Settings > Status shows that advisory for its own settings, and Settings > Agents shows it on the row of each agent that reads an old name. If an old and a new name are set to different values, startup fails with an error naming both.
+- `backfill-hostname` is now `backfill-server`, and `backfill-geo-hostnames` is now `backfill-geo-servers`. `import-logs` and `backfill-timings` take `--server` instead of `--hostname`.
+- **Breaking:** the API and page URLs say server instead of hostname, so API scripts and bookmarks that use the old names need updating. Filters take `serverIn` and `serverNotIn` instead of `hostnameIn` and `hostnameNotIn`. Responses carry `server` and `servers` instead of `hostname` and `hostnames`, and `/ws/live` frames carry `server` instead of `hostname`. `/api/v1/geo-locations/site-homes` is now `/api/v1/geo-locations/server-locations`. Page URLs use `/access-logs?server=&serverx=`, `/geo-logs?server=` and `/map?server=`, and an old bookmark opens the page without its filter. The advisory ids `hostname-pollution`, `hostname-count` and `map-home-undetected` are now `server-name-pollution`, `server-count` and `server-location-undetected`.
+- **Breaking:** database columns named `hostname` are now `server`, the `site_homes` table is `server_locations`, and the `hostname_daily_stats` aggregate is `server_daily_stats`. Queries that read the database directly need the new names. The log event `hostname_cagg_columns_unavailable` is now `server_cagg_columns_unavailable`.
+- Upgrade the full instance and every agent together. The first start renames the database columns and tables in place, without rewriting any data. An agent from an older release still starts against the renamed database, then fails every insert.
+
+### Fixed
+
+- `DB_DROP_ON_STARTUP=true` drops the tables again in a development environment. On TimescaleDB 2.x the drop failed and nothing was dropped.
+- The container no longer reports unhealthy while it is still starting. Docker ignores failed health checks for the first 60 seconds and checks every 2 seconds in that window, so the container turns healthy as soon as it answers. Before, a start that took more than about 10 seconds marked it unhealthy.
+- Tooltips are easier to read in light and dark mode. They use the same background as menus, so the grey descriptions and the changelog notice in the sidebar tooltips have enough contrast.
+- `import-logs` no longer drops the access-log rows of a whole file when only its first line is in a looser format, such as nginx's `common` ahead of the full format. It now detects the format from the first 1,000 lines.
+- After `import-logs` and the backfill commands, analytics include the first and last day of the range they wrote. Before, those partial days stayed missing from the daily views. An import that didn't cover a whole UTC day failed the daily refresh outright, and `import-logs` still printed "CAGGs refreshed." It now exits with an error when a refresh fails.
+- The log file list in Settings no longer fails with a server error when GeoMetrikks lacks permission to a configured access log's directory. The file shows as not readable.
+- An access log that exists but sits in a directory GeoMetrikks cannot open is no longer reported as "does not exist" at startup. The log names the permission error, and `/health` gives the reason as `unreadable` instead of `missing`. The same applies when the file itself cannot be read. The Ingestion card on the Status page says "not readable" for such a file instead of "missing".
+
+### Removed
+
+- The sidebar no longer has the "Live feed" indicator. It read "Live feed off" on every page except the map and the access-logs live tail, which looked like a fault. Those two pages and the Status page still show whether the live feed is connected.
+
 ## [0.20.0] - 2026-10-05
 
 ### Added
@@ -1103,7 +1144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.20.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.21.0...develop
+[0.21.0]: https://github.com/GilbN/geometrikks/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0

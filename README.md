@@ -7,11 +7,12 @@
 
 ![Map](/data/screenshots/live.png)
 
-GeoMetrikks tails your reverse-proxy access logs (nginx, Traefik and Caddy),
-geolocates every request with MaxMind GeoLite2, and shows the result on a
+GeoMetrikks tails your reverse-proxy access logs (nginx, Nginx Proxy
+Manager, Traefik and Caddy) or reads them from Grafana Loki, geolocates
+every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
 hardware from one Docker image. Outbound traffic is the GeoLite2 download
-and, unless you disable it, a public-IP lookup for the map's home location.
+and, unless you disable it, a public-IP lookup for the map's server location.
 If you run CrowdSec, connect its Local API and manage bans next to the
 traffic that caused them.
 
@@ -20,9 +21,9 @@ traffic that caused them.
 **Live map.** Every ingested request lands on a MapLibre world map within
 seconds. Click a marker for the request, city, and ASN behind it. Switch
 between Heatmap, Markers and, with CrowdSec connected, a Banned IPs view
-that counts banned addresses per location. With several sources, filter
-the map by source hostname and watch live routes fly to each site's own
-home beacon (see [Multi-source setup](#multi-source-setup)).
+that counts banned addresses per location. With several servers, filter
+the map by server and watch live routes fly to each server's own
+beacon (see [Multi-source setup](#multi-source-setup)).
 
 ![Map](/data/screenshots/map.png)
 
@@ -49,7 +50,7 @@ overlay on the map.
 
 **Access logs.** A searchable, server-paginated history of every request:
 free-text search across URL, referrer and user agent; filters for status,
-method, IP, host, country, city, recording hostname and source format;
+method, IP, host, country, city, server and source format;
 sortable columns; and a column picker for the full log line (bytes,
 request time, upstream time, HTTP version and more). Select a row for the
 complete record.
@@ -69,13 +70,21 @@ a log file is not producing events.
 ![Debug Logs](/data/screenshots/debug-logs.png)
 
 **Multi-source.** Several proxies or hosts? Run one full instance plus
-lightweight agents next to each log file, or tail shipped files from one
-place. Every page can filter by the recording hostname, and the map gives
-each site its own home beacon. See [Multi-source setup](#multi-source-setup).
+lightweight agents next to each log file, tail shipped files from one
+place, or read every proxy's lines from Loki. Access Logs, Geo Logs and the
+map filter by server, and the map gives each server its own beacon.
+Settings > Agents lists every agent with its version, servers and last
+check-in, and flags one that stopped reporting. See [Multi-source setup](#multi-source-setup).
 
 **Settings > Status.** Ingestion, storage, enrichment, integrations and
 live services on one page, with advisories when something needs attention
-(a missing ASN database, a source whose home could not be detected).
+(a missing ASN database, a server whose location could not be detected).
+
+![Settings > Status](/data/screenshots/status.png)
+
+**Themes.** Settings > Appearance has four themes, Aurora, Moss, Forge and
+Night, each with a light and a dark palette. Use one theme for both modes
+or pick a different one for each.
 
 **CrowdSec integration.** Point the app at your CrowdSec Local API for a
 Security page that cross-references active bans with your own traffic (who
@@ -90,7 +99,7 @@ See
 ![CrowdSec](/data/screenshots/crowdsec.png)
 
 **Batch import.** Backfill rotated or archived logs (plain or `.gz`) with
-`litestar import-logs`.
+`litestar import-logs`, including Nginx Proxy Manager's own per-host logs.
 
 ## Quickstart
 
@@ -111,6 +120,29 @@ it weekly (see [MaxMind GeoLite2](#maxmind-geolite2)). Without credentials
 it starts in geo-degraded mode and a banner in the UI explains what to do;
 after adding credentials, restart the app container.
 
+### Point it at your logs
+
+`docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
+read-only into the container at `/var/log/access` and reads
+`LOGPARSER_LOG_PATHS` from `.env`. Point `ACCESS_LOG_DIR` at wherever your
+reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must name the
+file(s) as seen inside the container, under `/var/log/access/`.
+
+Your proxy has to write a log GeoMetrikks can parse. Set that up first:
+
+- [Nginx setup](#nginx-setup) adds a JSON `log_format` to `nginx.conf`.
+- [Nginx Proxy Manager setup](#nginx-proxy-manager-setup) adds a second
+  log next to NPM's own and imports the logs NPM already wrote.
+- [Traefik setup](#traefik-setup) and [Caddy setup](#caddy-setup) write
+  the JSON access log to a file instead of stdout.
+- [Loki setup](#loki-setup) reads the lines from Grafana Loki instead of
+  a mounted file.
+
+Traffic from more than one proxy or host goes through
+[Multi-source setup](#multi-source-setup). Once requests arrive,
+Settings > Status lists each log file and Loki selector, and Debug logs
+shows the raw lines with any parse failures.
+
 ## Docker image tags
 
 Images are published as `ghcr.io/gilbn/geometrikks`.
@@ -120,20 +152,14 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.20.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.21.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.20.0
+image: ghcr.io/gilbn/geometrikks:0.21.0
 ```
-
-`docker-compose.yml` mounts `ACCESS_LOG_DIR` (default `/var/log/nginx`)
-read-only into the container at `/var/log/access` and reads
-`LOGPARSER_LOG_PATHS` from `.env`. Point `ACCESS_LOG_DIR` at wherever your
-reverse proxy writes its access logs. `LOGPARSER_LOG_PATHS` must name the
-file(s) as seen inside the container, under `/var/log/access/`.
 
 ## Nginx setup
 
@@ -248,15 +274,17 @@ access_log /config/log/nginx/access.log geometrikks_json;
 LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
 ```
 
-### Nginx Proxy Manager
+## Nginx Proxy Manager setup
 
 Nginx Proxy Manager writes each proxy host's log in its own `proxy`
 format. That format has no request time, upstream time, protocol, remote
-user or raw request line, and GeoMetrikks does not parse it. NPM can write
-a second log next to its own, though, through its
+user or raw request line, so GeoMetrikks doesn't tail it live. Only
+`import-logs` reads it, as
+[Importing NPM's existing logs](#importing-npms-existing-logs) describes.
+NPM can write a second log next to its own, though, through its
 [custom nginx configuration](https://nginxproxymanager.com/advanced-config/#custom-nginx-configurations)
-files. Point that second log at the JSON format above. NPM's own logs stay
-as they are.
+files. Point that second log at the JSON format from
+[Nginx setup](#nginx-setup). NPM's own logs stay as they are.
 
 The `/data/...` paths below are inside the NPM container. With the usual
 `./data:/data` mount, `/data/nginx/custom/http_top.conf` is
@@ -332,6 +360,71 @@ What the log leaves out:
   [docs/proxy-setup.md](docs/proxy-setup.md#nginx-proxy-manager) to the
   same `http_top.conf`.
 
+### Importing NPM's existing logs
+
+[`import-logs`](#import-logs-backfill-history) reads NPM's own
+`proxy-host-<id>_access.log` files and their rotated copies.
+`LOGPARSER_LOG_FORMATS=npm` fails at startup, so these logs are for
+backfill only.
+
+NPM keeps writing its own logs after the JSON log is on, so every request
+since then is in both. Pass `--before` with the time GeoMetrikks started
+reading the JSON log, and the import stops there. If you started
+GeoMetrikks right after the reload in step 3, that is the first line of
+the oldest `geometrikks_access.log` file on disk:
+
+```bash
+ls data/logs/geometrikks_access.log*
+# open the highest-numbered one; zcat -f reads plain and .gz files
+zcat -f data/logs/geometrikks_access.log.2.gz | head -n 1
+# {"client_ip":"...","timestamp":"2026-10-01T14:03:12+02:00",...}
+```
+
+GeoMetrikks starts reading a log at its end, so it never ingested what
+the JSON log wrote before GeoMetrikks started. If GeoMetrikks started
+later, use the time of the oldest request on the Access Logs page instead,
+or those requests stay missing.
+
+Import the rotated `.gz` copies only:
+
+```bash
+docker compose exec -u geometrikks app sh -c \
+  'litestar import-logs --before 2026-10-01T14:03:12+02:00 /var/log/access/proxy-host-*_access.log.*.gz'
+```
+
+The `sh -c` makes the container expand the glob against its own paths.
+The current `proxy-host-<id>_access.log` is left out because it is still
+growing: after NPM rotates it, it comes back as `.1.gz` with a new
+checksum, and importing that would add its lines a second time. If the
+JSON log is less than a week old, the current files still hold requests
+from before the cutoff. Wait for NPM's next weekly rotation, then import.
+
+NPM's other access logs import the same way:
+
+- `redirection-host-<id>_access.log` for redirection hosts
+- `dead-host-<id>_access.log` for 404 hosts
+- `fallback_http_access.log` for requests that matched no host
+
+`default-host_access.log` is in nginx's `combined` format and imports as
+`nginx`, without host or timings.
+[Legacy nginx format](#legacy-nginx-format) lists what that format lacks.
+
+NPM rotates these logs weekly and keeps four compressed copies,
+`proxy-host-<id>_access.log.1.gz` to `.4.gz`. That puts about five weeks of
+history on disk, and each rotation deletes the oldest week. Import soon
+after turning on the JSON log.
+
+A later run skips the archives it already imported. NPM renumbers them but
+doesn't change their content, so their checksums stay the same. If the
+cutoff turns out to be too early, run the same command with the later one.
+GeoMetrikks stores each file's cutoff and imports only the lines in
+between. An earlier cutoff is refused, because the rows past it are already
+written.
+
+Imported NPM rows have no response time, upstream time, protocol or remote
+user. The map, host filter, status codes, URLs, referrers, user agents and
+bytes are unaffected.
+
 ## Traefik setup
 
 GeoMetrikks parses Traefik JSON access logs. Traefik logs to stdout by
@@ -372,7 +465,9 @@ to pin it. Notes:
   it trusts the header from anyone, and a client can then place any address
   on the map. See `docs/proxy-setup.md` for the full real-IP setup,
   including tunnels.
-- A file path is required; GeoMetrikks cannot read Traefik's stdout.
+- GeoMetrikks cannot read Traefik's stdout. Write the log to a file, and
+  either tail it or ship it to Loki and read it from there
+  ([Loki setup](#loki-setup)).
 
 ## Caddy setup
 
@@ -428,6 +523,90 @@ to pin it. Notes:
   loses request times. The appended `upstream_duration_ms` field always uses
   milliseconds.
 
+## Loki setup
+
+If Alloy, Promtail or another shipper already sends your access logs to
+[Grafana Loki](https://grafana.com/oss/loki/), GeoMetrikks can read them
+from Loki instead of a file. Each LogQL stream selector is one source, and
+GeoMetrikks parses and geolocates its lines the same way it handles a
+tailed file.
+
+```bash
+LOKI_URL=http://loki:3100
+LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
+LOKI_SERVER_NAMES=["edge-01", "edge-02"]
+```
+
+The app container has to reach `LOKI_URL`. `http://loki:3100` works when
+Loki runs on the same Docker network.
+
+Without `LOKI_SERVER_NAMES`, GeoMetrikks stamps every selector with the
+first `LOGPARSER_SERVER_NAME`. That is a name you choose for this server, not
+your nginx `server_name`, and it defaults to the machine's hostname. If the
+selectors are different proxies, give each one its own server name.
+
+- Loki must hold the raw access-log line. If a pipeline stage rewrites the
+  line, for example into logfmt, GeoMetrikks has nothing it can parse.
+  GeoMetrikks ignores labels and structured metadata.
+- Don't set the entry timestamp from the line when the line carries the
+  request's start time, as Traefik's `StartUTC` does. In Alloy that is
+  `stage.timestamp`, in Promtail the `timestamp` stage. The proxy writes the
+  line when the request ends, so a websocket or a long download ends up
+  with a timestamp minutes or hours older than the moment it reaches Loki.
+  GeoMetrikks reads back from the newest line it has seen minus
+  `LOKI_LOOKBACK` (60 seconds by default), and never more than an hour, so
+  it skips that line. Without the stage, the shipper stamps each line when
+  it reads it, and the lookback only has to cover shipping delay. nginx and
+  Caddy stamp lines when they write them, so this doesn't affect them. If
+  you keep the stage, set `LOKI_LOOKBACK` above your longest request, up to
+  3600. Every poll re-reads that whole window.
+- Loki can't page inside a single timestamp, and GeoMetrikks reads 1000
+  lines per request for the whole selector. With second-precision
+  timestamps, a selector that logs more than 1000 lines in one second loses
+  the rest of that second. GeoMetrikks logs a warning once per such
+  timestamp.
+- A selector can match several streams, one per label set. GeoMetrikks
+  merges their lines in timestamp order under the selector's server name. Each
+  selector has one log format, detected from its first lines or pinned with
+  `LOKI_FORMATS`, and GeoMetrikks counts lines in any other format as
+  malformed. Use one selector per log format.
+- GeoMetrikks polls every `LOKI_POLL_INTERVAL` seconds, 5 by default.
+  Reading starts when the app starts, as with a tailed file, so lines from
+  while it was down are not read. To backfill a range from Loki's history,
+  use [import-loki](#import-loki-backfill-history-from-loki).
+- With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` unset, GeoMetrikks tails
+  no file. Set both to read files and Loki side by side. A
+  `LOGPARSER_LOG_PATHS` line in `.env` or in a compose `environment:` block
+  counts as set and keeps the file tail. The shipped `.env.example` has that
+  line, so for a Loki-only install, remove it or comment it out.
+- `LOKI_TENANT_ID` sends `X-Scope-OrgID` for a multi-tenant Loki.
+  `LOKI_USERNAME` and `LOKI_PASSWORD` together send basic auth.
+- If Loki can't be reached or refuses the query, `/health` lists the source
+  under `ingestion.unavailableSources` as `loki:1`, `loki:2` and so on, with
+  the reason `unreachable` or `rejected`. The Status page shows each
+  selector with its server name, format and line count.
+
+An Alloy configuration that ships a Traefik access log the way GeoMetrikks
+expects:
+
+```alloy
+loki.source.file "traefik" {
+  targets = [{
+    __path__     = "/var/log/traefik/access.log",
+    job          = "traefik",
+    service_name = "traefik",
+  }]
+  tail_from_end = true
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
+
 ## MaxMind GeoLite2
 
 GeoIP lookups use MaxMind's free GeoLite2 City database. Sign up at
@@ -468,17 +647,19 @@ watermark or refuse keyless tiles at any time.
 The map shows the CARTO and OpenStreetMap attribution in its corner. Keep
 it visible; both licenses require it.
 
-Live routes fly to the home of the source that recorded them (see
-[Multi-source setup](#multi-source-setup)); with a single source that is
+Live routes fly to the location of the server that recorded them (see
+[Multi-source setup](#multi-source-setup)); with a single server that is
 the app server's own location, discovered at startup through ipify and
-looked up in the local GeoLite2 database. `MAP_HOME_LATITUDE` and
-`MAP_HOME_LONGITUDE` override that default home, `MAP_HOME_LOCATIONS`
-overrides per source, and `MAP_AUTO_DETECT_HOME=false` disables the
-outbound lookup. The map's **Route effects** control can also hide the
-animation; that preference is kept in browser storage.
+looked up in the local GeoLite2 database. `MAP_SERVER_LATITUDE` and
+`MAP_SERVER_LONGITUDE` override that default location,
+`MAP_SERVER_LOCATIONS` overrides per server, and
+`MAP_AUTO_DETECT_SERVER_LOCATION=false` disables the outbound lookup. The
+old `MAP_HOME_*` and `MAP_AUTO_DETECT_HOME` names still work until 1.0.
+The map's **Route effects** control can also hide the animation; that
+preference is kept in browser storage.
 
-The map opens on the site homes, or on the whole world when there are
-none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
+The map opens on the server locations, or on the whole world when there
+are none. Set `MAP_DEFAULT_VIEW=latitude,longitude[,zoom]` to open it
 somewhere else, for example `MAP_DEFAULT_VIEW=71.129982,27.653369,15` for
 northern Norway at zoom 15.
 
@@ -868,19 +1049,49 @@ map stays in sync whichever process ingested a request, because every
 writer publishes committed events over PostgreSQL LISTEN/NOTIFY and the
 full instance's `/ws/live` feed relays all of them.
 
+Every request records the server that ingested it. `LOGPARSER_SERVER_NAME`
+sets that name. It is a name you choose for this server, not your nginx
+`server_name`, and it defaults to the machine's hostname. In Docker that is
+the container's hostname, which the compose `hostname:` key sets. Access
+Logs, Geo Logs and the map filter by server.
+
+Older releases called the server a hostname. The old variable names still
+work until 1.0:
+
+| Variable | Old name |
+|---|---|
+| `LOGPARSER_SERVER_NAME` | `LOGPARSER_HOST_NAME` |
+| `MAP_SERVER_LOCATIONS` | `MAP_HOME_LOCATIONS` |
+| `MAP_SERVER_LATITUDE` | `MAP_HOME_LATITUDE` |
+| `MAP_SERVER_LONGITUDE` | `MAP_HOME_LONGITUDE` |
+| `MAP_AUTO_DETECT_SERVER_LOCATION` | `MAP_AUTO_DETECT_HOME` |
+| `MAP_SERVER_LOCATION_REFRESH_HOURS` | `MAP_HOME_REFRESH_HOURS` |
+
+At startup, a process that reads any old name logs one
+`legacy_env_names_in_use` event listing them, and its `/health` carries a
+`legacy-env-names` advisory naming each replacement. Each process reports
+only its own settings. The full instance's Settings > Status shows the old
+names the full instance reads. Settings > Agents shows the advisory on the
+row of each agent that reads an old name. If an old and a new name are set
+to different values, startup fails.
+
 Agents are not the only shape. If the log files already reach one machine
 (a shared mount, rsyslog, log shipping), a single full instance can tail
-them all and keep the sources apart by giving `LOGPARSER_HOST_NAME` a JSON
+them all and keep them apart by giving `LOGPARSER_SERVER_NAME` a JSON
 list matched positionally to `LOGPARSER_LOG_PATHS`:
 
 ```bash
 LOGPARSER_LOG_PATHS=["/var/log/access/edge-01.log", "/var/log/access/edge-02.log"]
-LOGPARSER_HOST_NAME=["edge-01", "edge-02"]
+LOGPARSER_SERVER_NAME=["edge-01", "edge-02"]
 ```
 
-Everything downstream (the access-logs hostname filter, the map's Source
-filter, per-site homes) treats those files like traffic from separate
-agents.
+Everything downstream treats those files like traffic from separate
+agents. Each one is its own server in the Server filters and gets its own
+server location on the map.
+
+If the logs already go to Grafana Loki, one full instance can read every
+proxy's lines from there instead, with one LogQL selector and one server
+name per proxy. See [Loki setup](#loki-setup).
 
 An agent needs only `APP_MODE=agent`, database credentials for the shared
 instance, GeoIP credentials, and its own log mount:
@@ -888,11 +1099,12 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.20.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.21.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
       APP_MODE: agent
+      APP_INSTANCE_NAME: edge-01
       DB_HOST: timescale.example.internal
       DB_PORT: "5432"
       DB_USER: geouser
@@ -901,7 +1113,7 @@ services:
       MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID}
       MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY}
       LOGPARSER_LOG_PATHS: '["/var/log/access/access.log"]'
-      LOGPARSER_HOST_NAME: edge-01
+      LOGPARSER_SERVER_NAME: edge-01
     volumes:
       - geoip_data:/app/data/geoip
       - /var/log/nginx:/var/log/access:ro
@@ -928,7 +1140,7 @@ publishes like a full instance, but serves only `/health` and
 needs no `APP_ADMIN_PASSWORD`. It downloads and refreshes its own GeoLite2
 database, so it needs MaxMind credentials and a geoip volume. It never runs
 migrations or creates TimescaleDB objects; its writes are events and its
-own site-homes row. At startup it waits for the
+own `server_locations` row. At startup it waits for the
 shared database's schema to reach the revision it was built against. If
 that wait times out, the agent stays up in degraded mode rather than
 exiting, with `/health` answering 200 and `/health/ready` answering 503. An
@@ -943,11 +1155,46 @@ restart takes Swarm, Kubernetes, or an autoheal sidecar. `restart:
 unless-stopped` will not do it: it reacts to a container exiting, and a
 waiting agent stays up.
 
+**Agent health.** Every agent and the full instance write a heartbeat to
+the shared database every 30 seconds. Settings > Agents on the full
+instance lists them, the full instance first as the head. Each row shows
+the version, server names, lines and failures in the last 5 minutes, and
+when it last checked in. Click a row to see the rest of what that agent
+reports: ingestion counters, GeoIP databases, scheduled jobs, each log
+source with its own light, server locations and the last error. An agent
+that has not checked in for 3 minutes turns red, and only then does its
+row get a Remove button. If that agent is in fact still running, its next
+heartbeat brings the row back.
+
+You don't have to keep the Agents page open to notice a problem. Each
+agent that needs attention gets one card at the top of Settings > Status,
+red or amber by its worst problem, linking to its row on the Agents page.
+An Agents card further down sums them up, for example "3 agents, 1 out of
+date, 1 not checking in". The sidebar status dot turns amber too. With no
+agents, the Status page looks the same as before.
+
+Set `APP_INSTANCE_NAME` on every agent. The heartbeat row is keyed by that
+name, so it is how the Agents page tells agents apart. Without it, an agent
+goes by `agent` and the full instance by `head`. Two unnamed agents then
+write to the same `agent` row and overwrite each other's status, so the
+page shows whichever one wrote last. The full instance flags an agent
+running under the default name, and flags a name more than one process is
+using. The fix for both is a unique name per agent.
+`APP_INSTANCE_NAME` names the process, while `LOGPARSER_SERVER_NAME` names
+the server on each request it records, so one agent tailing two servers'
+logs is still one row.
+
+An agent from a release before heartbeats never shows up on the Agents
+page. It also predates the rename of the `hostname` columns to `server`, so
+every insert it makes fails. Upgrade it to the full instance's release.
+
 CDN peer advisories for an agent's tailed sources reach the head's
 Settings > Status page. The head scans the shared database's last hour of
 access-log rows every 5 minutes, covering only sources with
-`LOGPARSER_SEND_LOGS=true`. Private-peer advisories still surface only on
-the agent's own `/health` and logs, since those lines are never stored. See
+`LOGPARSER_SEND_LOGS=true`. Private-peer lines are never stored, so that
+scan can't find them. Each agent checks its own lines instead and forwards
+the private-peer advisory in its heartbeat, so it shows on that agent's row
+on the Agents page as well as in the agent's own `/health`. See
 `docs/proxy-setup.md` for details.
 
 The reverse case works too. To keep a full instance's UI and API without it
@@ -961,21 +1208,23 @@ LOGPARSER_ENABLED=false
 It still serves the UI, API, migrations, scheduler and CrowdSec; it never
 tails a log file itself.
 
-**Site homes.** Live map routes fly to the home location of the source that
-recorded them, one beacon per site. Each ingesting instance detects its own
-public-IP location and re-checks it every `MAP_HOME_REFRESH_HOURS` (default
-24h). When detection is wrong for a source (CGNAT, a VPN egress, or logs
-shipped from another machine), pin that hostname on the full instance with
-`MAP_HOME_LOCATIONS`, for example
-`MAP_HOME_LOCATIONS={"edge-01": [60.39, 5.32]}`. Overrides win over
-detection, and removing one restores it. Settings > Status lists each
-source's home and whether it came from detection or an override.
+**Server locations.** Live map routes fly to the location of the server
+that recorded them, one beacon per server. Each ingesting instance detects
+its own public-IP location and re-checks it every
+`MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24h). When detection is wrong
+for a server (CGNAT, a VPN egress, or logs shipped from another machine),
+pin that server's location on the full instance with
+`MAP_SERVER_LOCATIONS`, for example
+`MAP_SERVER_LOCATIONS={"edge-01": [60.39, 5.32]}`. Overrides win over
+detection, and removing one restores it. The Server locations card on
+Settings > Status lists each server's location and whether it came from
+detection or an override.
 
 > [!WARNING]
 > **Trust model.** Agents authenticate with the database using ordinary
 > database credentials, and the app does not care where data comes from.
 > Anyone who can run an agent has full read/write access to the entire
-> database: all traffic history from every source, any hostname, no tenant
+> database: all traffic history from every source, any server, no tenant
 > isolation, no per-agent identity, and no revocation short of rotating the
 > shared password. Sharing one instance across parties works as long as
 > everyone understands they share everything. Run agent connections over a
@@ -987,6 +1236,11 @@ ahead of its own bundled schema (a full instance mid rolling-restart) by
 logging a warning and proceeding rather than refusing to start. That is an
 allowance for a brief mismatch, not a reason to run agents and the full
 instance on different versions.
+
+Upgrade every instance together to the release that renames hostnames to
+servers. The full instance renames the database columns and tables on its
+first start, without rewriting any data. An agent from an older release
+still starts against the renamed database, then fails every insert.
 
 **CrowdSec.** Point `CROWDSEC_LAPI_URL` and the bouncer/machine credentials
 (see [CrowdSec integration](#crowdsec-integration-optional)) at the central
@@ -1008,8 +1262,9 @@ Every command supports `--help`.
 ### import-logs: backfill history
 
 Live tailing only picks up lines written after the app starts. To backfill
-rotated or archived access logs (nginx, Traefik JSON or Caddy JSON, plain
-or gzip), use `import-logs`:
+rotated or archived access logs (nginx, Traefik JSON, Caddy JSON or
+[Nginx Proxy Manager](#nginx-proxy-manager-setup)'s own format, plain or gzip),
+use `import-logs`:
 
 ```bash
 docker compose exec -u geometrikks app litestar import-logs /var/log/access/access.log.1.gz
@@ -1019,8 +1274,8 @@ It reuses the live ingestion pipeline (same parsing, GeoIP lookup and DB
 writes), uses the timestamps in each log line rather than wall-clock time,
 and refreshes the continuous aggregates for the imported range when done.
 The log format is auto-detected per file, as with live tailing; pass
-`--format geometrikks-json`, `--format nginx`, `--format traefik-json` or
-`--format caddy-json` to pin it. You can pass several
+`--format geometrikks-json`, `--format nginx`, `--format traefik-json`,
+`--format caddy-json` or `--format npm` to pin it. You can pass several
 files in one invocation. Paths are **container** paths, and the import runs
 as the non-root `geometrikks` user (`PUID`:`PGID`, default 1000:1000), so
 host files must be readable by it (`-u geometrikks` keeps `exec` from
@@ -1043,6 +1298,16 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   delete rows written by the earlier import.
 - A file that matches no supported log format is rejected up front, before
   anything is written.
+- `--before` takes a date or a datetime such as
+  `2026-10-01T14:03:12+02:00` and leaves out lines stamped at or after it.
+  The summary counts them. Use it when an archive overlaps a log
+  GeoMetrikks already ingested, for example when a proxy keeps writing its
+  own log next to the one GeoMetrikks tails. Without an offset the value is
+  UTC. The cutoff is stored with the file's checksum. Running the same file
+  again with a later `--before` imports only the lines between the two
+  cutoffs, and without `--before` the lines from the old cutoff on. An
+  earlier `--before` is refused. `--force` ignores the stored cutoff and
+  imports the whole file again.
 - Without `--format`, the format is detected per file. If detection can only
   match the relaxed IP-and-timestamp pattern, the file imports as map events
   with no access-log rows. Pin the format (`--format geometrikks-json` or
@@ -1053,32 +1318,94 @@ docker compose run --rm app litestar import-logs /var/log/access/access.log.1.gz
   beyond that window will not persist. Raise the retention setting before
   importing older archives if you want to keep them.
 
-### backfill-hostname: fix up historical hostnames
+### import-loki: backfill history from Loki
 
-Every ingested row records which GeoMetrikks instance wrote it
-(`LOGPARSER_HOST_NAME`; defaults to the machine hostname, which the compose
-file pins to `geometrikks`). Rows ingested by older versions have no
-hostname, so the access-logs hostname filter cannot see them.
-`backfill-hostname` stamps them retroactively:
+If GeoMetrikks reads from [Loki](#loki-setup), the history is in Loki, not
+in a file. `import-loki` reads a time range of every `LOKI_QUERIES`
+selector through the same pipeline as live reading:
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-hostname myhost
+docker compose exec -u geometrikks app litestar import-loki --since 2026-09-01
 ```
 
-The plain form fills **only** rows with no hostname. It is idempotent,
+- `--since` is the start of the range, inclusive. `--before` is the end,
+  exclusive. Both take a date or a datetime such as
+  `2026-10-01T14:03:12+02:00`. Without an offset the value is UTC.
+- Without `--before`, the import stops where the data already in the
+  database begins. On the first run that is the oldest access-log row for
+  the selector's server, which is where live reading started. After an
+  earlier `import-loki` run, it is the start of that run, unless the
+  server has access-log rows older than the ones that run wrote. The
+  command prints the end it picked and the `--since` and `--before` pair
+  for the same range.
+- An interrupted run keeps its own end. Rerunning the same command with
+  the same `--since` resumes it, even without `--before`.
+- If `--since` is not earlier than the end, or nothing is stored yet to
+  take an end from, the command skips that selector and says why.
+- When the end is the oldest access-log row, it is the time written in the
+  log line. Loki filters by the time the shipper stamped the entry, and the
+  two differ by the shipper's delay, so lines near that boundary can be
+  read twice or missed. An earlier import's start and an explicit
+  `--before` are Loki times and exact. Pass `--before` when a tailed file
+  shares the server name, because the oldest row may then come from the
+  file.
+- `--query N` imports only the Nth selector in `LOKI_QUERIES`, counting
+  from 1. If several selectors share a server name, import them in one command
+  without `--query`. The command picks every selector's end before any of
+  them imports, so one selector's backfill can't become another's end.
+- `--batch-size` sets how many records go into each database write. The
+  default is 500.
+- The command reads one hour at a time and records a selector's progress
+  after each complete hour. If Loki or a database write fails, or you stop
+  the command, rerun it with the same `--since` and `--before` and without
+  `--force`. It picks up at the start of the interrupted hour, so rows it
+  had already written from that hour end up twice.
+- A failure in one selector doesn't stop the others. At the end the command
+  lists the selectors that failed and exits with an error.
+- The command refuses a range that overlaps an earlier `import-loki` range
+  for the same selector, and names that range. It only knows about its own
+  imports. Rows from live reading, from `import-logs`, or from another
+  selector that matches the same streams don't count, so pick `--since` and
+  `--before` around them yourself.
+- `--force` skips the overlap check. An unfinished run of the same range
+  still resumes. A finished range is imported again, and the rows from the
+  first import stay, so they end up twice.
+- The command detects the format from the first lines it reads, or uses
+  the one pinned in `LOKI_FORMATS`. If those lines match no format, or not
+  the pinned one, it rejects the selector before writing anything.
+- Loki can't page within a single timestamp. With second-precision entry
+  timestamps, the command reads at most 1000 lines from any one second and
+  drops the rest, as live reading does.
+- The retention policy drops imported rows older than
+  `ANALYTICS_RAW_RETENTION_DAYS`, like any other rows. Loki's own retention
+  limits how far back there is anything to read.
+
+### backfill-server: fix up historical server names
+
+Every ingested row records which server wrote it (`LOGPARSER_SERVER_NAME`;
+defaults to the machine hostname, which the compose file pins to
+`geometrikks`). Rows ingested by older versions have no server name, so the
+Server filter on Access Logs cannot see them. `backfill-server` stamps them
+retroactively:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-server myhost
+```
+
+The plain form fills **only** rows with no server name. It is idempotent,
 cannot overwrite stamped values, and runs immediately without a
 confirmation prompt.
 
-If your database has accumulated many bogus hostnames, add
-`--consolidate` to rewrite **all** existing hostnames to the given name as
-well. The classic cause is running in Docker with `LOGPARSER_HOST_NAME`
+If your database has accumulated many bogus server names, add
+`--consolidate` to rewrite **all** existing server names to the given name
+as well. The classic cause is running in Docker with `LOGPARSER_SERVER_NAME`
 unset before the compose file pinned a hostname: every container
-recreation minted a new 12-hex container-ID "hostname". Consolidate lists
-every hostname it will rewrite, with row counts, and asks for confirmation
-first (`--yes` skips the prompt):
+recreation got a new 12-hex container ID as its hostname, and so a new
+server name. Consolidate lists every server name it will rewrite, with row
+counts, and asks for confirmation first (`--yes` skips the prompt):
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-hostname myhost --consolidate
+docker compose exec -u geometrikks app litestar backfill-server myhost --consolidate
 ```
 
 Either form decompresses compressed history chunks first (a full-table
@@ -1087,13 +1414,13 @@ grows until the compression policy recompresses them. It then refreshes the
 affected continuous aggregates so the filter dropdowns update. It may run
 for minutes on a large database.
 
-### backfill-geo-hostnames: fill historical Geo Logs hostnames
+### backfill-geo-servers: fill historical Geo Logs servers
 
-Existing installations may show an empty Hostnames column for Geo Logs ranges
-over 24 hours. To fill in the missing hostnames from retained events, run:
+Existing installations may show an empty Servers column for Geo Logs ranges
+over 24 hours. To fill in the missing server names from retained events, run:
 
 ```bash
-docker compose exec -u geometrikks app litestar backfill-geo-hostnames
+docker compose exec -u geometrikks app litestar backfill-geo-servers
 ```
 
 The command prints the pending ranges and asks for confirmation. It refreshes
@@ -1105,13 +1432,13 @@ The aggregate rows record which buckets are complete. If the command stops or
 a batch fails, rerun it to process the remaining buckets. A second simultaneous
 run is rejected. Hourly backfills respect hourly retention, and both views only
 refresh complete buckets within raw retention. Counts remain available while
-hostname history is incomplete. This command cannot recover hostnames after
-their raw events have expired.
+server history is incomplete. This command cannot recover server names
+after their raw events have expired.
 
 The command reads `geo_events` and refreshes the aggregates. It does not rewrite
-source hostnames or explicitly decompress every raw chunk. In-place column
+server names or explicitly decompress every raw chunk. In-place column
 upgrades require TimescaleDB 2.28 or later. If adding the columns fails, the app
-keeps the existing aggregate and logs `hostname_cagg_columns_unavailable`.
+keeps the existing aggregate and logs `server_cagg_columns_unavailable`.
 Fix the database error and restart before running the command.
 
 ### backfill-asn: fill in ASN data for historical rows
@@ -1136,7 +1463,7 @@ Use `--table all` when both tables need a backfill.
 It fills **only** rows with no ASN data (idempotent, never overwrites
 stamped values) and asks for confirmation after reporting how many rows and
 distinct IPs are affected (`--yes` skips the prompt). IPs the database
-cannot resolve stay empty. Like `backfill-hostname`, it decompresses the
+cannot resolve stay empty. Like `backfill-server`, it decompresses the
 selected table's compressed history first (disk usage grows until the
 compression policy recompresses it) and refreshes the corresponding
 continuous aggregates afterwards. It may run for minutes on a large
@@ -1164,7 +1491,7 @@ docker compose exec -u geometrikks app litestar backfill-timings
 It only touches rows the legacy nginx format wrote without a host, which is
 how a `combined` line looks after import (the custom format always logs
 `$host`), and whose response time is exactly 0. A genuine sub-millisecond
-timing on a row with a host is left alone. `--hostname NAME` and
+timing on a row with a host is left alone. `--server NAME` and
 `--before 2026-08-20` narrow the set; the command prints the row count and
 time span and asks for confirmation (`--yes` skips it). Like the other
 backfills it decompresses history chunks first and refreshes the affected
@@ -1263,9 +1590,15 @@ Point `ACCESS_LOG_DIR` at the host directory where the proxy container
 writes its access logs (for Nginx Proxy Manager this is usually its
 `data/logs` volume), and set `LOGPARSER_LOG_PATHS` to the specific
 access-log file(s) inside it, using the *container* path
-(`/var/log/access/...`), not the host path. NPM's own per-host logs don't
-parse; set up the extra JSON log described under
-[Nginx Proxy Manager](#nginx-proxy-manager) and point at that.
+(`/var/log/access/...`), not the host path. GeoMetrikks doesn't tail NPM's
+own per-host logs. Set up the extra JSON log described under
+[Nginx Proxy Manager](#nginx-proxy-manager-setup) and point at that. `import-logs`
+can backfill the old per-host logs.
+
+**Can I read logs from Loki instead of mounting files?**
+Yes, if Loki holds the raw access-log lines. Set `LOKI_URL` and
+`LOKI_QUERIES` and remove `LOGPARSER_LOG_PATHS` from `.env`. See
+[Loki setup](#loki-setup).
 
 **Permission denied reading my log files?**
 The app container runs as `PUID`:`PGID` (default 1000:1000), and log mounts
@@ -1280,9 +1613,11 @@ Yes. The GHCR image is a multi-arch manifest for `linux/amd64` and
 **The map is empty.**
 Check four things in order: (1) the geo-degraded banner; if it shows,
 MaxMind credentials or the GeoLite2 database are missing; (2) that
-`LOGPARSER_LOG_PATHS` points at a file receiving traffic in a supported
-format (the nginx JSON `log_format` above, the legacy nginx format,
-Traefik JSON, or Caddy JSON); (3) that some time has passed since you last
+a source is receiving traffic in a supported format (the nginx JSON
+`log_format` above, the legacy nginx format, Traefik JSON, or Caddy JSON),
+whether it is a file in `LOGPARSER_LOG_PATHS` or a selector in
+`LOKI_QUERIES` (Nginx Proxy Manager's own per-host logs are import-only
+and never tailed); (3) that some time has passed since you last
 restarted. The map only shows events ingested after startup unless you
 have run a batch import. (4) that your proxy logs the visitor's address,
 not an upstream proxy or tunnel; Settings > Status shows an advisory when

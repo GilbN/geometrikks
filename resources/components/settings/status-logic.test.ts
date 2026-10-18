@@ -5,12 +5,14 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
-  SiteHomesResponse,
+  ServerLocationsResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import {
   accessLogFiles,
+  accessLogUnavailableLabel,
   advisoryCards,
+  agentMoreProblemsText,
   authState,
   compressionSummary,
   crowdsecState,
@@ -26,11 +28,12 @@ import {
   loginMethodBadges,
   oidcState,
   overallState,
+  recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
   sidebarIngestionVariant,
   sidebarStatusTooltip,
-  siteHomeRows,
+  serverLocationRows,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -133,6 +136,28 @@ describe("ingestionState", () => {
     )
     expect(state.label).toBe("Running, log file missing")
   })
+  it("says the log file cannot be read when every unavailable source is an unreadable file", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["/var/log/caddy/access.log"],
+          unavailableSources: [
+            { kind: "file", label: "/var/log/caddy/access.log", reason: "unreadable" },
+          ],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Running, log file not readable")
+    expect(state.detail).toBe(
+      "GeoMetrikks cannot read a configured log file. Check its permissions and those of its directory. Ingestion resumes once it can.",
+    )
+  })
   it("names a log source when an unavailable source is not a missing file", () => {
     const state = ingestionState(
       makeHealth({
@@ -152,6 +177,59 @@ describe("ingestionState", () => {
     expect(state.detail).toBe(
       "A configured log source is unavailable. Ingestion is waiting for it to come back.",
     )
+  })
+  it("says Loki rejected the query when a loki source reports rejected", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["loki:1"],
+          unavailableSources: [{ kind: "loki", label: "loki:1", reason: "rejected" }],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.tone).toBe("amber")
+    expect(state.label).toBe("Running, Loki rejected the query")
+    expect(state.detail).toBe("Check LOKI_QUERIES and the credentials. Ingestion retries every poll.")
+  })
+  it("lets a rejected loki source win over a missing file", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["/var/log/access/access.log", "loki:1"],
+          unavailableSources: [
+            { kind: "file", label: "/var/log/access/access.log", reason: "missing" },
+            { kind: "loki", label: "loki:1", reason: "rejected" },
+          ],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.label).toBe("Running, Loki rejected the query")
+  })
+  it("keeps the generic wording for an unreachable loki source", () => {
+    const state = ingestionState(
+      makeHealth({
+        ingestion: {
+          running: true,
+          parsedLines: 10,
+          pendingRecords: 0,
+          missingFiles: ["loki:1"],
+          unavailableSources: [{ kind: "loki", label: "loki:1", reason: "unreachable" }],
+          lastRecordAt: null,
+        },
+      }),
+      false,
+    )
+    expect(state.label).toBe("Running, log source unavailable")
   })
   it("is running when no source is unavailable", () => {
     const state = ingestionState(
@@ -235,6 +313,27 @@ describe("sidebarIngestionVariant", () => {
     })
     expect(sidebarIngestionVariant(health, false)).toBe("degraded")
   })
+
+  it("is attention when only an agent needs attention", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false, 1)).toBe("attention")
+  })
+
+  it("keeps the head's own states ahead of agent problems", () => {
+    expect(sidebarIngestionVariant(makeHealth({ status: "degraded" }), false, 2)).toBe("degraded")
+    expect(sidebarIngestionVariant(undefined, true, 2)).toBe("offline")
+    expect(sidebarIngestionVariant(undefined, false, 2)).toBe("inactive")
+  })
+
+  it("is attention over the configured-off state when an agent needs attention", () => {
+    expect(sidebarIngestionVariant(makeHealth({ ingestion: disabledIngestion }), false, 1)).toBe(
+      "attention",
+    )
+  })
+
+  it("stays running without agent problems", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false)).toBe("running")
+    expect(sidebarIngestionVariant(makeHealth(), false, 0)).toBe("running")
+  })
 })
 
 describe("sidebarStatusTooltip", () => {
@@ -256,6 +355,50 @@ describe("sidebarStatusTooltip", () => {
         "attention",
       ),
     ).toBe("2 advisories need attention. See Settings > Status.")
+  })
+
+  it("points to Settings > Agents when only agents need attention", () => {
+    expect(
+      sidebarStatusTooltip("Advisories need attention - see Settings > Status", 0, "attention", 2),
+    ).toBe("2 agents need attention. See Settings > Agents.")
+    expect(sidebarStatusTooltip("base", 0, "attention", 1)).toBe(
+      "1 agent needs attention. See Settings > Agents.",
+    )
+  })
+
+  it("counts head advisories and agents together and points to Settings > Status", () => {
+    expect(sidebarStatusTooltip("base", 1, "attention", 3)).toBe(
+      "1 advisory needs attention. 3 agents need attention. See Settings > Status.",
+    )
+  })
+
+  it("adds the agent count to a degraded head's tooltip", () => {
+    expect(
+      sidebarStatusTooltip("Service degraded - see Settings > Status", 0, "degraded", 1),
+    ).toBe("Service degraded - see Settings > Status. 1 agent needs attention.")
+    expect(sidebarStatusTooltip("base.", 2, "degraded", 2)).toBe(
+      "base. 2 advisories need attention. 2 agents need attention. See Settings > Status.",
+    )
+  })
+})
+
+describe("agentMoreProblemsText", () => {
+  it("is null when the headline is the only problem", () => {
+    expect(agentMoreProblemsText(0)).toBeNull()
+  })
+  it("counts the problems behind the headline", () => {
+    expect(agentMoreProblemsText(1)).toBe("And 1 more problem.")
+    expect(agentMoreProblemsText(3)).toBe("And 3 more problems.")
+  })
+})
+
+describe("recentErrorsFillsRow", () => {
+  it("spans the row when the cards before it pair up", () => {
+    expect(recentErrorsFillsRow(0)).toBe(true)
+    expect(recentErrorsFillsRow(2)).toBe(true)
+  })
+  it("sits beside an unpaired card", () => {
+    expect(recentErrorsFillsRow(1)).toBe(false)
   })
 })
 
@@ -312,6 +455,54 @@ describe("accessLogFiles", () => {
   it("keeps only access entries and tolerates undefined", () => {
     expect(accessLogFiles(files).map((f) => f.name)).toEqual(["access.log"])
     expect(accessLogFiles(undefined)).toEqual([])
+  })
+})
+
+describe("accessLogUnavailableLabel", () => {
+  const file = (name: string): LogFileView => ({
+    name,
+    kind: "access",
+    sizeBytes: 0,
+    modifiedAt: null,
+    available: false,
+  })
+  const healthWith = (
+    unavailableSources: { kind: string; label: string; reason: string | null }[] | undefined,
+    missingFiles: string[] = [],
+  ) =>
+    makeHealth({
+      ingestion: {
+        running: true,
+        parsedLines: 0,
+        pendingRecords: 0,
+        missingFiles,
+        unavailableSources,
+        lastRecordAt: null,
+      },
+    })
+
+  it("takes the reason of the file source with the same file name", () => {
+    const health = healthWith([
+      { kind: "file", label: "/var/log/nginx/access.log", reason: "missing" },
+      { kind: "file", label: "/var/log/caddy/caddy.log", reason: "unreadable" },
+    ])
+    expect(accessLogUnavailableLabel(file("access.log"), health)).toBe("missing")
+    expect(accessLogUnavailableLabel(file("caddy.log"), health)).toBe("not readable")
+  })
+  it("treats a bare missingFiles entry as missing", () => {
+    expect(
+      accessLogUnavailableLabel(file("access.log"), healthWith(undefined, ["nginx_logs/access.log"])),
+    ).toBe("missing")
+  })
+  it("says unavailable when health has no matching source", () => {
+    expect(accessLogUnavailableLabel(file("access.log"), healthWith([]))).toBe("unavailable")
+    expect(accessLogUnavailableLabel(file("access.log"), undefined)).toBe("unavailable")
+    expect(
+      accessLogUnavailableLabel(
+        file("access.log"),
+        healthWith([{ kind: "loki", label: "access.log", reason: "unreachable" }]),
+      ),
+    ).toBe("unavailable")
   })
 })
 
@@ -552,17 +743,17 @@ describe("loginMethodBadges", () => {
   })
 })
 
-describe("siteHomeRows", () => {
-  it("is empty for undefined or no homes", () => {
-    expect(siteHomeRows(undefined)).toEqual([])
-    expect(siteHomeRows({ default: null, homes: [] })).toEqual([])
+describe("serverLocationRows", () => {
+  it("is empty for undefined or no server locations", () => {
+    expect(serverLocationRows(undefined)).toEqual([])
+    expect(serverLocationRows({ default: null, locations: [] })).toEqual([])
   })
   it("formats coords to 2 decimals and passes through source", () => {
-    const data: SiteHomesResponse = {
+    const data: ServerLocationsResponse = {
       default: { latitude: 59.91, longitude: 10.75 },
-      homes: [
+      locations: [
         {
-          hostname: "nginx-01",
+          server: "nginx-01",
           latitude: 59.913,
           longitude: 10.752,
           source: "auto",
@@ -570,7 +761,7 @@ describe("siteHomeRows", () => {
           lastEventDay: "2026-08-23",
         },
         {
-          hostname: "nginx-02",
+          server: "nginx-02",
           latitude: -33.868,
           longitude: 151.207,
           source: "override",
@@ -580,18 +771,26 @@ describe("siteHomeRows", () => {
       ],
     }
     const now = Date.parse("2026-08-23T15:00:00Z")
-    expect(siteHomeRows(data, now)).toEqual([
-      { hostname: "nginx-01", coords: "59.91, 10.75", source: "auto", lastSeen: "Traffic today", stale: false },
-      { hostname: "nginx-02", coords: "-33.87, 151.21", source: "override", lastSeen: "No traffic", stale: false },
+    expect(serverLocationRows(data, now)).toEqual([
+      { server: "nginx-01", coords: "59.91, 10.75", source: "auto", lastSeen: "Traffic today", stale: false },
+      { server: "nginx-02", coords: "-33.87, 151.21", source: "override", lastSeen: "No traffic", stale: false },
     ])
   })
   it("flags auto rows with no traffic for two weeks as stale, never overrides", () => {
-    const home = (hostname: string, source: "auto" | "override", lastEventDay: string | null) => ({
-      hostname, latitude: 0, longitude: 0, source, detectedAt: null, lastEventDay,
+    const serverLocation = (server: string, source: "auto" | "override", lastEventDay: string | null) => ({
+      server, latitude: 0, longitude: 0, source, detectedAt: null, lastEventDay,
     })
     const now = Date.parse("2026-08-23T15:00:00Z")
-    const rows = siteHomeRows(
-      { default: null, homes: [home("a", "auto", "2026-08-22"), home("b", "auto", "2026-08-01"), home("c", "auto", null), home("d", "override", null)] },
+    const rows = serverLocationRows(
+      {
+        default: null,
+        locations: [
+          serverLocation("a", "auto", "2026-08-22"),
+          serverLocation("b", "auto", "2026-08-01"),
+          serverLocation("c", "auto", null),
+          serverLocation("d", "override", null),
+        ],
+      },
       now,
     )
     expect(rows.map((r) => [r.lastSeen, r.stale])).toEqual([
@@ -611,7 +810,7 @@ describe("advisoryCards", () => {
   it("maps severities to tones", () => {
     const health = makeHealth({
       advisories: [
-        { id: "hostname-pollution", severity: "warning", summary: "s", remedy: "cmd" },
+        { id: "server-name-pollution", severity: "warning", summary: "s", remedy: "cmd" },
         { id: "other", severity: "critical", summary: "c" },
       ],
     })
@@ -635,5 +834,16 @@ describe("advisoryCards", () => {
     } as unknown as HealthResponse
     const [card] = advisoryCards(health)
     expect(card.docsUrl).toBe("https://example.test/proxy-setup")
+  })
+  it("keeps one rename per line in the legacy env names remedy", () => {
+    const remedy = "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME\nMAP_HOME_LATITUDE → MAP_SERVER_LATITUDE"
+    const health = makeHealth({
+      advisories: [{ id: "legacy-env-names", severity: "warning", summary: "s", remedy }],
+    })
+    const [card] = advisoryCards(health)
+    expect(card.remedy?.split("\n")).toEqual([
+      "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME",
+      "MAP_HOME_LATITUDE → MAP_SERVER_LATITUDE",
+    ])
   })
 })

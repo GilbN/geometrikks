@@ -6,7 +6,7 @@
 # --platform=$BUILDPLATFORM: the vite/tsc output is architecture-independent,
 # so always build it natively instead of under QEMU emulation (bun is slow and
 # flaky when emulated during multi-arch release builds).
-FROM --platform=$BUILDPLATFORM oven/bun:1.4.2-slim@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS frontend-builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS frontend-builder
 
 WORKDIR /app
 
@@ -73,7 +73,6 @@ WORKDIR /app
 # changelog stay outside the package and resolve relative to /app at runtime.
 COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/public
-COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/index.html /app/public/index.html
 COPY --chown=geometrikks:geometrikks alembic.ini CHANGELOG.md ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
 # Not recursive: everything copied above already has --chown.
@@ -107,7 +106,7 @@ COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 STOPSIGNAL SIGTERM
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --start-interval=2s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()" || exit 1
 
 # tini is PID 1; the entrypoint remaps the geometrikks user to PUID/PGID

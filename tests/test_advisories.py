@@ -4,7 +4,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, cast
 
-from geometrikks.lib.advisories import Advisory, AdvisoryRegistry
+from geometrikks.config.settings import LegacyEnvName
+from geometrikks.lib.advisories import Advisory, AdvisoryRegistry, legacy_env_advisory
 from geometrikks.server import runtime
 
 
@@ -48,3 +49,16 @@ def test_runtime_accessor_creates_one_registry_per_app() -> None:
     first.set(_adv("a"))
     assert runtime.get_advisories(cast("Any", app)) is first
     assert [a.id for a in runtime.get_advisories(cast("Any", app)).snapshot()] == ["a"]
+
+
+def test_legacy_env_advisory_puts_one_rename_per_line() -> None:
+    advisory = legacy_env_advisory([
+        LegacyEnvName(old="LOGPARSER_HOST_NAME", new="LOGPARSER_SERVER_NAME"),
+        LegacyEnvName(old="MAP_HOME_LATITUDE", new="MAP_SERVER_LATITUDE"),
+    ])
+
+    assert advisory.remedy is not None
+    assert advisory.remedy.splitlines() == [
+        "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME",
+        "MAP_HOME_LATITUDE → MAP_SERVER_LATITUDE",
+    ]

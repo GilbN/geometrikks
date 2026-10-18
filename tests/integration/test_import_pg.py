@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from geometrikks.services.importer import import_file
 from geometrikks.services.ingestion.service import LogIngestionService
+from geometrikks.services.logparser.formats import IMPORT_FORMATS
 from geometrikks.services.logparser.logparser import LogParser
 
 import pytest
@@ -70,3 +71,121 @@ async def test_gz_import_lands_rows_and_records_job(tmp_path: Path, pg_session_m
     # Log-line timestamps, not wall clock (second-precision: %S drops microseconds)
     assert ts_bounds[0] == DAYS[0].replace(microsecond=0)
     assert ts_bounds[1] == DAYS[-1].replace(microsecond=0)
+
+
+def make_npm_line(ip: str, ts: datetime) -> str:
+    stamp = ts.strftime("%d/%b/%Y:%H:%M:%S %z")
+    return (
+        f'[{stamp}] - 200 200 - GET https npm.example.com "/index.php" '
+        f'[Client {ip}] [Length 1024] [Gzip -] [Sent-to app] "Mozilla/5.0" "-"'
+    )
+
+
+async def test_npm_import_stops_at_before(tmp_path: Path, pg_session_maker, clean_tables):
+    log = tmp_path / "proxy-host-1_access.log"
+    log.write_text("".join(make_npm_line(TEST_IP, ts) + "\n" for ts in DAYS))
+
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker,
+        geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+    parser = LogParser(source_label=str(log), send_logs=True, formats=IMPORT_FORMATS)
+
+    with Reader(GEOIP_DB_PATH) as reader:
+        result = await import_file(
+            log, service=service, parser=parser, reader=reader,
+            session_maker=pg_session_maker, before=DAYS[3].replace(microsecond=0),
+        )
+    assert result.records_written == 3
+    assert result.lines_after_cutoff == 2
+
+    async with pg_session_maker() as session:
+        rows = (await session.execute(text(
+            "SELECT log_format, host, request_time, COUNT(*), MAX(timestamp) "
+            "FROM access_logs GROUP BY log_format, host, request_time"
+        ))).all()
+        geo_events = (await session.execute(text("SELECT COUNT(*) FROM geo_events"))).scalar_one()
+    assert len(rows) == 1
+    log_format, host, request_time, count, newest = rows[0]
+    assert (log_format, host, request_time, count) == ("npm", "npm.example.com", None, 3)
+    assert newest == DAYS[2].replace(microsecond=0)
+    assert geo_events == 3
+
+
+async def test_later_cutoffs_import_each_line_once(tmp_path: Path, pg_session_maker, clean_tables):
+    gz_file = tmp_path / "access.log.2.gz"
+    with gzip.open(gz_file, "wt") as f:
+        for ts in DAYS:
+            f.write(make_log_line(TEST_IP, ts) + "\n")
+
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker,
+        geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+    written = []
+    with Reader(GEOIP_DB_PATH) as reader:
+        for before in (DAYS[2].replace(microsecond=0), DAYS[4].replace(microsecond=0), None):
+            result = await import_file(
+                gz_file, service=service,
+                parser=LogParser(source_label=str(gz_file), send_logs=True),
+                reader=reader, session_maker=pg_session_maker, before=before,
+            )
+            written.append(result.records_written)
+
+    assert written == [2, 2, 1]
+    async with pg_session_maker() as session:
+        logs = (await session.execute(text("SELECT COUNT(*) FROM access_logs"))).scalar_one()
+        job = (await session.execute(text(
+            "SELECT records_written, cutoff FROM import_jobs"
+        ))).one()
+    assert logs == 5
+    assert tuple(job) == (5, None)
+
+
+async def test_refresh_after_import_materializes_partial_days(
+    tmp_path: Path, pg_engine, pg_session_maker, clean_tables
+):
+    """An import inside one day still lands in that day's bucket.
+
+    refresh_continuous_aggregate only materializes buckets that lie wholly
+    inside its window, and an import's first-to-last range rarely spans a
+    whole day.
+    """
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    midday = (datetime.now(timezone.utc) - timedelta(days=3)).replace(
+        hour=12, minute=34, second=0, microsecond=0
+    )
+    log = tmp_path / "access.log.1"
+    log.write_text(
+        make_log_line(TEST_IP, midday) + "\n"
+        + make_log_line(TEST_IP, midday + timedelta(minutes=6)) + "\n"
+    )
+    service = LogIngestionService(
+        inputs=[], session_maker=pg_session_maker,
+        geoip_path=GEOIP_DB_PATH, locales=["en"],
+    )
+    parser = LogParser(source_label=str(log), send_logs=True)
+    with Reader(GEOIP_DB_PATH) as reader:
+        result = await import_file(
+            log, service=service, parser=parser, reader=reader,
+            session_maker=pg_session_maker,
+        )
+    assert result.time_start is not None and result.time_end is not None
+
+    failed = await refresh_caggs_range(
+        pg_engine, start=result.time_start, end=result.time_end + timedelta(microseconds=1),
+        caggs=["summary_daily_stats", "summary_hourly_stats"],
+    )
+    assert failed == []
+
+    async with pg_engine.connect() as conn:
+        for view in ("summary_daily_stats", "summary_hourly_stats"):
+            schema, table = (await conn.execute(text(
+                "SELECT materialization_hypertable_schema, materialization_hypertable_name "
+                "FROM timescaledb_information.continuous_aggregates WHERE view_name = :view"
+            ), {"view": view})).one()
+            materialized = (await conn.execute(
+                text(f'SELECT COUNT(*) FROM "{schema}"."{table}"')
+            )).scalar_one()
+            assert materialized == 1, view

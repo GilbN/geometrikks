@@ -49,7 +49,7 @@ attributes stay snake_case.
 - WebSocket frame payloads are a separate contract and are not covered by
   this policy (revisited with the realtime refactor).
 - Data values are exempt: `SettingFieldView.key` deliberately carries Python
-  settings field names like `home_latitude`, and `/api/v1/logs/tail` records
+  settings field names like `server_latitude`, and `/api/v1/logs/tail` records
   pass raw structlog context keys through as recorded (`request_id`,
   `status_code`, ...); renaming historical log data would misrepresent it.
   OpenAPI documents only the stable record fields.
@@ -86,7 +86,7 @@ client-wide rename.
 `GET /api/v1/crowdsec/banned-locations` returns a GeoJSON FeatureCollection.
 This replaces its earlier array response. `fromTimestamp` is inclusive and
 `toTimestamp` exclusive; omitted bounds keep the 30-day default. Repeat
-`countryCode`, `city`, and `hostnameIn` to apply the same filters as the map.
+`countryCode`, `city`, and `serverIn` to apply the same filters as the map.
 
 Each Point feature groups identical coordinates in longitude, latitude order.
 Its `id` matches `properties.groupId`; `properties.ipCount` is the number of
@@ -129,7 +129,7 @@ lines come back, oldest first. It defaults to 20 and allows up to 500, and
 0 leaves the excerpt out. All timestamps are UTC.
 
 The response goes to a third party, so it never carries `host`,
-`hostname`, `referrer` or `remote_user`. The operator's names and address
+`server`, `referrer` or `remote_user`. The operator's names and address
 become `[redacted]` in paths and user agents, and `redactions` counts the
 replacements. The scrubbing follows the rules below and can miss a name or
 secret it has no rule for, so the operator has to read a report before
@@ -142,7 +142,7 @@ report end. A redirect does not count, because an HTTP to HTTPS redirect
 answers any Host. A scanner's spoofed `Host: www.google.com` passes neither
 test and stays in the evidence. Once a host counts, its registrable domain
 counts too, along with the chosen IPs' hosts under that domain. Public
-addresses count; private ones do not. Instance names count when they
+addresses count; private ones do not. Server names count when they
 contain a dot.
 
 The match covers other spellings of an operator address, such as

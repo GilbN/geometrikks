@@ -79,7 +79,7 @@ async def _seed_geo_events(session_maker) -> None:
         for ts, ip in ((E1, "1.1.1.1"), (E2, "1.1.1.1"), (E3, "2.2.2.2")):
             await session.execute(
                 text(
-                    "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                    "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
                     "VALUES (:ts, :ip, 'web1', :loc)"
                 ),
                 {"ts": ts, "ip": ip, "loc": loc},

@@ -1,0 +1,85 @@
+:root, .light, .dark {
+  /* Declared on .dark too: derived tokens such as --glass-card must recompute
+     on a scoped preview element, not inherit <html>'s computed value. */
+
+  /* Brand accent as lightness, chroma and hue; --primary and its derivatives
+     compose from these. Default: aurora teal. */
+  --brand-l: 0.52;
+  --brand-c: 0.115;
+  --brand-h: 178;
+
+  /* Light theme: "Fjord mist" - cool blue-tinted surfaces, dark ink. */
+  --background: oklch(0.97 0.008 220);
+  --foreground: oklch(0.22 0.03 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.03 250);
+  --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  --primary-foreground: oklch(0.985 0.005 200);
+  --secondary: oklch(0.94 0.012 225);
+  --secondary-foreground: oklch(0.3 0.03 250);
+  --muted: oklch(0.94 0.012 225);
+  --muted-foreground: oklch(0.5 0.02 245);
+  --accent: oklch(0.93 calc(var(--brand-c) * 0.2) var(--brand-h));
+  --accent-foreground: oklch(0.32 calc(var(--brand-c) * 0.7) var(--brand-h));
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.01 230);
+  --input: oklch(0.9 0.01 230);
+  --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  /* CVD-validated categorical slots (fixed order - assign series 1..5, never
+     cycle). Adjacent-pair deltas checked on white; aqua/yellow are sub-3:1 on
+     the surface, so multi-series charts must keep a legend or table view. */
+  --chart-1: #2a78d6;
+  --chart-2: #1baf7a;
+  --chart-3: #eda100;
+  --chart-4: #008300;
+  --chart-5: #4a3aa7;
+  --sidebar: oklch(0.985 0.006 220);
+  --sidebar-foreground: oklch(0.22 0.03 250);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(0.985 0.005 200);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: oklch(0.9 0.01 230);
+  --sidebar-ring: var(--ring);
+
+  /* Accent derivatives: a darker step for gradients and a soft halo. */
+  --primary-dim: oklch(calc(var(--brand-l) - 0.1) calc(var(--brand-c) * 0.87) var(--brand-h));
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
+
+  /* Popups derive from semantic tokens; var() resolves against the scrolling
+     element's own theme, so one definition serves both themes. */
+  --popup-bg: var(--card);
+  --popup-fg: var(--foreground);
+  --popup-border: var(--border);
+  --popup-muted: var(--muted-foreground);
+  --popup-badge-bg: color-mix(in oklab, var(--primary) 15%, transparent);
+  --popup-badge-text: var(--primary);
+  --popup-code-bg: var(--muted);
+
+  /* The one panel shadow: soft in light, none in dark (borders carry depth). */
+  --shadow-card: 0 1px 2px oklch(0.3 0.03 250 / 6%);
+
+  --glass-card: color-mix(in oklab, var(--card) 55%, transparent);
+  --glass-card-strong: color-mix(in oklab, var(--card) 70%, transparent);
+  --brand-panel: color-mix(in oklab, var(--background) 55%, transparent);
+  --floating-surface: color-mix(in oklab, var(--background) 85%, transparent);
+
+  /* Component contract: themes change values, components keep their structure. */
+  --control-bg: transparent;
+  --control-hover-bg: transparent;
+  --drawer-handle: var(--muted);
+  --panel-bg: var(--background);
+  --panel-border: var(--border);
+  --map-panel-bg: var(--floating-surface);
+  --map-panel-border: var(--border);
+  --theme-decoration-display: block;
+  --brand-backdrop-primary: var(--primary);
+  --brand-backdrop-muted: var(--muted-foreground);
+  --brand-backdrop-glow: var(--primary-glow);
+  --nav-active-bg: color-mix(in oklab, var(--sidebar-accent) 80%, transparent);
+  --nav-indicator-opacity: 1;
+  --nav-inactive-icon: color-mix(in oklab, var(--sidebar-foreground) 60%, transparent);
+  --nav-inactive-text: color-mix(in oklab, var(--sidebar-foreground) 70%, transparent);
+}

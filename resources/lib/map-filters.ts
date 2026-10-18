@@ -1,17 +1,17 @@
-/** URL codec for the map's data filters (sources/countries/cities), plus the
+/** URL codec for the map's data filters (servers/countries/cities), plus the
  *  route's search schema. Pure module: vitest runs without a DOM, so no
  *  router imports here. */
 import { z } from "zod"
 import { arrayParam } from "@/lib/url-filters"
 
 export interface MapFilterState {
-  sources: string[]
+  servers: string[]
   countryCodes: string[]
   cities: string[]
 }
 
 export interface MapSearch {
-  sources?: string[]
+  server?: string[]
   countries?: string[]
   cities?: string[]
   /** Dev-only demo traffic mode; preserved so navigation never strips it. */
@@ -30,7 +30,7 @@ export function flyToSearch(ip: string, locationId?: number): Partial<MapSearch>
   return {
     focus: locationId,
     focusIp: locationId === undefined ? ip : undefined,
-    sources: undefined,
+    server: undefined,
     countries: undefined,
     cities: undefined,
   }
@@ -38,7 +38,7 @@ export function flyToSearch(ip: string, locationId?: number): Partial<MapSearch>
 
 export function decodeMapSearch(search: MapSearch): MapFilterState {
   return {
-    sources: search.sources ?? [],
+    servers: search.server ?? [],
     countryCodes: search.countries ?? [],
     cities: search.cities ?? [],
   }
@@ -46,14 +46,14 @@ export function decodeMapSearch(search: MapSearch): MapFilterState {
 
 export function encodeMapSearch(filters: MapFilterState): Partial<MapSearch> {
   return {
-    sources: arrayParam(filters.sources),
+    server: arrayParam(filters.servers),
     countries: arrayParam(filters.countryCodes),
     cities: arrayParam(filters.cities),
   }
 }
 
 export const mapSearchSchema = z.object({
-  sources: z.array(z.string()).optional().catch(undefined),
+  server: z.array(z.string()).optional().catch(undefined),
   countries: z.array(z.string()).optional().catch(undefined),
   cities: z.array(z.string()).optional().catch(undefined),
   demoTraffic: z.string().optional().catch(undefined),

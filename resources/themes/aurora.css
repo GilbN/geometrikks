@@ -1,0 +1,46 @@
+.dark {
+  /* Dark theme: "Aurora night". Accent lifts into the glow band. */
+  --brand-l: 0.78;
+  --brand-c: 0.15;
+
+  --background: oklch(0.13 0.025 245);
+  --foreground: oklch(0.95 0.01 220);
+  --card: oklch(0.17 0.028 245);
+  --card-foreground: oklch(0.95 0.01 220);
+  --popover: oklch(0.17 0.028 245);
+  --popover-foreground: oklch(0.95 0.01 220);
+  --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  --primary-foreground: oklch(0.13 0.025 245);
+  --secondary: oklch(0.22 0.03 245);
+  --secondary-foreground: oklch(0.95 0.01 220);
+  --muted: oklch(0.22 0.03 245);
+  --muted-foreground: oklch(0.66 0.02 240);
+  --accent: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 15%);
+  --accent-foreground: oklch(0.95 0.01 220);
+  --destructive: oklch(0.65 0.22 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
+  /* Same brand hues re-stepped into the dark lightness band and validated
+     as a set against the card surface (all >= 3:1, worst adjacent CVD 30). */
+  --chart-1: #00a9a6;
+  --chart-2: #00a764;
+  --chart-3: #b58800;
+  --chart-4: #9e64ee;
+  --chart-5: #e9523f;
+  --sidebar: oklch(0.145 0.026 245);
+  --sidebar-foreground: oklch(0.92 0.01 220);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: oklch(0.13 0.025 245);
+  --sidebar-accent: oklch(0.2 0.028 245);
+  --sidebar-accent-foreground: oklch(0.95 0.01 220);
+  --sidebar-border: oklch(1 0 0 / 6%);
+  --sidebar-ring: var(--ring);
+
+  --primary-dim: oklch(calc(var(--brand-l) - 0.18) calc(var(--brand-c) * 0.8) var(--brand-h));
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 20%);
+
+  --shadow-card: 0 0 #0000;
+  --control-bg: color-mix(in oklab, var(--input) 30%, transparent);
+  --control-hover-bg: color-mix(in oklab, var(--input) 50%, transparent);
+}

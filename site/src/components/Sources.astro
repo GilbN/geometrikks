@@ -1,7 +1,7 @@
 ---
-// One tab per reverse proxy: the log config it needs, the two .env lines,
+// One tab per source: the log config it needs, the two .env lines,
 // and the traps. Snippets mirror the README sections the docs are built from.
-import { siCaddy, siNginx, siTraefikproxy } from "simple-icons";
+import { siCaddy, siGrafana, siNginx, siNginxproxymanager, siTraefikproxy } from "simple-icons";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
@@ -39,6 +39,41 @@ access_log /config/log/nginx/access.log geometrikks_json;`),
       "Behind a CDN, set real_ip so $remote_addr is the visitor and not the CDN.",
     ],
     docs: "/docs/sources/nginx/",
+  },
+  {
+    id: "npm",
+    name: "Nginx Proxy Manager",
+    icon: siNginxproxymanager.path,
+    formats: ["geometrikks-json", "npm"],
+    file: "/data/nginx/custom/",
+    snippet: esc(`# http_top.conf
+log_format geometrikks_json escape=json
+  '{'
+    '"client_ip":"$remote_addr",'
+    '"timestamp":"$time_iso8601",'
+    '"method":"$request_method",'
+    '"path":"$request_uri",'
+    '"protocol":"$server_protocol",'
+    '"status":"$status",'
+    '"bytes":"$body_bytes_sent",'
+    '"host":"$host",'
+    '"referrer":"$http_referer",'
+    '"user_agent":"$http_user_agent",'
+    '"remote_user":"$remote_user",'
+    '"request_time":"$request_time",'
+    '"upstream_time":"$upstream_response_time",'
+    '"request_raw":"$request"'
+  '}';
+
+# server_proxy.conf
+access_log /data/logs/geometrikks_access.log geometrikks_json;`),
+    env: ["ACCESS_LOG_DIR=/path/to/npm/data/logs", "LOGPARSER_LOG_PATHS=/var/log/access/geometrikks_access.log"],
+    notes: [
+      "NPM's own per-host logs have no request times, so GeoMetrikks only imports them. The second log is the live one.",
+      "Every proxy host writes to the one file. The host filter tells them apart.",
+      "Hosts with Cache Assets on never log CSS, JS, images or fonts, so GeoMetrikks never sees them.",
+    ],
+    docs: "/docs/sources/nginx-proxy-manager/",
   },
   {
     id: "traefik",
@@ -90,18 +125,47 @@ app.example.com {
     ],
     docs: "/docs/sources/caddy/",
   },
+  {
+    id: "loki",
+    name: "Loki",
+    icon: siGrafana.path,
+    formats: ["geometrikks-json", "nginx", "traefik-json", "caddy-json"],
+    file: "config.alloy",
+    snippet: esc(`loki.source.file "traefik" {
+  targets = [{
+    __path__     = "/var/log/traefik/access.log",
+    job          = "traefik",
+    service_name = "traefik",
+  }]
+  tail_from_end = true
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}`),
+    env: ["LOKI_URL=http://loki:3100", 'LOKI_QUERIES={job="traefik"}'],
+    notes: [
+      "Loki has to hold the raw access-log line. A pipeline stage that rewrites it, into logfmt for example, leaves nothing to parse.",
+      "One LogQL selector per log format. LOKI_SERVER_NAMES gives each selector its own server name.",
+      "Reading starts when the app starts. Lines logged while it was down are not read.",
+    ],
+    docs: "/docs/sources/loki/",
+  },
 ];
 ---
 
 <section class="sources" id="sources">
   <div class="wrap">
     <p class="kicker">Sources</p>
-    <h2 class="section-title">Point it at the log file your proxy already writes.</h2>
+    <h2 class="section-title">Point it at the log your proxy already writes.</h2>
     <p class="sub">
-      The format is detected per file. Rotated files are followed. Archives, plain or gzipped, can be backfilled
-      through the same pipeline with one command.
+      The format is detected per file. Rotated files are followed. If a shipper already sends the lines to Loki,
+      read them from there. Archives, plain or gzipped, can be backfilled through the same pipeline with one command.
     </p>
-    <div class="tabs" role="tablist" aria-label="Reverse proxy">
+    <div class="tabs" role="tablist" aria-label="Log source">
       {
         proxies.map((p, i) => (
           <button

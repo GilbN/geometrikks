@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 import msgspec
 
-from .base import NormalizedLine, VALID_HTTP_METHODS, convert_dash_to_none, host_from_addr
+from .base import NormalizedLine, classify_method, convert_dash_to_none, host_from_addr
 
 
 class CaddyRequest(msgspec.Struct, kw_only=True):
@@ -164,8 +164,4 @@ class CaddyJsonFormat:
 
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
         """Caddy never logs raw probe garbage; only method validity applies."""
-        if norm.method is None:
-            return True, "No HTTP method in request"
-        if norm.method.upper() not in VALID_HTTP_METHODS:
-            return True, f"Invalid HTTP method: {norm.method}"
-        return False, None
+        return classify_method(norm.method)

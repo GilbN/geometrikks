@@ -97,7 +97,7 @@ export function PopupCard({
         // Positioned so the close button anchors to this card rather than
         // to whichever ancestor MapLibre happens to have positioned.
         position: "relative",
-        background: "color-mix(in oklab, var(--background) 85%, transparent)",
+        background: "var(--floating-surface)",
         backdropFilter: "blur(8px)",
         color: "var(--popup-fg)",
         borderRadius: "8px",

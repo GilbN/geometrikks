@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -57,13 +58,13 @@ class LogFileEntry:
 
 def _entry(path: Path, kind: LogFileKind, name: str | None = None) -> LogFileEntry:
     try:
-        stat = path.stat()
-        readable = os.access(path, os.R_OK)
+        stat_result = path.stat()
+        readable = stat.S_ISREG(stat_result.st_mode) and os.access(path, os.R_OK)
         return LogFileEntry(
             name=name or path.name,
             kind=kind,
-            size_bytes=stat.st_size,
-            modified_at=datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+            size_bytes=stat_result.st_size,
+            modified_at=datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc),
             available=readable,
         )
     except OSError:
@@ -93,10 +94,7 @@ class LogFilesService:
                 name = f"{path.name}.{seen[path.name]}"
             else:
                 seen[name] = 1
-            entry = _entry(path, "access", name=name)
-            if not path.is_file():
-                entry.available = False
-            pairs.append((entry, path))
+            pairs.append((_entry(path, "access", name=name), path))
         return pairs
 
     def list_files(self) -> list[LogFileEntry]:

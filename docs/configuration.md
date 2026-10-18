@@ -33,6 +33,7 @@ from real environment variables. It is read once at import time.
 |---|---|---|
 | `APP_MODE` | `full` | Application mode: full (all components) or agent (logparser only) |
 | `APP_PROXY_ADVISORY` | `true` | Warn on Settings > Status when most recent traffic for a tailed file comes from CDN or private peer addresses, meaning the proxy logs its upstream instead of the visitor. CDN findings for agent-tailed sources are scanned from the database on the head every 5 minutes. Set to false when the traffic mix is deliberate (Tailscale-only access, a CDN you front on purpose). |
+| `APP_INSTANCE_NAME` | - | Name this instance goes by on Settings > Agents, where the head lists every instance that reports in. Unset, agents show as "agent" and the head as "head". Set it on every agent. Two unnamed agents share one name and overwrite each other's status. Up to 255 characters, no slashes, no control characters, and not "." or "..". |
 
 ## API server
 
@@ -97,12 +98,26 @@ from real environment variables. It is read once at import time.
 | `LOGPARSER_LOG_FORMATS` | *(computed)* | Log format per tailed file: 'auto' (default, detected from the file's content), 'geometrikks-json', 'nginx', 'traefik-json', or 'caddy-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
 | `LOGPARSER_POLL_INTERVAL` | `1.0` | Interval in seconds to poll the log file for new entries |
 | `LOGPARSER_SEND_LOGS` | `true` | Send parsed logs to the database |
-| `LOGPARSER_HOST_NAME` | *(computed)* | Source hostname stamped on ingested records. Env accepts a single value applied to every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. |
+| `LOGPARSER_SERVER_NAME` | *(computed)* | Name recorded on every request this server ingests. It is a name you choose for this server, not your nginx `server_name`. Env accepts one value for every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. Formerly `LOGPARSER_HOST_NAME`, which still works until 1.0. |
 | `LOGPARSER_BATCH_SIZE` | `100` | Max records before forced commit. |
 | `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached. |
 | `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
 | `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
+
+## Loki
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOKI_URL` | - | Base URL of the Loki server, e.g. http://loki:3100. http or https. Unset (default): no Loki source. |
+| `LOKI_QUERIES` | *(computed)* | LogQL stream selectors, one source each, e.g. {job="traefik"}. Env accepts a single selector or a JSON list. Empty (default): no Loki source. |
+| `LOKI_FORMATS` | *(computed)* | Log format per query, same values as LOGPARSER_LOG_FORMATS. Env accepts one value for every query, or a JSON list matching LOKI_QUERIES by position. |
+| `LOKI_SERVER_NAMES` | *(computed)* | Server name per query. Env accepts one value or a JSON list matching LOKI_QUERIES by position. Empty (default): the first LOGPARSER_SERVER_NAME. |
+| `LOKI_TENANT_ID` | - | Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header. |
+| `LOKI_USERNAME` | - | Basic auth username, with LOKI_PASSWORD. |
+| `LOKI_PASSWORD` | - | Basic auth password, with LOKI_USERNAME. |
+| `LOKI_POLL_INTERVAL` | `5.0` | Seconds between reads of each query. LOGPARSER_POLL_INTERVAL paces the file tail separately. |
+| `LOKI_LOOKBACK` | `60.0` | Seconds each read looks back for lines that reached Loki late. Every poll re-reads this whole window. The window never reaches back more than an hour, so values above 3600 behave as 3600. |
 
 ## Analytics & retention
 
@@ -125,14 +140,14 @@ from real environment variables. It is read once at import time.
 
 | Variable | Default | Description |
 |---|---|---|
-| `MAP_HOME_LATITUDE` | - | Optional destination latitude for live request routes. Set both home coordinates to override external-IP auto-detection. |
-| `MAP_HOME_LONGITUDE` | - | Optional destination longitude for live request routes. Set both home coordinates to override external-IP auto-detection. |
-| `MAP_AUTO_DETECT_HOME` | `true` | Resolve the server's public IP at startup and geolocate it when home coordinates are unset. |
+| `MAP_SERVER_LATITUDE` | - | Latitude of this server on the map, where live request routes end. Set it with MAP_SERVER_LONGITUDE to skip public-IP detection. Formerly `MAP_HOME_LATITUDE`, which still works until 1.0. |
+| `MAP_SERVER_LONGITUDE` | - | Longitude of this server on the map, where live request routes end. Set it with MAP_SERVER_LATITUDE to skip public-IP detection. Formerly `MAP_HOME_LONGITUDE`, which still works until 1.0. |
+| `MAP_AUTO_DETECT_SERVER_LOCATION` | `true` | Look up this server's public IP at startup and geolocate it when MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE are unset. Formerly `MAP_AUTO_DETECT_HOME`, which still works until 1.0. |
 | `MAP_PUBLIC_IP_URL` | `https://api64.ipify.org?format=json` | JSON endpoint used for public-IP discovery; the response must contain an 'ip' field. |
 | `MAP_PUBLIC_IP_TIMEOUT` | `3.0` | Timeout in seconds for public-IP discovery. |
-| `MAP_HOME_LOCATIONS` | *(computed)* | Per-hostname home overrides as a JSON object of {"hostname": [latitude, longitude]}. Overrides win over agent auto-detection in site_homes; removing an entry deletes its override row at the next startup. Use for sites whose public IP geolocates wrong (CGNAT, VPN) or for hostnames in logs shipped from other machines. |
-| `MAP_HOME_REFRESH_HOURS` | `24` | How often this instance re-detects its own public-IP home location and refreshes its site_homes rows (hours). |
-| `MAP_DEFAULT_VIEW` | - | Where the map opens, as latitude,longitude or latitude,longitude,zoom (zoom 0-22, default 3). Example: 71.129982,27.653369,15 opens on northern Norway at zoom 15. When unset, the map opens on the site homes, or on the whole world if there are none. |
+| `MAP_SERVER_LOCATIONS` | *(computed)* | Fixed map locations per server name, as a JSON object of {"server": [latitude, longitude]}. An entry here wins over the location that server detects for itself. Removing an entry deletes its row at the next startup. Use it for a server whose public IP geolocates wrong (CGNAT, VPN), or whose logs are shipped from another machine. Formerly `MAP_HOME_LOCATIONS`, which still works until 1.0. |
+| `MAP_SERVER_LOCATION_REFRESH_HOURS` | `24` | Hours between re-detecting this server's public-IP location and updating its stored server locations. Formerly `MAP_HOME_REFRESH_HOURS`, which still works until 1.0. |
+| `MAP_DEFAULT_VIEW` | - | Where the map opens, as latitude,longitude or latitude,longitude,zoom (zoom 0-22, default 3). Example: 71.129982,27.653369,15 opens on northern Norway at zoom 15. When unset, the map opens on the server locations, or on the whole world if there are none. |
 | `MAP_CARTO_API_KEY` | `` | CARTO basemaps API key, sent as ?key= on every basemap request the browser makes. CARTO's terms require one per deployment; keys are free at https://carto.com/basemaps/apikey. Not a secret: it is visible to anyone who can open the map. |
 
 ## CrowdSec

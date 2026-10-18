@@ -1,13 +1,13 @@
 """refresh_caggs_range must bind timestamps as query args, never interpolate."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from geometrikks.server.timescale import refresh_caggs_range
+from geometrikks.server.timescale import refresh_caggs_range, whole_day_window
 
 pytestmark = pytest.mark.anyio
 
@@ -165,3 +165,77 @@ async def test_refresh_caggs_range_force_flag_adds_force_argument() -> None:
     await timescale.refresh_caggs_range(engine, start=start, end=end, caggs=["summary_hourly_stats"])
     assert driver.execute.await_args is not None
     assert "force" not in driver.execute.await_args.args[0]
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "expected"),
+    [
+        pytest.param(
+            datetime(2026, 1, 5, 12, 34, tzinfo=timezone.utc),
+            datetime(2026, 1, 5, 12, 40, tzinfo=timezone.utc),
+            (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 6, tzinfo=timezone.utc)),
+            id="inside-one-day",
+        ),
+        pytest.param(
+            datetime(2026, 1, 5, tzinfo=timezone.utc),
+            datetime(2026, 1, 7, tzinfo=timezone.utc),
+            (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 7, tzinfo=timezone.utc)),
+            id="already-whole-days",
+        ),
+        pytest.param(
+            datetime(2026, 1, 5, 1, 30, tzinfo=timezone(timedelta(hours=2))),
+            datetime(2026, 1, 5, 1, 45, tzinfo=timezone(timedelta(hours=2))),
+            (datetime(2026, 1, 4, tzinfo=timezone.utc), datetime(2026, 1, 5, tzinfo=timezone.utc)),
+            id="offset-input-uses-utc-days",
+        ),
+    ],
+)
+def test_whole_day_window(start: datetime, end: datetime, expected: tuple[datetime, datetime]) -> None:
+    assert whole_day_window(start, end) == expected
+
+
+async def test_refresh_widens_the_window_to_whole_days() -> None:
+    calls: list = []
+    await refresh_caggs_range(
+        make_engine(calls),
+        start=datetime(2026, 1, 5, 12, 34, tzinfo=timezone.utc),
+        end=datetime(2026, 1, 5, 12, 40, tzinfo=timezone.utc),
+        caggs=["summary_daily_stats"],
+    )
+    assert calls[0][1] == (
+        datetime(2026, 1, 5, tzinfo=timezone.utc),
+        datetime(2026, 1, 6, tzinfo=timezone.utc),
+    )
+
+
+NOW = datetime(2026, 1, 7, 15, 20, tzinfo=timezone.utc)
+
+
+async def test_refresh_never_materializes_the_bucket_still_filling() -> None:
+    """A materialized open bucket hides later rows from real-time queries."""
+    calls: list = []
+    await refresh_caggs_range(
+        make_engine(calls),
+        start=datetime(2026, 1, 5, 12, tzinfo=timezone.utc),
+        end=NOW,
+        caggs=["summary_hourly_stats", "summary_daily_stats"],
+        now=NOW,
+    )
+    assert [args for _, args in calls] == [
+        (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 7, 15, tzinfo=timezone.utc)),
+        (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 7, tzinfo=timezone.utc)),
+    ]
+
+
+async def test_refresh_skips_a_view_with_no_complete_bucket() -> None:
+    """Rows inside today's open bucket are served by real-time aggregation."""
+    calls: list = []
+    failed = await refresh_caggs_range(
+        make_engine(calls),
+        start=datetime(2026, 1, 7, 9, tzinfo=timezone.utc),
+        end=NOW,
+        caggs=["summary_daily_stats"],
+        now=NOW,
+    )
+    assert calls == []
+    assert failed == []

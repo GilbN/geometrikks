@@ -164,7 +164,7 @@ jobs:
             --env DB_NAME=geometrikks \
             --env APP_ADMIN_USER="${SMOKE_ADMIN_USER}" \
             --env APP_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD}" \
-            --env MAP_AUTO_DETECT_HOME=false \
+            --env MAP_AUTO_DETECT_SERVER_LOCATION=false \
             "${SMOKE_IMAGE}"
       - name: Run HTTP smoke checks
         shell: bash
@@ -210,6 +210,12 @@ jobs:
           curl --fail --silent --show-error "${SMOKE_BASE_URL}/" \
             > smoke-artifacts/index.html
           grep --quiet '<title>GeoMetrikks</title>' smoke-artifacts/index.html
+          # Check the deployed shell, after all image COPY steps and the SPA handler.
+          grep --quiet -- '--startup-background' smoke-artifacts/index.html
+          if grep --quiet '<!-- theme-head -->' smoke-artifacts/index.html; then
+            echo "Production served the unbuilt HTML template."
+            exit 1
+          fi
 
           unauthenticated_status="$(
             curl --silent --show-error --output /dev/null --write-out '%{http_code}' \

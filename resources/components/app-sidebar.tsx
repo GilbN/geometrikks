@@ -46,8 +46,8 @@ import {
   sidebarStatusTooltip,
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
-import { useLiveFeedStatus } from "@/lib/live-feed-context"
-import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
+import { agentsNeedingAttention } from "@/components/settings/agents-logic"
+import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
@@ -154,10 +154,10 @@ function NavItem({
           children: (
             <span className="flex flex-col gap-0.5">
               <span className="flex items-center gap-2">
-                <span>{item.title}</span>
+                <span className="font-medium">{item.title}</span>
                 <span className="text-muted-foreground text-xs">{item.description}</span>
               </span>
-              {warning && <span className="text-amber-500 text-xs">{warning}</span>}
+              {warning && <span className="text-amber-700 dark:text-amber-400 text-xs">{warning}</span>}
               {notice && <span className="text-primary text-xs">{notice}</span>}
             </span>
           ),
@@ -165,7 +165,8 @@ function NavItem({
         className={cn(
           "relative group/nav-item transition-all duration-200",
           isActive && [
-            "bg-sidebar-accent/80",
+            "data-active:bg-[var(--nav-active-bg)]",
+            "before:opacity-[var(--nav-indicator-opacity)]",
             "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
             "before:w-[3px] before:h-5 before:rounded-r-full",
             "before:bg-primary before:shadow-[0_0_8px_var(--primary)]",
@@ -179,7 +180,7 @@ function NavItem({
                 "w-4 h-4 transition-colors duration-200",
                 isActive
                   ? "text-primary"
-                  : "text-sidebar-foreground/60 group-hover/nav-item:text-sidebar-foreground"
+                  : "text-[color:var(--nav-inactive-icon)] group-hover/nav-item:text-sidebar-foreground"
               )}
             />
             {isActive && (
@@ -203,7 +204,7 @@ function NavItem({
               "transition-colors duration-200",
               isActive
                 ? "text-sidebar-foreground font-medium"
-                : "text-sidebar-foreground/70 group-hover/nav-item:text-sidebar-foreground"
+                : "text-[color:var(--nav-inactive-text)] group-hover/nav-item:text-sidebar-foreground"
             )}
           >
             {item.title}
@@ -223,8 +224,16 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     retry: 1,
   })
 
-  const variant = sidebarIngestionVariant(health, isError)
+  const { data: instances, isError: instancesError } = useInstances()
+  // A failed refetch keeps the last answer cached, so without the isError
+  // check the dot would keep reporting agents from a stale answer.
+  const agentAttentionCount = instancesError ? 0 : agentsNeedingAttention(instances).length
+  const headAdvisoryCount = health?.advisories?.length ?? 0
+
+  const variant = sidebarIngestionVariant(health, isError, agentAttentionCount)
   const isRunning = variant === "running"
+  const statusRoute =
+    variant === "attention" && headAdvisoryCount === 0 ? "/settings/agents" : "/settings/status"
 
   const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
     offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
@@ -240,7 +249,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const { color, label, tooltip: baseTooltip } = INDICATOR_STYLES[variant]
   const tooltip =
     variant === "degraded" || variant === "attention"
-      ? sidebarStatusTooltip(baseTooltip, health?.advisories?.length ?? 0, variant)
+      ? sidebarStatusTooltip(baseTooltip, headAdvisoryCount, variant, agentAttentionCount)
       : baseTooltip
 
   if (collapsed) {
@@ -248,7 +257,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            to="/settings/status"
+            to={statusRoute}
             aria-label="Service status"
             className="flex items-center justify-center py-2 mx-2"
             onPointerLeave={resetTooltipSuppression}
@@ -274,7 +283,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <Link
-          to="/settings/status"
+          to={statusRoute}
           aria-label="Service status"
           className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
           onPointerLeave={resetTooltipSuppression}
@@ -306,65 +315,6 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
         </TooltipContent>
       )}
     </Tooltip>
-  )
-}
-
-function LiveFeedIndicator({ collapsed }: { collapsed: boolean }) {
-  const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  // WebSocket live-feed status, distinct from the ingestion-health dot above.
-  // Lazy-connect: reads "Live feed off" until a consumer (map pulses or the
-  // access-logs live tail) subscribes to the shared connection.
-  const status = useLiveFeedStatus()
-  const color =
-    status === "connected"
-      ? "bg-emerald-400"
-      : status === "connecting"
-        ? "bg-amber-400 animate-pulse"
-        : status === "unavailable"
-          ? "bg-amber-400"
-          : "bg-sidebar-foreground/30"
-  const label =
-    status === "connected"
-      ? "Live feed"
-      : status === "connecting"
-        ? "Connecting"
-        : status === "unavailable"
-          ? "Live feed paused"
-          : "Live feed off"
-  const tooltip =
-    status === "connected"
-      ? "Live event feed connected"
-      : status === "connecting"
-        ? "Connecting to live event feed"
-        : status === "unavailable"
-          ? "The server is not streaming events right now. See Settings > Status."
-          : "Live feed idle (no active subscribers)"
-
-  if (collapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className="flex items-center justify-center py-1 mx-2"
-            onPointerLeave={resetTooltipSuppression}
-          >
-            <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
-          </div>
-        </TooltipTrigger>
-        {!tooltipsSuppressed && (
-          <TooltipContent side="right">
-            <span>{tooltip}</span>
-          </TooltipContent>
-        )}
-      </Tooltip>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-2 px-3 py-1 mx-2 text-xs text-sidebar-foreground/60">
-      <span className={cn("inline-flex w-2 h-2 rounded-full", color)} />
-      <span className="font-medium">{label}</span>
-    </div>
   )
 }
 
@@ -555,10 +505,8 @@ export function AppSidebar() {
       <SidebarSeparator className="opacity-50" />
 
       <SidebarContent>
-        {/* Live status indicators: ingestion health + websocket live feed */}
-        <div className="mt-2 flex flex-col gap-1">
+        <div className="mt-2">
           <LiveIndicator collapsed={collapsed} />
-          <LiveFeedIndicator collapsed={collapsed} />
         </div>
 
         <SidebarGroup className="mt-2">

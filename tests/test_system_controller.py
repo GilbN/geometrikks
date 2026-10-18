@@ -286,10 +286,10 @@ async def test_system_settings_surface_computed_values(monkeypatch):
     monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://localhost:8080")
     monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "bouncer-key")
 
-    from geometrikks.services.geoip.home import HomeLocation
+    from geometrikks.services.geoip.self_location import SelfLocation
 
     async def startup(app: Litestar) -> None:
-        app.state.map_home_location = HomeLocation(
+        app.state.self_location = SelfLocation(
             latitude=59.91, longitude=10.75, source="external_ip"
         )
         app.state.geoip_available = True
@@ -310,7 +310,7 @@ async def test_system_settings_surface_computed_values(monkeypatch):
     def field(section: str, key: str) -> dict:
         return next(f for f in sections[section]["fields"] if f["key"] == key)
 
-    lat = field("map", "home_latitude")
+    lat = field("map", "server_latitude")
     assert lat["value"] is None
     assert lat["computedValue"] == 59.91
     assert lat["computedSource"] == "external_ip"
@@ -325,12 +325,12 @@ async def test_system_settings_surface_computed_values(monkeypatch):
     assert enabled["computedSource"] == "runtime"
 
 
-async def test_system_settings_no_computed_home_when_absent():
-    # make_app() seeds no map_home_location and no geoip_available.
+async def test_system_settings_no_computed_server_location_when_absent():
+    # make_app() seeds no self_location and no geoip_available.
     async with AsyncTestClient(app=make_app()) as client:
         resp = await client.get("/api/v1/system/settings")
     sections = {s["name"]: s for s in resp.json()["sections"]}
-    lat = next(f for f in sections["map"]["fields"] if f["key"] == "home_latitude")
+    lat = next(f for f in sections["map"]["fields"] if f["key"] == "server_latitude")
     assert lat["computedValue"] is None
 
     avail = next(f for f in sections["geoip"]["fields"] if f["key"] == "available")
@@ -374,6 +374,8 @@ async def test_about_carries_the_build_commit(monkeypatch):
 
 
 def test_bundled_revision_doc_is_the_migration_message():
-    head = bundled_head_revision()
-    assert bundled_revision_doc(head) == "add asn columns to geo_events"
+    assert bundled_revision_doc("18be2778bd7c") == "rename hostname columns and site_homes to server"
+    head_doc = bundled_revision_doc(bundled_head_revision())
+    assert head_doc is not None
+    assert head_doc.strip()
     assert bundled_revision_doc("ffffffffffff") is None

@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import unicodedata
 import warnings
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
@@ -9,7 +10,8 @@ from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote, urlsplit
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+import msgspec
+from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.lib.urls import validate_https_url
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
@@ -41,6 +43,86 @@ def get_installed_version() -> str:
 
 
 OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback"
+
+
+LEGACY_FIELD_MARKER = "replaced_by"
+
+
+class LegacyEnvName(msgspec.Struct, frozen=True):
+    """An old env var name in use, with the name that replaced it."""
+
+    old: str
+    new: str
+
+
+def _env_var_name(model: type[BaseSettings], field_name: str) -> str:
+    prefix = model.model_config.get("env_prefix") or ""
+    return f"{prefix}{field_name}".upper()
+
+
+def _legacy_replacement(json_schema_extra: object) -> str | None:
+    """The new field name a legacy field points to, or None for a regular field."""
+    if isinstance(json_schema_extra, dict):
+        replaced_by = json_schema_extra.get(LEGACY_FIELD_MARKER)
+        if isinstance(replaced_by, str):
+            return replaced_by
+    return None
+
+
+def is_legacy_field(json_schema_extra: object) -> bool:
+    """True for a field kept only so an old env var name keeps working."""
+    return _legacy_replacement(json_schema_extra) is not None
+
+
+class LegacyEnvNamesSettings(BaseSettings):
+    """Base for sections whose renamed fields still accept their old env names.
+
+    Each old name is a field of its own with ``default=None``, so the env
+    prefix maps it with no alias, and its ``json_schema_extra`` names the
+    replacement under ``LEGACY_FIELD_MARKER``. Pydantic's ``AliasChoices``
+    can't replace this. It reports which value won, not which name supplied
+    it, and it drops a conflicting second name without an error.
+    """
+
+    _legacy_env_names: list[LegacyEnvName] = PrivateAttr(default_factory=list)
+
+    def _merge_legacy_fields(self) -> None:
+        """Copy each set legacy value onto its replacement field.
+
+        An empty ``MAP_HOME_LOCATIONS={}`` counts as unset, but ``false`` and
+        ``0`` are set. Call this first in the section's after-validator, so
+        checks that read the new fields see the merged values. Setting both
+        names to different parsed values raises ValueError, because preferring
+        one would make an edit to the other do nothing.
+        """
+        model = type(self)
+        legacy_env_names: list[LegacyEnvName] = []
+        for legacy_field_name, field_info in model.model_fields.items():
+            new_field_name = _legacy_replacement(field_info.json_schema_extra)
+            if new_field_name is None:
+                continue
+            legacy_value = getattr(self, legacy_field_name)
+            if legacy_value is None or legacy_value == {}:
+                continue
+            legacy_env_name = LegacyEnvName(
+                old=_env_var_name(model, legacy_field_name),
+                new=_env_var_name(model, new_field_name),
+            )
+            if (
+                new_field_name in self.model_fields_set
+                and getattr(self, new_field_name) != legacy_value
+            ):
+                raise ValueError(
+                    f"{legacy_env_name.new} and {legacy_env_name.old} are set to "
+                    f"different values; remove {legacy_env_name.old}"
+                )
+            setattr(self, new_field_name, legacy_value)
+            legacy_env_names.append(legacy_env_name)
+        self._legacy_env_names = legacy_env_names
+
+    def legacy_env_names_in_use(self) -> list[LegacyEnvName]:
+        """Old env var names this section read, in field order."""
+        return list(self._legacy_env_names)
 
 
 def _parse_list(value: object) -> object:
@@ -262,7 +344,7 @@ class LogSettings(BaseSettings):
     )
 
 
-class LogParserSettings(BaseSettings):
+class LogParserSettings(LegacyEnvNamesSettings):
     """Log parser configuration settings."""
 
     model_config = SettingsConfigDict(env_prefix="LOGPARSER_", env_file=_env_file(), extra="ignore")
@@ -293,14 +375,15 @@ class LogParserSettings(BaseSettings):
         description="Interval in seconds to poll the log file for new entries",
     )
     send_logs: bool = Field(default=True, description="Send parsed logs to the database")
-    host_name: Annotated[list[str], NoDecode] = Field(
+    server_name: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [socket.gethostname()],
         min_length=1,
         description=(
-            "Source hostname stamped on ingested records. Env accepts a "
-            "single value applied to every tailed file, or a JSON list "
-            "matching LOGPARSER_LOG_PATHS by position. Default: this "
-            "machine's hostname."
+            "Name recorded on every request this server ingests. It is a name "
+            "you choose for this server, not your nginx `server_name`. Env "
+            "accepts one value for every tailed file, or a JSON list matching "
+            "LOGPARSER_LOG_PATHS by position. Default: this machine's "
+            "hostname. Formerly `LOGPARSER_HOST_NAME`, which still works until 1.0."
         ),
     )
     batch_size: int = Field(
@@ -327,6 +410,12 @@ class LogParserSettings(BaseSettings):
             "proxy. Env accepts one value, comma-separated values, or a "
             "JSON list. Empty (default): nothing is ignored."
         ),
+    )
+    host_name: Annotated[list[str] | None, NoDecode] = Field(
+        default=None,
+        min_length=1,
+        description="Replaced by `LOGPARSER_SERVER_NAME`.",
+        json_schema_extra={LEGACY_FIELD_MARKER: "server_name"},
     )
 
     @field_validator("log_paths", mode="before")
@@ -356,8 +445,11 @@ class LogParserSettings(BaseSettings):
     @model_validator(mode="after")
     def validate_log_formats(self) -> "LogParserSettings":
         """Reject unknown format names and lengths that cannot map to log_paths."""
-        from geometrikks.services.logparser.formats import FORMATS
+        from geometrikks.services.logparser.formats import FORMATS, IMPORT_ONLY_FORMATS
 
+        for log_format in self.log_formats:
+            if log_format in IMPORT_ONLY_FORMATS:
+                raise ValueError(IMPORT_ONLY_FORMATS[log_format].live_tailing_message)
         allowed = {"auto", *FORMATS}
         unknown = [f for f in self.log_formats if f not in allowed]
         if unknown:
@@ -380,10 +472,10 @@ class LogParserSettings(BaseSettings):
             return self.log_formats * len(self.log_paths)
         return list(self.log_formats)
 
-    @field_validator("host_name", mode="before")
+    @field_validator("server_name", "host_name", mode="before")
     @classmethod
-    def parse_host_name(cls, value: object) -> object:
-        """Accept a single hostname or a JSON list of hostnames."""
+    def parse_server_name(cls, value: object) -> object:
+        """Accept a single server name or a JSON list of names."""
         if isinstance(value, str):
             stripped = value.strip()
             if stripped.startswith("["):
@@ -391,34 +483,40 @@ class LogParserSettings(BaseSettings):
             return [stripped]
         return value
 
-    @field_validator("host_name")
+    @field_validator("server_name", "host_name")
     @classmethod
-    def validate_host_name_entries(cls, value: list[str]) -> list[str]:
+    def validate_server_name_entries(
+        cls, value: list[str] | None, info: ValidationInfo
+    ) -> list[str] | None:
         """Fail at startup on empty entries; '' would silently un-stamp records."""
-        if any(not entry.strip() for entry in value):
-            raise ValueError("LOGPARSER_HOST_NAME entries must be non-empty")
-        return [entry.strip() for entry in value]
+        if value is None:
+            return None
+        if any(not server_name.strip() for server_name in value):
+            env_var = _env_var_name(cls, info.field_name or "server_name")
+            raise ValueError(f"{env_var} entries must be non-empty")
+        return [server_name.strip() for server_name in value]
 
     @model_validator(mode="after")
-    def validate_host_name_length(self) -> "LogParserSettings":
-        """Reject hostname list lengths that cannot map to log_paths."""
-        if len(self.host_name) not in (1, len(self.log_paths)):
+    def merge_legacy_server_name(self) -> "LogParserSettings":
+        """Take LOGPARSER_HOST_NAME, then check the list fits log_paths."""
+        self._merge_legacy_fields()
+        if len(self.server_name) not in (1, len(self.log_paths)):
             raise ValueError(
-                "LOGPARSER_HOST_NAME must be one value or match "
+                "LOGPARSER_SERVER_NAME must be one value or match "
                 f"LOGPARSER_LOG_PATHS in length ({len(self.log_paths)})"
             )
         return self
 
-    def resolved_hostnames(self) -> list[str]:
-        """Return one hostname per log path.
+    def resolved_server_names(self) -> list[str]:
+        """Return one server name per log path.
 
         Returns:
-            The configured hostnames, fanning a single value out across all
-            log paths when only one value was provided.
+            The configured server names, fanning a single value out across
+            all log paths when only one value was provided.
         """
-        if len(self.host_name) == 1:
-            return self.host_name * len(self.log_paths)
-        return list(self.host_name)
+        if len(self.server_name) == 1:
+            return self.server_name * len(self.log_paths)
+        return list(self.server_name)
 
     @field_validator("ignore_ips", mode="before")
     @classmethod
@@ -445,6 +543,181 @@ class LogParserSettings(BaseSettings):
                     f"LOGPARSER_IGNORE_IPS entry {entry!r} is not an IP address or CIDR"
                 ) from exc
         return value
+
+
+class LokiSettings(BaseSettings):
+    """Reading access-log lines from Grafana Loki instead of a file.
+
+    Active when ``url`` and at least one ``queries`` entry are set. Each
+    selector is one log source, parsed and geolocated like a tailed file.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="LOKI_", env_file=_env_file(), extra="ignore")
+
+    url: str | None = Field(
+        default=None,
+        description=(
+            "Base URL of the Loki server, e.g. http://loki:3100. http or "
+            "https. Unset (default): no Loki source."
+        ),
+    )
+    queries: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            'LogQL stream selectors, one source each, e.g. {job="traefik"}. '
+            "Env accepts a single selector or a JSON list. Empty (default): "
+            "no Loki source."
+        ),
+    )
+    formats: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["auto"],
+        description=(
+            "Log format per query, same values as LOGPARSER_LOG_FORMATS. Env "
+            "accepts one value for every query, or a JSON list matching "
+            "LOKI_QUERIES by position."
+        ),
+    )
+    server_names: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "Server name per query. Env accepts one value or a JSON list "
+            "matching LOKI_QUERIES by position. Empty (default): the first "
+            "LOGPARSER_SERVER_NAME."
+        ),
+    )
+    tenant_id: str | None = Field(
+        default=None,
+        description="Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header.",
+    )
+    username: str | None = Field(
+        default=None,
+        description="Basic auth username, with LOKI_PASSWORD.",
+    )
+    password: SecretStr | None = Field(
+        default=None,
+        description="Basic auth password, with LOKI_USERNAME.",
+    )
+    poll_interval: float = Field(
+        default=5.0,
+        gt=0,
+        description="Seconds between reads of each query. LOGPARSER_POLL_INTERVAL paces the file tail separately.",
+    )
+    lookback: float = Field(
+        default=60.0,
+        ge=0,
+        description=(
+            "Seconds each read looks back for lines that reached Loki late. "
+            "Every poll re-reads this whole window. The window never reaches back "
+            "more than an hour, so values above 3600 behave as 3600."
+        ),
+    )
+    @field_validator("queries", "formats", "server_names", mode="before")
+    @classmethod
+    def parse_single_or_json_list(cls, value: object) -> object:
+        """Accept a single value or a JSON list.
+
+        Not comma-split: a selector such as {job="a", env="b"} contains commas.
+        """
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return json.loads(stripped)
+            return [stripped]
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: str | None) -> str | None:
+        """Require an absolute http(s) URL; keep it without a trailing slash."""
+        if value is None:
+            return None
+        try:
+            parts = urlsplit(value)
+        except ValueError as exc:
+            raise ValueError(f"LOKI_URL is not a valid URL: {value!r}") from exc
+        if parts.scheme not in ("http", "https") or not parts.hostname:
+            raise ValueError(f"LOKI_URL must be an absolute http(s) URL, got {value!r}")
+        if parts.username is not None or parts.password is not None:
+            raise ValueError("LOKI_URL must not contain credentials; set LOKI_USERNAME and LOKI_PASSWORD")
+        # urlsplit checks the port only when it is read, and httpx2 would then
+        # raise InvalidURL at the first request.
+        try:
+            parts.port
+        except ValueError as exc:
+            raise ValueError("LOKI_URL has an invalid port") from exc
+        return value.rstrip("/")
+
+    @field_validator("tenant_id")
+    @classmethod
+    def validate_tenant_id(cls, value: str | None) -> str | None:
+        """Treat a blank value as unset; reject what cannot be sent as an HTTP header value."""
+        if value is None or value.strip() == "":
+            return None
+        if not value.isascii():
+            raise ValueError("LOKI_TENANT_ID must be ASCII")
+        return value.strip()
+
+    @field_validator("queries")
+    @classmethod
+    def validate_query_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on blank selectors, which would turn Loki on with nothing to read."""
+        if any(not entry.strip() for entry in value):
+            raise ValueError("LOKI_QUERIES entries must be non-empty")
+        return [entry.strip() for entry in value]
+
+    @field_validator("server_names")
+    @classmethod
+    def validate_server_name_entries(cls, value: list[str]) -> list[str]:
+        """Fail at startup on blank entries; '' would silently un-stamp records."""
+        if any(not server_name.strip() for server_name in value):
+            raise ValueError("LOKI_SERVER_NAMES entries must be non-empty")
+        return [server_name.strip() for server_name in value]
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> "LokiSettings":
+        """Check the URL, queries and per-query lists agree."""
+        from geometrikks.services.logparser.formats import FORMATS
+
+        if self.queries and not self.url:
+            raise ValueError("LOKI_QUERIES needs LOKI_URL")
+        if self.url and not self.queries:
+            raise ValueError("LOKI_URL needs at least one LOKI_QUERIES entry")
+        if (self.username is None) != (self.password is None):
+            raise ValueError("LOKI_USERNAME and LOKI_PASSWORD must be set together")
+        allowed = {"auto", *FORMATS}
+        unknown = [f for f in self.formats if f not in allowed]
+        if unknown:
+            raise ValueError(f"Unknown Loki log format(s) {unknown}; allowed: {sorted(allowed)}")
+        count = len(self.queries)
+        if self.queries and len(self.formats) not in (1, count):
+            raise ValueError(
+                f"LOKI_FORMATS must be one value or match LOKI_QUERIES in length ({count})"
+            )
+        if self.queries and self.server_names and len(self.server_names) not in (1, count):
+            raise ValueError(
+                f"LOKI_SERVER_NAMES must be one value or match LOKI_QUERIES in length ({count})"
+            )
+        return self
+
+    def resolved_formats(self) -> list[str]:
+        """One format per query, fanning a single value out."""
+        if not self.queries:
+            return []
+        if len(self.formats) == 1:
+            return self.formats * len(self.queries)
+        return list(self.formats)
+
+    def resolved_server_names(self, default: str) -> list[str]:
+        """One server name per query; ``default`` when none are configured."""
+        if not self.queries:
+            return []
+        if not self.server_names:
+            return [default] * len(self.queries)
+        if len(self.server_names) == 1:
+            return self.server_names * len(self.queries)
+        return list(self.server_names)
 
 
 class AnalyticsSettings(BaseSettings):
@@ -509,34 +782,37 @@ class SchedulerSettings(BaseSettings):
 DEFAULT_VIEW_ZOOM = 3.0
 
 
-class MapSettings(BaseSettings):
+class MapSettings(LegacyEnvNamesSettings):
     """Map presentation settings shared with the web client."""
 
     model_config = SettingsConfigDict(env_prefix="MAP_", env_file=_env_file(), extra="ignore")
 
-    home_latitude: float | None = Field(
+    server_latitude: float | None = Field(
         default=None,
         ge=-90,
         le=90,
         description=(
-            "Optional destination latitude for live request routes. Set both home "
-            "coordinates to override external-IP auto-detection."
+            "Latitude of this server on the map, where live request routes end. "
+            "Set it with MAP_SERVER_LONGITUDE to skip public-IP detection. "
+            "Formerly `MAP_HOME_LATITUDE`, which still works until 1.0."
         ),
     )
-    home_longitude: float | None = Field(
+    server_longitude: float | None = Field(
         default=None,
         ge=-180,
         le=180,
         description=(
-            "Optional destination longitude for live request routes. Set both home "
-            "coordinates to override external-IP auto-detection."
+            "Longitude of this server on the map, where live request routes end. "
+            "Set it with MAP_SERVER_LATITUDE to skip public-IP detection. "
+            "Formerly `MAP_HOME_LONGITUDE`, which still works until 1.0."
         ),
     )
-    auto_detect_home: bool = Field(
+    auto_detect_server_location: bool = Field(
         default=True,
         description=(
-            "Resolve the server's public IP at startup and geolocate it when "
-            "home coordinates are unset."
+            "Look up this server's public IP at startup and geolocate it when "
+            "MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE are unset. Formerly "
+            "`MAP_AUTO_DETECT_HOME`, which still works until 1.0."
         ),
     )
     public_ip_url: str = Field(
@@ -552,25 +828,27 @@ class MapSettings(BaseSettings):
         le=30,
         description="Timeout in seconds for public-IP discovery.",
     )
-    home_locations: dict[str, tuple[float, float]] = Field(
+    server_locations: dict[str, tuple[float, float]] = Field(
         default_factory=dict,
         description=(
-            "Per-hostname home overrides as a JSON object of "
-            '{"hostname": [latitude, longitude]}. Overrides win over '
-            "agent auto-detection in site_homes; removing an entry deletes "
-            "its override row at the next startup. Use for sites whose "
-            "public IP geolocates wrong (CGNAT, VPN) or for hostnames in "
-            "logs shipped from other machines."
+            "Fixed map locations per server name, as a JSON object of "
+            '{"server": [latitude, longitude]}. An entry here wins over the '
+            "location that server detects for itself. Removing an entry "
+            "deletes its row at the next startup. Use it for a server whose "
+            "public IP geolocates wrong (CGNAT, VPN), or whose logs are "
+            "shipped from another machine. Formerly `MAP_HOME_LOCATIONS`, "
+            "which still works until 1.0."
         ),
     )
 
-    home_refresh_hours: int = Field(
+    server_location_refresh_hours: int = Field(
         default=24,
         ge=1,
         le=24 * 30,
         description=(
-            "How often this instance re-detects its own public-IP home "
-            "location and refreshes its site_homes rows (hours)."
+            "Hours between re-detecting this server's public-IP location and "
+            "updating its stored server locations. Formerly "
+            "`MAP_HOME_REFRESH_HOURS`, which still works until 1.0."
         ),
     )
     default_view: Annotated[tuple[float, float, float] | None, NoDecode] = Field(
@@ -579,8 +857,8 @@ class MapSettings(BaseSettings):
             "Where the map opens, as latitude,longitude or "
             "latitude,longitude,zoom (zoom 0-22, default 3). Example: "
             "71.129982,27.653369,15 opens on northern Norway at zoom 15. When "
-            "unset, the map opens on the site homes, or on the whole world if "
-            "there are none."
+            "unset, the map opens on the server locations, or on the whole "
+            "world if there are none."
         ),
     )
     carto_api_key: str = Field(
@@ -592,15 +870,51 @@ class MapSettings(BaseSettings):
             "secret: it is visible to anyone who can open the map."
         ),
     )
+    home_locations: dict[str, tuple[float, float]] | None = Field(
+        default=None,
+        description="Replaced by `MAP_SERVER_LOCATIONS`.",
+        json_schema_extra={LEGACY_FIELD_MARKER: "server_locations"},
+    )
+    home_latitude: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+        description="Replaced by `MAP_SERVER_LATITUDE`.",
+        json_schema_extra={LEGACY_FIELD_MARKER: "server_latitude"},
+    )
+    home_longitude: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+        description="Replaced by `MAP_SERVER_LONGITUDE`.",
+        json_schema_extra={LEGACY_FIELD_MARKER: "server_longitude"},
+    )
+    auto_detect_home: bool | None = Field(
+        default=None,
+        description="Replaced by `MAP_AUTO_DETECT_SERVER_LOCATION`.",
+        json_schema_extra={LEGACY_FIELD_MARKER: "auto_detect_server_location"},
+    )
+    home_refresh_hours: int | None = Field(
+        default=None,
+        ge=1,
+        le=24 * 30,
+        description="Replaced by `MAP_SERVER_LOCATION_REFRESH_HOURS`.",
+        json_schema_extra={LEGACY_FIELD_MARKER: "server_location_refresh_hours"},
+    )
 
-    @field_validator("home_locations")
+    @field_validator("server_locations", "home_locations")
     @classmethod
-    def validate_home_locations(cls, value: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+    def validate_server_locations(
+        cls, value: dict[str, tuple[float, float]] | None, info: ValidationInfo
+    ) -> dict[str, tuple[float, float]] | None:
         """Coordinate ranges; pydantic already enforced the two-float arity."""
-        for hostname, (lat, lng) in value.items():
+        if value is None:
+            return None
+        env_var = _env_var_name(cls, info.field_name or "server_locations")
+        for server_name, (lat, lng) in value.items():
             if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
                 raise ValueError(
-                    f"MAP_HOME_LOCATIONS[{hostname!r}]: latitude must be in "
+                    f"{env_var}[{server_name!r}]: latitude must be in "
                     "[-90, 90] and longitude in [-180, 180]"
                 )
         return value
@@ -641,10 +955,11 @@ class MapSettings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def validate_home_coordinate_pair(self) -> "MapSettings":
-        """Require both manual coordinates or neither."""
-        if (self.home_latitude is None) != (self.home_longitude is None):
-            raise ValueError("MAP_HOME_LATITUDE and MAP_HOME_LONGITUDE must be set together")
+    def merge_legacy_map_fields(self) -> "MapSettings":
+        """Take the MAP_HOME_* names, then require both coordinates or neither."""
+        self._merge_legacy_fields()
+        if (self.server_latitude is None) != (self.server_longitude is None):
+            raise ValueError("MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE must be set together")
         return self
 
 
@@ -927,6 +1242,36 @@ class AppSettings(BaseSettings):
             "(Tailscale-only access, a CDN you front on purpose)."
         ),
     )
+    instance_name: str | None = Field(
+        default=None,
+        description=(
+            "Name this instance goes by on Settings > Agents, where the head "
+            "lists every instance that reports in. Unset, agents show as "
+            '"agent" and the head as "head". Set it on every agent. Two '
+            "unnamed agents share one name and overwrite each other's status. "
+            "Up to 255 characters, no slashes, no control characters, and "
+            'not "." or "..".'
+        ),
+    )
+
+    @field_validator("instance_name")
+    @classmethod
+    def validate_instance_name(cls, value: str | None) -> str | None:
+        """Strip whitespace; blank means unset; reject names the API cannot route."""
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if "/" in stripped:
+            raise ValueError("APP_INSTANCE_NAME must not contain '/'")
+        if stripped in {".", ".."}:
+            raise ValueError("APP_INSTANCE_NAME must not be '.' or '..'")
+        if any(unicodedata.category(character) == "Cc" for character in stripped):
+            raise ValueError("APP_INSTANCE_NAME must not contain control characters")
+        if len(stripped) > 255:
+            raise ValueError("APP_INSTANCE_NAME must be at most 255 characters")
+        return stripped
 
 
 class Settings(BaseSettings):
@@ -1052,6 +1397,7 @@ class Settings(BaseSettings):
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
     log: LogSettings = Field(default_factory=LogSettings)
     logparser: LogParserSettings = Field(default_factory=LogParserSettings)
+    loki: LokiSettings = Field(default_factory=LokiSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     map: MapSettings = Field(default_factory=MapSettings)
@@ -1068,6 +1414,34 @@ class Settings(BaseSettings):
                 "that tails nothing does nothing"
             )
         return self
+
+    @model_validator(mode="after")
+    def validate_loki_replaces_the_default_file(self) -> "Settings":
+        """With Loki configured and LOGPARSER_LOG_PATHS untouched, tail no file.
+
+        Without this a Loki-only install waits on /var/log/access/access.log
+        forever and reports "log file missing". Setting both reads files and
+        Loki side by side.
+        """
+        if self.loki.queries and "log_paths" not in self.logparser.model_fields_set:
+            self.logparser.log_paths = []
+        return self
+
+    def ingest_server_names(self) -> list[str]:
+        """Every server name a source stamps: files first, then Loki, no duplicates."""
+        default = self.logparser.server_name[0]
+        server_names = (
+            self.logparser.resolved_server_names()
+            + self.loki.resolved_server_names(default)
+        )
+        return list(dict.fromkeys(server_names))
+
+    def legacy_env_names_in_use(self) -> list[LegacyEnvName]:
+        """Old env var names this process read, each with its replacement."""
+        return (
+            self.logparser.legacy_env_names_in_use()
+            + self.map.legacy_env_names_in_use()
+        )
 
     @property
     def password_login_enabled(self) -> bool:
@@ -1094,6 +1468,18 @@ class Settings(BaseSettings):
     def is_agent(self) -> bool:
         """Check if running in agent mode."""
         return self.app.mode == "agent"
+
+    @property
+    def resolved_instance_name(self) -> str:
+        """The configured APP_INSTANCE_NAME, else agent or head by mode."""
+        if self.app.instance_name is not None:
+            return self.app.instance_name
+        return "agent" if self.is_agent else "head"
+
+    @property
+    def instance_name_source(self) -> Literal["configured", "fallback"]:
+        """Whether resolved_instance_name came from APP_INSTANCE_NAME."""
+        return "configured" if self.app.instance_name is not None else "fallback"
 
     @property
     def is_production(self) -> bool:

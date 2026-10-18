@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
-from geometrikks.services.logparser.formats import FORMATS, sniff_format
+from geometrikks.services.logparser.formats import FORMATS, IMPORT_FORMATS, sniff_format
 from geometrikks.services.logparser.formats.base import (
     VALID_HTTP_METHODS,
     detect_probe,
@@ -16,6 +16,7 @@ from geometrikks.services.logparser.formats.base import (
 from geometrikks.services.logparser.formats.caddy import CaddyJsonFormat
 from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
 from geometrikks.services.logparser.formats.nginx import NginxFormat
+from geometrikks.services.logparser.formats.npm import NpmFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
 
 NGINX_LINE = (
@@ -313,6 +314,223 @@ def test_sniff_format_full_match_wins_over_earlier_geo_only_line() -> None:
     assert sniffed is not None
     assert sniffed.format.name == "nginx"
     assert sniffed.geo_only is False
+
+
+# Nginx Proxy Manager's 'proxy' format (proxy hosts) and 'standard' format
+# (redirection hosts, 404 hosts and the fallback log), as defined in NPM's
+# log-proxy.conf.
+NPM_PROXY_LINE = (
+    '[07/Aug/2026:12:34:56 +0200] - 200 200 - GET https app.example.com '
+    '"/api/items?page=2" [Client 203.0.113.7] [Length 1234] [Gzip 3.21] '
+    '[Sent-to app] "Mozilla/5.0" "https://ref.example/"'
+)
+NPM_STANDARD_LINE = (
+    '[07/Aug/2026:12:34:56 +0200] 301 - GET http old.example.com '
+    '"/blog" [Client 2001:db8::7] [Length 162] [Gzip -] "Mozilla/5.0" "-"'
+)
+
+
+def test_npm_parse_proxy_line() -> None:
+    norm = NpmFormat().parse(NPM_PROXY_LINE)
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+    assert norm.timestamp.isoformat() == "2026-08-07T12:34:56+02:00"
+    assert norm.method == "GET"
+    assert norm.path == "/api/items?page=2"
+    assert norm.host == "app.example.com"
+    assert norm.status_code == 200
+    assert norm.bytes_sent == 1234
+    assert norm.user_agent == "Mozilla/5.0"
+    assert norm.referrer == "https://ref.example/"
+    # Not in NPM's format.
+    assert norm.http_version is None
+    assert norm.remote_user is None
+    assert norm.request_time is None
+    assert norm.upstream_response_time is None
+    assert norm.request_raw is None
+
+
+def test_npm_parse_standard_line() -> None:
+    norm = NpmFormat().parse(NPM_STANDARD_LINE)
+    assert norm is not None
+    assert norm.ip_address == "2001:db8::7"
+    assert norm.host == "old.example.com"
+    assert norm.path == "/blog"
+    assert norm.status_code == 301
+    assert norm.bytes_sent == 162
+    assert norm.referrer is None
+
+
+@pytest.mark.parametrize(
+    "prefix,status",
+    [
+        pytest.param("- 502, 200 200", 200, id="upstream-retry-comma"),
+        pytest.param("- 502 : 200 200", 200, id="upstream-internal-redirect"),
+        pytest.param("HIT - 304", 304, id="cache-hit-no-upstream"),
+        pytest.param("- - 502", 502, id="no-upstream-reached"),
+    ],
+)
+def test_npm_upstream_status_variants_do_not_shift_status(prefix: str, status: int) -> None:
+    line = NPM_PROXY_LINE.replace("- 200 200", prefix, 1)
+    norm = NpmFormat().parse(line)
+    assert norm is not None
+    assert norm.status_code == status
+    assert norm.method == "GET"
+    assert norm.ip_address == "203.0.113.7"
+
+
+def test_npm_default_escaped_quotes_stay_inside_fields() -> None:
+    line = NPM_PROXY_LINE.replace(
+        '"Mozilla/5.0" "https://ref.example/"',
+        r'"Agent\x22Name" "https://ref.example/a\x22b"',
+    )
+    norm = NpmFormat().parse(line)
+    assert norm is not None
+    assert norm.user_agent == r"Agent\x22Name"
+    assert norm.referrer == r"https://ref.example/a\x22b"
+
+
+def test_npm_dash_fields_become_none() -> None:
+    line = NPM_PROXY_LINE.replace(
+        '"Mozilla/5.0" "https://ref.example/"', '"-" "-"'
+    ).replace("[Length 1234]", "[Length -]")
+    norm = NpmFormat().parse(line)
+    assert norm is not None
+    assert norm.user_agent is None
+    assert norm.referrer is None
+    assert norm.bytes_sent == 0
+
+
+def test_npm_parse_geo_only() -> None:
+    for line, client_ip in ((NPM_PROXY_LINE, "203.0.113.7"), (NPM_STANDARD_LINE, "2001:db8::7")):
+        norm = NpmFormat().parse(line, geo_only=True)
+        assert norm is not None
+        assert norm.ip_address == client_ip
+        assert norm.timestamp.tzinfo is not None
+        assert norm.method is None
+
+
+def test_npm_parse_bracketed_ipv6_forward_host() -> None:
+    """NPM writes the forward host verbatim, and an IPv6 one needs brackets."""
+    line = NPM_PROXY_LINE.replace("[Sent-to app]", "[Sent-to [2001:db8::1]]")
+    norm = NpmFormat().parse(line)
+    assert norm is not None
+    assert norm.user_agent == "Mozilla/5.0"
+    sniffed = sniff_format([line], IMPORT_FORMATS)
+    assert sniffed is not None
+    assert sniffed.format.name == "npm"
+    assert sniffed.geo_only is False
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        pytest.param(
+            NPM_PROXY_LINE.replace("/api/items?page=2", "/api/items?filter[name]=x"),
+            id="brackets-in-uri",
+        ),
+        pytest.param(
+            NPM_PROXY_LINE.replace("app.example.com", "[2001:db8::1]"),
+            id="ipv6-literal-host",
+        ),
+    ],
+)
+def test_npm_geo_only_tolerates_brackets_before_client(line: str) -> None:
+    norm = NpmFormat().parse(line, geo_only=True)
+    assert norm is not None
+    assert norm.ip_address == "203.0.113.7"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        pytest.param(NGINX_LINE, id="nginx"),
+        pytest.param(NGINX_GARBAGE, id="garbage"),
+        pytest.param(
+            NPM_PROXY_LINE.replace("[Client 203.0.113.7]", "[Client not-an-ip]"),
+            id="client-not-ip",
+        ),
+        pytest.param(
+            NPM_PROXY_LINE.replace("07/Aug/2026:12:34:56 +0200", "yesterday"),
+            id="bad-timestamp",
+        ),
+        pytest.param(
+            NPM_PROXY_LINE.replace(" [Sent-to app]", ""), id="proxy-without-sent-to"
+        ),
+        pytest.param(
+            NPM_PROXY_LINE.replace("- 200 200 -", "cache garbage 999 200 -"),
+            id="text-in-upstream-status",
+        ),
+    ],
+)
+def test_npm_parse_rejections(line: str) -> None:
+    assert NpmFormat().parse(line) is None
+
+
+def test_npm_detect_malformed_ok_line() -> None:
+    fmt = NpmFormat()
+    norm = fmt.parse(NPM_PROXY_LINE)
+    assert norm is not None
+    assert fmt.detect_malformed(norm) == (False, None)
+
+
+def test_npm_detect_malformed_no_method() -> None:
+    """A line with no method can't be classified further without the request line.
+
+    A TLS handshake on the HTTP port is the usual cause, but NPM logs nothing
+    that tells it apart from other garbage, so no probe kind is claimed.
+    """
+    line = (
+        '[07/Aug/2026:12:34:56 +0200] - - 400 - - http localhost "-" '
+        '[Client 203.0.113.7] [Length 150] [Gzip -] [Sent-to -] "-" "-"'
+    )
+    fmt = NpmFormat()
+    norm = fmt.parse(line)
+    assert norm is not None
+    assert norm.method is None
+    assert norm.path is None
+    assert fmt.detect_malformed(norm) == (True, "No HTTP method in request")
+
+
+@pytest.mark.parametrize("method", IANA_HTTP_METHODS)
+def test_npm_iana_http_methods_are_well_formed(method: str) -> None:
+    fmt = NpmFormat()
+    norm = fmt.parse(NPM_PROXY_LINE.replace(" GET ", f" {method} ", 1))
+
+    assert norm is not None
+    assert norm.method == method
+    assert fmt.detect_malformed(norm) == (False, None)
+
+
+def test_npm_unknown_token_method_is_identified() -> None:
+    fmt = NpmFormat()
+    norm = fmt.parse(NPM_PROXY_LINE.replace(" GET ", " BOGUS-METHOD ", 1))
+
+    assert norm is not None
+    assert fmt.detect_malformed(norm) == (True, "Invalid HTTP method: BOGUS-METHOD")
+
+
+def test_npm_is_import_only() -> None:
+    assert "npm" not in FORMATS
+    assert list(IMPORT_FORMATS) == [*FORMATS, "npm"]
+
+
+def test_sniff_format_ignores_npm_in_the_live_registry() -> None:
+    assert sniff_format([NPM_PROXY_LINE, NPM_STANDARD_LINE]) is None
+
+
+def test_sniff_format_npm_from_the_import_registry() -> None:
+    for line in (NPM_PROXY_LINE, NPM_STANDARD_LINE):
+        sniffed = sniff_format([NGINX_GARBAGE, line], IMPORT_FORMATS)
+        assert sniffed is not None
+        assert sniffed.format.name == "npm"
+        assert sniffed.geo_only is False
+
+
+def test_npm_lines_do_not_parse_as_nginx() -> None:
+    fmt = NginxFormat()
+    assert fmt.parse(NPM_PROXY_LINE) is None
+    assert fmt.parse(NPM_PROXY_LINE, geo_only=True) is None
 
 
 TRAEFIK_FULL = json.dumps({

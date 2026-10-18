@@ -92,8 +92,8 @@ class GeoEvent(base.BigIntBase):
     # IP address that triggered the event
     ip_address: Mapped[str] = mapped_column(postgresql.INET, nullable=False, index=True, info=dto_field("read-only"))
 
-    # Host that recorded the event, not the client hostname
-    hostname: Mapped[str] = mapped_column(String(255), nullable=False, index=True, info=dto_field("read-only"))
+    # The GeoMetrikks server that recorded the event, never the request's Host header
+    server: Mapped[str] = mapped_column(String(255), nullable=False, index=True, info=dto_field("read-only"))
 
     # Foreign key to normalized geo location
     location_id: Mapped[int] = mapped_column(
@@ -130,24 +130,24 @@ class GeoEvent(base.BigIntBase):
         return f"<GeoEvent(id={self.id}, ip={self.ip_address}, timestamp={self.timestamp})>"
 
 
-class SiteHome(base.BigIntAuditBase):
-    """Current home location of one recording hostname (site).
+class ServerLocation(base.BigIntAuditBase):
+    """Current location of one server.
 
     Agents upsert source="auto" rows from their own public-IP detection;
-    the head reconciles MAP_HOME_LOCATIONS into source="override" rows.
-    Current state only, no history (a moved site just gets new
+    the head reconciles MAP_SERVER_LOCATIONS into source="override" rows.
+    Current state only, no history (a moved server just gets new
     coordinates)."""
 
-    __tablename__ = "site_homes"
-    # Renders as ck_site_homes_source via the naming convention; backs the
-    # auto/override Literal on the wire with DB-level enforcement.
+    __tablename__ = "server_locations"
+    # Renders as ck_server_locations_source via the naming convention; backs
+    # the auto/override Literal on the wire with DB-level enforcement.
     __table_args__ = (CheckConstraint("source IN ('auto', 'override')", name="source"),)
 
-    hostname: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    server: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     detected_at: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
 
     def __repr__(self) -> str:
-        return f"<SiteHome {self.hostname} ({self.latitude}, {self.longitude}) {self.source}>"
+        return f"<ServerLocation {self.server} ({self.latitude}, {self.longitude}) {self.source}>"

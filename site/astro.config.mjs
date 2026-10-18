@@ -12,7 +12,7 @@ export default defineConfig({
     starlight({
       title: "GeoMetrikks",
       description:
-        "Your reverse proxy's access log on a live map. nginx, Traefik and Caddy. Self-hosted, one Docker image.",
+        "Your reverse proxy's access log on a live map. nginx, Traefik, Caddy or Loki. Self-hosted, one Docker image.",
       customCss: ["./src/styles/docs.css"],
       components: { SiteTitle: "./src/components/docs/SiteTitle.astro" },
       social: [{ icon: "github", label: "GitHub", href: github }],

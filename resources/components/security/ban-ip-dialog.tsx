@@ -148,10 +148,10 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
         {error && <p className="text-sm text-red-500">{error}</p>}
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={onDone}>
+        <Button variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button onClick={submit} disabled={ban.isPending || !ip.trim()}>
+        <Button variant="destructive" onClick={submit} disabled={ban.isPending || !ip.trim()}>
           {ban.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
           {type === "ban" ? "Ban" : "Require captcha"}
         </Button>

@@ -30,8 +30,10 @@ import {
   fetchGeoLogTopCities,
   fetchGeoLogTopAsns,
   fetchGeoEventFacets,
-  deleteSiteHome,
-  fetchSiteHomes,
+  deleteServerLocation,
+  fetchServerLocations,
+  deleteInstance,
+  fetchInstances,
   fetchRuntimeSettings,
   fetchSystemSettings,
   fetchSchedulerJobs,
@@ -113,6 +115,7 @@ export const queryKeys = {
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
+    instances: ["system", "instances"] as const,
   },
   crowdsec: {
     status: ["crowdsec", "status"] as const,
@@ -166,7 +169,7 @@ export const queryKeys = {
       [...queryKeys.geo.all, "location-top-ips", locationId, params, refreshKey] as const,
     topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geo.all, "top-countries", params, refreshKey] as const,
-    siteHomes: ["geo", "site-homes"] as const,
+    serverLocations: ["geo", "server-locations"] as const,
   },
   accessLogs: {
     all: ["access-logs"] as const,
@@ -375,7 +378,7 @@ export function useBannedIps() {
 
 /** GeoJSON for the Banned IPs layer, under every map filter. */
 export function useBannedLocations(active: boolean, filters: {
-  countryCodes?: string[]; cities?: string[]; hostnames?: string[]
+  countryCodes?: string[]; cities?: string[]; servers?: string[]
 } = {}) {
   const { data: status } = useCrowdsecStatus()
   const { range, customRange, lastRefresh } = useTimeRange()
@@ -626,8 +629,8 @@ export interface UseGeoJSONOptions {
   countryCodes?: string[]
   /** Filter to these city names */
   cities?: string[]
-  /** Filter to these source hostnames */
-  hostnames?: string[]
+  /** Filter to these servers */
+  servers?: string[]
 }
 
 /**
@@ -635,13 +638,13 @@ export interface UseGeoJSONOptions {
  * Uses TimeRangeContext for time filtering.
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
-  const { enabled = true, countryCodes, cities, hostnames } = options
+  const { enabled = true, countryCodes, cities, servers } = options
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
     queryKey: queryKeys.geo.geojson(
-      { range, customRange, countryCodes, cities, hostnames },
+      { range, customRange, countryCodes, cities, servers },
       lastRefresh,
     ),
     // Compute date range at fetch time so polls get fresh data
@@ -652,7 +655,7 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
         toTimestamp: endDate,
         countryCodes,
         cities,
-        hostnames,
+        servers,
       })
     },
     enabled,
@@ -1040,8 +1043,8 @@ export interface UseAccessLogsOptions {
   methodIn?: string[]
   hostIn?: string[]
   hostNotIn?: string[]
-  hostnameIn?: string[]
-  hostnameNotIn?: string[]
+  serverIn?: string[]
+  serverNotIn?: string[]
   logFormatIn?: string[]
   cityIn?: string[]
   countryCodeIn?: string[]
@@ -1065,8 +1068,8 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     methodIn,
     hostIn,
     hostNotIn,
-    hostnameIn,
-    hostnameNotIn,
+    serverIn,
+    serverNotIn,
     logFormatIn,
     cityIn,
     countryCodeIn,
@@ -1078,7 +1081,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, hostnameIn, hostnameNotIn, logFormatIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, serverIn, serverNotIn, logFormatIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1094,8 +1097,8 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         methodIn,
         hostIn,
         hostNotIn,
-        hostnameIn,
-        hostnameNotIn,
+        serverIn,
+        serverNotIn,
         logFormatIn,
         cityIn,
         countryCodeIn,
@@ -1371,7 +1374,7 @@ export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
 
 /**
  * GeoJSON for the embedded geo-logs map: same endpoint as the map page but
- * threaded through the full geo-logs filter set (incl. IP exclude/hostname).
+ * threaded through the full geo-logs filter set (incl. IP exclude/server).
  */
 export function useGeoLogsGeoJSON({ enabled = true }: { enabled?: boolean } = {}) {
   const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
@@ -1394,7 +1397,7 @@ export function useGeoLogsGeoJSON({ enabled = true }: { enabled?: boolean } = {}
 }
 
 /**
- * Distinct country/city/hostname filter options. Fetched lazily (enable on
+ * Distinct country/city/server/ASN filter options. Fetched lazily (enable on
  * first dropdown open); staleTime keeps reopen-refetches to one per minute.
  */
 export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}) {
@@ -1406,22 +1409,44 @@ export function useGeoEventFacets({ enabled = true }: { enabled?: boolean } = {}
   })
 }
 
-/** Per-source home locations for the map; homes change rarely. */
-export function useSiteHomes() {
+/** Every server's map location; they change rarely. */
+export function useServerLocations() {
   return useQuery({
-    queryKey: queryKeys.geo.siteHomes,
-    queryFn: fetchSiteHomes,
+    queryKey: queryKeys.geo.serverLocations,
+    queryFn: fetchServerLocations,
     staleTime: 5 * 60 * 1000,
   })
 }
 
-/** Removes a retired source's auto home; the map's home resolver rebuilds
- *  from the refetched list. */
-export function useDeleteSiteHome() {
+/** Removes a retired server's auto-detected location; the map's resolver
+ *  rebuilds from the refetched list. */
+export function useDeleteServerLocation() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (hostname: string) => deleteSiteHome(hostname),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.siteHomes }),
+    mutationFn: (server: string) => deleteServerLocation(server),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations }),
+  })
+}
+
+export function useInstances() {
+  return useQuery({
+    queryKey: queryKeys.system.instances,
+    queryFn: fetchInstances,
+    refetchInterval: 30_000,
+    retry: 1,
+  })
+}
+
+export function useDeleteInstance() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (instanceName: string) => deleteInstance(instanceName),
+    // Settled, not success: a 404 means another tab already removed it. Not
+    // returned, so mutate() callbacks run before the refetch unmounts the row
+    // that called them; TanStack skips callbacks of unmounted observers.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.system.instances })
+    },
   })
 }
 

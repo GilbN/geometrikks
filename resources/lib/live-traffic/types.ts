@@ -25,9 +25,9 @@ export interface LiveRequest {
   countryCode: string | null
   /** Null for a geo event with no paired access_log. */
   log: AccessLogData | null
-  /** Recording hostname (which instance/agent parsed it); null only for
-   *  pre-upgrade events still in flight. */
-  hostname: string | null
+  /** Server that recorded it (which instance or agent parsed it); null only
+   *  for pre-upgrade events still in flight. */
+  server: string | null
   statusClass: StatusClass
   banned: boolean
   /** Winning decision type for this IP, null when it holds none. */

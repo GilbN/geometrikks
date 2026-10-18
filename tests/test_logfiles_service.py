@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,27 @@ class TestListFiles:
         entries = {e.name: e for e in service.list_files() if e.kind == "access"}
         assert entries["access.log"].available is True
         assert entries["other.log"].available is False
+
+    def test_directory_at_access_path_marked_unavailable(self, tmp_path):
+        from geometrikks.services.logfiles import LogFilesService
+        (tmp_path / "access.log").mkdir()
+        svc = LogFilesService(log_dir=tmp_path / "logs", access_log_paths=[tmp_path / "access.log"])
+        assert [(e.name, e.available) for e in svc.list_files()] == [("access.log", False)]
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores directory permissions")
+    def test_access_log_in_unsearchable_directory_marked_unavailable(self, tmp_path):
+        from geometrikks.services.logfiles import LogFilesService
+        locked = tmp_path / "caddy"
+        locked.mkdir()
+        (locked / "access.log").write_text("line\n", encoding="utf-8")
+        svc = LogFilesService(log_dir=tmp_path / "logs", access_log_paths=[locked / "access.log"])
+        locked.chmod(0)
+        try:
+            entries = svc.list_files()
+            assert svc.resolve("access", "access.log") is None
+        finally:
+            locked.chmod(0o755)
+        assert [(e.name, e.available) for e in entries] == [("access.log", False)]
 
 
 class TestResolve:

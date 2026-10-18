@@ -160,7 +160,7 @@ class _FakeIpProfileRepo(IpProfileRepository):
 def _app(repo: _FakeIpProfileRepo) -> Litestar:
     class _TestController(AnalyticsController):
         dependencies = {
-            **AnalyticsController.dependencies,
+            **(AnalyticsController.dependencies or {}),
             "ip_profile_repo": Provide(lambda: repo, sync_to_thread=False),
         }
 

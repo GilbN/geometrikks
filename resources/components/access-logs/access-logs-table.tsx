@@ -3,7 +3,7 @@
  * global time range. Sorting and pagination state live on the parent route
  * (URL search params), driven here via props and callbacks; column visibility
  * persists per browser and the selected row is local state. Filter values come from AccessLogFiltersContext
- * (search, IP, host, hostname, source format, status, method, country and
+ * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
 import { memo, useState } from "react"
@@ -23,7 +23,11 @@ import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { AccessLogDetailSheet } from "@/components/access-logs/access-log-detail-sheet"
-import { ACCESS_LOG_COLUMNS, type AccessLogColumn } from "@/components/access-logs/columns"
+import {
+  ACCESS_LOG_COLUMNS,
+  ACCESS_LOG_RENAMED_COLUMN_KEYS,
+  type AccessLogColumn,
+} from "@/components/access-logs/columns"
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -97,8 +101,8 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
           {r.referrer ?? "-"}
         </span>
       )
-    case "hostname":
-      return <span className="font-mono">{r.hostname ?? "-"}</span>
+    case "server":
+      return <span className="font-mono">{r.server ?? "-"}</span>
     case "logFormat":
       return <span className="font-mono">{r.logFormat ?? "-"}</span>
     case "userAgent":
@@ -199,7 +203,7 @@ export function AccessLogsTable({
   const [selected, setSelected] = useState<AccessLog | null>(null)
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS)
+    useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS)
 
   const { data, isLoading, isError, isPlaceholderData } = useAccessLogs({
     currentPage: page,
@@ -210,8 +214,8 @@ export function AccessLogsTable({
     methodIn: filters.methods.length ? filters.methods : undefined,
     hostIn: filters.hosts.length ? filters.hosts : undefined,
     hostNotIn: filters.hostsExclude.length ? filters.hostsExclude : undefined,
-    hostnameIn: filters.hostnames.length ? filters.hostnames : undefined,
-    hostnameNotIn: filters.hostnamesExclude.length ? filters.hostnamesExclude : undefined,
+    serverIn: filters.servers.length ? filters.servers : undefined,
+    serverNotIn: filters.serversExclude.length ? filters.serversExclude : undefined,
     logFormatIn: filters.logFormats.length ? filters.logFormats : undefined,
     cityIn: filters.cities.length ? filters.cities : undefined,
     countryCodeIn: filters.countryCodes.length ? filters.countryCodes : undefined,
