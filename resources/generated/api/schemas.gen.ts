@@ -808,6 +808,30 @@ export const AlertEventViewSchema = {
   type: "object",
 } as const;
 
+export const AlertPageViewSchema = {
+  properties: {
+    alerts: {
+      items: {
+        $ref: "#/components/schemas/AlertView",
+      },
+      type: "array",
+    },
+    nextCursor: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["alerts", "nextCursor"],
+  title: "AlertPageView",
+  type: "object",
+} as const;
+
 export const AlertViewSchema = {
   properties: {
     activeDecisionCount: {

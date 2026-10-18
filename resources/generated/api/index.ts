@@ -84,6 +84,7 @@ export type {
   AlertDecisionView,
   AlertDetailView,
   AlertEventView,
+  AlertPageView,
   AlertView,
   AnalyticsSettingsView,
   ApiV1AccessLogDebugListAccessLogDebugData,

@@ -11,7 +11,7 @@ function sentParams(get: ReturnType<typeof vi.spyOn>, call: number): Record<stri
 
 describe("fetchCrowdsecAlerts", () => {
   it("sends hasActiveDecision as given: true, false, or not at all", async () => {
-    const get = vi.spyOn(api, "get").mockResolvedValue({ data: [] })
+    const get = vi.spyOn(api, "get").mockResolvedValue({ data: { alerts: [], nextCursor: null } })
     await fetchCrowdsecAlerts({ hasActiveDecision: true })
     await fetchCrowdsecAlerts({ hasActiveDecision: false })
     await fetchCrowdsecAlerts({})
@@ -21,11 +21,26 @@ describe("fetchCrowdsecAlerts", () => {
   })
 
   it("only sends a kind when one is chosen", async () => {
-    const get = vi.spyOn(api, "get").mockResolvedValue({ data: [] })
+    const get = vi.spyOn(api, "get").mockResolvedValue({ data: { alerts: [], nextCursor: null } })
     await fetchCrowdsecAlerts({ kind: "bot-detection" })
     await fetchCrowdsecAlerts({})
     expect(sentParams(get, 0).kind).toBe("bot-detection")
     expect(sentParams(get, 1).kind).toBeUndefined()
+  })
+
+  it("passes the cursor and scenario through, and leaves them out when unset", async () => {
+    const get = vi.spyOn(api, "get").mockResolvedValue({ data: { alerts: [], nextCursor: null } })
+    await fetchCrowdsecAlerts({ before: "cursor-1", scenario: "crowdsecurity/ssh-bf" })
+    await fetchCrowdsecAlerts({})
+    expect(sentParams(get, 0)).toMatchObject({ before: "cursor-1", scenario: "crowdsecurity/ssh-bf" })
+    expect(sentParams(get, 1).before).toBeUndefined()
+    expect(sentParams(get, 1).scenario).toBeUndefined()
+  })
+
+  it("returns the page envelope", async () => {
+    const page = { alerts: [], nextCursor: "next" }
+    vi.spyOn(api, "get").mockResolvedValue({ data: page })
+    await expect(fetchCrowdsecAlerts({})).resolves.toEqual(page)
   })
 })
 

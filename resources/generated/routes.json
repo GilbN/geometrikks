@@ -625,6 +625,7 @@
         "GET"
       ],
       "queryParameters": {
+        "before": "string | undefined",
         "hasActiveDecision": "boolean | undefined",
         "ip": "string | undefined",
         "kind": "string | undefined",

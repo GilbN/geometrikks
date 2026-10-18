@@ -42,6 +42,7 @@ import type {
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
+  AlertPageView,
   AlertDetailView,
   DecisionView,
   DecisionGroupView,
@@ -61,6 +62,7 @@ export type {
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
+  AlertPageView,
   AlertDetailView,
   DecisionView,
   BannedIp,
@@ -402,21 +404,26 @@ export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
   return data
 }
 
-/** Recent LAPI alert history; requires writeEnabled (machine credentials). */
+/** One page of LAPI alert history, newest first; requires writeEnabled
+ *  (machine credentials). Pass a page's nextCursor as `before` for the next. */
 export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
   ip?: string
+  scenario?: string
   kind?: string
   hasActiveDecision?: boolean
-}): Promise<AlertView[]> {
-  const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
+  before?: string
+}): Promise<AlertPageView> {
+  const { data } = await api.get<AlertPageView>("/crowdsec/alerts", {
     params: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
       ip: params?.ip || undefined,
+      scenario: params?.scenario || undefined,
       kind: params?.kind || undefined,
       hasActiveDecision: params?.hasActiveDecision ?? undefined,
+      before: params?.before || undefined,
     },
   })
   return data

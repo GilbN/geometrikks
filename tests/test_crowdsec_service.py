@@ -596,6 +596,16 @@ async def test_get_alerts_forwards_kind():
     await service.aclose()
 
 
+async def test_get_alerts_forwards_created_before():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    await service.get_alerts(created_before="3600s")
+    assert lapi.alert_params["created_before"] == "3600s"
+    await service.get_alerts()
+    assert "created_before" not in lapi.alert_params
+    await service.aclose()
+
+
 class OldLapiAlertsFake(LapiAlertsFake):
     """A LAPI older than 1.7 answers 400 to the ``kind`` filter."""
 

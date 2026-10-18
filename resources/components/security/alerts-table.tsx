@@ -4,7 +4,9 @@
  * Selecting a row opens the alert's context, events and decisions.
  */
 import { useState } from "react"
+import { Loader2 } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -20,7 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { alertSummary } from "@/lib/crowdsec-alerts"
+import { alertHistoryFooter, alertSummary } from "@/lib/crowdsec-alerts"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
@@ -51,10 +53,26 @@ type KindKey = (typeof KIND_OPTIONS)[number]["key"]
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
   const [kind, setKind] = useState<KindKey>("all")
-  const { data: alerts, isLoading, isError, error } = useCrowdsecAlerts({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    isPlaceholderData,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  } = useCrowdsecAlerts({
     since,
-    limit: 50,
     kind: kind === "all" ? undefined : kind,
+  })
+  const alerts = data?.pages.flatMap((page) => page.alerts)
+  const footer = alertHistoryFooter({
+    rowCount: alerts?.length ?? 0,
+    pageCount: data?.pages.length ?? 0,
+    hasNextPage,
+    isPlaceholderData,
   })
   const [selected, setSelected] = useState<AlertView | null>(null)
 
@@ -177,6 +195,25 @@ export function AlertsTable() {
             </TableBody>
           </Table>
         </div>
+        {!isLoading && alerts && alerts.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3 text-xs text-muted-foreground">
+            <span>{footer.text}</span>
+            {footer.showLoadOlder && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isFetchingNextPage}
+                onClick={() => void fetchNextPage()}
+              >
+                {isFetchingNextPage && <Loader2 data-icon="inline-start" className="animate-spin" />}
+                Load older
+              </Button>
+            )}
+            {isFetchNextPageError && (
+              <span className="text-destructive">{crowdsecErrorMessage(error, "Failed to load older alerts.")}</span>
+            )}
+          </div>
+        )}
       </CardContent>
       <AlertDetailSheet alert={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </Card>

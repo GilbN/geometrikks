@@ -191,6 +191,14 @@ export type AlertEventView = {
 };
 
 /**
+ * AlertPageView
+ */
+export type AlertPageView = {
+  alerts: Array<AlertView>;
+  nextCursor: string | null;
+};
+
+/**
  * AlertView
  */
 export type AlertView = {
@@ -2795,6 +2803,10 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
      * true keeps alerts with a decision still in force; false keeps alerts that never had one
      */
     hasActiveDecision?: boolean | null;
+    /**
+     * Cursor from nextCursor; returns alerts older than it
+     */
+    before?: string | null;
   };
   url: "/api/v1/crowdsec/alerts";
 };
@@ -2813,6 +2825,10 @@ export type ApiV1CrowdsecAlertsListAlertsErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * More alerts share the cursor's second than one LAPI request can page past. Filter by IP or scenario.
+   */
+  409: ErrorEnvelope;
 };
 
 export type ApiV1CrowdsecAlertsListAlertsError =
@@ -2822,7 +2838,7 @@ export type ApiV1CrowdsecAlertsListAlertsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: Array<AlertView>;
+  200: AlertPageView;
 };
 
 export type ApiV1CrowdsecAlertsListAlertsResponse =

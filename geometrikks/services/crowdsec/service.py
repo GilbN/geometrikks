@@ -330,6 +330,7 @@ class CrowdSecService:
         until: str | None = None,
         has_active_decision: bool | None = None,
         kind: str | None = None,
+        created_before: str | None = None,
     ) -> list[Alert]:
         """Recent alerts from the LAPI; requires machine credentials.
 
@@ -337,6 +338,9 @@ class CrowdSecService:
         counted back from now: ``until=72h`` keeps alerts older than 72 hours.
         ``has_active_decision`` keeps only alerts with a decision still in force.
         ``kind`` is the alert origin (crowdsec, waf, bot-detection, ...).
+        ``created_before`` is a Go duration counted back from the LAPI's own
+        clock, filtering on ``created_at`` where ``since``/``until`` filter on
+        ``started_at``.
 
         Raises:
             CrowdSecAuthError: Machine credentials missing or rejected.
@@ -347,7 +351,7 @@ class CrowdSecService:
             key: value
             for key, value in {
                 "limit": limit, "ip": ip, "scenario": scenario, "since": since, "until": until,
-                "kind": kind,
+                "kind": kind, "created_before": created_before,
                 # A blocklist pull is one alert embedding up to tens of
                 # thousands of decisions.
                 "include_capi": "false",

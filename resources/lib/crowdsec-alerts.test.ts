@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
+  ALERT_MAX_PAGES,
+  ALERT_PAGE_SIZE,
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
   alertDescription,
+  alertHistoryFooter,
   alertSummary,
   asLabel,
   challengeContext,
@@ -315,5 +318,46 @@ describe("kindBadgeClass", () => {
   it("leaves the other kinds on the default badge", () => {
     expect(kindBadgeClass("capi")).toBe("")
     expect(kindBadgeClass("future-kind")).toBe("")
+  })
+})
+
+describe("alertHistoryFooter", () => {
+  const capRows = ALERT_MAX_PAGES * ALERT_PAGE_SIZE
+
+  it("offers Load older while more alerts are available", () => {
+    expect(alertHistoryFooter({ rowCount: 100, pageCount: 2, hasNextPage: true, isPlaceholderData: false })).toEqual({
+      text: "Showing 100 alerts",
+      showLoadOlder: true,
+    })
+  })
+
+  it("says so once the window has no older alerts", () => {
+    expect(alertHistoryFooter({ rowCount: 1, pageCount: 1, hasNextPage: false, isPlaceholderData: false })).toEqual({
+      text: "Showing 1 alert. No older alerts in this window.",
+      showLoadOlder: false,
+    })
+  })
+
+  it("stops at the page cap and points at the filters", () => {
+    expect(
+      alertHistoryFooter({ rowCount: capRows, pageCount: ALERT_MAX_PAGES, hasNextPage: true, isPlaceholderData: false }),
+    ).toEqual({
+      text: `Showing ${capRows.toLocaleString()} alerts. Filter by IP or scenario to go further back.`,
+      showLoadOlder: false,
+    })
+    expect(capRows.toLocaleString("en-US")).toBe("1,000")
+  })
+
+  it("reports the end, not the cap, when the last page lands on the cap", () => {
+    expect(
+      alertHistoryFooter({ rowCount: capRows, pageCount: ALERT_MAX_PAGES, hasNextPage: false, isPlaceholderData: false }).text,
+    ).toBe(`Showing ${capRows.toLocaleString()} alerts. No older alerts in this window.`)
+  })
+
+  it("claims neither an end nor a cap while placeholder rows stand in", () => {
+    expect(alertHistoryFooter({ rowCount: 50, pageCount: 0, hasNextPage: false, isPlaceholderData: true })).toEqual({
+      text: "Showing 50 alerts",
+      showLoadOlder: false,
+    })
   })
 })

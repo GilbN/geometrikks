@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Security > Alert history stopped at 50 alerts. "Load older" now pages back through the whole selected window.
+
 ## [0.21.0] - 2026-10-18
 
 ### Added

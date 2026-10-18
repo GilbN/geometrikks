@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -96,6 +96,7 @@ import { currentBuildKey, hasUnseenChanges, saveSeenBuild, useSeenBuild } from "
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
+import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
 
 // ============================================================================
 // Query Keys
@@ -425,15 +426,19 @@ export function useCrowdsecDecisions(params: {
   })
 }
 
-/** Recent alert history; only fetched when machine credentials are set. */
-export function useCrowdsecAlerts(params: { since?: string; limit?: number; kind?: string }) {
+/** Alert history, one page of ALERT_PAGE_SIZE at a time; fetchNextPage
+ *  loads older alerts. Only fetched when machine credentials are set. */
+export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenario?: string }) {
   const { data: status } = useCrowdsecStatus()
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.crowdsec.alerts(params),
-    queryFn: () => fetchCrowdsecAlerts(params),
+    queryFn: ({ pageParam }) => fetchCrowdsecAlerts({ ...params, limit: ALERT_PAGE_SIZE, before: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: status?.writeEnabled === true,
-    placeholderData: (previous) => previous,
-    refetchInterval: 60_000,
+    // A refetch reloads every loaded page in turn, one LAPI request each.
+    refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -1562,7 +1567,7 @@ export function useIpLatestAlert(ip: string | undefined) {
     queryFn: () => fetchCrowdsecAlerts({ ip: ip!, limit: 1, hasActiveDecision: true }),
     enabled: Boolean(ip) && status?.writeEnabled === true,
     staleTime: 30 * 1000,
-    select: (alerts) => alerts[0] ?? null,
+    select: (page) => page.alerts[0] ?? null,
   })
 }
 

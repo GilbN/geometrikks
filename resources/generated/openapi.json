@@ -838,6 +838,32 @@
         "title": "AlertEventView",
         "type": "object"
       },
+      "AlertPageView": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertView"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "alerts",
+          "nextCursor"
+        ],
+        "title": "AlertPageView",
+        "type": "object"
+      },
       "AlertView": {
         "properties": {
           "activeDecisionCount": {
@@ -9773,6 +9799,26 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Cursor from nextCursor; returns alerts older than it",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "description": "Cursor from nextCursor; returns alerts older than it",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -9780,10 +9826,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/AlertView"
-                  },
-                  "type": "array"
+                  "$ref": "#/components/schemas/AlertPageView"
                 }
               }
             },
@@ -9827,6 +9870,16 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "More alerts share the cursor's second than one LAPI request can page past. Filter by IP or scenario."
           }
         },
         "summary": "ListAlerts",

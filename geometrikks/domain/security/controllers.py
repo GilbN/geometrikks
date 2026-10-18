@@ -22,7 +22,9 @@ from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
 from litestar.params import FromPath, QueryParameter, SkipValidation
 from litestar.openapi.datastructures import ResponseSpec
-from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND
+from litestar.status_codes import (
+    HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
+)
 
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
@@ -33,6 +35,7 @@ from geometrikks.domain.security.dependencies import (
 from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
+from geometrikks.domain.security.alert_history import AlertFilters, decode_cursor, fetch_alert_page
 from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
@@ -150,6 +153,12 @@ class AlertView(msgspec.Struct, rename="camel"):
     decision_count: int
     # decision_count includes expired decisions, which alerts keep.
     active_decision_count: int
+
+
+class AlertPageView(msgspec.Struct, rename="camel"):
+    alerts: list[AlertView]
+    # Pass back as ``before`` for the next page; None on the last page.
+    next_cursor: str | None
 
 
 class AlertDecisionView(msgspec.Struct, rename="camel"):
@@ -511,7 +520,18 @@ class CrowdSecController(Controller):
         )
         return banned_map_collection(locations)
 
-    @get("/alerts")
+    @get(
+        "/alerts",
+        responses={
+            HTTP_409_CONFLICT: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description=(
+                    "More alerts share the cursor's second than one LAPI request can "
+                    "page past. Filter by IP or scenario."
+                ),
+            ),
+        },
+    )
     async def list_alerts(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -542,8 +562,19 @@ class CrowdSecController(Controller):
                 ),
             ),
         ] = None,
-    ) -> list[AlertView]:
-        """Recent alert history from the LAPI (machine credentials required).
+        before: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                description="Cursor from nextCursor; returns alerts older than it",
+            ),
+        ] = None,
+    ) -> AlertPageView:
+        """One page of alert history from the LAPI (machine credentials required).
+
+        Newest first. ``nextCursor`` is set while older alerts may remain;
+        passing it back as ``before`` returns the next page. A malformed
+        cursor answers 400.
 
         The LAPI only geo-enriches alerts from log-parsing scenarios; manual
         bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
@@ -560,20 +591,29 @@ class CrowdSecController(Controller):
             raise DomainValidationError(
                 f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(ALERT_KINDS))})"
             )
-        alerts = await service.get_alerts(
-            limit=limit, ip=ip, scenario=scenario, since=since, kind=kind,
-            has_active_decision=has_active_decision,
+        cursor = None if before is None else decode_cursor(before)
+        page = await fetch_alert_page(
+            service,
+            AlertFilters(
+                ip=ip, scenario=scenario, since=since, kind=kind,
+                has_active_decision=has_active_decision,
+            ),
+            limit=limit,
+            before=cursor,
         )
 
         bare_ips = [
-            _enrichment_key(a) for a in alerts if a.source.scope == "Ip" and a.source.cn is None
+            _enrichment_key(a) for a in page.alerts if a.source.scope == "Ip" and a.source.cn is None
         ]
         enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
 
-        return [
-            AlertView(**_alert_summary(alert, enriched.get(_enrichment_key(alert))))
-            for alert in alerts
-        ]
+        return AlertPageView(
+            alerts=[
+                AlertView(**_alert_summary(alert, enriched.get(_enrichment_key(alert))))
+                for alert in page.alerts
+            ],
+            next_cursor=page.next_cursor,
+        )
 
     @get(
         "/alerts/{alert_id:int}",

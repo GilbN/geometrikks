@@ -458,6 +458,7 @@ export interface RouteQueryParams {
     toTimestamp?: DateTime;
   };
   'list_alerts': {
+    before?: string;
     hasActiveDecision?: boolean;
     ip?: string;
     kind?: string;
@@ -859,7 +860,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['hasActiveDecision', 'ip', 'kind', 'limit', 'scenario', 'since'] as const,
+    queryParams: ['before', 'hasActiveDecision', 'ip', 'kind', 'limit', 'scenario', 'since'] as const,
   },
   'list_banned_ips': {
     path: '/api/v1/crowdsec/banned-ips',

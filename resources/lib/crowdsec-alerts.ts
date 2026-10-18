@@ -1,6 +1,36 @@
 /** Shaping helpers for the CrowdSec alert history and detail sheet. */
 import type { AlertContextView, AlertEventView, AlertView } from "@/generated/api/types.gen"
 
+/** Alerts per page of the alert history; "Load older" fetches another page this size. */
+export const ALERT_PAGE_SIZE = 50
+
+/** Pages the alert history loads at most. Every row mounts its own ban
+ *  controls, and a few thousand rows exhaust the browser tab. */
+export const ALERT_MAX_PAGES = 20
+
+/** Footer text under the alert history, and whether "Load older" shows. */
+export function alertHistoryFooter({
+  rowCount,
+  pageCount,
+  hasNextPage,
+  isPlaceholderData,
+}: {
+  rowCount: number
+  pageCount: number
+  hasNextPage: boolean
+  isPlaceholderData: boolean
+}): { text: string; showLoadOlder: boolean } {
+  const showing = `Showing ${rowCount.toLocaleString()} ${rowCount === 1 ? "alert" : "alerts"}`
+  // While the previous filter's rows stand in, hasNextPage reads the new
+  // filter's query, which has no pages yet.
+  if (isPlaceholderData) return { text: showing, showLoadOlder: false }
+  if (!hasNextPage) return { text: `${showing}. No older alerts in this window.`, showLoadOlder: false }
+  if (pageCount >= ALERT_MAX_PAGES) {
+    return { text: `${showing}. Filter by IP or scenario to go further back.`, showLoadOlder: false }
+  }
+  return { text: showing, showLoadOlder: true }
+}
+
 /** Event meta keys the events table shows as their own columns. */
 export const HTTP_EVENT_KEYS = ["http_verb", "http_path", "http_status", "http_user_agent", "target_fqdn"] as const
 
