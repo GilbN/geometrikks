@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The README's Traefik setup has a Pangolin section. It covers the fields to keep in Pangolin's access log and how to get the visitor's address in the log.
+
 ## [0.21.0] - 2026-10-18
 
 ### Added
