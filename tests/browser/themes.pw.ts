@@ -254,3 +254,54 @@ test("theme menu only switches color mode", async ({ page }) => {
     await page.keyboard.press("Escape")
   }
 })
+
+test("settings page selects schemes and themes as radio groups", async ({ context, page }) => {
+  const isolated = await context.newPage()
+  await openGallery(isolated, { mode: "light", theme: "moss" })
+  const lightMossBackground = (await tokensOf(isolated.locator("html")))["--background"].trim()
+  await isolated.close()
+
+  await openGallery(page, { mode: "dark", theme: "aurora" })
+  const schemes = page.getByRole("radiogroup", { name: "Color scheme" })
+  const themes = page.getByRole("radiogroup", { name: "Theme" })
+  const schemeRadio = (name: string) => schemes.getByRole("radio", { name, exact: true })
+  const themeRadio = (name: string) => themes.getByRole("radio", { name, exact: true })
+
+  await expect(schemes.getByRole("radio")).toHaveCount(3)
+  for (const name of ["System", "Light", "Dark"]) {
+    await expect(schemeRadio(name)).toHaveAttribute("aria-checked", String(name === "Dark"))
+  }
+  await expect(themes.getByRole("radio")).toHaveCount(COLOR_THEMES.length)
+  for (const id of COLOR_THEMES) {
+    await expect(themeRadio(THEME_CATALOG[id].label)).toHaveAttribute("aria-checked", String(id === "aurora"))
+  }
+
+  await themeRadio("Black").click()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
+  await expect(themeRadio("Black")).toHaveAttribute("aria-checked", "true")
+  expect(await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE_KEYS.theme)).toBe("black")
+
+  await schemeRadio("Light").click()
+  await expect(page.locator("html")).toHaveClass("light")
+  await expect(schemeRadio("Light")).toHaveAttribute("aria-checked", "true")
+  await expect(themeRadio("Black")).toHaveAttribute("aria-checked", "true")
+
+  await themeRadio("Black").focus()
+  // Radix checks a radio only if the arrow key is still down when focus lands,
+  // and it moves focus in a timeout, so an instant press never selects.
+  await page.keyboard.press("ArrowLeft", { delay: 50 })
+  await expect(themeRadio("Forge")).toHaveAttribute("aria-checked", "true")
+  await expect(themeRadio("Forge")).toBeFocused()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
+
+  const lightMossOrb = themeRadio("Moss").locator('.light[data-theme="moss"]')
+  expect(await lightMossOrb.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(lightMossBackground)
+
+  await page.setViewportSize({ width: 390, height: 900 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
+  for (const id of COLOR_THEMES) {
+    const card = themeRadio(THEME_CATALOG[id].label)
+    await card.scrollIntoViewIfNeeded()
+    await expect(card).toBeInViewport()
+  }
+})

@@ -12,6 +12,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, Dr
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapOverlay } from "@/components/map/MapOverlay"
+import { AppearancePage } from "@/components/settings/appearance-page"
 import { COLOR_THEMES, THEME_CATALOG } from "@/lib/theme"
 
 function Controls() {
@@ -81,6 +82,10 @@ function Gallery() {
             <div className="h-6 rounded-md bg-card ring-1 ring-border" />
           </div>
         </div>
+      </section>
+      <section data-testid="settings-preview" className="space-y-2">
+        <h2 className="font-medium">Settings preview</h2>
+        <AppearancePage />
       </section>
       <div className="flex gap-3">
         <Drawer>
