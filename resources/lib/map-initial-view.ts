@@ -1,10 +1,10 @@
 /**
  * Where the map opens: the configured MAP_DEFAULT_VIEW, else the selected
- * source's home, else every home in view, else the whole world. Pure; no
+ * server's location, else every server location in view, else the whole world. Pure; no
  * React or map imports so it stays unit-testable without a DOM.
  */
 
-import { buildHomeResolver, homeBeacons, type Coordinate, type SiteHomesData } from "@/lib/site-homes"
+import { buildServerLocationResolver, serverBeacons, type Coordinate, type ServerLocationsData } from "@/lib/server-locations"
 
 export interface MapView {
   longitude: number
@@ -13,9 +13,11 @@ export interface MapView {
 }
 
 export const WORLD_VIEW: MapView = { longitude: 0, latitude: 20, zoom: 1.5 }
-/** Zoom for a single home. It shows the region around it, not the street. */
-export const HOME_ZOOM = 3
-/** Cap for fitting several homes, so two sites in one city don't open at street level. */
+/** Zoom for a single server location. It shows the region around it, not
+ *  the street. */
+export const SERVER_LOCATION_ZOOM = 3
+/** Cap for fitting several server locations, so two servers in one city
+ *  don't open at street level. */
 export const FIT_MAX_ZOOM = 4
 export const FIT_PADDING = 60
 
@@ -32,38 +34,38 @@ export interface Padding {
 
 export interface InitialMapViewInput {
   defaultView: MapView | null | undefined
-  siteHomes: SiteHomesData | undefined
-  selectedSources: string[]
-  /** Map container size in pixels, for fitting several homes. */
+  serverLocations: ServerLocationsData | undefined
+  selectedServers: string[]
+  /** Map container size in pixels, for fitting several server locations. */
   size: { width: number; height: number }
-  /** Pixels to keep homes away from each edge. Defaults to FIT_PADDING on every side. */
+  /** Pixels to keep server locations away from each edge. Defaults to FIT_PADDING on every side. */
   padding?: Padding
 }
 
 export function initialMapView({
   defaultView,
-  siteHomes,
-  selectedSources,
+  serverLocations,
+  selectedServers,
   size,
   padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
 }: InitialMapViewInput): MapView {
   if (defaultView) return defaultView
 
-  // Like the "go home" control, one selected source opens on its own
-  // home, or on the default home when it has none.
-  if (selectedSources.length === 1) {
-    const home = buildHomeResolver(siteHomes)(selectedSources[0])
-    if (home) return centerOn(home)
+  // Like the "Go to server location" control, one selected server opens on
+  // its own location, or on the default location when it has none.
+  if (selectedServers.length === 1) {
+    const serverCoordinate = buildServerLocationResolver(serverLocations)(selectedServers[0])
+    if (serverCoordinate) return centerOn(serverCoordinate)
   }
 
-  const coordinates = homeBeacons(siteHomes).map((beacon) => beacon.coordinate)
+  const coordinates = serverBeacons(serverLocations).map((beacon) => beacon.coordinate)
   if (coordinates.length === 0) return WORLD_VIEW
   if (coordinates.length === 1) return centerOn(coordinates[0])
   return fit(coordinates, size, padding)
 }
 
 function centerOn([longitude, latitude]: Coordinate): MapView {
-  return { longitude, latitude, zoom: HOME_ZOOM }
+  return { longitude, latitude, zoom: SERVER_LOCATION_ZOOM }
 }
 
 /** Center and zoom that keep every coordinate inside the padded container.
@@ -81,7 +83,7 @@ function fit(coordinates: Coordinate[], size: { width: number; height: number },
 
   // A container with no room inside the padding hasn't been laid out yet.
   // Fit the plain box there, since a padding shift would only move the
-  // homes away.
+  // server locations away.
   const roomy =
     size.width > padding.left + padding.right && size.height > padding.top + padding.bottom
   const pad = roomy ? padding : { top: 0, right: 0, bottom: 0, left: 0 }

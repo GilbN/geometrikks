@@ -6,6 +6,7 @@ tests cover the two project-specific providers appended alongside it.
 """
 from __future__ import annotations
 
+import inspect
 from datetime import datetime, timezone
 
 import pytest
@@ -150,34 +151,40 @@ class TestInFilters:
         ) == []
         assert provide_access_log_in_filters(None, None, None, None, None, [], [], []) == []
 
-    def test_hostname_in_yields_collection_filter(self) -> None:
-        result = provide_access_log_in_filters(
-            None, None, None, None, None, None, None, None, ["myserver"]
-        )
+    def test_server_in_yields_collection_filter(self) -> None:
+        result = provide_access_log_in_filters(server_in=["myserver"])
         assert len(result) == 1
-        hostname = result[0]
-        assert isinstance(hostname, CollectionFilter)
-        assert hostname.field_name == "hostname"
-        assert hostname.values == ["myserver"]
+        server = result[0]
+        assert isinstance(server, CollectionFilter)
+        assert server.field_name == "server"
+        assert server.values == ["myserver"]
 
-    def test_hostname_not_in_keeps_rows_with_no_hostname(self) -> None:
-        # hostname is nullable (older rows predate Task 6's ingestion
-        # stamping), and SQL `NULL NOT IN (...)` is NULL, not TRUE. A bare
-        # NotInCollectionFilter would silently drop every such row, so the
-        # exclusion is OR'd with IS NULL.
-        result = provide_access_log_in_filters(
-            None, None, None, None, None, None, None, None, None, ["myserver"]
-        )
+    def test_server_not_in_keeps_rows_with_no_server(self) -> None:
+        # server is nullable (older rows predate ingestion stamping), and SQL
+        # `NULL NOT IN (...)` is NULL, not TRUE. A bare NotInCollectionFilter
+        # would silently drop every such row, so the exclusion is OR'd with
+        # IS NULL.
+        result = provide_access_log_in_filters(server_not_in=["myserver"])
         assert len(result) == 1
         group = result[0]
         assert isinstance(group, FilterGroup)
         assert group.logical_operator is or_
         excluded, is_null = group.filters
         assert isinstance(excluded, NotInCollectionFilter)
-        assert excluded.field_name == "hostname"
+        assert excluded.field_name == "server"
         assert excluded.values == ["myserver"]
         assert isinstance(is_null, NullFilter)
-        assert is_null.field_name == "hostname"
+        assert is_null.field_name == "server"
+
+    def test_server_params_use_server_query_names(self) -> None:
+        query_names = {
+            name: parameter.annotation.__metadata__[0].name
+            for name, parameter in inspect.signature(provide_access_log_in_filters, eval_str=True).parameters.items()
+        }
+        assert query_names["server_in"] == "serverIn"
+        assert query_names["server_not_in"] == "serverNotIn"
+        assert "hostnameIn" not in query_names.values()
+        assert "hostnameNotIn" not in query_names.values()
 
     def test_log_format_in_yields_collection_filter(self) -> None:
         result = provide_access_log_in_filters(
@@ -189,7 +196,7 @@ class TestInFilters:
         assert log_format.field_name == "log_format"
         assert log_format.values == ["traefik-json"]
 
-    def test_absent_hostname_log_format_params_yield_no_filters(self) -> None:
+    def test_absent_server_log_format_params_yield_no_filters(self) -> None:
         assert provide_access_log_in_filters(
             None, None, None, None, None, None, None, None, None, None, None
         ) == []

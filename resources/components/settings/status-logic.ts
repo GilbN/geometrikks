@@ -6,7 +6,7 @@ import type {
   HypertableStatsView,
   LogFileView,
   SchedulerJobView,
-  SiteHomesResponse,
+  ServerLocationsResponse,
 } from "@/generated/api/types.gen"
 import type { LogRecord } from "@/lib/logstream"
 import type { LiveFeedStatus } from "@/lib/websocket"
@@ -127,34 +127,57 @@ export type SidebarIngestionVariant =
 
 /** Semantics of the sidebar's ingestion-health dot; the component maps the
  * variant to colors/labels. Degraded wins over advisories, which win over the
- * configured-off state. */
+ * configured-off state. An agent needing attention counts as an advisory, but
+ * the head's own offline and degraded states still come first. */
 export function sidebarIngestionVariant(
   health: HealthResponse | undefined,
   isError: boolean,
+  agentAttentionCount = 0,
 ): SidebarIngestionVariant {
   if (isError) return "offline"
   if (!health) return "inactive"
   if (health.status === "degraded") return "degraded"
-  if ((health.advisories ?? []).length > 0) return "attention"
+  if ((health.advisories ?? []).length > 0 || agentAttentionCount > 0) return "attention"
   if (health.ingestion.status === "disabled") return "disabled"
   if (health.ingestion.running) return "running"
   return "inactive"
+}
+
+function countedAttention(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? `${singular} needs` : `${plural} need`} attention.`
 }
 
 export function sidebarStatusTooltip(
   base: string,
   advisoryCount: number,
   variant: "degraded" | "attention",
+  agentAttentionCount = 0,
 ): string {
-  if (advisoryCount === 0) return base
-  const noun = advisoryCount === 1 ? "advisory needs" : "advisories need"
-  const countedAdvisories = `${advisoryCount} ${noun} attention.`
+  const counts: string[] = []
+  if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
+  if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
+  if (counts.length === 0) return base
+  const countText = counts.join(" ")
   if (variant === "attention") {
-    return `${countedAdvisories} See Settings > Status.`
+    const page = advisoryCount === 0 ? "Settings > Agents" : "Settings > Status"
+    return `${countText} See ${page}.`
   }
   const separator = /[.!?]$/.test(base) ? " " : ". "
   const statusLink = base.includes("Settings > Status") ? "" : " See Settings > Status."
-  return `${base}${separator}${countedAdvisories}${statusLink}`
+  return `${base}${separator}${countText}${statusLink}`
+}
+
+/** The tail of an agent's Status card, after its worst problem. */
+export function agentMoreProblemsText(moreCount: number): string | null {
+  if (moreCount <= 0) return null
+  return `And ${moreCount} more ${moreCount === 1 ? "problem" : "problems"}.`
+}
+
+/** The bottom Status grid holds Recent errors after the optional Agents and
+ *  Server locations cards. Spanning both columns only when those pair up
+ *  keeps a hole out of either row. */
+export function recentErrorsFillsRow(cardsBefore: number): boolean {
+  return cardsBefore % 2 === 0
 }
 
 export function databaseState(health: HealthResponse | undefined): CardState {
@@ -219,12 +242,12 @@ export function accessLogUnavailableLabel(
   return "unavailable"
 }
 
-export interface SiteHomeRow {
-  hostname: string
+export interface ServerLocationRow {
+  server: string
   coords: string
   source: "auto" | "override"
   /** "Traffic 23 Aug" / "Traffic 2 months ago" / "No traffic". Day precision
-   *  is all the backend has (it reads the daily hostname aggregate). */
+   *  is all the backend has (it reads the daily server aggregate). */
   lastSeen: string
   /** A stale auto row; "No traffic" or 14+ days since the last day with events. */
   stale: boolean
@@ -232,21 +255,24 @@ export interface SiteHomeRow {
 
 const STALE_AFTER_DAYS = 14
 
-/** Per-hostname rows for the Settings > Status "Site homes" block: hostname,
- *  lat/lon to 2 decimals, auto/override so an operator can tell a detected
- *  home from a configured one (e.g. diagnosing CGNAT drift), and when the
- *  source last recorded traffic so a retired one stands out. nowMs injected
- *  for testability. */
-export function siteHomeRows(data: SiteHomesResponse | undefined, nowMs: number = Date.now()): SiteHomeRow[] {
-  return (data?.homes ?? []).map((h) => {
-    const lastMs = h.lastEventDay ? Date.parse(`${h.lastEventDay}T00:00:00Z`) : null
+/** Per-server rows for the Settings > Status server locations block: the
+ *  server, lat/lon to 2 decimals, auto/override so an operator can tell a
+ *  detected location from a configured one (e.g. diagnosing CGNAT drift),
+ *  and when the server last recorded traffic so a retired one stands out.
+ *  nowMs injected for testability. */
+export function serverLocationRows(
+  data: ServerLocationsResponse | undefined,
+  nowMs: number = Date.now(),
+): ServerLocationRow[] {
+  return (data?.locations ?? []).map((serverLocation) => {
+    const lastMs = serverLocation.lastEventDay ? Date.parse(`${serverLocation.lastEventDay}T00:00:00Z`) : null
     const ageDays = lastMs === null ? Infinity : Math.floor((nowMs - lastMs) / 86_400_000)
     return {
-      hostname: h.hostname,
-      coords: `${h.latitude.toFixed(2)}, ${h.longitude.toFixed(2)}`,
-      source: h.source,
+      server: serverLocation.server,
+      coords: `${serverLocation.latitude.toFixed(2)}, ${serverLocation.longitude.toFixed(2)}`,
+      source: serverLocation.source,
       lastSeen: lastMs === null ? "No traffic" : `Traffic ${formatLastDay(lastMs, ageDays)}`,
-      stale: h.source === "auto" && ageDays >= STALE_AFTER_DAYS,
+      stale: serverLocation.source === "auto" && ageDays >= STALE_AFTER_DAYS,
     }
   })
 }

@@ -664,7 +664,7 @@ class TestAppWiring:
 
 
 class TestExceptionLoggingHandler:
-    """404 and 401 are routine. They get one warning line, not a traceback."""
+    """404, 401 and 503 are routine. They get one warning line, not a traceback."""
 
     class FakeLogger:
         def __init__(self):
@@ -707,6 +707,16 @@ class TestExceptionLoggingHandler:
         assert logger.exceptions == []
         assert [e for e, _ in logger.warnings] == ["client_error"]
         assert logger.warnings[0][1]["status_code"] == 401
+
+    def test_service_unavailable_logs_one_warning_without_traceback(self):
+        from litestar.exceptions import ServiceUnavailableException
+        logger = self._run(ServiceUnavailableException(detail="The database is unavailable."), debug=False)
+        assert logger.exceptions == []
+        assert len(logger.warnings) == 1
+        event, kw = logger.warnings[0]
+        assert event == "service_unavailable"
+        assert kw["status_code"] == 503
+        assert kw["detail"] == "The database is unavailable."
 
     def test_server_error_still_logs_a_traceback(self):
         logger = self._run(ValueError("boom"), debug=False)

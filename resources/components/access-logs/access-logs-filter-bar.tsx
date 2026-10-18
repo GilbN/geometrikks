@@ -33,7 +33,7 @@ const STATUS_CODES = [
   500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511,
 ] as const
 
-type ListKey = "ips" | "ipsExclude" | "hostsExclude" | "hostnamesExclude"
+type ListKey = "ips" | "ipsExclude" | "hostsExclude" | "serversExclude"
 
 export function AccessLogsFilterBar() {
   const isMobile = useIsMobile()
@@ -140,19 +140,19 @@ export function AccessLogsFilterBar() {
       }
     />
   )
-  const hostnamePair = (inDrawer: boolean) => (
+  const serverPair = (inDrawer: boolean) => (
     <FilterPair
-      label="Hostname"
-      excludeLabel="Exclude hostname"
+      label="Server"
+      excludeLabel="Exclude server"
       stacked={inDrawer}
       include={
         <FilterCombobox
-          label="Hostname"
-          options={facets?.hostnames ?? []}
-          selected={filters.hostnames}
-          onChange={(values) => setFilters((prev) => ({ ...prev, hostnames: values }))}
+          label="Server"
+          options={facets?.servers ?? []}
+          selected={filters.servers}
+          onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
           loading={!facets}
-          emptyText="No hostnames"
+          emptyText="No servers"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
           forceInline={inDrawer}
         />
@@ -160,7 +160,7 @@ export function AccessLogsFilterBar() {
       exclude={
         <TagInput
           exclude
-          onAdd={add("hostnamesExclude")}
+          onAdd={add("serversExclude")}
           placeholder="Exclude"
           className={inDrawer ? "w-full" : "w-36"}
         />
@@ -241,7 +241,7 @@ export function AccessLogsFilterBar() {
     ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
     ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
     ...filters.hostsExclude.map((v) => ({ key: "hostsExclude" as const, v, exclude: true })),
-    ...filters.hostnamesExclude.map((v) => ({ key: "hostnamesExclude" as const, v, exclude: true })),
+    ...filters.serversExclude.map((v) => ({ key: "serversExclude" as const, v, exclude: true })),
   ]
   const chipRow = chips.length > 0 && (
     <FilterRow>
@@ -264,7 +264,7 @@ export function AccessLogsFilterBar() {
           {search(true)}
           {ipPair(true)}
           {hostPair(true)}
-          {hostnamePair(true)}
+          {serverPair(true)}
           {method(true)}
           {status(true)}
           {logFormat(true)}
@@ -282,7 +282,7 @@ export function AccessLogsFilterBar() {
         {search(false)}
         {ipPair(false)}
         {hostPair(false)}
-        {hostnamePair(false)}
+        {serverPair(false)}
       </FilterRow>
       <FilterRow>
         {method(false)}

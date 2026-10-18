@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { HOME_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, type MapView } from "@/lib/map-initial-view"
-import type { SiteHomesData } from "@/lib/site-homes"
+import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, type MapView } from "@/lib/map-initial-view"
+import type { ServerLocationsData } from "@/lib/server-locations"
 
 const SIZE = { width: 1200, height: 800 }
 const OSLO = { latitude: 59.91, longitude: 10.75 }
 const BERGEN = { latitude: 60.39, longitude: 5.32 }
 const SYDNEY = { latitude: -33.87, longitude: 151.21 }
 
-function homes(...entries: Array<[string, { latitude: number; longitude: number }]>): SiteHomesData {
-  return { homes: entries.map(([hostname, c]) => ({ hostname, ...c })), default: null }
+function locations(...entries: Array<[string, { latitude: number; longitude: number }]>): ServerLocationsData {
+  return { locations: entries.map(([server, c]) => ({ server, ...c })), default: null }
 }
 
 /** Screen offset of a coordinate from the view center, in pixels (512px
@@ -34,85 +34,85 @@ describe("initialMapView", () => {
   it("uses the configured default view over everything else", () => {
     const view = initialMapView({
       defaultView: { latitude: 71.129982, longitude: 27.653369, zoom: 15 },
-      siteHomes: homes(["a", OSLO]),
-      selectedSources: ["a"],
+      serverLocations: locations(["a", OSLO]),
+      selectedServers: ["a"],
       size: SIZE,
     })
     expect(view).toEqual({ latitude: 71.129982, longitude: 27.653369, zoom: 15 })
   })
 
-  it("opens on the whole world when there are no homes", () => {
-    expect(initialMapView({ defaultView: null, siteHomes: undefined, selectedSources: [], size: SIZE })).toEqual(
+  it("opens on the whole world when there are no server locations", () => {
+    expect(initialMapView({ defaultView: null, serverLocations: undefined, selectedServers: [], size: SIZE })).toEqual(
       WORLD_VIEW,
     )
     expect(
-      initialMapView({ defaultView: null, siteHomes: { homes: [], default: null }, selectedSources: [], size: SIZE }),
+      initialMapView({ defaultView: null, serverLocations: { locations: [], default: null }, selectedServers: [], size: SIZE }),
     ).toEqual(WORLD_VIEW)
   })
 
-  it("centers on a single home", () => {
+  it("centers on a single server location", () => {
     const view = initialMapView({
       defaultView: null,
-      siteHomes: { homes: [], default: SYDNEY },
-      selectedSources: [],
+      serverLocations: { locations: [], default: SYDNEY },
+      selectedServers: [],
       size: SIZE,
     })
-    expect(view).toEqual({ ...SYDNEY, zoom: HOME_ZOOM })
+    expect(view).toEqual({ ...SYDNEY, zoom: SERVER_LOCATION_ZOOM })
   })
 
-  it("counts a site home sharing the default's coordinate as one home", () => {
+  it("counts a server location sharing the default's coordinate as one location", () => {
     const view = initialMapView({
       defaultView: null,
-      siteHomes: { homes: [{ hostname: "a", ...OSLO }], default: OSLO },
-      selectedSources: [],
+      serverLocations: { locations: [{ server: "a", ...OSLO }], default: OSLO },
+      selectedServers: [],
       size: SIZE,
     })
-    expect(view).toEqual({ ...OSLO, zoom: HOME_ZOOM })
+    expect(view).toEqual({ ...OSLO, zoom: SERVER_LOCATION_ZOOM })
   })
 
-  it("centers on the one selected source's home", () => {
+  it("centers on the one selected server's location", () => {
     const view = initialMapView({
       defaultView: null,
-      siteHomes: homes(["oslo", OSLO], ["sydney", SYDNEY]),
-      selectedSources: ["sydney"],
+      serverLocations: locations(["oslo", OSLO], ["sydney", SYDNEY]),
+      selectedServers: ["sydney"],
       size: SIZE,
     })
-    expect(view).toEqual({ ...SYDNEY, zoom: HOME_ZOOM })
+    expect(view).toEqual({ ...SYDNEY, zoom: SERVER_LOCATION_ZOOM })
   })
 
-  it("falls back to the default home for a selected source without its own", () => {
+  it("falls back to the default location for a selected server without its own", () => {
     const view = initialMapView({
       defaultView: null,
-      siteHomes: { homes: [{ hostname: "oslo", ...OSLO }], default: SYDNEY },
-      selectedSources: ["unknown"],
+      serverLocations: { locations: [{ server: "oslo", ...OSLO }], default: SYDNEY },
+      selectedServers: ["unknown"],
       size: SIZE,
     })
-    expect(view).toEqual({ ...SYDNEY, zoom: HOME_ZOOM })
+    expect(view).toEqual({ ...SYDNEY, zoom: SERVER_LOCATION_ZOOM })
   })
 
-  it("fits every home when several sources or none are selected", () => {
-    for (const selectedSources of [[], ["oslo", "sydney"]]) {
+  it("fits every server location when several servers or none are selected", () => {
+    for (const selectedServers of [[], ["oslo", "sydney"]]) {
       const view = initialMapView({
         defaultView: null,
-        siteHomes: homes(["oslo", OSLO], ["sydney", SYDNEY]),
-        selectedSources,
+        serverLocations: locations(["oslo", OSLO], ["sydney", SYDNEY]),
+        selectedServers,
         size: SIZE,
       })
-      expect(view.zoom).toBeLessThan(HOME_ZOOM)
+      expect(view.zoom).toBeLessThan(SERVER_LOCATION_ZOOM)
       expect(view.zoom).toBeGreaterThanOrEqual(0)
-      for (const home of [OSLO, SYDNEY]) {
-        const [dx, dy] = offsetPx(view, home)
+      for (const serverLocation of [OSLO, SYDNEY]) {
+        const [dx, dy] = offsetPx(view, serverLocation)
         expect(Math.abs(dx)).toBeLessThanOrEqual(SIZE.width / 2 - FIT_PADDING + 0.5)
         expect(Math.abs(dy)).toBeLessThanOrEqual(SIZE.height / 2 - FIT_PADDING + 0.5)
       }
     }
   })
 
-  it("caps the fit zoom so nearby homes do not open at street level", () => {
+  it("caps the fit zoom so nearby server locations do not open at street level", () => {
     const view = initialMapView({
       defaultView: null,
-      siteHomes: homes(["oslo", OSLO], ["bergen", BERGEN]),
-      selectedSources: [],
+      serverLocations: locations(["oslo", OSLO], ["bergen", BERGEN]),
+      selectedServers: [],
       size: SIZE,
     })
     expect(view.zoom).toBe(FIT_MAX_ZOOM)
@@ -121,17 +121,17 @@ describe("initialMapView", () => {
     expect(view.latitude).toBeLessThan(BERGEN.latitude)
   })
 
-  it("keeps every home clear of extra padding, such as an overlay on one side", () => {
+  it("keeps every server location clear of extra padding, such as an overlay on one side", () => {
     const padding = { top: FIT_PADDING, right: 320, bottom: FIT_PADDING, left: FIT_PADDING }
     const view = initialMapView({
       defaultView: null,
-      siteHomes: homes(["nyc", { latitude: 40.71, longitude: -74 }], ["tokyo", { latitude: 35.68, longitude: 139.69 }]),
-      selectedSources: [],
+      serverLocations: locations(["nyc", { latitude: 40.71, longitude: -74 }], ["tokyo", { latitude: 35.68, longitude: 139.69 }]),
+      selectedServers: [],
       size: SIZE,
       padding,
     })
-    for (const home of [{ latitude: 40.71, longitude: -74 }, { latitude: 35.68, longitude: 139.69 }]) {
-      const [dx, dy] = offsetPx(view, home)
+    for (const serverLocation of [{ latitude: 40.71, longitude: -74 }, { latitude: 35.68, longitude: 139.69 }]) {
+      const [dx, dy] = offsetPx(view, serverLocation)
       const x = SIZE.width / 2 + dx
       const y = SIZE.height / 2 + dy
       expect(x).toBeGreaterThanOrEqual(padding.left - 0.5)
@@ -141,11 +141,11 @@ describe("initialMapView", () => {
     }
   })
 
-  it("centers on the homes without a padding shift in an unmeasured container", () => {
+  it("centers on the server locations without a padding shift in an unmeasured container", () => {
     const view = initialMapView({
       defaultView: null,
-      siteHomes: homes(["oslo", OSLO], ["sydney", SYDNEY]),
-      selectedSources: [],
+      serverLocations: locations(["oslo", OSLO], ["sydney", SYDNEY]),
+      selectedServers: [],
       size: { width: 0, height: 0 },
       padding: { top: FIT_PADDING, right: 316, bottom: FIT_PADDING, left: FIT_PADDING },
     })
@@ -162,31 +162,31 @@ describe("initialMapView", () => {
     const tokyo = { latitude: 35.68, longitude: 139.69 }
     const view = initialMapView({
       defaultView: null,
-      siteHomes: homes(["nyc", nyc], ["tokyo", tokyo]),
-      selectedSources: [],
+      serverLocations: locations(["nyc", nyc], ["tokyo", tokyo]),
+      selectedServers: [],
       size,
     })
     expect(view.zoom).toBeGreaterThanOrEqual(minZoomFor(size.height) - 1e-9)
     // Across the Pacific the two fit side by side even at that zoom.
-    for (const home of [nyc, tokyo]) {
-      const [dx] = offsetPx(view, home)
+    for (const serverLocation of [nyc, tokyo]) {
+      const [dx] = offsetPx(view, serverLocation)
       expect(Math.abs(dx)).toBeLessThanOrEqual(size.width / 2)
     }
   })
 
-  it("fits homes across the antimeridian the short way", () => {
+  it("fits server locations across the antimeridian the short way", () => {
     const fiji = { latitude: -17.71, longitude: 178.07 }
     const samoa = { latitude: -13.76, longitude: -172.1 }
     const view = initialMapView({
       defaultView: null,
-      siteHomes: homes(["fiji", fiji], ["samoa", samoa]),
-      selectedSources: [],
+      serverLocations: locations(["fiji", fiji], ["samoa", samoa]),
+      selectedServers: [],
       size: SIZE,
     })
     expect(view.zoom).toBe(FIT_MAX_ZOOM)
     expect(Math.abs(view.longitude)).toBeGreaterThan(170)
-    for (const home of [fiji, samoa]) {
-      const [dx, dy] = offsetPx(view, home)
+    for (const serverLocation of [fiji, samoa]) {
+      const [dx, dy] = offsetPx(view, serverLocation)
       expect(Math.abs(dx)).toBeLessThanOrEqual(SIZE.width / 2 - FIT_PADDING + 0.5)
       expect(Math.abs(dy)).toBeLessThanOrEqual(SIZE.height / 2 - FIT_PADDING + 0.5)
     }

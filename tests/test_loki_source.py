@@ -120,10 +120,10 @@ async def wait_until(predicate: Callable[[], bool], timeout: float = 10.0) -> No
 
 
 def test_loki_source_carries_its_identity(fake: FakeLoki) -> None:
-    source = make_source(fake, hostname="edge-01")
+    source = make_source(fake, server="edge-01")
     assert source.kind == "loki"
     assert source.label == "loki:1"
-    assert source.hostname == "edge-01"
+    assert source.server == "edge-01"
     assert source.status() == SourceStatus(available=True)
 
 
@@ -700,7 +700,7 @@ async def test_window_starts_never_move_back_with_the_clock(
 
 def loki_input(fake: FakeLoki, **kwargs) -> LogInput:
     return LogInput(
-        source=make_source(fake, hostname="edge-01", **kwargs),
+        source=make_source(fake, server="edge-01", **kwargs),
         parser=LogParser(source_label=f"loki:{QUERY}", send_logs=True),
     )
 
@@ -724,7 +724,7 @@ async def test_service_ingests_from_loki_with_no_file_on_disk(fake: FakeLoki, cl
 
     # The format check sampled the 999 line; only the 1001 line was ingested.
     [geo_event] = added_geo_events(repos)
-    assert geo_event.hostname == "edge-01"
+    assert geo_event.server == "edge-01"
     assert service.total_processed == 1
 
 
@@ -751,7 +751,7 @@ async def test_the_line_stamped_during_the_format_check_is_ingested(
         url="http://loki:3100",
         query=QUERY,
         label="loki:1",
-        hostname="edge-01",
+        server="edge-01",
         poll_interval=0.01,
         transport=httpx2.MockTransport(fake.respond),
     )

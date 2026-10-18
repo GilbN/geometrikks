@@ -11,7 +11,7 @@ export interface GeoEventData {
   longitude: number
   city: string | null
   country_code: string | null
-  hostname: string
+  server: string
 }
 
 export interface AccessLogData {
@@ -33,7 +33,7 @@ export interface AccessLogData {
   city: string | null
   autonomous_system_number: number | null
   autonomous_system_organization: string | null
-  hostname: string
+  server: string
 }
 
 /**

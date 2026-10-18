@@ -39,10 +39,11 @@ from apscheduler.events import EVENT_SCHEDULER_SHUTDOWN
 from litestar.plugins import InitPlugin
 
 from geometrikks.config.settings import get_settings
+from geometrikks.domain.instances.heartbeat import HeartbeatWriter
 from geometrikks.lib.advisories import (
     DATABASE_RECOVERY_FAILED,
     DATABASE_UNAVAILABLE,
-    MAP_HOME_UNDETECTED,
+    SERVER_LOCATION_UNDETECTED,
     Advisory,
 )
 from geometrikks.lib.utils import retries_disabled
@@ -56,8 +57,11 @@ from geometrikks.server.timescale import setup_timescaledb
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.downloader import ensure_asn_database, ensure_geoip_database
-from geometrikks.services.geoip.home import resolve_home_location
-from geometrikks.services.geoip.site_homes import reconcile_override_homes, upsert_auto_homes
+from geometrikks.services.geoip.self_location import resolve_self_location
+from geometrikks.services.geoip.server_locations import (
+    reconcile_override_server_locations,
+    upsert_auto_server_locations,
+)
 from geometrikks.services.ingestion import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.peer_window import PeerWindow
@@ -175,12 +179,21 @@ async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             "API_LOG_LEVEL is deprecated and will be removed in a future "
             "release; set LOG_LEVEL instead."
         )
+    legacy_env_names = settings.legacy_env_names_in_use()
+    if legacy_env_names:
+        logger.warning(
+            "legacy_env_names_in_use",
+            names=[
+                {"old": legacy_env_name.old, "new": legacy_env_name.new}
+                for legacy_env_name in legacy_env_names
+            ],
+        )
     yield
 
 
 @asynccontextmanager
 async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
-    """GeoLite2 download/refresh and home-location detection.
+    """GeoLite2 download/refresh and detection of this server's location.
 
     Runs before the DB gate: geo enrichment does not need the database, and
     /health must report geoip state accurately even in DB-degraded mode.
@@ -192,22 +205,22 @@ async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     # ASN is optional enrichment: its availability is tracked separately and
     # never influences geo-degraded mode.
     app.state.asn_available = await ensure_asn_database(settings.geoip)
-    app.state.map_home_location = await resolve_home_location(
+    app.state.self_location = await resolve_self_location(
         settings.map,
         settings.geoip,
         geoip_available=geoip_available,
     )
-    home_configured = (
-        settings.map.home_latitude is not None
-        and settings.map.home_longitude is not None
+    location_configured = (
+        settings.map.server_latitude is not None
+        and settings.map.server_longitude is not None
     )
     if (
-        app.state.map_home_location is None
+        app.state.self_location is None
         and geoip_available
-        and settings.map.auto_detect_home
-        and not home_configured
+        and settings.map.auto_detect_server_location
+        and not location_configured
     ):
-        runtime.get_advisories(app).set(MAP_HOME_UNDETECTED)
+        runtime.get_advisories(app).set(SERVER_LOCATION_UNDETECTED)
     if not geoip_available:
         logger.warning(
             "Geo-degraded mode: no usable GeoLite2 database. With MaxMind "
@@ -294,6 +307,31 @@ async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         await client.aclose()
 
 
+@asynccontextmanager
+async def heartbeat_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Start the heartbeat writer; it writes its first row from its own task."""
+    writer = HeartbeatWriter(app, _resolve_settings(app), get_app_db_config(app).get_engine())
+    app.state.heartbeat_writer = writer
+    writer.start()
+    try:
+        yield
+    finally:
+        # Normally already stopped by heartbeat_shutdown_lifespan; this covers
+        # a startup failure that unwinds before that manager was entered.
+        await writer.stop()
+
+
+@asynccontextmanager
+async def heartbeat_shutdown_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+    """Stop the heartbeat writer before any other manager tears down."""
+    try:
+        yield
+    finally:
+        writer = runtime.get_heartbeat_writer(app)
+        if writer is not None:
+            await writer.stop()
+
+
 def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
     """Record DB-degraded mode and pause database-bound services."""
     app.state.db_available = False
@@ -357,15 +395,15 @@ async def bring_up_database(
 
     session_maker = get_app_db_config(app).create_session_maker()
     try:
-        await reconcile_override_homes(session_maker, settings.map.home_locations)
+        await reconcile_override_server_locations(session_maker, settings.map.server_locations)
         if settings.logparser.enabled:
-            await upsert_auto_homes(
+            await upsert_auto_server_locations(
                 session_maker,
-                settings.ingest_hostnames(),
-                runtime.get_map_home_location(app),
+                settings.ingest_server_names(),
+                runtime.get_self_location(app),
             )
     except Exception:
-        logger.warning("site_homes_startup_write_failed", exc_info=True)
+        logger.warning("server_locations_startup_write_failed", exc_info=True)
 
 
 @asynccontextmanager
@@ -391,13 +429,13 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
             app.state.db_available = True
             session_maker = get_app_db_config(app).create_session_maker()
             try:
-                await upsert_auto_homes(
+                await upsert_auto_server_locations(
                     session_maker,
-                    settings.ingest_hostnames(),
-                    runtime.get_map_home_location(app),
+                    settings.ingest_server_names(),
+                    runtime.get_self_location(app),
                 )
             except Exception:
-                logger.warning("site_homes_startup_write_failed", exc_info=True)
+                logger.warning("server_locations_startup_write_failed", exc_info=True)
         yield
         return
 
@@ -481,7 +519,7 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
             source=FileSource(
                 path,
                 poll_interval=settings.logparser.poll_interval,
-                hostname=host,
+                server=server_name,
             ),
             parser=LogParser(
                 source_label=str(path),
@@ -491,19 +529,19 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
                 peer_window=PeerWindow() if proxy_advisory else None,
             ),
         )
-        for path, fmt, host in zip(
+        for path, fmt, server_name in zip(
             settings.logparser.log_paths,
             settings.logparser.resolved_formats(),
-            settings.logparser.resolved_hostnames(),
+            settings.logparser.resolved_server_names(),
         )
     ]
     loki = settings.loki
     if loki.url is None or not loki.queries:
         return inputs
-    default_hostname = settings.logparser.host_name[0]
+    default_server_name = settings.logparser.server_name[0]
     password = loki.password.get_secret_value() if loki.password is not None else None
-    for index, (query, fmt, host) in enumerate(
-        zip(loki.queries, loki.resolved_formats(), loki.resolved_hostnames(default_hostname)),
+    for index, (query, fmt, server_name) in enumerate(
+        zip(loki.queries, loki.resolved_formats(), loki.resolved_server_names(default_server_name)),
         start=1,
     ):
         inputs.append(
@@ -512,7 +550,7 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
                     url=loki.url,
                     query=query,
                     label=f"loki:{index}",
-                    hostname=host,
+                    server=server_name,
                     tenant_id=loki.tenant_id,
                     username=loki.username,
                     password=password,
@@ -553,7 +591,7 @@ async def start_ingestion(app: "Litestar") -> None:
         geoip_path=settings.geoip.db_path,
         locales=settings.geoip.locales,
         asn_db_path=settings.geoip.asn_db_path if settings.geoip.asn_enabled else None,
-        hostname=settings.logparser.host_name[0],
+        server=settings.logparser.server_name[0],
         batch_size=settings.logparser.batch_size,
         commit_interval=settings.logparser.commit_interval,
         store_debug_lines=settings.logparser.store_debug_lines,
@@ -720,15 +758,22 @@ async def db_recovery_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 # Entered in order by Litestar's lifespan AsyncExitStack; exited in reverse.
+# heartbeat_lifespan must come before database_lifespan: an agent blocks in
+# wait_for_schema there, and it has to keep writing heartbeats meanwhile or
+# the head shows it as missing instead of waiting. heartbeat_shutdown_lifespan
+# must stay last so it exits first: the writer stops before ingestion and the
+# scheduler, which keeps the overlap with a replacement process short.
 LIFESPAN = [
     core_state_lifespan,
     geoip_lifespan,
     crowdsec_lifespan,
     oidc_lifespan,
+    heartbeat_lifespan,
     database_lifespan,
     scheduler_lifespan,
     ingestion_lifespan,
     db_recovery_lifespan,
+    heartbeat_shutdown_lifespan,
 ]
 
 

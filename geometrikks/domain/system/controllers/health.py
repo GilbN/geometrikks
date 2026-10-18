@@ -25,7 +25,12 @@ from sqlalchemy import text
 from geometrikks.config.settings import Settings
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
 from geometrikks.lib.utils import geoip_info
-from geometrikks.lib.advisories import Advisory, CITY_DATABASE_MISSING, INGESTION_STOPPED
+from geometrikks.lib.advisories import (
+    Advisory,
+    CITY_DATABASE_MISSING,
+    INGESTION_STOPPED,
+    legacy_env_advisory,
+)
 from geometrikks.server import runtime
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
@@ -86,7 +91,8 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     crowdsec: CrowdSecHealth
     timestamp: str
     # Additive: agent-mode reporting (Task 5/6). schema_wait is None in full
-    # mode, since only agent startup ever sets app.state.schema_wait_result.
+    # mode, since only agent startup ever sets app.state.schema_wait_result,
+    # and "waiting" in an agent that has not recorded a result yet.
     mode: Literal["full", "agent"] = "full"
     schema_wait: str | None = None
     # Additive: generic operator advisories; empty when nothing needs
@@ -297,45 +303,45 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 "Persistent failures usually mean a schema mismatch or a full disk."
             ),
         ))
-    pollution = timescale.get_hostname_pollution()
+    pollution = timescale.get_server_name_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
-    hostname_pollution_active = bool(
-        pollution and pollution.polluted and not timescale.location_caggs_have_hostname()
+    server_name_pollution_active = bool(
+        pollution and pollution.polluted and not timescale.location_caggs_have_server()
     )
-    if hostname_pollution_active and pollution and pollution.reason == "container-ids":
+    if server_name_pollution_active and pollution and pollution.reason == "container-ids":
         advisories.append(Advisory(
-            id="hostname-pollution",
+            id="server-name-pollution",
             severity="warning",
             summary=(
                 f"{pollution.container_id_count} of {pollution.distinct_label} "
-                "recording hostnames look like Docker container IDs; the map "
-                "source filter runs unaggregated until you consolidate."
+                "server names look like Docker container IDs. The map's Server "
+                "filter reads raw events until you consolidate them."
             ),
             detail=(
-                "LOGPARSER_HOST_NAME was unset while running in Docker, so "
-                "rotating container IDs were recorded as hostnames. The "
-                "location-CAGG upgrade is skipped until the history is "
-                "consolidated; restart afterwards to migrate."
+                "LOGPARSER_SERVER_NAME was unset in Docker, so every new "
+                "container recorded its container ID as the server name. The "
+                "location aggregates get their server column only after you "
+                "consolidate that history and restart."
             ),
-            remedy="litestar backfill-hostname <hostname> --consolidate",
+            remedy="litestar backfill-server NAME --consolidate",
         ))
-    elif hostname_pollution_active and pollution:
+    elif server_name_pollution_active and pollution:
         advisories.append(Advisory(
-            id="hostname-count",
+            id="server-count",
             severity="warning",
             summary=(
-                f"{pollution.distinct_label} distinct recording hostnames is "
-                f"above the {timescale.DISTINCT_HOSTNAME_CEILING} ceiling; the "
-                "map source filter runs unaggregated."
+                f"There are {pollution.distinct_label} distinct server names, "
+                f"above the {timescale.DISTINCT_SERVER_CEILING} ceiling. The "
+                "map's Server filter reads raw events."
             ),
             detail=(
-                "The per-hostname location aggregates are only built below "
-                "that ceiling, so source-filtered map queries fall back to raw "
-                "scans. If every hostname is a real source, only query speed "
-                "suffers. If they are churn from an unset LOGPARSER_HOST_NAME, "
+                "The location aggregates only carry servers below that "
+                "ceiling, so map queries filtered by server fall back to raw "
+                "scans. If every name is a real server, only query speed "
+                "suffers. If they come from an unset LOGPARSER_SERVER_NAME, "
                 "consolidate the history and restart to migrate."
             ),
-            remedy="litestar backfill-hostname <hostname> --consolidate",
+            remedy="litestar backfill-server NAME --consolidate",
         ))
     if (
         settings.geoip.asn_enabled
@@ -366,13 +372,13 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
         log_inputs = service.inputs if service is not None else []
         local = proxy_findings(
             log_inputs,
-            default_hostname=service.hostname if service is not None else "",
+            default_server=service.server if service is not None else "",
         )
-        covered = {f.hostname for f in local}
+        covered = {finding.server for finding in local}
         if service is not None:
-            covered |= {service.hostname_for(log_input) for log_input in log_inputs}
+            covered |= {service.server_for(log_input) for log_input in log_inputs}
         findings = local + [
-            f for f in proxy_scan.get_scan_findings() if f.hostname not in covered
+            finding for finding in proxy_scan.get_scan_findings() if finding.server not in covered
         ]
         advisories.extend(proxy_advisories(findings))
         scan_error = proxy_scan.get_scan_error()
@@ -392,6 +398,9 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 ),
             ))
     advisories.extend(_stale_geoip_advisories(settings))
+    legacy_env_names = settings.legacy_env_names_in_use()
+    if legacy_env_names:
+        advisories.append(legacy_env_advisory(legacy_env_names))
     backend = runtime.get_channels_backend(app)
     if (
         backend is not None
@@ -434,17 +443,14 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
-@get(
-    "/health",
-    tags=["Health"],
-    dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
-)
-async def health(
-    request: Request,
-    ingestion_service: NamedDependency[LogIngestionService | None],
-    settings: NamedDependency[SkipValidation[Settings]],
+def build_health_response(
+    app: Litestar,
+    settings: Settings,
+    ingestion_service: LogIngestionService | None,
+    *,
+    db_reachable: bool,
 ) -> HealthResponse:
-    """Liveness + component detail. Always 200 while the app is up."""
+    """The /health payload, shared with the heartbeat writer."""
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
@@ -456,10 +462,9 @@ async def health(
         ingestion_service.unavailable_sources if ingestion_service else []
     )
     missing_files = [source.label for source in unavailable_sources]
-    db_reachable = await _database_reachable(request.app)
-    services_active = runtime.is_db_available(request.app, default=True)
+    services_active = runtime.is_db_available(app, default=True)
 
-    poller = runtime.get_crowdsec_poller(request.app)
+    poller = runtime.get_crowdsec_poller(app)
 
     # LOGPARSER_ENABLED=false is an operator choice, not an outage: it must
     # report "disabled", not "degraded", and must not flip overall status.
@@ -482,7 +487,7 @@ async def health(
             and ingestion_status != "degraded"
         )
         else "degraded",
-        started_at=_iso(runtime.get_started_at(request.app)),
+        started_at=_iso(runtime.get_started_at(app)),
         ingestion=IngestionHealth(
             running=is_running,
             parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
@@ -516,11 +521,11 @@ async def health(
         # GeoLite2 build, not the file's mtime.
         geoip=GeoIPHealth(
             # default=True: don't report degraded while startup is still running.
-            available=runtime.is_geoip_available(request.app, default=True),
+            available=runtime.is_geoip_available(app, default=True),
             db_build_date=_iso(geoip_info(settings.geoip.db_path).build_date),
             asn_available=(
                 settings.geoip.asn_enabled
-                and runtime.is_asn_available(request.app, default=True)
+                and runtime.is_asn_available(app, default=True)
             ),
             asn_db_build_date=_iso(geoip_info(settings.geoip.asn_db_path).build_date),
         ),
@@ -528,17 +533,34 @@ async def health(
         # `status`. lapi_reachable is the stream poller's cached verdict;
         # null when disabled, DB-degraded, or before the first poll.
         crowdsec=CrowdSecHealth(
-            enabled=runtime.get_crowdsec_service(request.app) is not None,
+            enabled=runtime.get_crowdsec_service(app) is not None,
             lapi_reachable=poller.lapi_reachable if poller is not None else None,
         ),
         timestamp=datetime.now(timezone.utc).isoformat(),
         mode="agent" if settings.is_agent else "full",
         schema_wait=(
-            getattr(request.app.state, "schema_wait_result", None)
+            (getattr(app.state, "schema_wait_result", None) or "waiting")
             if settings.is_agent
             else None
         ),
-        advisories=_collect_advisories(request.app, settings),
+        advisories=_collect_advisories(app, settings),
+    )
+
+
+@get(
+    "/health",
+    tags=["Health"],
+    dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
+)
+async def health(
+    request: Request,
+    ingestion_service: NamedDependency[LogIngestionService | None],
+    settings: NamedDependency[SkipValidation[Settings]],
+) -> HealthResponse:
+    """Liveness + component detail. Always 200 while the app is up."""
+    db_reachable = await _database_reachable(request.app)
+    return build_health_response(
+        request.app, settings, ingestion_service, db_reachable=db_reachable
     )
 
 

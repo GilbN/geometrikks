@@ -20,7 +20,7 @@ async def test_publish_subscribe_round_trip(it_asyncpg_dsn) -> None:
     )
     async with channels:
         async with channels.start_subscription(LIVE_EVENTS_CHANNEL) as subscriber:
-            channels.publish({"type": "geo_event", "data": {"hostname": "vps-1"}}, LIVE_EVENTS_CHANNEL)
+            channels.publish({"type": "geo_event", "data": {"server": "vps-1"}}, LIVE_EVENTS_CHANNEL)
 
             async def _first_event() -> dict:
                 async for raw in subscriber.iter_events():
@@ -28,7 +28,7 @@ async def test_publish_subscribe_round_trip(it_asyncpg_dsn) -> None:
                 raise AssertionError("subscriber closed without an event")
 
             event = await asyncio.wait_for(_first_event(), timeout=10)
-    assert event["data"]["hostname"] == "vps-1"
+    assert event["data"]["server"] == "vps-1"
 
 
 async def test_two_writers_one_subscriber(it_asyncpg_dsn) -> None:
@@ -50,13 +50,13 @@ async def test_two_writers_one_subscriber(it_asyncpg_dsn) -> None:
     )
     async with writer_a, writer_b, subscriber_plugin:
         async with subscriber_plugin.start_subscription(LIVE_EVENTS_CHANNEL) as subscriber:
-            writer_a.publish({"type": "geo_event", "data": {"hostname": "vps-1"}}, LIVE_EVENTS_CHANNEL)
-            writer_b.publish({"type": "geo_event", "data": {"hostname": "vps-2"}}, LIVE_EVENTS_CHANNEL)
+            writer_a.publish({"type": "geo_event", "data": {"server": "vps-1"}}, LIVE_EVENTS_CHANNEL)
+            writer_b.publish({"type": "geo_event", "data": {"server": "vps-2"}}, LIVE_EVENTS_CHANNEL)
 
             async def _collect_both() -> set[str]:
                 seen: set[str] = set()
                 async for raw in subscriber.iter_events():
-                    seen.add(msgspec_json.decode(raw)["data"]["hostname"])
+                    seen.add(msgspec_json.decode(raw)["data"]["server"])
                     if seen == {"vps-1", "vps-2"}:
                         return seen
                 return seen

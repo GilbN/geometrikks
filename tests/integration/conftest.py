@@ -187,11 +187,19 @@ async def clean_tables(pg_engine: AsyncEngine):
 
 
 @pytest.fixture()
-async def clean_site_homes(pg_engine: AsyncEngine):
-    """Clear site_homes before each test that requests this fixture.
+async def clean_server_locations(pg_engine: AsyncEngine):
+    """Clear server_locations before each test that requests this fixture.
 
     Not a hypertable, so a plain DELETE (no CAGG invalidation concerns).
     """
     async with pg_engine.begin() as conn:
-        await conn.execute(text("DELETE FROM site_homes"))
+        await conn.execute(text("DELETE FROM server_locations"))
+    yield
+
+
+@pytest.fixture()
+async def clean_instance_heartbeats(pg_engine: AsyncEngine):
+    """Clear instance_heartbeats before each test that requests this fixture."""
+    async with pg_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM instance_heartbeats"))
     yield

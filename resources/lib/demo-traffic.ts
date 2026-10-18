@@ -106,7 +106,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
       coordinates: origin.coordinates,
       city: origin.city,
       countryCode: origin.countryCode,
-      hostname: "demo",
+      server: "demo",
       statusClass: status,
       banned,
       decisionType,
@@ -130,7 +130,7 @@ export function makeDemoRequests(cursor: number, count: number, now: number): Li
         city: origin.city,
         autonomous_system_number: DEMO_ASNS[step % DEMO_ASNS.length][0],
         autonomous_system_organization: DEMO_ASNS[step % DEMO_ASNS.length][1],
-        hostname: "demo",
+        server: "demo",
       },
     })
   }

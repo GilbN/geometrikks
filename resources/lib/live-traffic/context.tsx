@@ -10,7 +10,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import { useLiveEvents, useLiveFeedStatus } from "@/lib/live-feed-context"
 import { useBannedIps } from "@/lib/queries"
 import { getDemoTrafficMode, makeDemoRequests } from "@/lib/demo-traffic"
-import { matchesSources, toLiveRequests } from "./requests"
+import { matchesServers, toLiveRequests } from "./requests"
 import { LiveTrafficStore } from "./store"
 import { EMPTY_SUMMARY, summarize, type LiveSummary } from "./summary"
 import type { LiveRequest, Vitals } from "./types"
@@ -41,11 +41,11 @@ const SNAPSHOT_INTERVAL_MS = 1000
 
 export function LiveTrafficProvider({
   enabled,
-  sources = [],
+  servers = [],
   children,
 }: {
   enabled: boolean
-  sources?: string[]
+  servers?: string[]
   children: React.ReactNode
 }) {
   const store = useMemo(() => new LiveTrafficStore(), [])
@@ -66,17 +66,17 @@ export function LiveTrafficProvider({
 
   // Read through a ref so a changed selection does not resubscribe the socket;
   // the reset effect below is what actually applies a new filter to the window.
-  const sourcesRef = useRef<string[]>(sources)
-  sourcesRef.current = sources
-  // JSON.stringify (not join(" ")) so a hostname containing a space can't
+  const serversRef = useRef<string[]>(servers)
+  serversRef.current = servers
+  // JSON.stringify (not join(" ")) so a server name containing a space can't
   // alias a distinct selection into the same dependency identity.
-  const sourcesKey = JSON.stringify(sources)
+  const serversKey = JSON.stringify(servers)
 
   useLiveEvents(
     (events, dropped) => {
       const now = Date.now()
       const requests = toLiveRequests(events, bannedRef.current, now).filter((request) =>
-        matchesSources(request, sourcesRef.current),
+        matchesServers(request, serversRef.current),
       )
       store.ingest(requests, dropped, now)
     },
@@ -90,7 +90,7 @@ export function LiveTrafficProvider({
       const now = Date.now()
       const count = demoMode === "burst" ? 4 : 1
       const requests = makeDemoRequests(cursor, count, now).filter((request) =>
-        matchesSources(request, sourcesRef.current),
+        matchesServers(request, serversRef.current),
       )
       store.ingest(requests, 0, now)
       cursor += count
@@ -111,8 +111,8 @@ export function LiveTrafficProvider({
   // requests do not linger next to newly-filtered ones.
   useEffect(() => {
     store.reset()
-    // sourcesKey is the stable identity for the sources array; see above.
-  }, [sourcesKey, store])
+    // serversKey is the stable identity for the servers array; see above.
+  }, [serversKey, store])
 
   return (
     <StoreContext.Provider value={store}>

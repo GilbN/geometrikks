@@ -94,13 +94,14 @@ IpAddressNotIn = Annotated[
     QueryParameter(name="ipAddressNotIn", description="Exclude these IPs (repeatable)", required=False),
 ]
 
-HostnameIn = Annotated[
+ServerIn = Annotated[
     list[str] | None,
-    QueryParameter(
-        name="hostnameIn",
-        description="Filter to these recording hostnames (repeatable)",
-        required=False,
-    ),
+    QueryParameter(name="serverIn", description="Filter to these servers (repeatable)", required=False),
+]
+
+ServerNotIn = Annotated[
+    list[str] | None,
+    QueryParameter(name="serverNotIn", description="Exclude these servers (repeatable)", required=False),
 ]
 
 AsnIn = Annotated[

@@ -11,7 +11,7 @@ from geometrikks.server import timescale
 
 
 def _advisories(monkeypatch, *, unexpected_stop: bool, registry=None):
-    monkeypatch.setattr(timescale, "_hostname_pollution", None)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
     settings = Settings()
     settings.app.proxy_advisory = False
     settings.logparser.enabled = True

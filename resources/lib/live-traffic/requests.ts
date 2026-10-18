@@ -31,7 +31,7 @@ function build(
     city: geo?.city ?? log?.city ?? null,
     countryCode: geo?.country_code ?? log?.country_code ?? null,
     log,
-    hostname: geo?.hostname ?? log?.hostname ?? null,
+    server: geo?.server ?? log?.server ?? null,
     statusClass: status,
     banned,
     decisionType,
@@ -39,10 +39,10 @@ function build(
   }
 }
 
-/** Exact-match source filter; empty selection means unfiltered. */
-export function matchesSources(request: LiveRequest, sources: string[]): boolean {
-  if (sources.length === 0) return true
-  return request.hostname !== null && sources.includes(request.hostname)
+/** Exact-match server filter; empty selection means unfiltered. */
+export function matchesServers(request: LiveRequest, servers: string[]): boolean {
+  if (servers.length === 0) return true
+  return request.server !== null && servers.includes(request.server)
 }
 
 export function toLiveRequests(

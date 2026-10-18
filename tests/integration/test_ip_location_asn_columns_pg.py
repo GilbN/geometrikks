@@ -80,13 +80,13 @@ async def _seed(session_maker) -> int:
         )
         for _ in range(3):
             await session.execute(text(
-                "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id, "
+                "INSERT INTO geo_events (timestamp, ip_address, server, location_id, "
                 " autonomous_system_number, autonomous_system_organization) "
                 "VALUES (:ts, '1.1.1.1', 'web1', :loc, 1221, 'Telstra Pty Ltd')"
             ), {"ts": ts, "loc": loc})
         for _ in range(2):
             await session.execute(text(
-                "INSERT INTO geo_events (timestamp, ip_address, hostname, location_id) "
+                "INSERT INTO geo_events (timestamp, ip_address, server, location_id) "
                 "VALUES (:ts, '2.2.2.2', 'web1', :loc)"
             ), {"ts": ts, "loc": loc})
         await session.commit()

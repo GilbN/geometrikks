@@ -5,7 +5,7 @@
  * rendering is an exhaustive switch in access-logs-table.tsx.
  */
 import type { AccessLogSortField } from "@/lib/api"
-import type { VisibilityColumn } from "@/lib/column-visibility"
+import type { RenamedColumnKeys, VisibilityColumn } from "@/lib/column-visibility"
 
 export type AccessLogColumnKey =
   | "timestamp"
@@ -19,7 +19,7 @@ export type AccessLogColumnKey =
   | "remoteUser"
   | "httpVersion"
   | "referrer"
-  | "hostname"
+  | "server"
   | "logFormat"
   | "userAgent"
   | "upstreamResponseTime"
@@ -48,7 +48,7 @@ export const ACCESS_LOG_COLUMNS = [
   { key: "remoteUser", grow: true, label: "Remote user", defaultVisible: false },
   { key: "httpVersion", label: "HTTP ver", defaultVisible: false },
   { key: "referrer", grow: true, label: "Referrer", defaultVisible: true, mobileHidden: true },
-  { key: "hostname", grow: true, label: "Recorded by", defaultVisible: false, mobileHidden: true },
+  { key: "server", grow: true, label: "Server", defaultVisible: false, mobileHidden: true },
   { key: "logFormat", grow: true, label: "Source format", defaultVisible: false, mobileHidden: true },
   { key: "userAgent", grow: true, label: "User agent", defaultVisible: false },
   { key: "upstreamResponseTime", label: "Upstream res time", defaultVisible: false, align: "right" },
@@ -57,3 +57,6 @@ export const ACCESS_LOG_COLUMNS = [
   { key: "asn", label: "ASN", defaultVisible: false, mobileHidden: true },
   { key: "asnOrganization", grow: true, label: "AS organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly AccessLogColumn[] as readonly AccessLogColumn[]
+
+/** Saved layouts from before the server rename. */
+export const ACCESS_LOG_RENAMED_COLUMN_KEYS: RenamedColumnKeys = { hostname: "server" }

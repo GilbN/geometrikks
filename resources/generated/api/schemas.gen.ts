@@ -474,12 +474,6 @@ export const AccessLogFacetsSchema = {
       },
       type: "array",
     },
-    hostnames: {
-      items: {
-        type: "string",
-      },
-      type: "array",
-    },
     hosts: {
       items: {
         type: "string",
@@ -492,8 +486,14 @@ export const AccessLogFacetsSchema = {
       },
       type: "array",
     },
+    servers: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
   },
-  required: ["cities", "countries", "hostnames", "hosts", "logFormats"],
+  required: ["cities", "countries", "hosts", "logFormats", "servers"],
   title: "AccessLogFacets",
   type: "object",
 } as const;
@@ -1741,20 +1741,6 @@ export const DecisionViewSchema = {
   type: "object",
 } as const;
 
-export const DefaultHomeViewSchema = {
-  properties: {
-    latitude: {
-      type: "number",
-    },
-    longitude: {
-      type: "number",
-    },
-  },
-  required: ["latitude", "longitude"],
-  title: "DefaultHomeView",
-  type: "object",
-} as const;
-
 export const DefaultMapViewSchema = {
   properties: {
     latitude: {
@@ -1769,6 +1755,20 @@ export const DefaultMapViewSchema = {
   },
   required: ["latitude", "longitude", "zoom"],
   title: "DefaultMapView",
+  type: "object",
+} as const;
+
+export const DefaultServerLocationViewSchema = {
+  properties: {
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+  },
+  required: ["latitude", "longitude"],
+  title: "DefaultServerLocationView",
   type: "object",
 } as const;
 
@@ -1896,14 +1896,14 @@ export const GeoEventFacetsSchema = {
       },
       type: "array",
     },
-    hostnames: {
+    servers: {
       items: {
         type: "string",
       },
       type: "array",
     },
   },
-  required: ["asns", "cities", "countries", "hostnames"],
+  required: ["asns", "cities", "countries", "servers"],
   title: "GeoEventFacets",
   type: "object",
 } as const;
@@ -2253,12 +2253,6 @@ export const GeoLogEntrySchema = {
     eventCount: {
       type: "integer",
     },
-    hostnames: {
-      items: {
-        type: "string",
-      },
-      type: "array",
-    },
     ipAddress: {
       type: "string",
     },
@@ -2292,6 +2286,12 @@ export const GeoLogEntrySchema = {
         },
       ],
     },
+    servers: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
     state: {
       oneOf: [
         {
@@ -2320,13 +2320,13 @@ export const GeoLogEntrySchema = {
     "countryCode",
     "countryName",
     "eventCount",
-    "hostnames",
     "ipAddress",
     "lastSeen",
     "latitude",
     "locationId",
     "longitude",
     "postalCode",
+    "servers",
     "state",
     "stateCode",
   ],
@@ -2530,6 +2530,23 @@ export const GroupedDecisionViewSchema = {
   type: "object",
 } as const;
 
+export const HeadIdentityViewSchema = {
+  properties: {
+    appVersion: {
+      type: "string",
+    },
+    instanceName: {
+      type: "string",
+    },
+    schemaRevision: {
+      type: "string",
+    },
+  },
+  required: ["appVersion", "instanceName", "schemaRevision"],
+  title: "HeadIdentityView",
+  type: "object",
+} as const;
+
 export const HealthResponseSchema = {
   properties: {
     advisories: {
@@ -2593,6 +2610,88 @@ export const HealthResponseSchema = {
     "timestamp",
   ],
   title: "HealthResponse",
+  type: "object",
+} as const;
+
+export const HeartbeatPayloadSchema = {
+  properties: {
+    failed5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    health: {
+      additionalProperties: {},
+      type: "object",
+    },
+    instanceNameSource: {
+      default: "fallback",
+      type: "string",
+    },
+    jobs: {
+      items: {
+        $ref: "#/components/schemas/JobReport",
+      },
+      type: "array",
+    },
+    lastError: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/LastErrorReport",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lines5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    nameConflictAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    recentStarts: {
+      items: {
+        format: "date-time",
+        type: "string",
+      },
+      type: "array",
+    },
+    serverNames: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    sources: {
+      items: {
+        $ref: "#/components/schemas/SourceReport",
+      },
+      type: "array",
+    },
+  },
+  required: [],
+  title: "HeartbeatPayload",
   type: "object",
 } as const;
 
@@ -2765,6 +2864,146 @@ export const IngestionStatsResponseSchema = {
     "totalSkippedLines",
   ],
   title: "IngestionStatsResponse",
+  type: "object",
+} as const;
+
+export const InstanceServerLocationViewSchema = {
+  properties: {
+    detectedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    server: {
+      type: "string",
+    },
+    source: {
+      type: "string",
+    },
+  },
+  required: ["detectedAt", "latitude", "longitude", "server", "source"],
+  title: "InstanceServerLocationView",
+  type: "object",
+} as const;
+
+export const InstanceViewSchema = {
+  properties: {
+    appVersion: {
+      type: "string",
+    },
+    bootId: {
+      type: "string",
+    },
+    checkingIn: {
+      type: "boolean",
+    },
+    health: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/HealthResponse",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    instanceName: {
+      type: "string",
+    },
+    isSelf: {
+      type: "boolean",
+    },
+    lastSeen: {
+      format: "date-time",
+      type: "string",
+    },
+    mode: {
+      type: "string",
+    },
+    payload: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/HeartbeatPayload",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    problems: {
+      items: {
+        $ref: "#/components/schemas/Advisory",
+      },
+      type: "array",
+    },
+    schemaRevision: {
+      type: "string",
+    },
+    serverLocations: {
+      items: {
+        $ref: "#/components/schemas/InstanceServerLocationView",
+      },
+      type: "array",
+    },
+    startedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    status: {
+      enum: ["ok", "warning", "critical"],
+      type: "string",
+    },
+  },
+  required: [
+    "appVersion",
+    "bootId",
+    "checkingIn",
+    "health",
+    "instanceName",
+    "isSelf",
+    "lastSeen",
+    "mode",
+    "payload",
+    "problems",
+    "schemaRevision",
+    "serverLocations",
+    "startedAt",
+    "status",
+  ],
+  title: "InstanceView",
+  type: "object",
+} as const;
+
+export const InstancesResponseSchema = {
+  properties: {
+    checkedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    head: {
+      $ref: "#/components/schemas/HeadIdentityView",
+    },
+    instances: {
+      items: {
+        $ref: "#/components/schemas/InstanceView",
+      },
+      type: "array",
+    },
+  },
+  required: ["checkedAt", "head", "instances"],
+  title: "InstancesResponse",
   type: "object",
 } as const;
 
@@ -3026,6 +3265,87 @@ export const IpProfileUserAgentDTOSchema = {
   type: "object",
 } as const;
 
+export const JobReportSchema = {
+  properties: {
+    id: {
+      default: "",
+      type: "string",
+    },
+    lastError: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastStart: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastStatus: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      default: "",
+      type: "string",
+    },
+    nextRunTime: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [],
+  title: "JobReport",
+  type: "object",
+} as const;
+
+export const LastErrorReportSchema = {
+  properties: {
+    at: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    message: {
+      default: "",
+      type: "string",
+    },
+  },
+  required: [],
+  title: "LastErrorReport",
+  type: "object",
+} as const;
+
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
     autonomousSystemNumber: {
@@ -3092,16 +3412,6 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
         },
       ],
     },
-    hostname: {
-      oneOf: [
-        {
-          type: "string",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
     httpVersion: {
       oneOf: [
         {
@@ -3155,6 +3465,16 @@ export const ListAccessLogsAccessLogResponseBodySchema = {
       oneOf: [
         {
           type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    server: {
+      oneOf: [
+        {
+          type: "string",
         },
         {
           type: "null",
@@ -3332,9 +3652,6 @@ export const ListGeoEventsGeoEventResponseBodySchema = {
         },
       ],
     },
-    hostname: {
-      type: "string",
-    },
     id: {
       type: "integer",
     },
@@ -3347,12 +3664,15 @@ export const ListGeoEventsGeoEventResponseBodySchema = {
     locationId: {
       type: "integer",
     },
+    server: {
+      type: "string",
+    },
     timestamp: {
       format: "date-time",
       type: "string",
     },
   },
-  required: ["hostname", "id", "ipAddress", "location", "locationId"],
+  required: ["id", "ipAddress", "location", "locationId", "server"],
   title: "ListGeoEventsGeoEventResponseBody",
   type: "object",
 } as const;
@@ -3640,9 +3960,6 @@ export const LokiSourceStatsSchema = {
     available: {
       type: "boolean",
     },
-    hostname: {
-      type: "string",
-    },
     label: {
       type: "string",
     },
@@ -3672,15 +3989,18 @@ export const LokiSourceStatsSchema = {
         },
       ],
     },
+    server: {
+      type: "string",
+    },
   },
   required: [
     "available",
-    "hostname",
     "label",
     "logFormat",
     "parsedLines",
     "query",
     "reason",
+    "server",
   ],
   title: "LokiSourceStats",
   type: "object",
@@ -3708,7 +4028,7 @@ export const MapSettingsViewSchema = {
         },
       ],
     },
-    homeLatitude: {
+    serverLatitude: {
       oneOf: [
         {
           type: "number",
@@ -3718,27 +4038,27 @@ export const MapSettingsViewSchema = {
         },
       ],
     },
-    homeLongitude: {
-      oneOf: [
-        {
-          type: "number",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    homeSource: {
+    serverLocationSource: {
       enum: ["configured", "external_ip", null],
       type: ["null", "string"],
+    },
+    serverLongitude: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
   },
   required: [
     "cartoApiKey",
     "defaultView",
-    "homeLatitude",
-    "homeLongitude",
-    "homeSource",
+    "serverLatitude",
+    "serverLocationSource",
+    "serverLongitude",
   ],
   title: "MapSettingsView",
   type: "object",
@@ -4671,6 +4991,78 @@ export const SchedulerJobsResponseSchema = {
   type: "object",
 } as const;
 
+export const ServerLocationViewSchema = {
+  properties: {
+    detectedAt: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastEventDay: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    latitude: {
+      type: "number",
+    },
+    longitude: {
+      type: "number",
+    },
+    server: {
+      type: "string",
+    },
+    source: {
+      enum: ["auto", "override"],
+      type: "string",
+    },
+  },
+  required: [
+    "detectedAt",
+    "lastEventDay",
+    "latitude",
+    "longitude",
+    "server",
+    "source",
+  ],
+  title: "ServerLocationView",
+  type: "object",
+} as const;
+
+export const ServerLocationsResponseSchema = {
+  properties: {
+    default: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DefaultServerLocationView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    locations: {
+      items: {
+        $ref: "#/components/schemas/ServerLocationView",
+      },
+      type: "array",
+    },
+  },
+  required: ["default", "locations"],
+  title: "ServerLocationsResponse",
+  type: "object",
+} as const;
+
 export const SessionUserSchema = {
   properties: {
     mode: {
@@ -4767,9 +5159,21 @@ export const SettingsSectionViewSchema = {
   type: "object",
 } as const;
 
-export const SiteHomeViewSchema = {
+export const SourceReportSchema = {
   properties: {
-    detectedAt: {
+    available: {
+      default: true,
+      type: "boolean",
+    },
+    kind: {
+      default: "",
+      type: "string",
+    },
+    label: {
+      default: "",
+      type: "string",
+    },
+    logFormat: {
       oneOf: [
         {
           type: "string",
@@ -4779,10 +5183,11 @@ export const SiteHomeViewSchema = {
         },
       ],
     },
-    hostname: {
-      type: "string",
+    parsedLines: {
+      default: 0,
+      type: "integer",
     },
-    lastEventDay: {
+    reason: {
       oneOf: [
         {
           type: "string",
@@ -4792,50 +5197,13 @@ export const SiteHomeViewSchema = {
         },
       ],
     },
-    latitude: {
-      type: "number",
-    },
-    longitude: {
-      type: "number",
-    },
-    source: {
-      enum: ["auto", "override"],
+    serverName: {
+      default: "",
       type: "string",
     },
   },
-  required: [
-    "detectedAt",
-    "hostname",
-    "lastEventDay",
-    "latitude",
-    "longitude",
-    "source",
-  ],
-  title: "SiteHomeView",
-  type: "object",
-} as const;
-
-export const SiteHomesResponseSchema = {
-  properties: {
-    default: {
-      oneOf: [
-        {
-          $ref: "#/components/schemas/DefaultHomeView",
-        },
-        {
-          type: "null",
-        },
-      ],
-    },
-    homes: {
-      items: {
-        $ref: "#/components/schemas/SiteHomeView",
-      },
-      type: "array",
-    },
-  },
-  required: ["default", "homes"],
-  title: "SiteHomesResponse",
+  required: [],
+  title: "SourceReport",
   type: "object",
 } as const;
 

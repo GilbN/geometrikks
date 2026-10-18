@@ -46,7 +46,8 @@ import {
   sidebarStatusTooltip,
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
-import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings } from "@/lib/queries"
+import { agentsNeedingAttention } from "@/components/settings/agents-logic"
+import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 
 const navigationItems = [
@@ -223,8 +224,16 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     retry: 1,
   })
 
-  const variant = sidebarIngestionVariant(health, isError)
+  const { data: instances, isError: instancesError } = useInstances()
+  // A failed refetch keeps the last answer cached, so without the isError
+  // check the dot would keep reporting agents from a stale answer.
+  const agentAttentionCount = instancesError ? 0 : agentsNeedingAttention(instances).length
+  const headAdvisoryCount = health?.advisories?.length ?? 0
+
+  const variant = sidebarIngestionVariant(health, isError, agentAttentionCount)
   const isRunning = variant === "running"
+  const statusRoute =
+    variant === "attention" && headAdvisoryCount === 0 ? "/settings/agents" : "/settings/status"
 
   const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
     offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
@@ -240,7 +249,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const { color, label, tooltip: baseTooltip } = INDICATOR_STYLES[variant]
   const tooltip =
     variant === "degraded" || variant === "attention"
-      ? sidebarStatusTooltip(baseTooltip, health?.advisories?.length ?? 0, variant)
+      ? sidebarStatusTooltip(baseTooltip, headAdvisoryCount, variant, agentAttentionCount)
       : baseTooltip
 
   if (collapsed) {
@@ -248,7 +257,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            to="/settings/status"
+            to={statusRoute}
             aria-label="Service status"
             className="flex items-center justify-center py-2 mx-2"
             onPointerLeave={resetTooltipSuppression}
@@ -274,7 +283,7 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <Link
-          to="/settings/status"
+          to={statusRoute}
           aria-label="Service status"
           className="flex items-center gap-2 px-3 py-2 mx-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border transition-colors hover:bg-sidebar-accent"
           onPointerLeave={resetTooltipSuppression}

@@ -18,13 +18,13 @@ beforeEach(() => {
   vi.spyOn(api, "get").mockImplementation(mocks.get)
 })
 it("keys and forwards all filters", async () => {
-  const filters = { countryCodes: ["NO", "SE"], cities: ["Oslo"], hostnames: ["a.test", "b.test"] }
+  const filters = { countryCodes: ["NO", "SE"], cities: ["Oslo"], servers: ["a.test", "b.test"] }
   useBannedLocations(true, filters)
   const options = mocks.options.at(-1)!
   expect(options.queryKey).toEqual(["crowdsec", "banned-locations", { range: "24h", customRange: null, ...filters }, 123])
   await options.queryFn()
   expect(mocks.get).toHaveBeenCalledWith("/crowdsec/banned-locations", {
-    params: { fromTimestamp: expect.any(String), toTimestamp: expect.any(String), countryCode: filters.countryCodes, city: filters.cities, hostnameIn: filters.hostnames },
+    params: { fromTimestamp: expect.any(String), toTimestamp: expect.any(String), countryCode: filters.countryCodes, city: filters.cities, serverIn: filters.servers },
   })
 })
 it("only fetches in the active mode with CrowdSec enabled", () => {

@@ -24,6 +24,7 @@ from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.sorting import nulls_last_for_timings
+from geometrikks.lib.parameters import ServerIn, ServerNotIn
 from geometrikks.lib.validation import validate_ip_addresses
 
 
@@ -56,11 +57,11 @@ def provide_access_log_in_filters(
     ip_address_not_in: Annotated[list[str] | None, QueryParameter(name="ipAddressNotIn", required=False)] = None,
     host_in: Annotated[list[str] | None, QueryParameter(name="hostIn", required=False)] = None,
     host_not_in: Annotated[list[str] | None, QueryParameter(name="hostNotIn", required=False)] = None,
-    hostname_in: Annotated[list[str] | None, QueryParameter(name="hostnameIn", required=False)] = None,
-    hostname_not_in: Annotated[list[str] | None, QueryParameter(name="hostnameNotIn", required=False)] = None,
+    server_in: ServerIn = None,
+    server_not_in: ServerNotIn = None,
     log_format_in: Annotated[list[str] | None, QueryParameter(name="logFormatIn", required=False)] = None,
 ) -> list[FilterTypes]:
-    """Include/exclude matches on method / IP / city / country / status / host / hostname / log format.
+    """Include/exclude matches on method / IP / city / country / status / host / server / log format.
 
     Provided here rather than via the built-in ``in_fields`` config, whose
     generated providers yield ``None`` when the param is absent and fail the
@@ -72,9 +73,9 @@ def provide_access_log_in_filters(
     with ``host IS NULL`` because ``host`` is nullable and SQL evaluates
     ``NULL NOT IN (...)`` as NULL rather than TRUE - a bare NOT IN would
     silently drop every row whose host never parsed. ``ip_address`` is
-    NOT NULL, so ``ipAddressNotIn`` needs no such treatment. ``hostname`` is
+    NOT NULL, so ``ipAddressNotIn`` needs no such treatment. ``server`` is
     nullable for the same reason ``host`` is (older rows predate the
-    Task 6 columns), so ``hostnameNotIn`` gets the same NULL-OR treatment.
+    column), so ``serverNotIn`` gets the same NULL-OR treatment.
 
     Raises:
         DomainValidationError: If an ``ipAddressIn``/``ipAddressNotIn`` value
@@ -107,15 +108,15 @@ def provide_access_log_in_filters(
                 ],
             )
         )
-    if hostname_in:
-        result.append(CollectionFilter(field_name="hostname", values=hostname_in))
-    if hostname_not_in:
+    if server_in:
+        result.append(CollectionFilter(field_name="server", values=server_in))
+    if server_not_in:
         result.append(
             FilterGroup(
                 logical_operator=or_,
                 filters=[
-                    NotInCollectionFilter(field_name="hostname", values=hostname_not_in),
-                    NullFilter(field_name="hostname"),
+                    NotInCollectionFilter(field_name="server", values=server_not_in),
+                    NullFilter(field_name="server"),
                 ],
             )
         )
@@ -171,7 +172,7 @@ class AccessLogController(Controller):
         self,
         access_log_service: NamedDependency[AccessLogService],
     ) -> AccessLogFacets:
-        """Distinct country/city/host/hostname/log-format values, for filter dropdowns.
+        """Distinct country/city/host/server/log-format values, for filter dropdowns.
 
         ``return_dto=None`` opts out of the controller-level ``AccessLogDTO``
         (bound to the AccessLog model); Litestar serializes the structs

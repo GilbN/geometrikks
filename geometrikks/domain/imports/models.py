@@ -35,9 +35,9 @@ class ImportJob(base.BigIntAuditBase):
 class LokiImport(base.BigIntAuditBase):
     """One import-loki run over a time range of one selector.
 
-    (url, tenant_id, query) identifies a selector. hostname is what the
+    (url, tenant_id, query) identifies a selector. server is what the
     rows were stamped with and is not part of the identity, so changing
-    LOKI_HOST_NAMES does not hide an earlier import of the same data.
+    LOKI_SERVER_NAMES does not hide an earlier import of the same data.
 
     cursor is the start of the next window to read and equals range_end
     once the run completes. A rerun with the same range resumes from it.
@@ -51,7 +51,7 @@ class LokiImport(base.BigIntAuditBase):
     url: Mapped[str] = mapped_column(Text, nullable=False)
     tenant_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     query: Mapped[str] = mapped_column(Text, nullable=False)
-    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    server: Mapped[str] = mapped_column(String(255), nullable=False)
     range_start: Mapped[datetime] = mapped_column(DateTimeUTC(timezone=True), nullable=False)
     range_end: Mapped[datetime] = mapped_column(DateTimeUTC(timezone=True), nullable=False)
     cursor: Mapped[datetime] = mapped_column(DateTimeUTC(timezone=True), nullable=False)

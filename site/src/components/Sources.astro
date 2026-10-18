@@ -149,7 +149,7 @@ loki.write "local" {
     env: ["LOKI_URL=http://loki:3100", 'LOKI_QUERIES={job="traefik"}'],
     notes: [
       "Loki has to hold the raw access-log line. A pipeline stage that rewrites it, into logfmt for example, leaves nothing to parse.",
-      "One LogQL selector per log format. LOKI_HOST_NAMES gives each selector its own hostname.",
+      "One LogQL selector per log format. LOKI_SERVER_NAMES gives each selector its own server name.",
       "Reading starts when the app starts. Lines logged while it was down are not read.",
     ],
     docs: "/docs/sources/loki/",

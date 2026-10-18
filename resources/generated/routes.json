@@ -8,18 +8,31 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
-    "delete_site_home": {
+    "delete_instance": {
       "method": "delete",
       "methods": [
         "DELETE"
       ],
       "parameterTypes": {
-        "hostname": "string"
+        "instance_name": "string"
       },
       "parameters": [
-        "hostname"
+        "instance_name"
       ],
-      "uri": "/api/v1/geo-locations/site-homes/{hostname}"
+      "uri": "/api/v1/instances/{instance_name}"
+    },
+    "delete_server_location": {
+      "method": "delete",
+      "methods": [
+        "DELETE"
+      ],
+      "parameterTypes": {
+        "server": "string"
+      },
+      "parameters": [
+        "server"
+      ],
+      "uri": "/api/v1/geo-locations/server-locations/{server}"
     },
     "download": {
       "method": "get",
@@ -167,9 +180,9 @@
         "comparePrevious": "boolean | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/summary"
@@ -186,9 +199,9 @@
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime",
         "tz": "string | undefined"
       },
@@ -205,10 +218,10 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-asns"
@@ -224,10 +237,10 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-cities"
@@ -243,10 +256,10 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-countries"
@@ -262,10 +275,10 @@
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-events/top-ips"
@@ -282,11 +295,11 @@
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",
+        "serverIn": "string[] | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "toTimestamp": "DateTime"
       },
@@ -316,9 +329,9 @@
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "fromTimestamp": "DateTime",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime"
       },
       "uri": "/api/v1/geo-locations/geojson"
@@ -590,8 +603,6 @@
         "fromTimestamp": "DateTime | undefined",
         "hostIn": "string[] | undefined",
         "hostNotIn": "string[] | undefined",
-        "hostnameIn": "string[] | undefined",
-        "hostnameNotIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "logFormatIn": "string[] | undefined",
@@ -600,6 +611,8 @@
         "pageSize": "number | undefined",
         "searchIgnoreCase": "boolean | undefined",
         "searchString": "string | undefined",
+        "serverIn": "string[] | undefined",
+        "serverNotIn": "string[] | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "statusIn": "number[] | undefined",
         "toTimestamp": "DateTime | undefined"
@@ -637,7 +650,7 @@
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "fromTimestamp": "DateTime | undefined",
-        "hostnameIn": "string[] | undefined",
+        "serverIn": "string[] | undefined",
         "toTimestamp": "DateTime | undefined"
       },
       "uri": "/api/v1/crowdsec/banned-locations"
@@ -669,11 +682,11 @@
       "queryParameters": {
         "currentPage": "number | undefined",
         "fromTimestamp": "DateTime | undefined",
-        "hostnameIn": "string[] | undefined",
         "ipAddressIn": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "orderBy": "string | undefined",
         "pageSize": "number | undefined",
+        "serverIn": "string[] | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "toTimestamp": "DateTime | undefined"
       },
@@ -689,6 +702,13 @@
         "pageSize": "number | undefined"
       },
       "uri": "/api/v1/geo-locations"
+    },
+    "list_instances": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/instances"
     },
     "login": {
       "method": "post",
@@ -788,19 +808,19 @@
       ],
       "uri": "/api/v1/system/scheduler/jobs/{job_id}/run"
     },
+    "server_locations": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/geo-locations/server-locations"
+    },
     "service_worker": {
       "method": "get",
       "methods": [
         "GET"
       ],
       "uri": "/sw.js"
-    },
-    "site_homes": {
-      "method": "get",
-      "methods": [
-        "GET"
-      ],
-      "uri": "/api/v1/geo-locations/site-homes"
     },
     "stats": {
       "method": "get",

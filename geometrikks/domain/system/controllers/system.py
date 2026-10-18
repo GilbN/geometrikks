@@ -296,10 +296,10 @@ def _computed_settings_overlay(
     """Runtime-resolved values the raw config does not expose."""
     overlay: dict[tuple[str, str], ComputedField] = {}
 
-    home = runtime.get_map_home_location(app)
-    if home is not None and home.source == "external_ip":
-        overlay[("map", "home_latitude")] = ComputedField(home.latitude, "external_ip")
-        overlay[("map", "home_longitude")] = ComputedField(home.longitude, "external_ip")
+    self_location = runtime.get_self_location(app)
+    if self_location is not None and self_location.source == "external_ip":
+        overlay[("map", "server_latitude")] = ComputedField(self_location.latitude, "external_ip")
+        overlay[("map", "server_longitude")] = ComputedField(self_location.longitude, "external_ip")
 
     overlay[("geoip", "available")] = ComputedField(
         runtime.is_geoip_available(app),
@@ -331,7 +331,7 @@ class SystemController(Controller):
     ) -> SystemSettingsResponse:
         """Full settings tree with descriptions; secrets structurally redacted.
 
-        Overlays runtime-resolved values (auto-detected map home, GeoIP
+        Overlays runtime-resolved values (auto-detected server location, GeoIP
         availability, CrowdSec effective status) that the raw config omits.
         """
         overlay = _computed_settings_overlay(settings, request.app)

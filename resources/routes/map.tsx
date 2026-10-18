@@ -1,7 +1,7 @@
 /**
  * Map route - Interactive geo-location visualization.
  *
- * Data filters (sources/countries/cities) live in the URL search params so
+ * Data filters (servers/countries/cities) live in the URL search params so
  * filtered map views are shareable links; see resources/lib/map-filters.ts
  * for the codec.
  */

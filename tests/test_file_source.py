@@ -20,9 +20,9 @@ def make_source(path: Path, **kwargs) -> FileSource:
     return FileSource(path, **kwargs)
 
 
-def test_file_source_carries_its_hostname(tmp_path: Path) -> None:
-    assert make_source(tmp_path / "a.log", hostname="vps-1").hostname == "vps-1"
-    assert make_source(tmp_path / "a.log").hostname == ""
+def test_file_source_carries_its_server(tmp_path: Path) -> None:
+    assert make_source(tmp_path / "a.log", server="vps-1").server == "vps-1"
+    assert make_source(tmp_path / "a.log").server == ""
 
 
 async def next_line(gen) -> str:

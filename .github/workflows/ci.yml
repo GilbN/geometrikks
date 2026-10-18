@@ -164,7 +164,7 @@ jobs:
             --env DB_NAME=geometrikks \
             --env APP_ADMIN_USER="${SMOKE_ADMIN_USER}" \
             --env APP_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD}" \
-            --env MAP_AUTO_DETECT_HOME=false \
+            --env MAP_AUTO_DETECT_SERVER_LOCATION=false \
             "${SMOKE_IMAGE}"
       - name: Run HTTP smoke checks
         shell: bash

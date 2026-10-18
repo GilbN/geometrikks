@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { api, fetchCrowdsecAlerts } from "./api"
+import { client } from "@/generated/api/client.gen"
+import { api, deleteServerLocation, fetchCrowdsecAlerts } from "./api"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -25,5 +26,25 @@ describe("fetchCrowdsecAlerts", () => {
     await fetchCrowdsecAlerts({})
     expect(sentParams(get, 0).kind).toBe("bot-detection")
     expect(sentParams(get, 1).kind).toBeUndefined()
+  })
+})
+
+describe("deleteServerLocation", () => {
+  afterEach(() => {
+    client.setConfig({ baseUrl: "" })
+    vi.unstubAllGlobals()
+  })
+
+  it("encodes the server name as one path segment", async () => {
+    client.setConfig({ baseUrl: "http://geometrikks.test" })
+    const fetch = vi.fn(async (_request: Request) => new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetch)
+    await deleteServerLocation("edge 01")
+    await deleteServerLocation("nas.lan")
+    const sent = fetch.mock.calls.map(([request]) => [request.method, new URL(request.url).pathname])
+    expect(sent).toEqual([
+      ["DELETE", "/api/v1/geo-locations/server-locations/edge%2001"],
+      ["DELETE", "/api/v1/geo-locations/server-locations/nas.lan"],
+    ])
   })
 })

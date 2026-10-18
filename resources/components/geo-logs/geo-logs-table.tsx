@@ -1,7 +1,7 @@
 /**
  * Grouped geo-events table: one row per (location, IP) pair with an event
  * count, server-paginated and server-sorted by any visible column except
- * hostnames and organization. Page/size/sort state lives in the route's URL
+ * servers and organization. Page/size/sort state lives in the route's URL
  * search params and arrives here as props; the filter set comes from
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
@@ -32,7 +32,11 @@ import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
-import { GEO_LOG_COLUMNS, type GeoLogColumn } from "@/components/geo-logs/columns"
+import {
+  GEO_LOG_COLUMNS,
+  GEO_LOG_RENAMED_COLUMN_KEYS,
+  type GeoLogColumn,
+} from "@/components/geo-logs/columns"
 import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
@@ -72,10 +76,10 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
           {r.lastSeen ? new Date(r.lastSeen).toLocaleString() : "-"}
         </span>
       )
-    case "hostnames":
+    case "servers":
       return (
-        <span className="block truncate font-mono" title={r.hostnames.join(", ") || undefined}>
-          {r.hostnames.length ? r.hostnames.join(", ") : "-"}
+        <span className="block truncate font-mono" title={r.servers.join(", ") || undefined}>
+          {r.servers.length ? r.servers.join(", ") : "-"}
         </span>
       )
     case "asn":
@@ -148,7 +152,7 @@ export function GeoLogsTable({
   const { range, customRange } = useTimeRange()
   const { filters } = useGeoLogFilters()
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
-    useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS)
+    useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS, GEO_LOG_RENAMED_COLUMN_KEYS)
 
   const { data, isLoading, isError, isPlaceholderData } = useGeoLogs({
     currentPage: page,

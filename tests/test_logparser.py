@@ -443,14 +443,14 @@ class TestParseLine:
         assert record is not None
         assert parser.ignored_lines == 0
 
-    def test_parse_line_leaves_the_hostname_to_the_caller(self, geoip_reader):
+    def test_parse_line_leaves_the_server_to_the_caller(self, geoip_reader):
         from geometrikks.services.logparser.logparser import LogParser, make_cached_city_lookup
         parser = LogParser(source_label="/dev/null", send_logs=True)
         lookup = make_cached_city_lookup(geoip_reader)
         matched = parser.parse_line(make_log_line("2.125.160.216"), lookup)
         unmatched = parser.parse_line("total garbage\n", lookup)
-        assert matched is not None and matched.hostname == ""
-        assert unmatched is not None and unmatched.hostname == ""
+        assert matched is not None and matched.server == ""
+        assert unmatched is not None and unmatched.server == ""
 
 
 class TestAutoFormatSniffing:

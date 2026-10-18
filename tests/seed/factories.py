@@ -196,7 +196,7 @@ class GeoEventFactory(BaseFactory[GeoEvent]):
     # Custom field providers
     timestamp = Use(lambda: datetime.now(timezone.utc))
     ip_address = Use(lambda: fake.ipv4())
-    hostname = Use(lambda: "geometrikks.local")
+    server = Use(lambda: "geometrikks.local")
 
     @classmethod
     def build_dict(
@@ -210,7 +210,7 @@ class GeoEventFactory(BaseFactory[GeoEvent]):
         return {
             "timestamp": timestamp or datetime.now(timezone.utc),
             "ip_address": ip_address or fake.ipv4(),
-            "hostname": kwargs.get("hostname", "geometrikks.local"),
+            "server": kwargs.get("server", "geometrikks.local"),
             "location_id": location_id,
         }
 

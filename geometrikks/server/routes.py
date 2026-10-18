@@ -11,6 +11,7 @@ from litestar.types import ControllerRouterHandler
 
 from geometrikks.domain.geo.controllers.events import GeoEventController
 from geometrikks.domain.geo.controllers.locations import GeoLocationController
+from geometrikks.domain.instances.controllers import InstanceController
 from geometrikks.domain.logs.controllers.access_logs import AccessLogController
 from geometrikks.domain.logs.controllers.access_log_debug import AccessLogDebugController
 from geometrikks.domain.analytics.controllers import AnalyticsController
@@ -64,6 +65,7 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
     api_handlers: list[ControllerRouterHandler] = [
         GeoEventController,
         GeoLocationController,
+        InstanceController,
         AccessLogController,
         AccessLogDebugController,
         AnalyticsController,

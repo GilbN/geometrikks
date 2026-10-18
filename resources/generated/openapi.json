@@ -491,12 +491,6 @@
             },
             "type": "array"
           },
-          "hostnames": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "hosts": {
             "items": {
               "type": "string"
@@ -508,14 +502,20 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "cities",
           "countries",
-          "hostnames",
           "hosts",
-          "logFormats"
+          "logFormats",
+          "servers"
         ],
         "title": "AccessLogFacets",
         "type": "object"
@@ -1831,22 +1831,6 @@
         "title": "DecisionView",
         "type": "object"
       },
-      "DefaultHomeView": {
-        "properties": {
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          }
-        },
-        "required": [
-          "latitude",
-          "longitude"
-        ],
-        "title": "DefaultHomeView",
-        "type": "object"
-      },
       "DefaultMapView": {
         "properties": {
           "latitude": {
@@ -1865,6 +1849,22 @@
           "zoom"
         ],
         "title": "DefaultMapView",
+        "type": "object"
+      },
+      "DefaultServerLocationView": {
+        "properties": {
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "DefaultServerLocationView",
         "type": "object"
       },
       "EmbeddedLocationDTO": {
@@ -2004,7 +2004,7 @@
             },
             "type": "array"
           },
-          "hostnames": {
+          "servers": {
             "items": {
               "type": "string"
             },
@@ -2015,7 +2015,7 @@
           "asns",
           "cities",
           "countries",
-          "hostnames"
+          "servers"
         ],
         "title": "GeoEventFacets",
         "type": "object"
@@ -2385,12 +2385,6 @@
           "eventCount": {
             "type": "integer"
           },
-          "hostnames": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "ipAddress": {
             "type": "string"
           },
@@ -2424,6 +2418,12 @@
               }
             ]
           },
+          "servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "state": {
             "oneOf": [
               {
@@ -2452,13 +2452,13 @@
           "countryCode",
           "countryName",
           "eventCount",
-          "hostnames",
           "ipAddress",
           "lastSeen",
           "latitude",
           "locationId",
           "longitude",
           "postalCode",
+          "servers",
           "state",
           "stateCode"
         ],
@@ -2679,6 +2679,26 @@
         "title": "GroupedDecisionView",
         "type": "object"
       },
+      "HeadIdentityView": {
+        "properties": {
+          "appVersion": {
+            "type": "string"
+          },
+          "instanceName": {
+            "type": "string"
+          },
+          "schemaRevision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "appVersion",
+          "instanceName",
+          "schemaRevision"
+        ],
+        "title": "HeadIdentityView",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "advisories": {
@@ -2748,6 +2768,87 @@
           "timestamp"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "HeartbeatPayload": {
+        "properties": {
+          "failed5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "health": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "instanceNameSource": {
+            "default": "fallback",
+            "type": "string"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobReport"
+            },
+            "type": "array"
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LastErrorReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lines5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nameConflictAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recentStarts": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "serverNames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceReport"
+            },
+            "type": "array"
+          }
+        },
+        "required": [],
+        "title": "HeartbeatPayload",
         "type": "object"
       },
       "HostingAsnEntryView": {
@@ -2923,6 +3024,157 @@
           "totalSkippedLines"
         ],
         "title": "IngestionStatsResponse",
+        "type": "object"
+      },
+      "InstanceServerLocationView": {
+        "properties": {
+          "detectedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "server": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "detectedAt",
+          "latitude",
+          "longitude",
+          "server",
+          "source"
+        ],
+        "title": "InstanceServerLocationView",
+        "type": "object"
+      },
+      "InstanceView": {
+        "properties": {
+          "appVersion": {
+            "type": "string"
+          },
+          "bootId": {
+            "type": "string"
+          },
+          "checkingIn": {
+            "type": "boolean"
+          },
+          "health": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HealthResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instanceName": {
+            "type": "string"
+          },
+          "isSelf": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "payload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HeartbeatPayload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/Advisory"
+            },
+            "type": "array"
+          },
+          "schemaRevision": {
+            "type": "string"
+          },
+          "serverLocations": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceServerLocationView"
+            },
+            "type": "array"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "warning",
+              "critical"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "appVersion",
+          "bootId",
+          "checkingIn",
+          "health",
+          "instanceName",
+          "isSelf",
+          "lastSeen",
+          "mode",
+          "payload",
+          "problems",
+          "schemaRevision",
+          "serverLocations",
+          "startedAt",
+          "status"
+        ],
+        "title": "InstanceView",
+        "type": "object"
+      },
+      "InstancesResponse": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "head": {
+            "$ref": "#/components/schemas/HeadIdentityView"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/InstanceView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "checkedAt",
+          "head",
+          "instances"
+        ],
+        "title": "InstancesResponse",
         "type": "object"
       },
       "IpProfileBucketDTO": {
@@ -3204,6 +3456,85 @@
         "title": "IpProfileUserAgentDTO",
         "type": "object"
       },
+      "JobReport": {
+        "properties": {
+          "id": {
+            "default": "",
+            "type": "string"
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastStart": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastStatus": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "default": "",
+            "type": "string"
+          },
+          "nextRunTime": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "JobReport",
+        "type": "object"
+      },
+      "LastErrorReport": {
+        "properties": {
+          "at": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "default": "",
+            "type": "string"
+          }
+        },
+        "required": [],
+        "title": "LastErrorReport",
+        "type": "object"
+      },
       "ListAccessLogsAccessLogResponseBody": {
         "properties": {
           "autonomousSystemNumber": {
@@ -3270,16 +3601,6 @@
               }
             ]
           },
-          "hostname": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "httpVersion": {
             "oneOf": [
               {
@@ -3333,6 +3654,16 @@
             "oneOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "server": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -3513,9 +3844,6 @@
               }
             ]
           },
-          "hostname": {
-            "type": "string"
-          },
           "id": {
             "type": "integer"
           },
@@ -3528,17 +3856,20 @@
           "locationId": {
             "type": "integer"
           },
+          "server": {
+            "type": "string"
+          },
           "timestamp": {
             "format": "date-time",
             "type": "string"
           }
         },
         "required": [
-          "hostname",
           "id",
           "ipAddress",
           "location",
-          "locationId"
+          "locationId",
+          "server"
         ],
         "title": "ListGeoEventsGeoEventResponseBody",
         "type": "object"
@@ -3843,9 +4174,6 @@
           "available": {
             "type": "boolean"
           },
-          "hostname": {
-            "type": "string"
-          },
           "label": {
             "type": "string"
           },
@@ -3874,16 +4202,19 @@
                 "type": "null"
               }
             ]
+          },
+          "server": {
+            "type": "string"
           }
         },
         "required": [
           "available",
-          "hostname",
           "label",
           "logFormat",
           "parsedLines",
           "query",
-          "reason"
+          "reason",
+          "server"
         ],
         "title": "LokiSourceStats",
         "type": "object"
@@ -3910,7 +4241,7 @@
               }
             ]
           },
-          "homeLatitude": {
+          "serverLatitude": {
             "oneOf": [
               {
                 "type": "number"
@@ -3920,17 +4251,7 @@
               }
             ]
           },
-          "homeLongitude": {
-            "oneOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "homeSource": {
+          "serverLocationSource": {
             "enum": [
               "configured",
               "external_ip",
@@ -3940,14 +4261,24 @@
               "null",
               "string"
             ]
+          },
+          "serverLongitude": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "cartoApiKey",
           "defaultView",
-          "homeLatitude",
-          "homeLongitude",
-          "homeSource"
+          "serverLatitude",
+          "serverLocationSource",
+          "serverLongitude"
         ],
         "title": "MapSettingsView",
         "type": "object"
@@ -4933,6 +5264,82 @@
         "title": "SchedulerJobsResponse",
         "type": "object"
       },
+      "ServerLocationView": {
+        "properties": {
+          "detectedAt": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastEventDay": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latitude": {
+            "type": "number"
+          },
+          "longitude": {
+            "type": "number"
+          },
+          "server": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "auto",
+              "override"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detectedAt",
+          "lastEventDay",
+          "latitude",
+          "longitude",
+          "server",
+          "source"
+        ],
+        "title": "ServerLocationView",
+        "type": "object"
+      },
+      "ServerLocationsResponse": {
+        "properties": {
+          "default": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DefaultServerLocationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/ServerLocationView"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "default",
+          "locations"
+        ],
+        "title": "ServerLocationsResponse",
+        "type": "object"
+      },
       "SessionUser": {
         "properties": {
           "mode": {
@@ -5045,9 +5452,21 @@
         "title": "SettingsSectionView",
         "type": "object"
       },
-      "SiteHomeView": {
+      "SourceReport": {
         "properties": {
-          "detectedAt": {
+          "available": {
+            "default": true,
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "type": "string"
+          },
+          "logFormat": {
             "oneOf": [
               {
                 "type": "string"
@@ -5057,10 +5476,11 @@
               }
             ]
           },
-          "hostname": {
-            "type": "string"
+          "parsedLines": {
+            "default": 0,
+            "type": "integer"
           },
-          "lastEventDay": {
+          "reason": {
             "oneOf": [
               {
                 "type": "string"
@@ -5070,55 +5490,13 @@
               }
             ]
           },
-          "latitude": {
-            "type": "number"
-          },
-          "longitude": {
-            "type": "number"
-          },
-          "source": {
-            "enum": [
-              "auto",
-              "override"
-            ],
+          "serverName": {
+            "default": "",
             "type": "string"
           }
         },
-        "required": [
-          "detectedAt",
-          "hostname",
-          "lastEventDay",
-          "latitude",
-          "longitude",
-          "source"
-        ],
-        "title": "SiteHomeView",
-        "type": "object"
-      },
-      "SiteHomesResponse": {
-        "properties": {
-          "default": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/DefaultHomeView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "homes": {
-            "items": {
-              "$ref": "#/components/schemas/SiteHomeView"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "default",
-          "homes"
-        ],
-        "title": "SiteHomesResponse",
+        "required": [],
+        "title": "SourceReport",
         "type": "object"
       },
       "SummaryResponse": {
@@ -6737,10 +7115,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -6758,10 +7138,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Exclude these servers (repeatable)",
             "in": "query",
-            "name": "hostnameNotIn",
+            "name": "serverNotIn",
             "required": false,
             "schema": {
+              "description": "Exclude these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -9718,12 +10100,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -10374,12 +10756,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -10593,12 +10975,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -10937,12 +11319,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -11216,12 +11598,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -11530,12 +11912,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -11811,12 +12193,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12092,12 +12474,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12373,12 +12755,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12811,12 +13193,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these recording hostnames (repeatable)",
+            "description": "Filter to these servers (repeatable)",
             "in": "query",
-            "name": "hostnameIn",
+            "name": "serverIn",
             "required": false,
             "schema": {
-              "description": "Filter to these recording hostnames (repeatable)",
+              "description": "Filter to these servers (repeatable)",
               "oneOf": [
                 {
                   "items": {
@@ -12934,17 +13316,17 @@
         ]
       }
     },
-    "/api/v1/geo-locations/site-homes": {
+    "/api/v1/geo-locations/server-locations": {
       "get": {
         "deprecated": false,
-        "description": "Per-source home locations for the map.",
-        "operationId": "ApiV1GeoLocationsSiteHomesSiteHomes",
+        "description": "Where each server sits on the map.",
+        "operationId": "ApiV1GeoLocationsServerLocationsServerLocations",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SiteHomesResponse"
+                  "$ref": "#/components/schemas/ServerLocationsResponse"
                 }
               }
             },
@@ -12952,26 +13334,26 @@
             "headers": {}
           }
         },
-        "summary": "SiteHomes",
+        "summary": "ServerLocations",
         "tags": [
           "Geo Locations"
         ]
       }
     },
-    "/api/v1/geo-locations/site-homes/{hostname}": {
+    "/api/v1/geo-locations/server-locations/{server}": {
       "delete": {
         "deprecated": false,
-        "description": "Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
-        "operationId": "ApiV1GeoLocationsSiteHomesHostnameDeleteSiteHome",
+        "description": "Remove a retired server's auto-detected location. Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here.",
+        "operationId": "ApiV1GeoLocationsServerLocationsDeleteServerLocation",
         "parameters": [
           {
             "deprecated": false,
-            "description": "Recording hostname whose home row to remove",
+            "description": "Server whose location to remove",
             "in": "path",
-            "name": "hostname",
+            "name": "server",
             "required": true,
             "schema": {
-              "description": "Recording hostname whose home row to remove",
+              "description": "Server whose location to remove",
               "type": "string"
             }
           }
@@ -13027,7 +13409,7 @@
                 }
               }
             },
-            "description": "No home is recorded for this hostname."
+            "description": "No location is recorded for this server."
           },
           "409": {
             "content": {
@@ -13037,10 +13419,10 @@
                 }
               }
             },
-            "description": "The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead."
+            "description": "MAP_SERVER_LOCATIONS pins this location. Edit the setting instead."
           }
         },
-        "summary": "DeleteSiteHome",
+        "summary": "DeleteServerLocation",
         "tags": [
           "Geo Locations"
         ]
@@ -13424,6 +13806,138 @@
         "summary": "GetLocationTopIps",
         "tags": [
           "Geo Locations"
+        ]
+      }
+    },
+    "/api/v1/instances": {
+      "get": {
+        "deprecated": false,
+        "description": "List the head and every agent that reports a heartbeat, the head first, with a status and a list of problems for each.",
+        "operationId": "ApiV1InstancesListInstances",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstancesResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The app runs without its database."
+          }
+        },
+        "summary": "ListInstances",
+        "tags": [
+          "Instances"
+        ]
+      }
+    },
+    "/api/v1/instances/{instance_name}": {
+      "delete": {
+        "deprecated": false,
+        "description": "Remove a retired instance from the list. An instance that is still running reappears at its next heartbeat. The head cannot remove itself.",
+        "operationId": "ApiV1InstancesInstanceNameDeleteInstance",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "Name of the instance to remove",
+            "in": "path",
+            "name": "instance_name",
+            "required": true,
+            "schema": {
+              "description": "Name of the instance to remove",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No instance has this name."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "This is the head you are talking to."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The app runs without its database."
+          }
+        },
+        "summary": "DeleteInstance",
+        "tags": [
+          "Instances"
         ]
       }
     },

@@ -28,9 +28,9 @@ from geometrikks.domain.geo.dtos import (
     GlobalTopIPsResponse,
     TopCountryDTO,
     TopCountriesResponse,
-    SiteHomeView,
-    DefaultHomeView,
-    SiteHomesResponse,
+    ServerLocationView,
+    DefaultServerLocationView,
+    ServerLocationsResponse,
 )
 
 from geometrikks.lib.parameters import (
@@ -39,7 +39,7 @@ from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
     ToTimestamp,
-    HostnameIn,
+    ServerIn,
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
@@ -48,9 +48,13 @@ from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
-from geometrikks.services.geoip.home import HomeLocation
+from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.server.exceptions import ErrorEnvelope
-from geometrikks.services.geoip.site_homes import fetch_last_event_days, fetch_site_homes, remove_site_home
+from geometrikks.services.geoip.server_locations import (
+    fetch_last_event_days,
+    fetch_server_locations,
+    remove_server_location,
+)
 
 logger = get_logger(__name__)
 
@@ -93,7 +97,7 @@ class GeoLocationController(Controller):
         city: CityFilter = None,
         ip_address_in: IpAddressIn = None,
         ip_address_not_in: IpAddressNotIn = None,
-        hostname_in: HostnameIn = None,
+        server_in: ServerIn = None,
         asn_in: AsnIn = None,
         asn_not_in: AsnNotIn = None,
     ) -> GeoJSONFeatureCollection:
@@ -102,8 +106,8 @@ class GeoLocationController(Controller):
         Returns a GeoJSON FeatureCollection where each feature represents a
         location with its coordinates and properties including the event count.
         An IP or ASN filter always forces a raw geo_events scan, bounded by
-        raw retention. A hostname filter forces the raw scan only until the
-        location CAGGs carry the hostname dimension (pre-upgrade or
+        raw retention. A server filter forces the raw scan only until the
+        location CAGGs carry the server dimension (pre-upgrade or
         pollution-skipped installs); once they do, it reads the CAGGs.
         Args:
             from_datetime: Start datetime for filtering events.
@@ -121,7 +125,7 @@ class GeoLocationController(Controller):
         locations_with_counts = await geo_location_service.get_all_with_event_counts(
             from_timestamp, to_timestamp, country_codes=country_code, cities=city,
             ip_addresses=ip_address_in, ip_addresses_exclude=ip_address_not_in,
-            hostnames=hostname_in, asns=asn_in, asns_exclude=asn_not_in,
+            servers=server_in, asns=asn_in, asns_exclude=asn_not_in,
         )
         
         events: int = sum(loc.event_count for loc in locations_with_counts)
@@ -160,65 +164,76 @@ class GeoLocationController(Controller):
         ]
         return GeoJSONFeatureCollection(type="FeatureCollection", features=features, stats=stats)
 
-    @get("/site-homes", return_dto=None, description="Per-source home locations for the map.")
-    async def site_homes(
+    @get("/server-locations", return_dto=None, description="Where each server sits on the map.")
+    async def server_locations(
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[SkipValidation[Settings]],
-    ) -> SiteHomesResponse:
-        """Merged site_homes rows plus the instance default home.
+    ) -> ServerLocationsResponse:
+        """Merged server_locations rows plus this instance's own location as the default.
 
-        The default mirrors read_settings's fallback: the app-state home
+        The default mirrors read_settings's fallback. It is the self location
         resolved at startup, or the configured coordinates if resolution
         found nothing (geo-degraded or auto-detect disabled).
         """
-        rows = await fetch_site_homes(db_session)
+        rows = await fetch_server_locations(db_session)
         last_days = await fetch_last_event_days(db_session) if rows else {}
-        home: HomeLocation | None = runtime.get_map_home_location(request.app)
-        if home is None and settings.map.home_latitude is not None and settings.map.home_longitude is not None:
-            home = HomeLocation(
-                latitude=settings.map.home_latitude,
-                longitude=settings.map.home_longitude,
+        self_location: SelfLocation | None = runtime.get_self_location(request.app)
+        if self_location is None and settings.map.server_latitude is not None and settings.map.server_longitude is not None:
+            self_location = SelfLocation(
+                latitude=settings.map.server_latitude,
+                longitude=settings.map.server_longitude,
                 source="configured",
             )
-        return SiteHomesResponse(
-            homes=[
-                SiteHomeView(
-                    hostname=r.hostname,
-                    latitude=r.latitude,
-                    longitude=r.longitude,
-                    source=cast(Literal["auto", "override"], r.source),
-                    detected_at=r.detected_at.isoformat() if r.detected_at else None,
-                    last_event_day=last_days[r.hostname].date().isoformat() if r.hostname in last_days else None,
+        return ServerLocationsResponse(
+            locations=[
+                ServerLocationView(
+                    server=server_location.server,
+                    latitude=server_location.latitude,
+                    longitude=server_location.longitude,
+                    source=cast(Literal["auto", "override"], server_location.source),
+                    detected_at=server_location.detected_at.isoformat() if server_location.detected_at else None,
+                    last_event_day=(
+                        last_days[server_location.server].date().isoformat()
+                        if server_location.server in last_days
+                        else None
+                    ),
                 )
-                for r in rows
+                for server_location in rows
             ],
-            default=DefaultHomeView(latitude=home.latitude, longitude=home.longitude) if home else None,
+            default=(
+                DefaultServerLocationView(latitude=self_location.latitude, longitude=self_location.longitude)
+                if self_location
+                else None
+            ),
         )
 
     @delete(
-        "/site-homes/{hostname:str}",
+        "/server-locations/{server:str}",
         return_dto=None,
-        description="Remove a retired source's auto-detected home. Override rows (MAP_HOME_LOCATIONS) cannot be removed here.",
+        description=(
+            "Remove a retired server's auto-detected location. "
+            "Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here."
+        ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
-                data_container=ErrorEnvelope, description="No home is recorded for this hostname."
+                data_container=ErrorEnvelope, description="No location is recorded for this server."
             ),
             HTTP_409_CONFLICT: ResponseSpec(
                 data_container=ErrorEnvelope,
-                description="The home is pinned by MAP_HOME_LOCATIONS; edit the setting instead.",
+                description="MAP_SERVER_LOCATIONS pins this location. Edit the setting instead.",
             ),
         },
     )
-    async def delete_site_home(
+    async def delete_server_location(
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
-        hostname: Annotated[str, PathParameter(description="Recording hostname whose home row to remove")],
+        server: Annotated[str, PathParameter(description="Server whose location to remove")],
     ) -> None:
         user = request.scope.get("user")
-        await remove_site_home(db_session, hostname, actor=str(user) if user else "unknown")
+        await remove_server_location(db_session, server, actor=str(user) if user else "unknown")
 
     @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
     async def get_global_top_ips(

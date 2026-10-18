@@ -1,6 +1,6 @@
 /**
  * Filter bar for the geo-logs page: IP include/exclude, country, city and
- * hostname multiselects, and an ASN include/exclude combobox pair
+ * server multiselects, and an ASN include/exclude combobox pair
  * (lazy-loaded facets). Renders in a FilterRail on desktop and inside a
  * FiltersDrawer on mobile. Everything on the page (map, stats, chart, top
  * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
@@ -111,15 +111,15 @@ export function GeoLogsFilterBar() {
       />
     </FilterField>
   )
-  const hostname = (inDrawer: boolean) => (
-    <FilterField label="Hostname" hideLabel={!inDrawer}>
+  const server = (inDrawer: boolean) => (
+    <FilterField label="Server" hideLabel={!inDrawer}>
       <FilterCombobox
-        label="Hostname"
-        options={facets?.hostnames ?? []}
-        selected={filters.hostnames}
-        onChange={(values) => setFilters((prev) => ({ ...prev, hostnames: values }))}
+        label="Server"
+        options={facets?.servers ?? []}
+        selected={filters.servers}
+        onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
         loading={!facets}
-        emptyText="No hostnames"
+        emptyText="No servers"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
         forceInline={inDrawer}
       />
@@ -184,7 +184,7 @@ export function GeoLogsFilterBar() {
           {ipPair(true)}
           {country(true)}
           {city(true)}
-          {hostname(true)}
+          {server(true)}
           {asnPair(true)}
           {chipRow}
         </FiltersDrawer>
@@ -198,7 +198,7 @@ export function GeoLogsFilterBar() {
         {ipPair(false)}
         {country(false)}
         {city(false)}
-        {hostname(false)}
+        {server(false)}
         {asnPair(false)}
       </FilterRow>
       {chipRow}

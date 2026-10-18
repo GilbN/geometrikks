@@ -1,4 +1,4 @@
-"""Find unfinished hostname aggregates without reading the raw event history."""
+"""Find unfinished server aggregates without reading the raw event history."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,30 +11,30 @@ from geometrikks.server.timescale import IP_LOCATION_CAGGS_NAMES
 
 
 @dataclass(frozen=True)
-class HostnameBackfillRange:
+class ServerBackfillRange:
     view: str
     start: datetime
     end: datetime
 
 
-async def pending_hostname_range(
+async def pending_server_range(
     conn: AsyncConnection, view: str, start: datetime, end: datetime,
-) -> HostnameBackfillRange | None:
+) -> ServerBackfillRange | None:
     if view not in IP_LOCATION_CAGGS_NAMES:
         raise ValueError(f"Unknown per-IP aggregate: {view}")
     row = (await conn.execute(text(
         f"SELECT MIN(bucket), MAX(bucket) FROM {view} "
-        "WHERE hostname_hits IS NULL AND bucket >= :start AND bucket < :end"
+        "WHERE server_hits IS NULL AND bucket >= :start AND bucket < :end"
     ), {"start": start, "end": end})).one()
     if row[0] is None:
         return None
     width = timedelta(days=1) if "daily" in view else timedelta(hours=1)
-    return HostnameBackfillRange(view, row[0], row[1] + width)
+    return ServerBackfillRange(view, row[0], row[1] + width)
 
 
-async def hostname_backfill_ranges(
+async def server_backfill_ranges(
     conn: AsyncConnection, *, now: datetime, raw_retention_days: int, hourly_retention_days: int,
-) -> list[HostnameBackfillRange]:
+) -> list[ServerBackfillRange]:
     """Only complete buckets whose raw data and aggregate retention still overlap.
 
     NULL markers outside that window are permanent historical gaps. Refreshing
@@ -48,9 +48,9 @@ async def hostname_backfill_ranges(
         ), {"views": IP_LOCATION_CAGGS_NAMES})
     }
     for view in IP_LOCATION_CAGGS_NAMES:
-        if not all((view, column) in columns for column in ("hostnames", "hostname_hits")):
+        if not all((view, column) in columns for column in ("servers", "server_hits")):
             raise ValueError(
-                f"{view} is missing hostname columns. Start the updated app first. "
+                f"{view} is missing server columns. Start the updated app first. "
                 "If adding the columns failed, check its database setup log; "
                 "in-place column upgrades require TimescaleDB 2.28 or later."
             )
@@ -68,7 +68,7 @@ async def hostname_backfill_ranges(
             width = timedelta(days=1)
         if start < horizon:
             start += width
-        pending = await pending_hostname_range(conn, view, start, end)
+        pending = await pending_server_range(conn, view, start, end)
         if pending is not None:
             ranges.append(pending)
     return ranges

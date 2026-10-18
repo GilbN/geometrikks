@@ -1,4 +1,4 @@
-"""Persistence for per-source home locations (the site_homes table).
+"""Persistence for server locations (the server_locations table).
 
 Raw pg_insert instead of the service layer: the auto upsert needs a
 conditional ON CONFLICT DO UPDATE ... WHERE source <> 'override', which
@@ -15,7 +15,7 @@ from sqlalchemy import CursorResult, delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
-from geometrikks.domain.geo.models import SiteHome
+from geometrikks.domain.geo.models import ServerLocation
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -23,65 +23,65 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from geometrikks.services.geoip.home import HomeLocation
+    from geometrikks.services.geoip.self_location import SelfLocation
 
 logger = get_logger(__name__)
 
 
-async def upsert_auto_homes(
+async def upsert_auto_server_locations(
     session_maker: "Callable[[], AsyncSession]",
-    hostnames: list[str],
-    home: "HomeLocation | None",
+    server_names: list[str],
+    self_location: "SelfLocation | None",
 ) -> None:
-    """Record this process's detected home for each hostname it ingests.
+    """Record this process's detected location for each server name it ingests.
 
-    None home (detection failed / geo-degraded) writes nothing and keeps
-    any existing rows: a flaky IP check must not erase a site's beacon.
+    A None location (detection failed / geo-degraded) writes nothing and keeps
+    any existing rows, so a flaky IP check can't erase a server's beacon.
     """
-    if home is None or not hostnames:
+    if self_location is None or not server_names:
         return
     now = datetime.now(timezone.utc)
     affected: list[str] = []
     async with session_maker() as session:
         # Sorted, not input order: concurrent writers must lock rows in the
         # same order to avoid a deadlock.
-        for hostname in sorted(dict.fromkeys(hostnames)):
+        for server_name in sorted(dict.fromkeys(server_names)):
             stmt = (
-                pg_insert(SiteHome)
+                pg_insert(ServerLocation)
                 .values(
-                    hostname=hostname,
-                    latitude=home.latitude,
-                    longitude=home.longitude,
+                    server=server_name,
+                    latitude=self_location.latitude,
+                    longitude=self_location.longitude,
                     source="auto",
                     detected_at=now,
                 )
                 .on_conflict_do_update(
-                    index_elements=["hostname"],
+                    index_elements=["server"],
                     set_={
-                        "latitude": home.latitude,
-                        "longitude": home.longitude,
+                        "latitude": self_location.latitude,
+                        "longitude": self_location.longitude,
                         "detected_at": now,
                         "updated_at": now,
                     },
-                    where=(SiteHome.source != "override"),
+                    where=(ServerLocation.source != "override"),
                 )
             )
             result = await session.execute(stmt)
             # An upsert always yields a CursorResult; Result[Any] lacks rowcount.
             if cast("CursorResult[Any]", result).rowcount:
-                affected.append(hostname)
+                affected.append(server_name)
         await session.commit()
     # Skip the log entirely when every row was guarded off by the override
     # WHERE clause; a no-op upsert is not worth an audit line.
     if affected:
-        logger.info("site_homes_auto_upserted", hostnames=affected, rows=len(affected))
+        logger.info("server_locations_auto_upserted", server_names=affected, rows=len(affected))
 
 
-async def reconcile_override_homes(
+async def reconcile_override_server_locations(
     session_maker: "Callable[[], AsyncSession]",
     overrides: dict[str, tuple[float, float]],
 ) -> None:
-    """Make override rows exactly match MAP_HOME_LOCATIONS.
+    """Make override rows exactly match MAP_SERVER_LOCATIONS.
 
     Removed overrides are deleted (not demoted): the owning agent's next
     auto upsert recreates the row, so there is no stale-override limbo.
@@ -89,18 +89,18 @@ async def reconcile_override_homes(
     now = datetime.now(timezone.utc)
     async with session_maker() as session:
         # Sorted, not dict order: consistent lock order across concurrent writers.
-        for hostname, (latitude, longitude) in sorted(overrides.items()):
+        for server_name, (latitude, longitude) in sorted(overrides.items()):
             stmt = (
-                pg_insert(SiteHome)
+                pg_insert(ServerLocation)
                 .values(
-                    hostname=hostname,
+                    server=server_name,
                     latitude=latitude,
                     longitude=longitude,
                     source="override",
                     detected_at=None,
                 )
                 .on_conflict_do_update(
-                    index_elements=["hostname"],
+                    index_elements=["server"],
                     set_={
                         "latitude": latitude,
                         "longitude": longitude,
@@ -113,50 +113,50 @@ async def reconcile_override_homes(
             await session.execute(stmt)
         if overrides:
             await session.execute(
-                delete(SiteHome).where(
-                    SiteHome.source == "override",
-                    SiteHome.hostname.not_in(list(overrides)),
+                delete(ServerLocation).where(
+                    ServerLocation.source == "override",
+                    ServerLocation.server.not_in(list(overrides)),
                 )
             )
         else:
-            await session.execute(delete(SiteHome).where(SiteHome.source == "override"))
+            await session.execute(delete(ServerLocation).where(ServerLocation.source == "override"))
         await session.commit()
     if overrides:
-        logger.info("site_homes_overrides_reconciled", hostnames=sorted(overrides))
+        logger.info("server_locations_overrides_reconciled", server_names=sorted(overrides))
 
 
-async def fetch_site_homes(session: "AsyncSession") -> list[SiteHome]:
-    result = await session.execute(select(SiteHome).order_by(SiteHome.hostname))
+async def fetch_server_locations(session: "AsyncSession") -> list[ServerLocation]:
+    result = await session.execute(select(ServerLocation).order_by(ServerLocation.server))
     return list(result.scalars())
 
 
 async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
-    """Most recent day with traffic per recording hostname.
+    """Most recent day with traffic per server.
 
-    Reads the hostname_daily_stats aggregate, not geo_events: the raw table
-    only has a single-column hostname index, so a per-hostname max(timestamp)
-    would walk every row of a busy source. Day precision is enough to tell a
-    retired source from a live one.
+    Reads the server_daily_stats aggregate, not geo_events. The raw table
+    only has a single-column server index, so a per-server max(timestamp)
+    would walk every row of a busy server. Day precision is enough to tell a
+    retired server from a live one.
     """
     result = await session.execute(
-        text("SELECT hostname, max(bucket) AS last_day FROM hostname_daily_stats GROUP BY hostname")
+        text("SELECT server, max(bucket) AS last_day FROM server_daily_stats GROUP BY server")
     )
-    return {row.hostname: row.last_day for row in result}
+    return {row.server: row.last_day for row in result}
 
 
-async def remove_site_home(session: "AsyncSession", hostname: str, *, actor: str) -> None:
-    """Remove one hostname's home row.
+async def remove_server_location(session: "AsyncSession", server: str, *, actor: str) -> None:
+    """Remove one server's location row.
 
-    Only auto rows can go: override rows mirror MAP_HOME_LOCATIONS and would
+    Only auto rows can go. Override rows mirror MAP_SERVER_LOCATIONS and would
     be recreated at the next startup, so deleting one here would only
-    mislead. A deleted auto row comes back at the owning agent's next home
-    refresh if that agent still runs; the delete is for retired sources.
+    mislead. A deleted auto row comes back at the owning agent's next location
+    refresh if that agent still runs; the delete is for retired servers.
     """
-    row = (await session.execute(select(SiteHome).where(SiteHome.hostname == hostname))).scalar_one_or_none()
+    row = (await session.execute(select(ServerLocation).where(ServerLocation.server == server))).scalar_one_or_none()
     if row is None:
-        raise DomainNotFoundError(f"No home recorded for hostname {hostname!r}")
+        raise DomainNotFoundError(f"No location recorded for server {server!r}")
     if row.source == "override":
-        raise DomainConflictError(f"Hostname {hostname!r} is pinned by MAP_HOME_LOCATIONS; remove it there instead")
+        raise DomainConflictError(f"MAP_SERVER_LOCATIONS pins server {server!r}; remove its entry there instead")
     await session.delete(row)
     await session.commit()
-    logger.info("site_home_deleted", hostname=hostname, source="auto", actor=actor)
+    logger.info("server_location_deleted", server=server, source="auto", actor=actor)
