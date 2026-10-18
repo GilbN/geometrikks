@@ -11,6 +11,10 @@ newer alert. More than ``MAX_FETCH`` alerts inside the margin get one more
 request with a cutoff one second past the cursor's age, which keeps the
 cursor's whole second inside the answer while the clocks agree; a flood
 that request cannot get past is a conflict.
+
+The bot group runs three LAPI queries side by side. They share the LAPI
+clock and send the same ``created_before`` on each pass, so an answer from
+any of them that reaches the cursor proves the cutoff for all three.
 """
 
 from __future__ import annotations
@@ -50,6 +54,8 @@ BOT_CHALLENGE_SCENARIOS = (
 )
 
 FLOOD_CONFLICT = "Too many alerts at the same moment to page past; filter by IP or scenario."
+# The bot group takes no scenario filter.
+BOT_FLOOD_CONFLICT = "Too many alerts at the same moment to page past; filter by IP."
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,37 +122,75 @@ def _covers_cursor(alerts: list[Alert], cursor: AlertCursor) -> bool:
     )
 
 
-async def _fetch_older(
+SourcePage = tuple[list[Alert], bool]
+
+
+async def _grow_older(
     service: CrowdSecService,
     lapi_filters: dict[str, Any],
+    alerts: list[Alert],
     *,
     limit: int,
     before: AlertCursor,
     created_before: str | None,
-) -> tuple[list[Alert], bool] | Literal["uncovered", "exhausted"]:
-    """Alerts older than ``before``, growing the fetch past newer rows.
+) -> SourcePage | Literal["exhausted"]:
+    """Alerts older than ``before``, growing the fetch past newer rows from a
+    first answer of ``limit`` rows.
 
-    "uncovered" when a ``created_before`` answer does not reach the cursor;
     "exhausted" when ``MAX_FETCH`` rows hold nothing older.
     """
     fetch_limit = limit
     while True:
-        alerts = await service.get_alerts(
-            limit=fetch_limit, created_before=created_before, **lapi_filters
-        )
-        if created_before is not None and not _covers_cursor(alerts, before):
-            # The LAPI counts created_before back from its own clock. An
-            # answer that does not reach the cursor may come from a cutoff
-            # that sits before it and has left older alerts out.
-            return "uncovered"
         full = len(alerts) == fetch_limit
         older = _older_than(alerts, before)
         if not full or len(older) >= limit:
             return older, full
         if fetch_limit < MAX_FETCH:
             fetch_limit = min(fetch_limit * 4, MAX_FETCH)
+            alerts = await service.get_alerts(
+                limit=fetch_limit, created_before=created_before, **lapi_filters
+            )
             continue
         return (older, full) if older else "exhausted"
+
+
+async def _first_answers(
+    service: CrowdSecService,
+    source_filters: list[dict[str, Any]],
+    *,
+    limit: int,
+    created_before: str | None,
+) -> list[list[Alert]]:
+    return list(
+        await asyncio.gather(
+            *(
+                service.get_alerts(limit=limit, created_before=created_before, **lapi_filters)
+                for lapi_filters in source_filters
+            )
+        )
+    )
+
+
+async def _grow_all(
+    service: CrowdSecService,
+    source_filters: list[dict[str, Any]],
+    answers: list[list[Alert]],
+    *,
+    limit: int,
+    before: AlertCursor,
+    created_before: str | None,
+) -> list[SourcePage | Literal["exhausted"]]:
+    return list(
+        await asyncio.gather(
+            *(
+                _grow_older(
+                    service, lapi_filters, alerts,
+                    limit=limit, before=before, created_before=created_before,
+                )
+                for lapi_filters, alerts in zip(source_filters, answers, strict=True)
+            )
+        )
+    )
 
 
 def _older_than(alerts: list[Alert], cursor: AlertCursor) -> list[Alert]:
@@ -154,56 +198,94 @@ def _older_than(alerts: list[Alert], cursor: AlertCursor) -> list[Alert]:
     return [alert for alert in alerts if _sort_key(alert) < cursor_key]
 
 
-def _flood_conflict(lapi_filters: dict[str, Any]) -> DomainConflictError:
+def _flood_conflict(lapi_filters: dict[str, Any], detail: str) -> DomainConflictError:
     logger.warning("alert_page_flood_conflict", fetch_limit=MAX_FETCH, **lapi_filters)
-    return DomainConflictError(FLOOD_CONFLICT)
+    return DomainConflictError(detail)
 
 
-async def _fetch_source(
+async def _fetch_sources(
     service: CrowdSecService,
-    lapi_filters: dict[str, Any],
+    source_filters: list[dict[str, Any]],
     *,
     limit: int,
     before: AlertCursor | None,
     now: datetime,
-) -> tuple[list[Alert], bool]:
-    """Alerts older than ``before`` from one LAPI query, and whether the LAPI
-    answer was full (so more may follow)."""
+    conflict_detail: str,
+) -> list[SourcePage]:
+    """Alerts older than ``before`` from each LAPI query, and whether each
+    LAPI answer was full (so more may follow)."""
     if before is None:
-        alerts = await service.get_alerts(limit=limit, created_before=None, **lapi_filters)
-        return alerts, len(alerts) == limit
+        answers = await _first_answers(service, source_filters, limit=limit, created_before=None)
+        return [(alerts, len(alerts) == limit) for alerts in answers]
     # A cursor younger than the margin gets no cutoff, which makes this
     # first pass the clock-free one.
     margin_cutoff = _created_before(before, now, CURSOR_MARGIN)
-    page = await _fetch_older(
-        service, lapi_filters, limit=limit, before=before, created_before=margin_cutoff
+    answers = await _first_answers(
+        service, source_filters, limit=limit, created_before=margin_cutoff
     )
-    if not isinstance(page, str):
-        return page
-    if page == "exhausted":
-        # More than MAX_FETCH alerts sit inside the margin after the cursor.
-        # A cutoff one second past the cursor's age reaches past them while
-        # the clocks agree; the coverage check catches a LAPI clock behind
-        # ours. A clock-free request would meet the same MAX_FETCH rows at
-        # or after the cursor, so there is no further fallback.
-        exact_cutoff = _created_before(before, now, EXACT_AGE_SLACK)
-        if exact_cutoff is not None and exact_cutoff != margin_cutoff:
-            alerts = await service.get_alerts(
-                limit=MAX_FETCH, created_before=exact_cutoff, **lapi_filters
+    # The LAPI counts created_before back from its own clock. An answer
+    # that does not reach the cursor may come from a cutoff that sits
+    # before it and has left older alerts out. The sources share that
+    # clock and the cutoff, so one answer reaching the cursor proves the
+    # cutoff for all of them, though the cursor alert sits in only one.
+    if margin_cutoff is not None and not any(
+        _covers_cursor(alerts, before) for alerts in answers
+    ):
+        for lapi_filters in source_filters:
+            logger.info("alert_page_clock_free_fallback", **lapi_filters)
+        answers = await _first_answers(service, source_filters, limit=limit, created_before=None)
+        pages = await _grow_all(
+            service, source_filters, answers, limit=limit, before=before, created_before=None
+        )
+        clock_free_pages: list[SourcePage] = []
+        for lapi_filters, page in zip(source_filters, pages, strict=True):
+            if isinstance(page, str):
+                raise _flood_conflict(lapi_filters, conflict_detail)
+            clock_free_pages.append(page)
+        return clock_free_pages
+    pages = await _grow_all(
+        service, source_filters, answers, limit=limit, before=before, created_before=margin_cutoff
+    )
+    exhausted = [
+        lapi_filters
+        for lapi_filters, page in zip(source_filters, pages, strict=True)
+        if isinstance(page, str)
+    ]
+    if not exhausted:
+        return [page for page in pages if not isinstance(page, str)]
+    # More than MAX_FETCH alerts sit inside the margin after the cursor.
+    # A cutoff one second past the cursor's age reaches past them while
+    # the clocks agree; the coverage check catches a LAPI clock behind
+    # ours. A clock-free request would meet the same MAX_FETCH rows at
+    # or after the cursor, so there is no further fallback.
+    exact_cutoff = _created_before(before, now, EXACT_AGE_SLACK)
+    if exact_cutoff is None or exact_cutoff == margin_cutoff:
+        raise _flood_conflict(exhausted[0], conflict_detail)
+    # Sources that did not run out ask too, with a page-sized limit: the
+    # cursor alert may sit in one of them, and only it can prove the cutoff.
+    answers = await asyncio.gather(
+        *(
+            service.get_alerts(
+                limit=MAX_FETCH if isinstance(page, str) else limit,
+                created_before=exact_cutoff,
+                **lapi_filters,
             )
-            if _covers_cursor(alerts, before):
-                older = _older_than(alerts, before)
-                full = len(alerts) == MAX_FETCH
-                if older or not full:
-                    return older, full
-        raise _flood_conflict(lapi_filters)
-    logger.info("alert_page_clock_free_fallback", **lapi_filters)
-    page = await _fetch_older(
-        service, lapi_filters, limit=limit, before=before, created_before=None
+            for lapi_filters, page in zip(source_filters, pages, strict=True)
+        )
     )
-    if isinstance(page, str):
-        raise _flood_conflict(lapi_filters)
-    return page
+    if not any(_covers_cursor(alerts, before) for alerts in answers):
+        raise _flood_conflict(exhausted[0], conflict_detail)
+    exact_pages: list[SourcePage] = []
+    for lapi_filters, page, alerts in zip(source_filters, pages, answers, strict=True):
+        if not isinstance(page, str):
+            exact_pages.append(page)
+            continue
+        older = _older_than(alerts, before)
+        full = len(alerts) == MAX_FETCH
+        if not older and full:
+            raise _flood_conflict(lapi_filters, conflict_detail)
+        exact_pages.append((older, full))
+    return exact_pages
 
 
 async def fetch_alert_page(
@@ -222,12 +304,13 @@ async def fetch_alert_page(
         DomainConflictError: ``MAX_FETCH`` alerts at or after the cursor
             stand between it and anything older.
     """
-    now = now or datetime.now(UTC)
-    source_pages = await asyncio.gather(
-        *(
-            _fetch_source(service, lapi_filters, limit=limit, before=before, now=now)
-            for lapi_filters in _source_filters(filters)
-        )
+    source_pages = await _fetch_sources(
+        service,
+        _source_filters(filters),
+        limit=limit,
+        before=before,
+        now=now or datetime.now(UTC),
+        conflict_detail=BOT_FLOOD_CONFLICT if filters.kind == BOT_KIND_GROUP else FLOOD_CONFLICT,
     )
     alerts = _merge_sources(source_pages)
     page_alerts = alerts[:limit]
@@ -238,7 +321,7 @@ async def fetch_alert_page(
     )
 
 
-def _merge_sources(source_pages: list[tuple[list[Alert], bool]]) -> list[Alert]:
+def _merge_sources(source_pages: list[SourcePage]) -> list[Alert]:
     """The sources' rows newest first, each alert once, ending where any
     full source's answer ends."""
     if len(source_pages) == 1:

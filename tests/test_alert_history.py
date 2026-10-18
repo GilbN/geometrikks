@@ -7,11 +7,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
+from structlog.testing import capture_logs
 
 from geometrikks.domain.exceptions import DomainConflictError, DomainValidationError
 from geometrikks.domain.security import alert_history
 from geometrikks.domain.security.alert_history import (
     BOT_CHALLENGE_SCENARIOS,
+    BOT_FLOOD_CONFLICT,
     BOT_KIND_GROUP,
     AlertCursor,
     AlertFilters,
@@ -559,12 +561,14 @@ async def test_bot_group_cuts_the_merge_to_the_limit_with_a_cursor():
 
 
 def bot_day() -> tuple[list[Alert], list[Alert]]:
-    """140 rejections and 7 too-many-requests bans over a day, plus 50
-    unrelated http-probing alerts. Returns the bot alerts and all of them."""
+    """140 rejections ten minutes apart and 7 too-many-requests bans over a
+    day, plus 50 unrelated http-probing alerts. Every bot alert sits more
+    than the margin away from the next one in its own source, so only the
+    cursor's own source proves a cutoff. Returns the bot alerts and all of them."""
     day_start = NOW - timedelta(hours=24)
     rejections = [bot_rejection(id, day_start + timedelta(minutes=10 * id)) for id in range(1, 141)]
     bans = [
-        bot_ban(140 + index, day_start + timedelta(hours=3 * index, minutes=5))
+        bot_ban(140 + index, day_start + timedelta(hours=3 * index, minutes=2))
         for index in range(1, 8)
     ]
     probes = [
@@ -580,17 +584,82 @@ async def test_bot_group_walks_every_page_in_order():
     lapi = SimulatedLapi(alerts)
     walked: list[int | None] = []
     cursor: str | None = None
-    for _ in range(10):
-        before = None if cursor is None else decode_cursor(cursor)
-        page = await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=before, now=NOW)
-        walked.extend(alert.id for alert in page.alerts)
-        cursor = page.next_cursor
-        if len(walked) < len(bot_alerts):
-            assert cursor is not None, f"no cursor after {len(walked)} of {len(bot_alerts)}"
-        if cursor is None:
-            break
+    with capture_logs() as logs:
+        for _ in range(10):
+            before = None if cursor is None else decode_cursor(cursor)
+            page = await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=before, now=NOW)
+            walked.extend(alert.id for alert in page.alerts)
+            cursor = page.next_cursor
+            if len(walked) < len(bot_alerts):
+                assert cursor is not None, f"no cursor after {len(walked)} of {len(bot_alerts)}"
+            if cursor is None:
+                break
     assert walked == newest_first(bot_alerts)
     assert len(walked) == 147
+    assert [log for log in logs if log["event"] == "alert_page_clock_free_fallback"] == []
+
+
+def ban_in_a_rejection_gap(*, newer: int) -> list[Alert]:
+    """100 old rejections, a ban ten minutes past them and ``newer``
+    rejections from ten minutes after the ban."""
+    start = NOW - timedelta(hours=10)
+    older = [bot_rejection(id, start + timedelta(seconds=id)) for id in range(1, 101)]
+    ban = bot_ban(5000, start + timedelta(minutes=30))
+    newer_rejections = [
+        bot_rejection(1000 + index, start + timedelta(minutes=40, seconds=index))
+        for index in range(1, newer + 1)
+    ]
+    return older + [ban] + newer_rejections
+
+
+async def test_bot_group_ban_cursor_in_a_rejection_gap_pages_through(monkeypatch):
+    # 249 newer rejections put the fifth page break on the ban. Only the ban
+    # source holds the cursor; its answer proves the cutoff for the rejection
+    # source, which would otherwise go clock-free and run out of rows.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    alerts = ban_in_a_rejection_gap(newer=249)
+    lapi = SimulatedLapi(alerts)
+    with capture_logs() as logs:
+        walked = await walk_pages(lapi, filters=BOT_GROUP)
+    assert walked == newest_first(alerts)
+    assert [log for log in logs if log["event"] == "alert_page_clock_free_fallback"] == []
+
+
+async def test_bot_group_with_a_lapi_clock_far_behind_takes_the_clock_free_pass():
+    bot_alerts, alerts = bot_day()
+    lapi = SimulatedLapi(alerts, clock_skew=LAPI_FAR_BEHIND)
+    with capture_logs() as logs:
+        walked = await walk_pages(lapi, filters=BOT_GROUP)
+    assert walked == newest_first(bot_alerts)
+    fallbacks = [log for log in logs if log["event"] == "alert_page_clock_free_fallback"]
+    assert {log["kind"] for log in fallbacks} == {"bot-detection", None}
+    assert {log["scenario"] for log in fallbacks} == {None, *BOT_CHALLENGE_SCENARIOS}
+
+
+async def test_bot_group_exact_age_pass_takes_its_proof_from_the_cursor_source(monkeypatch):
+    # The rejection source runs out of rows inside the margin and goes to
+    # the exact-age cutoff, where it holds nothing from the cursor's second
+    # or later. The ban source holds the cursor and proves that cutoff.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    older = [bot_rejection(id, T0 - timedelta(seconds=11 - id)) for id in range(1, 11)]
+    ban = bot_ban(500, T0)
+    flood = [bot_rejection(id, T0 + timedelta(seconds=2 + (id - 11) * 118 // 149)) for id in range(11, 161)]
+    lapi = SimulatedLapi(older + [ban] + flood)
+    page = await fetch_alert_page(
+        lapi, BOT_GROUP, limit=50, before=AlertCursor(created_at=T0, id=500), now=NOW
+    )
+    assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
+    assert page.next_cursor is None
+
+
+async def test_bot_group_flood_conflict_does_not_advise_a_scenario_filter(monkeypatch):
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    lapi = SimulatedLapi([bot_rejection(id, T0) for id in range(1, 301)])
+    cursor = AlertCursor(created_at=T0, id=150)
+    with pytest.raises(DomainConflictError) as conflict:
+        await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=cursor, now=NOW)
+    assert conflict.value.detail == BOT_FLOOD_CONFLICT
+    assert "scenario" not in BOT_FLOOD_CONFLICT
 
 
 async def test_bot_group_stops_at_a_full_source_that_answered_short(monkeypatch):
