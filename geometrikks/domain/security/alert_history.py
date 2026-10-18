@@ -4,7 +4,9 @@ GET /v1/alerts has no offset: it answers the newest ``limit`` alerts, ordered
 by ``created_at`` then ``id``, both descending. A page further back asks for
 alerts created before the cursor with ``created_before``, a duration the LAPI
 counts back from its own clock, then drops what is not strictly older than
-the cursor.
+the cursor. When that answer holds nothing at or after the cursor, the LAPI
+clock may be far enough behind ours to have cut alerts out, so the page is
+fetched again without ``created_before``, past every newer alert.
 """
 
 from __future__ import annotations
@@ -23,8 +25,8 @@ logger = get_logger(__name__)
 
 # The LAPI clock can run ahead of or behind ours, and created_before only has
 # whole-second precision. Asking for a few minutes more than the cursor's age
-# keeps the cursor's own second inside the answer; the extra rows newer than
-# the cursor are dropped here.
+# keeps the cursor's own second inside the answer while the clocks agree to
+# within the margin; the extra rows newer than the cursor are dropped here.
 CURSOR_MARGIN = timedelta(minutes=5)
 # Ceiling on one LAPI request while growing the fetch past newer rows.
 MAX_FETCH = 2000
@@ -85,6 +87,44 @@ def _created_before(cursor: AlertCursor, now: datetime, margin: timedelta) -> st
     return f"{age_seconds}s" if age_seconds > 0 else None
 
 
+def _covers_cursor(alerts: list[Alert], cursor: AlertCursor) -> bool:
+    return any(_created_at(alert) >= cursor.created_at for alert in alerts)
+
+
+async def _fetch_older(
+    service: CrowdSecService,
+    lapi_filters: dict[str, Any],
+    *,
+    limit: int,
+    before: AlertCursor,
+    created_before: str | None,
+) -> tuple[list[Alert], bool] | None:
+    """Alerts older than ``before``, growing the fetch past newer rows.
+
+    None when the answer cannot be trusted: a ``created_before`` answer with
+    nothing at or after the cursor, or ``MAX_FETCH`` rows with nothing older.
+    """
+    cursor_key = (before.created_at, before.id)
+    fetch_limit = limit
+    while True:
+        alerts = await service.get_alerts(
+            limit=fetch_limit, created_before=created_before, **lapi_filters
+        )
+        if created_before is not None and not _covers_cursor(alerts, before):
+            # The LAPI counts created_before back from its own clock. With
+            # nothing at or after the cursor in the answer, its cutoff may
+            # sit before the cursor and have left older alerts out.
+            return None
+        full = len(alerts) == fetch_limit
+        older = [alert for alert in alerts if _sort_key(alert) < cursor_key]
+        if not full or len(older) >= limit:
+            return older, full
+        if fetch_limit < MAX_FETCH:
+            fetch_limit = min(fetch_limit * 4, MAX_FETCH)
+            continue
+        return (older, full) if older else None
+
+
 async def _fetch_source(
     service: CrowdSecService,
     lapi_filters: dict[str, Any],
@@ -95,41 +135,24 @@ async def _fetch_source(
 ) -> tuple[list[Alert], bool]:
     """Alerts older than ``before`` from one LAPI query, and whether the LAPI
     answer was full (so more may follow)."""
-    fetch_limit = limit
-    margin = CURSOR_MARGIN
-    margin_dropped = False
-    while True:
-        created_before = None if before is None else _created_before(before, now, margin)
-        alerts = await service.get_alerts(
-            limit=fetch_limit, created_before=created_before, **lapi_filters
+    if before is None:
+        alerts = await service.get_alerts(limit=limit, created_before=None, **lapi_filters)
+        return alerts, len(alerts) == limit
+    created_before = _created_before(before, now, CURSOR_MARGIN)
+    if created_before is not None:
+        page = await _fetch_older(
+            service, lapi_filters, limit=limit, before=before, created_before=created_before
         )
-        full = len(alerts) == fetch_limit
-        if before is None:
-            return alerts, full
-        if margin_dropped and not any(_created_at(alert) >= before.created_at for alert in alerts):
-            # Nothing at or after the cursor's second came back, so the LAPI
-            # cutoff may have fallen before the cursor and left alerts out.
-            logger.warning("alert_page_skew_conflict", fetch_limit=fetch_limit, **lapi_filters)
-            raise DomainConflictError(FLOOD_CONFLICT)
-        cursor_key = (before.created_at, before.id)
-        older = [alert for alert in alerts if _sort_key(alert) < cursor_key]
-        if not full or len(older) >= limit:
-            return older, full
-        if fetch_limit < MAX_FETCH:
-            fetch_limit = min(fetch_limit * 4, MAX_FETCH)
-            continue
-        if not margin_dropped and _created_before(before, now, timedelta(0)) is not None:
-            # The exact cursor age reaches past the flood, but a LAPI clock
-            # behind ours puts the cutoff before the cursor. The answer is
-            # only used when it holds an alert from the cursor's second.
-            logger.info("alert_page_margin_dropped", fetch_limit=fetch_limit, **lapi_filters)
-            margin = timedelta(0)
-            margin_dropped = True
-            continue
-        if older:
-            return older, full
-        logger.warning("alert_page_flood_conflict", fetch_limit=fetch_limit, **lapi_filters)
-        raise DomainConflictError(FLOOD_CONFLICT)
+        if page is not None:
+            return page
+        logger.info("alert_page_clock_free_fallback", **lapi_filters)
+    page = await _fetch_older(
+        service, lapi_filters, limit=limit, before=before, created_before=None
+    )
+    if page is not None:
+        return page
+    logger.warning("alert_page_flood_conflict", fetch_limit=MAX_FETCH, **lapi_filters)
+    raise DomainConflictError(FLOOD_CONFLICT)
 
 
 async def fetch_alert_page(
@@ -143,9 +166,8 @@ async def fetch_alert_page(
     """One page of alerts, newest first, older than ``before`` when given.
 
     Raises:
-        DomainConflictError: More than ``MAX_FETCH`` alerts sit at or just
-            after the cursor, and no request can reach past them without
-            risking a skipped alert.
+        DomainConflictError: ``MAX_FETCH`` alerts at or after the cursor
+            stand between it and anything older.
     """
     lapi_filters: dict[str, Any] = {
         "ip": filters.ip,
