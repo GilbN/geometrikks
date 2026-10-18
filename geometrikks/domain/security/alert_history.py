@@ -6,9 +6,9 @@ alerts created before the cursor with ``created_before``, a duration the LAPI
 counts back from its own clock, then drops what is not strictly older than
 the cursor. More than ``MAX_FETCH`` alerts inside the margin get one more
 request at the cursor's exact age. When an answer with ``created_before``
-holds nothing at or after the cursor, the LAPI clock may be far enough
-behind ours to have cut alerts out, so the page is fetched again without
-``created_before``, past every newer alert.
+holds neither the cursor alert nor one from a later second, the cutoff may
+have stopped short of the cursor and cut alerts out, so the page is fetched
+again without ``created_before``, past every newer alert.
 """
 
 from __future__ import annotations
@@ -90,7 +90,14 @@ def _created_before(cursor: AlertCursor, now: datetime, margin: timedelta) -> st
 
 
 def _covers_cursor(alerts: list[Alert], cursor: AlertCursor) -> bool:
-    return any(_created_at(alert) >= cursor.created_at for alert in alerts)
+    # The LAPI applies created_before to sub-second created_at but answers
+    # whole seconds, so a cutoff can land inside the cursor's second and
+    # drop the cursor while keeping an earlier alert from that second. Only
+    # the cursor alert itself, or one from a later second, proves the
+    # cutoff reached past it.
+    return any(
+        alert.id == cursor.id or _created_at(alert) > cursor.created_at for alert in alerts
+    )
 
 
 async def _fetch_older(
@@ -103,8 +110,8 @@ async def _fetch_older(
 ) -> tuple[list[Alert], bool] | Literal["uncovered", "exhausted"]:
     """Alerts older than ``before``, growing the fetch past newer rows.
 
-    "uncovered" when a ``created_before`` answer holds nothing at or after
-    the cursor; "exhausted" when ``MAX_FETCH`` rows hold nothing older.
+    "uncovered" when a ``created_before`` answer does not reach the cursor;
+    "exhausted" when ``MAX_FETCH`` rows hold nothing older.
     """
     fetch_limit = limit
     while True:
@@ -112,9 +119,9 @@ async def _fetch_older(
             limit=fetch_limit, created_before=created_before, **lapi_filters
         )
         if created_before is not None and not _covers_cursor(alerts, before):
-            # The LAPI counts created_before back from its own clock. With
-            # nothing at or after the cursor in the answer, its cutoff may
-            # sit before the cursor and have left older alerts out.
+            # The LAPI counts created_before back from its own clock. An
+            # answer that does not reach the cursor may come from a cutoff
+            # that sits before it and has left older alerts out.
             return "uncovered"
         full = len(alerts) == fetch_limit
         older = _older_than(alerts, before)
@@ -160,7 +167,8 @@ async def _fetch_source(
     if page == "exhausted":
         # More than MAX_FETCH alerts sit inside the margin after the cursor.
         # The exact cursor age reaches past them while the clocks agree; the
-        # coverage check catches a LAPI clock behind ours.
+        # coverage check catches a cutoff that stopped short of the cursor,
+        # from a LAPI clock behind ours or from landing inside its second.
         exact_cutoff = _created_before(before, now, timedelta(0))
         if exact_cutoff is not None:
             alerts = await service.get_alerts(
@@ -171,8 +179,8 @@ async def _fetch_source(
                 full = len(alerts) == MAX_FETCH
                 if older or not full:
                     return older, full
-                # Full and nothing older: the flood is inside the cursor's
-                # own second, which no cutoff can split.
+                # Full and nothing older: MAX_FETCH rows sit at or after the
+                # cursor, and a clock-free request would meet the same rows.
                 raise _flood_conflict(lapi_filters)
         if margin_cutoff is None:
             raise _flood_conflict(lapi_filters)

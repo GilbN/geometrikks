@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -34,12 +35,14 @@ def make_alert(
     kind: str = "crowdsec",
     value: str = "1.2.3.4",
 ) -> Alert:
+    """A stored LAPI row. ``created_at`` keeps its fraction of a second, the
+    way the LAPI database does; ``SimulatedLapi`` answers it whole-second."""
     return Alert(
         id=id,
         scenario=scenario,
         message=f"Ip {value} performed {scenario}",
         events_count=1,
-        created_at=created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        created_at=created_at.isoformat().replace("+00:00", "Z"),
         source=AlertSource(scope="Ip", value=value, ip=value),
         kind=kind,
     )
@@ -49,6 +52,11 @@ def alert_created_at(alert: Alert) -> datetime:
     return datetime.fromisoformat(alert.created_at)
 
 
+def whole_second(alert: Alert) -> Alert:
+    """The row as the LAPI answers it: ``created_at`` in RFC 3339 whole seconds."""
+    return replace(alert, created_at=alert_created_at(alert).strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+
 def newest_first(alerts: list[Alert]) -> list[int | None]:
     ordered = sorted(alerts, key=lambda alert: (alert_created_at(alert), alert.id), reverse=True)
     return [alert.id for alert in ordered]
@@ -56,7 +64,10 @@ def newest_first(alerts: list[Alert]) -> list[int | None]:
 
 class SimulatedLapi(CrowdSecService):
     """GET /v1/alerts as pkg/database answers it: newest first by
-    (created_at, id), ``created_before`` counted back from the LAPI's own clock."""
+    (created_at, id), ``created_before`` counted back from the LAPI's own clock.
+
+    Ordering and the cutoff use the stored sub-second ``created_at``; the
+    answer carries whole seconds, as the LAPI formats it with time.RFC3339."""
 
     def __init__(
         self,
@@ -91,7 +102,7 @@ class SimulatedLapi(CrowdSecService):
             boundary = self.now + self.clock_skew - timedelta(seconds=int(created_before[:-1]))
             matching = [alert for alert in matching if alert_created_at(alert) <= boundary]
         limit = filters.get("limit")
-        return matching[:limit] if limit else matching
+        return [whole_second(alert) for alert in (matching[:limit] if limit else matching)]
 
 
 async def test_first_page_is_newest_first_with_a_cursor_when_full():
@@ -110,12 +121,14 @@ async def test_short_last_page_has_no_cursor():
     assert page.next_cursor is None
 
 
-async def walk_pages(lapi: SimulatedLapi, *, limit: int = 50) -> list[int | None]:
+async def walk_pages(
+    lapi: SimulatedLapi, *, limit: int = 50, now: datetime = NOW
+) -> list[int | None]:
     walked: list[int | None] = []
     cursor: str | None = None
     for _ in range(50):
         before = None if cursor is None else decode_cursor(cursor)
-        page = await fetch_alert_page(lapi, AlertFilters(), limit=limit, before=before, now=NOW)
+        page = await fetch_alert_page(lapi, AlertFilters(), limit=limit, before=before, now=now)
         walked.extend(alert.id for alert in page.alerts)
         cursor = page.next_cursor
         if cursor is None:
@@ -205,7 +218,7 @@ async def test_deleted_cursor_alert_still_pages_on():
     second = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert [alert.id for alert in second.alerts] == list(range(70, 20, -1))
     assert second.next_cursor is not None
-    # Nothing at or after the deleted cursor proves the cutoff reached it.
+    # Without the cursor alert, nothing in the answer proves the cutoff reached it.
     assert lapi.calls[-1]["created_before"] is None
 
 
@@ -236,8 +249,8 @@ async def test_flood_inside_the_margin_past_the_cap_pages_through_with_agreeing_
 
 
 async def test_deleted_cursor_inside_a_margin_flood_is_an_accepted_conflict(monkeypatch):
-    # With the cursor alert gone, the exact-age answer holds nothing at or
-    # after the cursor, so it cannot rule out a LAPI clock behind ours. The
+    # With the cursor alert gone, the exact-age answer holds neither it nor
+    # a later alert, so it cannot rule out a cutoff short of the cursor. The
     # clock-free pass then has to get past all 150 newer alerts, more than
     # MAX_FETCH, and the page answers 409 although older alerts exist.
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
@@ -251,6 +264,76 @@ async def test_deleted_cursor_inside_a_margin_flood_is_an_accepted_conflict(monk
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
         (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
         (50, None), (100, None),
+    ]
+
+
+# Our clock has a fraction of a second, like datetime.now(). With agreeing
+# clocks, a cutoff at the cursor's floored age lands at that fraction inside
+# the cursor's second.
+SUBSECOND_NOW = NOW + timedelta(milliseconds=300)
+# Milliseconds into T0's second for ids 11 to 16. Ids 11 and 12 sit before
+# the 300 ms cutoff, ids 13 to 16 after it.
+SAME_SECOND_MILLISECONDS = {11: 100, 12: 200, 13: 400, 14: 600, 15: 700, 16: 800}
+
+
+def subsecond_alerts(*, newer: int) -> list[Alert]:
+    """Ten alerts before ``T0``, six inside ``T0``'s second, and ``newer``
+    alerts from id 17 up, spread over the two minutes after ``T0``."""
+    before = [make_alert(id, T0 - timedelta(seconds=11 - id)) for id in range(1, 11)]
+    same_second = [
+        make_alert(id, T0 + timedelta(milliseconds=milliseconds))
+        for id, milliseconds in SAME_SECOND_MILLISECONDS.items()
+    ]
+    after = [
+        make_alert(id, T0 + timedelta(seconds=1 + (id - 17) * 119 // max(newer - 1, 1)))
+        for id in range(17, 17 + newer)
+    ]
+    return before + same_second + after
+
+
+async def test_walk_through_a_flood_with_the_cutoff_inside_the_cursor_second(monkeypatch):
+    # 149 alerts above id 12 put the third page break on it, so page four
+    # starts from a cursor at T0 + 200 ms with the exact-age cutoff landing
+    # at T0 + 300 ms, between the cursor and ids 13 to 16.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    alerts = subsecond_alerts(newer=145)
+    lapi = SimulatedLapi(alerts, now=SUBSECOND_NOW)
+    walked = await walk_pages(lapi, now=SUBSECOND_NOW)
+    assert walked == newest_first(alerts)
+    assert len(set(walked)) == len(alerts)
+    age_seconds = int((SUBSECOND_NOW - T0).total_seconds())
+    assert (lapi.calls[-1]["limit"], lapi.calls[-1]["created_before"]) == (100, f"{age_seconds}s")
+
+
+async def test_exact_age_cutoff_short_of_the_cursor_alert_never_skips_its_second(monkeypatch):
+    # The re-review probe: the cursor sits at T0 + 800 ms, the cutoff at
+    # T0 + 300 ms. Ids 12 to 15 fall between them. An answer holding id 11
+    # from the same second must not pass for one that reached the cursor.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    lapi = SimulatedLapi(subsecond_alerts(newer=150), now=SUBSECOND_NOW)
+    cursor = AlertCursor(created_at=T0, id=16)
+    with pytest.raises(DomainConflictError) as conflict:
+        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=SUBSECOND_NOW)
+    assert conflict.value.detail == alert_history.FLOOD_CONFLICT
+    age_seconds = int((SUBSECOND_NOW - T0).total_seconds())
+    age_with_margin = int((SUBSECOND_NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
+        (50, None), (100, None),
+    ]
+
+
+async def test_margin_cutoff_inside_the_cursor_second_takes_the_clock_free_pass():
+    # A LAPI clock behind ours by the whole margin puts the margin cutoff at
+    # T0 + 300 ms, between the cursor (id 16 at T0 + 800 ms) and ids 12 to 15.
+    alerts = subsecond_alerts(newer=49)
+    lapi = SimulatedLapi(alerts, now=SUBSECOND_NOW, clock_skew=-alert_history.CURSOR_MARGIN)
+    walked = await walk_pages(lapi, now=SUBSECOND_NOW)
+    assert walked == newest_first(alerts)
+    assert len(set(walked)) == len(alerts)
+    age_with_margin = int((SUBSECOND_NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, None), (50, f"{age_with_margin}s"), (50, None), (200, None),
     ]
 
 
