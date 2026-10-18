@@ -14,7 +14,7 @@ describe("palette contract", () => {
   const baseline = declarations(read("light"))
 
   it("provides defaults for the component roles that need independent contrast", () => {
-    expect(read("light").startsWith(":root, .light, .dark {")).toBe(true)
+    expect(read("light").replace(/\s+/g, " ").startsWith(":root, .light, .dark {")).toBe(true)
     for (const role of [
       "background", "foreground", "card", "popover", "secondary", "muted", "input", "ring",
       "control-bg", "control-hover-bg", "panel-bg", "panel-border", "drawer-handle",
