@@ -119,19 +119,24 @@ export function AlertsTable() {
         </Tabs>
       </CardHeader>
       <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2 -mt-6">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
-          <div className="flex min-w-0 items-center gap-1">
-            <div className="min-w-0 overflow-x-auto">
-              <Tabs value={kind} onValueChange={(value) => changeKind(value as AlertKindFilter)}>
-                <TabsList aria-label="Alert kind">
-                  {ALERT_KIND_OPTIONS.map((option) => (
-                    <TabsTrigger key={option.key} value={option.key} className="shrink-0 whitespace-nowrap">
-                      {option.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            </div>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-2 sm:w-auto">
+          <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
+            <Tabs
+              value={kind}
+              onValueChange={(value) => changeKind(value as AlertKindFilter)}
+              className="min-w-0 flex-1 sm:flex-none"
+            >
+              <TabsList
+                aria-label="Alert kind"
+                className="grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto sm:inline-flex sm:w-fit sm:group-data-horizontal/tabs:h-9"
+              >
+                {ALERT_KIND_OPTIONS.map((option) => (
+                  <TabsTrigger key={option.key} value={option.key} className="h-8 sm:h-[calc(100%-1px)]">
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
             <AlertKindHelp />
           </div>
           {scenario && (
@@ -150,12 +155,13 @@ export function AlertsTable() {
           )}
         </div>
         <form
+          className="w-full sm:w-auto"
           onSubmit={(event) => {
             event.preventDefault()
             setIp(ipText.trim() || undefined)
           }}
         >
-          <InputGroup className="h-8 w-[180px]">
+          <InputGroup className="h-8 w-full sm:w-[180px]">
             <InputGroupInput
               name="ip"
               value={ipText}
