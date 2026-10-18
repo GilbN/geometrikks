@@ -4,11 +4,11 @@
  * AlertHistoryUnavailable takes its place otherwise.
  * Selecting a row opens the alert's context, events and decisions.
  */
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Loader2, X } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -20,16 +20,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useCrowdsecAlerts, useTrimCrowdsecAlerts } from "@/lib/queries"
+import { useCrowdsecAlertScenarios, useCrowdsecAlerts, useTrimCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import {
   ALERT_KIND_OPTIONS,
+  MAX_ALERT_SCENARIOS,
   alertHistoryFooter,
   alertsEmptyMessage,
   groupConsecutiveAlerts,
   isRunOpen,
+  onlyScenario,
+  pickScenarios,
   scenarioFilterAllowed,
+  scenarioOptionLabel,
+  scenarioOptions,
   toggleRun,
   type AlertKindFilter,
 } from "@/lib/crowdsec-alerts"
@@ -69,8 +74,10 @@ export function AlertsTable() {
   const [kind, setKind] = useState<AlertKindFilter>("all")
   const [ip, setIp] = useState<string | undefined>(undefined)
   const [ipText, setIpText] = useState("")
-  const [scenario, setScenario] = useState<string | undefined>(undefined)
-  const alertParams = { since, kind: kind === "all" ? undefined : kind, ip, scenario }
+  const [scenarios, setScenarios] = useState<string[]>([])
+  const [scenarioPickerOpened, setScenarioPickerOpened] = useState(false)
+  const kindParam = kind === "all" ? undefined : kind
+  const alertParams = { since, kind: kindParam, ip, scenarios: [...scenarios].sort() }
   const {
     data,
     isLoading,
@@ -94,14 +101,29 @@ export function AlertsTable() {
   const [selected, setSelected] = useState<AlertView | null>(null)
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<ReadonlySet<string>>(() => new Set())
 
-  const filterScenario = (clickedScenario: string) => {
-    setScenario(clickedScenario)
-    if (!scenarioFilterAllowed(kind)) setKind("all")
+  const scenarioPickerEnabled = scenarioFilterAllowed(kind)
+  const {
+    data: scenarioCounts,
+    isPending: scenarioCountsPending,
+    isError: scenarioCountsFailed,
+  } = useCrowdsecAlertScenarios(
+    { since, kind: kindParam },
+    scenarioPickerOpened && scenarioPickerEnabled,
+  )
+  const countByScenario = useMemo(
+    () => new Map(scenarioCounts?.map((scenarioCount) => [scenarioCount.scenario, scenarioCount.count])),
+    [scenarioCounts],
+  )
+
+  const showOnlyScenario = (scenario: string) => {
+    const next = onlyScenario(kind, scenario)
+    setKind(next.kind)
+    setScenarios(next.scenarios)
   }
 
   const changeKind = (nextKind: AlertKindFilter) => {
     setKind(nextKind)
-    if (!scenarioFilterAllowed(nextKind)) setScenario(undefined)
+    if (!scenarioFilterAllowed(nextKind)) setScenarios([])
   }
 
   return (
@@ -119,72 +141,73 @@ export function AlertsTable() {
         </Tabs>
       </CardHeader>
       <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2 -mt-6">
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-2 sm:w-auto">
-          <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
-            <Tabs
-              value={kind}
-              onValueChange={(value) => changeKind(value as AlertKindFilter)}
-              className="min-w-0 flex-1 sm:flex-none"
+        <div className="flex w-full min-w-0 items-center gap-1 sm:w-auto">
+          <Tabs
+            value={kind}
+            onValueChange={(value) => changeKind(value as AlertKindFilter)}
+            className="min-w-0 flex-1 sm:flex-none"
+          >
+            <TabsList
+              aria-label="Alert kind"
+              className="grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto sm:inline-flex sm:w-fit sm:group-data-horizontal/tabs:h-9"
             >
-              <TabsList
-                aria-label="Alert kind"
-                className="grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto sm:inline-flex sm:w-fit sm:group-data-horizontal/tabs:h-9"
-              >
-                {ALERT_KIND_OPTIONS.map((option) => (
-                  <TabsTrigger key={option.key} value={option.key} className="h-8 sm:h-[calc(100%-1px)]">
-                    {option.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-            <AlertKindHelp />
-          </div>
-          {scenario && (
-            <Badge variant="secondary" className="min-w-0 max-w-full shrink gap-1 pr-0.5" title={scenario}>
-              <span className="truncate">Scenario: {scenario.split("/").at(-1)}</span>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className="size-4 rounded-full"
-                aria-label="Clear scenario filter"
-                onClick={() => setScenario(undefined)}
-              >
-                <X />
-              </Button>
-            </Badge>
-          )}
+              {ALERT_KIND_OPTIONS.map((option) => (
+                <TabsTrigger key={option.key} value={option.key} className="h-8 sm:h-[calc(100%-1px)]">
+                  {option.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <AlertKindHelp />
         </div>
-        <form
-          className="w-full sm:w-auto"
-          onSubmit={(event) => {
-            event.preventDefault()
-            setIp(ipText.trim() || undefined)
-          }}
-        >
-          <InputGroup className="h-8 w-full sm:w-[180px]">
-            <InputGroupInput
-              name="ip"
-              value={ipText}
-              onChange={(event) => setIpText(event.target.value)}
-              placeholder="Filter by IP (Enter)"
-              aria-label="Filter alerts by IP"
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
+          <span title={scenarioPickerEnabled ? undefined : "Bot detection already picks its own scenarios"}>
+            <FilterCombobox
+              label="Scenario"
+              options={scenarioOptions(scenarioCounts, scenarios)}
+              selected={scenarios}
+              onChange={(picked) => setScenarios((current) => pickScenarios(current, picked))}
+              labelFor={(scenario) => scenarioOptionLabel(scenario, countByScenario.get(scenario))}
+              loading={scenarioCountsPending}
+              emptyText={scenarioCountsFailed ? "Could not load scenarios" : "No alerts in this window"}
+              contentClassName="min-w-72"
+              onOpenChange={(open) => open && setScenarioPickerOpened(true)}
+              disabled={!scenarioPickerEnabled}
+              maxSelected={MAX_ALERT_SCENARIOS}
             />
-            {ip && (
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  size="icon-xs"
-                  aria-label="Clear IP filter"
-                  onClick={() => {
-                    setIpText("")
-                    setIp(undefined)
-                  }}
-                >
-                  <X />
-                </InputGroupButton>
-              </InputGroupAddon>
-            )}
-          </InputGroup>
-        </form>
+          </span>
+          <form
+            className="min-w-0 flex-1 sm:flex-none"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setIp(ipText.trim() || undefined)
+            }}
+          >
+            <InputGroup className="h-8 w-full sm:w-[180px]">
+              <InputGroupInput
+                name="ip"
+                value={ipText}
+                onChange={(event) => setIpText(event.target.value)}
+                placeholder="Filter by IP (Enter)"
+                aria-label="Filter alerts by IP"
+              />
+              {ip && (
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label="Clear IP filter"
+                    onClick={() => {
+                      setIpText("")
+                      setIp(undefined)
+                    }}
+                  >
+                    <X />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              )}
+            </InputGroup>
+          </form>
+        </div>
       </div>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
@@ -220,7 +243,6 @@ export function AlertsTable() {
                       open={isRunOpen(alertRun, expandedAlertKeys)}
                       onToggle={() => setExpandedAlertKeys((current) => toggleRun(current, alertRun))}
                       onOpenAlert={setSelected}
-                      onFilterScenario={filterScenario}
                     />
                   ))}
               {!isLoading && isError && !alerts && (
@@ -265,7 +287,11 @@ export function AlertsTable() {
           </div>
         )}
       </CardContent>
-      <AlertDetailSheet alert={selected} onOpenChange={(open) => !open && setSelected(null)} />
+      <AlertDetailSheet
+        alert={selected}
+        onOpenChange={(open) => !open && setSelected(null)}
+        onFilterScenario={showOnlyScenario}
+      />
     </Card>
   )
 }

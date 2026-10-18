@@ -2792,7 +2792,10 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
   query?: {
     limit?: number;
     ip?: string | null;
-    scenario?: string | null;
+    /**
+     * Filter to these scenarios (repeatable, at most 5)
+     */
+    scenario?: Array<string> | null;
     /**
      * Go duration lookback, e.g. 24h
      */
@@ -2845,6 +2848,51 @@ export type ApiV1CrowdsecAlertsListAlertsResponses = {
 
 export type ApiV1CrowdsecAlertsListAlertsResponse =
   ApiV1CrowdsecAlertsListAlertsResponses[keyof ApiV1CrowdsecAlertsListAlertsResponses];
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Go duration lookback, e.g. 24h
+     */
+    since?: string | null;
+    /**
+     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces
+     */
+    kind?: string | null;
+  };
+  url: "/api/v1/crowdsec/alerts/scenarios";
+};
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosError =
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors[keyof ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors];
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<ScenarioCount>;
+};
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosResponse =
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses[keyof ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses];
 
 export type ApiV1CrowdsecAlertsAlertIdGetAlertData = {
   body?: never;

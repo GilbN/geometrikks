@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Security > Alert history can be filtered by IP, and clicking a scenario shows only that scenario. Back-to-back alerts of the same kind from one IP collapse into one row that expands.
+- Security > Alert history can be filtered by IP and by up to five scenarios. The Scenario dropdown lists the scenarios of the newest 500 alerts in the window with their counts, and the alert sheet has a "Show only this scenario" button. Back-to-back alerts of the same kind from one IP collapse into one row that expands.
 
 ### Changed
 

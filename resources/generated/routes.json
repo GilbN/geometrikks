@@ -619,6 +619,17 @@
       },
       "uri": "/api/v1/access-logs"
     },
+    "list_alert_scenarios": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "kind": "string | undefined",
+        "since": "string | undefined"
+      },
+      "uri": "/api/v1/crowdsec/alerts/scenarios"
+    },
     "list_alerts": {
       "method": "get",
       "methods": [
@@ -630,7 +641,7 @@
         "ip": "string | undefined",
         "kind": "string | undefined",
         "limit": "number | undefined",
-        "scenario": "string | undefined",
+        "scenario": "string[] | undefined",
         "since": "string | undefined"
       },
       "uri": "/api/v1/crowdsec/alerts"

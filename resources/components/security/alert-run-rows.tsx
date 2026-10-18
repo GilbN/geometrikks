@@ -9,7 +9,6 @@ import type { ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
@@ -25,13 +24,11 @@ type Props = {
   open: boolean
   onToggle: () => void
   onOpenAlert: (alert: AlertView) => void
-  onFilterScenario: (scenario: string) => void
 }
 
 type AlertRowProps = {
   alert: AlertView
   onOpenAlert: (alert: AlertView) => void
-  onFilterScenario: (scenario: string) => void
   /** Replaces opening the alert: the summary row of a run toggles it instead. */
   summary?: { open: boolean; label: string; onToggle: () => void }
   timeLead?: ReactNode
@@ -44,7 +41,6 @@ type AlertRowProps = {
 function AlertRow({
   alert,
   onOpenAlert,
-  onFilterScenario,
   summary,
   timeLead,
   scenarioLabel,
@@ -79,18 +75,7 @@ function AlertRow({
           {scenarioLabel ? (
             <span className="truncate text-xs text-muted-foreground">{scenarioLabel}</span>
           ) : (
-            <Button
-              variant="link"
-              title="Show only this scenario"
-              className="h-auto min-w-0 shrink justify-start p-0 font-mono text-xs font-normal text-foreground"
-              {...stopRowActivation}
-              onClick={(event) => {
-                stopRowActivation.onClick(event)
-                onFilterScenario(alert.scenario)
-              }}
-            >
-              <span className="truncate">{alert.scenario}</span>
-            </Button>
+            <span className="truncate font-mono text-xs" title={alert.scenario}>{alert.scenario}</span>
           )}
           <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
           {scenarioTrail}
@@ -133,11 +118,11 @@ function AlertRow({
   )
 }
 
-export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert, onFilterScenario }: Props) {
+export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert }: Props) {
   const [newest] = alertRun.alerts
   const runSize = alertRun.alerts.length
   if (runSize === 1) {
-    return <AlertRow alert={newest} onOpenAlert={onOpenAlert} onFilterScenario={onFilterScenario} />
+    return <AlertRow alert={newest} onOpenAlert={onOpenAlert} />
   }
 
   return (
@@ -145,7 +130,6 @@ export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert, onFil
       <AlertRow
         alert={newest}
         onOpenAlert={onOpenAlert}
-        onFilterScenario={onFilterScenario}
         summary={{ open, label: `${runSize} alerts from ${newest.value}`, onToggle }}
         scenarioLabel={runScenarioLabel(alertRun)}
         timeLead={
@@ -164,7 +148,6 @@ export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert, onFil
             key={alert.id ?? index}
             alert={alert}
             onOpenAlert={onOpenAlert}
-            onFilterScenario={onFilterScenario}
             className="bg-muted/30 hover:bg-muted/40"
             timeClassName="pl-9"
           />

@@ -44,6 +44,7 @@ import type {
   AlertView,
   AlertPageView,
   AlertDetailView,
+  ScenarioCount,
   DecisionView,
   DecisionGroupView,
   BannedIp,
@@ -64,6 +65,7 @@ export type {
   AlertView,
   AlertPageView,
   AlertDetailView,
+  ScenarioCount,
   DecisionView,
   BannedIp,
   BannedMapCollection,
@@ -410,7 +412,7 @@ export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
   ip?: string
-  scenario?: string
+  scenarios?: string[]
   kind?: string
   hasActiveDecision?: boolean
   before?: string
@@ -420,11 +422,20 @@ export async function fetchCrowdsecAlerts(params?: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
       ip: params?.ip || undefined,
-      scenario: params?.scenario || undefined,
+      scenario: params?.scenarios?.length ? params.scenarios : undefined,
       kind: params?.kind || undefined,
       hasActiveDecision: params?.hasActiveDecision ?? undefined,
       before: params?.before || undefined,
     },
+  })
+  return data
+}
+
+/** Scenarios among the newest 500 alerts in the window, most frequent
+ *  first; requires writeEnabled. */
+export async function fetchCrowdsecAlertScenarios(params: { since: string; kind?: string }): Promise<ScenarioCount[]> {
+  const { data } = await api.get<ScenarioCount[]>("/crowdsec/alerts/scenarios", {
+    params: { since: params.since, kind: params.kind || undefined },
   })
   return data
 }

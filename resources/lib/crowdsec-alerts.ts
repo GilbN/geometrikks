@@ -1,5 +1,5 @@
 /** Shaping helpers for the CrowdSec alert history and detail sheet. */
-import type { AlertContextView, AlertEventView, AlertView } from "@/generated/api/types.gen"
+import type { AlertContextView, AlertEventView, AlertView, ScenarioCount } from "@/generated/api/types.gen"
 
 /** Alerts per page of the alert history; "Load older" fetches another page this size. */
 export const ALERT_PAGE_SIZE = 50
@@ -29,6 +29,36 @@ const EMPTY_MESSAGES: Record<AlertKindFilter, string> = {
 /** The backend rejects the bot group combined with a scenario filter. */
 export function scenarioFilterAllowed(kind: AlertKindFilter): boolean {
   return kind !== "bot"
+}
+
+/** Scenarios the alert history filters by at once; the backend rejects more. */
+export const MAX_ALERT_SCENARIOS = 5
+
+/** The scenario picker's options: the counted scenarios, then any picked
+ *  one the count missed. */
+export function scenarioOptions(counts: readonly ScenarioCount[] | undefined, selected: readonly string[]): string[] {
+  const counted = (counts ?? []).map((scenarioCount) => scenarioCount.scenario)
+  const countedNames = new Set(counted)
+  return [...counted, ...selected.filter((scenario) => !countedNames.has(scenario))]
+}
+
+/** "http-probing · 41", or the bare name while the count is unknown. */
+export function scenarioOptionLabel(scenario: string, count: number | undefined): string {
+  const name = scenario.split("/").at(-1) ?? scenario
+  return count === undefined ? name : `${name} · ${count}`
+}
+
+/** The new pick, or the current one when the new pick passes the cap. */
+export function pickScenarios(current: string[], next: string[]): string[] {
+  return next.length > MAX_ALERT_SCENARIOS ? current : next
+}
+
+/** Filters after "Show only this scenario": the bot group takes no scenario. */
+export function onlyScenario(
+  kind: AlertKindFilter,
+  scenario: string,
+): { kind: AlertKindFilter; scenarios: string[] } {
+  return { kind: scenarioFilterAllowed(kind) ? kind : "all", scenarios: [scenario] }
 }
 
 /** What the alert history says when the selected kind has no alerts. */

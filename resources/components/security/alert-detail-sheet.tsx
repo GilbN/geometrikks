@@ -6,7 +6,7 @@
  */
 import { useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
-import { Check, ChevronRight, Copy } from "lucide-react"
+import { Check, ChevronRight, Copy, Filter } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
@@ -350,6 +350,7 @@ function AlertSheet({
   detail,
   errorFallback,
   showFlyTo = true,
+  onFilterScenario,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -358,6 +359,7 @@ function AlertSheet({
   detail: UseQueryResult<AlertDetailView>
   errorFallback: string
   showFlyTo?: boolean
+  onFilterScenario?: (scenario: string) => void
 }) {
   return (
     <DetailSheet
@@ -366,6 +368,20 @@ function AlertSheet({
       title={scenario ? <ScenarioTitle scenario={scenario} /> : <span className="font-mono text-sm">Alert details</span>}
       description={description}
     >
+      {onFilterScenario && scenario && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mb-3"
+          onClick={() => {
+            onFilterScenario(scenario)
+            onOpenChange(false)
+          }}
+        >
+          <Filter data-icon="inline-start" />
+          Show only this scenario
+        </Button>
+      )}
       {open && detail.isPending && (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -387,9 +403,11 @@ function AlertSheet({
 export function AlertDetailSheet({
   alert,
   onOpenChange,
+  onFilterScenario,
 }: {
   alert: AlertView | null
   onOpenChange: (open: boolean) => void
+  onFilterScenario?: (scenario: string) => void
 }) {
   const detail = useCrowdsecAlert(alert?.id ?? null)
   return (
@@ -400,6 +418,7 @@ export function AlertDetailSheet({
       description={alert ? alertDescription(alert) : undefined}
       detail={detail}
       errorFallback="Could not load this alert."
+      onFilterScenario={onFilterScenario}
     />
   )
 }

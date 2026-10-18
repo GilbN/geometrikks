@@ -49,6 +49,7 @@ import {
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
+  fetchCrowdsecAlertScenarios,
   fetchCrowdsecAlert,
   fetchCrowdsecDecisionAlert,
   fetchCrowdsecBannedLocations,
@@ -130,6 +131,8 @@ export const queryKeys = {
       ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) =>
       ["crowdsec", "alerts", params] as const,
+    alertScenarios: (params: Record<string, unknown>) =>
+      ["crowdsec", "alert-scenarios", params] as const,
     alert: (id: number) => ["crowdsec", "alert", id] as const,
     decisionAlert: (decisionId: number) => ["crowdsec", "decision-alert", decisionId] as const,
     lookup: (ip: string, refreshKey?: number) => ["crowdsec", "lookup", ip, refreshKey] as const,
@@ -430,7 +433,7 @@ export function useCrowdsecDecisions(params: {
 
 /** Alert history, one page of ALERT_PAGE_SIZE at a time; fetchNextPage
  *  loads older alerts. Only fetched when machine credentials are set. */
-export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenario?: string }) {
+export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenarios?: string[] }) {
   const { data: status } = useCrowdsecStatus()
   return useInfiniteQuery({
     queryKey: queryKeys.crowdsec.alerts(params),
@@ -450,7 +453,7 @@ export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: s
 
 /** Drops every page but the newest from the alert history and refetches it,
  *  which brings back the 60 s refresh a deep view turns off. */
-export function useTrimCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenario?: string }) {
+export function useTrimCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenarios?: string[] }) {
   const queryClient = useQueryClient()
   return () => {
     const queryKey = queryKeys.crowdsec.alerts(params)
@@ -459,6 +462,18 @@ export function useTrimCrowdsecAlerts(params: { since: string; kind?: string; ip
     )
     return queryClient.refetchQueries({ queryKey, exact: true })
   }
+}
+
+/** Scenario counts for the alert history's scenario picker. */
+export function useCrowdsecAlertScenarios(params: { since: string; kind?: string }, enabled: boolean) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.alertScenarios(params),
+    queryFn: () => fetchCrowdsecAlertScenarios(params),
+    enabled: enabled && status?.writeEnabled === true,
+    staleTime: 60 * 1000,
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
+  })
 }
 
 /** Detail for the alert sheet. Fetches once a row opens it. */

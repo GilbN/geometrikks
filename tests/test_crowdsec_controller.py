@@ -706,6 +706,110 @@ async def test_alerts_reject_an_unknown_kind(monkeypatch):
     assert service.alert_calls == []
 
 
+async def test_alerts_query_each_repeated_scenario(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/alerts",
+            params=[("scenario", "crowdsecurity/ssh-bf"), ("scenario", "crowdsecurity/http-probing")],
+        )
+    assert resp.status_code == 200
+    assert sorted(call["scenario"] for call in service.alert_calls) == [
+        "crowdsecurity/http-probing", "crowdsecurity/ssh-bf",
+    ]
+
+
+async def test_alerts_reject_more_than_five_scenarios(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/alerts",
+            params=[("scenario", f"crowdsecurity/scenario-{index}") for index in range(6)],
+        )
+    assert resp.status_code == 400
+    assert "Pick at most 5 scenarios" in resp.text
+    assert service.alert_calls == []
+
+
+def alert_with_scenario(alert_id: int, scenario: str):
+    alert = make_alert()
+    alert.id = alert_id
+    alert.scenario = scenario
+    alert.created_at = f"2026-07-20T10:{59 - alert_id:02d}:00Z"
+    return alert
+
+
+async def test_alert_scenarios_count_newest_alerts_by_count_then_name(monkeypatch):
+    enable_write(monkeypatch)
+    alerts = [
+        alert_with_scenario(alert_id, scenario)
+        for alert_id, scenario in enumerate(
+            [
+                "crowdsecurity/ssh-bf", "crowdsecurity/http-probing", "crowdsecurity/http-crawl",
+                "crowdsecurity/http-probing", "crowdsecurity/ssh-bf", "crowdsecurity/http-probing",
+                "crowdsecurity/http-crawl",
+            ],
+            start=1,
+        )
+    ]
+    service = AlertFakeCrowdSec(alerts)
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/scenarios", params={"since": "24h"})
+    assert resp.status_code == 200
+    assert resp.json() == [
+        {"scenario": "crowdsecurity/http-probing", "count": 3},
+        {"scenario": "crowdsecurity/http-crawl", "count": 2},
+        {"scenario": "crowdsecurity/ssh-bf", "count": 2},
+    ]
+    assert service.alert_calls == [
+        {
+            "limit": 500, "created_before": None, "scenario": None, "since": "24h",
+            "kind": None, "has_active_decision": None,
+        }
+    ]
+
+
+async def test_alert_scenarios_forward_the_kind(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/scenarios", params={"kind": "waf"})
+    assert resp.status_code == 200
+    (call,) = service.alert_calls
+    assert call["kind"] == "waf"
+
+
+async def test_alert_scenarios_accept_the_bot_group(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/scenarios", params={"kind": "bot"})
+    assert resp.status_code == 200
+    assert len(service.alert_calls) == 3
+
+
+@pytest.mark.parametrize("params", [{"kind": "robot"}, {"since": "1 day"}])
+async def test_alert_scenarios_validate_kind_and_since(monkeypatch, params):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts/scenarios", params=params)
+    assert resp.status_code == 400
+    assert service.alert_calls == []
+
+
+async def test_alert_scenarios_403_without_machine_credentials(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    service = AlertFakeCrowdSec()
+    async with AsyncTestClient(app=make_app(service)) as client:
+        assert (await client.get("/api/v1/crowdsec/alerts/scenarios")).status_code == 403
+    assert service.alert_calls == []
+
+
 # -- alert detail ----------------------------------------------------------
 
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { client } from "@/generated/api/client.gen"
-import { api, deleteServerLocation, fetchCrowdsecAlerts } from "./api"
+import { api, deleteServerLocation, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -28,19 +28,36 @@ describe("fetchCrowdsecAlerts", () => {
     expect(sentParams(get, 1).kind).toBeUndefined()
   })
 
-  it("passes the cursor and scenario through, and leaves them out when unset", async () => {
+  it("passes the cursor and scenarios through, and leaves them out when unset", async () => {
     const get = vi.spyOn(api, "get").mockResolvedValue({ data: { alerts: [], nextCursor: null } })
-    await fetchCrowdsecAlerts({ before: "cursor-1", scenario: "crowdsecurity/ssh-bf" })
-    await fetchCrowdsecAlerts({})
-    expect(sentParams(get, 0)).toMatchObject({ before: "cursor-1", scenario: "crowdsecurity/ssh-bf" })
+    const scenarios = ["crowdsecurity/ssh-bf", "crowdsecurity/http-probing"]
+    await fetchCrowdsecAlerts({ before: "cursor-1", scenarios })
+    await fetchCrowdsecAlerts({ scenarios: [] })
+    expect(sentParams(get, 0)).toMatchObject({ before: "cursor-1", scenario: scenarios })
     expect(sentParams(get, 1).before).toBeUndefined()
     expect(sentParams(get, 1).scenario).toBeUndefined()
+  })
+
+  it("repeats the scenario key for each scenario", () => {
+    const query = api.getUri({ url: "/crowdsec/alerts", params: { scenario: ["a/b", "c/d"] } })
+    expect(query).toContain("scenario=a%2Fb&scenario=c%2Fd")
   })
 
   it("returns the page envelope", async () => {
     const page = { alerts: [], nextCursor: "next" }
     vi.spyOn(api, "get").mockResolvedValue({ data: page })
     await expect(fetchCrowdsecAlerts({})).resolves.toEqual(page)
+  })
+})
+
+describe("fetchCrowdsecAlertScenarios", () => {
+  it("asks for the window and kind, leaving an unset kind out", async () => {
+    const get = vi.spyOn(api, "get").mockResolvedValue({ data: [] })
+    await fetchCrowdsecAlertScenarios({ since: "24h", kind: "waf" })
+    await fetchCrowdsecAlertScenarios({ since: "168h" })
+    expect(get.mock.calls[0][0]).toBe("/crowdsec/alerts/scenarios")
+    expect(sentParams(get, 0)).toEqual({ since: "24h", kind: "waf" })
+    expect(sentParams(get, 1)).toEqual({ since: "168h", kind: undefined })
   })
 })
 

@@ -6,6 +6,7 @@ import {
   ALERT_PAGE_SIZE,
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
+  MAX_ALERT_SCENARIOS,
   alertBadge,
   alertDescription,
   alertOutcome,
@@ -24,9 +25,13 @@ import {
   isChallengeEvent,
   kindBadgeClass,
   kindLabel,
+  onlyScenario,
   parseScoreReasons,
+  pickScenarios,
   runScenarioLabel,
   scenarioFilterAllowed,
+  scenarioOptionLabel,
+  scenarioOptions,
   toggleRun,
   shortFingerprint,
   signalNote,
@@ -605,5 +610,74 @@ describe("scenarioFilterAllowed", () => {
     expect(scenarioFilterAllowed("all")).toBe(true)
     expect(scenarioFilterAllowed("waf")).toBe(true)
     expect(scenarioFilterAllowed("crowdsec")).toBe(true)
+  })
+})
+
+describe("scenarioOptions", () => {
+  const counts = [
+    { scenario: "crowdsecurity/http-probing", count: 41 },
+    { scenario: "crowdsecurity/ssh-bf", count: 3 },
+  ]
+
+  it("lists the counted scenarios in their order", () => {
+    expect(scenarioOptions(counts, [])).toEqual(["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"])
+  })
+
+  it("keeps picked scenarios the count missed", () => {
+    expect(scenarioOptions(counts, ["crowdsecurity/ssh-bf", "crowdsecurity/http-crawl"])).toEqual([
+      "crowdsecurity/http-probing",
+      "crowdsecurity/ssh-bf",
+      "crowdsecurity/http-crawl",
+    ])
+  })
+
+  it("offers the picked scenarios before the counts arrive", () => {
+    expect(scenarioOptions(undefined, ["crowdsecurity/ssh-bf"])).toEqual(["crowdsecurity/ssh-bf"])
+  })
+})
+
+describe("scenarioOptionLabel", () => {
+  it("shows the last path segment and the count", () => {
+    expect(scenarioOptionLabel("crowdsecurity/http-probing", 41)).toBe("http-probing · 41")
+  })
+
+  it("shows the name alone when the count is unknown", () => {
+    expect(scenarioOptionLabel("crowdsecurity/http-probing", undefined)).toBe("http-probing")
+  })
+
+  it("keeps a name without a path", () => {
+    expect(scenarioOptionLabel("manual ban", 2)).toBe("manual ban · 2")
+  })
+})
+
+describe("pickScenarios", () => {
+  const five = Array.from({ length: MAX_ALERT_SCENARIOS }, (_, index) => `crowdsecurity/scenario-${index}`)
+
+  it("takes picks up to the cap", () => {
+    expect(pickScenarios(five.slice(0, 4), five)).toEqual(five)
+  })
+
+  it("ignores a pick past the cap", () => {
+    expect(pickScenarios(five, [...five, "crowdsecurity/one-too-many"])).toBe(five)
+  })
+
+  it("always takes a removal", () => {
+    expect(pickScenarios(five, five.slice(1))).toEqual(five.slice(1))
+  })
+})
+
+describe("onlyScenario", () => {
+  it("filters to the one scenario and keeps a kind that allows it", () => {
+    expect(onlyScenario("waf", "crowdsecurity/vpatch-env-access")).toEqual({
+      kind: "waf",
+      scenarios: ["crowdsecurity/vpatch-env-access"],
+    })
+  })
+
+  it("leaves the bot group for all kinds", () => {
+    expect(onlyScenario("bot", "crowdsecurity/appsec-bot-challenge-too-many-requests")).toEqual({
+      kind: "all",
+      scenarios: ["crowdsecurity/appsec-bot-challenge-too-many-requests"],
+    })
   })
 })

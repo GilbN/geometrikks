@@ -498,7 +498,7 @@ async def test_exhausted_margin_pass_with_an_uncovered_exact_age_answer_conflict
 async def test_filters_reach_the_lapi():
     lapi = SimulatedLapi([make_alert(1, T0, scenario="crowdsecurity/ssh-bf")])
     filters = AlertFilters(
-        ip="1.2.3.4", scenario="crowdsecurity/ssh-bf", since="24h", kind="crowdsec",
+        ip="1.2.3.4", scenarios=("crowdsecurity/ssh-bf",), since="24h", kind="crowdsec",
         has_active_decision=True,
     )
     await fetch_alert_page(lapi, filters, limit=50, before=None, now=NOW)
@@ -518,6 +518,47 @@ async def test_filters_without_an_ip_send_one_query():
     (call,) = lapi.calls
     assert "ip" not in call
     assert "value" not in call
+
+
+async def test_each_scenario_is_its_own_query_under_an_ip_filter():
+    lapi = SimulatedLapi([make_alert(1, T0)])
+    filters = AlertFilters(
+        ip="1.2.3.4", scenarios=("crowdsecurity/ssh-bf", "crowdsecurity/http-probing"),
+    )
+    await fetch_alert_page(lapi, filters, limit=50, before=None, now=NOW)
+    shared = {
+        "limit": 50, "created_before": None, "since": None, "kind": None,
+        "has_active_decision": None,
+    }
+    assert sorted(lapi.calls, key=lambda call: (call["scenario"], "ip" in call)) == [
+        {**shared, "scenario": "crowdsecurity/http-probing", "scope": "Ip", "value": "1.2.3.4"},
+        {**shared, "scenario": "crowdsecurity/http-probing", "ip": "1.2.3.4"},
+        {**shared, "scenario": "crowdsecurity/ssh-bf", "scope": "Ip", "value": "1.2.3.4"},
+        {**shared, "scenario": "crowdsecurity/ssh-bf", "ip": "1.2.3.4"},
+    ]
+
+
+async def test_two_scenarios_walk_every_page_once():
+    # Pairs of alerts share a second. Scenarios rotate over three, and every
+    # fifth probing alert holds an ssh-bf decision too, so both scenario
+    # queries answer it.
+    scenario_cycle = ("crowdsecurity/ssh-bf", "crowdsecurity/http-probing", "crowdsecurity/http-crawl")
+    alerts: list[Alert] = []
+    for id in range(1, 301):
+        created_at = NOW - timedelta(hours=5) + timedelta(seconds=(id // 2) * 45)
+        scenario = scenario_cycle[id % 3]
+        decisions = (
+            [replace(ip_decision(id, "1.2.3.4"), scenario="crowdsecurity/ssh-bf")]
+            if scenario == "crowdsecurity/http-probing" and id % 5 == 0
+            else None
+        )
+        alerts.append(make_alert(id, created_at, scenario=scenario, decisions=decisions))
+    picked = ("crowdsecurity/ssh-bf", "crowdsecurity/http-probing")
+    matching = [alert for alert in alerts if alert.scenario in picked]
+    lapi = SimulatedLapi(alerts)
+    walked = await walk_pages(lapi, filters=AlertFilters(scenarios=picked))
+    assert walked == newest_first(matching)
+    assert len(walked) == len(set(walked)) == 200
 
 
 def ip_decision(id: int, value: str, scope: str = "Ip") -> Decision:
@@ -754,7 +795,7 @@ async def test_bot_group_with_a_lapi_clock_far_behind_takes_the_clock_free_pass(
         for fallback in fallbacks:
             assert fallback["sources"] == 3
             assert fallback["kind"] == BOT_KIND_GROUP
-            assert fallback["scenario"] is None
+            assert fallback["scenarios"] == ()
         walked.extend(alert.id for alert in page.alerts)
         cursor = page.next_cursor
         if cursor is None:

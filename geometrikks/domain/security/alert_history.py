@@ -12,10 +12,10 @@ request with a cutoff one second past the cursor's age, which keeps the
 cursor's whole second inside the answer while the clocks agree; a flood
 that request cannot get past is a conflict.
 
-The bot group runs three LAPI queries side by side, and an IP filter
-doubles every query. They share the LAPI clock and send the same
-``created_before`` on each pass, so an answer from any of them that reaches
-the cursor proves the cutoff for all of them.
+The bot group runs three LAPI queries side by side, several scenarios run
+one query each, and an IP filter doubles every query. They share the LAPI
+clock and send the same ``created_before`` on each pass, so an answer from
+any of them that reaches the cursor proves the cutoff for all of them.
 
 ``created_at`` arrives in whole seconds because the LAPI formats it with
 ``time.RFC3339`` (pkg/apiserver/controllers/v1/alerts.go in CrowdSec). If
@@ -73,7 +73,7 @@ class AlertCursor:
 @dataclass(frozen=True, slots=True)
 class AlertFilters:
     ip: str | None = None
-    scenario: str | None = None
+    scenarios: tuple[str, ...] = ()
     since: str | None = None
     kind: str | None = None
     has_active_decision: bool | None = None
@@ -304,8 +304,8 @@ async def fetch_alert_page(
 ) -> AlertPage:
     """One page of alerts, newest first, older than ``before`` when given.
 
-    The bot group and an IP filter page several LAPI queries at once and
-    merge them.
+    The bot group, several scenarios and an IP filter page several LAPI
+    queries at once and merge them.
 
     Raises:
         DomainConflictError: ``MAX_FETCH`` alerts at or after the cursor
@@ -350,8 +350,8 @@ def _merge_sources(source_pages: list[SourcePage]) -> list[Alert]:
 
 
 def _source_filters(filters: AlertFilters) -> list[dict[str, Any]]:
-    """One LAPI filter set per source: three for the bot group, one otherwise,
-    and each of them twice under an IP filter."""
+    """One LAPI filter set per source: three for the bot group, one per
+    scenario or one for none, and each of them twice under an IP filter."""
     shared: dict[str, Any] = {
         "since": filters.since,
         "has_active_decision": filters.has_active_decision,
@@ -362,7 +362,10 @@ def _source_filters(filters: AlertFilters) -> list[dict[str, Any]]:
             *({**shared, "scenario": scenario, "kind": None} for scenario in BOT_CHALLENGE_SCENARIOS),
         ]
     else:
-        sources = [{**shared, "scenario": filters.scenario, "kind": filters.kind}]
+        sources = [
+            {**shared, "scenario": scenario, "kind": filters.kind}
+            for scenario in (filters.scenarios or (None,))
+        ]
     if filters.ip is None:
         return sources
     # The LAPI's ip= only matches alerts holding a decision that covers the

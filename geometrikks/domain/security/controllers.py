@@ -63,6 +63,16 @@ TOP_SCENARIO_LIMIT = 10
 # Alert origins the engine stamps on ``kind`` (pkg/types/alert_kind.go).
 ALERT_KINDS = frozenset({"crowdsec", "waf", "bot-detection", "capi", "papi", "cscli"})
 
+# Each scenario is its own LAPI query, twice under an IP filter.
+MAX_ALERT_SCENARIOS = 5
+# The scenario picker counts this many of the newest alerts.
+SCENARIO_SAMPLE_SIZE = 500
+
+ALERT_KIND_DESCRIPTION = (
+    "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, "
+    "or bot for everything the AppSec bot challenge produces"
+)
+
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
 GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
@@ -347,6 +357,14 @@ def _validate_duration(value: str) -> str:
     return value
 
 
+def _validate_alert_kind(kind: str | None) -> None:
+    accepted_kinds = ALERT_KINDS | {BOT_KIND_GROUP}
+    if kind is not None and kind not in accepted_kinds:
+        raise DomainValidationError(
+            f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(accepted_kinds))})"
+        )
+
+
 def _ban_duration(value: str) -> str:
     match = BAN_DURATION_RE.fullmatch(value)
     if match is None or not any(match.groups()):
@@ -547,20 +565,20 @@ class CrowdSecController(Controller):
         settings: NamedDependency[SkipValidation[Settings]],
         limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
         ip: Annotated[str | None, QueryParameter(required=False)] = None,
-        scenario: Annotated[str | None, QueryParameter(required=False)] = None,
+        scenarios: Annotated[
+            list[str] | None,
+            QueryParameter(
+                name="scenario",
+                required=False,
+                description=f"Filter to these scenarios (repeatable, at most {MAX_ALERT_SCENARIOS})",
+            ),
+        ] = None,
         since: Annotated[
             str | None,
             QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
         ] = None,
         kind: Annotated[
-            str | None,
-            QueryParameter(
-                required=False,
-                description=(
-                    "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, "
-                    "or bot for everything the AppSec bot challenge produces"
-                ),
-            ),
+            str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
         ] = None,
         has_active_decision: Annotated[
             bool | None,
@@ -600,18 +618,17 @@ class CrowdSecController(Controller):
             validate_ip_address(ip)
         if since is not None:
             _validate_duration(since)
-        accepted_kinds = ALERT_KINDS | {BOT_KIND_GROUP}
-        if kind is not None and kind not in accepted_kinds:
-            raise DomainValidationError(
-                f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(accepted_kinds))})"
-            )
-        if kind == BOT_KIND_GROUP and scenario is not None:
+        _validate_alert_kind(kind)
+        picked_scenarios = tuple(dict.fromkeys(scenarios or ()))
+        if kind == BOT_KIND_GROUP and picked_scenarios:
             raise DomainValidationError("The bot group can't be combined with a scenario filter")
+        if len(picked_scenarios) > MAX_ALERT_SCENARIOS:
+            raise DomainValidationError(f"Pick at most {MAX_ALERT_SCENARIOS} scenarios")
         cursor = None if before is None else decode_cursor(before)
         page = await fetch_alert_page(
             service,
             AlertFilters(
-                ip=ip, scenario=scenario, since=since, kind=kind,
+                ip=ip, scenarios=picked_scenarios, since=since, kind=kind,
                 has_active_decision=has_active_decision,
             ),
             limit=limit,
@@ -630,6 +647,39 @@ class CrowdSecController(Controller):
             ],
             next_cursor=page.next_cursor,
         )
+
+    @get("/alerts/scenarios")
+    async def list_alert_scenarios(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        settings: NamedDependency[SkipValidation[Settings]],
+        since: Annotated[
+            str | None,
+            QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
+        ] = None,
+        kind: Annotated[
+            str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
+        ] = None,
+    ) -> list[ScenarioCount]:
+        """Scenarios among the newest 500 alerts in the window, most frequent first
+        (machine credentials required)."""
+        service = _require_write(crowdsec, settings)
+        if since is not None:
+            _validate_duration(since)
+        _validate_alert_kind(kind)
+        page = await fetch_alert_page(
+            service,
+            AlertFilters(since=since, kind=kind),
+            limit=SCENARIO_SAMPLE_SIZE,
+            before=None,
+        )
+        scenario_counts = Counter(alert.scenario for alert in page.alerts)
+        return [
+            ScenarioCount(scenario=scenario, count=count)
+            for scenario, count in sorted(
+                scenario_counts.items(), key=lambda scenario_count: (-scenario_count[1], scenario_count[0])
+            )
+        ]
 
     @get(
         "/alerts/{alert_id:int}",
