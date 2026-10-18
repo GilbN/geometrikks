@@ -69,7 +69,8 @@ export const LEGACY_ACCENT_THEMES: Record<string, ColorTheme> = {
 
 export const THEME_STORAGE_KEYS = {
   mode: "geometrikks-theme",
-  theme: "geometrikks-color-theme",
+  lightTheme: "geometrikks-light-theme",
+  darkTheme: "geometrikks-dark-theme",
   legacyAccent: "geometrikks-accent",
 } as const
 

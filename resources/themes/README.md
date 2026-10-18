@@ -1,23 +1,29 @@
 # Themes
 
 A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge and Black
-ship today. Two independent preferences pick what the page paints.
+ship today. Three preferences pick what the page paints: the color mode, the theme
+for light mode and the theme for dark mode.
 
 | Preference | Values | Storage key |
 | --- | --- | --- |
 | Color mode | `system`, `light`, `dark` | `geometrikks-theme` |
-| Theme | `aurora`, `moss`, `forge`, `black` | `geometrikks-color-theme` |
+| Light mode theme | `aurora`, `moss`, `forge`, `black` | `geometrikks-light-theme` |
+| Dark mode theme | `aurora`, `moss`, `forge`, `black` | `geometrikks-dark-theme` |
 
-Mode defaults to `dark` and theme to `aurora`. `system` follows
-`prefers-color-scheme` and re-resolves when the OS setting changes. The chosen theme
-stays across that switch and across reloads.
+Mode defaults to `dark` and both themes to `aurora`. `system` follows
+`prefers-color-scheme` and re-resolves when the OS setting changes. The page paints
+the theme saved for the scheme it resolves to, so with Moss for light and Forge for
+dark, System swaps between them as the OS does. `data-theme` on `<html>` always holds
+the active side's theme. Settings > Appearance sets both sides from a theme card's
+name, or one side from its sun or moon.
 
 Browsers that saved an accent before themes existed have only
 `geometrikks-accent`. It is read, never written: `teal` becomes `aurora`, `green`
-becomes `moss` and `copper` becomes `forge`. A valid `geometrikks-color-theme` wins
-over it. A junk theme value falls back to the legacy accent's theme, then to Aurora.
+becomes `moss` and `copper` becomes `forge`. Each side resolves on its own: a valid
+saved value for that side wins, then the legacy accent's theme, then Aurora. So a
+saved dark theme with no light theme leaves light mode on the accent's theme.
 `geometrikks-dark-appearance` is no longer read. The rule lives in `parseColorTheme`
-in `resources/lib/theme.ts`, and the startup script repeats it.
+in `resources/lib/theme.ts`, and the startup script repeats it for the side it paints.
 
 ## Adding a theme
 
@@ -110,9 +116,10 @@ theme, the latter at desktop and phone widths. The gallery probes check a light 
 preview inside a dark Black page and a dark Forge preview inside a light Aurora page;
 they are fixed to Moss and Forge in `resources/dev/themes.tsx`. Two tests cover a saved
 legacy accent (first paint, and the provider keeping its theme without saving it). One
-checks that System switches palettes live while Black stays selected, one that the
-theme menu only changes the color mode, and one that the settings page offers schemes
-and themes as radio groups. The tests save drawer screenshots under
+checks that System switches palettes live while Black stays selected, one that it
+swaps between a Moss light side and a Forge dark side, one that the theme menu only
+changes the color mode, and one that the settings page mixes light and dark themes
+through the sun and moon toggles and the theme name buttons. The tests save drawer screenshots under
 `smoke-artifacts/test-results`. The preview needs the Vite development server; the
 unit tests and production build do not. Playwright runs under Node via `npx`, matching
 CI. Its `themes` project contains the development preview tests; the production

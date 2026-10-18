@@ -46,6 +46,18 @@ const palettes: { mode: "light" | "dark"; theme: ColorTheme }[] = COLOR_THEMES.f
   { mode: "dark" as const, theme },
 ])
 
+type Scheme = { mode: "light" | "dark"; theme: ColorTheme }
+
+function saveScheme(page: Page, { mode, theme }: Scheme) {
+  return page.addInitScript(({ keys, mode, theme }) => {
+    localStorage.setItem(keys.mode, mode)
+    localStorage.setItem(keys.lightTheme, theme)
+    localStorage.setItem(keys.darkTheme, theme)
+  }, { keys: THEME_STORAGE_KEYS, mode, theme })
+}
+
+const galleryPalette = (page: Page) => page.getByRole("group", { name: "Preview palette" })
+
 async function expectBodyMatchesChrome(page: Page) {
   const colors = await page.evaluate(() => {
     const canvas = document.createElement("canvas")
@@ -63,10 +75,7 @@ async function expectBodyMatchesChrome(page: Page) {
 
 for (const { mode, theme } of palettes) {
   test(`${mode}/${theme} paints the palette before React loads`, async ({ page }) => {
-    await page.addInitScript(({ keys, mode, theme }) => {
-      localStorage.setItem(keys.mode, mode)
-      localStorage.setItem(keys.theme, theme)
-    }, { keys: THEME_STORAGE_KEYS, mode, theme })
+    await saveScheme(page, { mode, theme })
     await page.route("**/resources/dev/themes.tsx*", (route) => route.abort())
     await page.goto("/static/resources/dev/themes.html")
     await expect(page.locator("html")).toHaveClass(mode)
@@ -93,19 +102,18 @@ test("the provider keeps a legacy accent's theme without saving it", async ({ pa
   await page.goto("/static/resources/dev/themes.html")
   await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
   await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
-  await expect(page.getByRole("button", { name: "Moss", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await expect(galleryPalette(page).getByRole("button", { name: "Moss", exact: true })).toHaveAttribute("aria-pressed", "true")
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", "moss"))
-  expect(await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE_KEYS.theme)).toBeNull()
+  for (const key of [THEME_STORAGE_KEYS.lightTheme, THEME_STORAGE_KEYS.darkTheme]) {
+    expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBeNull()
+  }
 })
 
 for (const width of [1280, 390]) {
   for (const { mode, theme } of palettes) {
     test(`${mode}/${theme} controls stay visible at ${width}px`, async ({ page }, testInfo) => {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(({ keys, mode, theme }) => {
-        localStorage.setItem(keys.mode, mode)
-        localStorage.setItem(keys.theme, theme)
-      }, { keys: THEME_STORAGE_KEYS, mode, theme })
+      await saveScheme(page, { mode, theme })
       await page.goto("/static/resources/dev/themes.html")
       await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme)
@@ -172,7 +180,7 @@ for (const width of [1280, 390]) {
       const chartColor = await rootToken("--chart-1")
       const primaryColors = new Set<string>()
       for (const id of COLOR_THEMES) {
-        await page.getByRole("button", { name: THEME_CATALOG[id].label, exact: true }).click()
+        await galleryPalette(page).getByRole("button", { name: THEME_CATALOG[id].label, exact: true }).click()
         await expect(page.locator("html")).toHaveAttribute("data-theme", id)
         primaryColors.add(await rootToken("--primary"))
         expect(await rootToken("--chart-1")).toBe(chartColor)
@@ -182,13 +190,8 @@ for (const width of [1280, 390]) {
   }
 }
 
-type Scheme = { mode: "light" | "dark"; theme: ColorTheme }
-
-async function openGallery(page: Page, { mode, theme }: Scheme) {
-  await page.addInitScript(({ keys, mode, theme }) => {
-    localStorage.setItem(keys.mode, mode)
-    localStorage.setItem(keys.theme, theme)
-  }, { keys: THEME_STORAGE_KEYS, mode, theme })
+async function openGallery(page: Page, scheme: Scheme) {
+  await saveScheme(page, scheme)
   await page.goto("/static/resources/dev/themes.html")
   await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
 }
@@ -224,7 +227,7 @@ for (const { host, probe, own } of [
 test("System switches palettes live and retains the saved theme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" })
   await page.goto("/static/resources/dev/themes.html")
-  await page.getByRole("button", { name: "Black", exact: true }).click()
+  await galleryPalette(page).getByRole("button", { name: "Black", exact: true }).click()
   await page.getByRole("button", { name: "System", exact: true }).click()
   await expect(page.locator("html")).toHaveClass("dark")
   await page.emulateMedia({ colorScheme: "light" })
@@ -236,6 +239,24 @@ test("System switches palettes live and retains the saved theme", async ({ page 
   await page.reload()
   await expect(page.locator("html")).toHaveClass("dark")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
+})
+
+test("System swaps between the light and dark side themes", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" })
+  await page.goto("/static/resources/dev/themes.html")
+  await page.getByRole("group", { name: "Light side" }).getByRole("button", { name: "Moss light", exact: true }).click()
+  await page.getByRole("group", { name: "Dark side" }).getByRole("button", { name: "Forge dark", exact: true }).click()
+  await page.getByRole("button", { name: "System", exact: true }).click()
+  await expect(page.locator("html")).toHaveClass("light")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("light", "moss"))
+  await page.emulateMedia({ colorScheme: "dark" })
+  await expect(page.locator("html")).toHaveClass("dark")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", "forge"))
+  await page.emulateMedia({ colorScheme: "light" })
+  await expect(page.locator("html")).toHaveClass("light")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
 })
 
 test("theme menu only switches color mode", async ({ page }) => {
@@ -255,52 +276,92 @@ test("theme menu only switches color mode", async ({ page }) => {
   }
 })
 
-test("settings page selects schemes and themes as radio groups", async ({ context, page }) => {
+test("settings page mixes light and dark themes", async ({ context, page }) => {
   const isolated = await context.newPage()
   await openGallery(isolated, { mode: "light", theme: "moss" })
   const lightMossBackground = (await tokensOf(isolated.locator("html")))["--background"].trim()
   await isolated.close()
 
   await openGallery(page, { mode: "dark", theme: "aurora" })
-  const schemes = page.getByRole("radiogroup", { name: "Color scheme" })
-  const themes = page.getByRole("radiogroup", { name: "Theme" })
+  const settings = page.getByTestId("settings-preview")
+  const schemes = settings.getByRole("radiogroup", { name: "Color scheme" })
+  const themes = settings.getByRole("group", { name: "Themes" })
   const schemeRadio = (name: string) => schemes.getByRole("radio", { name, exact: true })
-  const themeRadio = (name: string) => themes.getByRole("radio", { name, exact: true })
-
-  await expect(schemes.getByRole("radio")).toHaveCount(3)
-  for (const name of ["System", "Light", "Dark"]) {
-    await expect(schemeRadio(name)).toHaveAttribute("aria-checked", String(name === "Dark"))
+  const sideToggle = (id: ColorTheme, side: "light" | "dark") =>
+    themes.getByRole("button", { name: `${THEME_CATALOG[id].label} ${side} theme`, exact: true })
+  const nameButton = (id: ColorTheme) => themes.getByRole("button", { name: THEME_CATALOG[id].label, exact: true })
+  const stored = () =>
+    page.evaluate((keys) => [localStorage.getItem(keys.lightTheme), localStorage.getItem(keys.darkTheme)], THEME_STORAGE_KEYS)
+  const expectSides = async (light: ColorTheme, dark: ColorTheme) => {
+    for (const id of COLOR_THEMES) {
+      await expect(sideToggle(id, "light")).toHaveAttribute("aria-pressed", String(id === light))
+      await expect(sideToggle(id, "dark")).toHaveAttribute("aria-pressed", String(id === dark))
+      await expect(nameButton(id)).toHaveAttribute("aria-pressed", String(id === light && id === dark))
+    }
   }
-  await expect(themes.getByRole("radio")).toHaveCount(COLOR_THEMES.length)
-  for (const id of COLOR_THEMES) {
-    await expect(themeRadio(THEME_CATALOG[id].label)).toHaveAttribute("aria-checked", String(id === "aurora"))
-  }
 
-  const lightMossOrb = themeRadio("Moss").locator('.light[data-theme="moss"]')
+  await expect(themes.getByRole("radio")).toHaveCount(0)
+  await expectSides("aurora", "aurora")
+
+  // A light orb on a dark page must keep its own palette.
+  const lightMossOrb = sideToggle("moss", "light").locator('.light[data-theme="moss"]')
   expect(await lightMossOrb.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(lightMossBackground)
-
-  await themeRadio("Black").click()
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
-  await expect(themeRadio("Black")).toHaveAttribute("aria-checked", "true")
-  expect(await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE_KEYS.theme)).toBe("black")
 
   await schemeRadio("Light").click()
   await expect(page.locator("html")).toHaveClass("light")
-  await expect(schemeRadio("Light")).toHaveAttribute("aria-checked", "true")
-  await expect(themeRadio("Black")).toHaveAttribute("aria-checked", "true")
+  await sideToggle("moss", "light").click()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
+  expect((await stored())[0]).toBe("moss")
+  await sideToggle("forge", "dark").click()
+  expect(await stored()).toEqual(["moss", "forge"])
+  await expect(page.locator("html")).toHaveClass("light")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
+  await expectSides("moss", "forge")
 
-  await themeRadio("Black").focus()
-  // Radix checks a radio only if the arrow key is still down when focus lands,
-  // and it moves focus in a timeout, so a press that releases at once never selects.
-  await page.keyboard.down("ArrowLeft")
-  try {
-    await expect(themeRadio("Forge")).toHaveAttribute("aria-checked", "true")
-    await expect(themeRadio("Forge")).toBeFocused()
-  } finally {
-    await page.keyboard.up("ArrowLeft")
-  }
+  await schemeRadio("Dark").click()
+  await expect(page.locator("html")).toHaveClass("dark")
   await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
-  const outline = await themeRadio("Forge").evaluate((el) => {
+  await expect(schemeRadio("Light").locator("[data-theme]")).toHaveAttribute("data-theme", "moss")
+  await expect(schemeRadio("Dark").locator("[data-theme]")).toHaveAttribute("data-theme", "forge")
+  const systemPreviews = schemeRadio("System").locator("[data-theme]")
+  await expect(systemPreviews).toHaveCount(2)
+  await expect(systemPreviews.nth(0)).toHaveAttribute("data-theme", "moss")
+  await expect(systemPreviews.nth(1)).toHaveAttribute("data-theme", "forge")
+
+  // A fresh page has no init script, so it reads what the toggles saved.
+  const reloaded = await context.newPage()
+  await reloaded.goto("/static/resources/dev/themes.html")
+  await expect(reloaded.locator("html")).toHaveClass("dark")
+  await expect(reloaded.locator("html")).toHaveAttribute("data-theme", "forge")
+  const reloadedThemes = reloaded.getByTestId("settings-preview").getByRole("group", { name: "Themes" })
+  await expect(reloadedThemes.getByRole("button", { name: "Moss light theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await expect(reloadedThemes.getByRole("button", { name: "Forge dark theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await reloaded.close()
+
+  await nameButton("black").click()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
+  expect(await stored()).toEqual(["black", "black"])
+  await expectSides("black", "black")
+
+  const forgeCard = nameButton("forge").locator("xpath=..")
+  const box = (await forgeCard.boundingBox())!
+  await forgeCard.click({ position: { x: box.width - 10, y: 10 } })
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
+  expect(await stored()).toEqual(["forge", "forge"])
+  await expectSides("forge", "forge")
+
+  await sideToggle("forge", "light").click()
+  await expect(sideToggle("forge", "light")).toHaveAttribute("aria-pressed", "true")
+  expect(await stored()).toEqual(["forge", "forge"])
+
+  await schemeRadio("Dark").focus()
+  await page.keyboard.press("Tab")
+  const auroraLight = sideToggle("aurora", "light")
+  await expect(auroraLight).toBeFocused()
+  await page.keyboard.press("Space")
+  await expect(auroraLight).toHaveAttribute("aria-pressed", "true")
+  expect(await stored()).toEqual(["aurora", "forge"])
+  const outline = await auroraLight.evaluate((el) => {
     const style = getComputedStyle(el)
     return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) }
   })
@@ -310,7 +371,7 @@ test("settings page selects schemes and themes as radio groups", async ({ contex
   await page.setViewportSize({ width: 390, height: 900 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
   for (const id of COLOR_THEMES) {
-    const card = themeRadio(THEME_CATALOG[id].label)
+    const card = nameButton(id).locator("xpath=..")
     await card.scrollIntoViewIfNeeded()
     await expect(card).toBeInViewport()
   }

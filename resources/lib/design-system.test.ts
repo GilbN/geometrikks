@@ -53,7 +53,7 @@ describe("tokens", () => {
     expect(read("index.html", repo)).toContain("<!-- theme-head -->")
     for (const key of Object.values(THEME_STORAGE_KEYS)) expect(html).toContain(JSON.stringify(key))
     for (const id of COLOR_THEMES) expect(html).toContain(JSON.stringify(id))
-    for (const key of ["mode", "theme"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
+    for (const key of ["mode", "lightTheme", "darkTheme"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
   })
 
   it("keeps theme colors out of the HTML entry points", () => {

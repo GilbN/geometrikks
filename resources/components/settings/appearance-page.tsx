@@ -4,11 +4,11 @@ import { RadioGroup as RadioGroupPrimitive } from "radix-ui"
 
 import { useTheme } from "@/components/theme-provider"
 import { RadioGroup } from "@/components/ui/radio-group"
+import { Toggle } from "@/components/ui/toggle"
 import {
   COLOR_THEMES,
   THEMES,
   THEME_CATALOG,
-  parseColorTheme,
   parseTheme,
   type ColorTheme,
   type ResolvedTheme,
@@ -26,8 +26,9 @@ const SCHEME_LABELS: Record<Theme, string> = {
 // layered over the glass, never replacing it.
 const OPTION =
   "group rounded-xl bg-glass-card text-left ring-1 ring-border backdrop-blur-[2px] transition-colors hover:ring-primary/50 " +
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring " +
   "data-[state=checked]:ring-primary data-[state=checked]:bg-[linear-gradient(var(--primary-glow),var(--primary-glow))] data-[state=checked]:hover:ring-primary"
+
+const FOCUS_OUTLINE = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 
 const HEADING = "text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
 
@@ -64,12 +65,13 @@ function SchemePreview({ scheme, colorTheme, className }: { scheme: ResolvedThem
   )
 }
 
-function SchemeArt({ scheme, colorTheme }: { scheme: Theme; colorTheme: ColorTheme }) {
-  if (scheme !== "system") return <SchemePreview scheme={scheme} colorTheme={colorTheme} />
+function SchemeArt({ scheme, lightTheme, darkTheme }: { scheme: Theme; lightTheme: ColorTheme; darkTheme: ColorTheme }) {
+  if (scheme === "light") return <SchemePreview scheme="light" colorTheme={lightTheme} />
+  if (scheme === "dark") return <SchemePreview scheme="dark" colorTheme={darkTheme} />
   return (
     <span className="grid [&>*]:[grid-area:1/1]">
-      <SchemePreview scheme="light" colorTheme={colorTheme} />
-      <SchemePreview scheme="dark" colorTheme={colorTheme} className="[clip-path:inset(0_0_0_50%)]" />
+      <SchemePreview scheme="light" colorTheme={lightTheme} />
+      <SchemePreview scheme="dark" colorTheme={darkTheme} className="[clip-path:inset(0_0_0_50%)]" />
     </span>
   )
 }
@@ -78,46 +80,87 @@ const ORB_BADGES = { light: Sun, dark: Moon } as const
 
 /** The ring sits on an unscoped wrapper so it takes the page's primary; on
  * the orb itself it would take the orb's theme and scheme. */
-function Orb({ scheme, colorTheme }: { scheme: ResolvedTheme; colorTheme: ColorTheme }) {
+function ThemeSideToggle({
+  scheme,
+  colorTheme,
+  pressed,
+  onPress,
+}: {
+  scheme: ResolvedTheme
+  colorTheme: ColorTheme
+  pressed: boolean
+  onPress: () => void
+}) {
   const Badge = ORB_BADGES[scheme]
   return (
-    <span className="relative rounded-full ring-offset-2 ring-offset-card group-data-[state=checked]:ring-2 group-data-[state=checked]:ring-primary">
-      <span
-        data-theme={colorTheme}
-        className={cn(scheme, "block size-14 rounded-full ring-1 ring-border ring-inset")}
-        style={{
-          backgroundImage: "radial-gradient(circle at 32% 28%, var(--card) 0 12%, var(--background) 45%, var(--primary) 100%)",
-        }}
-      />
-      <span className="absolute -right-1 -bottom-1 hidden size-5 place-items-center rounded-full bg-card text-foreground ring-1 ring-border group-data-[state=checked]:grid">
-        <Badge className="size-3" />
+    <Toggle
+      pressed={pressed}
+      onPressedChange={(next) => {
+        if (next) onPress()
+      }}
+      aria-label={`${THEME_CATALOG[colorTheme].label} ${scheme} theme`}
+      className={
+        "relative z-10 size-14 min-w-0 rounded-full p-0 hover:bg-transparent aria-pressed:bg-transparent focus-visible:ring-0 " +
+        "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+      }
+    >
+      <span className="relative block rounded-full ring-offset-2 ring-offset-card group-aria-pressed/toggle:ring-2 group-aria-pressed/toggle:ring-primary">
+        <span
+          aria-hidden
+          data-theme={colorTheme}
+          className={cn(scheme, "block size-14 rounded-full ring-1 ring-border ring-inset")}
+          style={{
+            backgroundImage: "radial-gradient(circle at 32% 28%, var(--card) 0 12%, var(--background) 45%, var(--primary) 100%)",
+          }}
+        />
+        <span className="absolute -right-1 -bottom-1 hidden size-5 place-items-center rounded-full bg-card text-foreground ring-1 ring-border group-aria-pressed/toggle:grid">
+          <Badge className="size-3" />
+        </span>
       </span>
-    </span>
+    </Toggle>
   )
 }
 
 function ThemeCard({ colorTheme }: { colorTheme: ColorTheme }) {
   const id = useId()
+  const { lightTheme, darkTheme, setLightTheme, setDarkTheme, setColorTheme } = useTheme()
   const { label, description } = THEME_CATALOG[colorTheme]
+  const both = lightTheme === colorTheme && darkTheme === colorTheme
   return (
-    <RadioGroupPrimitive.Item
-      value={colorTheme}
-      aria-labelledby={`${id}-label`}
-      aria-describedby={`${id}-description`}
-      className={cn(OPTION, "px-4 pt-5 pb-4")}
-    >
-      <span aria-hidden className="mb-4 flex justify-center gap-4">
-        <Orb scheme="light" colorTheme={colorTheme} />
-        <Orb scheme="dark" colorTheme={colorTheme} />
-      </span>
-      <span id={`${id}-label`} className="block text-sm font-medium">{label}</span>
+    <div data-state={both ? "checked" : "unchecked"} className={cn(OPTION, "relative px-4 pt-5 pb-4")}>
+      <div className="mb-4 flex justify-center gap-4">
+        <ThemeSideToggle
+          scheme="light"
+          colorTheme={colorTheme}
+          pressed={lightTheme === colorTheme}
+          onPress={() => setLightTheme(colorTheme)}
+        />
+        <ThemeSideToggle
+          scheme="dark"
+          colorTheme={colorTheme}
+          pressed={darkTheme === colorTheme}
+          onPress={() => setDarkTheme(colorTheme)}
+        />
+      </div>
+      <button
+        type="button"
+        aria-pressed={both}
+        aria-describedby={`${id}-description`}
+        onClick={() => setColorTheme(colorTheme)}
+        className={
+          "block text-left text-sm font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none " +
+          "focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-ring"
+        }
+      >
+        {label}
+      </button>
       <span id={`${id}-description`} className="block text-xs text-muted-foreground">{description}</span>
-    </RadioGroupPrimitive.Item>
+    </div>
   )
 }
 
 export function AppearancePage() {
-  const { theme, setTheme, colorTheme, setColorTheme } = useTheme()
+  const { theme, setTheme, lightTheme, darkTheme } = useTheme()
   const schemeHeadingId = useId()
   const themesHeadingId = useId()
 
@@ -137,8 +180,8 @@ export function AppearancePage() {
           className="grid-cols-3 gap-2"
         >
           {THEMES.map((value) => (
-            <RadioGroupPrimitive.Item key={value} value={value} className={cn(OPTION, "p-2 pb-1.5 sm:p-2.5 sm:pb-2")}>
-              <SchemeArt scheme={value} colorTheme={colorTheme} />
+            <RadioGroupPrimitive.Item key={value} value={value} className={cn(OPTION, FOCUS_OUTLINE, "p-2 pb-1.5 sm:p-2.5 sm:pb-2")}>
+              <SchemeArt scheme={value} lightTheme={lightTheme} darkTheme={darkTheme} />
               <span className="mt-1.5 block text-center text-[13px] text-muted-foreground group-data-[state=checked]:font-medium group-data-[state=checked]:text-foreground">
                 {SCHEME_LABELS[value]}
               </span>
@@ -148,17 +191,17 @@ export function AppearancePage() {
       </section>
 
       <section aria-labelledby={themesHeadingId} className="space-y-3">
-        <h2 id={themesHeadingId} className={HEADING}>Themes</h2>
-        <RadioGroup
-          aria-label="Theme"
-          value={colorTheme}
-          onValueChange={(value) => setColorTheme(parseColorTheme(value, null))}
-          className="gap-2 sm:grid-cols-2"
-        >
+        <div className="space-y-1">
+          <h2 id={themesHeadingId} className={HEADING}>Themes</h2>
+          <p className="text-[13px] text-muted-foreground">
+            Pick a theme for both modes, or click a sun or moon to set one mode.
+          </p>
+        </div>
+        <div role="group" aria-labelledby={themesHeadingId} className="grid gap-2 sm:grid-cols-2">
           {COLOR_THEMES.map((value) => (
             <ThemeCard key={value} colorTheme={value} />
           ))}
-        </RadioGroup>
+        </div>
       </section>
     </div>
   )

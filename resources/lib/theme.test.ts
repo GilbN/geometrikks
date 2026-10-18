@@ -83,25 +83,28 @@ describe("first-paint preferences", () => {
   }
 
   for (const theme of [null, "invalid", ...THEMES]) {
-    for (const colorTheme of [null, "invalid", ...COLOR_THEMES]) {
-      for (const accent of [null, "green"]) {
-        for (const prefersDark of [false, true]) {
-          it(`matches the provider for ${theme}/${colorTheme}/accent ${accent} with OS dark=${prefersDark}`, () => {
-            const saved: Record<string, string> = {}
-            if (theme !== null) saved["geometrikks-theme"] = theme
-            if (colorTheme !== null) saved["geometrikks-color-theme"] = colorTheme
-            if (accent !== null) saved["geometrikks-accent"] = accent
-            const result = boot(saved, prefersDark)
-            const mode = resolveTheme(parseTheme(theme, "dark"), prefersDark)
-            const expectedTheme = parseColorTheme(colorTheme, accent)
-            expect([...result.classes]).toEqual([mode])
-            expect(result.style.colorScheme).toBe(mode)
-            expect(result.attributes["data-theme"]).toBe(expectedTheme)
-            expect(result.attributes).not.toHaveProperty("data-accent")
-            expect(result.attributes).not.toHaveProperty("data-dark-appearance")
-            expect(result.meta.content).toBe(themeColor(mode, expectedTheme))
-            expect(result.style["--startup-background"]).toBe(themeColor(mode, expectedTheme))
-          })
+    for (const lightTheme of [null, "invalid", "moss"]) {
+      for (const darkTheme of [null, "invalid", "forge"]) {
+        for (const accent of [null, "green"]) {
+          for (const prefersDark of [false, true]) {
+            it(`matches the provider for ${theme}/light ${lightTheme}/dark ${darkTheme}/accent ${accent} with OS dark=${prefersDark}`, () => {
+              const saved: Record<string, string> = {}
+              if (theme !== null) saved["geometrikks-theme"] = theme
+              if (lightTheme !== null) saved["geometrikks-light-theme"] = lightTheme
+              if (darkTheme !== null) saved["geometrikks-dark-theme"] = darkTheme
+              if (accent !== null) saved["geometrikks-accent"] = accent
+              const result = boot(saved, prefersDark)
+              const mode = resolveTheme(parseTheme(theme, "dark"), prefersDark)
+              const expectedTheme = parseColorTheme(mode === "dark" ? darkTheme : lightTheme, accent)
+              expect([...result.classes]).toEqual([mode])
+              expect(result.style.colorScheme).toBe(mode)
+              expect(result.attributes["data-theme"]).toBe(expectedTheme)
+              expect(result.attributes).not.toHaveProperty("data-accent")
+              expect(result.attributes).not.toHaveProperty("data-dark-appearance")
+              expect(result.meta.content).toBe(themeColor(mode, expectedTheme))
+              expect(result.style["--startup-background"]).toBe(themeColor(mode, expectedTheme))
+            })
+          }
         }
       }
     }

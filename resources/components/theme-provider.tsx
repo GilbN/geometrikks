@@ -14,7 +14,6 @@ type ThemeProviderProps = {
   children: React.ReactNode
   defaultTheme?: Theme
   storageKey?: string
-  colorThemeStorageKey?: string
 }
 
 type ThemeProviderState = {
@@ -23,7 +22,13 @@ type ThemeProviderState = {
   /** What the page is showing right now; "system" resolved against the OS. */
   resolvedTheme: ResolvedTheme
   setTheme: (theme: Theme) => void
+  /** The theme painting the page now: the side that matches `resolvedTheme`. */
   colorTheme: ColorTheme
+  lightTheme: ColorTheme
+  darkTheme: ColorTheme
+  setLightTheme: (next: ColorTheme) => void
+  setDarkTheme: (next: ColorTheme) => void
+  /** Sets both sides. */
   setColorTheme: (next: ColorTheme) => void
 }
 
@@ -53,13 +58,15 @@ export function ThemeProvider({
   children,
   defaultTheme = "system",
   storageKey = THEME_STORAGE_KEYS.mode,
-  colorThemeStorageKey = THEME_STORAGE_KEYS.theme,
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<Theme>(() =>
     parseTheme(readStorage(storageKey), defaultTheme),
   )
-  const [colorTheme, setColorThemeState] = useState<ColorTheme>(() =>
-    parseColorTheme(readStorage(colorThemeStorageKey), readStorage(THEME_STORAGE_KEYS.legacyAccent)),
+  const [lightTheme, setLightThemeState] = useState<ColorTheme>(() =>
+    parseColorTheme(readStorage(THEME_STORAGE_KEYS.lightTheme), readStorage(THEME_STORAGE_KEYS.legacyAccent)),
+  )
+  const [darkTheme, setDarkThemeState] = useState<ColorTheme>(() =>
+    parseColorTheme(readStorage(THEME_STORAGE_KEYS.darkTheme), readStorage(THEME_STORAGE_KEYS.legacyAccent)),
   )
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     resolveTheme(theme, prefersDark()),
@@ -75,6 +82,8 @@ export function ThemeProvider({
     return () => query.removeEventListener("change", onChange)
   }, [theme])
 
+  const colorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme
+
   useEffect(() => {
     const root = window.document.documentElement
     root.classList.remove("light", "dark")
@@ -87,8 +96,16 @@ export function ThemeProvider({
     )
   }, [resolvedTheme, colorTheme])
 
-  const value = useMemo<ThemeProviderState>(
-    () => ({
+  const value = useMemo<ThemeProviderState>(() => {
+    const setLightTheme = (next: ColorTheme) => {
+      writeStorage(THEME_STORAGE_KEYS.lightTheme, next)
+      setLightThemeState(next)
+    }
+    const setDarkTheme = (next: ColorTheme) => {
+      writeStorage(THEME_STORAGE_KEYS.darkTheme, next)
+      setDarkThemeState(next)
+    }
+    return {
       theme,
       resolvedTheme,
       setTheme: (next) => {
@@ -96,13 +113,16 @@ export function ThemeProvider({
         setThemeState(next)
       },
       colorTheme,
+      lightTheme,
+      darkTheme,
+      setLightTheme,
+      setDarkTheme,
       setColorTheme: (next) => {
-        writeStorage(colorThemeStorageKey, next)
-        setColorThemeState(next)
+        setLightTheme(next)
+        setDarkTheme(next)
       },
-    }),
-    [theme, resolvedTheme, colorTheme, storageKey, colorThemeStorageKey],
-  )
+    }
+  }, [theme, resolvedTheme, colorTheme, lightTheme, darkTheme, storageKey])
 
   return <ThemeProviderContext.Provider value={value}>{children}</ThemeProviderContext.Provider>
 }

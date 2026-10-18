@@ -29,12 +29,12 @@ export function themeHead(): string {
       }
       const savedMode = read(config.keys.mode);
       const mode = config.modes.includes(savedMode) ? savedMode : config.defaultMode;
-      const savedTheme = read(config.keys.theme);
+      const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const savedTheme = read(dark ? config.keys.darkTheme : config.keys.lightTheme);
       const legacyTheme = config.legacy[read(config.keys.legacyAccent)];
       const theme = config.themes.includes(savedTheme)
         ? savedTheme
         : config.themes.includes(legacyTheme) ? legacyTheme : config.defaultTheme;
-      const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       const root = document.documentElement;
       root.classList.add(dark ? 'dark' : 'light');
       root.setAttribute('data-theme', theme);

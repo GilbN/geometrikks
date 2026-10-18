@@ -50,18 +50,34 @@ function Controls() {
 }
 
 function Gallery() {
-  const { theme, setTheme, colorTheme, setColorTheme } = useTheme()
+  const { theme, setTheme, colorTheme, setColorTheme, lightTheme, darkTheme, setLightTheme, setDarkTheme } = useTheme()
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-4 md:p-8">
       <h1 className="text-xl font-semibold">Theme component preview</h1>
       <ModeToggle />
-      <div className="flex flex-wrap gap-2" aria-label="Preview palette">
+      <div role="group" className="flex flex-wrap gap-2" aria-label="Preview palette">
         <Button variant="outline" aria-pressed={theme === "light"} onClick={() => setTheme("light")}>Light</Button>
         <Button variant="outline" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}>Dark</Button>
         <Button variant="outline" aria-pressed={theme === "system"} onClick={() => setTheme("system")}>System</Button>
         {COLOR_THEMES.map((id) => (
           <Button key={id} variant="outline" aria-pressed={colorTheme === id} onClick={() => setColorTheme(id)}>
             {THEME_CATALOG[id].label}
+          </Button>
+        ))}
+      </div>
+      <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Light side">
+        <span className="text-sm text-muted-foreground">Light side</span>
+        {COLOR_THEMES.map((id) => (
+          <Button key={id} size="sm" variant="outline" aria-pressed={lightTheme === id} onClick={() => setLightTheme(id)}>
+            {THEME_CATALOG[id].label} light
+          </Button>
+        ))}
+      </div>
+      <div role="group" className="flex flex-wrap items-center gap-2" aria-label="Dark side">
+        <span className="text-sm text-muted-foreground">Dark side</span>
+        {COLOR_THEMES.map((id) => (
+          <Button key={id} size="sm" variant="outline" aria-pressed={darkTheme === id} onClick={() => setDarkTheme(id)}>
+            {THEME_CATALOG[id].label} dark
           </Button>
         ))}
       </div>

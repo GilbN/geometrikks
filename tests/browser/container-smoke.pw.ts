@@ -5,7 +5,11 @@ import { expect, test } from "@playwright/test"
 import { COLOR_THEMES, THEME_CATALOG, THEME_STORAGE_KEYS, themeColor, type ColorTheme } from "../../resources/lib/theme"
 
 const startupCases: Array<{ name: string; saved: Record<string, string>; theme: ColorTheme }> = [
-  ...COLOR_THEMES.map((theme) => ({ name: theme, saved: { [THEME_STORAGE_KEYS.theme]: theme }, theme })),
+  ...COLOR_THEMES.map((theme) => ({
+    name: theme,
+    saved: { [THEME_STORAGE_KEYS.lightTheme]: theme, [THEME_STORAGE_KEYS.darkTheme]: theme },
+    theme,
+  })),
   { name: "a legacy copper accent", saved: { [THEME_STORAGE_KEYS.legacyAccent]: "copper" }, theme: "forge" },
 ]
 
@@ -60,7 +64,7 @@ test("production theme menu marks the saved mode and keeps Settings selection co
   }
   const layouts: Array<{ padding: string; height: string; radius: string; background: string }> = []
   for (const id of COLOR_THEMES) {
-    await page.getByRole("radio", { name: THEME_CATALOG[id].label }).click()
+    await page.getByRole("button", { name: THEME_CATALOG[id].label, exact: true }).click()
     const navigation = page.getByRole("navigation", { name: "Settings", exact: true })
     await navigation.getByRole("link", { name: "Status", exact: true }).click()
     await navigation.getByRole("link", { name: "Appearance", exact: true }).click()
