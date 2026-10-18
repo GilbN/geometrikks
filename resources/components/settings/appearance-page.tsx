@@ -190,14 +190,14 @@ export function AppearancePage() {
         </RadioGroup>
       </section>
 
-      <section aria-labelledby={themesHeadingId} className="space-y-3">
+      <section aria-labelledby={themesHeadingId} className="@container space-y-3">
         <div className="space-y-1">
           <h2 id={themesHeadingId} className={HEADING}>Themes</h2>
           <p className="text-[13px] text-muted-foreground">
             Pick a theme for both modes, or click a sun or moon to set one mode.
           </p>
         </div>
-        <div role="group" aria-labelledby={themesHeadingId} className="grid gap-2 sm:grid-cols-2">
+        <div role="group" aria-labelledby={themesHeadingId} className="grid gap-2 sm:grid-cols-2 @3xl:grid-cols-4">
           {COLOR_THEMES.map((value) => (
             <ThemeCard key={value} colorTheme={value} />
           ))}

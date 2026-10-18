@@ -32,7 +32,7 @@ type ThemeDefinition = {
 export const THEME_CATALOG = {
   aurora: {
     label: "Aurora",
-    description: "Fjord mist and Aurora night, teal. The default.",
+    description: "Teal, with cool blue surfaces.",
     light: { themeColor: "#f0f6f9", foreground: "oklch(0.22 0.03 250)" },
     dark: { themeColor: "#010810", foreground: "oklch(0.95 0.01 220)" },
   },
