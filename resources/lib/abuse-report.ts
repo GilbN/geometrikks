@@ -75,6 +75,7 @@ function clfTime(iso: string): string {
 /** Control characters and Unicode line breaks as \xHH or \uHHHH, the way
  *  nginx escapes them. A client-sent newline in a path or user agent would
  *  otherwise forge report lines. */
+// oxlint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f\u0085\u2028\u2029]/g
 export const printable = (value: string) =>
   value.replace(CONTROL_CHARS, (c) => {

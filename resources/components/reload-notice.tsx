@@ -104,7 +104,7 @@ export function ReloadNoticeCard() {
 }
 
 /** The pending reload in the phone's More menu. `stacked` puts the buttons under the text. */
-export function ReloadNoticeMenuCard({ stacked, onLater }: { stacked: boolean; onLater(): void }) {
+export function ReloadNoticeMenuCard({ stacked, onLater }: { stacked: boolean; onLater: () => void }) {
   const notice = useReloadNotice()
   if (!notice.pending) return null
 

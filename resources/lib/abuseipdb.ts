@@ -192,7 +192,7 @@ export function abuseipdbCheckUrl(ip: string): string {
 }
 
 export function commentLength(text: string): number {
-  return [...text].length
+  return Array.from(text).length
 }
 
 export function localScenarios(ip: ReportIpDto): string[] {

@@ -16,7 +16,7 @@ export interface UpdateWiringDeps {
 
 export interface UpdateWiring {
   detector: UpdateDetector
-  canAutoReload(): boolean
+  canAutoReload: () => boolean
   start(): Promise<void>
   serviceWorkerUpdated(): Promise<void>
   pollSucceeded(startedAt: string | null): Promise<void>

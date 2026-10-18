@@ -433,7 +433,7 @@ export function LivePulses({
       const idle = transmissions.current.length === 0
       if (!idle || !sourceIsEmpty.current) {
         const source = map?.getSource(SOURCE_ID) as GeoJSONSource | undefined
-        source?.setData(buildFrame(transmissions.current, now))
+        void source?.setData(buildFrame(transmissions.current, now))
         sourceIsEmpty.current = idle
       }
     }

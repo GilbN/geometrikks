@@ -23,9 +23,21 @@ export default defineConfig({
     ],
   },
   lint: {
-    ignorePatterns: ["resources/generated/**", "resources/routeTree.gen.ts", "site/**"],
+    ignorePatterns: [
+      "resources/generated/**",
+      "resources/routeTree.gen.ts",
+      "resources/components/ui/**",
+      "site/**",
+      ".github/**",
+    ],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+    overrides: [
+      // Asserting on a mocked method, e.g. expect(body.append), never calls it.
+      { files: ["**/*.test.ts"], rules: { "typescript/unbound-method": "off" } },
+      // node:test runs top-level test() calls without awaiting them.
+      { files: ["**/*.test.cjs"], rules: { "typescript/no-floating-promises": "off" } },
+    ],
     options: { typeAware: true, typeCheck: true },
   },
   publicDir: "resources/static",

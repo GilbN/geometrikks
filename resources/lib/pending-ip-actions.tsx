@@ -172,7 +172,7 @@ export function flushIpActions(): Promise<unknown> {
 }
 
 function flushAll() {
-  for (const ip of [...entries.keys()]) void send(ip, true)
+  for (const ip of Array.from(entries.keys())) void send(ip, true)
 }
 
 function bindFlush() {

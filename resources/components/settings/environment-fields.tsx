@@ -50,7 +50,7 @@ export function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "not set"
   if (typeof value === "boolean") return value ? "true" : "false"
   if (typeof value === "object") return formatJson(value)
-  return String(value)
+  return String(value as string | number)
 }
 
 export function isOverridden(field: SettingFieldView): boolean {

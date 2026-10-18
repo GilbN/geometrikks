@@ -110,9 +110,9 @@ export function MapActionPill({
   activeFilterCount: number
   canFit: boolean
   canGoToServer: boolean
-  onFit(): void
-  onGoToServer(): void
-  onToggleLive(): void
+  onFit: () => void
+  onGoToServer: () => void
+  onToggleLive: () => void
   /** An `asChild` trigger, such as `<DrawerTrigger asChild />`, that the Layers button goes into. */
   layersTrigger: ReactElement
   hidden: boolean

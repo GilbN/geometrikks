@@ -110,11 +110,13 @@ const STANDARD_RECORD_KEYS = new Set(["timestamp", "level", "logger", "event", "
  */
 function formatContext(r: LogRecord): string {
   return Object.entries(r)
-    .filter(
-      ([key, value]) =>
+    .filter((entry): entry is [string, string | number | boolean] => {
+      const [key, value] = entry
+      return (
         !STANDARD_RECORD_KEYS.has(key) &&
-        (typeof value === "string" || typeof value === "number" || typeof value === "boolean"),
-    )
+        (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+      )
+    })
     .map(([key, value]) => `${key}=${value}`)
     .join(" ")
 }
