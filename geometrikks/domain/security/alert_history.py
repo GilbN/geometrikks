@@ -4,11 +4,13 @@ GET /v1/alerts has no offset: it answers the newest ``limit`` alerts, ordered
 by ``created_at`` then ``id``, both descending. A page further back asks for
 alerts created before the cursor with ``created_before``, a duration the LAPI
 counts back from its own clock, then drops what is not strictly older than
-the cursor. More than ``MAX_FETCH`` alerts inside the margin get one more
-request at the cursor's exact age. When an answer with ``created_before``
-holds neither the cursor alert nor one from a later second, the cutoff may
-have stopped short of the cursor and cut alerts out, so the page is fetched
-again without ``created_before``, past every newer alert.
+the cursor. When that answer holds neither the cursor alert nor one from a
+later second, the cutoff may have stopped short of the cursor and cut alerts
+out, so the page is fetched again without ``created_before``, past every
+newer alert. More than ``MAX_FETCH`` alerts inside the margin get one more
+request with a cutoff one second past the cursor's age, which keeps the
+cursor's whole second inside the answer while the clocks agree; a flood
+that request cannot get past is a conflict.
 """
 
 from __future__ import annotations
@@ -30,6 +32,10 @@ logger = get_logger(__name__)
 # keeps the cursor's own second inside the answer while the clocks agree to
 # within the margin; the extra rows newer than the cursor are dropped here.
 CURSOR_MARGIN = timedelta(minutes=5)
+# created_before has whole-second precision while the LAPI applies it to
+# sub-second created_at. One second toward the present keeps the cursor's
+# whole second inside the exact-age answer while the clocks agree.
+EXACT_AGE_SLACK = timedelta(seconds=1)
 # Ceiling on one LAPI request while growing the fetch past newer rows.
 MAX_FETCH = 2000
 
@@ -166,11 +172,12 @@ async def _fetch_source(
         return page
     if page == "exhausted":
         # More than MAX_FETCH alerts sit inside the margin after the cursor.
-        # The exact cursor age reaches past them while the clocks agree; the
-        # coverage check catches a cutoff that stopped short of the cursor,
-        # from a LAPI clock behind ours or from landing inside its second.
-        exact_cutoff = _created_before(before, now, timedelta(0))
-        if exact_cutoff is not None:
+        # A cutoff one second past the cursor's age reaches past them while
+        # the clocks agree; the coverage check catches a LAPI clock behind
+        # ours. A clock-free request would meet the same MAX_FETCH rows at
+        # or after the cursor, so there is no further fallback.
+        exact_cutoff = _created_before(before, now, EXACT_AGE_SLACK)
+        if exact_cutoff is not None and exact_cutoff != margin_cutoff:
             alerts = await service.get_alerts(
                 limit=MAX_FETCH, created_before=exact_cutoff, **lapi_filters
             )
@@ -179,11 +186,7 @@ async def _fetch_source(
                 full = len(alerts) == MAX_FETCH
                 if older or not full:
                     return older, full
-                # Full and nothing older: MAX_FETCH rows sit at or after the
-                # cursor, and a clock-free request would meet the same rows.
-                raise _flood_conflict(lapi_filters)
-        if margin_cutoff is None:
-            raise _flood_conflict(lapi_filters)
+        raise _flood_conflict(lapi_filters)
     logger.info("alert_page_clock_free_fallback", **lapi_filters)
     page = await _fetch_older(
         service, lapi_filters, limit=limit, before=before, created_before=None

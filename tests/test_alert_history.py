@@ -241,38 +241,35 @@ async def test_flood_inside_the_margin_past_the_cap_pages_through_with_agreeing_
     page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
     assert page.next_cursor is None
-    age_seconds = int((NOW - T0).total_seconds())
+    age_with_slack = int((NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
     age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
-        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_with_slack}s"),
     ]
 
 
-async def test_deleted_cursor_inside_a_margin_flood_is_an_accepted_conflict(monkeypatch):
-    # With the cursor alert gone, the exact-age answer holds neither it nor
-    # a later alert, so it cannot rule out a cutoff short of the cursor. The
-    # clock-free pass then has to get past all 150 newer alerts, more than
-    # MAX_FETCH, and the page answers 409 although older alerts exist.
+async def test_deleted_cursor_inside_a_margin_flood_pages_through(monkeypatch):
+    # With the cursor alert gone, the alerts from the second after it are
+    # what proves the exact-age cutoff reached past the cursor.
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
     alerts, cursor = cursor_flood()
     lapi = SimulatedLapi([alert for alert in alerts if alert.id != cursor.id])
-    with pytest.raises(DomainConflictError) as conflict:
-        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
-    assert conflict.value.detail == alert_history.FLOOD_CONFLICT
-    age_seconds = int((NOW - T0).total_seconds())
+    page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
+    assert page.next_cursor is None
+    age_with_slack = int((NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
     age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
-        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
-        (50, None), (100, None),
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_with_slack}s"),
     ]
 
 
 # Our clock has a fraction of a second, like datetime.now(). With agreeing
 # clocks, a cutoff at the cursor's floored age lands at that fraction inside
-# the cursor's second.
+# the cursor's second; one second of slack moves it into the next second.
 SUBSECOND_NOW = NOW + timedelta(milliseconds=300)
 # Milliseconds into T0's second for ids 11 to 16. Ids 11 and 12 sit before
-# the 300 ms cutoff, ids 13 to 16 after it.
+# the 300 ms mark, ids 13 to 16 after it.
 SAME_SECOND_MILLISECONDS = {11: 100, 12: 200, 13: 400, 14: 600, 15: 700, 16: 800}
 
 
@@ -291,35 +288,76 @@ def subsecond_alerts(*, newer: int) -> list[Alert]:
     return before + same_second + after
 
 
-async def test_walk_through_a_flood_with_the_cutoff_inside_the_cursor_second(monkeypatch):
-    # 149 alerts above id 12 put the third page break on it, so page four
-    # starts from a cursor at T0 + 200 ms with the exact-age cutoff landing
-    # at T0 + 300 ms, between the cursor and ids 13 to 16.
+@pytest.mark.parametrize(
+    "newer", [145, 149], ids=["page-break-on-id-12-before-the-mark", "page-break-on-id-16-after-it"]
+)
+async def test_walk_through_a_flood_with_several_alerts_in_the_cursor_second(monkeypatch, newer):
+    # 149 alerts above the cursor put the third page break on it, so page
+    # four runs the exact-age pass from a cursor inside T0's second.
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
-    alerts = subsecond_alerts(newer=145)
+    alerts = subsecond_alerts(newer=newer)
     lapi = SimulatedLapi(alerts, now=SUBSECOND_NOW)
     walked = await walk_pages(lapi, now=SUBSECOND_NOW)
     assert walked == newest_first(alerts)
     assert len(set(walked)) == len(alerts)
-    age_seconds = int((SUBSECOND_NOW - T0).total_seconds())
-    assert (lapi.calls[-1]["limit"], lapi.calls[-1]["created_before"]) == (100, f"{age_seconds}s")
+    age_with_slack = int((SUBSECOND_NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
+    assert (lapi.calls[-1]["limit"], lapi.calls[-1]["created_before"]) == (100, f"{age_with_slack}s")
 
 
-async def test_exact_age_cutoff_short_of_the_cursor_alert_never_skips_its_second(monkeypatch):
-    # The re-review probe: the cursor sits at T0 + 800 ms, the cutoff at
-    # T0 + 300 ms. Ids 12 to 15 fall between them. An answer holding id 11
-    # from the same second must not pass for one that reached the cursor.
+async def test_exact_age_pass_keeps_the_cursor_whole_second_inside_the_cutoff(monkeypatch):
+    # The re-review probe: the cursor sits at T0 + 800 ms and a cutoff at
+    # the floored age would land at T0 + 300 ms, dropping the cursor and
+    # ids 13 to 15 while keeping id 11. The slack moves the cutoff to
+    # T0 + 1.3 s, so the whole second comes back and nothing is skipped.
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
     lapi = SimulatedLapi(subsecond_alerts(newer=150), now=SUBSECOND_NOW)
     cursor = AlertCursor(created_at=T0, id=16)
+    page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=SUBSECOND_NOW)
+    assert [alert.id for alert in page.alerts] == list(range(15, 0, -1))
+    assert page.next_cursor is None
+    age_with_slack = int((SUBSECOND_NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
+    age_with_margin = int((SUBSECOND_NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_with_slack}s"),
+    ]
+
+
+async def test_flood_across_the_cursor_second_and_the_next_conflicts(monkeypatch):
+    # The slack reaches the next second, so a flood filling both seconds is
+    # what the exact-age pass cannot get past.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    this_second = [make_alert(id, T0 + timedelta(milliseconds=id)) for id in range(1, 151)]
+    next_second = [make_alert(id, T0 + timedelta(seconds=1, milliseconds=id)) for id in range(151, 301)]
+    lapi = SimulatedLapi(this_second + next_second, now=SUBSECOND_NOW)
+    cursor = AlertCursor(created_at=T0, id=75)
     with pytest.raises(DomainConflictError) as conflict:
         await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=SUBSECOND_NOW)
     assert conflict.value.detail == alert_history.FLOOD_CONFLICT
-    age_seconds = int((SUBSECOND_NOW - T0).total_seconds())
+    age_with_slack = int((SUBSECOND_NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
     age_with_margin = int((SUBSECOND_NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
-        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_seconds}s"),
-        (50, None), (100, None),
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_with_slack}s"),
+    ]
+
+
+def in_second_flood() -> list[Alert]:
+    """300 alerts in ``T0``'s second and five in the next, so a margin answer
+    holds a later second and covers a cursor inside the flood."""
+    same_second = [make_alert(id, T0) for id in range(1, 301)]
+    next_second = [make_alert(id, T0 + timedelta(seconds=1)) for id in range(301, 306)]
+    return same_second + next_second
+
+
+async def test_exact_age_pass_is_skipped_when_it_would_repeat_the_margin_cutoff(monkeypatch):
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    monkeypatch.setattr(alert_history, "CURSOR_MARGIN", alert_history.EXACT_AGE_SLACK)
+    lapi = SimulatedLapi(in_second_flood())
+    cursor = AlertCursor(created_at=T0, id=150)
+    with pytest.raises(DomainConflictError):
+        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    age_with_slack = int((NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, f"{age_with_slack}s"), (100, f"{age_with_slack}s"),
     ]
 
 
@@ -360,9 +398,10 @@ async def test_cursor_younger_than_the_margin_starts_without_a_cutoff(monkeypatc
     cursor = AlertCursor(created_at=fresh, id=150)
     with pytest.raises(DomainConflictError):
         await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
-    # The exact-age pass still runs; the flood shares the cursor's second.
+    # The exact-age pass still runs; the flood shares the cursor's second,
+    # and with it uncovered the page is a conflict with no further request.
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
-        (50, None), (100, None), (100, "120s"),
+        (50, None), (100, None), (100, "119s"),
     ]
 
 
@@ -377,13 +416,14 @@ async def test_flood_after_a_cursor_younger_than_the_margin_pages_through(monkey
     page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
     assert page.next_cursor is None
-    assert lapi.calls[-1]["created_before"] == "120s"
+    assert lapi.calls[-1]["created_before"] == "119s"
 
 
-async def test_cursor_from_this_second_skips_the_exact_age_pass(monkeypatch):
+@pytest.mark.parametrize("age", [timedelta(0), timedelta(seconds=1)], ids=["this-second", "last-second"])
+async def test_cursor_younger_than_the_slack_skips_the_exact_age_pass(monkeypatch, age):
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
-    lapi = SimulatedLapi([make_alert(id, NOW) for id in range(1, 301)])
-    cursor = AlertCursor(created_at=NOW, id=150)
+    lapi = SimulatedLapi([make_alert(id, NOW - age) for id in range(1, 301)])
+    cursor = AlertCursor(created_at=NOW - age, id=150)
     with pytest.raises(DomainConflictError):
         await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [(50, None), (100, None)]
@@ -398,6 +438,22 @@ async def test_flood_at_the_cursor_second_conflicts(monkeypatch):
     assert conflict.value.detail == (
         "Too many alerts at the same moment to page past; filter by IP or scenario."
     )
+
+
+async def test_exhausted_margin_pass_with_an_uncovered_exact_age_answer_conflicts_at_once(monkeypatch):
+    # An exhausted margin pass already saw MAX_FETCH rows at or after the
+    # cursor, so an uncovered exact-age answer ends in the 409 with no
+    # clock-free request.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    lapi = SimulatedLapi(in_second_flood())
+    cursor = AlertCursor(created_at=T0, id=150)
+    with pytest.raises(DomainConflictError):
+        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    age_with_slack = int((NOW - T0 - alert_history.EXACT_AGE_SLACK).total_seconds())
+    age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
+    assert [(call["limit"], call["created_before"]) for call in lapi.calls] == [
+        (50, f"{age_with_margin}s"), (100, f"{age_with_margin}s"), (100, f"{age_with_slack}s"),
+    ]
 
 
 async def test_filters_reach_the_lapi():
