@@ -150,20 +150,76 @@ async def test_flood_inside_margin_refetches():
     assert any(call["limit"] > 50 for call in lapi.calls)
 
 
+def cursor_flood(*, older_spacing_seconds: int = 1) -> tuple[list[Alert], AlertCursor]:
+    """Ten alerts before the cursor, the cursor's own alert at ``T0`` (id 11),
+    and 150 newer alerts inside the margin, between ``T0 + 1 s`` and ``T0 + 120 s``."""
+    before_cursor = [
+        make_alert(id, T0 - timedelta(seconds=(11 - id) * older_spacing_seconds))
+        for id in range(1, 11)
+    ]
+    cursor_alert = make_alert(11, T0)
+    inside_margin = [
+        make_alert(id, T0 + timedelta(seconds=1 + (id - 12) * 119 // 149))
+        for id in range(12, 162)
+    ]
+    return before_cursor + [cursor_alert] + inside_margin, AlertCursor(created_at=T0, id=11)
+
+
 async def test_flood_past_the_cap_falls_back_to_no_margin(monkeypatch):
     monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
-    before_cursor = [make_alert(id, T0 - timedelta(seconds=11 - id)) for id in range(1, 11)]
-    inside_margin = [
-        make_alert(id, T0 + timedelta(seconds=1 + (id - 11) * 119 // 149))
-        for id in range(11, 161)
-    ]
-    lapi = SimulatedLapi(before_cursor + inside_margin)
-    cursor = AlertCursor(created_at=T0, id=10_000)
+    alerts, cursor = cursor_flood()
+    lapi = SimulatedLapi(alerts)
     page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
     assert [alert.id for alert in page.alerts] == list(range(10, 0, -1))
     assert page.next_cursor is None
     age_seconds = int((NOW - T0).total_seconds())
     assert lapi.calls[-1]["created_before"] == f"{age_seconds}s"
+
+
+@pytest.mark.parametrize(
+    "older_spacing_seconds",
+    [1, 6],
+    ids=["older-alerts-all-inside-the-skew", "older-alerts-partly-inside-the-skew"],
+)
+async def test_no_margin_fallback_with_a_lapi_clock_behind_conflicts(
+    monkeypatch, older_spacing_seconds
+):
+    # The LAPI cutoff lands 30 s before the cursor, so the answer cannot show
+    # whether alerts between the cutoff and the cursor were left out.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    alerts, cursor = cursor_flood(older_spacing_seconds=older_spacing_seconds)
+    lapi = SimulatedLapi(alerts, clock_skew=timedelta(seconds=-30))
+    with pytest.raises(DomainConflictError) as conflict:
+        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    assert conflict.value.detail == alert_history.FLOOD_CONFLICT
+
+
+async def test_no_margin_answer_full_with_a_few_older_rows_keeps_a_cursor(monkeypatch):
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    same_second = [make_alert(id, T0) for id in range(1, 121)]
+    inside_margin = [
+        make_alert(id, T0 + timedelta(seconds=1 + (id - 121) * 119 // 149))
+        for id in range(121, 271)
+    ]
+    lapi = SimulatedLapi(same_second + inside_margin)
+    cursor = AlertCursor(created_at=T0, id=30)
+    page = await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    assert [alert.id for alert in page.alerts] == list(range(29, 20, -1))
+    assert page.next_cursor is not None
+    assert decode_cursor(page.next_cursor) == AlertCursor(created_at=T0, id=21)
+
+
+async def test_flood_at_a_cursor_from_this_second_skips_the_repeat_request(monkeypatch):
+    # A cursor from the current second sends no created_before with or
+    # without the margin, so a retry without it would repeat the same request.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    fresh = NOW
+    lapi = SimulatedLapi([make_alert(id, fresh) for id in range(1, 301)])
+    cursor = AlertCursor(created_at=fresh, id=150)
+    with pytest.raises(DomainConflictError):
+        await fetch_alert_page(lapi, AlertFilters(), limit=50, before=cursor, now=NOW)
+    assert [call["limit"] for call in lapi.calls] == [50, 100]
+    assert all(call["created_before"] is None for call in lapi.calls)
 
 
 async def test_flood_at_the_cursor_second_conflicts(monkeypatch):

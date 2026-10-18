@@ -97,6 +97,7 @@ async def _fetch_source(
     answer was full (so more may follow)."""
     fetch_limit = limit
     margin = CURSOR_MARGIN
+    margin_dropped = False
     while True:
         created_before = None if before is None else _created_before(before, now, margin)
         alerts = await service.get_alerts(
@@ -105,6 +106,11 @@ async def _fetch_source(
         full = len(alerts) == fetch_limit
         if before is None:
             return alerts, full
+        if margin_dropped and not any(_created_at(alert) >= before.created_at for alert in alerts):
+            # Nothing at or after the cursor's second came back, so the LAPI
+            # cutoff may have fallen before the cursor and left alerts out.
+            logger.warning("alert_page_skew_conflict", fetch_limit=fetch_limit, **lapi_filters)
+            raise DomainConflictError(FLOOD_CONFLICT)
         cursor_key = (before.created_at, before.id)
         older = [alert for alert in alerts if _sort_key(alert) < cursor_key]
         if not full or len(older) >= limit:
@@ -112,11 +118,13 @@ async def _fetch_source(
         if fetch_limit < MAX_FETCH:
             fetch_limit = min(fetch_limit * 4, MAX_FETCH)
             continue
-        if margin:
-            # Without the margin a LAPI clock running behind ours can skip
-            # alerts from the cursor's last seconds; better than no page.
+        if not margin_dropped and _created_before(before, now, timedelta(0)) is not None:
+            # The exact cursor age reaches past the flood, but a LAPI clock
+            # behind ours puts the cutoff before the cursor. The answer is
+            # only used when it holds an alert from the cursor's second.
             logger.info("alert_page_margin_dropped", fetch_limit=fetch_limit, **lapi_filters)
             margin = timedelta(0)
+            margin_dropped = True
             continue
         if older:
             return older, full
@@ -135,8 +143,9 @@ async def fetch_alert_page(
     """One page of alerts, newest first, older than ``before`` when given.
 
     Raises:
-        DomainConflictError: More than ``MAX_FETCH`` alerts share the cursor's
-            second, so no request can reach past them.
+        DomainConflictError: More than ``MAX_FETCH`` alerts sit at or just
+            after the cursor, and no request can reach past them without
+            risking a skipped alert.
     """
     lapi_filters: dict[str, Any] = {
         "ip": filters.ip,

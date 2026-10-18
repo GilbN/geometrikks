@@ -436,8 +436,10 @@ export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: s
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: status?.writeEnabled === true,
-    // A refetch reloads every loaded page in turn, one LAPI request each.
+    // A refetch reloads every loaded page in turn, one LAPI request each,
+    // so a deep view refreshes only on a filter change or invalidation.
     refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
+    refetchOnWindowFocus: (query) => (query.state.data?.pages.length ?? 0) <= 1,
     placeholderData: keepPreviousData,
   })
 }

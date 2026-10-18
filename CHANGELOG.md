@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Security > Alert history stopped at 50 alerts. "Load older" now pages back through the whole selected window.
+- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back.
 
 ## [0.21.0] - 2026-10-18
 
