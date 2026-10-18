@@ -8,6 +8,29 @@ export const ALERT_PAGE_SIZE = 50
  *  controls, and a few thousand rows exhaust the browser tab. */
 export const ALERT_MAX_PAGES = 20
 
+export type AlertKindFilter = "all" | "crowdsec" | "waf" | "bot"
+
+// The kinds an engine produces on its own. Blocklist pulls are left out of
+// the history already, and Console orders are rare enough to live under All.
+export const ALERT_KIND_OPTIONS: readonly { key: AlertKindFilter; label: string }[] = [
+  { key: "all", label: "All kinds" },
+  { key: "crowdsec", label: "Log scenarios" },
+  { key: "waf", label: "WAF" },
+  { key: "bot", label: "Bot detection" },
+]
+
+const EMPTY_MESSAGES: Record<AlertKindFilter, string> = {
+  all: "No alerts in this window.",
+  crowdsec: "No alerts of this kind in this window.",
+  waf: "No WAF alerts in this window. WAF alerts need AppSec enabled on a bouncer.",
+  bot: "No bot challenge alerts in this window. The bot challenge needs CrowdSec 1.8 and a bouncer that supports it.",
+}
+
+/** What the alert history says when the selected kind has no alerts. */
+export function alertsEmptyMessage(kind: AlertKindFilter): string {
+  return EMPTY_MESSAGES[kind]
+}
+
 /** Footer text under the alert history, and whether "Load older" shows. */
 export function alertHistoryFooter({
   rowCount,

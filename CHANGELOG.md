@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Security > Alert history shows the alert kinds as tabs with an explanation of each, and "Detections" is now "Log scenarios". An empty WAF or Bot detection view says what that kind needs.
 - Security > Alert history: Bot detection now also lists the bans the bot challenge raises, marked "Bot ban", next to rejected submissions, now marked "Bot rejected".
 
 ### Fixed

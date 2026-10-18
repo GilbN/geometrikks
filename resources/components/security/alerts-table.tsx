@@ -17,12 +17,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { alertHistoryFooter, alertSummary } from "@/lib/crowdsec-alerts"
+import {
+  ALERT_KIND_OPTIONS,
+  alertHistoryFooter,
+  alertsEmptyMessage,
+  alertSummary,
+  type AlertKindFilter,
+} from "@/lib/crowdsec-alerts"
+import { AlertKindHelp } from "@/components/security/alert-kind-help"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
@@ -39,20 +45,9 @@ const SINCE_OPTIONS = [
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 
-// The kinds an engine produces on its own. Blocklist pulls are left out of
-// the history already, and Console orders are rare enough to live under All.
-const KIND_OPTIONS = [
-  { key: "all", label: "All kinds" },
-  { key: "crowdsec", label: "Detections" },
-  { key: "waf", label: "WAF" },
-  { key: "bot", label: "Bot detection" },
-] as const
-
-type KindKey = (typeof KIND_OPTIONS)[number]["key"]
-
 export function AlertsTable() {
   const [since, setSince] = useState<SinceKey>("24h")
-  const [kind, setKind] = useState<KindKey>("all")
+  const [kind, setKind] = useState<AlertKindFilter>("all")
   const {
     data,
     isLoading,
@@ -80,30 +75,32 @@ export function AlertsTable() {
     <Card className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={kind} onValueChange={(value) => setKind(value as KindKey)}>
-            <SelectTrigger aria-label="Alert kind" className="h-8 w-[150px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {KIND_OPTIONS.map((option) => (
-                <SelectItem key={option.key} value={option.key}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
-            <TabsList>
-              {SINCE_OPTIONS.map((option) => (
-                <TabsTrigger key={option.key} value={option.key}>
-                  {option.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+        <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
+          <TabsList>
+            {SINCE_OPTIONS.map((option) => (
+              <TabsTrigger key={option.key} value={option.key}>
+                {option.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </CardHeader>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-6 pb-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <div className="min-w-0 overflow-x-auto">
+            <Tabs value={kind} onValueChange={(value) => setKind(value as AlertKindFilter)}>
+              <TabsList aria-label="Alert kind">
+                {ALERT_KIND_OPTIONS.map((option) => (
+                  <TabsTrigger key={option.key} value={option.key} className="shrink-0 whitespace-nowrap">
+                    {option.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          </div>
+          <AlertKindHelp />
+        </div>
+      </div>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
           <Table>
@@ -188,7 +185,7 @@ export function AlertsTable() {
               {!isLoading && !isError && alerts?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    {kind === "all" ? "No alerts in this window." : "No alerts of this kind in this window."}
+                    {alertsEmptyMessage(kind)}
                   </TableCell>
                 </TableRow>
               )}

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
+  ALERT_KIND_OPTIONS,
   ALERT_MAX_PAGES,
   ALERT_PAGE_SIZE,
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
   alertBadge,
   alertDescription,
+  alertsEmptyMessage,
   alertHistoryFooter,
   alertSummary,
   asLabel,
@@ -379,5 +381,20 @@ describe("alertHistoryFooter", () => {
       text: "Showing 50 alerts",
       showLoadOlder: false,
     })
+  })
+})
+
+describe("alertsEmptyMessage", () => {
+  it("names what each kind needs when its view is empty", () => {
+    expect(alertsEmptyMessage("all")).toBe("No alerts in this window.")
+    expect(alertsEmptyMessage("crowdsec")).toBe("No alerts of this kind in this window.")
+    expect(alertsEmptyMessage("waf")).toBe("No WAF alerts in this window. WAF alerts need AppSec enabled on a bouncer.")
+    expect(alertsEmptyMessage("bot")).toBe(
+      "No bot challenge alerts in this window. The bot challenge needs CrowdSec 1.8 and a bouncer that supports it.",
+    )
+  })
+
+  it("labels the kind options", () => {
+    expect(ALERT_KIND_OPTIONS.map((option) => option.label)).toEqual(["All kinds", "Log scenarios", "WAF", "Bot detection"])
   })
 })
