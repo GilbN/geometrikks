@@ -97,6 +97,7 @@ import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
+import { isClientError } from "./crowdsec"
 
 // ============================================================================
 // Query Keys
@@ -441,6 +442,7 @@ export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: s
     refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
     refetchOnWindowFocus: (query) => (query.state.data?.pages.length ?? 0) <= 1,
     placeholderData: keepPreviousData,
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
   })
 }
 

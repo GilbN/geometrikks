@@ -280,17 +280,23 @@ export type AlertRun = { key: string; alerts: AlertView[] }
 /** Collapses adjacent alerts with the same source and kind into one run, so
  *  a flood of WAF hits from one IP reads as one row. Scenarios may differ. */
 export function groupConsecutiveAlerts(alerts: AlertView[]): AlertRun[] {
-  const alertRuns: AlertRun[] = []
+  const runAlerts: AlertView[][] = []
   for (const alert of alerts) {
-    const currentRun = alertRuns.at(-1)
-    const newest = currentRun?.alerts[0]
+    const currentRun = runAlerts.at(-1)
+    const newest = currentRun?.[0]
     if (currentRun && newest && newest.value === alert.value && newest.kind === alert.kind) {
-      currentRun.alerts.push(alert)
+      currentRun.push(alert)
     } else {
-      alertRuns.push({ key: String(alert.id), alerts: [alert] })
+      runAlerts.push([alert])
     }
   }
-  return alertRuns
+  // Keyed by the oldest alert: a refresh puts new alerts on top, and a run
+  // that gains one keeps its key and stays expanded.
+  return runAlerts.map((alertsInRun) => {
+    const oldest = alertsInRun[alertsInRun.length - 1]
+    const key = oldest.id !== null ? String(oldest.id) : `${oldest.createdAt}:${oldest.value}`
+    return { key, alerts: alertsInRun }
+  })
 }
 
 /** "4 scenarios" for a run that mixes scenarios, or null when they all match. */

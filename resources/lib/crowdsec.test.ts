@@ -8,6 +8,7 @@ import {
   decisionLabel,
   decisionPopupColor,
   decisionWinner,
+  isClientError,
   isValidBanDuration,
   isValidBanTarget,
   rangeSizeLabel,
@@ -32,6 +33,22 @@ describe("crowdsecErrorMessage", () => {
     expect(crowdsecErrorMessage(new Error("boom"), "fallback")).toBe("fallback")
     const bare = new AxiosError("network down", "ERR_NETWORK")
     expect(crowdsecErrorMessage(bare, "fallback")).toBe("fallback")
+  })
+})
+
+describe("isClientError", () => {
+  const withStatus = (status: number) =>
+    new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, { data: {}, status } as never)
+
+  it("is true for a 4xx answer", () => {
+    expect(isClientError(withStatus(400))).toBe(true)
+    expect(isClientError(withStatus(409))).toBe(true)
+  })
+
+  it("is false for server errors, network errors and anything else", () => {
+    expect(isClientError(withStatus(502))).toBe(false)
+    expect(isClientError(new AxiosError("network down", "ERR_NETWORK"))).toBe(false)
+    expect(isClientError(new Error("boom"))).toBe(false)
   })
 })
 

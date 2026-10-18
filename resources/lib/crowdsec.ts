@@ -111,6 +111,12 @@ export function crowdsecErrorMessage(err: unknown, fallback: string): string {
   return detail ?? fallback
 }
 
+/** A 4xx answer, which a retry would only repeat. */
+export function isClientError(err: unknown): boolean {
+  const status = isAxiosError(err) ? err.response?.status : undefined
+  return status !== undefined && status >= 400 && status < 500
+}
+
 const DECISION_RANK = new Map<string, number>([["ban", 0], ["captcha", 1]])
 
 function decisionRank(type: string): [number, string] {

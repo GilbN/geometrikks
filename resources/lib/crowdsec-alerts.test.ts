@@ -478,7 +478,20 @@ describe("groupConsecutiveAlerts", () => {
     const runs = groupConsecutiveAlerts(alerts)
     expect(runs).toHaveLength(1)
     expect(runs[0].alerts).toEqual(alerts)
-    expect(runs[0].key).toBe(String(alerts[0].id))
+    expect(runs[0].key).toBe(String(alerts[2].id))
+  })
+
+  it("keeps a run's key when a newer alert from the same source joins it", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const [before] = groupConsecutiveAlerts(alerts)
+    const [after] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), ...alerts])
+    expect(after.alerts).toHaveLength(3)
+    expect(after.key).toBe(before.key)
+  })
+
+  it("keys a run by time and source when its oldest alert has no id", () => {
+    const alert = { ...makeAlert("1.1.1.1", "waf"), id: null }
+    expect(groupConsecutiveAlerts([alert])[0].key).toBe(`${alert.createdAt}:1.1.1.1`)
   })
 
   it("keeps an interrupted run apart", () => {
