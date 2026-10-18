@@ -97,6 +97,8 @@ jobs:
           fi
       - name: Frontend type check
         run: bun run typecheck
+      - name: Frontend lint
+        run: bun run lint
 
   frontend:
     runs-on: ubuntu-latest

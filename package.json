@@ -12,7 +12,9 @@
     "generate-types": "openapi-ts",
     "test": "vp test run",
     "test:smoke": "playwright test --config=playwright.config.ts --project=smoke",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "lint": "vp lint",
+    "fmt": "vp fmt"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
