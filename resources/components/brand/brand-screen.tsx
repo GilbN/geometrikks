@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
  * the card's header carries the mark, wordmark, the page's H1 and a line of
  * context, the body carries `children`. `backdrop` picks the picture behind
  * the card: routes converging on the mark, relief contours, or the map that
- * combines them; all sit on the aurora glow.
+ * combines them. The Night theme uses a monochrome version of the scene.
  */
 export function BrandScreen({
   title,
@@ -26,20 +26,20 @@ export function BrandScreen({
 }) {
   return (
     <div className="relative h-dvh bg-background flex items-center justify-center overflow-hidden p-4">
-      {/* Aurora backdrop: two soft glows in the brand accent. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(640px 420px at 18% -8%, var(--primary-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--primary-glow), transparent 70%)",
-        }}
-      />
-      {backdrop === "routes" ? <RoutesBackdrop /> : backdrop === "relief" ? <ReliefBackdrop /> : <MapBackdrop />}
+      <div aria-hidden className="brand-backdrop pointer-events-none absolute inset-0">
+        <div
+          className="theme-decoration absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(640px 420px at 18% -8%, var(--primary-glow), transparent 70%), radial-gradient(720px 520px at 108% 108%, var(--primary-glow), transparent 70%)",
+          }}
+        />
+        {backdrop === "routes" ? <RoutesBackdrop /> : backdrop === "relief" ? <ReliefBackdrop /> : <MapBackdrop />}
+      </div>
       <section
         aria-labelledby="brand-screen-title"
         className={cn(
-          "relative w-full max-w-sm overflow-hidden rounded-xl bg-background/55 text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)]",
+          "relative w-full max-w-sm overflow-hidden rounded-xl bg-brand-panel text-card-foreground ring-1 ring-border shadow-[var(--shadow-card)]",
           // Hairline contours dissolve under the full 8px blur; the arcs do not.
           backdrop === "routes" ? "backdrop-blur" : "backdrop-blur-[5px]",
           className,

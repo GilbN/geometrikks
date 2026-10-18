@@ -6,7 +6,7 @@ export const Route = createFileRoute("/settings/appearance")({
   component: () => (
     <SettingsPage
       title="Appearance"
-      subtitle="Choose the color mode and accent used in this browser."
+      subtitle="Choose the color scheme and theme used in this browser."
     >
       <AppearancePage />
     </SettingsPage>

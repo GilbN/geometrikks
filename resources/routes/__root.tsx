@@ -4,6 +4,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
+import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import {
@@ -22,7 +23,6 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
-import { AccentToggle } from "@/components/accent-toggle"
 import { TimeRangeProvider } from "@/lib/time-range-context"
 import { LiveFeedProvider } from "@/lib/live-feed-context"
 import { TimeRangeToolbar } from "@/components/time-range-toolbar"
@@ -129,14 +129,14 @@ function RootLayout() {
   // No sidebar or data providers on these routes; see isChromelessRoute.
   if (isChromeless) {
     return (
-      <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+      <ThemeProvider defaultTheme={DEFAULT_MODE}>
         <Outlet />
       </ThemeProvider>
     )
   }
 
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+    <ThemeProvider defaultTheme={DEFAULT_MODE}>
       <TooltipProvider delayDuration={0}>
         <TimeRangeProvider>
           <LiveFeedProvider>
@@ -159,7 +159,6 @@ function RootLayout() {
                       mobile map-controls drawer trigger in MapControls). */}
                   <span id="header-actions-slot" className="contents" />
                   <Separator orientation="vertical" className="hidden h-6 sm:block" />
-                  <AccentToggle />
                   <ModeToggle />
                 </div>
               </header>
@@ -187,7 +186,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
       : "An unexpected error occurred."
 
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+    <ThemeProvider defaultTheme={DEFAULT_MODE}>
       <BrandScreen
         title="Something went wrong"
         description="Try again, or go back to the overview."
@@ -214,7 +213,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 
 function NotFoundComponent() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="geometrikks-theme">
+    <ThemeProvider defaultTheme={DEFAULT_MODE}>
       <BrandScreen
         title="Page not found"
         description="Nothing lives at this address, or it has moved."

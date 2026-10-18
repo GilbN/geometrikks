@@ -3,6 +3,10 @@ import { defineConfig } from "@playwright/test"
 export default defineConfig({
   testDir: "./tests/browser",
   testMatch: "**/*.pw.ts",
+  projects: [
+    { name: "smoke", testIgnore: "**/themes.pw.ts" },
+    { name: "themes", testMatch: "**/themes.pw.ts" },
+  ],
   fullyParallel: false,
   workers: 1,
   retries: 0,

@@ -17,7 +17,7 @@ export function SettingsPage({
   return (
     <div className="min-w-0 space-y-4">
       {/* Glass band: the title and any page toolbar sit on it, over the relief. */}
-      <div className="space-y-4 rounded-xl bg-card/55 px-5 py-4 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
+      <div className="space-y-4 rounded-xl bg-glass-card px-5 py-4 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
         <PageHeader title={title} subtitle={subtitle} />
         {toolbar}
       </div>

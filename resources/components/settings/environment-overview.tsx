@@ -228,7 +228,7 @@ export function EnvironmentOverview() {
     <div className="space-y-4">
       {/* Same glass as the title band above: the toolbar and section
           chips sit on it rather than on the relief. */}
-      <div className="space-y-3 rounded-xl bg-card/55 px-4 py-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
+      <div className="space-y-3 rounded-xl bg-glass-card px-4 py-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

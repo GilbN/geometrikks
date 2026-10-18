@@ -54,9 +54,9 @@ function SettingsLayout() {
       <MapBackdrop mode="viewport" />
       {/* Glass cards, scoped to Settings: the backdrop shows through them
           softly instead of only between them. */}
-      <div className="relative min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6 [&_[data-slot=card]]:bg-card/55 [&_[data-slot=card]]:backdrop-blur-[2px]">
+      <div className="relative min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6 [&_[data-slot=card]]:bg-glass-card [&_[data-slot=card]]:backdrop-blur-[2px]">
       <Select value={activeTab.to} onValueChange={handleTabChange}>
-        <SelectTrigger aria-label="Settings section" className="mb-4 h-10 w-full bg-card/70 backdrop-blur-[2px] md:hidden">
+        <SelectTrigger aria-label="Settings section" className="mb-4 h-10 w-full bg-glass-card-strong backdrop-blur-[2px] md:hidden">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -70,7 +70,7 @@ function SettingsLayout() {
       </Select>
       <nav
         aria-label="Settings"
-        className="relative hidden self-start rounded-xl bg-card/70 p-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px] md:sticky md:top-4 md:block"
+        className="relative hidden self-start rounded-xl bg-glass-card-strong p-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px] md:sticky md:top-4 md:block"
       >
         <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Settings
@@ -80,8 +80,9 @@ function SettingsLayout() {
             <li key={tab.to}>
               <Link
                 to={tab.to}
-                className="relative -ml-px flex items-center border-l-2 border-transparent py-1.5 pl-3 pr-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="relative -ml-px flex items-center border-l-2 py-1.5 pl-3 pr-2 text-sm transition-colors"
                 activeProps={{ className: "border-primary font-medium text-foreground" }}
+                inactiveProps={{ className: "border-transparent text-muted-foreground hover:text-foreground" }}
               >
                 {tab.label}
                 {showsDot(tab) && <UnseenDot />}

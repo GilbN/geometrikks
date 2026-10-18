@@ -33,7 +33,7 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
         "pointer-events-auto flex min-h-9 items-center gap-2 rounded-full border pl-3 pr-2 pointer-coarse:min-h-11",
         // A neutral press, not the cyan accent: unpaired with its foreground
         // token the accent flashes brighter than anything else on the map.
-        "bg-background/85 text-xs backdrop-blur transition-colors active:bg-foreground/10",
+        "bg-floating text-xs backdrop-blur transition-colors active:bg-foreground/10",
         // A threat is the one thing worth changing the pill's own colour for.
         underAttack ? "border-red-500/45" : disconnected ? "border-border" : "border-primary/35",
       )}

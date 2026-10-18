@@ -24,7 +24,7 @@ export function MapOverlay({
       data-slot="map-overlay"
       data-placement={placement}
       className={cn(
-        "pointer-events-auto absolute z-10 flex max-h-[min(38rem,calc(100%-2rem))] flex-col overflow-hidden rounded-xl bg-background/85 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur",
+        "pointer-events-auto absolute z-10 flex max-h-[min(38rem,calc(100%-2rem))] flex-col overflow-hidden rounded-xl bg-map-panel ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur",
         PLACEMENT[placement],
         className,
       )}

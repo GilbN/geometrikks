@@ -11,7 +11,7 @@
     "update": "npm update",
     "generate-types": "openapi-ts",
     "test": "vitest run",
-    "test:smoke": "playwright test --config=playwright.config.ts",
+    "test:smoke": "playwright test --config=playwright.config.ts --project=smoke",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {

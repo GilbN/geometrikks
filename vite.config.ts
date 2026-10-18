@@ -6,6 +6,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import litestar from "litestar-vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { themeHtml } from "./resources/lib/theme-html-plugin.ts";
 
 export default defineConfig({
   publicDir: "resources/static",
@@ -34,6 +35,7 @@ export default defineConfig({
   // manual /api and /ws proxies, CORS, and HMR host overrides are not needed.
   // Standalone `bun run dev` against :5173 is not a supported workflow.
   plugins: [
+    themeHtml(),
     tailwindcss(),
     tanstackRouter({
       target: 'react',
@@ -43,14 +45,14 @@ export default defineConfig({
     }),
     react(),
     litestar({
-      input: ["resources/main.tsx", "resources/main.css"],
+      input: ["index.html", "resources/main.tsx", "resources/main.css"],
     }),
     VitePWA({
       // litestar-vite-plugin sets Vite's base to "/static/"; override so
       // /sw.js registers at root scope instead of "/static/".
       base: "/",
       registerType: "autoUpdate",
-      // Registration happens in main.tsx; there is no HTML entry to inject into.
+      // Registration happens in main.tsx.
       injectRegister: false,
       // Hand-written static manifest (resources/static/manifest.webmanifest);
       // a plugin-generated one would 404 in dev, where no build output exists.
@@ -67,8 +69,9 @@ export default defineConfig({
         // it fresh, with the cached copy ("/" for all navigations) as offline
         // fallback.
         //
-        // Load-bearing undefined: the plugin default is "index.html", which
-        // this build doesn't emit, and the worker would throw and never install.
+        // Load-bearing undefined: the plugin default is "index.html", and the
+        // precache globPatterns exclude HTML, so the worker would throw on
+        // the missing entry and never install.
         navigateFallback: undefined,
         runtimeCaching: [
           {

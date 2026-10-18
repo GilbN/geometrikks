@@ -1,0 +1,74 @@
+[data-theme="night"]:not(.dark) {
+  --brand-l: 0.2;
+  --brand-c: 0;
+  --brand-h: 0;
+
+  --background: #f5f5f5;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary-foreground: #ffffff;
+  --secondary: #ebebeb;
+  --secondary-foreground: #262626;
+  --muted: #ebebeb;
+  --muted-foreground: #666666;
+  --border: #e3e3e3;
+  --input: #e3e3e3;
+  --sidebar: #fafafa;
+  --sidebar-foreground: #171717;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-border: #e3e3e3;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 6%);
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 6%);
+}
+
+.dark[data-theme="night"] {
+  --brand-l: 0.93;
+  --brand-c: 0;
+  --brand-h: 0;
+
+  --background: #0a0a0a;
+  --foreground: #e8e8e8;
+  --card: #0d0d0d;
+  --card-foreground: #e8e8e8;
+  --popover: #141414;
+  --popover-foreground: #e8e8e8;
+  --primary-foreground: #000000;
+  --secondary: #282828;
+  --secondary-foreground: #e8e8e8;
+  --muted: #242424;
+  --muted-foreground: #858585;
+  --accent: #2b2b2b;
+  --accent-foreground: #e8e8e8;
+  --border: #1a1a1a;
+  --input: #323232;
+  --sidebar: #030303;
+  --sidebar-foreground: #e8e8e8;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #141414;
+  --sidebar-accent-foreground: #e8e8e8;
+  --sidebar-border: #1d1d1d;
+  --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 7%);
+  --glass-card: var(--card);
+  --glass-card-strong: var(--card);
+  --brand-panel: color-mix(in oklab, var(--card) 55%, transparent);
+  --floating-surface: color-mix(in oklab, var(--popover) 85%, transparent);
+  --popup-bg: var(--floating-surface);
+
+  --control-bg: var(--popover);
+  --control-hover-bg: var(--accent);
+  --drawer-handle: color-mix(in oklab, var(--foreground) 40%, transparent);
+  --panel-bg: var(--popover);
+  --panel-border: #303030;
+  --map-panel-bg: var(--floating-surface);
+  --map-panel-border: #303030;
+  --brand-backdrop-primary: #737373;
+  --brand-backdrop-muted: #454545;
+  --brand-backdrop-glow: rgb(255 255 255 / 4%);
+  --nav-active-bg: var(--sidebar-accent);
+  --nav-indicator-opacity: 1;
+  --nav-inactive-icon: var(--muted-foreground);
+  --nav-inactive-text: var(--muted-foreground);
+}
