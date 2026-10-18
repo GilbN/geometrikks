@@ -72,13 +72,19 @@ a log file is not producing events.
 **Multi-source.** Several proxies or hosts? Run one full instance plus
 lightweight agents next to each log file, tail shipped files from one
 place, or read every proxy's lines from Loki. Access Logs, Geo Logs and the
-map filter by server, and the map gives each server its own beacon. See [Multi-source setup](#multi-source-setup).
+map filter by server, and the map gives each server its own beacon.
+Settings > Agents lists every agent with its version, servers and last
+check-in, and flags one that stopped reporting. See [Multi-source setup](#multi-source-setup).
 
 **Settings > Status.** Ingestion, storage, enrichment, integrations and
 live services on one page, with advisories when something needs attention
 (a missing ASN database, a server whose location could not be detected).
 
 ![Settings > Status](/data/screenshots/status.png)
+
+**Themes.** Settings > Appearance has four themes, Aurora, Moss, Forge and
+Night, each with a light and a dark palette. Use one theme for both modes
+or pick a different one for each.
 
 **CrowdSec integration.** Point the app at your CrowdSec Local API for a
 Security page that cross-references active bans with your own traffic (who
@@ -146,13 +152,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.20.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.21.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.20.0
+image: ghcr.io/gilbn/geometrikks:0.21.0
 ```
 
 ## Nginx setup
@@ -1093,7 +1099,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.20.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.21.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:

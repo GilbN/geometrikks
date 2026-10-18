@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-18
+
 ### Added
 
 - Themes. Settings > Appearance offers Aurora, Moss, Forge and Night, each with a light and a dark palette that follow Light, Dark or System. Pick one theme for both modes or mix them, such as Moss in light mode and Forge in dark mode. Night uses white and light grey in light mode and near-black in dark mode, with grey-scale buttons, links and logo.
@@ -1142,7 +1144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.20.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.21.0...develop
+[0.21.0]: https://github.com/GilbN/geometrikks/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/GilbN/geometrikks/compare/v0.17.0...v0.18.0
