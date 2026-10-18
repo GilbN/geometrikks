@@ -192,12 +192,12 @@ for (const width of [1280, 390]) {
       await expect(drawer.locator('[data-slot="drawer-handle"]')).toBeVisible()
       const colors = await panelColors(drawer)
       expect(colors.background[3]).toBe(1)
-      // Catch fills collapsing into the containing panel, the original Black regression.
+      // Catch fills collapsing into the containing panel, the original Night regression.
       expect(contrast(colors.tabs, colors.background)).toBeGreaterThan(mode === "light" ? 1.04 : 1.1)
       expect(contrast(colors.badge, colors.background)).toBeGreaterThan(mode === "light" ? 1.04 : 1.1)
       expect(contrast(colors.badgeText, colors.badge)).toBeGreaterThan(4.5)
       const handle = composite(colors.handle!, colors.background)
-      expect(contrast(handle, colors.background)).toBeGreaterThan(mode === "dark" && theme === "black" ? 3 : 1.04)
+      expect(contrast(handle, colors.background)).toBeGreaterThan(mode === "dark" && theme === "night" ? 3 : 1.04)
       await page.screenshot({ path: testInfo.outputPath("drawer.png") })
       await page.keyboard.press("Escape")
       await expect(drawer).not.toBeVisible()
@@ -238,7 +238,7 @@ const tokensOf = (element: Locator) =>
   ])
 
 for (const { host, probe, own } of [
-  { host: { mode: "dark", theme: "black" }, probe: "preview-light", own: { mode: "light", theme: "moss" } },
+  { host: { mode: "dark", theme: "night" }, probe: "preview-light", own: { mode: "light", theme: "moss" } },
   { host: { mode: "light", theme: "aurora" }, probe: "preview-dark", own: { mode: "dark", theme: "forge" } },
 ] satisfies Array<{ host: Scheme; probe: string; own: Scheme }>) {
   test(`${probe} renders ${own.mode}/${own.theme} inside a ${host.mode}/${host.theme} page`, async ({ context, page }) => {
@@ -262,18 +262,18 @@ for (const { host, probe, own } of [
 test("System switches palettes live and retains the saved theme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" })
   await page.goto("/static/resources/dev/themes.html")
-  await galleryPalette(page).getByRole("button", { name: "Black", exact: true }).click()
+  await galleryPalette(page).getByRole("button", { name: "Night", exact: true }).click()
   await page.getByRole("button", { name: "System", exact: true }).click()
   await expect(page.locator("html")).toHaveClass("dark")
   await page.emulateMedia({ colorScheme: "light" })
   await expect(page.locator("html")).toHaveClass("light")
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "night")
   await page.emulateMedia({ colorScheme: "dark" })
   await expect(page.locator("html")).toHaveClass("dark")
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "night")
   await page.reload()
   await expect(page.locator("html")).toHaveClass("dark")
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "night")
 })
 
 test("System swaps between the light and dark side themes", async ({ page }) => {
@@ -304,7 +304,7 @@ test("theme menu only switches color mode", async ({ page }) => {
     for (const label of ["Light", "Dark", "System"]) {
       await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toHaveAttribute("aria-checked", String(label === mode))
     }
-    for (const label of ["Black", "Aurora"]) {
+    for (const label of ["Night", "Aurora"]) {
       await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toHaveCount(0)
     }
     await page.keyboard.press("Escape")
@@ -374,10 +374,10 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
   await expect(reloadedThemes.getByRole("button", { name: "Forge dark theme", exact: true })).toHaveAttribute("aria-pressed", "true")
   await reloaded.close()
 
-  await nameButton("black").click()
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "black")
-  expect(await stored()).toEqual(["black", "black"])
-  await expectSides("black", "black")
+  await nameButton("night").click()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "night")
+  expect(await stored()).toEqual(["night", "night"])
+  await expectSides("night", "night")
 
   const forgeCard = themeCard("forge")
   const box = (await forgeCard.boundingBox())!

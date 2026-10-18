@@ -1,4 +1,4 @@
-[data-theme="black"]:not(.dark) {
+[data-theme="night"]:not(.dark) {
   --brand-l: 0.2;
   --brand-c: 0;
   --brand-h: 0;
@@ -24,7 +24,7 @@
   --primary-glow: oklch(var(--brand-l) var(--brand-c) var(--brand-h) / 6%);
 }
 
-.dark[data-theme="black"] {
+.dark[data-theme="night"] {
   --brand-l: 0.93;
   --brand-c: 0;
   --brand-h: 0;

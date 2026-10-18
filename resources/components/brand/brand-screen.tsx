@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
  * the card's header carries the mark, wordmark, the page's H1 and a line of
  * context, the body carries `children`. `backdrop` picks the picture behind
  * the card: routes converging on the mark, relief contours, or the map that
- * combines them. The Black theme uses a monochrome version of the scene.
+ * combines them. The Night theme uses a monochrome version of the scene.
  */
 export function BrandScreen({
   title,

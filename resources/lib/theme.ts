@@ -48,8 +48,8 @@ export const THEME_CATALOG = {
     light: { themeColor: "#f8f4f1", foreground: "oklch(0.22 0.015 55)" },
     dark: { themeColor: "#0c0806", foreground: "oklch(0.95 0.008 70)" },
   },
-  black: {
-    label: "Black",
+  night: {
+    label: "Night",
     description: "Plain white or near-black, no tint, monochrome buttons.",
     light: { themeColor: "#f5f5f5", foreground: "#171717" },
     dark: { themeColor: "#0a0a0a", foreground: "#e8e8e8" },

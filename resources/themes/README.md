@@ -1,14 +1,14 @@
 # Themes
 
-A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge and Black
+A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge and Night
 ship today. Three preferences pick what the page paints: the color mode, the theme
 for light mode and the theme for dark mode.
 
 | Preference | Values | Storage key |
 | --- | --- | --- |
 | Color mode | `system`, `light`, `dark` | `geometrikks-theme` |
-| Light mode theme | `aurora`, `moss`, `forge`, `black` | `geometrikks-light-theme` |
-| Dark mode theme | `aurora`, `moss`, `forge`, `black` | `geometrikks-dark-theme` |
+| Light mode theme | `aurora`, `moss`, `forge`, `night` | `geometrikks-light-theme` |
+| Dark mode theme | `aurora`, `moss`, `forge`, `night` | `geometrikks-dark-theme` |
 
 Mode defaults to `dark` and both themes to `aurora`. `system` follows
 `prefers-color-scheme` and re-resolves when the OS setting changes. The page paints
@@ -34,7 +34,7 @@ in `resources/lib/theme.ts`, and the startup script repeats it for the side it p
    catalog keys, so parsing, the settings cards, the startup script and the previews
    pick up the entry.
 2. Add `resources/themes/<id>.css` with the two selectors below, and import it after
-   `black.css` in `resources/main.css`. Use the catalog ID as the file name.
+   `night.css` in `resources/main.css`. Use the catalog ID as the file name.
 3. Run the checks below and inspect the development preview.
 
 | Scheme | Selector |
@@ -113,11 +113,11 @@ bun run build
 
 The first-paint and control-contrast tests loop over every scheme of every registered
 theme, the latter at desktop and phone widths. The gallery probes check a light Moss
-preview inside a dark Black page and a dark Forge preview inside a light Aurora page;
+preview inside a dark Night page and a dark Forge preview inside a light Aurora page;
 they are fixed to Moss and Forge in `resources/dev/themes.tsx`. Four tests cover a
 saved legacy accent: first paint, the provider keeping its theme without saving it,
 the light side falling back to it, and a saved light side winning over it while the
-dark side falls back. One checks that System switches palettes live while Black stays
+dark side falls back. One checks that System switches palettes live while Night stays
 selected, one that it swaps between a Moss light side and a Forge dark side, one that
 the theme menu only changes the color mode, and one that the settings page mixes light
 and dark themes through the sun and moon toggles and the theme name buttons. The tests
