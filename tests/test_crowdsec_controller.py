@@ -570,6 +570,25 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     ]
 
 
+async def test_alerts_list_distinct_decision_types(monkeypatch):
+    enable_write(monkeypatch)
+    mixed = make_alert()
+    mixed.decisions = [
+        make_decision(id=1, type="ban"),
+        make_decision(id=2, type="ban"),
+        make_decision(id=3, type="captcha"),
+    ]
+    alert_only = make_alert()
+    alert_only.id = 8
+    alert_only.decisions = []
+    service = AlertFakeCrowdSec([mixed, alert_only])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts")
+    mixed_view, alert_only_view = resp.json()["alerts"]
+    assert mixed_view["decisionTypes"] == ["ban", "captcha"]
+    assert alert_only_view["decisionTypes"] == []
+
+
 async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
     """Manual bans carry no LAPI geo (cn/as_name are null); the endpoint
     fills country from GeoMetrikks' own stored traffic instead."""

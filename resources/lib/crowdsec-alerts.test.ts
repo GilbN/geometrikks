@@ -7,6 +7,7 @@ import {
   HTTP_EVENT_KEYS,
   alertBadge,
   alertDescription,
+  alertOutcome,
   alertsEmptyMessage,
   alertHistoryFooter,
   alertSummary,
@@ -396,5 +397,38 @@ describe("alertsEmptyMessage", () => {
 
   it("labels the kind options", () => {
     expect(ALERT_KIND_OPTIONS.map((option) => option.label)).toEqual(["All kinds", "Log scenarios", "WAF", "Bot detection"])
+  })
+})
+
+describe("alertOutcome", () => {
+  it("says an alert without decisions only raised an alert", () => {
+    expect(alertOutcome({ decisionTypes: [], decisionCount: 0, activeDecisionCount: 0 })).toEqual({
+      text: "Alert only",
+      muted: true,
+    })
+  })
+
+  it("names a single decision's type and whether it still applies", () => {
+    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 1 })).toEqual({
+      text: "Ban, active",
+      muted: false,
+    })
+    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 0 })).toEqual({
+      text: "Ban, expired",
+      muted: true,
+    })
+    expect(alertOutcome({ decisionTypes: ["captcha"], decisionCount: 1, activeDecisionCount: 1 }).text).toBe(
+      "Captcha, active",
+    )
+  })
+
+  it("counts decisions once there is more than one", () => {
+    expect(
+      alertOutcome({ decisionTypes: ["ban", "captcha"], decisionCount: 2, activeDecisionCount: 1 }),
+    ).toEqual({ text: "2 decisions, 1 active", muted: false })
+    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 3, activeDecisionCount: 0 })).toEqual({
+      text: "3 decisions, 0 active",
+      muted: true,
+    })
   })
 })

@@ -672,6 +672,12 @@ export const AlertDetailViewSchema = {
     decisionCount: {
       type: "integer",
     },
+    decisionTypes: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
     decisions: {
       items: {
         $ref: "#/components/schemas/AlertDecisionView",
@@ -772,6 +778,7 @@ export const AlertDetailViewSchema = {
     "countryName",
     "createdAt",
     "decisionCount",
+    "decisionTypes",
     "decisions",
     "events",
     "eventsCount",
@@ -873,6 +880,12 @@ export const AlertViewSchema = {
     decisionCount: {
       type: "integer",
     },
+    decisionTypes: {
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
     eventsCount: {
       type: "integer",
     },
@@ -926,6 +939,7 @@ export const AlertViewSchema = {
     "countryName",
     "createdAt",
     "decisionCount",
+    "decisionTypes",
     "eventsCount",
     "id",
     "kind",

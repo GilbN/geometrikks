@@ -24,6 +24,7 @@ import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import {
   ALERT_KIND_OPTIONS,
   alertHistoryFooter,
+  alertOutcome,
   alertsEmptyMessage,
   alertSummary,
   type AlertKindFilter,
@@ -113,7 +114,7 @@ export function AlertsTable() {
                 <TableHead>AS</TableHead>
                 <TableHead>Machine</TableHead>
                 <TableHead className="text-right">Events</TableHead>
-                <TableHead className="text-right">Decisions</TableHead>
+                <TableHead>Outcome</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -146,7 +147,12 @@ export function AlertsTable() {
                         {alert.value}
                         {alert.scope === "Ip" && (
                           <span {...stopRowActivation}>
-                            <IpBanControls ip={alert.value}>
+                            <IpBanControls
+                              ip={alert.value}
+                              badgeTitle={(decisionType) =>
+                                `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
+                              }
+                            >
                               <InspectIpButton ip={alert.value} className="ml-1" />
                               <FlyToIpButton ip={alert.value} />
                             </IpBanControls>
@@ -167,11 +173,8 @@ export function AlertsTable() {
                       <TableCell className="text-right tabular-nums">
                         {alert.eventsCount}
                       </TableCell>
-                      <TableCell
-                        className={cn("text-right tabular-nums", alert.activeDecisionCount === 0 && "text-muted-foreground")}
-                        title={`${alert.activeDecisionCount} still active`}
-                      >
-                        {alert.decisionCount}
+                      <TableCell className={cn(alertOutcome(alert).muted && "text-muted-foreground")}>
+                        {alertOutcome(alert).text}
                       </TableCell>
                     </TableRow>
                   ))}

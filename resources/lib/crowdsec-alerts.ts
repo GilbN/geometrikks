@@ -260,6 +260,20 @@ export function alertDescription(alert: Pick<AlertView, "id" | "createdAt" | "ev
   return `Alert #${alert.id} · ${new Date(alert.createdAt).toLocaleString()} · ${events}`
 }
 
+/** What the alert itself did, apart from the IP's state right now. */
+export function alertOutcome(
+  alert: Pick<AlertView, "decisionTypes" | "decisionCount" | "activeDecisionCount">,
+): { text: string; muted: boolean } {
+  const muted = alert.activeDecisionCount === 0
+  if (alert.decisionCount === 0) return { text: "Alert only", muted }
+  if (alert.decisionCount === 1) {
+    const [decisionType] = alert.decisionTypes
+    const label = decisionType.charAt(0).toUpperCase() + decisionType.slice(1)
+    return { text: `${label}, ${muted ? "expired" : "active"}`, muted }
+  }
+  return { text: `${alert.decisionCount} decisions, ${alert.activeDecisionCount} active`, muted }
+}
+
 export function contextLabel(key: string): string {
   return CONTEXT_LABELS[key] ?? key
 }

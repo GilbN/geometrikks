@@ -158,6 +158,8 @@ class AlertView(msgspec.Struct, rename="camel"):
     decision_count: int
     # decision_count includes expired decisions, which alerts keep.
     active_decision_count: int
+    # Distinct decision types, in the order the LAPI lists them.
+    decision_types: list[str]
 
 
 class AlertPageView(msgspec.Struct, rename="camel"):
@@ -291,6 +293,7 @@ def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
         "as_name": alert.source.as_name,
         "decision_count": len(alert.decisions),
         "active_decision_count": sum(not d.expired for d in alert.decisions),
+        "decision_types": list(dict.fromkeys(d.type for d in alert.decisions)),
     }
 
 

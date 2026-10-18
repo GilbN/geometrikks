@@ -164,6 +164,7 @@ export type AlertDetailView = {
   countryName: string | null;
   createdAt: string;
   decisionCount: number;
+  decisionTypes: Array<string>;
   decisions: Array<AlertDecisionView>;
   events: Array<AlertEventView>;
   eventsCount: number;
@@ -208,6 +209,7 @@ export type AlertView = {
   countryName: string | null;
   createdAt: string;
   decisionCount: number;
+  decisionTypes: Array<string>;
   eventsCount: number;
   id: number | null;
   kind: string | null;
