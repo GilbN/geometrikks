@@ -1065,9 +1065,9 @@ At startup, a process that reads any old name logs one
 `legacy_env_names_in_use` event listing them, and its `/health` carries a
 `legacy-env-names` advisory naming each replacement. Each process reports
 only its own settings. The full instance's Settings > Status shows the old
-names the full instance reads, and an agent's old names appear only in that
-agent's own `/health` and log. If an old and a new name are set to
-different values, startup fails.
+names the full instance reads. Settings > Agents shows the advisory on the
+row of each agent that reads an old name. If an old and a new name are set
+to different values, startup fails.
 
 Agents are not the only shape. If the log files already reach one machine
 (a shared mount, rsyslog, log shipping), a single full instance can tail
@@ -1098,6 +1098,7 @@ services:
     stop_grace_period: 20s
     environment:
       APP_MODE: agent
+      APP_INSTANCE_NAME: edge-01
       DB_HOST: timescale.example.internal
       DB_PORT: "5432"
       DB_USER: geouser
@@ -1148,11 +1149,46 @@ restart takes Swarm, Kubernetes, or an autoheal sidecar. `restart:
 unless-stopped` will not do it: it reacts to a container exiting, and a
 waiting agent stays up.
 
+**Agent health.** Every agent and the full instance write a heartbeat to
+the shared database every 30 seconds. Settings > Agents on the full
+instance lists them, the full instance first as the head. Each row shows
+the version, server names, lines and failures in the last 5 minutes, and
+when it last checked in. Click a row to see the rest of what that agent
+reports: ingestion counters, GeoIP databases, scheduled jobs, each log
+source with its own light, server locations and the last error. An agent
+that has not checked in for 3 minutes turns red, and only then does its
+row get a Remove button. If that agent is in fact still running, its next
+heartbeat brings the row back.
+
+You don't have to keep the Agents page open to notice a problem. Each
+agent that needs attention gets one card at the top of Settings > Status,
+red or amber by its worst problem, linking to its row on the Agents page.
+An Agents card further down sums them up, for example "3 agents, 1 out of
+date, 1 not checking in". The sidebar status dot turns amber too. With no
+agents, the Status page looks the same as before.
+
+Set `APP_INSTANCE_NAME` on every agent. The heartbeat row is keyed by that
+name, so it is how the Agents page tells agents apart. Without it, an agent
+goes by `agent` and the full instance by `head`. Two unnamed agents then
+write to the same `agent` row and overwrite each other's status, so the
+page shows whichever one wrote last. The full instance flags an agent
+running under the default name, and flags a name more than one process is
+using. The fix for both is a unique name per agent.
+`APP_INSTANCE_NAME` names the process, while `LOGPARSER_SERVER_NAME` names
+the server on each request it records, so one agent tailing two servers'
+logs is still one row.
+
+An agent from a release before heartbeats never shows up on the Agents
+page. It also predates the rename of the `hostname` columns to `server`, so
+every insert it makes fails. Upgrade it to the full instance's release.
+
 CDN peer advisories for an agent's tailed sources reach the head's
 Settings > Status page. The head scans the shared database's last hour of
 access-log rows every 5 minutes, covering only sources with
-`LOGPARSER_SEND_LOGS=true`. Private-peer advisories still surface only on
-the agent's own `/health` and logs, since those lines are never stored. See
+`LOGPARSER_SEND_LOGS=true`. Private-peer lines are never stored, so that
+scan can't find them. Each agent checks its own lines instead and forwards
+the private-peer advisory in its heartbeat, so it shows on that agent's row
+on the Agents page as well as in the agent's own `/health`. See
 `docs/proxy-setup.md` for details.
 
 The reverse case works too. To keep a full instance's UI and API without it
