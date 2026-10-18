@@ -135,6 +135,7 @@ Your proxy has to write a log GeoMetrikks can parse. Set that up first:
   log next to NPM's own and imports the logs NPM already wrote.
 - [Traefik setup](#traefik-setup) and [Caddy setup](#caddy-setup) write
   the JSON access log to a file instead of stdout.
+- [Pangolin](#pangolin) uses Traefik's log with a few more fields kept.
 - [Loki setup](#loki-setup) reads the lines from Grafana Loki instead of
   a mounted file.
 
@@ -468,6 +469,58 @@ to pin it. Notes:
 - GeoMetrikks cannot read Traefik's stdout. Write the log to a file, and
   either tail it or ship it to Loki and read it from there
   ([Loki setup](#loki-setup)).
+
+### Pangolin
+
+[Pangolin](https://github.com/fosrl/pangolin) puts Traefik in front of its
+tunnels, so GeoMetrikks reads its log as a Traefik log. Run GeoMetrikks on
+the Pangolin server, where the log file is, or ship the file to Loki.
+
+Pangolin's installer turns the access log on only when you install CrowdSec
+with it. The log then goes to `config/traefik/logs/access.log` in the
+Pangolin directory. Without CrowdSec, add the `accessLog` block from
+[Traefik setup](#traefik-setup) to `config/traefik/traefik_config.yml`.
+Pangolin's compose file already mounts `config/traefik/logs` at
+`/var/log/traefik`.
+
+The CrowdSec install's `accessLog` block drops every field it doesn't list.
+GeoMetrikks parses what is left, but requests have no host, referrer or
+upstream time. Its `filters` also hide fast redirects: Traefik keeps a line
+when any filter matches, so a 3xx response under 100 ms is never logged.
+In `config/traefik/traefik_config.yml`, delete the `filters` block and add
+three names:
+
+```yaml
+accessLog:
+  fields:
+    names:
+      RequestHost: keep
+      OriginDuration: keep
+    headers:
+      names:
+        Referer: keep
+```
+
+Keep the names already in the lists, then run `docker compose restart
+traefik` in the Pangolin directory. Point GeoMetrikks at the logs:
+
+```env
+ACCESS_LOG_DIR=/path/to/pangolin/config/traefik/logs
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+- In the default install, Traefik receives connections straight from the
+  internet, so the log carries the visitor's address. Behind Cloudflare's
+  proxy, add Cloudflare's ranges to `forwardedHeaders.trustedIPs` on the
+  `websecure` entry point, as in `docs/proxy-setup.md`. If Gerbil's SNI
+  proxy sits in front of Traefik (port 443 mapped to 8443), Traefik logs the
+  proxy's address unless the entry point accepts PROXY protocol from it.
+- Pangolin's guide to
+  [Traefik log rotation](https://docs.pangolin.net/self-host/advanced/traefik-log-rotation)
+  sets up logrotate for this file. GeoMetrikks follows the rotation.
+- Pangolin's CrowdSec container doesn't publish its LAPI port. To use the
+  [CrowdSec integration](#crowdsec-integration-optional), publish port 8080
+  or put GeoMetrikks on the same Docker network.
 
 ## Caddy setup
 
