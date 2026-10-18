@@ -6,7 +6,8 @@ const read = (file: string) => readFileSync(new URL(`../themes/${file}.css`, imp
 const declarations = (css: string) => new Map([...css.matchAll(/^\s*(--[\w-]+):\s*(.+);$/gm)].map(([, name, value]) => [name, value]))
 const block = (css: string, selector: string) => {
   const start = css.indexOf(`${selector} {`)
-  return start === -1 ? "" : css.slice(start, css.indexOf("}", start))
+  expect(start, selector).not.toBe(-1)
+  return css.slice(start, css.indexOf("}", start))
 }
 
 describe("palette contract", () => {

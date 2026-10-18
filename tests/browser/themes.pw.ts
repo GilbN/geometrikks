@@ -88,6 +88,16 @@ test("a saved legacy accent paints its theme before React loads", async ({ page 
   await expect(page.locator("#app")).toBeEmpty()
 })
 
+test("the provider keeps a legacy accent's theme without saving it", async ({ page }) => {
+  await page.addInitScript((key) => localStorage.setItem(key, "green"), THEME_STORAGE_KEYS.legacyAccent)
+  await page.goto("/static/resources/dev/themes.html")
+  await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
+  await expect(page.getByRole("button", { name: "Moss", exact: true })).toHaveAttribute("aria-pressed", "true")
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", "moss"))
+  expect(await page.evaluate((key) => localStorage.getItem(key), THEME_STORAGE_KEYS.theme)).toBeNull()
+})
+
 for (const width of [1280, 390]) {
   for (const { mode, theme } of palettes) {
     test(`${mode}/${theme} controls stay visible at ${width}px`, async ({ page }, testInfo) => {
@@ -172,44 +182,44 @@ for (const width of [1280, 390]) {
   }
 }
 
-test("scoped previews render their own palette inside any page", async ({ page }) => {
-  await page.addInitScript(({ keys }) => {
-    localStorage.setItem(keys.mode, "dark")
-    localStorage.setItem(keys.theme, "black")
-  }, { keys: THEME_STORAGE_KEYS })
+type Scheme = { mode: "light" | "dark"; theme: ColorTheme }
+
+async function openGallery(page: Page, { mode, theme }: Scheme) {
+  await page.addInitScript(({ keys, mode, theme }) => {
+    localStorage.setItem(keys.mode, mode)
+    localStorage.setItem(keys.theme, theme)
+  }, { keys: THEME_STORAGE_KEYS, mode, theme })
   await page.goto("/static/resources/dev/themes.html")
-  await expect(page.getByTestId("preview-light")).toBeVisible()
-  const tokens = await page.evaluate(() => {
-    const read = (element: Element, name: string) => getComputedStyle(element).getPropertyValue(name)
-    const expected = (className: string, theme: string, name: string) => {
-      const probe = document.createElement("div")
-      probe.className = className
-      probe.dataset.theme = theme
-      document.body.append(probe)
-      const value = read(probe, name)
-      probe.remove()
-      return value
-    }
-    const light = document.querySelector('[data-testid="preview-light"]')!
-    const dark = document.querySelector('[data-testid="preview-dark"]')!
-    return {
-      page: { background: read(document.documentElement, "--background"), glass: read(document.documentElement, "--glass-card") },
-      light: { background: read(light, "--background"), glass: read(light, "--glass-card") },
-      dark: { background: read(dark, "--background") },
-      expected: {
-        lightBackground: expected("light", "moss", "--background"),
-        lightGlass: expected("light", "moss", "--glass-card"),
-        darkBackground: expected("dark", "forge", "--background"),
-      },
+  await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
+}
+
+const tokensOf = (element: Locator) =>
+  element.evaluate((el, names) => Object.fromEntries(names.map((name) => [name, getComputedStyle(el).getPropertyValue(name)])), [
+    "--background",
+    "--glass-card",
+  ])
+
+for (const { host, probe, own } of [
+  { host: { mode: "dark", theme: "black" }, probe: "preview-light", own: { mode: "light", theme: "moss" } },
+  { host: { mode: "light", theme: "aurora" }, probe: "preview-dark", own: { mode: "dark", theme: "forge" } },
+] satisfies Array<{ host: Scheme; probe: string; own: Scheme }>) {
+  test(`${probe} renders ${own.mode}/${own.theme} inside a ${host.mode}/${host.theme} page`, async ({ context, page }) => {
+    // Expected values come from a page where that palette is the root, so a
+    // rule leaking from the host page cannot shift expected and actual together.
+    const isolated = await context.newPage()
+    await openGallery(isolated, own)
+    const expected = await tokensOf(isolated.locator("html"))
+    await isolated.close()
+
+    await openGallery(page, host)
+    const hostTokens = await tokensOf(page.locator("html"))
+    const previewTokens = await tokensOf(page.getByTestId(probe))
+    for (const name of Object.keys(expected)) {
+      expect(previewTokens[name], name).toBe(expected[name])
+      expect(previewTokens[name], name).not.toBe(hostTokens[name])
     }
   })
-  expect(tokens.expected.lightBackground).not.toBe(tokens.page.background)
-  expect(tokens.expected.darkBackground).not.toBe(tokens.page.background)
-  expect(tokens.light.background).toBe(tokens.expected.lightBackground)
-  expect(tokens.light.glass).toBe(tokens.expected.lightGlass)
-  expect(tokens.light.glass).not.toBe(tokens.page.glass)
-  expect(tokens.dark.background).toBe(tokens.expected.darkBackground)
-})
+}
 
 test("System switches palettes live and retains the saved theme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" })
