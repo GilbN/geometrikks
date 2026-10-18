@@ -486,6 +486,44 @@ def test_degraded_ingestion_without_sources_is_a_warning() -> None:
     assert problem.summary == "Ingestion on edge-traefik is not running."
 
 
+def test_degraded_ingestion_without_sources_points_at_the_agent_log() -> None:
+    row = make_row(payload=ingestion_payload({"status": "degraded", "unavailableSources": []}))
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.remedy == "Check the log of edge-traefik for why ingestion stopped."
+
+
+@pytest.mark.parametrize("explaining_advisory_id", ["geoip-database-missing", "ingestion-stopped", "database-unavailable"])
+def test_degraded_ingestion_stays_quiet_when_a_forwarded_advisory_explains_it(explaining_advisory_id: str) -> None:
+    payload = ingestion_payload({"status": "degraded", "unavailableSources": []})
+    payload["health"]["advisories"] = [
+        {"id": explaining_advisory_id, "severity": "critical", "summary": "the real cause"}
+    ]
+    assert problem_ids(make_row(payload=payload)) == [explaining_advisory_id]
+
+
+def test_degraded_ingestion_stays_quiet_on_a_migration_mismatch() -> None:
+    row = make_row(
+        schema_revision="4b02d1",
+        payload=ingestion_payload({"status": "degraded", "unavailableSources": []}),
+    )
+    assert problem_ids(row) == ["instance-schema-behind"]
+
+
+@pytest.mark.parametrize("schema_wait", ["waiting", "timeout"])
+def test_degraded_ingestion_stays_quiet_during_the_schema_wait(schema_wait: str) -> None:
+    payload = ingestion_payload({"status": "degraded", "unavailableSources": []})
+    payload["health"]["schemaWait"] = schema_wait
+    assert problem_ids(make_row(payload=payload)) == []
+
+
+def test_unreadable_sources_are_reported_even_when_another_cause_is_forwarded() -> None:
+    payload = ingestion_payload({"status": "degraded", "unavailableSources": [{"label": "/logs/access.log"}]})
+    payload["health"]["advisories"] = [
+        {"id": "ingestion-stopped", "severity": "critical", "summary": "the real cause"}
+    ]
+    assert problem_ids(make_row(payload=payload)) == ["ingestion-stopped", "instance-ingestion-degraded"]
+
+
 def test_disabled_ingestion_is_not_a_problem() -> None:
     row = make_row(
         payload=ingestion_payload({"status": "disabled", "unavailableSources": [{"label": "/logs/a.log"}]})

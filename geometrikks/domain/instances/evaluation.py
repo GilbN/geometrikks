@@ -16,7 +16,12 @@ from geometrikks.domain.instances.schemas import (
     decode_payload,
     payload_advisories,
 )
-from geometrikks.lib.advisories import Advisory
+from geometrikks.lib.advisories import (
+    CITY_DATABASE_MISSING,
+    DATABASE_UNAVAILABLE,
+    INGESTION_STOPPED,
+    Advisory,
+)
 
 NOT_CHECKING_IN_AFTER = timedelta(seconds=180)
 NAME_CONFLICT_SHOWN_FOR = timedelta(minutes=5)
@@ -28,6 +33,8 @@ SKEW_ALLOWANCE = timedelta(minutes=10)
 UNAVAILABLE_SOURCES_NAMED = 3
 
 DROPPED_FORWARDED_IDS = frozenset({"proxy-peer-cdn"})
+INGESTION_STOP_CAUSES = frozenset({CITY_DATABASE_MISSING.id, INGESTION_STOPPED.id, DATABASE_UNAVAILABLE.id})
+SCHEMA_WAIT_BLOCKING = frozenset({"waiting", "timeout"})
 
 InstanceStatus = Literal["ok", "warning", "critical"]
 
@@ -221,7 +228,22 @@ def _unavailable_source_labels(payload: HeartbeatPayload) -> list[str]:
     ]
 
 
-def _ingestion_degraded(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisory | None:
+def _stopped_for_a_known_reason(row: HeartbeatRow, payload: HeartbeatPayload, head: HeadIdentity) -> bool:
+    """Whether another problem already explains ingestion not running.
+
+    A missing GeoLite2 database, a stopped ingestion task, an unreachable
+    database, a migration mismatch and the startup schema wait all stop
+    ingestion, and each one is reported on its own with the right fix.
+    """
+    if row.schema_revision != head.schema_revision:
+        return True
+    if payload.health.get("schemaWait") in SCHEMA_WAIT_BLOCKING:
+        return True
+    forwarded_ids = {advisory.id for advisory in payload_advisories(payload)}
+    return not forwarded_ids.isdisjoint(INGESTION_STOP_CAUSES)
+
+
+def _ingestion_degraded(row: HeartbeatRow, payload: HeartbeatPayload, head: HeadIdentity) -> Advisory | None:
     ingestion_health = payload.health.get("ingestion")
     if not isinstance(ingestion_health, dict):
         return None
@@ -231,14 +253,15 @@ def _ingestion_degraded(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisor
     source_labels = _unavailable_source_labels(payload)
     if ingestion_status != "degraded" and not source_labels:
         return None
-    remedy = f"Check the log paths or Loki settings on {row.instance_name}."
     if not source_labels:
+        if _stopped_for_a_known_reason(row, payload, head):
+            return None
         return Advisory(
             id="instance-ingestion-degraded",
             severity="warning",
             summary=f"Ingestion on {row.instance_name} is not running.",
             detail="Its health report says ingestion is degraded, so no new requests from it reach the database.",
-            remedy=remedy,
+            remedy=f"Check the log of {row.instance_name} for why ingestion stopped.",
         )
     named_labels = ", ".join(source_labels[:UNAVAILABLE_SOURCES_NAMED])
     hidden_count = len(source_labels) - UNAVAILABLE_SOURCES_NAMED
@@ -249,7 +272,7 @@ def _ingestion_degraded(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisor
         severity="warning",
         summary=f"{row.instance_name} cannot read {named_labels}.",
         detail="Requests from these sources stop reaching the database until the agent can read them again.",
-        remedy=remedy,
+        remedy=f"Check the log paths or Loki settings on {row.instance_name}.",
     )
 
 
@@ -299,7 +322,7 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
         )
         if recent_start_count >= RESTART_LOOP_STARTS:
             warning.append(_restart_loop(row, recent_start_count))
-        ingestion_degraded = _ingestion_degraded(row, payload)
+        ingestion_degraded = _ingestion_degraded(row, payload, head)
         if ingestion_degraded is not None:
             warning.append(ingestion_degraded)
     if payload is None:
