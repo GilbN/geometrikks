@@ -1,10 +1,11 @@
 /**
  * Table rows for one run of back-to-back alerts in Alert history. A single
- * alert is one row. A longer run is a summary row showing the newest alert,
- * with a toggle that expands one full sub-row per alert. Every row opens its
- * own alert.
+ * alert is one row that opens its alert. A longer run is a summary row
+ * showing the newest alert that expands, on activation, to one full sub-row
+ * per alert, the way Active decisions groups do. Each sub-row opens its own
+ * alert.
  */
-import { useState, type ReactNode } from "react"
+import type { ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +22,8 @@ import { cn } from "@/lib/utils"
 
 type Props = {
   run: AlertRun
+  open: boolean
+  onToggle: () => void
   onOpenAlert: (alert: AlertView) => void
   onFilterScenario: (scenario: string) => void
 }
@@ -29,6 +32,8 @@ type AlertRowProps = {
   alert: AlertView
   onOpenAlert: (alert: AlertView) => void
   onFilterScenario: (scenario: string) => void
+  /** Replaces opening the alert: the summary row of a run toggles it instead. */
+  summary?: { open: boolean; label: string; onToggle: () => void }
   timeLead?: ReactNode
   scenarioLabel?: string | null
   scenarioTrail?: ReactNode
@@ -40,6 +45,7 @@ function AlertRow({
   alert,
   onOpenAlert,
   onFilterScenario,
+  summary,
   timeLead,
   scenarioLabel,
   scenarioTrail,
@@ -47,10 +53,20 @@ function AlertRow({
   timeClassName,
 }: AlertRowProps) {
   const outcome = alertOutcome(alert)
-  const activation = alert.id !== null ? rowActivation<HTMLTableRowElement>(() => onOpenAlert(alert)) : null
+  const activation = summary
+    ? {
+        "aria-expanded": summary.open,
+        "aria-label": summary.label,
+        ...rowActivation<HTMLTableRowElement>(summary.onToggle),
+      }
+    : alert.id !== null
+      ? {
+          "aria-label": `Alert ${alert.id}, ${alert.scenario}, ${alert.value}`,
+          ...rowActivation<HTMLTableRowElement>(() => onOpenAlert(alert)),
+        }
+      : { "aria-label": `Alert, ${alert.scenario}, ${alert.value}`, className: undefined }
   return (
     <TableRow
-      aria-label={`Alert ${alert.id}, ${alert.scenario}, ${alert.value}`}
       {...activation}
       className={cn(activation?.className, className)}
     >
@@ -117,8 +133,7 @@ function AlertRow({
   )
 }
 
-export function AlertRunRows({ run: alertRun, onOpenAlert, onFilterScenario }: Props) {
-  const [open, setOpen] = useState(false)
+export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert, onFilterScenario }: Props) {
   const [newest] = alertRun.alerts
   const runSize = alertRun.alerts.length
   if (runSize === 1) {
@@ -131,22 +146,13 @@ export function AlertRunRows({ run: alertRun, onOpenAlert, onFilterScenario }: P
         alert={newest}
         onOpenAlert={onOpenAlert}
         onFilterScenario={onFilterScenario}
+        summary={{ open, label: `${runSize} alerts from ${newest.value}`, onToggle }}
         scenarioLabel={runScenarioLabel(alertRun)}
         timeLead={
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="mr-1 align-middle text-muted-foreground"
-            aria-expanded={open}
-            aria-label={`Show ${runSize} alerts`}
-            {...stopRowActivation}
-            onClick={(event) => {
-              stopRowActivation.onClick(event)
-              setOpen((current) => !current)
-            }}
-          >
-            <ChevronRight className={cn("transition-transform", open && "rotate-90")} />
-          </Button>
+          <ChevronRight
+            aria-hidden
+            className={cn("mr-1 inline size-3.5 align-middle text-muted-foreground transition-transform", open && "rotate-90")}
+          />
         }
         scenarioTrail={
           <Badge variant="secondary" className="shrink-0 tabular-nums">×{runSize}</Badge>

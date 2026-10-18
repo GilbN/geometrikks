@@ -27,6 +27,9 @@ import {
   alertHistoryFooter,
   alertsEmptyMessage,
   groupConsecutiveAlerts,
+  isRunOpen,
+  scenarioFilterAllowed,
+  toggleRun,
   type AlertKindFilter,
 } from "@/lib/crowdsec-alerts"
 import { AlertKindHelp } from "@/components/security/alert-kind-help"
@@ -70,11 +73,16 @@ export function AlertsTable() {
     isPlaceholderData,
   })
   const [selected, setSelected] = useState<AlertView | null>(null)
+  const [expandedAlertKeys, setExpandedAlertKeys] = useState<ReadonlySet<string>>(() => new Set())
 
   const filterScenario = (clickedScenario: string) => {
     setScenario(clickedScenario)
-    // The backend answers 400 to the bot group combined with a scenario.
-    if (kind === "bot") setKind("all")
+    if (!scenarioFilterAllowed(kind)) setKind("all")
+  }
+
+  const changeKind = (nextKind: AlertKindFilter) => {
+    setKind(nextKind)
+    if (!scenarioFilterAllowed(nextKind)) setScenario(undefined)
   }
 
   return (
@@ -95,7 +103,7 @@ export function AlertsTable() {
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-2">
           <div className="flex min-w-0 items-center gap-1">
             <div className="min-w-0 overflow-x-auto">
-              <Tabs value={kind} onValueChange={(value) => setKind(value as AlertKindFilter)}>
+              <Tabs value={kind} onValueChange={(value) => changeKind(value as AlertKindFilter)}>
                 <TabsList aria-label="Alert kind">
                   {ALERT_KIND_OPTIONS.map((option) => (
                     <TabsTrigger key={option.key} value={option.key} className="shrink-0 whitespace-nowrap">
@@ -168,6 +176,8 @@ export function AlertsTable() {
                     <AlertRunRows
                       key={alertRun.key}
                       run={alertRun}
+                      open={isRunOpen(alertRun, expandedAlertKeys)}
+                      onToggle={() => setExpandedAlertKeys((current) => toggleRun(current, alertRun))}
                       onOpenAlert={setSelected}
                       onFilterScenario={filterScenario}
                     />

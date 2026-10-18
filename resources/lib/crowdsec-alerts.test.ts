@@ -19,12 +19,15 @@ import {
   eventExtras,
   formatGoDuration,
   groupConsecutiveAlerts,
+  isRunOpen,
   hasHttpEvents,
   isChallengeEvent,
   kindBadgeClass,
   kindLabel,
   parseScoreReasons,
   runScenarioLabel,
+  scenarioFilterAllowed,
+  toggleRun,
   shortFingerprint,
   signalNote,
 } from "./crowdsec-alerts"
@@ -528,5 +531,51 @@ describe("runScenarioLabel", () => {
       makeAlert("1.1.1.1", "waf", `crowdsecurity/vpatch-${scenarios[index % 4]}`),
     )
     expect(runScenarioLabel({ key: "1", alerts })).toBe("4 scenarios")
+  })
+})
+
+describe("isRunOpen", () => {
+  it("is closed until toggled, then open", () => {
+    const [alertRun] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")])
+    expect(isRunOpen(alertRun, new Set())).toBe(false)
+    expect(isRunOpen(alertRun, toggleRun(new Set(), alertRun))).toBe(true)
+  })
+
+  it("stays open when a newer alert joins the top of the run", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
+    const [refreshed] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), ...alerts])
+    expect(isRunOpen(refreshed, expanded)).toBe(true)
+  })
+
+  it("stays open when its oldest alert drops off the bottom", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
+    const [refreshed] = groupConsecutiveAlerts(alerts.slice(0, 2))
+    expect(isRunOpen(refreshed, expanded)).toBe(true)
+  })
+
+  it("closes when toggled again, including alerts that joined while open", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
+    const [refreshed] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), ...alerts])
+    const collapsed = toggleRun(expanded, refreshed)
+    expect(isRunOpen(refreshed, collapsed)).toBe(false)
+    expect(collapsed.size).toBe(0)
+  })
+
+  it("leaves other runs as they were", () => {
+    const [first, second] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), makeAlert("2.2.2.2", "waf")])
+    const expanded = toggleRun(new Set(), first)
+    expect(isRunOpen(second, expanded)).toBe(false)
+  })
+})
+
+describe("scenarioFilterAllowed", () => {
+  it("rules out a scenario filter for the bot group only", () => {
+    expect(scenarioFilterAllowed("bot")).toBe(false)
+    expect(scenarioFilterAllowed("all")).toBe(true)
+    expect(scenarioFilterAllowed("waf")).toBe(true)
+    expect(scenarioFilterAllowed("crowdsec")).toBe(true)
   })
 })

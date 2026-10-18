@@ -26,6 +26,11 @@ const EMPTY_MESSAGES: Record<AlertKindFilter, string> = {
   bot: "No bot challenge alerts in this window. The bot challenge needs CrowdSec 1.8 and a bouncer that supports it.",
 }
 
+/** The backend rejects the bot group combined with a scenario filter. */
+export function scenarioFilterAllowed(kind: AlertKindFilter): boolean {
+  return kind !== "bot"
+}
+
 /** What the alert history says when the selected kind has no alerts. */
 export function alertsEmptyMessage(kind: AlertKindFilter): string {
   return EMPTY_MESSAGES[kind]
@@ -290,13 +295,31 @@ export function groupConsecutiveAlerts(alerts: AlertView[]): AlertRun[] {
       runAlerts.push([alert])
     }
   }
-  // Keyed by the oldest alert: a refresh puts new alerts on top, and a run
-  // that gains one keeps its key and stays expanded.
-  return runAlerts.map((alertsInRun) => {
-    const oldest = alertsInRun[alertsInRun.length - 1]
-    const key = oldest.id !== null ? String(oldest.id) : `${oldest.createdAt}:${oldest.value}`
-    return { key, alerts: alertsInRun }
-  })
+  return runAlerts.map((alertsInRun) => ({
+    key: alertKey(alertsInRun[alertsInRun.length - 1]),
+    alerts: alertsInRun,
+  }))
+}
+
+function alertKey(alert: AlertView): string {
+  return alert.id !== null ? String(alert.id) : `${alert.createdAt}:${alert.value}`
+}
+
+/** Expansion goes by the alerts a run holds, not by the run itself: a
+ *  refresh can add an alert on top or drop the oldest, and either changes
+ *  the run. */
+export function isRunOpen(alertRun: AlertRun, expandedAlertKeys: ReadonlySet<string>): boolean {
+  return alertRun.alerts.some((alert) => expandedAlertKeys.has(alertKey(alert)))
+}
+
+export function toggleRun(expandedAlertKeys: ReadonlySet<string>, alertRun: AlertRun): Set<string> {
+  const next = new Set(expandedAlertKeys)
+  const open = isRunOpen(alertRun, expandedAlertKeys)
+  for (const alert of alertRun.alerts) {
+    if (open) next.delete(alertKey(alert))
+    else next.add(alertKey(alert))
+  }
+  return next
 }
 
 /** "4 scenarios" for a run that mixes scenarios, or null when they all match. */
