@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapOverlay } from "@/components/map/MapOverlay"
 import { AppearancePage } from "@/components/settings/appearance-page"
-import { COLOR_THEMES, THEME_CATALOG } from "@/lib/theme"
+import { COLOR_THEMES, DEFAULT_MODE, THEME_CATALOG } from "@/lib/theme"
 
 function Controls() {
   const id = useId()
@@ -113,4 +113,4 @@ function Gallery() {
   )
 }
 
-createRoot(document.getElementById("app")!).render(<ThemeProvider defaultTheme="dark"><Gallery /></ThemeProvider>)
+createRoot(document.getElementById("app")!).render(<ThemeProvider defaultTheme={DEFAULT_MODE}><Gallery /></ThemeProvider>)

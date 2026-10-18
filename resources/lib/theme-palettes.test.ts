@@ -28,6 +28,10 @@ describe("palette contract", () => {
     for (const file of ["light", ...COLOR_THEMES]) expect(read(file), file).not.toMatch(/\.dark\s+\[data-theme/)
   })
 
+  it(`${DEFAULT_COLOR_THEME} overrides only supported tokens`, () => {
+    for (const name of declarations(read(DEFAULT_COLOR_THEME)).keys()) expect(baseline.has(name), name).toBe(true)
+  })
+
   for (const theme of COLOR_THEMES.filter((id) => id !== DEFAULT_COLOR_THEME)) {
     const dark = `.dark[data-theme="${theme}"]`
 

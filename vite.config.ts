@@ -69,8 +69,9 @@ export default defineConfig({
         // it fresh, with the cached copy ("/" for all navigations) as offline
         // fallback.
         //
-        // Load-bearing undefined: the plugin default is "index.html", which
-        // this build doesn't emit, and the worker would throw and never install.
+        // Load-bearing undefined: the plugin default is "index.html", and the
+        // precache globPatterns exclude HTML, so the worker would throw on
+        // the missing entry and never install.
         navigateFallback: undefined,
         runtimeCaching: [
           {

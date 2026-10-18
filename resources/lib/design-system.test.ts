@@ -56,6 +56,19 @@ describe("tokens", () => {
     for (const key of ["mode", "theme"]) expect(provider).toContain(`THEME_STORAGE_KEYS.${key}`)
   })
 
+  it("keeps theme colors out of the HTML entry points", () => {
+    for (const html of [read("index.html", repo), read("dev/themes.html")]) {
+      expect(html).not.toMatch(/name="theme-color"/)
+      expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    }
+    expect(themeHead().match(/<meta name="theme-color"/g)).toHaveLength(1)
+    expect(themeHead().indexOf('<meta name="theme-color"')).toBeLessThan(themeHead().indexOf("<script>"))
+  })
+
+  it("takes the default mode from the catalog instead of repeating the literal", () => {
+    for (const file of ["routes/__root.tsx", "dev/themes.tsx"]) expect(read(file)).not.toContain('defaultTheme="dark"')
+  })
+
   it("has no retired accent or dark appearance attributes", () => {
     expect(linesMatching(/data-accent|data-dark-appearance/)).toEqual([])
   })

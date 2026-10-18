@@ -230,7 +230,7 @@ test("filters, fit-to-data and style changes use the banned dataset", async ({ p
   await page.getByRole("button", { name: "Close banned IP popup" }).click()
   await page.getByRole("switch", { name: "Globe", exact: true }).click()
   await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
-  await page.getByRole("menuitem", { name: "Light", exact: true }).click()
+  await page.getByRole("menuitemradio", { name: "Light", exact: true }).click()
   await openCenterPopup(page)
 })
 

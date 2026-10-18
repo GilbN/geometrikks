@@ -307,7 +307,6 @@ test("settings page selects schemes and themes as radio groups", async ({ contex
   expect(outline.style).not.toBe("none")
   expect(outline.width).toBeGreaterThan(0)
 
-
   await page.setViewportSize({ width: 390, height: 900 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
   for (const id of COLOR_THEMES) {

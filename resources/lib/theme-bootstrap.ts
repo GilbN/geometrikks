@@ -1,16 +1,19 @@
 import {
   COLOR_THEMES,
   DEFAULT_COLOR_THEME,
+  DEFAULT_MODE,
   LEGACY_ACCENT_THEMES,
   THEME_CATALOG,
   THEMES,
   THEME_STORAGE_KEYS,
+  themeColor,
 } from "./theme.ts"
 
 /** Inline, synchronous startup code. Both the HTML build and tests use this. */
 export function themeHead(): string {
   const config = JSON.stringify({
     modes: THEMES,
+    defaultMode: DEFAULT_MODE,
     themes: COLOR_THEMES,
     catalog: THEME_CATALOG,
     defaultTheme: DEFAULT_COLOR_THEME,
@@ -18,13 +21,14 @@ export function themeHead(): string {
     keys: THEME_STORAGE_KEYS,
   }).replaceAll("<", "\\u003c")
 
-  return `<script>
+  return `<meta name="theme-color" content="${themeColor(DEFAULT_MODE, DEFAULT_COLOR_THEME)}" />
+  <script>
     (function(config) {
       function read(key) {
         try { return localStorage.getItem(key); } catch { return null; }
       }
       const savedMode = read(config.keys.mode);
-      const mode = config.modes.includes(savedMode) ? savedMode : 'dark';
+      const mode = config.modes.includes(savedMode) ? savedMode : config.defaultMode;
       const savedTheme = read(config.keys.theme);
       const legacyTheme = config.legacy[read(config.keys.legacyAccent)];
       const theme = config.themes.includes(savedTheme)

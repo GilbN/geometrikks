@@ -106,12 +106,15 @@ bun run build
 ```
 
 The first-paint and control-contrast tests loop over every scheme of every registered
-theme, the latter at desktop and phone widths. The rest cover one case each: a saved
-legacy accent, a light Moss preview inside a dark Black page, a dark Forge preview
-inside a light Aurora page, and live System switching with Black. The gallery probes
-for the nested previews are fixed to Moss and Forge in `resources/dev/themes.tsx`.
-The tests save drawer screenshots under `smoke-artifacts/test-results`. The preview needs the Vite development
-server; the unit tests and production build do not.
-Playwright runs under Node via `npx`, matching CI. Its `themes` project contains
-the development preview tests; the production `test:smoke` script selects only
-the `smoke` project so it never requests the development-only gallery.
+theme, the latter at desktop and phone widths. The gallery probes check a light Moss
+preview inside a dark Black page and a dark Forge preview inside a light Aurora page;
+they are fixed to Moss and Forge in `resources/dev/themes.tsx`. Two tests cover a saved
+legacy accent (first paint, and the provider keeping its theme without saving it). One
+checks that System switches palettes live while Black stays selected, one that the
+theme menu only changes the color mode, and one that the settings page offers schemes
+and themes as radio groups. The tests save drawer screenshots under
+`smoke-artifacts/test-results`. The preview needs the Vite development server; the
+unit tests and production build do not. Playwright runs under Node via `npx`, matching
+CI. Its `themes` project contains the development preview tests; the production
+`test:smoke` script selects only the `smoke` project so it never requests the
+development-only gallery.

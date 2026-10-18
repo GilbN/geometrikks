@@ -4,6 +4,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
+import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 import {
@@ -127,14 +128,14 @@ function RootLayout() {
   // No sidebar or data providers on these routes; see isChromelessRoute.
   if (isChromeless) {
     return (
-      <ThemeProvider defaultTheme="dark">
+      <ThemeProvider defaultTheme={DEFAULT_MODE}>
         <Outlet />
       </ThemeProvider>
     )
   }
 
   return (
-    <ThemeProvider defaultTheme="dark">
+    <ThemeProvider defaultTheme={DEFAULT_MODE}>
       <TooltipProvider delayDuration={0}>
         <TimeRangeProvider>
           <LiveFeedProvider>
@@ -184,7 +185,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
       : "An unexpected error occurred."
 
   return (
-    <ThemeProvider defaultTheme="dark">
+    <ThemeProvider defaultTheme={DEFAULT_MODE}>
       <BrandScreen
         title="Something went wrong"
         description="Try again, or go back to the overview."
@@ -211,7 +212,7 @@ function RootErrorComponent({ error, reset }: ErrorComponentProps) {
 
 function NotFoundComponent() {
   return (
-    <ThemeProvider defaultTheme="dark">
+    <ThemeProvider defaultTheme={DEFAULT_MODE}>
       <BrandScreen
         title="Page not found"
         description="Nothing lives at this address, or it has moved."
