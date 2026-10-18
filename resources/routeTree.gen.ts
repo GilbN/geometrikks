@@ -22,6 +22,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SignedOutRouteImport } from './routes/signed-out'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
+import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsChangelogRouteImport } from './routes/settings/changelog'
 import { Route as SettingsEnvironmentRouteImport } from './routes/settings/environment'
@@ -94,6 +95,11 @@ const SettingsAboutRoute = SettingsAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -138,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRouteWithChildren
   '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
+  '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/security': typeof SecurityRoute
   '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
+  '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -180,6 +188,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRouteWithChildren
   '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
+  '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signed-out'
     | '/settings/about'
+    | '/settings/agents'
     | '/settings/appearance'
     | '/settings/changelog'
     | '/settings/environment'
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/security'
     | '/signed-out'
     | '/settings/about'
+    | '/settings/agents'
     | '/settings/appearance'
     | '/settings/changelog'
     | '/settings/environment'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signed-out'
     | '/settings/about'
+    | '/settings/agents'
     | '/settings/appearance'
     | '/settings/changelog'
     | '/settings/environment'
@@ -360,6 +372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAboutRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/agents': {
+      id: '/settings/agents'
+      path: '/agents'
+      fullPath: '/settings/agents'
+      preLoaderRoute: typeof SettingsAgentsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
@@ -407,6 +426,7 @@ declare module '@tanstack/react-router' {
 
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
+  SettingsAgentsRoute: typeof SettingsAgentsRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsChangelogRoute: typeof SettingsChangelogRoute
   SettingsEnvironmentRoute: typeof SettingsEnvironmentRoute
@@ -418,6 +438,7 @@ interface SettingsRouteChildren {
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
+  SettingsAgentsRoute: SettingsAgentsRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChangelogRoute: SettingsChangelogRoute,
   SettingsEnvironmentRoute: SettingsEnvironmentRoute,

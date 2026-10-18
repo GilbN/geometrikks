@@ -5,6 +5,7 @@ import {
   Database,
   Globe,
   MapPin,
+  Network,
   Radio,
   ShieldCheck,
   ShieldUser,
@@ -17,6 +18,7 @@ import {
   useCrowdsecStatus,
   useDatabaseInfo,
   useHealth,
+  useInstances,
   useLogFiles,
   useMe,
   useDeleteServerLocation,
@@ -44,10 +46,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
+import { agentAdvisoryCards, agentSummary } from "@/components/settings/agents-logic"
 import {
   accessLogFiles,
   accessLogUnavailableLabel,
   advisoryCards,
+  agentMoreProblemsText,
   authState,
   type CardState,
   compressionSummary,
@@ -64,13 +68,14 @@ import {
   loginMethodBadges,
   oidcState,
   overallState,
+  recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
   type ServerLocationRow,
   serverLocationRows,
 } from "@/components/settings/status-logic"
 
-function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
+export function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: string }> }) {
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
       <Icon className="h-4 w-4 text-primary" />
@@ -178,6 +183,7 @@ export function StatusOverview() {
   const { data: dbInfo } = useDatabaseInfo()
   const { data: logRecords, isError: logsError } = useRecentErrors()
   const { data: serverLocations } = useServerLocations()
+  const { data: instances, isError: instancesError } = useInstances()
   const feedStatus = useLiveFeedStatus()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
@@ -193,6 +199,11 @@ export function StatusOverview() {
   const recentErrors = filterErrorRecords(logRecords, 5)
   const locationRows = serverLocationRows(serverLocations, now)
   const oidcLine = oidcState(oidc, oidcError)
+  // The summary uses the cached answer so the Agents card stays put through a
+  // failed refetch; the advisory cards do not, since that answer may be stale.
+  const agentOverview = agentSummary(instances)
+  const agentCards = instancesError ? [] : agentAdvisoryCards(instances)
+  const bottomCardsBefore = (agentOverview ? 1 : 0) + (locationRows.length > 0 ? 1 : 0)
 
   if (healthLoading) {
     return (
@@ -233,6 +244,33 @@ export function StatusOverview() {
           </CardContent>
         </Card>
       ))}
+
+      {agentCards.map((card) => {
+        const moreProblems = agentMoreProblemsText(card.moreCount)
+        return (
+          <Card
+            key={`agent-${card.instanceName}`}
+            className={cn("border-l-2", card.tone === "red" ? "border-l-red-500" : "border-l-amber-500")}
+          >
+            <CardContent className="space-y-1 pt-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <StatusLed tone={card.tone} />
+                {card.summary}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {moreProblems && `${moreProblems} `}
+                <Link
+                  to="/settings/agents"
+                  search={{ instance: card.instanceName }}
+                  className="text-primary underline underline-offset-2"
+                >
+                  Open {card.instanceName} on the Agents page
+                </Link>
+              </p>
+            </CardContent>
+          </Card>
+        )
+      })}
 
       {/* Overall state and Authentication share the banner row: the subsystem
           grid below holds an even number of cards, so putting Authentication
@@ -546,6 +584,38 @@ export function StatusOverview() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        {agentOverview && (
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <SectionIcon icon={Network} />
+                <div>
+                  <CardTitle className="text-base">Agents</CardTitle>
+                  <CardDescription>Other instances writing to this database</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {instancesError ? (
+                <div className="flex items-center gap-2">
+                  <StatusLed tone="muted" />
+                  <span className="text-sm font-medium">Agent list unavailable</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <StatusLed tone={agentOverview.tone} pulse={agentOverview.tone === "emerald"} />
+                  <Link
+                    to="/settings/agents"
+                    className="text-sm font-medium underline underline-offset-2"
+                  >
+                    {agentOverview.line}
+                  </Link>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {locationRows.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
@@ -565,7 +635,7 @@ export function StatusOverview() {
           </Card>
         )}
 
-        <Card className={locationRows.length > 0 ? undefined : "md:col-span-2"}>
+        <Card className={recentErrorsFillsRow(bottomCardsBefore) ? "md:col-span-2" : undefined}>
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <SectionIcon icon={TriangleAlert} />

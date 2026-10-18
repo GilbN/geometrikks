@@ -12,6 +12,7 @@ import {
   accessLogFiles,
   accessLogUnavailableLabel,
   advisoryCards,
+  agentMoreProblemsText,
   authState,
   compressionSummary,
   crowdsecState,
@@ -27,6 +28,7 @@ import {
   loginMethodBadges,
   oidcState,
   overallState,
+  recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
   sidebarIngestionVariant,
@@ -311,6 +313,27 @@ describe("sidebarIngestionVariant", () => {
     })
     expect(sidebarIngestionVariant(health, false)).toBe("degraded")
   })
+
+  it("is attention when only an agent needs attention", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false, 1)).toBe("attention")
+  })
+
+  it("keeps the head's own states ahead of agent problems", () => {
+    expect(sidebarIngestionVariant(makeHealth({ status: "degraded" }), false, 2)).toBe("degraded")
+    expect(sidebarIngestionVariant(undefined, true, 2)).toBe("offline")
+    expect(sidebarIngestionVariant(undefined, false, 2)).toBe("inactive")
+  })
+
+  it("is attention over the configured-off state when an agent needs attention", () => {
+    expect(sidebarIngestionVariant(makeHealth({ ingestion: disabledIngestion }), false, 1)).toBe(
+      "attention",
+    )
+  })
+
+  it("stays running without agent problems", () => {
+    expect(sidebarIngestionVariant(makeHealth(), false)).toBe("running")
+    expect(sidebarIngestionVariant(makeHealth(), false, 0)).toBe("running")
+  })
 })
 
 describe("sidebarStatusTooltip", () => {
@@ -332,6 +355,50 @@ describe("sidebarStatusTooltip", () => {
         "attention",
       ),
     ).toBe("2 advisories need attention. See Settings > Status.")
+  })
+
+  it("points to Settings > Agents when only agents need attention", () => {
+    expect(
+      sidebarStatusTooltip("Advisories need attention - see Settings > Status", 0, "attention", 2),
+    ).toBe("2 agents need attention. See Settings > Agents.")
+    expect(sidebarStatusTooltip("base", 0, "attention", 1)).toBe(
+      "1 agent needs attention. See Settings > Agents.",
+    )
+  })
+
+  it("counts head advisories and agents together and points to Settings > Status", () => {
+    expect(sidebarStatusTooltip("base", 1, "attention", 3)).toBe(
+      "1 advisory needs attention. 3 agents need attention. See Settings > Status.",
+    )
+  })
+
+  it("adds the agent count to a degraded head's tooltip", () => {
+    expect(
+      sidebarStatusTooltip("Service degraded - see Settings > Status", 0, "degraded", 1),
+    ).toBe("Service degraded - see Settings > Status. 1 agent needs attention.")
+    expect(sidebarStatusTooltip("base.", 2, "degraded", 2)).toBe(
+      "base. 2 advisories need attention. 2 agents need attention. See Settings > Status.",
+    )
+  })
+})
+
+describe("agentMoreProblemsText", () => {
+  it("is null when the headline is the only problem", () => {
+    expect(agentMoreProblemsText(0)).toBeNull()
+  })
+  it("counts the problems behind the headline", () => {
+    expect(agentMoreProblemsText(1)).toBe("And 1 more problem.")
+    expect(agentMoreProblemsText(3)).toBe("And 3 more problems.")
+  })
+})
+
+describe("recentErrorsFillsRow", () => {
+  it("spans the row when the cards before it pair up", () => {
+    expect(recentErrorsFillsRow(0)).toBe(true)
+    expect(recentErrorsFillsRow(2)).toBe(true)
+  })
+  it("sits beside an unpaired card", () => {
+    expect(recentErrorsFillsRow(1)).toBe(false)
   })
 })
 
