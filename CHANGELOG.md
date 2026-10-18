@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Security > Alert history: Bot detection now also lists the bans the bot challenge raises, marked "Bot ban", next to rejected submissions, now marked "Bot rejected".
+
 ### Fixed
 
 - Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back.

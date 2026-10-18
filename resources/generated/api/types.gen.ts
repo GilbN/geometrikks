@@ -2796,7 +2796,7 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
      */
     since?: string | null;
     /**
-     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli
+     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces
      */
     kind?: string | null;
     /**

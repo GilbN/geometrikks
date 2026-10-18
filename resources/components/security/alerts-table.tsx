@@ -45,7 +45,7 @@ const KIND_OPTIONS = [
   { key: "all", label: "All kinds" },
   { key: "crowdsec", label: "Detections" },
   { key: "waf", label: "WAF" },
-  { key: "bot-detection", label: "Bot detection" },
+  { key: "bot", label: "Bot detection" },
 ] as const
 
 type KindKey = (typeof KIND_OPTIONS)[number]["key"]
@@ -142,7 +142,7 @@ export function AlertsTable() {
                       <TableCell className="max-w-[280px]" title={alertSummary(alert.message)}>
                         <span className="flex items-center gap-1.5">
                           <span className="truncate font-mono text-xs">{alert.scenario}</span>
-                          <AlertKindBadge kind={alert.kind} className="shrink-0" />
+                          <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
                         </span>
                       </TableCell>
                       <TableCell className="font-mono">

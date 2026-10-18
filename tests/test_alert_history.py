@@ -11,6 +11,8 @@ import pytest
 from geometrikks.domain.exceptions import DomainConflictError, DomainValidationError
 from geometrikks.domain.security import alert_history
 from geometrikks.domain.security.alert_history import (
+    BOT_CHALLENGE_SCENARIOS,
+    BOT_KIND_GROUP,
     AlertCursor,
     AlertFilters,
     decode_cursor,
@@ -19,7 +21,7 @@ from geometrikks.domain.security.alert_history import (
 )
 from geometrikks.services.crowdsec import Alert, CrowdSecService
 from geometrikks.services.crowdsec.exceptions import CrowdSecUnsupportedError
-from geometrikks.services.crowdsec.schemas import AlertSource
+from geometrikks.services.crowdsec.schemas import AlertSource, Decision
 
 pytestmark = pytest.mark.anyio
 
@@ -34,6 +36,7 @@ def make_alert(
     scenario: str = "crowdsecurity/http-probing",
     kind: str = "crowdsec",
     value: str = "1.2.3.4",
+    decisions: list[Decision] | None = None,
 ) -> Alert:
     """A stored LAPI row. ``created_at`` keeps its fraction of a second, the
     way the LAPI database does; ``SimulatedLapi`` answers it whole-second."""
@@ -45,6 +48,7 @@ def make_alert(
         created_at=created_at.isoformat().replace("+00:00", "Z"),
         source=AlertSource(scope="Ip", value=value, ip=value),
         kind=kind,
+        decisions=decisions or [],
     )
 
 
@@ -95,7 +99,13 @@ class SimulatedLapi(CrowdSecService):
             matching = [alert for alert in matching if alert.kind == kind]
         scenario = filters.get("scenario")
         if scenario is not None:
-            matching = [alert for alert in matching if alert.scenario == scenario]
+            # The LAPI matches the alert's scenario or any of its decisions'.
+            matching = [
+                alert
+                for alert in matching
+                if alert.scenario == scenario
+                or any(decision.scenario == scenario for decision in alert.decisions)
+            ]
         created_before = filters.get("created_before")
         if created_before is not None:
             assert created_before.endswith("s")
@@ -122,13 +132,18 @@ async def test_short_last_page_has_no_cursor():
 
 
 async def walk_pages(
-    lapi: SimulatedLapi, *, limit: int = 50, now: datetime = NOW
+    lapi: SimulatedLapi,
+    *,
+    limit: int = 50,
+    now: datetime = NOW,
+    filters: AlertFilters = AlertFilters(),
+    start: AlertCursor | None = None,
 ) -> list[int | None]:
     walked: list[int | None] = []
     cursor: str | None = None
     for _ in range(50):
-        before = None if cursor is None else decode_cursor(cursor)
-        page = await fetch_alert_page(lapi, AlertFilters(), limit=limit, before=before, now=now)
+        before = start if cursor is None else decode_cursor(cursor)
+        page = await fetch_alert_page(lapi, filters, limit=limit, before=before, now=now)
         walked.extend(alert.id for alert in page.alerts)
         cursor = page.next_cursor
         if cursor is None:
@@ -468,6 +483,138 @@ async def test_filters_reach_the_lapi():
         "limit": 50, "created_before": None, "ip": "1.2.3.4", "scenario": "crowdsecurity/ssh-bf",
         "since": "24h", "kind": "crowdsec", "has_active_decision": True,
     }
+
+
+REJECTED_SUBMISSION = "crowdsecurity/rejected-browser-submission"
+TOO_MANY_REQUESTS, TOO_MANY_SUBMISSIONS = BOT_CHALLENGE_SCENARIOS
+BOT_GROUP = AlertFilters(kind=BOT_KIND_GROUP)
+
+
+def bot_rejection(id: int, created_at: datetime) -> Alert:
+    return make_alert(id, created_at, scenario=REJECTED_SUBMISSION, kind="bot-detection")
+
+
+def bot_ban(id: int, created_at: datetime, scenario: str = TOO_MANY_REQUESTS) -> Alert:
+    decision = Decision(
+        id=id, origin="crowdsec", type="ban", scope="Ip", value="1.2.3.4", duration="3h59m",
+        scenario=scenario,
+    )
+    return make_alert(id, created_at, scenario=scenario, decisions=[decision])
+
+
+async def test_bot_group_queries_the_rejection_kind_and_both_ban_scenarios():
+    # Each source holds an alert a minute after the cursor, which proves the
+    # margin cutoff reached it, so every source answers in one request.
+    alerts = [
+        bot_rejection(1, T0 - timedelta(minutes=1)),
+        bot_rejection(2, T0 + timedelta(minutes=1)),
+        bot_ban(3, T0 - timedelta(minutes=1), TOO_MANY_REQUESTS),
+        bot_ban(4, T0 + timedelta(minutes=1), TOO_MANY_REQUESTS),
+        bot_ban(5, T0 - timedelta(minutes=1), TOO_MANY_SUBMISSIONS),
+        bot_ban(6, T0 + timedelta(minutes=1), TOO_MANY_SUBMISSIONS),
+    ]
+    lapi = SimulatedLapi(alerts)
+    filters = AlertFilters(ip="1.2.3.4", since="24h", kind=BOT_KIND_GROUP)
+    cursor = AlertCursor(created_at=T0, id=100)
+    await fetch_alert_page(lapi, filters, limit=50, before=cursor, now=NOW)
+    age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
+    shared = {
+        "limit": 50, "created_before": f"{age_with_margin}s", "ip": "1.2.3.4", "since": "24h",
+        "has_active_decision": None,
+    }
+    assert sorted(lapi.calls, key=lambda call: (call["kind"] or "", call["scenario"] or "")) == [
+        {**shared, "scenario": TOO_MANY_REQUESTS, "kind": None},
+        {**shared, "scenario": TOO_MANY_SUBMISSIONS, "kind": None},
+        {**shared, "scenario": None, "kind": "bot-detection"},
+    ]
+
+
+async def test_bot_group_merges_newest_first_and_drops_duplicates():
+    # Alert 3 fired on too-many-requests and holds a too-many-submissions
+    # decision too, so both scenario queries answer it.
+    both_scenarios = bot_ban(3, T0 + timedelta(seconds=30), TOO_MANY_REQUESTS)
+    both_scenarios.decisions.append(replace(both_scenarios.decisions[0], scenario=TOO_MANY_SUBMISSIONS))
+    alerts = [
+        bot_rejection(1, T0),
+        bot_ban(2, T0 + timedelta(seconds=10), TOO_MANY_SUBMISSIONS),
+        both_scenarios,
+        bot_rejection(4, T0 + timedelta(seconds=40)),
+        bot_ban(5, T0 + timedelta(seconds=50), TOO_MANY_REQUESTS),
+        make_alert(6, T0 + timedelta(seconds=60)),
+    ]
+    lapi = SimulatedLapi(alerts)
+    page = await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=None, now=NOW)
+    assert [alert.id for alert in page.alerts] == [5, 4, 3, 2, 1]
+    assert page.next_cursor is None
+
+
+async def test_bot_group_cuts_the_merge_to_the_limit_with_a_cursor():
+    alerts = [bot_rejection(id, T0 + timedelta(seconds=id)) for id in range(1, 4)]
+    alerts += [bot_ban(id, T0 + timedelta(seconds=id)) for id in range(4, 7)]
+    lapi = SimulatedLapi(alerts)
+    page = await fetch_alert_page(lapi, BOT_GROUP, limit=4, before=None, now=NOW)
+    assert [alert.id for alert in page.alerts] == [6, 5, 4, 3]
+    assert page.next_cursor is not None
+    assert decode_cursor(page.next_cursor) == AlertCursor(T0 + timedelta(seconds=3), 3)
+
+
+def bot_day() -> tuple[list[Alert], list[Alert]]:
+    """140 rejections and 7 too-many-requests bans over a day, plus 50
+    unrelated http-probing alerts. Returns the bot alerts and all of them."""
+    day_start = NOW - timedelta(hours=24)
+    rejections = [bot_rejection(id, day_start + timedelta(minutes=10 * id)) for id in range(1, 141)]
+    bans = [
+        bot_ban(140 + index, day_start + timedelta(hours=3 * index, minutes=5))
+        for index in range(1, 8)
+    ]
+    probes = [
+        make_alert(147 + index, day_start + timedelta(minutes=28 * index + 1))
+        for index in range(1, 51)
+    ]
+    bot_alerts = rejections + bans
+    return bot_alerts, bot_alerts + probes
+
+
+async def test_bot_group_walks_every_page_in_order():
+    bot_alerts, alerts = bot_day()
+    lapi = SimulatedLapi(alerts)
+    walked: list[int | None] = []
+    cursor: str | None = None
+    for _ in range(10):
+        before = None if cursor is None else decode_cursor(cursor)
+        page = await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=before, now=NOW)
+        walked.extend(alert.id for alert in page.alerts)
+        cursor = page.next_cursor
+        if len(walked) < len(bot_alerts):
+            assert cursor is not None, f"no cursor after {len(walked)} of {len(bot_alerts)}"
+        if cursor is None:
+            break
+    assert walked == newest_first(bot_alerts)
+    assert len(walked) == 147
+
+
+async def test_bot_group_stops_at_a_full_source_that_answered_short(monkeypatch):
+    # The rejection source hits MAX_FETCH with only four rows past the
+    # cursor. Its fifth may be older than the ban, so the page ends at its
+    # fourth row instead of filling up with the ban.
+    monkeypatch.setattr(alert_history, "MAX_FETCH", 100)
+    older = [bot_rejection(id, T0 - timedelta(seconds=61 - id)) for id in range(1, 61)]
+    cursor_alert = bot_rejection(61, T0)
+    newer = [bot_rejection(id, T0 + timedelta(seconds=id - 61)) for id in range(62, 157)]
+    ban = bot_ban(200, T0 - timedelta(seconds=10, milliseconds=500))
+    lapi = SimulatedLapi(older + [cursor_alert] + newer + [ban])
+    cursor = AlertCursor(created_at=T0, id=61)
+    page = await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=cursor, now=NOW)
+    assert [alert.id for alert in page.alerts] == [60, 59, 58, 57]
+    assert page.next_cursor is not None
+    walked = await walk_pages(lapi, filters=BOT_GROUP, start=cursor)
+    assert walked == newest_first(older + [ban])
+
+
+async def test_bot_group_on_an_old_lapi_raises_unsupported():
+    lapi = SimulatedLapi([bot_ban(1, T0)], supports_kind=False)
+    with pytest.raises(CrowdSecUnsupportedError):
+        await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=None, now=NOW)
 
 
 def test_decode_cursor_rejects_garbage():

@@ -35,7 +35,12 @@ from geometrikks.domain.security.dependencies import (
 from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
-from geometrikks.domain.security.alert_history import AlertFilters, decode_cursor, fetch_alert_page
+from geometrikks.domain.security.alert_history import (
+    BOT_KIND_GROUP,
+    AlertFilters,
+    decode_cursor,
+    fetch_alert_page,
+)
 from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
@@ -548,7 +553,10 @@ class CrowdSecController(Controller):
             str | None,
             QueryParameter(
                 required=False,
-                description="Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+                description=(
+                    "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, "
+                    "or bot for everything the AppSec bot challenge produces"
+                ),
             ),
         ] = None,
         has_active_decision: Annotated[
@@ -581,16 +589,21 @@ class CrowdSecController(Controller):
         from GeoMetrikks' own stored traffic instead.
 
         ``kind`` needs CrowdSec 1.7 or newer; an older LAPI answers 400.
+        ``kind=bot`` merges the bot-detection rejections with the bans the
+        bot challenge scenarios raise, and takes no ``scenario``.
         """
         service = _require_write(crowdsec, settings)
         if ip is not None:
             validate_ip_address(ip)
         if since is not None:
             _validate_duration(since)
-        if kind is not None and kind not in ALERT_KINDS:
+        accepted_kinds = ALERT_KINDS | {BOT_KIND_GROUP}
+        if kind is not None and kind not in accepted_kinds:
             raise DomainValidationError(
-                f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(ALERT_KINDS))})"
+                f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(accepted_kinds))})"
             )
+        if kind == BOT_KIND_GROUP and scenario is not None:
+            raise DomainValidationError("The bot group can't be combined with a scenario filter")
         cursor = None if before is None else decode_cursor(before)
         page = await fetch_alert_page(
             service,

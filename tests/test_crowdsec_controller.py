@@ -658,6 +658,26 @@ def test_alert_list_documents_its_409():
     assert "409" in responses
 
 
+async def test_alerts_bot_group_rejects_a_scenario(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get(
+            "/api/v1/crowdsec/alerts", params={"kind": "bot", "scenario": "x"}
+        )
+    assert resp.status_code == 400
+    assert service.alert_calls == []
+
+
+async def test_alerts_accept_the_bot_group(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/alerts", params={"kind": "bot"})
+    assert resp.status_code == 200
+    assert len(service.alert_calls) == 3
+
+
 async def test_alerts_reject_an_unknown_kind(monkeypatch):
     enable_write(monkeypatch)
     service = AlertFakeCrowdSec([])

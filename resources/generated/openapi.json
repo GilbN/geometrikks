@@ -9764,12 +9764,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces",
             "in": "query",
             "name": "kind",
             "required": false,
             "schema": {
-              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces",
               "oneOf": [
                 {
                   "type": "string"

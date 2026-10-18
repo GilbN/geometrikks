@@ -4,6 +4,7 @@ import {
   ALERT_PAGE_SIZE,
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
+  alertBadge,
   alertDescription,
   alertHistoryFooter,
   alertSummary,
@@ -155,7 +156,7 @@ const CHALLENGE_META = {
 
 describe("kindLabel", () => {
   it("names the kinds the engine stamps", () => {
-    expect(kindLabel("bot-detection")).toBe("Bot detection")
+    expect(kindLabel("bot-detection")).toBe("Bot rejected")
     expect(kindLabel("waf")).toBe("WAF")
     expect(kindLabel("capi")).toBe("Blocklist")
     expect(kindLabel("papi")).toBe("Console")
@@ -169,6 +170,25 @@ describe("kindLabel", () => {
 
   it("passes an unknown kind through", () => {
     expect(kindLabel("future-kind")).toBe("future-kind")
+  })
+})
+
+describe("alertBadge", () => {
+  it("marks a bot-detection alert as a rejection", () => {
+    expect(alertBadge("bot-detection", "crowdsecurity/rejected-browser-submission")?.label).toBe("Bot rejected")
+  })
+
+  it("marks a ban from any bot challenge scenario as a bot ban", () => {
+    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-too-many-requests")?.label).toBe("Bot ban")
+    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-something-new")?.label).toBe("Bot ban")
+  })
+
+  it("falls back to the kind badge", () => {
+    expect(alertBadge("waf", "crowdsecurity/vpatch-CVE-2024-1")?.label).toBe("WAF")
+  })
+
+  it("shows nothing for a log-scenario alert", () => {
+    expect(alertBadge("crowdsec", "crowdsecurity/http-probing")).toBeNull()
   })
 })
 

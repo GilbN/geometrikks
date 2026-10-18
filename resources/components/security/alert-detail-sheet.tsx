@@ -223,7 +223,7 @@ function AlertBody({
   return (
     <>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <AlertKindBadge kind={alert.kind} />
+        <AlertKindBadge kind={alert.kind} scenario={alert.scenario} />
         {alert.simulated && (
           <Badge variant="outline" title="CrowdSec ran this scenario in simulation mode and enforced nothing">
             Simulated

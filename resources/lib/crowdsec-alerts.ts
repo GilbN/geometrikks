@@ -68,7 +68,7 @@ const CONTEXT_LABELS: Record<string, string> = {
 const KIND_LABELS: Record<string, string | null> = {
   crowdsec: null,
   waf: "WAF",
-  "bot-detection": "Bot detection",
+  "bot-detection": "Bot rejected",
   capi: "Blocklist",
   papi: "Console",
   cscli: "cscli",
@@ -89,6 +89,24 @@ const KIND_BADGE_CLASSES: Record<string, string> = {
 
 export function kindBadgeClass(kind: string): string {
   return KIND_BADGE_CLASSES[kind] ?? ""
+}
+
+/** Every hub scenario of the AppSec bot challenge that bans starts with this. */
+export const BOT_BAN_SCENARIO_PREFIX = "crowdsecurity/appsec-bot-challenge-"
+
+// The bans carry kind crowdsec like any log scenario, so only the scenario
+// tells them apart.
+const BOT_BAN_BADGE = {
+  label: "Bot ban",
+  className: "bg-violet-500/30 text-violet-700 dark:bg-violet-500/35 dark:text-violet-200",
+}
+
+/** The badge an alert row shows, or null for a plain log-scenario alert. */
+export function alertBadge(kind: string | null, scenario: string): { label: string; className: string } | null {
+  if (scenario.startsWith(BOT_BAN_SCENARIO_PREFIX)) return BOT_BAN_BADGE
+  const label = kindLabel(kind)
+  if (label === null) return null
+  return { label, className: kindBadgeClass(kind ?? "") }
 }
 
 export function hasHttpEvents(events: AlertEventView[]): boolean {

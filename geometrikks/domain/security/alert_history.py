@@ -15,6 +15,7 @@ that request cannot get past is a conflict.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 from dataclasses import dataclass
@@ -38,6 +39,15 @@ CURSOR_MARGIN = timedelta(minutes=5)
 EXACT_AGE_SLACK = timedelta(seconds=1)
 # Ceiling on one LAPI request while growing the fetch past newer rows.
 MAX_FETCH = 2000
+
+# The bot group covers what the AppSec bot challenge produces. The engine
+# stamps its rejections with kind bot-detection, and its two hub scenarios
+# raise the bans.
+BOT_KIND_GROUP = "bot"
+BOT_CHALLENGE_SCENARIOS = (
+    "crowdsecurity/appsec-bot-challenge-too-many-requests",
+    "crowdsecurity/appsec-bot-challenge-too-many-submissions",
+)
 
 FLOOD_CONFLICT = "Too many alerts at the same moment to page past; filter by IP or scenario."
 
@@ -206,23 +216,58 @@ async def fetch_alert_page(
 ) -> AlertPage:
     """One page of alerts, newest first, older than ``before`` when given.
 
+    The bot group pages three LAPI queries at once and merges them.
+
     Raises:
         DomainConflictError: ``MAX_FETCH`` alerts at or after the cursor
             stand between it and anything older.
     """
-    lapi_filters: dict[str, Any] = {
-        "ip": filters.ip,
-        "scenario": filters.scenario,
-        "since": filters.since,
-        "kind": filters.kind,
-        "has_active_decision": filters.has_active_decision,
-    }
-    alerts, full = await _fetch_source(
-        service, lapi_filters, limit=limit, before=before, now=now or datetime.now(UTC)
+    now = now or datetime.now(UTC)
+    source_pages = await asyncio.gather(
+        *(
+            _fetch_source(service, lapi_filters, limit=limit, before=before, now=now)
+            for lapi_filters in _source_filters(filters)
+        )
     )
+    alerts = _merge_sources(source_pages)
     page_alerts = alerts[:limit]
-    more = full or len(alerts) > limit
+    more = any(full for _, full in source_pages) or len(alerts) > limit
     return AlertPage(
         alerts=page_alerts,
         next_cursor=encode_cursor(page_alerts[-1]) if more and page_alerts else None,
     )
+
+
+def _merge_sources(source_pages: list[tuple[list[Alert], bool]]) -> list[Alert]:
+    """The sources' rows newest first, each alert once, ending where any
+    full source's answer ends."""
+    if len(source_pages) == 1:
+        # The LAPI's own order breaks ties within a second by the sub-second
+        # created_at that its answer drops, so a single source keeps it.
+        return source_pages[0][0]
+    unique = {alert.id: alert for older, _ in source_pages for alert in older}
+    alerts = sorted(unique.values(), key=_sort_key, reverse=True)
+    # A full source that answered short stopped at its last row, and the
+    # rows it left out may be newer than another source's older rows.
+    frontier = max(
+        (_sort_key(older[-1]) for older, full in source_pages if full and older),
+        default=None,
+    )
+    if frontier is None:
+        return alerts
+    return [alert for alert in alerts if _sort_key(alert) >= frontier]
+
+
+def _source_filters(filters: AlertFilters) -> list[dict[str, Any]]:
+    """One LAPI filter set per source: three for the bot group, one otherwise."""
+    shared: dict[str, Any] = {
+        "ip": filters.ip,
+        "since": filters.since,
+        "has_active_decision": filters.has_active_decision,
+    }
+    if filters.kind == BOT_KIND_GROUP:
+        return [
+            {**shared, "scenario": None, "kind": "bot-detection"},
+            *({**shared, "scenario": scenario, "kind": None} for scenario in BOT_CHALLENGE_SCENARIOS),
+        ]
+    return [{**shared, "scenario": filters.scenario, "kind": filters.kind}]
