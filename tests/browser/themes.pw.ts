@@ -109,6 +109,41 @@ test("the provider keeps a legacy accent's theme without saving it", async ({ pa
   }
 })
 
+const storedSides = (page: Page) =>
+  page.evaluate((keys) => [localStorage.getItem(keys.lightTheme), localStorage.getItem(keys.darkTheme)], THEME_STORAGE_KEYS)
+
+const settingsThemes = (page: Page) => page.getByTestId("settings-preview").getByRole("group", { name: "Themes" })
+
+test("the provider falls back to a legacy accent on the light side", async ({ page }) => {
+  await page.addInitScript((keys) => {
+    localStorage.setItem(keys.mode, "light")
+    localStorage.setItem(keys.legacyAccent, "green")
+  }, THEME_STORAGE_KEYS)
+  await page.goto("/static/resources/dev/themes.html")
+  await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
+  await expect(page.locator("html")).toHaveClass("light")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
+  await expect(settingsThemes(page).getByRole("button", { name: "Moss light theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  expect(await storedSides(page)).toEqual([null, null])
+})
+
+test("a saved side wins over the legacy accent, which still fills the other side", async ({ page }) => {
+  await page.addInitScript((keys) => {
+    localStorage.setItem(keys.mode, "light")
+    localStorage.setItem(keys.lightTheme, "forge")
+    localStorage.setItem(keys.legacyAccent, "green")
+  }, THEME_STORAGE_KEYS)
+  await page.goto("/static/resources/dev/themes.html")
+  await expect(page.getByRole("heading", { name: "Theme component preview" })).toBeVisible()
+  await expect(page.locator("html")).toHaveClass("light")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
+  await page.getByRole("button", { name: "Dark", exact: true }).click()
+  await expect(page.locator("html")).toHaveClass("dark")
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "moss")
+  await expect(settingsThemes(page).getByRole("button", { name: "Moss dark theme", exact: true })).toHaveAttribute("aria-pressed", "true")
+  expect(await storedSides(page)).toEqual(["forge", null])
+})
+
 for (const width of [1280, 390]) {
   for (const { mode, theme } of palettes) {
     test(`${mode}/${theme} controls stay visible at ${width}px`, async ({ page }, testInfo) => {
@@ -286,12 +321,13 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
   const settings = page.getByTestId("settings-preview")
   const schemes = settings.getByRole("radiogroup", { name: "Color scheme" })
   const themes = settings.getByRole("group", { name: "Themes" })
+  const themeCard = (id: ColorTheme) =>
+    themes.locator('[data-slot="theme-card"]').filter({ has: page.getByRole("button", { name: THEME_CATALOG[id].label, exact: true }) })
   const schemeRadio = (name: string) => schemes.getByRole("radio", { name, exact: true })
   const sideToggle = (id: ColorTheme, side: "light" | "dark") =>
     themes.getByRole("button", { name: `${THEME_CATALOG[id].label} ${side} theme`, exact: true })
   const nameButton = (id: ColorTheme) => themes.getByRole("button", { name: THEME_CATALOG[id].label, exact: true })
-  const stored = () =>
-    page.evaluate((keys) => [localStorage.getItem(keys.lightTheme), localStorage.getItem(keys.darkTheme)], THEME_STORAGE_KEYS)
+  const stored = () => storedSides(page)
   const expectSides = async (light: ColorTheme, dark: ColorTheme) => {
     for (const id of COLOR_THEMES) {
       await expect(sideToggle(id, "light")).toHaveAttribute("aria-pressed", String(id === light))
@@ -343,16 +379,12 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
   expect(await stored()).toEqual(["black", "black"])
   await expectSides("black", "black")
 
-  const forgeCard = nameButton("forge").locator("xpath=..")
+  const forgeCard = themeCard("forge")
   const box = (await forgeCard.boundingBox())!
   await forgeCard.click({ position: { x: box.width - 10, y: 10 } })
   await expect(page.locator("html")).toHaveAttribute("data-theme", "forge")
   expect(await stored()).toEqual(["forge", "forge"])
   await expectSides("forge", "forge")
-
-  await sideToggle("forge", "light").click()
-  await expect(sideToggle("forge", "light")).toHaveAttribute("aria-pressed", "true")
-  expect(await stored()).toEqual(["forge", "forge"])
 
   await schemeRadio("Dark").focus()
   await page.keyboard.press("Tab")
@@ -368,10 +400,26 @@ test("settings page mixes light and dark themes", async ({ context, page }) => {
   expect(outline.style).not.toBe("none")
   expect(outline.width).toBeGreaterThan(0)
 
+  await page.keyboard.press("Tab")
+  await page.keyboard.press("Tab")
+  await expect(nameButton("aurora")).toBeFocused()
+  const cardOutline = await nameButton("aurora").evaluate((el) => {
+    const style = getComputedStyle(el, "::after")
+    return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) }
+  })
+  expect(cardOutline.style).not.toBe("none")
+  expect(cardOutline.width).toBeGreaterThan(0)
+
+  // Mixed sides, so a circle that wrongly set both sides would change the pair.
+  await auroraLight.click()
+  await expect(auroraLight).toHaveAttribute("aria-pressed", "true")
+  expect(await stored()).toEqual(["aurora", "forge"])
+  await expectSides("aurora", "forge")
+
   await page.setViewportSize({ width: 390, height: 900 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390)
   for (const id of COLOR_THEMES) {
-    const card = nameButton(id).locator("xpath=..")
+    const card = themeCard(id)
     await card.scrollIntoViewIfNeeded()
     await expect(card).toBeInViewport()
   }

@@ -127,7 +127,7 @@ function ThemeCard({ colorTheme }: { colorTheme: ColorTheme }) {
   const { label, description } = THEME_CATALOG[colorTheme]
   const both = lightTheme === colorTheme && darkTheme === colorTheme
   return (
-    <div data-state={both ? "checked" : "unchecked"} className={cn(OPTION, "relative px-4 pt-5 pb-4")}>
+    <div data-slot="theme-card" data-state={both ? "checked" : "unchecked"} className={cn(OPTION, "relative px-4 pt-5 pb-4")}>
       <div className="mb-4 flex justify-center gap-4">
         <ThemeSideToggle
           scheme="light"
