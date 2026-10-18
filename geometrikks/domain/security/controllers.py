@@ -535,7 +535,7 @@ class CrowdSecController(Controller):
                 data_container=ErrorEnvelope,
                 description=(
                     "More alerts share the cursor's second than one LAPI request can "
-                    "page past. Filter by IP or scenario."
+                    "page past. Narrow the filters."
                 ),
             ),
         },

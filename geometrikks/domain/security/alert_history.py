@@ -16,6 +16,10 @@ The bot group runs three LAPI queries side by side, and an IP filter
 doubles every query. They share the LAPI clock and send the same
 ``created_before`` on each pass, so an answer from any of them that reaches
 the cursor proves the cutoff for all of them.
+
+``created_at`` arrives in whole seconds because the LAPI formats it with
+``time.RFC3339`` (pkg/apiserver/controllers/v1/alerts.go in CrowdSec). If
+that ever gains fractions, the whole-second cursor compare needs a look.
 """
 
 from __future__ import annotations
@@ -23,7 +27,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
@@ -207,6 +211,7 @@ def _flood_conflict(lapi_filters: dict[str, Any], detail: str) -> DomainConflict
 
 async def _fetch_sources(
     service: CrowdSecService,
+    filters: AlertFilters,
     source_filters: list[dict[str, Any]],
     *,
     limit: int,
@@ -233,8 +238,7 @@ async def _fetch_sources(
     if margin_cutoff is not None and not any(
         _covers_cursor(alerts, before) for alerts in answers
     ):
-        for lapi_filters in source_filters:
-            logger.info("alert_page_clock_free_fallback", **lapi_filters)
+        logger.info("alert_page_clock_free_fallback", sources=len(source_filters), **asdict(filters))
         answers = await _first_answers(service, source_filters, limit=limit, created_before=None)
         pages = await _grow_all(
             service, source_filters, answers, limit=limit, before=before, created_before=None
@@ -309,6 +313,7 @@ async def fetch_alert_page(
     """
     source_pages = await _fetch_sources(
         service,
+        filters,
         _source_filters(filters),
         limit=limit,
         before=before,

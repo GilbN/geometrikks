@@ -2828,7 +2828,7 @@ export type ApiV1CrowdsecAlertsListAlertsErrors = {
     status_code: number;
   };
   /**
-   * More alerts share the cursor's second than one LAPI request can page past. Filter by IP or scenario.
+   * More alerts share the cursor's second than one LAPI request can page past. Narrow the filters.
    */
   409: ErrorEnvelope;
 };

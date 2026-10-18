@@ -9893,7 +9893,7 @@
                 }
               }
             },
-            "description": "More alerts share the cursor's second than one LAPI request can page past. Filter by IP or scenario."
+            "description": "More alerts share the cursor's second than one LAPI request can page past. Narrow the filters."
           }
         },
         "summary": "ListAlerts",

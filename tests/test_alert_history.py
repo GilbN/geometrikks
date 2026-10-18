@@ -742,12 +742,26 @@ async def test_bot_group_ban_cursor_in_a_rejection_gap_pages_through(monkeypatch
 async def test_bot_group_with_a_lapi_clock_far_behind_takes_the_clock_free_pass():
     bot_alerts, alerts = bot_day()
     lapi = SimulatedLapi(alerts, clock_skew=LAPI_FAR_BEHIND)
-    with capture_logs() as logs:
-        walked = await walk_pages(lapi, filters=BOT_GROUP)
+    walked: list[int | None] = []
+    fallbacks_per_page: list[int] = []
+    cursor: str | None = None
+    while True:
+        before = None if cursor is None else decode_cursor(cursor)
+        with capture_logs() as logs:
+            page = await fetch_alert_page(lapi, BOT_GROUP, limit=50, before=before, now=NOW)
+        fallbacks = [log for log in logs if log["event"] == "alert_page_clock_free_fallback"]
+        fallbacks_per_page.append(len(fallbacks))
+        for fallback in fallbacks:
+            assert fallback["sources"] == 3
+            assert fallback["kind"] == BOT_KIND_GROUP
+            assert fallback["scenario"] is None
+        walked.extend(alert.id for alert in page.alerts)
+        cursor = page.next_cursor
+        if cursor is None:
+            break
     assert walked == newest_first(bot_alerts)
-    fallbacks = [log for log in logs if log["event"] == "alert_page_clock_free_fallback"]
-    assert {log["kind"] for log in fallbacks} == {"bot-detection", None}
-    assert {log["scenario"] for log in fallbacks} == {None, *BOT_CHALLENGE_SCENARIOS}
+    assert fallbacks_per_page[0] == 0
+    assert set(fallbacks_per_page[1:]) == {1}
 
 
 async def test_bot_group_exact_age_pass_takes_its_proof_from_the_cursor_source(monkeypatch):
