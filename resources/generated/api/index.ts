@@ -312,6 +312,8 @@ export type {
   ApiV1InstancesInstanceNameDeleteInstanceResponse,
   ApiV1InstancesInstanceNameDeleteInstanceResponses,
   ApiV1InstancesListInstancesData,
+  ApiV1InstancesListInstancesError,
+  ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponse,
   ApiV1InstancesListInstancesResponses,
   ApiV1LogsFilesKindNameDownloadData,

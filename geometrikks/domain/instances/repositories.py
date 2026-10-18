@@ -3,6 +3,9 @@
 Raw statements instead of the service layer: the upsert has to lock on the
 instance name and return the row as it was before the write, which the
 repository API cannot express.
+
+New data goes in the payload, never into the upsert's INSERT: a newer agent
+naming a column that an older head's table lacks would stop checking in.
 """
 from dataclasses import dataclass
 from datetime import datetime

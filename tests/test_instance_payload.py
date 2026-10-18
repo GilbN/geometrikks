@@ -234,6 +234,22 @@ def test_build_payload_lists_every_source() -> None:
     assert (payload.lines_5m, payload.failed_5m) == (7, 0)
 
 
+def test_build_payload_labels_loki_by_query_and_files_by_path() -> None:
+    app = Litestar(route_handlers=[])
+    app.state.ingestion_service = _service_with_two_sources()
+    payload = build_payload(
+        app,
+        _settings(),
+        lines_5m=None,
+        failed_5m=None,
+        recent_starts=[],
+        name_conflict_at=None,
+    )
+    by_kind = {source.kind: source for source in payload.sources}
+    assert by_kind["loki"].label == '{job="nginx"}'
+    assert by_kind["file"].label == "nginx_logs/access.log"
+
+
 def test_build_payload_round_trips_through_decode() -> None:
     import msgspec
 

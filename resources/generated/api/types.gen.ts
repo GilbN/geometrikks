@@ -4147,6 +4147,16 @@ export type ApiV1InstancesListInstancesData = {
   url: "/api/v1/instances";
 };
 
+export type ApiV1InstancesListInstancesErrors = {
+  /**
+   * The app runs without its database.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1InstancesListInstancesError =
+  ApiV1InstancesListInstancesErrors[keyof ApiV1InstancesListInstancesErrors];
+
 export type ApiV1InstancesListInstancesResponses = {
   /**
    * Request fulfilled, document follows
@@ -4191,6 +4201,10 @@ export type ApiV1InstancesInstanceNameDeleteInstanceErrors = {
    * This is the head you are talking to.
    */
   409: ErrorEnvelope;
+  /**
+   * The app runs without its database.
+   */
+  503: ErrorEnvelope;
 };
 
 export type ApiV1InstancesInstanceNameDeleteInstanceError =

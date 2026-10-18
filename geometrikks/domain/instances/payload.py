@@ -15,6 +15,7 @@ from geometrikks.domain.instances.schemas import (
 )
 from geometrikks.domain.system.controllers.health import build_health_response
 from geometrikks.server import runtime
+from geometrikks.services.logsources import LokiSource
 
 
 class RollingCounter:
@@ -86,12 +87,13 @@ def build_payload(
     last_error: LastErrorReport | None = None
     if ingestion_service is not None:
         for log_input in ingestion_service.inputs:
-            source_status = log_input.source.status()
+            source = log_input.source
+            source_status = source.status()
             log_format = log_input.parser.format
             sources.append(
                 SourceReport(
-                    kind=log_input.source.kind,
-                    label=log_input.source.label,
+                    kind=source.kind,
+                    label=source.query if isinstance(source, LokiSource) else source.label,
                     server_name=ingestion_service.server_for(log_input),
                     log_format=log_format.name if log_format else None,
                     available=source_status.available,

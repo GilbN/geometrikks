@@ -29,8 +29,8 @@ HEARTBEAT_INTERVAL_SECONDS = 30.0
 NAME_CONFLICT_THRESHOLD = 3
 NAME_CONFLICT_WINDOW_SECONDS = 300.0
 RECENT_STARTS_KEPT = 10
-# The head's first beats race its own migration, and an agent's fail until the
-# head has migrated, so failures this soon after start() log at debug.
+# The head's first beats race its own migration, and an agent's first beats
+# fail until the head has migrated, so failures this soon after start() log at debug.
 STARTUP_GRACE_SECONDS = 120.0
 
 _WRITE_TIMEOUT_SECONDS = 10.0

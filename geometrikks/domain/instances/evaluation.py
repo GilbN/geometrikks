@@ -22,6 +22,10 @@ NOT_CHECKING_IN_AFTER = timedelta(seconds=180)
 NAME_CONFLICT_SHOWN_FOR = timedelta(minutes=5)
 RESTART_LOOP_STARTS = 3
 RESTART_LOOP_WINDOW = timedelta(hours=1)
+# name_conflict_at and recent_starts come from the agent's wall clock, so an
+# agent running a few minutes ahead must still count.
+SKEW_ALLOWANCE = timedelta(minutes=10)
+UNAVAILABLE_SOURCES_NAMED = 3
 
 DROPPED_FORWARDED_IDS = frozenset({"proxy-peer-cdn"})
 
@@ -92,11 +96,11 @@ def _version_text(version: str) -> str:
 
 
 def _within(now: datetime, timestamp: datetime, window: timedelta) -> bool:
-    """True when timestamp is at most window old. Future timestamps, which a skewed
-    clock produces, never count. A naive timestamp is read as UTC."""
+    """True when timestamp is at most window old, or at most SKEW_ALLOWANCE in
+    the future. A naive timestamp is read as UTC."""
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=UTC)
-    return timedelta(0) <= now - timestamp <= window
+    return -SKEW_ALLOWANCE <= now - timestamp <= window
 
 
 def _forwarded(advisory: ForwardedAdvisory, severity: Literal["warning", "critical"]) -> Advisory:
@@ -143,7 +147,7 @@ def _schema_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
     return Advisory(
         id="instance-schema-ahead",
         severity="critical",
-        summary=f"The head does not recognise the migration {row.schema_revision} of {row.instance_name}.",
+        summary=f"The head does not recognize the migration {row.schema_revision} of {row.instance_name}.",
         detail=f"{versions} That usually means {row.instance_name} runs a newer release than the head.",
         remedy=f"Upgrade the head, or check which version {row.instance_name} runs.",
     )
@@ -155,7 +159,7 @@ def _name_conflict(row: HeartbeatRow) -> Advisory:
         severity="critical",
         summary=f"More than one process is using the name {row.instance_name}.",
         detail="Their heartbeats overwrite each other, so this row can show only one of them.",
-        remedy="Give each agent its own APP_INSTANCE_NAME.",
+        remedy="Give each instance its own APP_INSTANCE_NAME.",
     )
 
 
@@ -176,7 +180,7 @@ def _name_not_set(row: HeartbeatRow) -> Advisory:
     return Advisory(
         id="instance-name-not-set",
         severity="warning",
-        summary=f"Agent {row.instance_name} is running under the default name.",
+        summary=f'This agent runs under the default name "{row.instance_name}".',
         detail=(
             "A second agent with the default name would overwrite this row "
             "instead of showing up beside it."
@@ -192,6 +196,60 @@ def _restart_loop(row: HeartbeatRow, start_count: int) -> Advisory:
         summary=f"{row.instance_name} started {start_count} times in the last hour.",
         detail="It keeps stopping and coming back, which usually means it crashes on startup or gets killed.",
         remedy=f"Check the container logs of {row.instance_name}.",
+    )
+
+
+def _unavailable_source_labels(payload: HeartbeatPayload) -> list[str]:
+    """Labels of the sources the agent cannot read.
+
+    payload.sources comes first because it labels a Loki source by its query,
+    where the health report only has loki:1.
+    """
+    source_labels = [source.label for source in payload.sources if not source.available]
+    if source_labels:
+        return source_labels
+    ingestion_health = payload.health.get("ingestion")
+    if not isinstance(ingestion_health, dict):
+        return []
+    raw_sources = ingestion_health.get("unavailableSources")
+    if not isinstance(raw_sources, list):
+        return []
+    return [
+        raw_source["label"]
+        for raw_source in raw_sources
+        if isinstance(raw_source, dict) and isinstance(raw_source.get("label"), str)
+    ]
+
+
+def _ingestion_degraded(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisory | None:
+    ingestion_health = payload.health.get("ingestion")
+    if not isinstance(ingestion_health, dict):
+        return None
+    ingestion_status = ingestion_health.get("status")
+    if ingestion_status == "disabled":
+        return None
+    source_labels = _unavailable_source_labels(payload)
+    if ingestion_status != "degraded" and not source_labels:
+        return None
+    remedy = f"Check the log paths or Loki settings on {row.instance_name}."
+    if not source_labels:
+        return Advisory(
+            id="instance-ingestion-degraded",
+            severity="warning",
+            summary=f"Ingestion on {row.instance_name} is not running.",
+            detail="Its health report says ingestion is degraded, so no new requests from it reach the database.",
+            remedy=remedy,
+        )
+    named_labels = ", ".join(source_labels[:UNAVAILABLE_SOURCES_NAMED])
+    hidden_count = len(source_labels) - UNAVAILABLE_SOURCES_NAMED
+    if hidden_count > 0:
+        named_labels = f"{named_labels} and {hidden_count} more"
+    return Advisory(
+        id="instance-ingestion-degraded",
+        severity="warning",
+        summary=f"{row.instance_name} cannot read {named_labels}.",
+        detail="Requests from these sources stop reaching the database until the agent can read them again.",
+        remedy=remedy,
     )
 
 
@@ -214,8 +272,9 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
     payload = decode_payload(row.payload)
 
     if is_self:
-        forwarded_problems = _forwarded_problems(payload)
-        return _evaluation(row, payload, is_self=True, checking_in=True, problems=forwarded_problems)
+        self_problems = [_name_conflict(row)] if _has_name_conflict(payload, now) else []
+        self_problems += _forwarded_problems(payload)
+        return _evaluation(row, payload, is_self=True, checking_in=True, problems=self_problems)
 
     if now - row.last_seen > NOT_CHECKING_IN_AFTER:
         return _evaluation(
@@ -227,9 +286,8 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
 
     if row.schema_revision != head.schema_revision:
         critical.append(_schema_mismatch(row, head))
-    if payload is not None and payload.name_conflict_at is not None:
-        if _within(now, payload.name_conflict_at, NAME_CONFLICT_SHOWN_FOR):
-            critical.append(_name_conflict(row))
+    if _has_name_conflict(payload, now):
+        critical.append(_name_conflict(row))
 
     if row.schema_revision == head.schema_revision and row.app_version != head.app_version:
         warning.append(_version_mismatch(row, head))
@@ -241,6 +299,9 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
         )
         if recent_start_count >= RESTART_LOOP_STARTS:
             warning.append(_restart_loop(row, recent_start_count))
+        ingestion_degraded = _ingestion_degraded(row, payload)
+        if ingestion_degraded is not None:
+            warning.append(ingestion_degraded)
     if payload is None:
         warning.append(_payload_unreadable(row, head))
 
@@ -254,6 +315,14 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
         is_self=False,
         checking_in=True,
         problems=critical + forwarded_critical + warning + forwarded_warning,
+    )
+
+
+def _has_name_conflict(payload: HeartbeatPayload | None, now: datetime) -> bool:
+    return (
+        payload is not None
+        and payload.name_conflict_at is not None
+        and _within(now, payload.name_conflict_at, NAME_CONFLICT_SHOWN_FOR)
     )
 
 

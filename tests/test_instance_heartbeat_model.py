@@ -1,6 +1,9 @@
+import re
+
 from sqlalchemy.dialects import postgresql
 
 from geometrikks.domain.instances.models import INSTANCE_HEARTBEAT_COLUMNS, InstanceHeartbeat
+from geometrikks.domain.instances.repositories import _UPSERT_HEARTBEAT
 
 # (postgres type, server default) of the nine original columns, all NOT NULL.
 ORIGINAL_COLUMNS = {
@@ -36,3 +39,20 @@ def test_heartbeat_columns_are_pinned() -> None:
 
     for column_name in set(columns) - set(ORIGINAL_COLUMNS):
         assert columns[column_name].nullable is True, column_name
+
+
+def test_upsert_insert_columns_are_pinned() -> None:
+    """An older head's table may lack any column added later, so the upsert
+    names only the original columns and new data goes in the payload."""
+    insert_columns = re.search(r"INSERT INTO instance_heartbeats\s*\(([^)]*)\)", _UPSERT_HEARTBEAT.text)
+    assert insert_columns is not None
+    assert [column_name.strip() for column_name in insert_columns.group(1).split(",")] == [
+        "instance_name",
+        "boot_id",
+        "mode",
+        "app_version",
+        "schema_revision",
+        "started_at",
+        "last_seen",
+        "payload",
+    ]

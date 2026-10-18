@@ -13825,6 +13825,16 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The app runs without its database."
           }
         },
         "summary": "ListInstances",
@@ -13913,6 +13923,16 @@
               }
             },
             "description": "This is the head you are talking to."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The app runs without its database."
           }
         },
         "summary": "DeleteInstance",

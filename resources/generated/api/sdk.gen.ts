@@ -147,6 +147,7 @@ import type {
   ApiV1InstancesInstanceNameDeleteInstanceErrors,
   ApiV1InstancesInstanceNameDeleteInstanceResponses,
   ApiV1InstancesListInstancesData,
+  ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
@@ -1638,10 +1639,14 @@ export const apiV1InstancesListInstances = <
   ThrowOnError extends boolean = false,
 >(
   options?: Options<ApiV1InstancesListInstancesData, ThrowOnError>,
-): RequestResult<ApiV1InstancesListInstancesResponses, unknown, ThrowOnError> =>
+): RequestResult<
+  ApiV1InstancesListInstancesResponses,
+  ApiV1InstancesListInstancesErrors,
+  ThrowOnError
+> =>
   (options?.client ?? client).get<
     ApiV1InstancesListInstancesResponses,
-    unknown,
+    ApiV1InstancesListInstancesErrors,
     ThrowOnError
   >({
     security: [

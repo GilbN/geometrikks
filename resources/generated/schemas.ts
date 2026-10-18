@@ -144,6 +144,7 @@ import type {
   ApiV1InstancesInstanceNameDeleteInstanceErrors,
   ApiV1InstancesInstanceNameDeleteInstanceResponses,
   ApiV1InstancesListInstancesData,
+  ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
@@ -474,7 +475,7 @@ export interface OperationErrorTypes {
   'list_files': never
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
-  'list_instances': never
+  'list_instances': ApiV1InstancesListInstancesErrors
   'login': ApiV1AuthLoginLoginErrors
   'logout': never
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors

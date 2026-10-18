@@ -9,6 +9,7 @@ import pytest
 
 from geometrikks.domain.instances.evaluation import (
     NOT_CHECKING_IN_AFTER,
+    SKEW_ALLOWANCE,
     HeadIdentity,
     HeartbeatRow,
     evaluate_instance,
@@ -138,7 +139,7 @@ def test_self_never_goes_stale() -> None:
     assert evaluation.status == "ok"
 
 
-def test_self_reports_only_forwarded_advisories() -> None:
+def test_self_reports_a_name_conflict_and_forwarded_advisories_only() -> None:
     row = make_row(
         name="head",
         boot_id=HEAD_BOOT_ID,
@@ -147,10 +148,37 @@ def test_self_reports_only_forwarded_advisories() -> None:
             "instanceNameSource": "fallback",
             "nameConflictAt": (NOW - timedelta(minutes=1)).isoformat(),
             "recentStarts": [(NOW - timedelta(minutes=n)).isoformat() for n in (1, 2, 3)],
-            "health": {"advisories": [{"id": "ingestion-stopped", "severity": "critical", "summary": "x"}]},
+            "health": {
+                "advisories": [{"id": "ingestion-stopped", "severity": "critical", "summary": "x"}],
+                "ingestion": {"status": "degraded", "unavailableSources": [{"label": "/logs/a.log"}]},
+            },
         },
     )
-    assert problem_ids(row) == ["ingestion-stopped"]
+    assert problem_ids(row) == ["instance-name-conflict", "ingestion-stopped"]
+
+
+def test_self_name_conflict_makes_the_head_critical() -> None:
+    row = make_row(
+        name="head",
+        boot_id=HEAD_BOOT_ID,
+        mode="full",
+        payload={"instanceNameSource": "env", "nameConflictAt": (NOW - timedelta(minutes=1)).isoformat()},
+    )
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    assert [problem.summary for problem in evaluation.problems] == [
+        "More than one process is using the name head."
+    ]
+    assert evaluation.status == "critical"
+
+
+def test_self_name_conflict_older_than_five_minutes_is_ignored() -> None:
+    row = make_row(
+        name="head",
+        boot_id=HEAD_BOOT_ID,
+        mode="full",
+        payload={"instanceNameSource": "env", "nameConflictAt": (NOW - timedelta(minutes=6)).isoformat()},
+    )
+    assert problem_ids(row) == []
 
 
 def test_schema_behind_when_revision_is_known() -> None:
@@ -170,7 +198,7 @@ def test_schema_ahead_when_revision_is_unknown() -> None:
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
     assert problem.id == "instance-schema-ahead"
     assert problem.severity == "critical"
-    assert problem.summary == "The head does not recognise the migration ffffff of edge-traefik."
+    assert problem.summary == "The head does not recognize the migration ffffff of edge-traefik."
     assert "v0.21.0 on migration ffffff" in (problem.detail or "")
     assert problem.remedy == "Upgrade the head, or check which version edge-traefik runs."
 
@@ -225,6 +253,7 @@ def test_name_not_set_on_agent_with_fallback_name() -> None:
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
     assert problem.id == "instance-name-not-set"
     assert problem.severity == "warning"
+    assert problem.summary == 'This agent runs under the default name "agent".'
     assert "APP_INSTANCE_NAME" in (problem.remedy or "")
 
 
@@ -376,15 +405,134 @@ def test_unknown_agent_version_is_not_prefixed_with_v() -> None:
     assert "vunknown" not in (problem.detail or "")
 
 
-def test_future_name_conflict_is_ignored() -> None:
-    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": (NOW + timedelta(days=1)).isoformat()})
+def test_name_conflict_from_a_clock_slightly_ahead_still_shows() -> None:
+    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": (NOW + timedelta(minutes=4)).isoformat()})
+    assert problem_ids(row) == ["instance-name-conflict"]
+
+
+def test_name_conflict_at_the_skew_allowance_still_shows() -> None:
+    row = make_row(
+        payload={"instanceNameSource": "env", "nameConflictAt": (NOW + SKEW_ALLOWANCE).isoformat()}
+    )
+    assert problem_ids(row) == ["instance-name-conflict"]
+
+
+def test_name_conflict_beyond_the_skew_allowance_is_ignored() -> None:
+    conflict_at = NOW + SKEW_ALLOWANCE + timedelta(seconds=1)
+    row = make_row(payload={"instanceNameSource": "env", "nameConflictAt": conflict_at.isoformat()})
     assert problem_ids(row) == []
 
 
-def test_future_starts_do_not_count_toward_a_restart_loop() -> None:
+def test_starts_from_a_clock_slightly_ahead_count_toward_a_restart_loop() -> None:
+    starts = [(NOW + timedelta(minutes=minutes)).isoformat() for minutes in (-20, 3, 6)]
+    row = make_row(payload={"instanceNameSource": "env", "recentStarts": starts})
+    assert problem_ids(row) == ["instance-restart-loop"]
+
+
+def test_starts_beyond_the_skew_allowance_do_not_count_toward_a_restart_loop() -> None:
     starts = [(NOW - timedelta(minutes=5)).isoformat()] + [(NOW + timedelta(hours=n)).isoformat() for n in (1, 2)]
     row = make_row(payload={"instanceNameSource": "env", "recentStarts": starts})
     assert problem_ids(row) == []
+
+
+def ingestion_payload(ingestion: dict[str, Any], **payload_fields: Any) -> dict[str, Any]:
+    return {"instanceNameSource": "env", "health": {"ingestion": ingestion}, **payload_fields}
+
+
+def test_unavailable_source_is_an_ingestion_warning() -> None:
+    row = make_row(
+        payload=ingestion_payload(
+            {"status": "running", "unavailableSources": [{"kind": "file", "label": "/logs/access.log"}]}
+        )
+    )
+    evaluation = evaluate_instance(row, HEAD, NOW)
+    problem = evaluation.problems[0]
+    assert problem.id == "instance-ingestion-degraded"
+    assert problem.severity == "warning"
+    assert problem.summary == "edge-traefik cannot read /logs/access.log."
+    assert problem.remedy == "Check the log paths or Loki settings on edge-traefik."
+    assert evaluation.status == "warning"
+
+
+def test_ingestion_warning_prefers_the_payload_source_labels() -> None:
+    row = make_row(
+        payload=ingestion_payload(
+            {"status": "running", "unavailableSources": [{"kind": "loki", "label": "loki:1"}]},
+            sources=[
+                {"kind": "loki", "label": '{job="traefik"}', "available": False},
+                {"kind": "file", "label": "/logs/ok.log", "available": True},
+            ],
+        )
+    )
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.summary == 'edge-traefik cannot read {job="traefik"}.'
+
+
+def test_ingestion_warning_names_three_sources_and_counts_the_rest() -> None:
+    labels = [f"/logs/{index}.log" for index in range(5)]
+    row = make_row(
+        payload=ingestion_payload(
+            {"status": "running", "unavailableSources": [{"label": label} for label in labels]}
+        )
+    )
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.summary == "edge-traefik cannot read /logs/0.log, /logs/1.log, /logs/2.log and 2 more."
+
+
+def test_degraded_ingestion_without_sources_is_a_warning() -> None:
+    row = make_row(payload=ingestion_payload({"status": "degraded", "unavailableSources": []}))
+    problem = evaluate_instance(row, HEAD, NOW).problems[0]
+    assert problem.id == "instance-ingestion-degraded"
+    assert problem.summary == "Ingestion on edge-traefik is not running."
+
+
+def test_disabled_ingestion_is_not_a_problem() -> None:
+    row = make_row(
+        payload=ingestion_payload({"status": "disabled", "unavailableSources": [{"label": "/logs/a.log"}]})
+    )
+    assert problem_ids(row) == []
+
+
+def test_running_ingestion_is_not_a_problem() -> None:
+    row = make_row(payload=ingestion_payload({"status": "running", "unavailableSources": []}))
+    assert problem_ids(row) == []
+
+
+def test_ingestion_warning_sits_after_the_other_computed_warnings() -> None:
+    row = make_row(
+        name="agent",
+        app_version="0.19.9",
+        payload=ingestion_payload(
+            {"status": "degraded"},
+            instanceNameSource="fallback",
+            recentStarts=[(NOW - timedelta(minutes=n)).isoformat() for n in (1, 2, 3)],
+        ),
+    )
+    assert problem_ids(row) == [
+        "instance-version-mismatch",
+        "instance-name-not-set",
+        "instance-restart-loop",
+        "instance-ingestion-degraded",
+    ]
+
+
+def test_forwarded_advisory_with_the_ingestion_id_loses_to_the_computed_one() -> None:
+    payload = ingestion_payload({"status": "degraded"})
+    payload["health"]["advisories"] = [
+        {"id": "instance-ingestion-degraded", "severity": "critical", "summary": "forged"}
+    ]
+    evaluation = evaluate_instance(make_row(payload=payload), HEAD, NOW)
+    assert [(problem.id, problem.severity) for problem in evaluation.problems] == [
+        ("instance-ingestion-degraded", "warning")
+    ]
+
+
+def test_stale_agent_reports_only_not_checking_in_despite_degraded_ingestion() -> None:
+    row = make_row(
+        last_seen=NOW - NOT_CHECKING_IN_AFTER - timedelta(seconds=1),
+        payload=ingestion_payload({"status": "degraded"}),
+    )
+    assert problem_ids(row) == ["instance-not-checking-in"]
 
 
 def test_name_conflict_exactly_five_minutes_old_still_shows() -> None:
