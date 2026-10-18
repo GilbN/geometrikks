@@ -38,9 +38,12 @@ in `resources/lib/theme.ts`, and the startup script repeats it.
 
 Aurora is the baseline. `light.css` holds its light palette under
 `:root, .light, .dark`, and `aurora.css` holds its dark palette under `.dark`. Every
-other theme overrides only the tokens it changes. `light.css` also provides the shared
-token contract, and the palette test checks each override against it, so a new
-component role needs a default there.
+other theme overrides only the tokens it changes. A token a theme omits takes the
+`light.css` value in light mode and Aurora's `.dark` value in dark mode. Every theme
+must set its own brand values (`--brand-l`, `--brand-c`, `--brand-h`) or `--primary`,
+because the browser tests require each theme to have a distinct `--primary`.
+`light.css` also provides the shared token contract, and the palette test checks each
+override against it, so a new component role needs a default there.
 
 ### Selector rules
 
@@ -52,7 +55,8 @@ with `.dark`, so a descendant selector would match it and paint the dark palette
 the light preview. Compound selectors only match the element's own classes. The
 `:root, .light, .dark` baseline resets every token on the preview element first, so
 each preview shows its own values, derived tokens like `--glass-card` included.
-`theme-palettes.test.ts` rejects descendant selectors.
+`theme-palettes.test.ts` fails on the `.dark [data-theme` form only, so check other
+descendant forms in review.
 
 The same applies to Tailwind. A `dark:` variant matches any `.dark` ancestor, so it
 fires inside a light preview on a dark page. Preview markup uses token classes only
@@ -77,7 +81,7 @@ Components consume these roles without checking theme IDs. Charts keep their
 categorical palette (`--chart-1` to `--chart-5`) and the live map routes keep their
 status colors in every theme.
 
-Preserve functional selection cues in every palette: navigation accent bars and
+Preserve functional selection cues in every palette: navigation indicator bars and
 selected option fills stay visible. `--theme-decoration-display` is reserved for
 background artwork, never for controls, selection markers, or status indicators.
 
@@ -101,10 +105,12 @@ SMOKE_BASE_URL=http://ripley.lan:8888 npx playwright test --project=themes
 bun run build
 ```
 
-The browser checks cover every scheme of every theme at desktop and phone widths,
-including control contrast, first paint, legacy accent migration, previews inside
-pages of the other scheme, and live System switching. They save drawer screenshots
-under `smoke-artifacts/test-results`. The preview needs the Vite development
+The first-paint and control-contrast tests loop over every scheme of every registered
+theme, the latter at desktop and phone widths. The rest cover one case each: a saved
+legacy accent, a light Moss preview inside a dark Black page, a dark Forge preview
+inside a light Aurora page, and live System switching with Black. The gallery probes
+for the nested previews are fixed to Moss and Forge in `resources/dev/themes.tsx`.
+The tests save drawer screenshots under `smoke-artifacts/test-results`. The preview needs the Vite development
 server; the unit tests and production build do not.
 Playwright runs under Node via `npx`, matching CI. Its `themes` project contains
 the development preview tests; the production `test:smoke` script selects only
