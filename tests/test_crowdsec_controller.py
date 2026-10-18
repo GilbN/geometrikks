@@ -564,7 +564,7 @@ async def test_alerts_returns_flattened_views(monkeypatch):
     assert alert["decisionCount"] == 1
     assert service.alert_calls == [
         {
-            "limit": 25, "created_before": None, "ip": None, "scenario": None, "since": "24h",
+            "limit": 25, "created_before": None, "scenario": None, "since": "24h",
             "kind": None, "has_active_decision": None,
         }
     ]

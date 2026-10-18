@@ -527,6 +527,16 @@ async def test_get_alerts_can_ask_for_alerts_with_a_live_decision_only():
     await service.aclose()
 
 
+async def test_get_alerts_can_match_the_alert_source():
+    lapi = LapiAlertsFake()
+    service = make_service(lapi, **write_settings())
+    await service.get_alerts(scope="Ip", value="1.2.3.4")
+    assert lapi.alert_params["scope"] == "Ip"
+    assert lapi.alert_params["value"] == "1.2.3.4"
+    assert "ip" not in lapi.alert_params
+    await service.aclose()
+
+
 async def test_alert_meta_entries_without_a_value_or_key_do_not_break_parsing():
     """CrowdSec marshals both meta fields with omitempty, so an empty user
     agent arrives as ``{"key": "http_user_agent"}``."""

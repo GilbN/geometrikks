@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -99,6 +100,19 @@ class SimulatedLapi(CrowdSecService):
         )
         if kind is not None:
             matching = [alert for alert in matching if alert.kind == kind]
+        ip = filters.get("ip")
+        if ip is not None:
+            # ip= matches the alert's decisions, never its own source.
+            matching = [
+                alert
+                for alert in matching
+                if any(decision_covers(decision, ip) for decision in alert.decisions)
+            ]
+        scope, value = filters.get("scope"), filters.get("value")
+        if scope is not None:
+            matching = [alert for alert in matching if alert.source.scope == scope]
+        if value is not None:
+            matching = [alert for alert in matching if alert.source.value == value]
         scenario = filters.get("scenario")
         if scenario is not None:
             # The LAPI matches the alert's scenario or any of its decisions'.
@@ -115,6 +129,14 @@ class SimulatedLapi(CrowdSecService):
             matching = [alert for alert in matching if alert_created_at(alert) <= boundary]
         limit = filters.get("limit")
         return [whole_second(alert) for alert in (matching[:limit] if limit else matching)]
+
+
+def decision_covers(decision: Decision, ip: str) -> bool:
+    if decision.scope == "Ip":
+        return decision.value == ip
+    if decision.scope == "Range":
+        return ipaddress.ip_address(ip) in ipaddress.ip_network(decision.value, strict=False)
+    return False
 
 
 async def test_first_page_is_newest_first_with_a_cursor_when_full():
@@ -480,11 +502,75 @@ async def test_filters_reach_the_lapi():
         has_active_decision=True,
     )
     await fetch_alert_page(lapi, filters, limit=50, before=None, now=NOW)
-    (call,) = lapi.calls
-    assert call == {
-        "limit": 50, "created_before": None, "ip": "1.2.3.4", "scenario": "crowdsecurity/ssh-bf",
+    shared = {
+        "limit": 50, "created_before": None, "scenario": "crowdsecurity/ssh-bf",
         "since": "24h", "kind": "crowdsec", "has_active_decision": True,
     }
+    assert sorted(lapi.calls, key=lambda call: "ip" in call) == [
+        {**shared, "scope": "Ip", "value": "1.2.3.4"},
+        {**shared, "ip": "1.2.3.4"},
+    ]
+
+
+async def test_filters_without_an_ip_send_one_query():
+    lapi = SimulatedLapi([make_alert(1, T0)])
+    await fetch_alert_page(lapi, AlertFilters(since="24h"), limit=50, before=None, now=NOW)
+    (call,) = lapi.calls
+    assert "ip" not in call
+    assert "value" not in call
+
+
+def ip_decision(id: int, value: str, scope: str = "Ip") -> Decision:
+    return Decision(
+        id=id, origin="crowdsec", type="ban", scope=scope, value=value, duration="3h59m",
+        scenario="crowdsecurity/http-probing",
+    )
+
+
+async def test_ip_filter_returns_alerts_from_the_source_and_alerts_deciding_on_it():
+    alerts = [
+        make_alert(1, T0, kind="waf", value="5.6.7.8", scenario="crowdsecurity/vpatch-env-access"),
+        make_alert(2, T0 + timedelta(seconds=10), value="5.6.7.8", decisions=[ip_decision(2, "5.6.7.8")]),
+        make_alert(3, T0 + timedelta(seconds=20), value="9.9.9.9"),
+        # Raised against another source, with a range decision covering the IP.
+        make_alert(
+            4, T0 + timedelta(seconds=30), value="5.6.0.1",
+            decisions=[ip_decision(4, "5.6.0.0/16", "Range")],
+        ),
+        make_alert(5, T0 + timedelta(seconds=40), kind="waf", value="9.9.9.9"),
+    ]
+    lapi = SimulatedLapi(alerts)
+    page = await fetch_alert_page(lapi, AlertFilters(ip="5.6.7.8"), limit=50, before=None, now=NOW)
+    assert [alert.id for alert in page.alerts] == [4, 2, 1]
+    assert page.next_cursor is None
+
+
+async def test_ip_filter_matches_the_source_in_canonical_form():
+    lapi = SimulatedLapi([make_alert(1, T0, kind="waf", value="2001:db8::1")])
+    page = await fetch_alert_page(
+        lapi, AlertFilters(ip="2001:DB8:0::1"), limit=50, before=None, now=NOW
+    )
+    assert [alert.id for alert in page.alerts] == [1]
+
+
+async def test_ip_filter_walks_every_page_once():
+    # Pairs of alerts share a second. Every third alert is a decision-less
+    # WAF hit from the IP, every third a ban on it, the rest another source.
+    alerts: list[Alert] = []
+    for id in range(1, 301):
+        created_at = NOW - timedelta(hours=5) + timedelta(seconds=(id // 2) * 45)
+        if id % 3 == 0:
+            alerts.append(make_alert(id, created_at, kind="waf", value="5.6.7.8"))
+        elif id % 3 == 1:
+            ban = ip_decision(id, "5.6.7.8")
+            alerts.append(make_alert(id, created_at, value="5.6.7.8", decisions=[ban]))
+        else:
+            alerts.append(make_alert(id, created_at, value="9.9.9.9"))
+    matching = [alert for alert in alerts if alert.source.value == "5.6.7.8"]
+    lapi = SimulatedLapi(alerts)
+    walked = await walk_pages(lapi, filters=AlertFilters(ip="5.6.7.8"))
+    assert walked == newest_first(matching)
+    assert len(walked) == len(set(walked)) == 200
 
 
 REJECTED_SUBMISSION = "crowdsecurity/rejected-browser-submission"
@@ -521,14 +607,42 @@ async def test_bot_group_queries_the_rejection_kind_and_both_ban_scenarios():
     await fetch_alert_page(lapi, filters, limit=50, before=cursor, now=NOW)
     age_with_margin = int((NOW - T0 - alert_history.CURSOR_MARGIN).total_seconds())
     shared = {
-        "limit": 50, "created_before": f"{age_with_margin}s", "ip": "1.2.3.4", "since": "24h",
+        "limit": 50, "created_before": f"{age_with_margin}s", "since": "24h",
         "has_active_decision": None,
     }
-    assert sorted(lapi.calls, key=lambda call: (call["kind"] or "", call["scenario"] or "")) == [
-        {**shared, "scenario": TOO_MANY_REQUESTS, "kind": None},
-        {**shared, "scenario": TOO_MANY_SUBMISSIONS, "kind": None},
-        {**shared, "scenario": None, "kind": "bot-detection"},
+    by_ip = {"ip": "1.2.3.4"}
+    by_source = {"scope": "Ip", "value": "1.2.3.4"}
+    assert sorted(
+        lapi.calls, key=lambda call: (call["kind"] or "", call["scenario"] or "", "ip" in call)
+    ) == [
+        {**shared, "scenario": TOO_MANY_REQUESTS, "kind": None, **by_source},
+        {**shared, "scenario": TOO_MANY_REQUESTS, "kind": None, **by_ip},
+        {**shared, "scenario": TOO_MANY_SUBMISSIONS, "kind": None, **by_source},
+        {**shared, "scenario": TOO_MANY_SUBMISSIONS, "kind": None, **by_ip},
+        {**shared, "scenario": None, "kind": "bot-detection", **by_source},
+        {**shared, "scenario": None, "kind": "bot-detection", **by_ip},
     ]
+
+
+async def test_bot_group_with_an_ip_merges_six_sources():
+    # The rejections carry no decision, so only the source match finds them;
+    # the bans come back from both queries of their scenario.
+    alerts = [
+        bot_rejection(1, T0),
+        bot_ban(2, T0 + timedelta(seconds=10), TOO_MANY_SUBMISSIONS),
+        bot_rejection(3, T0 + timedelta(seconds=20)),
+        bot_ban(4, T0 + timedelta(seconds=30), TOO_MANY_REQUESTS),
+        make_alert(5, T0 + timedelta(seconds=40), decisions=[ip_decision(5, "1.2.3.4")]),
+        bot_rejection(6, T0 + timedelta(seconds=50)),
+    ]
+    other_source = AlertSource(scope="Ip", value="9.9.9.9", ip="9.9.9.9")
+    alerts.append(replace(bot_rejection(7, T0 + timedelta(seconds=60)), source=other_source))
+    lapi = SimulatedLapi(alerts)
+    filters = AlertFilters(ip="1.2.3.4", kind=BOT_KIND_GROUP)
+    page = await fetch_alert_page(lapi, filters, limit=50, before=None, now=NOW)
+    assert len(lapi.calls) == 6
+    assert [alert.id for alert in page.alerts] == [6, 4, 3, 2, 1]
+    assert page.next_cursor is None
 
 
 async def test_bot_group_merges_newest_first_and_drops_duplicates():
