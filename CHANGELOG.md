@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The README's Traefik setup has a Pangolin section. It covers the fields to keep in Pangolin's access log and how to get the visitor's address in the log.
 - Security > Alert history can be filtered by IP and by up to five scenarios. The Scenario dropdown lists the scenarios of the newest 500 alerts in the window with their counts, and the alert sheet has a "Show only this scenario" button. Back-to-back alerts of the same kind from one IP collapse into one row that expands. On phones the filters sit in a Filters drawer.
 
 ### Changed
