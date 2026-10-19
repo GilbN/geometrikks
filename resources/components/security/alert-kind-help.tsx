@@ -21,8 +21,8 @@ export function AlertKindHelp() {
           match is its own alert, and many never ban.
         </p>
         <p>
-          <strong>Bot detection.</strong> The AppSec bot challenge. A rejected browser submission is logged as an
-          alert and never bans. Repeated failures raise a bot ban.
+          <strong>Bot detection.</strong> The AppSec bot challenge. CrowdSec logs each rejected browser submission as
+          an alert that never bans. Repeated failures raise a bot ban.
         </p>
         <p className="text-muted-foreground">{KIND_FILTER_NEEDS_NOTE}</p>
       </PopoverContent>

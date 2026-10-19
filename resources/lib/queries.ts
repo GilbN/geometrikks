@@ -443,7 +443,7 @@ export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: s
     enabled: status?.writeEnabled === true,
     // A refetch reloads every loaded page in turn, one LAPI request each, so
     // a deep view stops refreshing. Nothing else invalidates this key on new
-    // alerts: the footer says updates pause and offers useTrimCrowdsecAlerts.
+    // alerts, so the footer says updates pause and offers useTrimCrowdsecAlerts.
     refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
     refetchOnWindowFocus: (query) => (query.state.data?.pages.length ?? 0) <= 1,
     placeholderData: keepPreviousData,

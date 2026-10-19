@@ -66,8 +66,8 @@ const FIELD_LABEL = "text-[10px] font-medium uppercase leading-4 tracking-[0.06e
  * `hideLabel` is for controls that already name themselves, like a select
  * trigger, where a label would just repeat the button text; the label is
  * still the control's accessible name. `group` is for fields holding several
- * controls, like a radio list or a checklist: a `<label>` would forward a tap
- * on the caption to the first control, so it renders a labelled group instead.
+ * controls, like a radio list or a checklist. A `<label>` would forward a tap
+ * on the caption to the first control, so these render a labelled group.
  */
 export function FilterField({
   label,

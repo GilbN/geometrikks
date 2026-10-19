@@ -381,9 +381,8 @@ function alertKey(alert: AlertView): string {
   return alert.id !== null ? String(alert.id) : `${alert.createdAt}:${alert.value}`
 }
 
-/** Expansion goes by the alerts a run holds, not by the run itself: a
- *  refresh can add an alert on top or drop the oldest, and either changes
- *  the run. */
+/** Expansion follows the alerts a run holds, not the run itself. A refresh
+ *  can add an alert on top or drop the oldest, and either changes the run. */
 export function isRunOpen(alertRun: AlertRun, expandedAlertKeys: ReadonlySet<string>): boolean {
   return alertRun.alerts.some((alert) => expandedAlertKeys.has(alertKey(alert)))
 }

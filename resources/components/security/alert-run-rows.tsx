@@ -29,7 +29,7 @@ type Props = {
 type AlertRowProps = {
   alert: AlertView
   onOpenAlert: (alert: AlertView) => void
-  /** Replaces opening the alert: the summary row of a run toggles it instead. */
+  /** Makes the row toggle its run instead of opening the alert. */
   summary?: { open: boolean; label: string; onToggle: () => void }
   timeLead?: ReactNode
   scenarioLabel?: string | null

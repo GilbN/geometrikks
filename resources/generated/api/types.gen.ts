@@ -2793,7 +2793,7 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
     limit?: number;
     ip?: string | null;
     /**
-     * Filter to these scenarios (repeatable, at most 5)
+     * Filter to these scenarios. Repeat the parameter for several, at most 5.
      */
     scenario?: Array<string> | null;
     /**

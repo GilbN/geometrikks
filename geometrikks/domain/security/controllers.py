@@ -570,7 +570,7 @@ class CrowdSecController(Controller):
             QueryParameter(
                 name="scenario",
                 required=False,
-                description=f"Filter to these scenarios (repeatable, at most {MAX_ALERT_SCENARIOS})",
+                description=f"Filter to these scenarios. Repeat the parameter for several, at most {MAX_ALERT_SCENARIOS}.",
             ),
         ] = None,
         since: Annotated[
@@ -599,7 +599,7 @@ class CrowdSecController(Controller):
             ),
         ] = None,
     ) -> AlertPageView:
-        """One page of alert history from the LAPI (machine credentials required).
+        """One page of alert history from the LAPI. Needs machine credentials.
 
         Newest first. ``nextCursor`` is set while older alerts may remain;
         passing it back as ``before`` returns the next page. A malformed
@@ -661,8 +661,8 @@ class CrowdSecController(Controller):
             str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
         ] = None,
     ) -> list[ScenarioCount]:
-        """Scenarios among the newest 500 alerts in the window, most frequent first
-        (machine credentials required)."""
+        """Scenarios among the newest 500 alerts in the window, most frequent first.
+        Needs machine credentials."""
         service = _require_write(crowdsec, settings)
         if since is not None:
             _validate_duration(since)

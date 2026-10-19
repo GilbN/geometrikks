@@ -15,13 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Security > Alert history shows the alert kinds as tabs with an explanation of each, and "Detections" is now "Log scenarios". An empty WAF or Bot detection view says what that kind needs.
-- Security > Alert history lists the bans the bot challenge raises under Bot detection, marked "Bot ban", next to rejected submissions, now marked "Bot rejected".
+- Security > Alert history shows the bans the bot challenge raises under Bot detection, marked "Bot ban". Rejected submissions are now marked "Bot rejected".
 - Security > Alert history has an Outcome column that says what each alert did, such as "Ban, active" or "Alert only". The Banned badge next to the IP shows the IP's current state.
 - Security > Alert history says which settings it needs when CrowdSec machine credentials are missing. Before, the Security page left the card out.
 
 ### Fixed
 
-- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. While older alerts are loaded the list stops refreshing, and "Back to newest" returns to the latest alerts and turns refreshing back on.
+- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. The list stops refreshing while older alerts are loaded, and "Back to newest" returns to the latest alerts and turns refreshing back on.
 
 ## [0.21.0] - 2026-10-18
 

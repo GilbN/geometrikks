@@ -220,7 +220,7 @@ async def _fetch_sources(
     conflict_detail: str,
 ) -> list[SourcePage]:
     """Alerts older than ``before`` from each LAPI query, and whether each
-    LAPI answer was full (so more may follow)."""
+    LAPI answer was full, meaning more may follow."""
     if before is None:
         answers = await _first_answers(service, source_filters, limit=limit, created_before=None)
         return [(alerts, len(alerts) == limit) for alerts in answers]
@@ -267,7 +267,7 @@ async def _fetch_sources(
     exact_cutoff = _created_before(before, now, EXACT_AGE_SLACK)
     if exact_cutoff is None or exact_cutoff == margin_cutoff:
         raise _flood_conflict(exhausted[0], conflict_detail)
-    # Sources that did not run out ask too, with a page-sized limit: the
+    # Sources that did not run out ask too, with a page-sized limit. The
     # cursor alert may sit in one of them, and only it can prove the cutoff.
     answers = await asyncio.gather(
         *(

@@ -9740,12 +9740,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Filter to these scenarios (repeatable, at most 5)",
+            "description": "Filter to these scenarios. Repeat the parameter for several, at most 5.",
             "in": "query",
             "name": "scenario",
             "required": false,
             "schema": {
-              "description": "Filter to these scenarios (repeatable, at most 5)",
+              "description": "Filter to these scenarios. Repeat the parameter for several, at most 5.",
               "oneOf": [
                 {
                   "items": {
