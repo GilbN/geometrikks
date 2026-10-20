@@ -701,6 +701,12 @@
           "decisionCount": {
             "type": "integer"
           },
+          "decisionTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "decisions": {
             "items": {
               "$ref": "#/components/schemas/AlertDecisionView"
@@ -801,6 +807,7 @@
           "countryName",
           "createdAt",
           "decisionCount",
+          "decisionTypes",
           "decisions",
           "events",
           "eventsCount",
@@ -836,6 +843,32 @@
           "timestamp"
         ],
         "title": "AlertEventView",
+        "type": "object"
+      },
+      "AlertPageView": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AlertView"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "alerts",
+          "nextCursor"
+        ],
+        "title": "AlertPageView",
         "type": "object"
       },
       "AlertView": {
@@ -878,6 +911,12 @@
           },
           "decisionCount": {
             "type": "integer"
+          },
+          "decisionTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "eventsCount": {
             "type": "integer"
@@ -932,6 +971,7 @@
           "countryName",
           "createdAt",
           "decisionCount",
+          "decisionTypes",
           "eventsCount",
           "id",
           "kind",
@@ -9700,13 +9740,18 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Filter to these scenarios. Repeat the parameter for several, at most 5.",
             "in": "query",
             "name": "scenario",
             "required": false,
             "schema": {
+              "description": "Filter to these scenarios. Repeat the parameter for several, at most 5.",
               "oneOf": [
                 {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 {
                   "type": "null"
@@ -9738,12 +9783,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces",
             "in": "query",
             "name": "kind",
             "required": false,
             "schema": {
-              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
+              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces",
               "oneOf": [
                 {
                   "type": "string"
@@ -9773,6 +9818,139 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Cursor from nextCursor; returns alerts older than it",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "description": "Cursor from nextCursor; returns alerts older than it",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertPageView"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "More alerts share the cursor's second than one LAPI request can page past. Narrow the filters."
+          }
+        },
+        "summary": "ListAlerts",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/alerts/scenarios": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecAlertsScenariosListAlertScenarios",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Go duration lookback, e.g. 24h",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "description": "Go duration lookback, e.g. 24h",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "description": "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces",
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -9781,7 +9959,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/AlertView"
+                    "$ref": "#/components/schemas/ScenarioCount"
                   },
                   "type": "array"
                 }
@@ -9829,7 +10007,7 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
-        "summary": "ListAlerts",
+        "summary": "ListAlertScenarios",
         "tags": [
           "CrowdSec"
         ]

@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest"
+import type { AlertView } from "@/generated/api/types.gen"
 import {
+  ALERT_KIND_OPTIONS,
+  ALERT_MAX_PAGES,
+  ALERT_PAGE_SIZE,
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,
+  MAX_ALERT_SCENARIOS,
+  activeAlertFilters,
+  alertBadge,
   alertDescription,
+  alertOutcome,
+  alertsEmptyMessage,
+  alertHistoryFooter,
   alertSummary,
   asLabel,
   challengeContext,
@@ -10,11 +20,20 @@ import {
   decisionHasAlert,
   eventExtras,
   formatGoDuration,
+  groupConsecutiveAlerts,
+  isRunOpen,
   hasHttpEvents,
   isChallengeEvent,
   kindBadgeClass,
   kindLabel,
+  onlyScenario,
   parseScoreReasons,
+  pickScenarios,
+  runScenarioLabel,
+  scenarioFilterAllowed,
+  scenarioOptionLabel,
+  scenarioOptions,
+  toggleRun,
   shortFingerprint,
   signalNote,
 } from "./crowdsec-alerts"
@@ -152,7 +171,7 @@ const CHALLENGE_META = {
 
 describe("kindLabel", () => {
   it("names the kinds the engine stamps", () => {
-    expect(kindLabel("bot-detection")).toBe("Bot detection")
+    expect(kindLabel("bot-detection")).toBe("Bot rejected")
     expect(kindLabel("waf")).toBe("WAF")
     expect(kindLabel("capi")).toBe("Blocklist")
     expect(kindLabel("papi")).toBe("Console")
@@ -166,6 +185,25 @@ describe("kindLabel", () => {
 
   it("passes an unknown kind through", () => {
     expect(kindLabel("future-kind")).toBe("future-kind")
+  })
+})
+
+describe("alertBadge", () => {
+  it("marks a bot-detection alert as a rejection", () => {
+    expect(alertBadge("bot-detection", "crowdsecurity/rejected-browser-submission")?.label).toBe("Bot rejected")
+  })
+
+  it("marks a ban from any bot challenge scenario as a bot ban", () => {
+    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-too-many-requests")?.label).toBe("Bot ban")
+    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-something-new")?.label).toBe("Bot ban")
+  })
+
+  it("falls back to the kind badge", () => {
+    expect(alertBadge("waf", "crowdsecurity/vpatch-CVE-2024-1")?.label).toBe("WAF")
+  })
+
+  it("shows nothing for a log-scenario alert", () => {
+    expect(alertBadge("crowdsec", "crowdsecurity/http-probing")).toBeNull()
   })
 })
 
@@ -315,5 +353,379 @@ describe("kindBadgeClass", () => {
   it("leaves the other kinds on the default badge", () => {
     expect(kindBadgeClass("capi")).toBe("")
     expect(kindBadgeClass("future-kind")).toBe("")
+  })
+})
+
+describe("alertHistoryFooter", () => {
+  const capRows = ALERT_MAX_PAGES * ALERT_PAGE_SIZE
+  const pause = "Updates pause while older alerts are loaded."
+  const base = { hasNextPage: true, isPlaceholderData: false, kind: "all" as const }
+
+  it("offers Load older on the first page without pausing updates", () => {
+    expect(alertHistoryFooter({ ...base, rowCount: 50, pageCount: 1 })).toEqual({
+      text: "Showing 50 alerts",
+      showLoadOlder: true,
+      showBackToNewest: false,
+    })
+  })
+
+  it("says updates pause and offers Back to newest once older pages are loaded", () => {
+    expect(alertHistoryFooter({ ...base, rowCount: 100, pageCount: 2 })).toEqual({
+      text: `Showing 100 alerts. ${pause}`,
+      showLoadOlder: true,
+      showBackToNewest: true,
+    })
+  })
+
+  it("says so once the window has no older alerts", () => {
+    expect(alertHistoryFooter({ ...base, rowCount: 1, pageCount: 1, hasNextPage: false })).toEqual({
+      text: "Showing 1 alert. No older alerts in this window.",
+      showLoadOlder: false,
+      showBackToNewest: false,
+    })
+  })
+
+  it("keeps the pause and Back to newest after paging to the end", () => {
+    expect(alertHistoryFooter({ ...base, rowCount: 120, pageCount: 3, hasNextPage: false })).toEqual({
+      text: `Showing 120 alerts. No older alerts in this window. ${pause}`,
+      showLoadOlder: false,
+      showBackToNewest: true,
+    })
+  })
+
+  it("stops at the page cap and points at the filters", () => {
+    expect(alertHistoryFooter({ ...base, rowCount: capRows, pageCount: ALERT_MAX_PAGES })).toEqual({
+      text: `Showing ${capRows.toLocaleString()} alerts. Filter by IP or scenario to go further back. ${pause}`,
+      showLoadOlder: false,
+      showBackToNewest: true,
+    })
+    expect(capRows.toLocaleString("en-US")).toBe("1,000")
+  })
+
+  it("points only at the IP filter at the cap on the Bot tab", () => {
+    expect(alertHistoryFooter({ ...base, kind: "bot", rowCount: capRows, pageCount: ALERT_MAX_PAGES }).text).toBe(
+      `Showing ${capRows.toLocaleString()} alerts. Filter by IP to go further back. ${pause}`,
+    )
+  })
+
+  it("reports the end, not the cap, when the last page lands on the cap", () => {
+    expect(
+      alertHistoryFooter({ ...base, rowCount: capRows, pageCount: ALERT_MAX_PAGES, hasNextPage: false }).text,
+    ).toBe(`Showing ${capRows.toLocaleString()} alerts. No older alerts in this window. ${pause}`)
+  })
+
+  it("claims neither an end, a cap nor a pause while placeholder rows stand in", () => {
+    expect(
+      alertHistoryFooter({ ...base, rowCount: 100, pageCount: 2, hasNextPage: false, isPlaceholderData: true }),
+    ).toEqual({
+      text: "Showing 100 alerts",
+      showLoadOlder: false,
+      showBackToNewest: false,
+    })
+  })
+})
+
+describe("alertsEmptyMessage", () => {
+  it("names what each kind needs when its view is empty", () => {
+    expect(alertsEmptyMessage("all")).toBe("No alerts in this window.")
+    expect(alertsEmptyMessage("crowdsec")).toBe("No alerts of this kind in this window.")
+    expect(alertsEmptyMessage("waf")).toBe("No WAF alerts in this window. WAF alerts need AppSec enabled on a bouncer.")
+    expect(alertsEmptyMessage("bot")).toBe(
+      "No bot challenge alerts in this window. The bot challenge needs CrowdSec 1.8 and a bouncer that supports it.",
+    )
+  })
+
+  it("labels the kind options", () => {
+    expect(ALERT_KIND_OPTIONS.map((option) => option.label)).toEqual(["All kinds", "Log scenarios", "WAF", "Bot detection"])
+  })
+})
+
+describe("alertOutcome", () => {
+  it("says an alert without decisions only raised an alert", () => {
+    expect(alertOutcome({ decisionTypes: [], decisionCount: 0, activeDecisionCount: 0 })).toEqual({
+      text: "Alert only",
+      muted: true,
+    })
+  })
+
+  it("names a single decision's type and whether it still applies", () => {
+    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 1 })).toEqual({
+      text: "Ban, active",
+      muted: false,
+    })
+    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 0 })).toEqual({
+      text: "Ban, expired",
+      muted: true,
+    })
+    expect(alertOutcome({ decisionTypes: ["captcha"], decisionCount: 1, activeDecisionCount: 1 }).text).toBe(
+      "Captcha, active",
+    )
+  })
+
+  it("counts decisions once there is more than one", () => {
+    expect(
+      alertOutcome({ decisionTypes: ["ban", "captcha"], decisionCount: 2, activeDecisionCount: 1 }),
+    ).toEqual({ text: "2 decisions, 1 active", muted: false })
+    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 3, activeDecisionCount: 0 })).toEqual({
+      text: "3 decisions, 0 active",
+      muted: true,
+    })
+  })
+
+  it("falls back to Alert only when a decision count comes without its type", () => {
+    expect(alertOutcome({ decisionTypes: [], decisionCount: 1, activeDecisionCount: 1 })).toEqual({
+      text: "Alert only",
+      muted: true,
+    })
+  })
+})
+
+let nextAlertId = 1
+
+function makeAlert(value: string, kind: string | null, scenario = "crowdsecurity/http-probing"): AlertView {
+  const id = nextAlertId++
+  return {
+    id,
+    value,
+    kind,
+    scenario,
+    scope: "Ip",
+    createdAt: "2026-09-28T10:43:44Z",
+    message: "",
+    eventsCount: 1,
+    machineId: "localhost",
+    asName: null,
+    countryCode: null,
+    countryName: null,
+    decisionCount: 0,
+    decisionTypes: [],
+    activeDecisionCount: 0,
+  }
+}
+
+const runSizes = (alerts: AlertView[]) => groupConsecutiveAlerts(alerts).map((alertRun) => alertRun.alerts.length)
+
+describe("groupConsecutiveAlerts", () => {
+  it("merges adjacent alerts with the same source and kind across scenarios", () => {
+    const alerts = [
+      makeAlert("136.113.203.55", "waf", "crowdsecurity/vpatch-CVE-2023-1"),
+      makeAlert("136.113.203.55", "waf", "crowdsecurity/vpatch-CVE-2024-2"),
+      makeAlert("136.113.203.55", "waf", "crowdsecurity/vpatch-CVE-2023-1"),
+    ]
+    const runs = groupConsecutiveAlerts(alerts)
+    expect(runs).toHaveLength(1)
+    expect(runs[0].alerts).toEqual(alerts)
+    expect(runs[0].key).toBe(String(alerts[2].id))
+  })
+
+  it("keeps a run's key when a newer alert from the same source joins it", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const [before] = groupConsecutiveAlerts(alerts)
+    const [after] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), ...alerts])
+    expect(after.alerts).toHaveLength(3)
+    expect(after.key).toBe(before.key)
+  })
+
+  it("keys a run by time and source when its oldest alert has no id", () => {
+    const alert = { ...makeAlert("1.1.1.1", "waf"), id: null }
+    expect(groupConsecutiveAlerts([alert])[0].key).toBe(`${alert.createdAt}:1.1.1.1`)
+  })
+
+  it("keeps an interrupted run apart", () => {
+    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("2.2.2.2", "waf"), makeAlert("1.1.1.1", "waf")])).toEqual([
+      1, 1, 1,
+    ])
+  })
+
+  it("keeps different kinds apart", () => {
+    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "crowdsec")])).toEqual([1, 1])
+  })
+
+  it("treats a missing kind as its own kind", () => {
+    expect(runSizes([makeAlert("1.1.1.1", null), makeAlert("1.1.1.1", null)])).toEqual([2])
+    expect(runSizes([makeAlert("1.1.1.1", null), makeAlert("1.1.1.1", "crowdsec")])).toEqual([1, 1])
+  })
+
+  it("merges runs across page boundaries", () => {
+    const page1 = [makeAlert("2.2.2.2", "crowdsec"), makeAlert("1.1.1.1", "waf")]
+    const page2 = [makeAlert("1.1.1.1", "waf"), makeAlert("3.3.3.3", "waf")]
+    expect(runSizes(page1.concat(page2))).toEqual([1, 2, 1])
+  })
+})
+
+describe("runScenarioLabel", () => {
+  it("is null when every alert in the run has the same scenario", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    expect(runScenarioLabel({ key: "1", alerts })).toBeNull()
+  })
+
+  it("counts the distinct scenarios of a mixed run", () => {
+    const scenarios = ["a", "b", "c", "d"]
+    const alerts = Array.from({ length: 12 }, (_, index) =>
+      makeAlert("1.1.1.1", "waf", `crowdsecurity/vpatch-${scenarios[index % 4]}`),
+    )
+    expect(runScenarioLabel({ key: "1", alerts })).toBe("4 scenarios")
+  })
+})
+
+describe("isRunOpen", () => {
+  it("is closed until toggled, then open", () => {
+    const [alertRun] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")])
+    expect(isRunOpen(alertRun, new Set())).toBe(false)
+    expect(isRunOpen(alertRun, toggleRun(new Set(), alertRun))).toBe(true)
+  })
+
+  it("stays open when a newer alert joins the top of the run", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
+    const [refreshed] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), ...alerts])
+    expect(isRunOpen(refreshed, expanded)).toBe(true)
+  })
+
+  it("stays open when its oldest alert drops off the bottom", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
+    const [refreshed] = groupConsecutiveAlerts(alerts.slice(0, 2))
+    expect(isRunOpen(refreshed, expanded)).toBe(true)
+  })
+
+  it("closes when toggled again, including alerts that joined while open", () => {
+    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
+    const [refreshed] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), ...alerts])
+    const collapsed = toggleRun(expanded, refreshed)
+    expect(isRunOpen(refreshed, collapsed)).toBe(false)
+    expect(collapsed.size).toBe(0)
+  })
+
+  it("leaves other runs as they were", () => {
+    const [first, second] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), makeAlert("2.2.2.2", "waf")])
+    const expanded = toggleRun(new Set(), first)
+    expect(isRunOpen(second, expanded)).toBe(false)
+  })
+})
+
+describe("scenarioFilterAllowed", () => {
+  it("rules out a scenario filter for the bot group only", () => {
+    expect(scenarioFilterAllowed("bot")).toBe(false)
+    expect(scenarioFilterAllowed("all")).toBe(true)
+    expect(scenarioFilterAllowed("waf")).toBe(true)
+    expect(scenarioFilterAllowed("crowdsec")).toBe(true)
+  })
+})
+
+describe("scenarioOptions", () => {
+  const counts = [
+    { scenario: "crowdsecurity/http-probing", count: 41 },
+    { scenario: "crowdsecurity/ssh-bf", count: 3 },
+  ]
+
+  it("lists the counted scenarios in their order", () => {
+    expect(scenarioOptions(counts, [])).toEqual(["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"])
+  })
+
+  it("keeps picked scenarios the count missed", () => {
+    expect(scenarioOptions(counts, ["crowdsecurity/ssh-bf", "crowdsecurity/http-crawl"])).toEqual([
+      "crowdsecurity/http-probing",
+      "crowdsecurity/ssh-bf",
+      "crowdsecurity/http-crawl",
+    ])
+  })
+
+  it("offers the picked scenarios before the counts arrive", () => {
+    expect(scenarioOptions(undefined, ["crowdsecurity/ssh-bf"])).toEqual(["crowdsecurity/ssh-bf"])
+  })
+})
+
+describe("scenarioOptionLabel", () => {
+  it("shows the last path segment and the count", () => {
+    expect(scenarioOptionLabel("crowdsecurity/http-probing", 41)).toBe("http-probing · 41")
+  })
+
+  it("shows the name alone when the count is unknown", () => {
+    expect(scenarioOptionLabel("crowdsecurity/http-probing", undefined)).toBe("http-probing")
+  })
+
+  it("keeps a name without a path", () => {
+    expect(scenarioOptionLabel("manual ban", 2)).toBe("manual ban · 2")
+  })
+})
+
+describe("pickScenarios", () => {
+  const five = Array.from({ length: MAX_ALERT_SCENARIOS }, (_, index) => `crowdsecurity/scenario-${index}`)
+
+  it("takes picks up to the cap", () => {
+    expect(pickScenarios(five.slice(0, 4), five)).toEqual(five)
+  })
+
+  it("ignores a pick past the cap", () => {
+    expect(pickScenarios(five, [...five, "crowdsecurity/one-too-many"])).toBe(five)
+  })
+
+  it("always takes a removal", () => {
+    expect(pickScenarios(five, five.slice(1))).toEqual(five.slice(1))
+  })
+})
+
+describe("onlyScenario", () => {
+  it("filters to the one scenario and keeps a kind that allows it", () => {
+    expect(onlyScenario("waf", "crowdsecurity/vpatch-env-access")).toEqual({
+      kind: "waf",
+      scenarios: ["crowdsecurity/vpatch-env-access"],
+    })
+  })
+
+  it("leaves the bot group for all kinds", () => {
+    expect(onlyScenario("bot", "crowdsecurity/appsec-bot-challenge-too-many-requests")).toEqual({
+      kind: "all",
+      scenarios: ["crowdsecurity/appsec-bot-challenge-too-many-requests"],
+    })
+  })
+})
+
+describe("activeAlertFilters", () => {
+  it("lists nothing while no filter is set", () => {
+    expect(activeAlertFilters({ kind: "all", scenarios: [], ip: undefined })).toEqual([])
+  })
+
+  it("labels the kind with its tab label", () => {
+    expect(activeAlertFilters({ kind: "waf", scenarios: [], ip: undefined })).toEqual([{ group: "kind", label: "WAF" }])
+    expect(activeAlertFilters({ kind: "bot", scenarios: [], ip: undefined })).toEqual([
+      { group: "kind", label: "Bot detection" },
+    ])
+  })
+
+  it("names a single scenario by its short name and counts several", () => {
+    expect(activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing"], ip: undefined })).toEqual([
+      { group: "scenario", label: "Scenario: http-probing" },
+    ])
+    expect(
+      activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"], ip: undefined }),
+    ).toEqual([{ group: "scenario", label: "2 scenarios" }])
+  })
+
+  it("keeps the kind, scenario, IP order and one entry per group", () => {
+    expect(
+      activeAlertFilters({ kind: "crowdsec", scenarios: ["crowdsecurity/ssh-bf"], ip: "203.0.113.7" }),
+    ).toEqual([
+      { group: "kind", label: "Log scenarios" },
+      { group: "scenario", label: "Scenario: ssh-bf" },
+      { group: "ip", label: "203.0.113.7" },
+    ])
+  })
+
+  it("treats an empty IP as no IP filter", () => {
+    expect(activeAlertFilters({ kind: "all", scenarios: [], ip: "" })).toEqual([])
+  })
+})
+
+describe("ALERT_KIND_OPTIONS descriptions", () => {
+  it("explains every kind but All kinds", () => {
+    expect(ALERT_KIND_OPTIONS.map((option) => option.description)).toEqual([
+      null,
+      "A scenario overflowed on your logs. Most bans come from here.",
+      "An AppSec rule matched a request. Many never ban.",
+      "Bot challenge rejections and the bans they lead to.",
+    ])
   })
 })

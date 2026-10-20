@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The README's Traefik setup has a Pangolin section. It covers the fields to keep in Pangolin's access log and how to get the visitor's address in the log.
+- Security > Alert history can be filtered by IP and by up to five scenarios. The Scenario dropdown lists the scenarios of the newest 500 alerts in the window with their counts, and the alert sheet has a "Show only this scenario" button. Back-to-back alerts of the same kind from one IP collapse into one row that expands. On phones the filters sit in a Filters drawer.
+
+### Changed
+
+- Security > Alert history shows the alert kinds as tabs with an explanation of each, and "Detections" is now "Log scenarios". An empty WAF or Bot detection view says what that kind needs.
+- Security > Alert history shows the bans the bot challenge raises under Bot detection, marked "Bot ban". Rejected submissions are now marked "Bot rejected".
+- Security > Alert history has an Outcome column that says what each alert did, such as "Ban, active" or "Alert only". The Banned badge next to the IP shows the IP's current state.
+- Security > Alert history says which settings it needs when CrowdSec machine credentials are missing. Before, the Security page left the card out.
+
+### Fixed
+
+- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. The list stops refreshing while older alerts are loaded, and "Back to newest" returns to the latest alerts and turns refreshing back on.
 
 ## [0.21.0] - 2026-10-18
 

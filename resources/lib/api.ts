@@ -42,7 +42,9 @@ import type {
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
+  AlertPageView,
   AlertDetailView,
+  ScenarioCount,
   DecisionView,
   DecisionGroupView,
   BannedIp,
@@ -61,7 +63,9 @@ export type {
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
+  AlertPageView,
   AlertDetailView,
+  ScenarioCount,
   DecisionView,
   BannedIp,
   BannedMapCollection,
@@ -402,22 +406,36 @@ export async function fetchCrowdsecStats(): Promise<CrowdSecStatsResponse> {
   return data
 }
 
-/** Recent LAPI alert history; requires writeEnabled (machine credentials). */
+/** One page of LAPI alert history, newest first; requires writeEnabled
+ *  (machine credentials). Pass a page's nextCursor as `before` for the next. */
 export async function fetchCrowdsecAlerts(params?: {
   limit?: number
   since?: string
   ip?: string
+  scenarios?: string[]
   kind?: string
   hasActiveDecision?: boolean
-}): Promise<AlertView[]> {
-  const { data } = await api.get<AlertView[]>("/crowdsec/alerts", {
+  before?: string
+}): Promise<AlertPageView> {
+  const { data } = await api.get<AlertPageView>("/crowdsec/alerts", {
     params: {
       limit: params?.limit ?? 50,
       since: params?.since || undefined,
       ip: params?.ip || undefined,
+      scenario: params?.scenarios?.length ? params.scenarios : undefined,
       kind: params?.kind || undefined,
       hasActiveDecision: params?.hasActiveDecision ?? undefined,
+      before: params?.before || undefined,
     },
+  })
+  return data
+}
+
+/** Scenarios among the newest 500 alerts in the window, most frequent
+ *  first; requires writeEnabled. */
+export async function fetchCrowdsecAlertScenarios(params: { since: string; kind?: string }): Promise<ScenarioCount[]> {
+  const { data } = await api.get<ScenarioCount[]>("/crowdsec/alerts/scenarios", {
+    params: { since: params.since, kind: params.kind || undefined },
   })
   return data
 }

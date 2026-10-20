@@ -70,6 +70,9 @@ import type {
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosData,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses,
   ApiV1CrowdsecBanBanData,
   ApiV1CrowdsecBanBanErrors,
   ApiV1CrowdsecBanBanResponses,
@@ -247,6 +250,7 @@ export type OperationName =
   | 'health_ready'
   | 'list_access_log_debug'
   | 'list_access_logs'
+  | 'list_alert_scenarios'
   | 'list_alerts'
   | 'list_banned_ips'
   | 'list_banned_locations'
@@ -320,6 +324,7 @@ export interface OperationDataTypes {
   'health_ready': HealthReadyHealthReadyData
   'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugData
   'list_access_logs': ApiV1AccessLogsListAccessLogsData
+  'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosData
   'list_alerts': ApiV1CrowdsecAlertsListAlertsData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsData
@@ -394,6 +399,7 @@ export interface OperationResponseTypes {
   'health_ready': HealthReadyHealthReadyResponses
   'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugResponses
   'list_access_logs': ApiV1AccessLogsListAccessLogsResponses
+  'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses
   'list_alerts': ApiV1CrowdsecAlertsListAlertsResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsResponses
@@ -468,6 +474,7 @@ export interface OperationErrorTypes {
   'health_ready': HealthReadyHealthReadyErrors
   'list_access_log_debug': ApiV1AccessLogDebugListAccessLogDebugErrors
   'list_access_logs': ApiV1AccessLogsListAccessLogsErrors
+  'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors
   'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors
   'list_banned_ips': never
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsErrors

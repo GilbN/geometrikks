@@ -22,7 +22,9 @@ from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
 from litestar.params import FromPath, QueryParameter, SkipValidation
 from litestar.openapi.datastructures import ResponseSpec
-from litestar.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND
+from litestar.status_codes import (
+    HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
+)
 
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
@@ -33,6 +35,12 @@ from geometrikks.domain.security.dependencies import (
 from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.validation import validate_ip_address
+from geometrikks.domain.security.alert_history import (
+    BOT_KIND_GROUP,
+    AlertFilters,
+    decode_cursor,
+    fetch_alert_page,
+)
 from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
@@ -54,6 +62,16 @@ TOP_SCENARIO_LIMIT = 10
 
 # Alert origins the engine stamps on ``kind`` (pkg/types/alert_kind.go).
 ALERT_KINDS = frozenset({"crowdsec", "waf", "bot-detection", "capi", "papi", "cscli"})
+
+# Each scenario is its own LAPI query, twice under an IP filter.
+MAX_ALERT_SCENARIOS = 5
+# The scenario picker counts this many of the newest alerts.
+SCENARIO_SAMPLE_SIZE = 500
+
+ALERT_KIND_DESCRIPTION = (
+    "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, "
+    "or bot for everything the AppSec bot challenge produces"
+)
 
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
@@ -150,6 +168,14 @@ class AlertView(msgspec.Struct, rename="camel"):
     decision_count: int
     # decision_count includes expired decisions, which alerts keep.
     active_decision_count: int
+    # Distinct decision types, in the order the LAPI lists them.
+    decision_types: list[str]
+
+
+class AlertPageView(msgspec.Struct, rename="camel"):
+    alerts: list[AlertView]
+    # Pass back as ``before`` for the next page; None on the last page.
+    next_cursor: str | None
 
 
 class AlertDecisionView(msgspec.Struct, rename="camel"):
@@ -277,6 +303,7 @@ def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
         "as_name": alert.source.as_name,
         "decision_count": len(alert.decisions),
         "active_decision_count": sum(not d.expired for d in alert.decisions),
+        "decision_types": list(dict.fromkeys(d.type for d in alert.decisions)),
     }
 
 
@@ -328,6 +355,14 @@ def _validate_duration(value: str) -> str:
             f"Invalid duration: {value!r} (expected a Go duration like 4h, 30m, 168h)"
         )
     return value
+
+
+def _validate_alert_kind(kind: str | None) -> None:
+    accepted_kinds = ALERT_KINDS | {BOT_KIND_GROUP}
+    if kind is not None and kind not in accepted_kinds:
+        raise DomainValidationError(
+            f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(accepted_kinds))})"
+        )
 
 
 def _ban_duration(value: str) -> str:
@@ -511,7 +546,18 @@ class CrowdSecController(Controller):
         )
         return banned_map_collection(locations)
 
-    @get("/alerts")
+    @get(
+        "/alerts",
+        responses={
+            HTTP_409_CONFLICT: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description=(
+                    "More alerts share the cursor's second than one LAPI request can "
+                    "page past. Narrow the filters."
+                ),
+            ),
+        },
+    )
     async def list_alerts(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -519,17 +565,20 @@ class CrowdSecController(Controller):
         settings: NamedDependency[SkipValidation[Settings]],
         limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
         ip: Annotated[str | None, QueryParameter(required=False)] = None,
-        scenario: Annotated[str | None, QueryParameter(required=False)] = None,
+        scenarios: Annotated[
+            list[str] | None,
+            QueryParameter(
+                name="scenario",
+                required=False,
+                description=f"Filter to these scenarios. Repeat the parameter for several, at most {MAX_ALERT_SCENARIOS}.",
+            ),
+        ] = None,
         since: Annotated[
             str | None,
             QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
         ] = None,
         kind: Annotated[
-            str | None,
-            QueryParameter(
-                required=False,
-                description="Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli",
-            ),
+            str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
         ] = None,
         has_active_decision: Annotated[
             bool | None,
@@ -542,37 +591,94 @@ class CrowdSecController(Controller):
                 ),
             ),
         ] = None,
-    ) -> list[AlertView]:
-        """Recent alert history from the LAPI (machine credentials required).
+        before: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                description="Cursor from nextCursor; returns alerts older than it",
+            ),
+        ] = None,
+    ) -> AlertPageView:
+        """One page of alert history from the LAPI. Needs machine credentials.
+
+        Newest first. ``nextCursor`` is set while older alerts may remain;
+        passing it back as ``before`` returns the next page. A malformed
+        cursor answers 400.
 
         The LAPI only geo-enriches alerts from log-parsing scenarios; manual
         bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
         from GeoMetrikks' own stored traffic instead.
 
         ``kind`` needs CrowdSec 1.7 or newer; an older LAPI answers 400.
+        ``kind=bot`` merges the bot-detection rejections with the bans the
+        bot challenge scenarios raise, and takes no ``scenario``.
         """
         service = _require_write(crowdsec, settings)
         if ip is not None:
             validate_ip_address(ip)
         if since is not None:
             _validate_duration(since)
-        if kind is not None and kind not in ALERT_KINDS:
-            raise DomainValidationError(
-                f"Unknown alert kind: {kind!r} (expected one of {', '.join(sorted(ALERT_KINDS))})"
-            )
-        alerts = await service.get_alerts(
-            limit=limit, ip=ip, scenario=scenario, since=since, kind=kind,
-            has_active_decision=has_active_decision,
+        _validate_alert_kind(kind)
+        picked_scenarios = tuple(dict.fromkeys(scenarios or ()))
+        if kind == BOT_KIND_GROUP and picked_scenarios:
+            raise DomainValidationError("The bot group can't be combined with a scenario filter")
+        if len(picked_scenarios) > MAX_ALERT_SCENARIOS:
+            raise DomainValidationError(f"Pick at most {MAX_ALERT_SCENARIOS} scenarios")
+        cursor = None if before is None else decode_cursor(before)
+        page = await fetch_alert_page(
+            service,
+            AlertFilters(
+                ip=ip, scenarios=picked_scenarios, since=since, kind=kind,
+                has_active_decision=has_active_decision,
+            ),
+            limit=limit,
+            before=cursor,
         )
 
         bare_ips = [
-            _enrichment_key(a) for a in alerts if a.source.scope == "Ip" and a.source.cn is None
+            _enrichment_key(a) for a in page.alerts if a.source.scope == "Ip" and a.source.cn is None
         ]
         enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
 
+        return AlertPageView(
+            alerts=[
+                AlertView(**_alert_summary(alert, enriched.get(_enrichment_key(alert))))
+                for alert in page.alerts
+            ],
+            next_cursor=page.next_cursor,
+        )
+
+    @get("/alerts/scenarios")
+    async def list_alert_scenarios(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        settings: NamedDependency[SkipValidation[Settings]],
+        since: Annotated[
+            str | None,
+            QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
+        ] = None,
+        kind: Annotated[
+            str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
+        ] = None,
+    ) -> list[ScenarioCount]:
+        """Scenarios among the newest 500 alerts in the window, most frequent first.
+        Needs machine credentials."""
+        service = _require_write(crowdsec, settings)
+        if since is not None:
+            _validate_duration(since)
+        _validate_alert_kind(kind)
+        page = await fetch_alert_page(
+            service,
+            AlertFilters(since=since, kind=kind),
+            limit=SCENARIO_SAMPLE_SIZE,
+            before=None,
+        )
+        scenario_counts = Counter(alert.scenario for alert in page.alerts)
         return [
-            AlertView(**_alert_summary(alert, enriched.get(_enrichment_key(alert))))
-            for alert in alerts
+            ScenarioCount(scenario=scenario, count=count)
+            for scenario, count in sorted(
+                scenario_counts.items(), key=lambda scenario_count: (-scenario_count[1], scenario_count[0])
+            )
         ]
 
     @get(

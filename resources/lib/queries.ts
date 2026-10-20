@@ -3,7 +3,7 @@
  */
 
 import { useEffect } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -49,6 +49,7 @@ import {
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
+  fetchCrowdsecAlertScenarios,
   fetchCrowdsecAlert,
   fetchCrowdsecDecisionAlert,
   fetchCrowdsecBannedLocations,
@@ -79,6 +80,7 @@ import {
   type AccessLogDebugPage,
   type AccessLogDebugSortField,
   type AccessLogDebugStats,
+  type AlertPageView,
 } from "./api"
 import {
   applyBannedIpsDelta,
@@ -96,6 +98,8 @@ import { currentBuildKey, hasUnseenChanges, saveSeenBuild, useSeenBuild } from "
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
+import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
+import { isClientError } from "./crowdsec"
 
 // ============================================================================
 // Query Keys
@@ -127,6 +131,8 @@ export const queryKeys = {
       ["crowdsec", "decisions", params] as const,
     alerts: (params: Record<string, unknown>) =>
       ["crowdsec", "alerts", params] as const,
+    alertScenarios: (params: Record<string, unknown>) =>
+      ["crowdsec", "alert-scenarios", params] as const,
     alert: (id: number) => ["crowdsec", "alert", id] as const,
     decisionAlert: (decisionId: number) => ["crowdsec", "decision-alert", decisionId] as const,
     lookup: (ip: string, refreshKey?: number) => ["crowdsec", "lookup", ip, refreshKey] as const,
@@ -425,15 +431,48 @@ export function useCrowdsecDecisions(params: {
   })
 }
 
-/** Recent alert history; only fetched when machine credentials are set. */
-export function useCrowdsecAlerts(params: { since?: string; limit?: number; kind?: string }) {
+/** Alert history, one page of ALERT_PAGE_SIZE at a time; fetchNextPage
+ *  loads older alerts. Only fetched when machine credentials are set. */
+export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenarios?: string[] }) {
+  const { data: status } = useCrowdsecStatus()
+  return useInfiniteQuery({
+    queryKey: queryKeys.crowdsec.alerts(params),
+    queryFn: ({ pageParam }) => fetchCrowdsecAlerts({ ...params, limit: ALERT_PAGE_SIZE, before: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: status?.writeEnabled === true,
+    // A refetch reloads every loaded page in turn, one LAPI request each, so
+    // a deep view stops refreshing. Nothing else invalidates this key on new
+    // alerts, so the footer says updates pause and offers useTrimCrowdsecAlerts.
+    refetchInterval: (query) => ((query.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
+    refetchOnWindowFocus: (query) => (query.state.data?.pages.length ?? 0) <= 1,
+    placeholderData: keepPreviousData,
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
+  })
+}
+
+/** Drops every page but the newest from the alert history and refetches it,
+ *  which brings back the 60 s refresh a deep view turns off. */
+export function useTrimCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenarios?: string[] }) {
+  const queryClient = useQueryClient()
+  return () => {
+    const queryKey = queryKeys.crowdsec.alerts(params)
+    queryClient.setQueryData<InfiniteData<AlertPageView, string | undefined>>(queryKey, (data) =>
+      data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+    )
+    return queryClient.refetchQueries({ queryKey, exact: true })
+  }
+}
+
+/** Scenario counts for the alert history's scenario picker. */
+export function useCrowdsecAlertScenarios(params: { since: string; kind?: string }, enabled: boolean) {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
-    queryKey: queryKeys.crowdsec.alerts(params),
-    queryFn: () => fetchCrowdsecAlerts(params),
-    enabled: status?.writeEnabled === true,
-    placeholderData: (previous) => previous,
-    refetchInterval: 60_000,
+    queryKey: queryKeys.crowdsec.alertScenarios(params),
+    queryFn: () => fetchCrowdsecAlertScenarios(params),
+    enabled: enabled && status?.writeEnabled === true,
+    staleTime: 60 * 1000,
+    retry: (failureCount, error) => !isClientError(error) && failureCount < 1,
   })
 }
 
@@ -1562,7 +1601,7 @@ export function useIpLatestAlert(ip: string | undefined) {
     queryFn: () => fetchCrowdsecAlerts({ ip: ip!, limit: 1, hasActiveDecision: true }),
     enabled: Boolean(ip) && status?.writeEnabled === true,
     staleTime: 30 * 1000,
-    select: (alerts) => alerts[0] ?? null,
+    select: (page) => page.alerts[0] ?? null,
   })
 }
 
