@@ -1764,6 +1764,8 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;
   path?: never;
   query?: {
+    currentPage?: number;
+    pageSize?: number;
     /**
      * Field to search
      */
@@ -1772,8 +1774,6 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
      * Search should be case sensitive
      */
     searchIgnoreCase?: boolean | null;
-    currentPage?: number;
-    pageSize?: number;
     fromTimestamp?: string | null;
     toTimestamp?: string | null;
     ipAddressIn?: Array<string> | null;
@@ -1872,6 +1872,8 @@ export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
   query?: {
+    currentPage?: number;
+    pageSize?: number;
     /**
      * Field to search
      */
@@ -1880,8 +1882,6 @@ export type ApiV1AccessLogsListAccessLogsData = {
      * Search should be case sensitive
      */
     searchIgnoreCase?: boolean | null;
-    currentPage?: number;
-    pageSize?: number;
     /**
      * Order by field
      */

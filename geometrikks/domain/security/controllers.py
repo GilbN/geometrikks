@@ -20,7 +20,7 @@ from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
-from litestar.params import FromPath, QueryParameter, SkipValidation
+from litestar.params import FromPath, JSONBody, QueryParameter, SkipValidation
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.status_codes import (
     HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
@@ -746,7 +746,7 @@ class CrowdSecController(Controller):
     async def ban(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
-        data: BanRequest,
+        data: JSONBody[BanRequest],
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> None:
@@ -775,7 +775,7 @@ class CrowdSecController(Controller):
     async def unban(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
-        data: UnbanRequest,
+        data: JSONBody[UnbanRequest],
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> UnbanResponse:
