@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- AS8100 no longer gets the Hosting badge. It used to belong to QuadraNet and now belongs to Splice Internet, an Australian residential ISP.
 - Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. The list stops refreshing while older alerts are loaded, and "Back to newest" returns to the latest alerts and turns refreshing back on.
 
 ### Security
