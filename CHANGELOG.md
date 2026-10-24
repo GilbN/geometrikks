@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. The list stops refreshing while older alerts are loaded, and "Back to newest" returns to the latest alerts and turns refreshing back on.
 
+### Security
+
+- aiohttp is updated to 3.14.5 and certifi to 2026.10.23. aiohttp 3.14.3 had request smuggling and resource exhaustion advisories, and the old certifi bundle still trusted emSign root CAs whose intermediate keys were compromised.
+
 ## [0.21.0] - 2026-10-18
 
 ### Added
