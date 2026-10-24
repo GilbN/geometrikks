@@ -9,7 +9,7 @@ import msgspec
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotAuthorizedException, NotFoundException
-from litestar.params import QueryParameter, SkipValidation
+from litestar.params import JSONBody, QueryParameter, SkipValidation
 from litestar.response import Redirect
 from litestar.status_codes import HTTP_200_OK
 
@@ -98,7 +98,7 @@ class AuthController(Controller):
     async def login(
         self,
         request: Request,
-        data: LoginPayload,
+        data: JSONBody[LoginPayload],
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> MeResponse:
         if settings.auth_disabled:

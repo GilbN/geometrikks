@@ -6444,6 +6444,32 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "searchString",
             "required": false,
             "schema": {
@@ -6477,32 +6503,6 @@
                 }
               ],
               "title": "Search should be case sensitive"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "currentPage",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "minimum": 1.0,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "pageSize",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "minimum": 1.0,
-              "type": "integer"
             }
           },
           {
@@ -6842,6 +6842,32 @@
             "allowReserved": false,
             "deprecated": false,
             "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
             "name": "searchString",
             "required": false,
             "schema": {
@@ -6875,32 +6901,6 @@
                 }
               ],
               "title": "Search should be case sensitive"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "currentPage",
-            "required": false,
-            "schema": {
-              "default": 1,
-              "minimum": 1.0,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "pageSize",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "minimum": 1.0,
-              "type": "integer"
             }
           },
           {
