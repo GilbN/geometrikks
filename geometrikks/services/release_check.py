@@ -58,6 +58,9 @@ def parse_releases(body: bytes) -> list[GithubRelease]:
     for release_entry in release_entries:
         if release_entry.draft or release_entry.published_at is None:
             continue
+        # a naive timestamp cannot be compared with an aware "now"
+        if release_entry.published_at.tzinfo is None:
+            continue
         # html_url ends up as an href in the SPA
         if not release_entry.html_url.startswith(GITHUB_URL_PREFIX):
             continue

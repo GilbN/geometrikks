@@ -79,6 +79,10 @@ def test_release_younger_than_an_hour_does_not_count() -> None:
     selected = select_newer_release([fresh_release, older_release], "0.22.0", NOW)
     assert selected == older_release
 
+    boundary_release = make_release("v0.23.0", published_at=NOW - timedelta(hours=1))
+    selected = select_newer_release([boundary_release, older_release], "0.22.0", NOW)
+    assert selected == boundary_release
+
     settled_release = make_release("v0.23.0", published_at=NOW - timedelta(minutes=61))
     selected = select_newer_release([settled_release, older_release], "0.22.0", NOW)
     assert selected == settled_release
@@ -129,4 +133,41 @@ def test_parse_skips_drafts_unparseable_tags_and_foreign_urls() -> None:
 def test_parse_rejects_a_body_that_is_not_a_release_list(body: bytes) -> None:
     with pytest.raises(ReleaseCheckError) as error:
         parse_releases(body)
+    assert str(error.value) == "invalid response"
+
+
+def test_parse_skips_a_release_published_without_a_timezone() -> None:
+    def entry(tag: str, published_at: str) -> dict:
+        return {
+            "tag_name": tag,
+            "draft": False,
+            "prerelease": False,
+            "html_url": f"https://github.com/GilbN/geometrikks/releases/tag/{tag}",
+            "published_at": published_at,
+        }
+
+    body = json.dumps(
+        [entry("v0.23.1", "2026-10-25T08:00:00"), entry("v0.23.0", "2026-10-25T08:00:00Z")]
+    ).encode()
+
+    github_releases = parse_releases(body)
+
+    assert [github_release.version for github_release in github_releases] == [Version("0.23.0")]
+    selected = select_newer_release(github_releases, "0.22.0", NOW)
+    assert selected is not None
+    assert selected.version == Version("0.23.0")
+
+
+def test_parse_fails_the_whole_response_when_one_entry_is_malformed() -> None:
+    valid_entry = {
+        "tag_name": "v0.23.0",
+        "draft": False,
+        "prerelease": False,
+        "html_url": "https://github.com/GilbN/geometrikks/releases/tag/v0.23.0",
+        "published_at": "2026-10-25T08:00:00Z",
+    }
+    missing_tag_entry = {key: value for key, value in valid_entry.items() if key != "tag_name"}
+
+    with pytest.raises(ReleaseCheckError) as error:
+        parse_releases(json.dumps([valid_entry, missing_tag_entry]).encode())
     assert str(error.value) == "invalid response"
