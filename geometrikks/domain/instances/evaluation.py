@@ -22,6 +22,7 @@ from geometrikks.lib.advisories import (
     INGESTION_STOPPED,
     Advisory,
 )
+from geometrikks.lib.versioning import display_version, same_release
 
 NOT_CHECKING_IN_AFTER = timedelta(seconds=180)
 NAME_CONFLICT_SHOWN_FOR = timedelta(minutes=5)
@@ -97,11 +98,6 @@ def _age_text(age: timedelta) -> str:
     return _ago(hours // 24, "day")
 
 
-def _version_text(version: str) -> str:
-    """Prefix a "v" to real versions; get_installed_version() can return "unknown"."""
-    return f"v{version}" if version[:1].isdigit() else version
-
-
 def _within(now: datetime, timestamp: datetime, window: timedelta) -> bool:
     """True when timestamp is at most window old, or at most SKEW_ALLOWANCE in
     the future. A naive timestamp is read as UTC."""
@@ -140,8 +136,8 @@ def _not_checking_in(row: HeartbeatRow, now: datetime) -> Advisory:
 
 def _schema_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
     versions = (
-        f"Agent {row.instance_name} runs {_version_text(row.app_version)} on migration {row.schema_revision}; "
-        f"the head runs {_version_text(head.app_version)} on migration {head.schema_revision}."
+        f"Agent {row.instance_name} runs {display_version(row.app_version)} on migration {row.schema_revision}; "
+        f"the head runs {display_version(head.app_version)} on migration {head.schema_revision}."
     )
     if row.schema_revision in head.known_revisions:
         return Advisory(
@@ -149,7 +145,7 @@ def _schema_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
             severity="critical",
             summary=f"{row.instance_name} runs an older database migration than the head.",
             detail=f"{versions} Its writes may fail until it catches up.",
-            remedy=f"Upgrade {row.instance_name} to {_version_text(head.app_version)}.",
+            remedy=f"Upgrade {row.instance_name} to {display_version(head.app_version)}.",
         )
     return Advisory(
         id="instance-schema-ahead",
@@ -175,8 +171,8 @@ def _version_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         id="instance-version-mismatch",
         severity="warning",
         summary=(
-            f"Agent {row.instance_name} runs {_version_text(row.app_version)}; the head runs "
-            f"{_version_text(head.app_version)}. Both are on migration {head.schema_revision}."
+            f"Agent {row.instance_name} runs {display_version(row.app_version)}; the head runs "
+            f"{display_version(head.app_version)}. Both are on migration {head.schema_revision}."
         ),
         detail="The database schema matches, but the code differs, so behavior can drift.",
         remedy=f"Run the same GeoMetrikks version on the head and {row.instance_name}.",
@@ -283,8 +279,8 @@ def _payload_unreadable(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         summary=f"The health report from {row.instance_name} could not be read.",
         detail=(
             "The version, migration and last seen time are still shown. "
-            f"{row.instance_name} runs {_version_text(row.app_version)}; "
-            f"the head runs {_version_text(head.app_version)}."
+            f"{row.instance_name} runs {display_version(row.app_version)}; "
+            f"the head runs {display_version(head.app_version)}."
         ),
         remedy=f"Check that {row.instance_name} runs the same GeoMetrikks version as the head.",
     )
@@ -312,7 +308,7 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
     if _has_name_conflict(payload, now):
         critical.append(_name_conflict(row))
 
-    if row.schema_revision == head.schema_revision and row.app_version != head.app_version:
+    if row.schema_revision == head.schema_revision and not same_release(row.app_version, head.app_version):
         warning.append(_version_mismatch(row, head))
     if payload is not None:
         if row.mode == "agent" and payload.instance_name_source == "fallback":
