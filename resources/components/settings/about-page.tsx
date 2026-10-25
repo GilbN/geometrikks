@@ -1,7 +1,9 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { Bug, Cpu, Database, ExternalLink, Globe2 } from "lucide-react"
 import type { AboutResponse } from "@/generated/api/types.gen"
-import { useAbout } from "@/lib/queries"
+import { useAbout, useReleaseCheck } from "@/lib/queries"
+import { releaseCheckLine } from "@/lib/release-check"
+import { saveSeenRelease } from "@/lib/release-seen"
 import { displayVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -73,6 +75,12 @@ function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: s
 
 export function AboutPage() {
   const { data, isLoading } = useAbout()
+  const { data: releaseCheck } = useReleaseCheck()
+  const latestVersion = releaseCheck?.latest?.version ?? null
+
+  useEffect(() => {
+    if (latestVersion) saveSeenRelease(latestVersion)
+  }, [latestVersion])
 
   if (isLoading || !data) {
     return (
@@ -90,6 +98,7 @@ export function AboutPage() {
       ? geoipFreshness(data.geoipAsn.available, data.geoipAsn.ageDays)
       : null
   const dbReachable = data.database.postgresVersion !== null
+  const releaseLine = releaseCheckLine(releaseCheck, Date.now())
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -129,6 +138,20 @@ export function AboutPage() {
                   </Badge>
                 )}
               </div>
+              {releaseLine?.kind === "available" && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-1 text-sm">
+                  <span className="font-medium">{releaseLine.text}</span>
+                  <Button variant="link" size="sm" className="h-auto px-1 py-0 pointer-coarse:h-10" asChild>
+                    <a href={releaseLine.url} target="_blank" rel="noreferrer">
+                      Release notes
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </Button>
+                </div>
+              )}
+              {releaseLine?.kind === "up-to-date" && (
+                <p className="mt-1.5 text-xs text-muted-foreground">{releaseLine.text}</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm">

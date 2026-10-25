@@ -81,6 +81,7 @@ import {
   type AccessLogDebugSortField,
   type AccessLogDebugStats,
   type AlertPageView,
+  fetchReleaseCheck,
 } from "./api"
 import {
   applyBannedIpsDelta,
@@ -116,6 +117,7 @@ export const queryKeys = {
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
     changelog: ["system", "changelog"] as const,
+    releaseCheck: ["system", "release-check"] as const,
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
@@ -260,6 +262,17 @@ export function useAbout() {
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+export const RELEASE_CHECK_POLL_MS = 3_600_000
+
+export function useReleaseCheck() {
+  return useQuery({
+    queryKey: queryKeys.system.releaseCheck,
+    queryFn: fetchReleaseCheck,
+    staleTime: RELEASE_CHECK_POLL_MS,
+    refetchInterval: (query) => (query.state.data?.status === "off" ? false : RELEASE_CHECK_POLL_MS),
   })
 }
 

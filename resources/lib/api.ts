@@ -39,6 +39,7 @@ import type {
   AboutResponse,
   AsnClassificationListResponse,
   ChangelogResponse,
+  ReleaseCheckResponse,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
@@ -336,6 +337,11 @@ export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> 
 
 export async function fetchAbout(): Promise<AboutResponse> {
   const { data } = await api.get<AboutResponse>("/system/about")
+  return data
+}
+
+export async function fetchReleaseCheck(): Promise<ReleaseCheckResponse> {
+  const { data } = await api.get<ReleaseCheckResponse>("/system/release-check")
   return data
 }
 
