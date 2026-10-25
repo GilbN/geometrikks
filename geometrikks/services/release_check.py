@@ -5,6 +5,7 @@ GitHub). A stable build is only offered stable releases. A dev build is
 offered every release, so it hears about the next dev tag and the stable one.
 """
 
+import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -51,7 +52,9 @@ def tag_version(tag: str) -> Version | None:
     normalized = tag.removeprefix("v").replace("-dev.", ".dev")
     try:
         return Version(normalized)
-    except InvalidVersion:
+    except ValueError:
+        # InvalidVersion is a ValueError, and so is the int digit limit that a
+        # tag of thousands of digits trips
         return None
 
 
@@ -136,6 +139,7 @@ class ReleaseChecker:
         self._checked_at: datetime | None = None
         self._etag: str | None = None
         self._last_failure_reason: str | None = None
+        self._run_lock = asyncio.Lock()
 
     @property
     def running_version(self) -> str:
@@ -154,10 +158,14 @@ class ReleaseChecker:
         return self._etag
 
     async def run(self) -> None:
-        try:
-            await self._refresh()
-        except ReleaseCheckError as error:
-            self._record_failure(str(error))
+        # a slower, older response must not overwrite a newer answer or ETag
+        async with self._run_lock:
+            try:
+                await self._refresh()
+            except ReleaseCheckError as error:
+                self._record_failure(str(error))
+            except Exception as error:
+                self._record_failure(type(error).__name__)
 
     async def _refresh(self) -> None:
         request_headers = {
@@ -189,15 +197,21 @@ class ReleaseChecker:
         except httpx2.HTTPError as error:
             raise ReleaseCheckError(type(error).__name__) from error
 
+        github_releases = self._github_releases
+        etag = self._etag
         if status_code == 200:
-            self._github_releases = parse_releases(bytes(body))
-            self._etag = response_etag
+            github_releases = parse_releases(bytes(body))
+            etag = response_etag
         elif status_code != 304:
             raise ReleaseCheckError(f"HTTP {status_code}")
 
         now = self._clock()
         previous_latest = self._latest
-        self._latest = select_newer_release(self._github_releases, self._running_version, now)
+        latest = select_newer_release(github_releases, self._running_version, now)
+
+        self._github_releases = github_releases
+        self._etag = etag
+        self._latest = latest
         self._checked_at = now
         self._last_failure_reason = None
         if self._latest is not None and (

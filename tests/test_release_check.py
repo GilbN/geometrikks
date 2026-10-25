@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -384,9 +385,17 @@ async def test_rate_limited_answer_is_one_quiet_failure() -> None:
 
 
 @pytest.mark.anyio
-async def test_body_over_the_cap_fails() -> None:
-    oversized = httpx2.Response(200, content=b" " * (MAX_RESPONSE_BYTES + 1))
-    fake_github = FakeGithub(oversized)
+async def test_body_over_the_cap_fails_without_reading_past_it() -> None:
+    chunk_size = 256 * 1024
+    chunks_sent = 0
+
+    async def endless_chunks():
+        nonlocal chunks_sent
+        for _ in range(100):
+            chunks_sent += 1
+            yield b" " * chunk_size
+
+    fake_github = FakeGithub(httpx2.Response(200, content=endless_chunks()))
     release_checker = fake_github.checker()
 
     with structlog.testing.capture_logs() as logs:
@@ -395,6 +404,7 @@ async def test_body_over_the_cap_fails() -> None:
     assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
         "response too large"
     ]
+    assert chunks_sent <= MAX_RESPONSE_BYTES // chunk_size + 1
     assert release_checker.latest is None
     assert release_checker.checked_at is None
 
@@ -446,3 +456,132 @@ async def test_found_logs_when_the_answer_changes() -> None:
             "log_level": "info",
         }
     ]
+
+
+@pytest.mark.anyio
+async def test_found_logs_again_when_a_newer_release_appears() -> None:
+    fake_github = FakeGithub(releases_response("v0.23.0"), releases_response("v0.24.0"))
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+        await release_checker.run()
+
+    assert [log["latest_version"] for log in logs if log["event"] == "release_check_found"] == [
+        "0.23.0",
+        "0.24.0",
+    ]
+
+
+@pytest.mark.anyio
+async def test_malformed_body_after_a_success_changes_nothing() -> None:
+    clock = MutableClock(NOW)
+    fake_github = FakeGithub(
+        releases_response(etag='"good"'),
+        httpx2.Response(200, content=b"not json", headers={"ETag": '"bad"'}),
+        httpx2.Response(304),
+    )
+    release_checker = fake_github.checker(clock)
+    await release_checker.run()
+    first_latest = release_checker.latest
+
+    clock.now = NOW + timedelta(hours=12)
+    await release_checker.run()
+
+    assert release_checker.latest == first_latest
+    assert release_checker.checked_at == NOW
+    assert release_checker.etag == '"good"'
+
+    await release_checker.run()
+
+    assert fake_github.requests[2].headers["if-none-match"] == '"good"'
+
+
+@pytest.mark.anyio
+async def test_response_without_an_etag_clears_the_stored_one() -> None:
+    fake_github = FakeGithub(
+        releases_response(etag='"one"'), releases_response(), releases_response()
+    )
+    release_checker = fake_github.checker()
+    await release_checker.run()
+
+    await release_checker.run()
+
+    assert fake_github.requests[1].headers["if-none-match"] == '"one"'
+    assert release_checker.etag is None
+
+    await release_checker.run()
+
+    assert "if-none-match" not in fake_github.requests[2].headers
+
+
+@pytest.mark.anyio
+async def test_a_tag_with_thousands_of_digits_is_skipped() -> None:
+    huge_tag = "v" + "9" * 5000
+    assert tag_version(huge_tag) is None
+
+    body = json.dumps(
+        [
+            {
+                "tag_name": huge_tag,
+                "draft": False,
+                "prerelease": False,
+                "html_url": "https://github.com/GilbN/geometrikks/releases/tag/huge",
+                "published_at": "2026-10-25T08:00:00Z",
+            }
+        ]
+    ).encode()
+    fake_github = FakeGithub(httpx2.Response(200, content=body))
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+
+    assert release_checker.latest is None
+    assert release_checker.checked_at == NOW
+
+
+@pytest.mark.anyio
+async def test_unexpected_error_is_a_logged_failed_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    def explode(*_args: object) -> None:
+        raise ZeroDivisionError
+
+    monkeypatch.setattr("geometrikks.services.release_check.select_newer_release", explode)
+    fake_github = FakeGithub(releases_response(etag='"one"'))
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "ZeroDivisionError"
+    ]
+    assert release_checker.etag is None
+    assert release_checker.checked_at is None
+
+
+@pytest.mark.anyio
+async def test_overlapping_runs_are_serialized() -> None:
+    in_flight = 0
+    peak_in_flight = 0
+    requests: list[httpx2.Request] = []
+    answers = [releases_response(etag='"one"'), httpx2.Response(304)]
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal in_flight, peak_in_flight
+        in_flight += 1
+        peak_in_flight = max(peak_in_flight, in_flight)
+        requests.append(request)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return answers.pop(0)
+
+    release_checker = ReleaseChecker(
+        "0.22.0", transport=httpx2.MockTransport(handler), clock=lambda: NOW
+    )
+
+    await asyncio.gather(release_checker.run(), release_checker.run())
+
+    assert peak_in_flight == 1
+    assert "if-none-match" not in requests[0].headers
+    assert requests[1].headers["if-none-match"] == '"one"'
+    assert release_checker.etag == '"one"'
