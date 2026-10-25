@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Upgrading from 0.20 or earlier no longer fails at startup with "permission denied for schema _timescaledb_internal" when GeoMetrikks connects as a role that isn't a PostgreSQL superuser, as on a native PostgreSQL install. The bundled TimescaleDB container was not affected.
+
 ## [0.22.0] - 2026-10-25
 
 ### Added

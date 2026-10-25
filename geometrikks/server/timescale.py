@@ -230,10 +230,13 @@ async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
 
     Every rename is a catalog change guarded by an existence check, so a
     fresh install, a rerun and a start interrupted halfway all finish here.
-    Runs before every probe that looks for the new column names.
+    The one exception is a CAGG index the role may not rename, which is
+    dropped and rebuilt instead. Runs before every probe that looks for the
+    new column names.
 
     Returns:
-        ``"<object>: <old> -> <new>"`` for each rename done.
+        ``"<object>: <old> -> <new>"`` for each rename done, with
+        ``" (rebuilt)"`` appended to an index that was dropped instead.
     """
     renamed: list[str] = []
     for legacy_view, view in _LEGACY_SERVER_VIEW_RENAMES:
@@ -263,12 +266,18 @@ async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
     for view, legacy_index, index in _LEGACY_SERVER_INDEX_RENAMES:
         # A CAGG's indexes sit on its materialization hypertable in
         # _timescaledb_internal; an unqualified ALTER INDEX does not find them.
-        rename_statements = {
-            row.indexname: row.rename_statement
+        # Renaming one also needs CREATE on that schema, and a non-superuser
+        # app role only has USAGE there. That role drops the legacy index
+        # instead, and the CAGG's CREATE INDEX IF NOT EXISTS later in setup
+        # rebuilds it.
+        index_rows = {
+            row.indexname: row
             for row in await conn.execute(text("""
                 SELECT i.indexname,
+                       has_schema_privilege(i.schemaname, 'CREATE') AS can_rename,
                        format('ALTER INDEX %I.%I RENAME TO %I', i.schemaname, i.indexname,
-                              CAST(:index AS text)) AS rename_statement
+                              CAST(:index AS text)) AS rename_statement,
+                       format('DROP INDEX %I.%I', i.schemaname, i.indexname) AS drop_statement
                 FROM timescaledb_information.continuous_aggregates c
                 JOIN pg_indexes i
                   ON i.schemaname = c.materialization_hypertable_schema
@@ -277,9 +286,14 @@ async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
                   AND i.indexname IN (:legacy_index, :index)
             """), {"view": view, "legacy_index": legacy_index, "index": index})
         }
-        if legacy_index in rename_statements and index not in rename_statements:
-            await conn.execute(text(rename_statements[legacy_index]))
-            renamed.append(f"{view}: {legacy_index} -> {index}")
+        if legacy_index in index_rows and index not in index_rows:
+            legacy_row = index_rows[legacy_index]
+            if legacy_row.can_rename:
+                await conn.execute(text(legacy_row.rename_statement))
+                renamed.append(f"{view}: {legacy_index} -> {index}")
+            else:
+                await conn.execute(text(legacy_row.drop_statement))
+                renamed.append(f"{view}: {legacy_index} -> {index} (rebuilt)")
 
     if renamed:
         logger.info("legacy_server_objects_renamed", renamed=renamed)

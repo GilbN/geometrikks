@@ -5,6 +5,11 @@ leaves it: alembic at the last pre-rename revision, the affected continuous
 aggregates in their legacy shape, seeded rows, refreshed buckets and a
 compressed chunk. Startup (alembic head plus setup_timescaledb) must rename
 everything in place and keep every row.
+
+Tests parametrized with `database_owner` connect as a role that owns the
+database without being a superuser, as on a native PostgreSQL install.
+Postgres refuses that role some renames the superuser in the compose stack
+gets away with, so a new rename needs its legacy shape covered here too.
 """
 from __future__ import annotations
 
@@ -28,6 +33,12 @@ pytestmark = pytest.mark.anyio
 
 RENAME_DBNAME = "geometrikks_it_rename"
 RENAME_URL = f"postgresql+asyncpg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{RENAME_DBNAME}"
+# A native install: the app role owns the database but is no superuser, so it
+# has USAGE and not CREATE on the extension's _timescaledb_internal schema.
+OWNER_ROLE = "geometrikks_it_owner"
+OWNER_PASSWORD = "geometrikks_it_owner"
+OWNER_URL = f"postgresql+asyncpg://{OWNER_ROLE}:{OWNER_PASSWORD}@{PG_HOST}:{PG_PORT}/{RENAME_DBNAME}"
+DATABASE_URLS = {"superuser": RENAME_URL, "database_owner": OWNER_URL}
 LEGACY_REVISION = "a4d1f0c2b7e9"
 
 NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -204,14 +215,26 @@ async def _admin_exec(sql: str) -> None:
         await engine.dispose()
 
 
-async def _create_scratch_database() -> None:
+async def _drop_scratch_database() -> None:
     await _admin_exec(f"DROP DATABASE IF EXISTS {RENAME_DBNAME} WITH (FORCE)")
-    await _admin_exec(f"CREATE DATABASE {RENAME_DBNAME}")
+    await _admin_exec(f"DROP ROLE IF EXISTS {OWNER_ROLE}")
+
+
+async def _create_scratch_database(database_role: str) -> None:
+    await _drop_scratch_database()
+    if database_role == "database_owner":
+        await _admin_exec(f"CREATE ROLE {OWNER_ROLE} LOGIN PASSWORD '{OWNER_PASSWORD}'")
+        await _admin_exec(f"CREATE DATABASE {RENAME_DBNAME} OWNER {OWNER_ROLE}")
+    else:
+        await _admin_exec(f"CREATE DATABASE {RENAME_DBNAME}")
     # Refresh-policy jobs would otherwise race the DDL in these tests.
     engine = create_async_engine(RENAME_URL, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
+            # Only a superuser can create these; a native install has them
+            # created by its administrator.
+            for extension in ("timescaledb", "timescaledb_toolkit", "postgis"):
+                await conn.execute(text(f"CREATE EXTENSION IF NOT EXISTS {extension} CASCADE"))
             stopped = (
                 await conn.execute(text("SELECT _timescaledb_functions.stop_background_workers()"))
             ).scalar()
@@ -220,9 +243,9 @@ async def _create_scratch_database() -> None:
         await engine.dispose()
 
 
-def _alembic_commands() -> AlembicCommands:
+def _alembic_commands(database_url: str = RENAME_URL) -> AlembicCommands:
     return AlembicCommands(SQLAlchemyAsyncConfig(
-        connection_string=RENAME_URL,
+        connection_string=database_url,
         alembic_config=AlembicAsyncConfig(script_config="alembic.ini", script_location="migrations"),
     ))
 
@@ -352,9 +375,13 @@ async def _snapshot(engine: AsyncEngine, view_names: dict[str, str], *, legacy: 
     }
 
 
-def _build_legacy_database(*, location_has_hostname: bool) -> dict[str, object]:
+def _build_legacy_database(
+    *, location_has_hostname: bool, database_role: str = "superuser"
+) -> dict[str, object]:
+    database_url = DATABASE_URLS[database_role]
+
     async def _build() -> dict[str, object]:
-        engine = create_async_engine(RENAME_URL)
+        engine = create_async_engine(database_url)
         try:
             async with engine.begin() as conn:
                 await timescale._enable_extensions(conn)
@@ -370,16 +397,22 @@ def _build_legacy_database(*, location_has_hostname: bool) -> dict[str, object]:
         finally:
             await engine.dispose()
 
-    asyncio.run(_create_scratch_database())
-    _alembic_commands().upgrade(revision=LEGACY_REVISION)
+    asyncio.run(_create_scratch_database(database_role))
+    _alembic_commands(database_url).upgrade(revision=LEGACY_REVISION)
     return asyncio.run(_build())
 
 
 @pytest.fixture()
-def legacy_database() -> Iterator[dict[str, object]]:
+def database_role() -> str:
+    """Role the app connects as; parametrize to run a test as a non-superuser."""
+    return "superuser"
+
+
+@pytest.fixture()
+def legacy_database(database_role: str) -> Iterator[dict[str, object]]:
     """Previous-release database; yields the pre-upgrade snapshot."""
-    yield _build_legacy_database(location_has_hostname=True)
-    asyncio.run(_admin_exec(f"DROP DATABASE IF EXISTS {RENAME_DBNAME} WITH (FORCE)"))
+    yield _build_legacy_database(location_has_hostname=True, database_role=database_role)
+    asyncio.run(_drop_scratch_database())
 
 
 @pytest.fixture()
@@ -387,18 +420,18 @@ def legacy_database_without_location_server() -> Iterator[None]:
     """Previous release whose location CAGGs never got the hostname column."""
     _build_legacy_database(location_has_hostname=False)
     yield
-    asyncio.run(_admin_exec(f"DROP DATABASE IF EXISTS {RENAME_DBNAME} WITH (FORCE)"))
+    asyncio.run(_drop_scratch_database())
 
 
 @pytest.fixture()
-async def rename_engine() -> AsyncIterator[AsyncEngine]:
-    engine = create_async_engine(RENAME_URL)
+async def rename_engine(database_role: str) -> AsyncIterator[AsyncEngine]:
+    engine = create_async_engine(DATABASE_URLS[database_role])
     yield engine
     await engine.dispose()
 
 
 async def _start_up(engine: AsyncEngine) -> None:
-    await asyncio.to_thread(upgrade_to_head, RENAME_URL)
+    await asyncio.to_thread(upgrade_to_head, engine.url.render_as_string(hide_password=False))
     await timescale.setup_timescaledb(engine, get_settings().analytics)
 
 
@@ -439,7 +472,8 @@ async def _assert_server_names(engine: AsyncEngine) -> None:
     assert await _constraint_names(engine, LEGACY_CONSTRAINTS) == set()
 
 
-async def test_upgrade_renames_in_place(legacy_database, rename_engine):
+@pytest.mark.parametrize("database_role", ["superuser", "database_owner"])
+async def test_upgrade_renames_in_place(database_role, legacy_database, rename_engine):
     with structlog.testing.capture_logs() as captured_logs:
         await _start_up(rename_engine)
 
@@ -457,8 +491,14 @@ async def test_upgrade_renames_in_place(legacy_database, rename_engine):
     renamed_events = [log for log in captured_logs if log["event"] == "legacy_server_objects_renamed"]
     assert len(renamed_events) == 1
     assert "hostname_daily_stats: hostname_daily_stats -> server_daily_stats" in renamed_events[0]["renamed"]
+    rebuilt = " (rebuilt)" if database_role == "database_owner" else ""
+    assert (
+        f"location_hourly_stats: ix_location_hourly_hostname -> ix_location_hourly_server{rebuilt}"
+        in renamed_events[0]["renamed"]
+    )
 
 
+@pytest.mark.parametrize("database_role", ["superuser", "database_owner"])
 async def test_upgrade_is_idempotent(legacy_database, rename_engine):
     await _start_up(rename_engine)
 
@@ -468,6 +508,20 @@ async def test_upgrade_is_idempotent(legacy_database, rename_engine):
         assert await timescale._rename_legacy_server_objects(conn) == []
 
     assert not [log for log in captured_logs if log["event"] == "legacy_server_objects_renamed"]
+    await _assert_server_names(rename_engine)
+
+
+@pytest.fixture()
+def empty_database(database_role: str) -> Iterator[None]:
+    asyncio.run(_create_scratch_database(database_role))
+    yield
+    asyncio.run(_drop_scratch_database())
+
+
+@pytest.mark.parametrize("database_role", ["database_owner"])
+async def test_fresh_install(empty_database, rename_engine):
+    await _start_up(rename_engine)
+
     await _assert_server_names(rename_engine)
 
 
