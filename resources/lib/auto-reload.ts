@@ -34,14 +34,40 @@ export function autoReloadAllowed(pageBuildKey: string | null, guardKey: string 
   return pageBuildKey !== null && pageBuildKey !== guardKey
 }
 
-export function reloadPage(pageBuildKey: string | null): void {
-  if (pageBuildKey !== null) {
-    try {
-      sessionStorage.setItem(RELOAD_GUARD_STORAGE_KEY, pageBuildKey)
-    } catch {
-    }
+function storeReloadGuard(pageBuildKey: string | null): boolean {
+  if (pageBuildKey === null) return false
+  try {
+    sessionStorage.setItem(RELOAD_GUARD_STORAGE_KEY, pageBuildKey)
+    return true
+  } catch {
+    return false
   }
+}
+
+export function reloadPage(pageBuildKey: string | null): void {
+  storeReloadGuard(pageBuildKey)
   window.location.reload()
+}
+
+export function autoReloadPage(pageBuildKey: string | null): boolean {
+  if (!storeReloadGuard(pageBuildKey)) return false
+  window.location.reload()
+  return true
+}
+
+const PRELOAD_FAILURE_MESSAGES = [
+  "Failed to fetch dynamically imported module",
+  "error loading dynamically imported module",
+  "Importing a module script failed",
+  "Unable to preload CSS",
+]
+
+function isPreloadFetchFailure(preloadEvent: Event): boolean {
+  const { payload } = preloadEvent as Event & { payload?: unknown }
+  if (typeof payload !== "object" || payload === null || !("message" in payload)) return false
+  const { message } = payload
+  if (typeof message !== "string") return false
+  return PRELOAD_FAILURE_MESSAGES.some((fragment) => message.includes(fragment))
 }
 
 export function shouldReloadOnChunkError(
@@ -58,7 +84,7 @@ export interface IdleReloaderDeps {
   visibilityState: () => DocumentVisibilityState
   textEntryFocused: () => boolean
   canAutoReload: () => boolean
-  reload: () => void
+  reload: () => boolean
 }
 
 export interface IdleReloader {
@@ -73,19 +99,23 @@ export function createIdleReloader(deps: IdleReloaderDeps): IdleReloader {
   let returnWindowOpen = false
   let waitingOnTextField = false
   let idleTimer: ReturnType<typeof setTimeout> | null = null
+  let focusSettleTimer: ReturnType<typeof setTimeout> | null = null
 
   function stopTimer() {
     if (idleTimer !== null) {
       clearTimeout(idleTimer)
       idleTimer = null
     }
+    if (focusSettleTimer !== null) {
+      clearTimeout(focusSettleTimer)
+      focusSettleTimer = null
+    }
   }
 
   function reloadIfAllowed(): boolean {
-    if (!deps.canAutoReload()) return false
+    if (!deps.canAutoReload() || !deps.reload()) return false
     stopTimer()
     armed = false
-    deps.reload()
     return true
   }
 
@@ -108,10 +138,16 @@ export function createIdleReloader(deps: IdleReloaderDeps): IdleReloader {
   }
 
   function onFocusOut() {
-    if (armed && waitingOnTextField && !deps.textEntryFocused()) {
-      waitingOnTextField = false
-      reloadIfAllowed()
-    }
+    if (!armed || !waitingOnTextField) return
+    if (focusSettleTimer !== null) clearTimeout(focusSettleTimer)
+    // document.activeElement is body during focusout, so read it after focus settles.
+    focusSettleTimer = setTimeout(() => {
+      focusSettleTimer = null
+      if (armed && waitingOnTextField && !deps.textEntryFocused()) {
+        waitingOnTextField = false
+        reloadIfAllowed()
+      }
+    }, 0)
   }
 
   function onVisibilityChange() {
@@ -127,7 +163,7 @@ export function createIdleReloader(deps: IdleReloaderDeps): IdleReloader {
     if (!armed) returnWindowOpen = true
   }
 
-  const inputListenerOptions = { capture: true }
+  const inputListenerOptions = { capture: true, passive: true }
   for (const eventName of INPUT_EVENTS) {
     deps.events.addEventListener(eventName, onInput, inputListenerOptions)
   }
@@ -167,16 +203,16 @@ export interface PreloadErrorHandlerDeps {
   lastStartedAtChangeAt: () => number | null
   now: () => number
   canAutoReload: () => boolean
-  reload: () => void
+  reload: () => boolean
 }
 
 export function createPreloadErrorHandler(
   deps: PreloadErrorHandlerDeps,
 ): (preloadEvent: Event) => void {
   return (preloadEvent) => {
+    if (!isPreloadFetchFailure(preloadEvent)) return
     if (!shouldReloadOnChunkError(deps.isPending(), deps.lastStartedAtChangeAt(), deps.now())) return
     if (!deps.canAutoReload()) return
-    preloadEvent.preventDefault()
-    deps.reload()
+    if (deps.reload()) preloadEvent.preventDefault()
   }
 }

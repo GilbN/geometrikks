@@ -5,6 +5,7 @@ import {
   INPUT_EVENTS,
   RELOAD_GUARD_STORAGE_KEY,
   autoReloadAllowed,
+  autoReloadPage,
   clearReloadGuard,
   createIdleReloader,
   createPreloadErrorHandler,
@@ -23,7 +24,7 @@ function setup({
 } = {}) {
   const events = new EventTarget()
   const state = { visibility, textEntryFocused, canAutoReload }
-  const reload = vi.fn()
+  const reload = vi.fn(() => true)
   const reloader = createIdleReloader({
     events,
     visibilityState: () => state.visibility,
@@ -60,7 +61,7 @@ describe("createIdleReloader", () => {
     events.dispatchEvent(new Event(eventName))
     vi.advanceTimersByTime(5 * MINUTE - 1)
     expect(reload).not.toHaveBeenCalled()
-    vi.advanceTimersByTime(4 * MINUTE + 1)
+    vi.advanceTimersByTime(1)
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
@@ -82,13 +83,13 @@ describe("createIdleReloader", () => {
       visibilityState: () => "visible",
       textEntryFocused: () => false,
       canAutoReload: () => true,
-      reload: vi.fn(),
+      reload: () => true,
     })
     for (const eventName of INPUT_EVENTS) {
       expect(addEventListener).toHaveBeenCalledWith(
         eventName,
         expect.any(Function),
-        expect.objectContaining({ capture: true }),
+        expect.objectContaining({ capture: true, passive: true }),
       )
     }
   })
@@ -101,6 +102,23 @@ describe("createIdleReloader", () => {
     expect(reload).not.toHaveBeenCalled()
     state.textEntryFocused = false
     events.dispatchEvent(new Event("focusout"))
+    expect(reload).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(0)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not reload when focus moves from one text field to another", () => {
+    const { events, state, reload, reloader } = setup({ textEntryFocused: true })
+    reloader.arm()
+    vi.advanceTimersByTime(IDLE_RELOAD_MS)
+    state.textEntryFocused = false
+    events.dispatchEvent(new Event("focusout"))
+    state.textEntryFocused = true
+    vi.advanceTimersByTime(0)
+    expect(reload).not.toHaveBeenCalled()
+    state.textEntryFocused = false
+    events.dispatchEvent(new Event("focusout"))
+    vi.advanceTimersByTime(0)
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
@@ -109,6 +127,7 @@ describe("createIdleReloader", () => {
     reloader.arm()
     vi.advanceTimersByTime(IDLE_RELOAD_MS)
     events.dispatchEvent(new Event("focusout"))
+    vi.advanceTimersByTime(0)
     expect(reload).not.toHaveBeenCalled()
   })
 
@@ -171,6 +190,31 @@ describe("createIdleReloader", () => {
     hidden.events.dispatchEvent(new Event("visibilitychange"))
     vi.advanceTimersByTime(IDLE_RELOAD_MS * 2)
     expect(hidden.reload).not.toHaveBeenCalled()
+  })
+
+  it("dispose removes every listener with the options it added them with", () => {
+    const events = new EventTarget()
+    const addEventListener = vi.spyOn(events, "addEventListener")
+    const removeEventListener = vi.spyOn(events, "removeEventListener")
+    const reloader = createIdleReloader({
+      events,
+      visibilityState: () => "visible",
+      textEntryFocused: () => false,
+      canAutoReload: () => true,
+      reload: () => true,
+    })
+    reloader.dispose()
+    expect(addEventListener.mock.calls.length).toBe(INPUT_EVENTS.length + 2)
+    for (const [eventName, listener, options] of addEventListener.mock.calls) {
+      const matching = removeEventListener.mock.calls.filter(
+        ([removedName, removedListener, removedOptions]) =>
+          removedName === eventName &&
+          removedListener === listener &&
+          Boolean(typeof removedOptions === "object" ? removedOptions.capture : removedOptions) ===
+            Boolean(typeof options === "object" ? options.capture : options),
+      )
+      expect(matching).toHaveLength(1)
+    }
   })
 
   it("dispose removes the listeners and the timer", () => {
@@ -267,6 +311,72 @@ describe("reload guard storage", () => {
   })
 })
 
+describe("automatic reloads without a stored guard", () => {
+  function stubBlockedStorage() {
+    const failing = () => {
+      throw new Error("storage blocked")
+    }
+    vi.stubGlobal("sessionStorage", { getItem: failing, setItem: failing, removeItem: failing })
+    const windowReload = vi.fn()
+    vi.stubGlobal("window", { location: { reload: windowReload } })
+    return windowReload
+  }
+
+  it("autoReloadPage skips the reload when the guard cannot be stored", () => {
+    const windowReload = stubBlockedStorage()
+    expect(autoReloadPage("0.22.0")).toBe(false)
+    expect(autoReloadPage(null)).toBe(false)
+    expect(windowReload).not.toHaveBeenCalled()
+  })
+
+  it("autoReloadPage stores the guard and reloads when storage works", () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal("sessionStorage", {
+      setItem: (key: string, value: string) => void store.set(key, value),
+    })
+    const windowReload = vi.fn()
+    vi.stubGlobal("window", { location: { reload: windowReload } })
+    expect(autoReloadPage("0.22.0")).toBe(true)
+    expect(store.get(RELOAD_GUARD_STORAGE_KEY)).toBe("0.22.0")
+    expect(windowReload).toHaveBeenCalledTimes(1)
+  })
+
+  it("the idle path does not reload", () => {
+    const windowReload = stubBlockedStorage()
+    const reloader = createIdleReloader({
+      events: new EventTarget(),
+      visibilityState: () => "visible",
+      textEntryFocused: () => false,
+      canAutoReload: () => true,
+      reload: () => autoReloadPage("0.22.0"),
+    })
+    reloader.arm()
+    vi.advanceTimersByTime(IDLE_RELOAD_MS * 2)
+    expect(windowReload).not.toHaveBeenCalled()
+  })
+
+  it("the preload-error path does not reload and leaves the error alone", () => {
+    const windowReload = stubBlockedStorage()
+    const handler = createPreloadErrorHandler({
+      isPending: () => true,
+      lastStartedAtChangeAt: () => null,
+      now: () => 0,
+      canAutoReload: () => true,
+      reload: () => autoReloadPage("0.22.0"),
+    })
+    const preloadEvent = fetchFailureEvent()
+    handler(preloadEvent)
+    expect(windowReload).not.toHaveBeenCalled()
+    expect(preloadEvent.defaultPrevented).toBe(false)
+  })
+
+  it("a manual reloadPage still reloads", () => {
+    const windowReload = stubBlockedStorage()
+    reloadPage("0.22.0")
+    expect(windowReload).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe("shouldReloadOnChunkError", () => {
   const now = 100 * MINUTE
 
@@ -288,9 +398,19 @@ describe("shouldReloadOnChunkError", () => {
   })
 })
 
+function preloadErrorEvent(message: string): Event {
+  const preloadEvent = new Event("vite:preloadError", { cancelable: true })
+  Object.assign(preloadEvent, { payload: new Error(message) })
+  return preloadEvent
+}
+
+function fetchFailureEvent(): Event {
+  return preloadErrorEvent("Failed to fetch dynamically imported module: /assets/map.js")
+}
+
 describe("createPreloadErrorHandler", () => {
   function handlerSetup({ pending = false, changeAt = null as number | null, canAutoReload = true } = {}) {
-    const reload = vi.fn()
+    const reload = vi.fn(() => true)
     const handler = createPreloadErrorHandler({
       isPending: () => pending,
       lastStartedAtChangeAt: () => changeAt,
@@ -298,26 +418,57 @@ describe("createPreloadErrorHandler", () => {
       canAutoReload: () => canAutoReload,
       reload,
     })
-    const preloadEvent = new Event("vite:preloadError", { cancelable: true })
-    return { handler, preloadEvent, reload }
+    return { handler, reload }
   }
 
   it("prevents the error and reloads while an update is pending", () => {
-    const { handler, preloadEvent, reload } = handlerSetup({ pending: true })
+    const { handler, reload } = handlerSetup({ pending: true })
+    const preloadEvent = fetchFailureEvent()
     handler(preloadEvent)
     expect(preloadEvent.defaultPrevented).toBe(true)
     expect(reload).toHaveBeenCalledTimes(1)
   })
 
   it("leaves the error alone with no update and no recent restart", () => {
-    const { handler, preloadEvent, reload } = handlerSetup()
+    const { handler, reload } = handlerSetup()
+    const preloadEvent = fetchFailureEvent()
     handler(preloadEvent)
     expect(preloadEvent.defaultPrevented).toBe(false)
     expect(reload).not.toHaveBeenCalled()
   })
 
   it("does nothing when the loop guard refuses", () => {
-    const { handler, preloadEvent, reload } = handlerSetup({ pending: true, canAutoReload: false })
+    const { handler, reload } = handlerSetup({ pending: true, canAutoReload: false })
+    const preloadEvent = fetchFailureEvent()
+    handler(preloadEvent)
+    expect(preloadEvent.defaultPrevented).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    "Failed to fetch dynamically imported module: /assets/map.js",
+    "error loading dynamically imported module: /assets/map.js",
+    "Importing a module script failed.",
+    "Unable to preload CSS for /assets/map.css",
+  ])("intercepts a fetch failure: %s", (message) => {
+    const { handler, reload } = handlerSetup({ pending: true })
+    const preloadEvent = preloadErrorEvent(message)
+    handler(preloadEvent)
+    expect(preloadEvent.defaultPrevented).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it("leaves an exception thrown while a module evaluates alone", () => {
+    const { handler, reload } = handlerSetup({ pending: true })
+    const preloadEvent = preloadErrorEvent("Cannot read properties of undefined")
+    handler(preloadEvent)
+    expect(preloadEvent.defaultPrevented).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+
+  it("leaves an event without a payload alone", () => {
+    const { handler, reload } = handlerSetup({ pending: true })
+    const preloadEvent = new Event("vite:preloadError", { cancelable: true })
     handler(preloadEvent)
     expect(preloadEvent.defaultPrevented).toBe(false)
     expect(reload).not.toHaveBeenCalled()
