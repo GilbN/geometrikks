@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import MutableMapping
 from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any, cast
@@ -43,6 +44,10 @@ def _settings(**overrides: Any) -> Settings:
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)
+
+
+def _revoked_reasons(captured: list[MutableMapping[str, Any]]) -> list[str]:
+    return [log_entry["reason"] for log_entry in captured if log_entry["event"] == "sessions_revoked"]
 
 
 async def test_first_start_stores_a_fingerprint_and_revokes():
@@ -87,17 +92,17 @@ async def test_a_changed_setting_revokes_every_session(changed: dict[str, Any]):
 
     assert revoked is True
     assert await sessions.get("session-1") is None
-    events = [log_entry for log_entry in captured if log_entry["event"] == "sessions_revoked"]
-    assert len(events) == 1
-    assert events[0]["reason"] == "auth_settings_changed"
+    assert _revoked_reasons(captured) == ["auth_settings_changed"]
 
 
 async def test_a_missing_fingerprint_clears_existing_sessions():
     sessions, fingerprints = MemoryStore(), MemoryStore()
     await sessions.set("session-1", b"payload", expires_in=3600)
 
-    assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
+    with capture_logs() as captured:
+        assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
     assert await sessions.get("session-1") is None
+    assert _revoked_reasons(captured) == ["no_fingerprint"]
 
 
 async def test_a_stored_value_that_is_no_hash_counts_as_a_change():
@@ -105,8 +110,10 @@ async def test_a_stored_value_that_is_no_hash_counts_as_a_change():
     await fingerprints.set(FINGERPRINT_KEY, b"not-a-hash", expires_in=3600)
     await sessions.set("session-1", b"payload", expires_in=3600)
 
-    assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
+    with capture_logs() as captured:
+        assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
     assert await sessions.get("session-1") is None
+    assert _revoked_reasons(captured) == ["invalid_fingerprint"]
     stored = await fingerprints.get(FINGERPRINT_KEY)
     assert stored is not None
     assert stored.startswith(b"$argon2")

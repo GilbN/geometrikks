@@ -76,11 +76,14 @@ async def _sanitized_store_step(step: str, operation: Callable[[], Awaitable[_T]
     raise SessionRevocationError(f"Session revocation could not {step} ({failure})")
 
 
-def _matches(material: str, stored: bytes) -> bool:
+def _revocation_reason(material: str, stored: bytes | None) -> str | None:
+    """Why the sessions must go, or None when the stored fingerprint matches."""
+    if stored is None:
+        return "no_fingerprint"
     try:
-        return _hasher.verify(material, stored)
+        return None if _hasher.verify(material, stored) else "auth_settings_changed"
     except UnknownHashError:
-        return False
+        return "invalid_fingerprint"
 
 
 async def revoke_sessions_if_auth_changed(
@@ -91,7 +94,8 @@ async def revoke_sessions_if_auth_changed(
     stored = await _store_step(
         "read the auth fingerprint", lambda: fingerprints.get(FINGERPRINT_KEY)
     )
-    if stored is not None and await asyncio.to_thread(_matches, material, stored):
+    reason = await asyncio.to_thread(_revocation_reason, material, stored)
+    if reason is None:
         return False
     await _store_step("delete the sessions", sessions.delete_all)
     fingerprint = await asyncio.to_thread(_hasher.hash, material)
@@ -99,5 +103,5 @@ async def revoke_sessions_if_auth_changed(
         "store the auth fingerprint",
         lambda: fingerprints.set(FINGERPRINT_KEY, fingerprint, expires_in=_FINGERPRINT_LIFETIME),
     )
-    logger.info("sessions_revoked", reason="auth_settings_changed")
+    logger.info("sessions_revoked", reason=reason)
     return True
