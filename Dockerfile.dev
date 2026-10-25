@@ -5,6 +5,7 @@ FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbb
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 ARG APP_IMAGE_TAG=local
+ARG GEOMETRIKKS_VERSION=0.0.0+local
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
@@ -28,7 +29,7 @@ COPY package.json bun.lock ./
 COPY geometrikks/ ./geometrikks/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    SETUPTOOLS_SCM_PRETEND_VERSION="${GEOMETRIKKS_VERSION}" uv sync --frozen
 
 RUN --mount=type=cache,target=/root/.bun \
     bun install --frozen-lockfile

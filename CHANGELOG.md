@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dev images and source checkouts report the version they were built from, such as v0.22.0-dev.4, instead of the last stable release. A build without a version, such as a plain `docker build`, shows "local build", and the agents page no longer warns about version differences for local builds.
+- The OpenAPI schema at `/schema` reports the API version, 1, instead of the app version.
+
 ## [0.22.0] - 2026-10-25
 
 ### Added

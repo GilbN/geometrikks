@@ -42,8 +42,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # runtime image then only needs the venv, and site-packages carries the
 # package with proper dist-info instead of a path reference to /app source.
 COPY geometrikks/ ./geometrikks/
+ARG GEOMETRIKKS_VERSION=0.0.0+local
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv build --wheel \
+    SETUPTOOLS_SCM_PRETEND_VERSION="${GEOMETRIKKS_VERSION}" uv build --wheel \
     && uv pip install --no-deps dist/*.whl
 
 # ------------------------------------------------------------------------------
