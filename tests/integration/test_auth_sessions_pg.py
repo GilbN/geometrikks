@@ -1,8 +1,16 @@
-"""auth_sessions: the store round-trips values and expiry cleanup stays inside one namespace."""
+"""auth_sessions against Postgres: the store, a login across app restarts, and startup revocation.
+
+The store tests check that values round-trip and that expiry cleanup stays inside one
+namespace. The restart tests build a fresh app over the same database and check that a
+login, a logout and the absolute expiry carry over. The revocation tests check that changed
+auth settings end every session and unchanged ones leave them alone.
+"""
 from collections.abc import AsyncIterator
+from datetime import datetime
 
 import pytest
 from advanced_alchemy.extensions.litestar import EngineConfig, SQLAlchemyAsyncConfig
+from litestar import Request, get
 from litestar.testing import AsyncTestClient
 from sqlalchemy import text
 from sqlalchemy.pool import NullPool
@@ -144,6 +152,28 @@ async def test_logout_on_the_second_app_deletes_the_row(db_config, pg_engine, cl
     assert await _count_rows(pg_engine, SESSION_NAMESPACE) == 0
 
 
+@get("/api/v1/touch-session")
+async def touch_session(request: Request) -> dict[str, bool]:
+    """An authenticated request that writes to the loaded session."""
+    request.set_session({**request.session, "touched": True})
+    return {"ok": True}
+
+
+async def _expiry(pg_engine, session_cookie: str) -> tuple[datetime, float]:
+    """The row's expires_at and the seconds left on it."""
+    async with pg_engine.connect() as connection:
+        row = (
+            await connection.execute(
+                text(
+                    "SELECT expires_at, extract(epoch FROM expires_at - now()) "
+                    "FROM auth_sessions WHERE key = :key AND namespace = :namespace"
+                ),
+                {"key": hash_session_id(session_cookie), "namespace": SESSION_NAMESPACE},
+            )
+        ).one()
+    return row[0], float(row[1])
+
+
 async def test_raising_the_lifetime_does_not_extend_existing_sessions(
     db_config, pg_engine, clean_auth_sessions
 ):
@@ -158,17 +188,43 @@ async def test_raising_the_lifetime_does_not_extend_existing_sessions(
         second_process.cookies.set("session", session_cookie)
         assert (await second_process.get("/api/v1/auth/me")).status_code == 200
 
+    _, remaining_seconds = await _expiry(pg_engine, session_cookie)
+    assert 86400 - 60 < remaining_seconds <= 86400
+
+
+async def test_writing_a_loaded_session_keeps_its_remaining_lifetime_in_postgres(
+    db_config, pg_engine, clean_auth_sessions
+):
+    async with AsyncTestClient(
+        app=make_app(inner_store=create_session_table_store(db_config), session_max_age_days=1)
+    ) as first_process:
+        session_cookie = await _login(first_process)
+    expires_at_after_login, _ = await _expiry(pg_engine, session_cookie)
+
+    async with AsyncTestClient(
+        app=make_app(
+            extra_handlers=[touch_session],
+            inner_store=create_session_table_store(db_config),
+            session_max_age_days=30,
+        )
+    ) as second_process:
+        second_process.cookies.set("session", session_cookie)
+        touched = await second_process.get("/api/v1/touch-session")
+        # The write-back sends a refreshed cookie; a second request proves the row still loads.
+        assert (await second_process.get("/api/v1/auth/me")).status_code == 200
+
+    assert touched.status_code == 200
+    expires_at_after_write, remaining_seconds = await _expiry(pg_engine, session_cookie)
+    assert expires_at_after_write <= expires_at_after_login
+    assert 86400 - 60 < remaining_seconds <= 86400
     async with pg_engine.connect() as connection:
-        remaining = (
+        stored_value = (
             await connection.execute(
-                text(
-                    "SELECT expires_at - now() FROM auth_sessions "
-                    "WHERE key = :key AND namespace = :namespace"
-                ),
-                {"key": hash_session_id(session_cookie), "namespace": SESSION_NAMESPACE},
+                text("SELECT value FROM auth_sessions WHERE key = :key"),
+                {"key": hash_session_id(session_cookie)},
             )
         ).scalar_one()
-    assert remaining.total_seconds() <= 86400
+    assert b"touched" in stored_value
 
 
 async def test_revocation_runs_against_postgres(db_config, pg_engine, clean_auth_sessions):
@@ -183,3 +239,23 @@ async def test_revocation_runs_against_postgres(db_config, pg_engine, clean_auth
 
     assert await _count_rows(pg_engine, SESSION_NAMESPACE) == 0
     assert await _count_rows(pg_engine, FINGERPRINT_NAMESPACE) == 1
+
+
+async def test_unchanged_settings_keep_sessions_after_the_fingerprint_round_trips_postgres(
+    db_config, pg_engine, clean_auth_sessions
+):
+    settings = Settings(admin_user="admin", admin_password="first-password", _env_file=None)
+    first_sessions = create_session_table_store(db_config)
+    first_fingerprints = create_session_table_store(db_config, FINGERPRINT_NAMESPACE)
+    await revoke_sessions_if_auth_changed(first_sessions, first_fingerprints, settings)
+    await first_sessions.set("planted", b"v", expires_in=3600)
+
+    restarted_sessions = create_session_table_store(db_config)
+    restarted_fingerprints = create_session_table_store(db_config, FINGERPRINT_NAMESPACE)
+    revoked = await revoke_sessions_if_auth_changed(
+        restarted_sessions, restarted_fingerprints, settings
+    )
+
+    assert revoked is False
+    assert await restarted_sessions.get("planted") == b"v"
+    assert await _count_rows(pg_engine, SESSION_NAMESPACE) == 1
