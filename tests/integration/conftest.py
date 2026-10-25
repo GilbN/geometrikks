@@ -203,3 +203,11 @@ async def clean_instance_heartbeats(pg_engine: AsyncEngine):
     async with pg_engine.begin() as conn:
         await conn.execute(text("DELETE FROM instance_heartbeats"))
     yield
+
+
+@pytest.fixture()
+async def clean_auth_sessions(pg_engine: AsyncEngine):
+    """Clear auth_sessions before each test that requests this fixture."""
+    async with pg_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM auth_sessions"))
+    yield
