@@ -6,12 +6,13 @@ import asyncio
 import hashlib
 from typing import TYPE_CHECKING, TypeVar
 
+import asyncpg
+import sqlalchemy.exc
 from advanced_alchemy.extensions.litestar import SQLAlchemyAsyncConfig
 from advanced_alchemy.extensions.litestar.store import SQLAlchemyStore
 from litestar.exceptions import ServiceUnavailableException
 from litestar.stores.base import Store
 from sqlalchemy import delete, func
-from sqlalchemy.exc import SQLAlchemyError
 
 from geometrikks.domain.auth.models import AuthSession
 from geometrikks.server import runtime
@@ -27,6 +28,21 @@ FINGERPRINT_NAMESPACE = "auth_fingerprint"
 SESSION_STORE_TIMEOUT_SECONDS = 5.0
 
 _T = TypeVar("_T")
+
+# Failures that mean "the database cannot be reached right now". SQLAlchemy
+# wraps driver errors only on an open connection, so errors from
+# asyncpg.connect (the server is starting up, too many connections) arrive
+# raw. Anything else is a bug and must keep its traceback.
+_OUTAGE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    TimeoutError,
+    asyncpg.PostgresError,
+    asyncpg.InterfaceError,
+    sqlalchemy.exc.OperationalError,
+    sqlalchemy.exc.InterfaceError,
+    sqlalchemy.exc.DisconnectionError,
+    sqlalchemy.exc.TimeoutError,
+)
 
 
 class SessionTableStore(SQLAlchemyStore[SQLAlchemyAsyncConfig]):
@@ -78,7 +94,7 @@ class SessionStore(Store):
         try:
             async with asyncio.timeout(self.timeout):
                 return await operation()
-        except (SQLAlchemyError, OSError, TimeoutError) as error:
+        except _OUTAGE_ERRORS as error:
             raise ServiceUnavailableException(detail="The session store is unavailable.") from error
 
     async def set(self, key: str, value: str | bytes, expires_in: int | timedelta | None = None) -> None:
