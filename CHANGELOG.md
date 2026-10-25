@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Settings > Agents shows the Name row in an instance's details only when `APP_INSTANCE_NAME` isn't set. An instance with a configured name no longer shows "set by APP_INSTANCE_NAME".
+- `docs/configuration.md` lists the settings for working on GeoMetrikks itself in a Developer settings section at the end: `APP_DEBUG`, `APP_ENVIRONMENT`, the SQL echo and pool switches, `DB_DROP_ON_STARTUP`, `LOGPARSER_SKIP_VALIDATION`, `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` and the Vite settings.
+
+### Removed
+
+- `API_HOST` and `API_PORT`. The server never read them. It listens on the host and port given to `litestar run`, which is `0.0.0.0:8000` in the image.
+- `API_LOG_LEVEL`, deprecated since 0.5.0. Set `LOG_LEVEL` instead.
+- `GEOIP_VALIDATE_DB_PATH` and `GEOIP_VALIDATE_LOCALES`. A missing GeoLite2 file still starts the app in geo-degraded mode, and an unsupported `GEOIP_LOCALES` value always fails startup.
+- `APP_VERSION`. The version shown in the UI and the API schema always comes from the installed package.
+- `APP_NAME` and `APP_DESCRIPTION`. They only set the API schema's title and description.
+- `VITE_ENABLE_REACT_HELPERS` and `VITE_EXECUTOR`. Dev mode always runs Vite through bun with React refresh on.
 
 ## [0.22.1] - 2026-10-25
 

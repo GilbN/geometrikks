@@ -81,8 +81,6 @@ RUN printf '%s' "${GIT_SHA}" > COMMIT \
     && chown geometrikks:geometrikks /app /app/COMMIT /app/logs /app/data /app/data/geoip
 
 # Set environment
-# GEOIP_VALIDATE_DB_PATH=false: settings construction must not fail while the
-# geoip volume is empty; the downloader/degraded-mode path owns that now.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -92,7 +90,6 @@ ENV PATH="/app/.venv/bin:$PATH" \
     VITE_DEV_MODE=false \
     GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
     GEOIP_ASN_DB_PATH=/app/data/geoip/GeoLite2-ASN.mmdb \
-    GEOIP_VALIDATE_DB_PATH=false \
     LITESTAR_APP=geometrikks.server.core:create_app
 
 VOLUME ["/app/data/geoip"]

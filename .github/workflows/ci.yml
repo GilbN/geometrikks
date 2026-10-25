@@ -54,8 +54,6 @@ jobs:
       # Typegen composes the real app; auth settings demand a password even
       # though no server ever starts. Deliberately non-secret.
       APP_ADMIN_PASSWORD: typegen-only
-      # No GeoLite2 database in CI; settings construction must not fail.
-      GEOIP_VALIDATE_DB_PATH: "false"
       # Dev mode would register dev-only vite routes and pollute routes.json.
       VITE_DEV_MODE: "false"
     steps:

@@ -26,7 +26,6 @@ def make_settings(tmp_path: Path, **kwargs) -> GeoIPSettings:
     return GeoIPSettings(
         db_path=tmp_path / "GeoLite2-City.mmdb",
         asn_db_path=tmp_path / "GeoLite2-ASN.mmdb",
-        validate_db_path=False,
         _env_file=None,
         **kwargs,
     )

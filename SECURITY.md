@@ -14,7 +14,7 @@ serves plain HTTP).
 Notes:
 - Sessions are in-memory: an app restart logs everyone out.
 - `/health` and `/health/ready` are unauthenticated by design (probes).
-- Debug endpoints only exist when `APP_DEBUG=true` — don't run debug in production.
+- `APP_DEBUG=true` puts tracebacks in error responses. Don't run debug in production.
 - The MaxMind license key is only ever sent to download.maxmind.com over HTTPS.
 
 ## Reporting a vulnerability
