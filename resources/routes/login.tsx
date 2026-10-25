@@ -35,8 +35,8 @@ export const Route = createFileRoute("/login")({
   pendingComponent: LoginPagePending,
 })
 
-// beforeLoad waits on the session check and then the options and health
-// requests before anything paints, so without this the anonymous cold load
+// beforeLoad waits for the session check, then for the options and health
+// requests, before anything paints. Without this, an anonymous cold load
 // shows a blank page until they return.
 function LoginPagePending() {
   return (

@@ -66,9 +66,9 @@ Nothing in the runtime is coordinated across processes:
   log line.
 - Startup migrations (below) are not locked across processes.
 
-Raising the worker count is a design change (session locking across workers,
-channel backend or fan-out service, external scheduler/ingestion ownership,
-and migration locking), not a tuning knob.
+Raising the worker count is a design change, not a tuning knob. It needs
+session locking across workers, a channel backend or fan-out service,
+scheduler and ingestion ownership outside the app, and migration locking.
 
 ## Migration ownership
 

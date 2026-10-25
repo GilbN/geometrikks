@@ -148,11 +148,11 @@ def _scope_dict(connection: "ASGIConnection") -> dict[str, Any]:
 
 
 def require_session_database(request: "Request") -> None:
-    """Refuse a login up front while sessions cannot be written.
+    """Refuse a login up front while the session store can't take writes.
 
-    A browser with no session cookie never touches the session store on the
-    way in, so without this a login would pass the password check and only
-    fail on the session write, as a bare 500.
+    A browser without a session cookie never reads the session store on the
+    way in. Without this check its login would pass the password check and
+    then fail on the session write with a bare 500.
     """
     if not runtime.is_session_store_ready(request.app, default=True):
         raise ServiceUnavailableException(
@@ -332,10 +332,11 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     async def _sweep_expired_if_due(self, store: "Store") -> None:
         """Drop expired store rows, at most once per PENDING_LIFETIME_SECONDS.
 
-        The throttle is on the config, shared by every handler's backend.
-        Two requests passing it together both sweep; that is redundant, not
-        wrong. The sweep is best-effort: it runs while the response is being
-        sent, so an exception here would fail a login that already succeeded.
+        The throttle lives on the config, which every handler's backend
+        shares. Two requests that pass it together both sweep. That is
+        redundant, not wrong. The sweep runs while Litestar sends the
+        response, so it logs a failure instead of raising. Raising would
+        fail a login that already succeeded.
         """
         sweep = getattr(store, "delete_expired", None)
         if not callable(sweep):
@@ -344,8 +345,8 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         now = time.monotonic()
         if now < config.next_sweep_at:
             return
-        # Set before the sweep on purpose: a failed sweep waits for the next
-        # interval instead of hitting a failing store on every login.
+        # Set before the sweep so a failed sweep waits for the next interval
+        # instead of hitting a failing store on every login.
         config.next_sweep_at = now + PENDING_LIFETIME_SECONDS
         try:
             await sweep()
@@ -356,9 +357,9 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
 class RotatingServerSideSessionConfig(ServerSideSessionConfig):
     """ServerSideSessionConfig whose middleware builds the rotating backend.
 
-    Also owns write_lock and next_sweep_at: see
-    RotatingServerSideSessionBackend._write_lock for why they have to live
-    here instead of on the backend.
+    Also owns write_lock and next_sweep_at.
+    RotatingServerSideSessionBackend._write_lock explains why they live here
+    and not on the backend.
     """
 
     _backend_class = RotatingServerSideSessionBackend
@@ -374,8 +375,8 @@ class RotatingServerSideSessionConfig(ServerSideSessionConfig):
 def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:
     """Build the SessionAuth component applied via on_app_init in create_app().
 
-    Server-side sessions in the ``sessions`` store, which create_app() backs
-    with the auth_sessions table, so logins survive a restart.
+    Server-side sessions in the ``sessions`` store. create_app() backs that
+    store with the auth_sessions table, so logins survive a restart.
     """
     session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,

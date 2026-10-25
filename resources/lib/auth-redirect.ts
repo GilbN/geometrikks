@@ -115,7 +115,7 @@ export async function logoutThenNavigate(
 
 /** What the login page says while the database is down. The login routes
  *  answer 503 then, so nobody can reach the Status page that would explain
- *  why. Only the database advisory triggers it; other advisories stay behind
+ *  why. Only the database advisory triggers it. Other advisories stay behind
  *  the login. */
 export function databaseDownNotice(health: HealthResponse | null): string | null {
   const isDown = health?.advisories?.some((advisory) => advisory.id === "database-unavailable")
@@ -123,8 +123,8 @@ export function databaseDownNotice(health: HealthResponse | null): string | null
 }
 
 /** How long the login page waits for /health. A hung process or a proxy that
- *  never answers must not hold the form behind the skeleton, and that is
- *  exactly when the database notice matters. */
+ *  never answers must not hold the form behind the skeleton. That is when the
+ *  database notice matters most. */
 export const LOGIN_HEALTH_TIMEOUT_MS = 3000
 
 /** Fetches what the login page needs, both at once. A failed or timed-out

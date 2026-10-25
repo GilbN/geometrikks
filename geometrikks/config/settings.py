@@ -1352,9 +1352,9 @@ class Settings(BaseSettings):
         le=400,
         description=(
             "How many days a login lasts before the user has to sign in again. "
-            "The lifetime is fixed at login, so a change only applies to logins "
-            "made after it. Raise it for an unattended wall screen. 400 is the "
-            "longest cookie lifetime browsers accept."
+            "Each login keeps the lifetime it started with, so a change only "
+            "applies to logins made after it. Raise it for an unattended wall "
+            "screen. 400 is the longest cookie lifetime browsers accept."
         ),
     )
     trusted_proxies: Annotated[list[str], NoDecode] = Field(

@@ -122,10 +122,10 @@ def is_db_available(app: Litestar, *, default: bool = True) -> bool:
 
 
 def is_session_store_ready(app: Litestar, *, default: bool = True) -> bool:
-    """Whether the database is migrated and set up, so session reads and writes can run.
+    """Whether startup has migrated and set up the database, so session reads and writes can run.
 
-    Stays True after a recovery that brought the database up but failed to
-    start the scheduler or ingestion; ``db_available`` stays False then.
+    A recovery that brings the database up but fails to start the scheduler
+    or ingestion leaves this True and ``db_available`` False.
     """
     return bool(getattr(app.state, "session_store_ready", default))
 

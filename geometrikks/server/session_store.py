@@ -29,10 +29,10 @@ SESSION_STORE_TIMEOUT_SECONDS = 5.0
 
 _T = TypeVar("_T")
 
-# Failures that mean "the database cannot be reached right now". SQLAlchemy
+# Failures that mean the database can't be reached right now. SQLAlchemy
 # wraps driver errors only on an open connection, so errors from
-# asyncpg.connect (the server is starting up, too many connections) arrive
-# raw. Anything else is a bug and must keep its traceback.
+# asyncpg.connect arrive raw, such as a server still starting up or out of
+# connections. Anything else is a bug and must keep its traceback.
 _OUTAGE_ERRORS: tuple[type[BaseException], ...] = (
     OSError,
     TimeoutError,
@@ -70,11 +70,11 @@ def hash_session_id(session_id: str) -> str:
 
 
 class SessionStore(Store):
-    """The app's ``sessions`` store: hashes keys and fails with a 503.
+    """The app's ``sessions`` store. It hashes keys and answers 503 when the database is down.
 
-    Without it a store outage reads as "no session": the auth middleware
-    answers 401 and the SPA sends the user to the login page, although the
-    session is still valid and will be back with the database.
+    Without it a store outage reads as no session. The auth middleware
+    answers 401 and the SPA sends the user to the login page, even though
+    the session is still valid and comes back with the database.
     """
 
     def __init__(
@@ -125,8 +125,9 @@ class SessionStore(Store):
 def install_session_store(app: Litestar, inner: Store) -> SessionStore:
     """Register the ``sessions`` store over ``inner``.
 
-    Call before the first request: the session backend reads the store from
-    the registry per request, and register() refuses a name already taken.
+    Call this before the first request. A request that finds no ``sessions``
+    store makes the registry create a default one, and register() refuses a
+    name that is already taken.
     """
     store = SessionStore(inner, is_available=lambda: runtime.is_session_store_ready(app, default=True))
     app.stores.register("sessions", store)

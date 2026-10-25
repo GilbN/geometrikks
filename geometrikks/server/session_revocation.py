@@ -32,11 +32,11 @@ _T = TypeVar("_T")
 
 
 class SessionRevocationError(RuntimeError):
-    """A store call failed. The fingerprint write carries only the step and the error type."""
+    """A store call failed. A failed fingerprint write names only the step and the error type."""
 
 
 def auth_fingerprint_material(settings: Settings) -> str:
-    """Canonical JSON of every setting that narrows who gets in. Holds the admin password."""
+    """Canonical JSON of every setting that narrows who gets in. It holds the plain admin password."""
     oidc = settings.oidc
     password = settings.admin_password.get_secret_value() if settings.admin_password else None
     return json.dumps(
@@ -70,9 +70,9 @@ async def _sanitized_store_step(step: str, operation: Callable[[], Awaitable[_T]
         return await operation()
     except Exception as error:
         failure = type(error).__name__
-    # Raised outside the except block so neither __cause__ nor __context__
-    # holds the original: a DBAPIError's message lists the bound parameters,
-    # which include the fingerprint hash.
+    # Raise outside the except block so neither __cause__ nor __context__
+    # holds the original error. A DBAPIError's message lists the bound
+    # parameters, and those include the fingerprint hash.
     raise SessionRevocationError(f"Session revocation could not {step} ({failure})")
 
 
@@ -89,7 +89,7 @@ def _revocation_reason(material: str, stored: bytes | None) -> str | None:
 async def revoke_sessions_if_auth_changed(
     sessions: Store, fingerprints: Store, settings: Settings
 ) -> bool:
-    """Delete every session unless the stored fingerprint matches; True when it did."""
+    """Delete every session unless the stored fingerprint matches. Return True when it deleted them."""
     material = auth_fingerprint_material(settings)
     stored = await _store_step(
         "read the auth fingerprint", lambda: fingerprints.get(FINGERPRINT_KEY)

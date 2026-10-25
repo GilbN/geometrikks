@@ -120,7 +120,7 @@ async def test_a_stored_value_that_is_no_hash_counts_as_a_change():
 
 
 class FailingSetStore(MemoryStore):
-    """Fails every set like a DBAPIError would: the bound value in the message."""
+    """Fails every set the way a DBAPIError would, with the bound value in the message."""
 
     def __init__(self) -> None:
         super().__init__()

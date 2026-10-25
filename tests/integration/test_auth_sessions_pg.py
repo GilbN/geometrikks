@@ -210,7 +210,7 @@ async def test_writing_a_loaded_session_keeps_its_remaining_lifetime_in_postgres
     ) as second_process:
         second_process.cookies.set("session", session_cookie)
         touched = await second_process.get("/api/v1/touch-session")
-        # The write-back sends a refreshed cookie; a second request proves the row still loads.
+        # The write-back sends a refreshed cookie. A second request proves the row still loads.
         assert (await second_process.get("/api/v1/auth/me")).status_code == 200
 
     assert touched.status_code == 200
