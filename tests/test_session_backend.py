@@ -15,7 +15,8 @@ import pytest
 from litestar import Request, get
 from litestar.testing import AsyncTestClient, TestClient
 
-from geometrikks.server.auth import PENDING_SESSION_HEADROOM_SECONDS, SESSION_MAX_AGE_SECONDS
+from geometrikks.config.settings import Settings
+from geometrikks.server.auth import PENDING_SESSION_HEADROOM_SECONDS
 from geometrikks.services.oidc.client import PENDING_LIFETIME_SECONDS
 from tests.test_auth_endpoints import make_app
 
@@ -373,7 +374,8 @@ def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
         login_sid = login.cookies["session"]
         login_remaining = portal.call(store.expires_in, login_sid)
         assert login_remaining is not None and login_remaining > PENDING_LIFETIME_SECONDS
-        assert f"Max-Age={SESSION_MAX_AGE_SECONDS}" in login.headers["set-cookie"]
+        max_age = Settings(_env_file=None).session_max_age_seconds
+        assert f"Max-Age={max_age}" in login.headers["set-cookie"]
 
 
 def test_a_pending_write_sweeps_expired_entries_once_the_throttle_allows_it():

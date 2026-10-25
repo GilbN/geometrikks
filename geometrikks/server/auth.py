@@ -56,8 +56,6 @@ AUTH_EXCLUDE_PATTERNS: list[str] = [
     "^/api/v1/auth/oidc/(start|callback)$",
 ]
 
-SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
-
 # Added to PENDING_LIFETIME_SECONDS for the pending session's store TTL and
 # cookie max-age. Without it the store entry vanishes at the instant
 # PendingLogin.expired() turns true, and a late callback is logged as
@@ -358,7 +356,7 @@ def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSi
     session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,
         session_backend_config=RotatingServerSideSessionConfig(
-            max_age=SESSION_MAX_AGE_SECONDS,
+            max_age=settings.session_max_age_seconds,
             secure=settings.session_secure,
             # Sessions exist only for /api and /ws. Without this exclusion the
             # session middleware runs on the SPA shell and every static asset,

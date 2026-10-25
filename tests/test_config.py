@@ -829,3 +829,22 @@ def test_password_login_enabled_follows_the_admin_password():
     assert Settings(_env_file=None, admin_password="pw").password_login_enabled is True
     assert Settings(_env_file=None, admin_password=None).password_login_enabled is False
     assert Settings(_env_file=None, admin_password="").password_login_enabled is False
+
+
+def test_session_max_age_days_defaults_to_seven():
+    settings = Settings(_env_file=None)
+
+    assert settings.session_max_age_days == 7
+    assert settings.session_max_age_seconds == 604800
+
+
+def test_session_max_age_days_reads_the_env(monkeypatch):
+    monkeypatch.setenv("APP_SESSION_MAX_AGE_DAYS", "30")
+
+    assert Settings(_env_file=None).session_max_age_seconds == 2592000
+
+
+@pytest.mark.parametrize("value", [0, 401])
+def test_session_max_age_days_rejects_out_of_range(value):
+    with pytest.raises(ValidationError):
+        Settings(session_max_age_days=value, _env_file=None)

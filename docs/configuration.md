@@ -25,6 +25,7 @@ from real environment variables. It is read once at import time.
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
 | `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. Recommended when serving behind a TLS reverse proxy. |
+| `APP_SESSION_MAX_AGE_DAYS` | `7` | How many days a login lasts before the user has to sign in again. The lifetime is fixed at login, so a change only applies to logins made after it. Raise it for an unattended wall screen. 400 is the longest cookie lifetime browsers accept. |
 | `APP_TRUSTED_PROXIES` | *(computed)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted. |
 
 ## Application mode

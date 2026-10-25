@@ -1346,6 +1346,17 @@ class Settings(BaseSettings):
             "HTTPS. Recommended when serving behind a TLS reverse proxy."
         ),
     )
+    session_max_age_days: int = Field(
+        default=7,
+        ge=1,
+        le=400,
+        description=(
+            "How many days a login lasts before the user has to sign in again. "
+            "The lifetime is fixed at login, so a change only applies to logins "
+            "made after it. Raise it for an unattended wall screen. 400 is the "
+            "longest cookie lifetime browsers accept."
+        ),
+    )
     trusted_proxies: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description=(
@@ -1442,6 +1453,10 @@ class Settings(BaseSettings):
             self.logparser.legacy_env_names_in_use()
             + self.map.legacy_env_names_in_use()
         )
+
+    @property
+    def session_max_age_seconds(self) -> int:
+        return self.session_max_age_days * 86400
 
     @property
     def password_login_enabled(self) -> bool:
