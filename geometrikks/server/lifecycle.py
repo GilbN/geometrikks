@@ -52,6 +52,12 @@ from geometrikks.server.migrations import migrate_database
 from geometrikks.server import runtime
 from geometrikks.server.plugins import get_app_db_config
 from geometrikks.server.schema_wait import wait_for_schema
+from geometrikks.server.session_revocation import revoke_sessions_if_auth_changed
+from geometrikks.server.session_store import (
+    FINGERPRINT_NAMESPACE,
+    SESSION_NAMESPACE,
+    create_session_table_store,
+)
 from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.crowdsec import CrowdSecService
@@ -392,6 +398,14 @@ async def bring_up_database(
     if _on_stage is not None:
         _on_stage("database setup")
     await setup_timescaledb(engine, settings.analytics)
+
+    if not settings.is_agent and not settings.auth_disabled:
+        db_config = get_app_db_config(app)
+        await revoke_sessions_if_auth_changed(
+            create_session_table_store(db_config, namespace=SESSION_NAMESPACE),
+            create_session_table_store(db_config, namespace=FINGERPRINT_NAMESPACE),
+            settings,
+        )
 
     session_maker = get_app_db_config(app).create_session_maker()
     try:

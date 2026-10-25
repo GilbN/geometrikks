@@ -328,6 +328,7 @@ async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
     monkeypatch.setattr(lc, "migrate_database", fake_migrate)
     monkeypatch.setattr(lc, "setup_timescaledb", fake_timescale)
+    monkeypatch.setattr(lc, "revoke_sessions_if_auth_changed", AsyncMock(return_value=False))
     monkeypatch.setattr(lc, "create_scheduler", fake_create_scheduler)
     monkeypatch.setattr(lc, "LogParser", MagicMock())
     monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))
