@@ -5,8 +5,8 @@
  * code formats it. These rules mirror geometrikks/lib/versioning.py for the
  * normalized versions the API sends: release numbers, an optional .devN and an
  * optional PEP 440 local suffix. Pre and post releases (rc, post) don't parse
- * here and fall back to the unparseable rules, which is fine because the API
- * only sends hatch-vcs output.
+ * here and fall back to the unparseable rules; release.yml only admits tags
+ * shaped vX.Y.Z or vX.Y.Z-dev.N, so the API never sends them.
  */
 
 export const LOCAL_BUILD_LABEL = "local build"
