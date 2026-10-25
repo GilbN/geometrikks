@@ -585,3 +585,19 @@ async def test_overlapping_runs_are_serialized() -> None:
     assert "if-none-match" not in requests[0].headers
     assert requests[1].headers["if-none-match"] == '"one"'
     assert release_checker.etag == '"one"'
+
+
+def test_release_check_enabled_is_off_with_the_scheduler_disabled() -> None:
+    from geometrikks.config.settings import AppSettings, SchedulerSettings, Settings
+    from geometrikks.services.release_check import release_check_enabled
+
+    app_settings = AppSettings(update_check=True, _env_file=None)
+    enabled = Settings(
+        scheduler=SchedulerSettings(enabled=True, _env_file=None), app=app_settings, version="0.22.0"
+    )
+    disabled = Settings(
+        scheduler=SchedulerSettings(enabled=False, _env_file=None), app=app_settings, version="0.22.0"
+    )
+
+    assert release_check_enabled(enabled) is True
+    assert release_check_enabled(disabled) is False

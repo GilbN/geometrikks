@@ -9,6 +9,7 @@ import asyncio
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 import httpx2
 import msgspec
@@ -17,6 +18,9 @@ from packaging.version import InvalidVersion, Version
 from geometrikks.lib.versioning import is_local_build
 from geometrikks.server.logging import get_logger
 from geometrikks.services.rdap import USER_AGENT
+
+if TYPE_CHECKING:
+    from geometrikks.config.settings import Settings
 
 logger = get_logger(__name__)
 
@@ -110,6 +114,19 @@ def select_newer_release(
     if not candidates:
         return None
     return max(candidates, key=lambda github_release: github_release.version)
+
+
+def release_check_enabled(settings: "Settings") -> bool:
+    """Whether this process should poll GitHub for a newer release."""
+    if not settings.app.update_check or not settings.scheduler.enabled or settings.is_agent:
+        return False
+    if is_local_build(settings.version):
+        return False
+    try:
+        Version(settings.version)
+    except InvalidVersion:
+        return False
+    return True
 
 
 def _utc_now() -> datetime:
