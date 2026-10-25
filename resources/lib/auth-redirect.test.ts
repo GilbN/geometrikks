@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
   LOGIN_ERROR_MESSAGES,
   isChromelessRoute,
+  loginErrorMessage,
+  logoutThenNavigate,
   planLoginForm,
   planLoginRoute,
   planLogoutRoute,
@@ -167,5 +169,52 @@ describe("isChromelessRoute", () => {
     expect(isChromelessRoute("/")).toBe(false)
     expect(isChromelessRoute("/login/x")).toBe(false)
     expect(isChromelessRoute("/signed-out/")).toBe(false)
+  })
+})
+
+describe("loginErrorMessage", () => {
+  it("names a wrong password for a 401", () => {
+    const error = { isAxiosError: true, response: { status: 401 } }
+    expect(loginErrorMessage(error)).toBe("Invalid username or password")
+  })
+
+  it("names the database outage for a 503", () => {
+    const error = { isAxiosError: true, response: { status: 503 } }
+    expect(loginErrorMessage(error)).toBe(
+      "The database is unavailable, so nobody can sign in right now. Try again in a minute.",
+    )
+  })
+
+  it("does not call any other status a wrong password", () => {
+    const error = { isAxiosError: true, response: { status: 500 } }
+    expect(loginErrorMessage(error)).toBe("Sign-in failed. Try again.")
+  })
+
+  it("covers a network failure and a plain Error", () => {
+    expect(loginErrorMessage({ isAxiosError: true, response: undefined })).toBe("Sign-in failed. Try again.")
+    expect(loginErrorMessage(new Error("offline"))).toBe("Sign-in failed. Try again.")
+  })
+})
+
+describe("logoutThenNavigate", () => {
+  it("lands on the login page after a logout with no provider", async () => {
+    const go = vi.fn()
+    await logoutThenNavigate(async () => ({ redirectTo: null }), go)
+    expect(go).toHaveBeenCalledExactlyOnceWith("/login")
+  })
+
+  it("follows the provider's end-session URL when one is returned", async () => {
+    const go = vi.fn()
+    await logoutThenNavigate(async () => ({ redirectTo: "https://idp.example/logout" }), go)
+    expect(go).toHaveBeenCalledExactlyOnceWith("https://idp.example/logout")
+  })
+
+  it("rejects and never navigates when the logout fails", async () => {
+    const go = vi.fn()
+    const failure = new Error("503")
+    await expect(
+      logoutThenNavigate(() => Promise.reject(failure), go),
+    ).rejects.toBe(failure)
+    expect(go).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { fetchAuthOptions, fetchMe, login } from "@/lib/api"
-import { planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
+import { loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -78,8 +78,8 @@ function LoginPage() {
     try {
       await login(username, password)
       navigate({ to: "/" })
-    } catch {
-      setError("Invalid username or password")
+    } catch (error) {
+      setError(loginErrorMessage(error))
     } finally {
       setSubmitting(false)
     }

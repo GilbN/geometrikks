@@ -71,6 +71,7 @@ export type {
   BannedMapCollection,
   AuthOptions,
   OidcStatus,
+  LogoutResponse,
 }
 
 // Create axios instance with base configuration

@@ -40,6 +40,8 @@ import {
 import { cn } from "@/lib/utils"
 import { displayVersion } from "@/lib/version"
 import { fetchHealth, logout } from "@/lib/api"
+import { logoutThenNavigate } from "@/lib/auth-redirect"
+import { toast } from "sonner"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import {
@@ -331,14 +333,15 @@ function LogoutButton() {
   if (me?.mode !== "session") return null
 
   async function onLogout() {
-    let redirectTo: string | null = null
     try {
-      redirectTo = (await logout()).redirectTo
-    } finally {
       // Hard navigation is deliberate, not a leftover: it discards the
       // TanStack Query cache holding the previous session's data, which a
       // client-side redirect would not. The /logout route does the same.
-      window.location.href = redirectTo ?? "/login"
+      await logoutThenNavigate(logout, (url) => {
+        window.location.href = url
+      })
+    } catch {
+      toast.error("Logout failed. Try again.")
     }
   }
 

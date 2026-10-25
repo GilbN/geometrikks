@@ -3,7 +3,7 @@
  *  every throw: a redirect thrown from inside a try block would be swallowed
  *  by that block's own catch. */
 import axios from "axios"
-import type { AuthOptions, MeResponse } from "@/lib/api"
+import type { AuthOptions, LogoutResponse, MeResponse } from "@/lib/api"
 
 export type MeResult =
   | { ok: true; me: MeResponse }
@@ -90,4 +90,25 @@ export function planLoginForm(options: AuthOptions, errorCode: string | null): L
   const message =
     errorCode && Object.hasOwn(LOGIN_ERROR_MESSAGES, errorCode) ? LOGIN_ERROR_MESSAGES[errorCode] : null
   return { oidc, password, message, description }
+}
+
+/** What the login form says when POST /auth/login fails. A 503 is the session
+ *  store being down, not a wrong password, so it must not read like one. */
+export function loginErrorMessage(error: unknown): string {
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined
+  if (status === 401) return "Invalid username or password"
+  if (status === 503) {
+    return "The database is unavailable, so nobody can sign in right now. Try again in a minute."
+  }
+  return "Sign-in failed. Try again."
+}
+
+/** Navigates only once the server has ended the session. Navigating on a
+ *  failed logout would look signed out while the session cookie stays live. */
+export async function logoutThenNavigate(
+  doLogout: () => Promise<LogoutResponse>,
+  go: (url: string) => void,
+): Promise<void> {
+  const { redirectTo } = await doLogout()
+  go(redirectTo ?? "/login")
 }
