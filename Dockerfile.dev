@@ -28,8 +28,12 @@ COPY package.json bun.lock ./
 # source mount used for hot reload replaces this copy at runtime.
 COPY geometrikks/ ./geometrikks/
 
+# The wheel metadata keeps the pretend version verbatim, so a tag like
+# v0.22.0-dev.4 has to be written in PEP 440 form here. Without .git uv's
+# build cache is keyed on pyproject.toml alone, so --refresh-package stops a
+# cached build from an earlier version being reused.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    SETUPTOOLS_SCM_PRETEND_VERSION="${GEOMETRIKKS_VERSION}" uv sync --frozen
+    SETUPTOOLS_SCM_PRETEND_VERSION="$(printf '%s' "${GEOMETRIKKS_VERSION}" | sed -e 's/^v//' -e 's/-dev\./.dev/')" uv sync --frozen --refresh-package geometrikks
 
 RUN --mount=type=cache,target=/root/.bun \
     bun install --frozen-lockfile

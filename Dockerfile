@@ -43,8 +43,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # package with proper dist-info instead of a path reference to /app source.
 COPY geometrikks/ ./geometrikks/
 ARG GEOMETRIKKS_VERSION=0.0.0+local
+# The wheel metadata keeps the pretend version verbatim, so a tag like
+# v0.22.0-dev.4 has to be written in PEP 440 form here.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    SETUPTOOLS_SCM_PRETEND_VERSION="${GEOMETRIKKS_VERSION}" uv build --wheel \
+    SETUPTOOLS_SCM_PRETEND_VERSION="$(printf '%s' "${GEOMETRIKKS_VERSION}" | sed -e 's/^v//' -e 's/-dev\./.dev/')" uv build --wheel \
     && uv pip install --no-deps dist/*.whl
 
 # ------------------------------------------------------------------------------
