@@ -16,7 +16,7 @@ from litestar.status_codes import HTTP_200_OK
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.auth import AdminUser, AuthState, rotate_session
+from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
     OidcForbidden,
@@ -106,6 +106,7 @@ class AuthController(Controller):
             # keeps this off the exception path; the SPA redirects away from
             # /login before it can get here anyway.
             return AuthDisabled()
+        require_session_database(request)
         auth_state: AuthState | None = request.app.state.auth_state
         client_ip = resolve_client_ip(request)
         if auth_state is None:
@@ -213,6 +214,7 @@ class AuthController(Controller):
     @get("/oidc/start", exclude_from_auth=True, include_in_schema=False)
     async def oidc_start(self, request: Request) -> Redirect:
         """Browser navigation from the login button: send it to the provider."""
+        require_session_database(request)
         client = runtime.get_oidc_client(request.app)
         if client is None:
             raise NotFoundException()
@@ -239,6 +241,7 @@ class AuthController(Controller):
         error: Annotated[str | None, QueryParameter(required=False)] = None,
     ) -> Redirect:
         """The provider sends the browser back here with a one-time code."""
+        require_session_database(request)
         client = runtime.get_oidc_client(request.app)
         if client is None:
             raise NotFoundException()

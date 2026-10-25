@@ -17,7 +17,7 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
-from geometrikks.server.auth import build_auth_state, create_session_auth
+from geometrikks.server.auth import AuthState, build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
 from geometrikks.server.session_store import install_session_store
@@ -408,3 +408,41 @@ def test_create_app_in_agent_mode_ignores_oidc(monkeypatch):
     from geometrikks.server.core import create_app
 
     assert create_app().state.oidc_client is None
+
+
+def test_login_answers_503_before_checking_the_password_while_the_database_is_down(monkeypatch):
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("the password was checked while the database is down")
+
+    monkeypatch.setattr(AuthState, "verify", fail_if_called)
+    app = make_app()
+    app.state.db_available = False
+    with TestClient(app=app) as client:
+        response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
+    assert response.status_code == 503
+
+
+def test_oidc_routes_answer_503_while_the_database_is_down():
+    from tests.oidc_fake import make_fake_idp
+    from tests.test_oidc_flow import make_oidc_app
+
+    fake = make_fake_idp()
+    app = make_oidc_app(fake)
+    app.state.db_available = False
+    with TestClient(app=app) as client:
+        start = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+        callback = client.get("/api/v1/auth/oidc/callback?code=x&state=y", follow_redirects=False)
+    assert start.status_code == 503
+    assert callback.status_code == 503
+    assert fake.config.discovery_fetches == 0
+    assert fake.config.authorize_requests == []
+    assert fake.config.token_requests == []
+
+
+def test_disabled_mode_login_ignores_the_database():
+    app = make_disabled_app()
+    app.state.db_available = False
+    with TestClient(app=app) as client:
+        response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "x"})
+    assert response.status_code == 200
+    assert response.json() == {"mode": "disabled"}

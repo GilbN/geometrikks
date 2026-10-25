@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from litestar.datastructures import Cookie, MutableScopeHeaders
+from litestar.exceptions import ServiceUnavailableException
 from litestar.middleware.session.server_side import (
     ServerSideSessionBackend,
     ServerSideSessionConfig,
@@ -24,6 +25,7 @@ from litestar.utils.dataclass import extract_dataclass_items
 from pwdlib import PasswordHash
 
 from geometrikks.lib.session import PENDING_LIFETIME_SECONDS
+from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -143,6 +145,19 @@ def _scope_dict(connection: "ASGIConnection") -> dict[str, Any]:
     # Scope is a TypedDict; the backend keeps its bookkeeping under
     # namespaced keys that no Litestar code reads.
     return cast("dict[str, Any]", connection.scope)
+
+
+def require_session_database(request: "Request") -> None:
+    """Refuse a login up front while sessions cannot be written.
+
+    A browser with no session cookie never touches the session store on the
+    way in, so without this a login would pass the password check and only
+    fail on the session write, as a bare 500.
+    """
+    if not runtime.is_db_available(request.app, default=True):
+        raise ServiceUnavailableException(
+            detail="The database is unavailable, so nobody can sign in right now."
+        )
 
 
 def rotate_session(request: "Request") -> None:
