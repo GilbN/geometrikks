@@ -378,6 +378,26 @@ def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
         assert f"Max-Age={max_age}" in login.headers["set-cookie"]
 
 
+def test_login_lifetime_follows_the_session_max_age_days_setting():
+    thirty_days = 30 * 86400
+    pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
+    app = make_app(extra_handlers=[seed], session_max_age_days=30)
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+
+        pending = client.get("/api/v1/seed")
+        assert f"Max-Age={pending_ttl}" in pending.headers["set-cookie"]
+        pending_remaining = portal.call(store.expires_in, pending.cookies["session"])
+        assert pending_remaining is not None and pending_remaining <= pending_ttl
+
+        login = client.post("/api/v1/auth/login", json=CREDS)
+        assert login.status_code == 200
+        assert f"Max-Age={thirty_days}" in login.headers["set-cookie"]
+        login_remaining = portal.call(store.expires_in, login.cookies["session"])
+        assert login_remaining is not None
+        assert thirty_days - 60 < login_remaining <= thirty_days
+
+
 def test_a_pending_write_sweeps_expired_entries_once_the_throttle_allows_it():
     """MemoryStore only drops an expired row when something reads it; nothing
     else sweeps it on a schedule. The very first pending write is always due
