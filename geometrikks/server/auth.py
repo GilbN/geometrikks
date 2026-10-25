@@ -349,9 +349,8 @@ class RotatingServerSideSessionConfig(ServerSideSessionConfig):
 def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:
     """Build the SessionAuth component applied via on_app_init in create_app().
 
-    Server-side sessions with the default in-memory store: an app restart
-    invalidates all sessions (users just log in again) — fine for a
-    single-admin homelab tool and avoids a signing-secret setting.
+    Server-side sessions in the ``sessions`` store, which create_app() backs
+    with the auth_sessions table, so logins survive a restart.
     """
     session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,

@@ -8,6 +8,9 @@ import pytest
 from litestar import Litestar, get
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.memory import MemoryChannelsBackend
+from litestar.logging.config import BaseLoggingConfig
+from litestar.stores.base import Store
+from litestar.stores.memory import MemoryStore
 from litestar.testing import TestClient
 
 from geometrikks.config.settings import Settings
@@ -17,6 +20,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
 from geometrikks.server.auth import build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
+from geometrikks.server.session_store import install_session_store
 
 
 @get("/api/v1/protected")
@@ -33,6 +37,8 @@ def make_app(
     *,
     extra_handlers: Sequence[Any] = (),
     session_max_age: int | None = None,
+    inner_store: Store | None = None,
+    logging_config: BaseLoggingConfig | None = None,
     **settings_kwargs,
 ) -> Litestar:
     kwargs: dict[str, Any] = {"admin_user": "admin", "admin_password": "bestpasswordintheworldnojoke"}
@@ -52,8 +58,9 @@ def make_app(
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
         plugins=[channels],
-        logging_config=None,
+        logging_config=logging_config,
     )
+    install_session_store(app, inner_store if inner_store is not None else MemoryStore())
     app.state.auth_state = build_auth_state(settings)
     # DB "available" so the authenticated branch streams rather than taking
     # the 1013-close (degraded) path.
