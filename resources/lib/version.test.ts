@@ -13,6 +13,8 @@ describe("displayVersion", () => {
     ["unknown", LOCAL_BUILD_LABEL],
     ["", LOCAL_BUILD_LABEL],
     ["9.9.9-test", "v9.9.9-test"],
+    ["0.0.0+bad!", "v0.0.0+bad!"],
+    ["0.22.0.dev04", "v0.22.0-dev.4"],
   ])("%s -> %s", (version, expected) => expect(displayVersion(version)).toBe(expected))
 })
 
@@ -25,6 +27,7 @@ describe("isLocalBuild", () => {
     ["0.22.0", false],
     ["0.22.0.dev4+g52b67d62c", false],
     ["9.9.9-test", false],
+    ["0.0.0+bad!", false],
   ])("%s -> %s", (version, expected) => expect(isLocalBuild(version)).toBe(expected))
 })
 
@@ -37,6 +40,7 @@ describe("sameRelease", () => {
     ["unknown", "0.22.0", true],
     ["9.9.9-test", "9.9.9-test", true],
     ["9.9.9-test", "0.22.0", false],
+    ["9.9.9-test+one", "9.9.9-test+two", false],
   ])("%s vs %s -> %s", (a, b, expected) => expect(sameRelease(a, b)).toBe(expected))
 })
 
