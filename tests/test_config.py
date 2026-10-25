@@ -72,8 +72,8 @@ def test_geoip_settings(tmp_path):
 
 
 def test_geoip_missing_file_allowed():
-    """A missing database must not fail settings construction: the
-    auto-downloader/degraded-mode startup path owns that case."""
+    """A missing database must not fail settings construction. The
+    auto-downloader and degraded mode handle that case."""
     settings = GeoIPSettings(db_path=Path("/nonexistent/file.mmdb"), _env_file=None)
     assert settings.db_path == Path("/nonexistent/file.mmdb")
 

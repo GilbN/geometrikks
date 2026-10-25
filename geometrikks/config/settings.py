@@ -1285,16 +1285,16 @@ class Settings(BaseSettings):
     debug: bool = Field(
         default=False,
         description=(
-            "Litestar debug mode: error responses carry the traceback, and "
-            "401, 404 and 503 errors are logged with one too. Never in production."
+            "Puts the traceback in error responses and logs 401, 404 and 503 "
+            "errors with one. Never in production."
         ),
         json_schema_extra=DEVELOPER_FIELD,
     )
     environment: Literal["development", "staging", "production"] = Field(
         default="production",
         description=(
-            "Shown on Settings > About. development is the only value that lets "
-            "DB_DROP_ON_STARTUP run."
+            "Shown on Settings > About. DB_DROP_ON_STARTUP runs only when this "
+            "is development."
         ),
         json_schema_extra=DEVELOPER_FIELD,
     )

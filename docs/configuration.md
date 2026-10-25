@@ -158,13 +158,13 @@ from real environment variables. It is read once at import time.
 
 ## Developer settings
 
-For working on GeoMetrikks itself. A deployment leaves these unset; the
-container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` on its own.
+For working on GeoMetrikks itself. Deployments leave these at their
+defaults. The container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` itself.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_DEBUG` | `false` | Litestar debug mode: error responses carry the traceback, and 401, 404 and 503 errors are logged with one too. Never in production. |
-| `APP_ENVIRONMENT` | `production` | Shown on Settings > About. development is the only value that lets DB_DROP_ON_STARTUP run. |
+| `APP_DEBUG` | `false` | Puts the traceback in error responses and logs 401, 404 and 503 errors with one. Never in production. |
+| `APP_ENVIRONMENT` | `production` | Shown on Settings > About. DB_DROP_ON_STARTUP runs only when this is development. |
 | `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
 | `APP_IMAGE_TAG` | - | Container image tag, set at image build time. |
 | `DB_ECHO` | `false` | Log every SQL statement |

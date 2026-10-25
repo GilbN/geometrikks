@@ -117,8 +117,8 @@ def render_developer_section() -> str:
     return "\n".join([
         "## Developer settings",
         "",
-        "For working on GeoMetrikks itself. A deployment leaves these unset; the",
-        "container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` on its own.",
+        "For working on GeoMetrikks itself. Deployments leave these at their",
+        "defaults. The container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` itself.",
         "",
         *TABLE_HEADER,
         *developer_rows,
