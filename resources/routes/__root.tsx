@@ -34,6 +34,7 @@ import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { isChromelessRoute } from "@/lib/auth-redirect"
+import { ReloadNotice } from "@/components/reload-notice"
 
 export const Route = createRootRoute({
   validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
@@ -174,6 +175,7 @@ function RootLayout() {
         </TimeRangeProvider>
       </TooltipProvider>
       <Toaster />
+      <ReloadNotice />
     </ThemeProvider>
   )
 }

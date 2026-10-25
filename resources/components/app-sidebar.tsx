@@ -52,6 +52,8 @@ import {
 import { agentsNeedingAttention } from "@/components/settings/agents-logic"
 import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
+import { useReloadNotice } from "@/lib/reload-notice"
+import { ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
 
 const navigationItems = [
   {
@@ -445,7 +447,9 @@ function CollapseToggle() {
 
 function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
   const { data: settings } = useRuntimeSettings()
+  const { pending: updatePending } = useReloadNotice()
 
+  if (updatePending) return collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />
   if (collapsed || !settings) return null
 
   const imageTag = settings.runtime.imageTag
