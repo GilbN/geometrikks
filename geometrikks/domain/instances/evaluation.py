@@ -22,7 +22,7 @@ from geometrikks.lib.advisories import (
     INGESTION_STOPPED,
     Advisory,
 )
-from geometrikks.lib.versioning import display_version, same_release
+from geometrikks.lib.versioning import display_version, is_local_build, same_release
 
 NOT_CHECKING_IN_AFTER = timedelta(seconds=180)
 NAME_CONFLICT_SHOWN_FOR = timedelta(minutes=5)
@@ -140,12 +140,13 @@ def _schema_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         f"the head runs {display_version(head.app_version)} on migration {head.schema_revision}."
     )
     if row.schema_revision in head.known_revisions:
+        target = "the head's version" if is_local_build(head.app_version) else display_version(head.app_version)
         return Advisory(
             id="instance-schema-behind",
             severity="critical",
             summary=f"{row.instance_name} runs an older database migration than the head.",
             detail=f"{versions} Its writes may fail until it catches up.",
-            remedy=f"Upgrade {row.instance_name} to {display_version(head.app_version)}.",
+            remedy=f"Upgrade {row.instance_name} to {target}.",
         )
     return Advisory(
         id="instance-schema-ahead",

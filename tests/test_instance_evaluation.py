@@ -193,6 +193,20 @@ def test_schema_behind_when_revision_is_known() -> None:
     assert problem.remedy == "Upgrade edge-traefik to v0.20.0."
 
 
+def test_schema_behind_names_the_head_when_it_is_a_local_build() -> None:
+    local_head = HeadIdentity(
+        boot_id=HEAD_BOOT_ID,
+        instance_name="head",
+        app_version="0.0.0+local",
+        schema_revision="7c1e9a",
+        known_revisions=frozenset({"4b02d1", "7c1e9a"}),
+    )
+    row = make_row(schema_revision="4b02d1", app_version="0.19.2")
+    problem = evaluate_instance(row, local_head, NOW).problems[0]
+    assert problem.id == "instance-schema-behind"
+    assert problem.remedy == "Upgrade edge-traefik to the head's version."
+
+
 def test_schema_ahead_when_revision_is_unknown() -> None:
     row = make_row(schema_revision="ffffff", app_version="0.21.0")
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
