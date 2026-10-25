@@ -173,10 +173,6 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
       max_age (_store_pending_session).
     """
 
-    def __init__(self, config: ServerSideSessionConfig) -> None:
-        super().__init__(config)
-        self._next_sweep_at = 0.0
-
     @property
     def _write_lock(self) -> asyncio.Lock:
         """The write lock lives on the config, not on the backend.
@@ -237,6 +233,9 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
 
         await super().store_in_message(scope_session, message, connection)
+        if rotated:
+            store = self.config.get_store_from_app(scope["app"])
+            await self._sweep_expired_if_due(store)
 
     async def _write_session(
         self,
@@ -318,32 +317,37 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     async def _sweep_expired_if_due(self, store: "Store") -> None:
         """Drop expired store rows, at most once per PENDING_LIFETIME_SECONDS.
 
-        Two requests passing the throttle together both sweep; that is
-        redundant, not wrong.
+        The throttle is on the config, shared by every handler's backend.
+        Two requests passing it together both sweep; that is redundant, not
+        wrong.
         """
         sweep = getattr(store, "delete_expired", None)
         if not callable(sweep):
             return
+        config = cast("RotatingServerSideSessionConfig", self.config)
         now = time.monotonic()
-        if now < self._next_sweep_at:
+        if now < config.next_sweep_at:
             return
-        self._next_sweep_at = now + PENDING_LIFETIME_SECONDS
+        config.next_sweep_at = now + PENDING_LIFETIME_SECONDS
         await sweep()
 
 
 class RotatingServerSideSessionConfig(ServerSideSessionConfig):
     """ServerSideSessionConfig whose middleware builds the rotating backend.
 
-    Also owns write_lock: see RotatingServerSideSessionBackend._write_lock
-    for why the lock has to live here instead of on the backend.
+    Also owns write_lock and next_sweep_at: see
+    RotatingServerSideSessionBackend._write_lock for why they have to live
+    here instead of on the backend.
     """
 
     _backend_class = RotatingServerSideSessionBackend
     write_lock: asyncio.Lock
+    next_sweep_at: float
 
     def __post_init__(self) -> None:
         super().__post_init__()
         self.write_lock = asyncio.Lock()
+        self.next_sweep_at = 0.0
 
 
 def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:

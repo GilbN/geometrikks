@@ -415,3 +415,33 @@ def test_a_pending_write_sweeps_expired_entries_once_the_throttle_allows_it():
         client.get("/api/v1/seed")
 
         assert portal.call(store.exists, "stale-pending") is False
+
+
+def test_a_login_sweeps_expired_entries():
+    app = make_app()
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+        portal.call(store.set, "stale-login", b"{}", 0.01)
+        time.sleep(0.05)
+        assert portal.call(store.exists, "stale-login") is True
+
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+
+        assert portal.call(store.exists, "stale-login") is False
+
+
+def test_the_sweep_throttle_is_shared_across_routes():
+    """Each route handler gets its own backend instance, so a throttle kept on
+    the backend would let the login sweep right after the seed route's sweep.
+    """
+    app = make_app(extra_handlers=[seed])
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+
+        client.get("/api/v1/seed")
+
+        portal.call(store.set, "stale-after-sweep", b"{}", 0.01)
+        time.sleep(0.05)
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+
+        assert portal.call(store.exists, "stale-after-sweep") is True
