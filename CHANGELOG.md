@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-25
+
 ### Added
 
 - The README's Traefik setup has a Pangolin section. It covers the fields to keep in Pangolin's access log and how to get the visitor's address in the log.
@@ -26,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Brotli is updated to 1.2.1 for CVE-2026-111497. Brotli 1.2.0 and older can crash or run attacker code when they decode crafted data. GeoMetrikks decodes Brotli responses from the servers it calls, such as RDAP registries and the public IP lookup.
-- aiohttp is updated to 3.14.5 and certifi to 2026.10.23. aiohttp 3.14.3 had request smuggling and resource exhaustion advisories, and the old certifi bundle still trusted emSign root CAs whose intermediate keys were compromised.
+- GeoMetrikks now requires Brotli 1.2.1, which fixes CVE-2026-111497. Brotli 1.2.0 and older can crash or run attacker code when they decode crafted data. GeoMetrikks decodes Brotli responses from the servers it calls, such as RDAP registries and the public IP lookup.
+- GeoMetrikks now ships aiohttp 3.14.5 and certifi 2026.10.23. aiohttp 3.14.3 had request smuggling and resource exhaustion advisories, and the old certifi bundle still trusted emSign root CAs whose intermediate keys were compromised.
 
 ## [0.21.0] - 2026-10-18
 
@@ -1166,7 +1168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.21.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.22.0...develop
+[0.22.0]: https://github.com/GilbN/geometrikks/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/GilbN/geometrikks/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0

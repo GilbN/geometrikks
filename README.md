@@ -153,13 +153,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.21.0-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.22.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.21.0
+image: ghcr.io/gilbn/geometrikks:0.22.0
 ```
 
 ## Nginx setup
@@ -1152,7 +1152,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.21.0   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.22.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
