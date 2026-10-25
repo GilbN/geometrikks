@@ -224,8 +224,11 @@ def test_update_check_defaults_to_on(monkeypatch):
 
 def test_update_check_reads_the_env(monkeypatch):
     monkeypatch.setenv("APP_UPDATE_CHECK", "false")
-    get_settings.cache_clear()
 
+    assert get_settings().app.update_check is False
+
+
+def test_suite_baseline_turns_the_update_check_off():
     assert get_settings().app.update_check is False
 
 

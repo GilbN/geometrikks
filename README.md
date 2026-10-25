@@ -1594,8 +1594,8 @@ variable and its default, see
 [`docs/configuration.md`](docs/configuration.md).
 
 Every 12 hours GeoMetrikks asks api.github.com whether a newer release
-exists, sends nothing about your install, and stops if you set
-`APP_UPDATE_CHECK=false`.
+exists, in a request that carries no information about your instance. Set
+`APP_UPDATE_CHECK=false` to turn it off.
 
 Set `GEOMETRIKKS_ENV_FILE` to load a different `.env` path, or to an empty
 value to disable dotenv loading and configure through real environment
