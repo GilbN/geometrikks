@@ -1,13 +1,21 @@
-import { Link } from "@tanstack/react-router"
+import type { MouseEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { reloadNoticeTitle, reloadNoticeTooltip, useReloadNotice } from "@/lib/reload-notice"
-import { reloadNow, useUpdateDetector } from "@/lib/use-update-detector"
+import { loadNow, reloadNow, useUpdateDetector } from "@/lib/use-update-detector"
+
+const CHANGELOG_HREF = "/settings/changelog"
 
 export function ReloadNotice(): null {
   useUpdateDetector()
   return null
+}
+
+function openChangelog(clickEvent: MouseEvent<HTMLAnchorElement>) {
+  if (clickEvent.button !== 0 || clickEvent.metaKey || clickEvent.ctrlKey || clickEvent.shiftKey || clickEvent.altKey) return
+  clickEvent.preventDefault()
+  loadNow(CHANGELOG_HREF)
 }
 
 function GlowDot() {
@@ -32,7 +40,9 @@ export function ReloadNoticeCard() {
             Reload
           </Button>
           <Button size="xs" variant="link" asChild>
-            <Link to="/settings/changelog">What's new</Link>
+            <a href={CHANGELOG_HREF} onClick={openChangelog}>
+              What's new
+            </a>
           </Button>
         </div>
       </CardContent>

@@ -2,13 +2,13 @@ import { useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchAbout, fetchHealth, fetchRuntimeSettings } from "@/lib/api"
 import {
-  autoReloadAllowed,
   autoReloadPage,
-  clearReloadGuard,
   createIdleReloader,
   createPreloadErrorHandler,
+  createReloadGuard,
   isTextEntryElement,
-  loadReloadGuard,
+  latchFirstReload,
+  loadPage,
   reloadPage,
   type IdleReloader,
 } from "@/lib/auto-reload"
@@ -25,12 +25,13 @@ export async function readServerBuild(): Promise<BuildIdentity> {
   return { version: runtimeSettings.version, changelogDigest: aboutResponse.app.changelogDigest }
 }
 
-const guardKey = loadReloadGuard()
-let guardSettled = false
+const reloadGuard = createReloadGuard()
 
 const detector = createUpdateDetector({
   readServerBuild,
   onServerBuild: (buildIdentity, isNewBuild) => {
+    // Lift the guard before marking pending: arm() can reload synchronously.
+    if (detector.lastStartedAtChangeAt() !== null) reloadGuard.restartObserved()
     if (isNewBuild) markUpdatePending(buildIdentity.version)
     else nameUpdateVersion(buildIdentity.version)
   },
@@ -39,18 +40,14 @@ const detector = createUpdateDetector({
 
 function clearGuardOnceKnown(): void {
   const pageBuildKey = detector.pageBuildKey()
-  if (guardSettled || pageBuildKey === null) return
-  guardSettled = true
-  if (pageBuildKey !== guardKey) clearReloadGuard()
+  if (pageBuildKey !== null) reloadGuard.pageKeyKnown(pageBuildKey)
 }
 
 function canAutoReload(): boolean {
-  return autoReloadAllowed(detector.pageBuildKey(), guardKey)
+  return reloadGuard.allows(detector.pageBuildKey())
 }
 
-function autoReload(): boolean {
-  return autoReloadPage(detector.pageBuildKey())
-}
+const autoReload = latchFirstReload(() => autoReloadPage(detector.pageBuildKey()))
 
 function reportDetectorError(detectorError: unknown): void {
   console.error("Update detector failed", detectorError)
@@ -58,6 +55,10 @@ function reportDetectorError(detectorError: unknown): void {
 
 export function reloadNow(): void {
   reloadPage(detector.pageBuildKey())
+}
+
+export function loadNow(href: string): void {
+  loadPage(detector.pageBuildKey(), href)
 }
 
 export function useUpdateDetector(): void {
@@ -70,7 +71,7 @@ export function useUpdateDetector(): void {
   })
 
   useEffect(() => {
-    detector.start().then(clearGuardOnceKnown, () => {})
+    detector.start().then(clearGuardOnceKnown, reportDetectorError)
 
     const idleReloader = createIdleReloader({
       events: document,

@@ -49,10 +49,51 @@ export function reloadPage(pageBuildKey: string | null): void {
   window.location.reload()
 }
 
+export function loadPage(pageBuildKey: string | null, href: string): void {
+  storeReloadGuard(pageBuildKey)
+  window.location.assign(href)
+}
+
 export function autoReloadPage(pageBuildKey: string | null): boolean {
   if (!storeReloadGuard(pageBuildKey)) return false
   window.location.reload()
   return true
+}
+
+/** Once a reload has started, later calls report success without reloading again. */
+export function latchFirstReload(reload: () => boolean): () => boolean {
+  let reloadStarted = false
+  return () => {
+    if (!reloadStarted) reloadStarted = reload()
+    return reloadStarted
+  }
+}
+
+export interface ReloadGuard {
+  allows(pageBuildKey: string | null): boolean
+  pageKeyKnown(pageBuildKey: string): void
+  restartObserved(): void
+}
+
+/**
+ * Reads the stored guard once. It blocks only the reload right after one this
+ * tab already made for the same build; a restart seen by this page lifts it.
+ */
+export function createReloadGuard(): ReloadGuard {
+  let guardKey = loadReloadGuard()
+  let pageKeySettled = false
+  return {
+    allows: (pageBuildKey) => autoReloadAllowed(pageBuildKey, guardKey),
+    pageKeyKnown(pageBuildKey) {
+      if (pageKeySettled) return
+      pageKeySettled = true
+      if (pageBuildKey !== guardKey) clearReloadGuard()
+    },
+    restartObserved() {
+      guardKey = null
+      clearReloadGuard()
+    },
+  }
 }
 
 const PRELOAD_FAILURE_MESSAGES = [

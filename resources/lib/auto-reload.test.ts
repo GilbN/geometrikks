@@ -9,7 +9,10 @@ import {
   clearReloadGuard,
   createIdleReloader,
   createPreloadErrorHandler,
+  createReloadGuard,
   isTextEntryElement,
+  latchFirstReload,
+  loadPage,
   loadReloadGuard,
   reloadPage,
   shouldReloadOnChunkError,
@@ -308,6 +311,84 @@ describe("reload guard storage", () => {
     expect(reload).toHaveBeenCalledTimes(1)
     expect(loadReloadGuard()).toBeNull()
     expect(() => clearReloadGuard()).not.toThrow()
+  })
+})
+
+describe("loadPage", () => {
+  it("stores the guard like a manual reload and loads the address", () => {
+    const store = new Map<string, string>()
+    vi.stubGlobal("sessionStorage", {
+      setItem: (key: string, value: string) => void store.set(key, value),
+    })
+    const assign = vi.fn()
+    const reload = vi.fn()
+    vi.stubGlobal("window", { location: { assign, reload } })
+    loadPage("0.22.0", "/settings/changelog")
+    expect(store.get(RELOAD_GUARD_STORAGE_KEY)).toBe("0.22.0")
+    expect(assign).toHaveBeenCalledExactlyOnceWith("/settings/changelog")
+    expect(reload).not.toHaveBeenCalled()
+  })
+})
+
+describe("createReloadGuard", () => {
+  function stubStorage(storedKey: string | null) {
+    const store = new Map<string, string>()
+    if (storedKey !== null) store.set(RELOAD_GUARD_STORAGE_KEY, storedKey)
+    vi.stubGlobal("sessionStorage", {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+      removeItem: (key: string) => void store.delete(key),
+    })
+    return store
+  }
+
+  it("blocks the page that reloaded for its own build and keeps the stored guard", () => {
+    const store = stubStorage("0.23.0")
+    const reloadGuard = createReloadGuard()
+    reloadGuard.pageKeyKnown("0.23.0")
+    expect(reloadGuard.allows("0.23.0")).toBe(false)
+    expect(store.get(RELOAD_GUARD_STORAGE_KEY)).toBe("0.23.0")
+  })
+
+  it("clears the stored guard once the page runs another build", () => {
+    const store = stubStorage("0.22.0")
+    const reloadGuard = createReloadGuard()
+    reloadGuard.pageKeyKnown("0.23.0")
+    expect(store.has(RELOAD_GUARD_STORAGE_KEY)).toBe(false)
+    expect(reloadGuard.allows("0.23.0")).toBe(true)
+  })
+
+  it("expires after a restart seen by this page, so a later update can reload again", () => {
+    const store = stubStorage("0.23.0")
+    const reloadGuard = createReloadGuard()
+    reloadGuard.pageKeyKnown("0.23.0")
+    reloadGuard.restartObserved()
+    expect(store.has(RELOAD_GUARD_STORAGE_KEY)).toBe(false)
+    expect(reloadGuard.allows("0.23.0")).toBe(true)
+  })
+
+  it("refuses while the page build is unknown", () => {
+    stubStorage(null)
+    expect(createReloadGuard().allows(null)).toBe(false)
+  })
+})
+
+describe("latchFirstReload", () => {
+  it("lets only the first successful automatic reload through", () => {
+    const reload = vi.fn(() => true)
+    const latchedReload = latchFirstReload(reload)
+    expect(latchedReload()).toBe(true)
+    expect(latchedReload()).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it("tries again after a refused reload", () => {
+    const reload = vi.fn().mockReturnValueOnce(false).mockReturnValue(true)
+    const latchedReload = latchFirstReload(reload)
+    expect(latchedReload()).toBe(false)
+    expect(latchedReload()).toBe(true)
+    expect(latchedReload()).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(2)
   })
 })
 
