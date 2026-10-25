@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       timescaledb:
-        image: timescale/timescaledb-ha:pg18
+        # TimescaleDB 2.31.0 rejects TRUNCATE on continuous aggregates, which
+        # the clean_tables fixture in tests/integration/conftest.py needs.
+        image: timescale/timescaledb-ha:pg18-ts2.30
         env:
           POSTGRES_USER: geouser
           POSTGRES_PASSWORD: geopass

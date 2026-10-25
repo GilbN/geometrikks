@@ -164,6 +164,7 @@ export type AlertDetailView = {
   countryName: string | null;
   createdAt: string;
   decisionCount: number;
+  decisionTypes: Array<string>;
   decisions: Array<AlertDecisionView>;
   events: Array<AlertEventView>;
   eventsCount: number;
@@ -191,6 +192,14 @@ export type AlertEventView = {
 };
 
 /**
+ * AlertPageView
+ */
+export type AlertPageView = {
+  alerts: Array<AlertView>;
+  nextCursor: string | null;
+};
+
+/**
  * AlertView
  */
 export type AlertView = {
@@ -200,6 +209,7 @@ export type AlertView = {
   countryName: string | null;
   createdAt: string;
   decisionCount: number;
+  decisionTypes: Array<string>;
   eventsCount: number;
   id: number | null;
   kind: string | null;
@@ -1754,6 +1764,8 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;
   path?: never;
   query?: {
+    currentPage?: number;
+    pageSize?: number;
     /**
      * Field to search
      */
@@ -1762,8 +1774,6 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
      * Search should be case sensitive
      */
     searchIgnoreCase?: boolean | null;
-    currentPage?: number;
-    pageSize?: number;
     fromTimestamp?: string | null;
     toTimestamp?: string | null;
     ipAddressIn?: Array<string> | null;
@@ -1862,6 +1872,8 @@ export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
   query?: {
+    currentPage?: number;
+    pageSize?: number;
     /**
      * Field to search
      */
@@ -1870,8 +1882,6 @@ export type ApiV1AccessLogsListAccessLogsData = {
      * Search should be case sensitive
      */
     searchIgnoreCase?: boolean | null;
-    currentPage?: number;
-    pageSize?: number;
     /**
      * Order by field
      */
@@ -2782,19 +2792,26 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
   query?: {
     limit?: number;
     ip?: string | null;
-    scenario?: string | null;
+    /**
+     * Filter to these scenarios. Repeat the parameter for several, at most 5.
+     */
+    scenario?: Array<string> | null;
     /**
      * Go duration lookback, e.g. 24h
      */
     since?: string | null;
     /**
-     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli
+     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces
      */
     kind?: string | null;
     /**
      * true keeps alerts with a decision still in force; false keeps alerts that never had one
      */
     hasActiveDecision?: boolean | null;
+    /**
+     * Cursor from nextCursor; returns alerts older than it
+     */
+    before?: string | null;
   };
   url: "/api/v1/crowdsec/alerts";
 };
@@ -2813,6 +2830,10 @@ export type ApiV1CrowdsecAlertsListAlertsErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * More alerts share the cursor's second than one LAPI request can page past. Narrow the filters.
+   */
+  409: ErrorEnvelope;
 };
 
 export type ApiV1CrowdsecAlertsListAlertsError =
@@ -2822,11 +2843,56 @@ export type ApiV1CrowdsecAlertsListAlertsResponses = {
   /**
    * Request fulfilled, document follows
    */
-  200: Array<AlertView>;
+  200: AlertPageView;
 };
 
 export type ApiV1CrowdsecAlertsListAlertsResponse =
   ApiV1CrowdsecAlertsListAlertsResponses[keyof ApiV1CrowdsecAlertsListAlertsResponses];
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Go duration lookback, e.g. 24h
+     */
+    since?: string | null;
+    /**
+     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces
+     */
+    kind?: string | null;
+  };
+  url: "/api/v1/crowdsec/alerts/scenarios";
+};
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosError =
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors[keyof ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors];
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<ScenarioCount>;
+};
+
+export type ApiV1CrowdsecAlertsScenariosListAlertScenariosResponse =
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses[keyof ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses];
 
 export type ApiV1CrowdsecAlertsAlertIdGetAlertData = {
   body?: never;

@@ -99,12 +99,27 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
 /** Decision badge plus the ban/unban dropdown, driven by the shared
  *  banned-IP map. `children` (the inspect button) sit between the badge
  *  and the shield so the two icons stay together. */
-export function IpBanControls({ ip, children }: { ip: string; children?: React.ReactNode }) {
+export function IpBanControls({
+  ip,
+  badgeTitle,
+  children,
+}: {
+  ip: string
+  /** Replaces the badge's default tooltip for the decision type. */
+  badgeTitle?: (decisionType: string) => string
+  children?: React.ReactNode
+}) {
   const { data: bannedIps } = useBannedIps()
   const decision = bannedIps?.get(ip) ?? null
   return (
     <>
-      {decision !== null && <DecisionBadge type={decision} className="ml-2 align-middle" />}
+      {decision !== null && (
+        <DecisionBadge
+          type={decision}
+          className="ml-2 align-middle"
+          title={badgeTitle?.(decision)}
+        />
+      )}
       {children}
       <IpBanAction ip={ip} banned={decision !== null} />
     </>

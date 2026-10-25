@@ -50,6 +50,9 @@ interface FilterComboboxProps<T extends string | number> {
    * overlay. For hosts that already manage their own mobile overlay.
    */
   forceInline?: boolean
+  disabled?: boolean
+  /** Unpicked options turn inactive once this many are picked. */
+  maxSelected?: number
 }
 
 function FilterComboboxBody<T extends string | number>({
@@ -61,9 +64,10 @@ function FilterComboboxBody<T extends string | number>({
   loading,
   emptyText,
   label,
+  maxSelected,
 }: Pick<
   FilterComboboxProps<T>,
-  "options" | "selected" | "onChange" | "labelFor" | "iconFor" | "loading" | "emptyText" | "label"
+  "options" | "selected" | "onChange" | "labelFor" | "iconFor" | "loading" | "emptyText" | "label" | "maxSelected"
 > & { labelFor: (value: T) => string }) {
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
@@ -73,6 +77,7 @@ function FilterComboboxBody<T extends string | number>({
   )
   const toggle = (o: T) =>
     onChange(selected.includes(o) ? selected.filter((v) => v !== o) : [...selected, o])
+  const atMax = maxSelected !== undefined && selected.length >= maxSelected
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -102,8 +107,9 @@ function FilterComboboxBody<T extends string | number>({
                 type="button"
                 onClick={() => toggle(o)}
                 aria-pressed={isSel}
+                disabled={atMax && !isSel}
                 className={cn(
-                  "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm",
+                  "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm disabled:opacity-50",
                   isSel ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
                 )}
               >
@@ -122,8 +128,13 @@ function FilterComboboxBody<T extends string | number>({
           })
         )}
       </div>
+      {atMax && <MaxSelectedNote maxSelected={maxSelected} />}
     </div>
   )
+}
+
+function MaxSelectedNote({ maxSelected }: { maxSelected: number }) {
+  return <div className="text-muted-foreground px-2.5 py-1.5 text-xs">At most {maxSelected} at a time</div>
 }
 
 export function FilterCombobox<T extends string | number>({
@@ -139,12 +150,23 @@ export function FilterCombobox<T extends string | number>({
   contentClassName,
   onOpenChange,
   forceInline = false,
+  disabled = false,
+  maxSelected,
 }: FilterComboboxProps<T>) {
   const isMobile = useIsMobile()
   const count = selected.length
+  const atMax = maxSelected !== undefined && count >= maxSelected
   const triggerLabel = `${label}${count > 0 ? ` (${count})` : ""}`
 
   if (forceInline) {
+    if (disabled) {
+      return (
+        <Button variant="outline" size="sm" disabled className={cn("h-8 justify-between pointer-coarse:h-10", className)}>
+          {label}
+          <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      )
+    }
     return (
       <FilterComboboxBody
         options={options}
@@ -155,6 +177,7 @@ export function FilterCombobox<T extends string | number>({
         loading={loading}
         emptyText={emptyText}
         label={label}
+        maxSelected={maxSelected}
       />
     )
   }
@@ -163,7 +186,7 @@ export function FilterCombobox<T extends string | number>({
     return (
       <Drawer onOpenChange={onOpenChange}>
         <DrawerTrigger asChild>
-          <Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
+          <Button variant="outline" size="sm" disabled={disabled} className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
             {triggerLabel}
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
           </Button>
@@ -185,6 +208,7 @@ export function FilterCombobox<T extends string | number>({
               loading={loading}
               emptyText={emptyText}
               label={label}
+              maxSelected={maxSelected}
             />
           </div>
         </DrawerContent>
@@ -200,6 +224,7 @@ export function FilterCombobox<T extends string | number>({
       onValueChange={(value) => onChange(value as T[])}
       itemToStringLabel={labelFor}
       onOpenChange={onOpenChange}
+      disabled={disabled}
     >
       <ComboboxPrimitive.Trigger
         render={<Button variant="outline" size="sm" className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)} />}
@@ -215,13 +240,14 @@ export function FilterCombobox<T extends string | number>({
         />
         <ComboboxList>
           {(item: T) => (
-            <ComboboxItem key={item} value={item} className="text-xs">
+            <ComboboxItem key={item} value={item} disabled={atMax && !selected.includes(item)} className="text-xs">
               {iconFor?.(item)}
               {labelFor(item)}
             </ComboboxItem>
           )}
         </ComboboxList>
         <ComboboxEmpty>{loading ? "Loading…" : (emptyText ?? "No matches")}</ComboboxEmpty>
+        {atMax && <MaxSelectedNote maxSelected={maxSelected} />}
       </ComboboxContent>
     </Combobox>
   )

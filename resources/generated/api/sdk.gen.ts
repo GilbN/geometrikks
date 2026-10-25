@@ -73,6 +73,9 @@ import type {
   ApiV1CrowdsecAlertsListAlertsData,
   ApiV1CrowdsecAlertsListAlertsErrors,
   ApiV1CrowdsecAlertsListAlertsResponses,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosData,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses,
   ApiV1CrowdsecBanBanData,
   ApiV1CrowdsecBanBanErrors,
   ApiV1CrowdsecBanBanResponses,
@@ -844,6 +847,37 @@ export const apiV1CrowdsecAlertsListAlerts = <
       },
     ],
     url: "/api/v1/crowdsec/alerts",
+    ...options,
+  });
+
+/**
+ * ListAlertScenarios
+ */
+export const apiV1CrowdsecAlertsScenariosListAlertScenarios = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1CrowdsecAlertsScenariosListAlertScenariosData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses,
+  ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses,
+    ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/alerts/scenarios",
     ...options,
   });
 

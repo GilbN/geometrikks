@@ -23,6 +23,15 @@ Upstream's stated purpose is "ASNs you may want to block" (abuse-oriented).
 A few entries are not hosting providers in the literal sense (universities,
 a bank), which is why the category is labeled Hosting rather than Datacenter.
 
+### Local changes
+
+Rows removed from the vendored copy. A refresh overwrites the file, so delete
+these again unless upstream has already dropped them.
+
+- `8100` (QuadraNet). ARIN transferred AS8100 to APNIC on 2026-08-18. It now
+  belongs to Splice Internet, an Australian residential ISP. Upstream
+  removal: brianhama/bad-asn-list#37.
+
 To refresh:
 
 ```bash

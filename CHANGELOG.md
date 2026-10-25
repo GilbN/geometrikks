@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-25
+
+### Added
+
+- The README's Traefik setup has a Pangolin section. It covers the fields to keep in Pangolin's access log and how to get the visitor's address in the log.
+- Security > Alert history can be filtered by IP and by up to five scenarios. The Scenario dropdown lists the scenarios of the newest 500 alerts in the window with their counts, and the alert sheet has a "Show only this scenario" button. Back-to-back alerts of the same kind from one IP collapse into one row that expands. On phones the filters sit in a Filters drawer.
+
+### Changed
+
+- Security > Alert history shows the alert kinds as tabs with an explanation of each, and "Detections" is now "Log scenarios". An empty WAF or Bot detection view says what that kind needs.
+- Security > Alert history shows the bans the bot challenge raises under Bot detection, marked "Bot ban". Rejected submissions are now marked "Bot rejected".
+- Security > Alert history has an Outcome column that says what each alert did, such as "Ban, active" or "Alert only". The Banned badge next to the IP shows the IP's current state.
+- Security > Alert history says which settings it needs when CrowdSec machine credentials are missing. Before, the Security page left the card out.
+
+### Fixed
+
+- AS8100 no longer gets the Hosting badge. It used to belong to QuadraNet and now belongs to Splice Internet, an Australian residential ISP.
+- Security > Alert history stopped at 50 alerts. "Load older" now loads up to 1,000 alerts from the selected window. Filter by IP or scenario to go further back. The list stops refreshing while older alerts are loaded, and "Back to newest" returns to the latest alerts and turns refreshing back on.
+
+### Security
+
+- GeoMetrikks now requires Brotli 1.2.1, which fixes CVE-2026-111497. Brotli 1.2.0 and older can crash or run attacker code when they decode crafted data. GeoMetrikks decodes Brotli responses from the servers it calls, such as RDAP registries and the public IP lookup.
+- GeoMetrikks now ships aiohttp 3.14.5 and certifi 2026.10.23. aiohttp 3.14.3 had request smuggling and resource exhaustion advisories, and the old certifi bundle still trusted emSign root CAs whose intermediate keys were compromised.
+
 ## [0.21.0] - 2026-10-18
 
 ### Added
@@ -1144,7 +1168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.21.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.22.0...develop
+[0.22.0]: https://github.com/GilbN/geometrikks/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/GilbN/geometrikks/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/GilbN/geometrikks/compare/v0.18.0...v0.19.0
