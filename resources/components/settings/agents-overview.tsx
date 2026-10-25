@@ -183,9 +183,7 @@ function InstanceDetail({ instance, now, checkedAt }: { instance: InstanceView; 
             <Fact label="Migration">
               <MonoChip>{instance.schemaRevision}</MonoChip>
             </Fact>
-            {nameSource && (
-              <Fact label="Name">{nameSource === "fallback" ? "default name, APP_INSTANCE_NAME not set" : "set by APP_INSTANCE_NAME"}</Fact>
-            )}
+            {nameSource === "fallback" && <Fact label="Name">default name, APP_INSTANCE_NAME not set</Fact>}
             {schemaWait && (
               <Fact label="Schema check">
                 <LedValue tone={schemaWait.tone}>{schemaWait.label}</LedValue>
