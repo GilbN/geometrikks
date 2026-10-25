@@ -17,8 +17,8 @@ let state = INITIAL_STATE
 let toastClaimed = false
 const listeners = new Set<() => void>()
 
-function setState(next: ReloadNoticeState): void {
-  state = next
+function setState(nextState: ReloadNoticeState): void {
+  state = nextState
   for (const listener of listeners) listener()
 }
 

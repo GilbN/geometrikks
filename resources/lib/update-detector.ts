@@ -56,17 +56,18 @@ export function createUpdateDetector(deps: UpdateDetectorDeps): UpdateDetector {
   function readServer(): Promise<void> {
     if (serverRead !== null) return serverRead
     needsRecheck = false
-    serverRead = deps
-      .readServerBuild()
-      .then((buildIdentity) => {
-        deps.onServerBuild(buildIdentity, buildKey(buildIdentity) !== pageKey)
-      })
-      .catch(() => {
+    serverRead = (async () => {
+      let buildIdentity: BuildIdentity
+      try {
+        buildIdentity = await deps.readServerBuild()
+      } catch {
         needsRecheck = true
-      })
-      .finally(() => {
-        serverRead = null
-      })
+        return
+      }
+      deps.onServerBuild(buildIdentity, buildKey(buildIdentity) !== pageKey)
+    })().finally(() => {
+      serverRead = null
+    })
     return serverRead
   }
 
@@ -78,8 +79,6 @@ export function createUpdateDetector(deps: UpdateDetectorDeps): UpdateDetector {
       } catch {
         return
       }
-      baselineStartedAt = startedAt
-      return
     }
     if (baselineStartedAt === null) {
       baselineStartedAt = startedAt
