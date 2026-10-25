@@ -174,11 +174,6 @@ async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     log_broadcaster.bind_loop(asyncio.get_running_loop())
 
     settings = _resolve_settings(app)
-    if settings.api.log_level is not None:
-        logger.warning(
-            "API_LOG_LEVEL is deprecated and will be removed in a future "
-            "release; set LOG_LEVEL instead."
-        )
     legacy_env_names = settings.legacy_env_names_in_use()
     if legacy_env_names:
         logger.warning(

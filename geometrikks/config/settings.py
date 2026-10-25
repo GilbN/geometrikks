@@ -2,7 +2,6 @@ import json
 import os
 import socket
 import unicodedata
-import warnings
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from ipaddress import ip_network
@@ -229,18 +228,6 @@ class GeoIPSettings(BaseSettings):
         default=["en"],
         description="List of GeoIP locales to use",
     )
-    validate_db_path: bool = Field(
-        default=False,
-        description=(
-            "Fail settings validation when the GeoIP database file is missing. "
-            "Off by default: the auto-downloader/degraded-mode path owns the "
-            "missing-file case (set true to fail fast instead)."
-        ),
-    )
-    validate_locales: bool = Field(
-        default=True,
-        description="Validate that the specified GeoIP locales are supported"
-    )
     account_id: str | None = Field(
         default=None,
         validation_alias="MAXMINDDB_USER_ID",
@@ -269,53 +256,26 @@ class GeoIPSettings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def validate_geoip_db_exists(self) -> "GeoIPSettings":
-        """Ensure GeoIP database file exists if validation is enabled.
+    def resolve_db_paths(self) -> "GeoIPSettings":
+        """Resolve relative database paths from the project root.
 
-        Resolves relative paths from the project root to work in all contexts.
+        No existence check: the downloader and degraded mode handle a
+        missing file.
         """
         project_root = Path(__file__).parent.parent.parent
-        db_path = self.db_path
-
-        # If path is relative, resolve from project root
-        if not db_path.is_absolute():
-            db_path = project_root / db_path
-
-        if self.validate_db_path and not db_path.exists():
-            raise ValueError(f"GeoIP database file not found: {db_path}")
-
-        # Update the path to absolute for runtime use
-        self.db_path = db_path
-
-        # Same resolution for the ASN path, but no existence check; the
-        # downloader handles a missing file.
-        asn_db_path = self.asn_db_path
-        if not asn_db_path.is_absolute():
-            asn_db_path = project_root / asn_db_path
-        self.asn_db_path = asn_db_path
+        if not self.db_path.is_absolute():
+            self.db_path = project_root / self.db_path
+        if not self.asn_db_path.is_absolute():
+            self.asn_db_path = project_root / self.asn_db_path
         return self
 
     @model_validator(mode="after")
     def validate_geoip_locales(self) -> "GeoIPSettings":
-        """Ensure GeoIP locales are valid if validation is enabled."""
-        if self.validate_locales:
-            invalid_locales = [loc for loc in self.locales if loc not in ALLOWED_GEOIP_LOCALES]
-            if invalid_locales:
-                raise ValueError(f"Invalid GeoIP locales: {invalid_locales}. Allowed locales are: {ALLOWED_GEOIP_LOCALES}")
+        """Reject locales the GeoLite2 databases do not carry."""
+        invalid_locales = [loc for loc in self.locales if loc not in ALLOWED_GEOIP_LOCALES]
+        if invalid_locales:
+            raise ValueError(f"Invalid GeoIP locales: {invalid_locales}. Allowed locales are: {ALLOWED_GEOIP_LOCALES}")
         return self
-
-
-class APISettings(BaseSettings):
-    """API server configuration settings."""
-
-    model_config = SettingsConfigDict(env_prefix="API_", env_file=_env_file(), extra="ignore")
-
-    host: str = Field(default="0.0.0.0", description="API server host")
-    port: int = Field(default=8000, description="API server port")
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = Field(
-        default=None,
-        description="DEPRECATED: use LOG_LEVEL. Kept as a fallback for existing deployments.",
-    )
 
 
 class LogSettings(BaseSettings):
@@ -324,9 +284,9 @@ class LogSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LOG_", env_file=_env_file(), extra="ignore")
 
     dir: Path = Field(default=Path("logs"), description="Directory for application log files")
-    level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] | None = Field(
-        default=None,
-        description="Root log level. Falls back to deprecated API_LOG_LEVEL, then INFO.",
+    level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        description="Root log level",
     )
     main_max_bytes: int = Field(
         default=10 * 1024 * 1024,
@@ -1207,18 +1167,9 @@ class ViteSettings(BaseSettings):
         default=5173,
         description="The port to start vite on. Default is 5173."
     )
-    enable_react_helpers: bool = Field(
-        default=True,
-        description="Enable React support in HMR."
-    )
     http2: bool = Field(
         default=True,
         description="Enable HTTP/2 for the Vite development server."
-    )
-
-    executor: Literal["node", "bun", "deno", "yarn", "pnpm"] | None = Field(
-        default="bun",
-        description="JS runtime executor for litestar-vite (defaults to bun).",
     )
 
 
@@ -1301,10 +1252,6 @@ class Settings(BaseSettings):
 
     # Application metadata
     name: str = Field(default="GeoMetrikks API", description="Application name")
-    version: str = Field(
-        default_factory=get_installed_version,
-        description="Application version (defaults to installed package metadata)",
-    )
     description: str = Field(
         default="Real-time GeoIP lookups and traffic analytics API",
         description="Application description",
@@ -1355,6 +1302,11 @@ class Settings(BaseSettings):
         ),
     )
 
+    @property
+    def version(self) -> str:
+        """The installed package version."""
+        return get_installed_version()
+
     @field_validator("trusted_proxies", mode="before")
     @classmethod
     def parse_trusted_proxies(cls, value: object) -> object:
@@ -1374,25 +1326,8 @@ class Settings(BaseSettings):
                 ) from exc
         return value
 
-    @model_validator(mode="after")
-    def _resolve_log_level(self) -> "Settings":
-        """LOG_LEVEL wins; deprecated API_LOG_LEVEL is honored with a warning."""
-        if self.log.level is None:
-            if self.api.log_level is not None:
-                warnings.warn(
-                    "API_LOG_LEVEL is deprecated and will be removed in a future "
-                    "release; set LOG_LEVEL instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                self.log.level = self.api.log_level
-            else:
-                self.log.level = "INFO"
-        return self
-
     # Sub-configurations
     app: AppSettings = Field(default_factory=AppSettings)
-    api: APISettings = Field(default_factory=APISettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
     log: LogSettings = Field(default_factory=LogSettings)

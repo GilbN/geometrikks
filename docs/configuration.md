@@ -15,7 +15,6 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `APP_NAME` | `GeoMetrikks API` | Application name |
-| `APP_VERSION` | *(computed)* | Application version (defaults to installed package metadata) |
 | `APP_DESCRIPTION` | `Real-time GeoIP lookups and traffic analytics API` | Application description |
 | `APP_DEBUG` | `false` | Enable debug mode |
 | `APP_ENVIRONMENT` | `production` | Application environment |
@@ -34,14 +33,6 @@ from real environment variables. It is read once at import time.
 | `APP_MODE` | `full` | Application mode: full (all components) or agent (logparser only) |
 | `APP_PROXY_ADVISORY` | `true` | Warn on Settings > Status when most recent traffic for a tailed file comes from CDN or private peer addresses, meaning the proxy logs its upstream instead of the visitor. CDN findings for agent-tailed sources are scanned from the database on the head every 5 minutes. Set to false when the traffic mix is deliberate (Tailscale-only access, a CDN you front on purpose). |
 | `APP_INSTANCE_NAME` | - | Name this instance goes by on Settings > Agents, where the head lists every instance that reports in. Unset, agents show as "agent" and the head as "head". Set it on every agent. Two unnamed agents share one name and overwrite each other's status. Up to 255 characters, no slashes, no control characters, and not "." or "..". |
-
-## API server
-
-| Variable | Default | Description |
-|---|---|---|
-| `API_HOST` | `0.0.0.0` | API server host |
-| `API_PORT` | `8000` | API server port |
-| `API_LOG_LEVEL` | - | DEPRECATED: use LOG_LEVEL. Kept as a fallback for existing deployments. |
 
 ## Database
 
@@ -70,8 +61,6 @@ from real environment variables. It is read once at import time.
 |---|---|---|
 | `GEOIP_DB_PATH` | `data/geoip/GeoLite2-City.mmdb` | Path to GeoIP2/GeoLite2 database file |
 | `GEOIP_LOCALES` | `["en"]` | List of GeoIP locales to use |
-| `GEOIP_VALIDATE_DB_PATH` | `false` | Fail settings validation when the GeoIP database file is missing. Off by default: the auto-downloader/degraded-mode path owns the missing-file case (set true to fail fast instead). |
-| `GEOIP_VALIDATE_LOCALES` | `true` | Validate that the specified GeoIP locales are supported |
 | `MAXMINDDB_USER_ID` | - | MaxMind account ID for GeoLite2 auto-download |
 | `MAXMINDDB_LICENSE_KEY` | - | MaxMind license key for GeoLite2 auto-download |
 | `GEOIP_REFRESH_DAYS` | `7` | Re-download the GeoLite2 database when older than this many days |
@@ -83,7 +72,7 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `LOG_DIR` | `logs` | Directory for application log files |
-| `LOG_LEVEL` | - | Root log level. Falls back to deprecated API_LOG_LEVEL, then INFO. |
+| `LOG_LEVEL` | `INFO` | Root log level |
 | `LOG_MAIN_MAX_BYTES` | `10485760` | Rotate the main JSONL log when it exceeds this size (bytes) |
 | `LOG_MAIN_BACKUP_COUNT` | `5` | Number of gzipped main-log archives to keep |
 | `LOG_LOGIN_MAX_BYTES` | `10485760` | Rotate the login log when it exceeds this size (bytes) |
@@ -187,7 +176,5 @@ from real environment variables. It is read once at import time.
 | `VITE_USE_SERVER_LIFESPAN` | `true` | Auto start and stop vite processes when running in development mode. |
 | `VITE_HOST` | `0.0.0.0` | The host the vite process will listen on. Defaults to 0.0.0.0. |
 | `VITE_PORT` | `5173` | The port to start vite on. Default is 5173. |
-| `VITE_ENABLE_REACT_HELPERS` | `true` | Enable React support in HMR. |
 | `VITE_HTTP2` | `true` | Enable HTTP/2 for the Vite development server. |
-| `VITE_EXECUTOR` | `bun` | JS runtime executor for litestar-vite (defaults to bun). |
 

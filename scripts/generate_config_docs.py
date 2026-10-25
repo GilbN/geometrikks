@@ -31,7 +31,6 @@ OUTPUT = REPO_ROOT / "docs" / "configuration.md"
 SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
     ("Application", settings_module.Settings, "APP_"),
     ("Application mode", settings_module.AppSettings, "APP_"),
-    ("API server", settings_module.APISettings, "API_"),
     ("Database", settings_module.DatabaseSettings, "DB_"),
     ("GeoIP", settings_module.GeoIPSettings, "GEOIP_"),
     ("Logging", settings_module.LogSettings, "LOG_"),
@@ -47,7 +46,7 @@ SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
 
 # Top-level Settings fields that are sub-models, not env vars.
 SKIP_FIELDS = {
-    "app", "api", "database", "geoip", "log", "logparser", "loki", "analytics", "scheduler",
+    "app", "database", "geoip", "log", "logparser", "loki", "analytics", "scheduler",
     "map", "crowdsec", "oidc", "vite",
 }
 # Never document secrets' defaults verbatim.

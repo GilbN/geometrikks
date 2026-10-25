@@ -61,7 +61,7 @@ def test_env_var_names_honor_prefix_and_alias():
 def test_descriptions_defaults_and_sections_present():
     overview = build_settings_overview(Settings())
     names = [s.name for s in overview.sections]
-    for expected in ("app", "api", "database", "geoip", "logparser", "analytics", "scheduler", "map", "vite"):
+    for expected in ("app", "database", "geoip", "logparser", "analytics", "scheduler", "map", "vite"):
         assert expected in names
 
     host = _field(_section(overview, "database"), "host")
@@ -69,9 +69,9 @@ def test_descriptions_defaults_and_sections_present():
     assert host.default == "localhost"
 
     # default_factory fields report a None default (dynamic)
-    version = _field(_section(overview, "app"), "version")
-    assert version.default is None
-    assert version.value  # current value still present
+    server_name = _field(_section(overview, "logparser"), "server_name")
+    assert server_name.default is None
+    assert server_name.value  # current value still present
 
 
 def test_app_section_excludes_sub_models():

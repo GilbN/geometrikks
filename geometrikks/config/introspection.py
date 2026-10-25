@@ -39,7 +39,6 @@ class ComputedField:
 # Display titles that plain str.title() gets wrong.
 _SECTION_TITLES = {
     "app": "Application",
-    "api": "API",
     "geoip": "GeoIP",
     "logparser": "Log Parser",
     "oidc": "OpenID Connect",
