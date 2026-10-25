@@ -3,6 +3,7 @@
  *  every throw: a redirect thrown from inside a try block would be swallowed
  *  by that block's own catch. */
 import axios from "axios"
+import type { AxiosRequestConfig } from "axios"
 import type { AuthOptions, HealthResponse, LogoutResponse, MeResponse } from "@/lib/api"
 
 export type MeResult =
@@ -116,8 +117,26 @@ export async function logoutThenNavigate(
 /** What the login page says while the database is down. The login routes
  *  answer 503 then, so nobody can reach the Status page that would explain
  *  why. Only the database advisory triggers it; other advisories stay behind
- *  the login. The sentence is written for this page, not taken from /health. */
+ *  the login. */
 export function databaseDownNotice(health: HealthResponse | null): string | null {
   const isDown = health?.advisories?.some((advisory) => advisory.id === "database-unavailable")
   return isDown ? "The database is unavailable, so signing in won't work until it's back." : null
+}
+
+/** How long the login page waits for /health. A hung process or a proxy that
+ *  never answers must not hold the form behind the skeleton, and that is
+ *  exactly when the database notice matters. */
+export const LOGIN_HEALTH_TIMEOUT_MS = 3000
+
+/** Fetches what the login page needs, both at once. A failed or timed-out
+ *  /health counts as no health, so the form renders without the notice. */
+export async function loadLoginContext(
+  loadOptions: () => Promise<AuthOptions>,
+  loadHealth: (config: AxiosRequestConfig) => Promise<HealthResponse>,
+): Promise<{ options: AuthOptions; health: HealthResponse | null }> {
+  const [options, health] = await Promise.all([
+    loadOptions(),
+    loadHealth({ timeout: LOGIN_HEALTH_TIMEOUT_MS }).catch(() => null),
+  ])
+  return { options, health }
 }

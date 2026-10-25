@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { client } from "@/generated/api/client.gen"
-import { api, deleteServerLocation, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"
+import axios from "axios"
+import { api, deleteServerLocation, fetchHealth, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -78,5 +79,13 @@ describe("deleteServerLocation", () => {
       ["DELETE", "/api/v1/geo-locations/server-locations/edge%2001"],
       ["DELETE", "/api/v1/geo-locations/server-locations/nas.lan"],
     ])
+  })
+})
+
+describe("fetchHealth", () => {
+  it("passes the request config through, so a caller can bound the wait", async () => {
+    const get = vi.spyOn(axios, "get").mockResolvedValue({ data: { status: "healthy" } })
+    await fetchHealth({ timeout: 3000 })
+    expect(get).toHaveBeenCalledExactlyOnceWith("/health", { timeout: 3000 })
   })
 })

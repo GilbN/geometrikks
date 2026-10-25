@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 import {
   LOGIN_ERROR_MESSAGES,
   databaseDownNotice,
+  LOGIN_HEALTH_TIMEOUT_MS,
   isChromelessRoute,
+  loadLoginContext,
   loginErrorMessage,
   logoutThenNavigate,
   planLoginForm,
@@ -10,7 +12,7 @@ import {
   planLogoutRoute,
   toMeResult,
 } from "@/lib/auth-redirect"
-import type { Advisory, HealthResponse } from "@/lib/api"
+import type { Advisory, AuthOptions, HealthResponse } from "@/lib/api"
 
 /** Sentinel: the plan must carry this exact object through to the route. */
 const boom = new Error("kaboom")
@@ -245,5 +247,42 @@ describe("databaseDownNotice", () => {
   it("ignores other advisories on their own", () => {
     const health = healthWith([advisory("geoip-database-stale", "The GeoIP database is old.")])
     expect(databaseDownNotice(health)).toBeNull()
+  })
+})
+
+describe("loadLoginContext", () => {
+  const options: AuthOptions = { password: true, oidc: null }
+  const health = { status: "healthy" } as HealthResponse
+
+  it("bounds the health request so a stalled /health cannot hold the page", async () => {
+    const loadHealth = vi.fn().mockResolvedValue(health)
+    await loadLoginContext(async () => options, loadHealth)
+    expect(loadHealth).toHaveBeenCalledExactlyOnceWith({ timeout: LOGIN_HEALTH_TIMEOUT_MS })
+    expect(LOGIN_HEALTH_TIMEOUT_MS).toBe(3000)
+  })
+
+  it("starts both requests before either finishes", async () => {
+    const started: string[] = []
+    const loadOptions = vi.fn(async () => {
+      started.push("options")
+      return options
+    })
+    const loadHealth = vi.fn(async () => {
+      started.push("health")
+      return health
+    })
+    const pending = loadLoginContext(loadOptions, loadHealth)
+    expect(started).toEqual(["options", "health"])
+    await pending
+  })
+
+  it("returns null health when /health fails or times out", async () => {
+    const result = await loadLoginContext(async () => options, () => Promise.reject(new Error("timeout of 3000ms exceeded")))
+    expect(result).toEqual({ options, health: null })
+  })
+
+  it("still fails when the options request fails", async () => {
+    const failure = new Error("503")
+    await expect(loadLoginContext(() => Promise.reject(failure), async () => health)).rejects.toBe(failure)
   })
 })

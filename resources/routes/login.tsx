@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { fetchAuthOptions, fetchHealth, fetchMe, login } from "@/lib/api"
-import { databaseDownNotice, loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
+import { databaseDownNotice, loadLoginContext, loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,15 +29,15 @@ export const Route = createFileRoute("/login")({
     if (plan.action === "rethrow") throw plan.error
     // "render": auth is on and nobody is logged in yet. Which methods exist
     // decides what the page shows.
-    // A failed /health only hides the advisory line, so it must not fail the page.
-    return { options: await fetchAuthOptions(), health: await fetchHealth().catch(() => null) }
+    return loadLoginContext(fetchAuthOptions, fetchHealth)
   },
   component: LoginPage,
   pendingComponent: LoginPagePending,
 })
 
-// beforeLoad awaits two round trips before anything paints, so without this
-// the anonymous cold load shows a blank page until they return.
+// beforeLoad waits on the session check and then the options and health
+// requests before anything paints, so without this the anonymous cold load
+// shows a blank page until they return.
 function LoginPagePending() {
   return (
     <BrandScreen backdrop="map" title="Sign in" description="Sign in to continue.">

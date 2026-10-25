@@ -2,7 +2,7 @@
  * API client and types for GeoMetrikks backend.
  */
 
-import axios from "axios"
+import axios, { type AxiosRequestConfig } from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
@@ -278,8 +278,8 @@ export type {
  * Fetch service health status.
  * Note: /health is at root level, not under /api/v1
  */
-export async function fetchHealth(): Promise<HealthResponse> {
-  const { data } = await axios.get<HealthResponse>("/health")
+export async function fetchHealth(config?: AxiosRequestConfig): Promise<HealthResponse> {
+  const { data } = await axios.get<HealthResponse>("/health", config)
   return data
 }
 
