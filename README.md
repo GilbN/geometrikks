@@ -1593,6 +1593,10 @@ credentials, MaxMind key, log paths, DB password). For every environment
 variable and its default, see
 [`docs/configuration.md`](docs/configuration.md).
 
+Every 12 hours GeoMetrikks asks api.github.com whether a newer release
+exists, sends nothing about your install, and stops if you set
+`APP_UPDATE_CHECK=false`.
+
 Set `GEOMETRIKKS_ENV_FILE` to load a different `.env` path, or to an empty
 value to disable dotenv loading and configure through real environment
 variables only.

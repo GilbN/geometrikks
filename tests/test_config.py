@@ -216,6 +216,19 @@ def test_settings_caching():
     assert settings1 is settings2
 
 
+def test_update_check_defaults_to_on(monkeypatch):
+    monkeypatch.delenv("APP_UPDATE_CHECK", raising=False)
+
+    assert AppSettings(_env_file=None).update_check is True
+
+
+def test_update_check_reads_the_env(monkeypatch):
+    monkeypatch.setenv("APP_UPDATE_CHECK", "false")
+    get_settings.cache_clear()
+
+    assert get_settings().app.update_check is False
+
+
 def test_nested_settings_override(monkeypatch):
     """Test overriding nested settings via environment variables."""
     monkeypatch.setenv("DB_POOL_SIZE", "20")
