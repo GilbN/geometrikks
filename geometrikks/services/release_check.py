@@ -5,16 +5,23 @@ GitHub). A stable build is only offered stable releases. A dev build is
 offered every release, so it hears about the next dev tag and the stable one.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
+import httpx2
 import msgspec
 from packaging.version import InvalidVersion, Version
 
 from geometrikks.lib.versioning import is_local_build
+from geometrikks.server.logging import get_logger
+from geometrikks.services.rdap import USER_AGENT
+
+logger = get_logger(__name__)
 
 RELEASES_URL = "https://api.github.com/repos/GilbN/geometrikks/releases?per_page=30"
+REQUEST_TIMEOUT_SECONDS = 10.0
+MAX_RESPONSE_BYTES = 1024 * 1024
 MIN_RELEASE_AGE = timedelta(hours=1)
 GITHUB_URL_PREFIX = "https://github.com/"
 
@@ -100,3 +107,110 @@ def select_newer_release(
     if not candidates:
         return None
     return max(candidates, key=lambda github_release: github_release.version)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class ReleaseChecker:
+    """Holds the newest applicable release and refreshes it from GitHub.
+
+    Every failure keeps the last good answer, and run() never raises, so the
+    scheduler has nothing to log. A failure is logged once per distinct reason
+    until a check succeeds again.
+    """
+
+    def __init__(
+        self,
+        running_version: str,
+        *,
+        transport: httpx2.AsyncBaseTransport | None = None,
+        clock: Callable[[], datetime] = _utc_now,
+    ) -> None:
+        self._running_version = running_version
+        self._transport = transport
+        self._clock = clock
+        self._github_releases: list[GithubRelease] = []
+        self._latest: GithubRelease | None = None
+        self._checked_at: datetime | None = None
+        self._etag: str | None = None
+        self._last_failure_reason: str | None = None
+
+    @property
+    def running_version(self) -> str:
+        return self._running_version
+
+    @property
+    def latest(self) -> GithubRelease | None:
+        return self._latest
+
+    @property
+    def checked_at(self) -> datetime | None:
+        return self._checked_at
+
+    @property
+    def etag(self) -> str | None:
+        return self._etag
+
+    async def run(self) -> None:
+        try:
+            await self._refresh()
+        except ReleaseCheckError as error:
+            self._record_failure(str(error))
+
+    async def _refresh(self) -> None:
+        request_headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": USER_AGENT,
+        }
+        if self._etag is not None:
+            request_headers["If-None-Match"] = self._etag
+
+        body = bytearray()
+        try:
+            async with httpx2.AsyncClient(
+                timeout=REQUEST_TIMEOUT_SECONDS,
+                follow_redirects=False,
+                headers=request_headers,
+                transport=self._transport,
+            ) as client:
+                async with client.stream("GET", RELEASES_URL) as response:
+                    status_code = response.status_code
+                    response_etag = response.headers.get("etag")
+                    if status_code == 200:
+                        async for chunk in response.aiter_bytes():
+                            body += chunk
+                            if len(body) > MAX_RESPONSE_BYTES:
+                                raise ReleaseCheckError("response too large")
+        except httpx2.TimeoutException as error:
+            raise ReleaseCheckError("timeout") from error
+        except httpx2.HTTPError as error:
+            raise ReleaseCheckError(type(error).__name__) from error
+
+        if status_code == 200:
+            self._github_releases = parse_releases(bytes(body))
+            self._etag = response_etag
+        elif status_code != 304:
+            raise ReleaseCheckError(f"HTTP {status_code}")
+
+        now = self._clock()
+        previous_latest = self._latest
+        self._latest = select_newer_release(self._github_releases, self._running_version, now)
+        self._checked_at = now
+        self._last_failure_reason = None
+        if self._latest is not None and (
+            previous_latest is None or previous_latest.version != self._latest.version
+        ):
+            logger.info(
+                "release_check_found",
+                running_version=self._running_version,
+                latest_version=str(self._latest.version),
+            )
+
+    def _record_failure(self, reason: str) -> None:
+        if reason == self._last_failure_reason:
+            return
+        self._last_failure_reason = reason
+        logger.info("release_check_failed", reason=reason)

@@ -1,12 +1,19 @@
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
+import httpx2
 import pytest
+import structlog.testing
 from packaging.version import Version
 
+from geometrikks.services.rdap import USER_AGENT
 from geometrikks.services.release_check import (
+    MAX_RESPONSE_BYTES,
+    RELEASES_URL,
     GithubRelease,
     ReleaseCheckError,
+    ReleaseChecker,
     parse_releases,
     select_newer_release,
     tag_version,
@@ -171,3 +178,271 @@ def test_parse_fails_the_whole_response_when_one_entry_is_malformed() -> None:
     with pytest.raises(ReleaseCheckError) as error:
         parse_releases(json.dumps([valid_entry, missing_tag_entry]).encode())
     assert str(error.value) == "invalid response"
+
+
+def release_body(tag: str = "v0.23.0", *, published_at: datetime = HOURS_AGO_2) -> bytes:
+    return json.dumps(
+        [
+            {
+                "tag_name": tag,
+                "draft": False,
+                "prerelease": False,
+                "html_url": f"https://github.com/GilbN/geometrikks/releases/tag/{tag}",
+                "published_at": published_at.isoformat().replace("+00:00", "Z"),
+            }
+        ]
+    ).encode()
+
+
+class FakeGithub:
+    """Hands out canned answers in order and records every request."""
+
+    def __init__(self, *answers: httpx2.Response | Exception) -> None:
+        self.answers = list(answers)
+        self.requests: list[httpx2.Request] = []
+
+    def handle(self, request: httpx2.Request) -> httpx2.Response:
+        self.requests.append(request)
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    def checker(
+        self, clock: Callable[[], datetime] = lambda: NOW, running_version: str = "0.22.0"
+    ) -> ReleaseChecker:
+        return ReleaseChecker(
+            running_version, transport=httpx2.MockTransport(self.handle), clock=clock
+        )
+
+
+def releases_response(
+    tag: str = "v0.23.0", *, etag: str | None = None, published_at: datetime = HOURS_AGO_2
+) -> httpx2.Response:
+    headers = {"ETag": etag} if etag else {}
+    return httpx2.Response(200, content=release_body(tag, published_at=published_at), headers=headers)
+
+
+class MutableClock:
+    def __init__(self, now: datetime) -> None:
+        self.now = now
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+@pytest.mark.anyio
+async def test_request_carries_only_the_fixed_headers() -> None:
+    fake_github = FakeGithub(releases_response())
+
+    await fake_github.checker().run()
+
+    request = fake_github.requests[0]
+    assert str(request.url) == RELEASES_URL
+    assert request.headers["accept"] == "application/vnd.github+json"
+    assert request.headers["x-github-api-version"] == "2022-11-28"
+    assert request.headers["user-agent"] == USER_AGENT
+    assert "if-none-match" not in request.headers
+    assert "authorization" not in request.headers
+
+
+@pytest.mark.anyio
+async def test_first_fetch_stores_the_etag() -> None:
+    fake_github = FakeGithub(releases_response(etag='W/"abc"'), httpx2.Response(304))
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+
+    assert release_checker.etag == 'W/"abc"'
+    assert release_checker.latest is not None
+    assert release_checker.latest.version == Version("0.23.0")
+    assert release_checker.checked_at == NOW
+
+    await release_checker.run()
+
+    assert fake_github.requests[1].headers["if-none-match"] == 'W/"abc"'
+
+
+@pytest.mark.anyio
+async def test_not_modified_keeps_the_answer() -> None:
+    clock = MutableClock(NOW)
+    fake_github = FakeGithub(releases_response(etag='"one"'), httpx2.Response(304))
+    release_checker = fake_github.checker(clock)
+    await release_checker.run()
+    first_latest = release_checker.latest
+
+    clock.now = NOW + timedelta(hours=12)
+    await release_checker.run()
+
+    assert release_checker.latest == first_latest
+    assert release_checker.checked_at == NOW + timedelta(hours=12)
+    assert release_checker.etag == '"one"'
+
+
+@pytest.mark.anyio
+async def test_not_modified_lets_a_fresh_release_count_later() -> None:
+    clock = MutableClock(NOW)
+    published_at = NOW - timedelta(minutes=30)
+    fake_github = FakeGithub(
+        releases_response(etag='"one"', published_at=published_at), httpx2.Response(304)
+    )
+    release_checker = fake_github.checker(clock)
+
+    await release_checker.run()
+    assert release_checker.latest is None
+
+    clock.now = NOW + timedelta(hours=12)
+    await release_checker.run()
+
+    assert release_checker.latest is not None
+    assert release_checker.latest.version == Version("0.23.0")
+
+
+@pytest.mark.anyio
+async def test_timeout_keeps_the_last_good_answer_and_logs_once() -> None:
+    clock = MutableClock(NOW)
+    fake_github = FakeGithub(releases_response(etag='"one"'), httpx2.ReadTimeout("slow"))
+    release_checker = fake_github.checker(clock)
+    await release_checker.run()
+    first_latest = release_checker.latest
+
+    clock.now = NOW + timedelta(hours=12)
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert release_checker.latest == first_latest
+    assert release_checker.checked_at == NOW
+    assert release_checker.etag == '"one"'
+    failures = [log for log in logs if log["event"] == "release_check_failed"]
+    assert failures == [{"event": "release_check_failed", "reason": "timeout", "log_level": "info"}]
+
+
+@pytest.mark.anyio
+async def test_repeated_failure_logs_nothing_new() -> None:
+    fake_github = FakeGithub(
+        httpx2.ReadTimeout("slow"),
+        httpx2.ConnectTimeout("slow"),
+        httpx2.Response(500),
+        releases_response(),
+        httpx2.ReadTimeout("slow"),
+    )
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+        await release_checker.run()
+        reasons_after_two_timeouts = [
+            log["reason"] for log in logs if log["event"] == "release_check_failed"
+        ]
+        await release_checker.run()
+        await release_checker.run()
+        await release_checker.run()
+
+    assert reasons_after_two_timeouts == ["timeout"]
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "timeout",
+        "HTTP 500",
+        "timeout",
+    ]
+
+
+@pytest.mark.anyio
+async def test_other_transport_errors_are_logged_by_class_name() -> None:
+    fake_github = FakeGithub(httpx2.ConnectError("refused"))
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "ConnectError"
+    ]
+
+
+@pytest.mark.anyio
+async def test_rate_limited_answer_is_one_quiet_failure() -> None:
+    fake_github = FakeGithub(
+        releases_response(etag='"one"'),
+        httpx2.Response(403),
+        httpx2.Response(403),
+        httpx2.Response(429),
+    )
+    release_checker = fake_github.checker()
+    await release_checker.run()
+    first_latest = release_checker.latest
+
+    with structlog.testing.capture_logs() as logs:
+        for _ in range(3):
+            await release_checker.run()
+
+    assert release_checker.latest == first_latest
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "HTTP 403",
+        "HTTP 429",
+    ]
+    assert len(fake_github.requests) == 4
+
+
+@pytest.mark.anyio
+async def test_body_over_the_cap_fails() -> None:
+    oversized = httpx2.Response(200, content=b" " * (MAX_RESPONSE_BYTES + 1))
+    fake_github = FakeGithub(oversized)
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "response too large"
+    ]
+    assert release_checker.latest is None
+    assert release_checker.checked_at is None
+
+
+@pytest.mark.anyio
+async def test_body_that_is_not_a_release_list_fails() -> None:
+    fake_github = FakeGithub(httpx2.Response(200, content=b'{"message": "nope"}'))
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "invalid response"
+    ]
+    assert release_checker.checked_at is None
+
+
+@pytest.mark.anyio
+async def test_redirect_is_a_failure() -> None:
+    fake_github = FakeGithub(
+        httpx2.Response(302, headers={"Location": "https://api.github.com/elsewhere"})
+    )
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "HTTP 302"
+    ]
+    assert len(fake_github.requests) == 1
+
+
+@pytest.mark.anyio
+async def test_found_logs_when_the_answer_changes() -> None:
+    fake_github = FakeGithub(releases_response(), releases_response())
+    release_checker = fake_github.checker()
+
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+        await release_checker.run()
+
+    assert [log for log in logs if log["event"] == "release_check_found"] == [
+        {
+            "event": "release_check_found",
+            "running_version": "0.22.0",
+            "latest_version": "0.23.0",
+            "log_level": "info",
+        }
+    ]
