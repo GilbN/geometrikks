@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import {
   LOGIN_ERROR_MESSAGES,
+  databaseDownNotice,
   isChromelessRoute,
   loginErrorMessage,
   logoutThenNavigate,
@@ -9,6 +10,7 @@ import {
   planLogoutRoute,
   toMeResult,
 } from "@/lib/auth-redirect"
+import type { Advisory, HealthResponse } from "@/lib/api"
 
 /** Sentinel: the plan must carry this exact object through to the route. */
 const boom = new Error("kaboom")
@@ -216,5 +218,32 @@ describe("logoutThenNavigate", () => {
       logoutThenNavigate(() => Promise.reject(failure), go),
     ).rejects.toBe(failure)
     expect(go).not.toHaveBeenCalled()
+  })
+})
+
+describe("databaseDownNotice", () => {
+  const healthWith = (advisories?: Advisory[]) => ({ advisories }) as HealthResponse
+  const advisory = (id: string, summary: string): Advisory => ({ id, severity: "critical", summary })
+
+  it("is null when /health could not be fetched", () => {
+    expect(databaseDownNotice(null)).toBeNull()
+  })
+
+  it("is null when there are no advisories", () => {
+    expect(databaseDownNotice(healthWith([]))).toBeNull()
+    expect(databaseDownNotice(healthWith(undefined))).toBeNull()
+  })
+
+  it("returns the login notice when the database advisory is present", () => {
+    const health = healthWith([
+      advisory("geoip-database-stale", "The GeoIP database is old."),
+      advisory("database-unavailable", "The database is unreachable."),
+    ])
+    expect(databaseDownNotice(health)).toBe("The database is unavailable, so signing in won't work until it's back.")
+  })
+
+  it("ignores other advisories on their own", () => {
+    const health = healthWith([advisory("geoip-database-stale", "The GeoIP database is old.")])
+    expect(databaseDownNotice(health)).toBeNull()
   })
 })

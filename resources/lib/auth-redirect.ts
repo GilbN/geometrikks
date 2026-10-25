@@ -3,7 +3,7 @@
  *  every throw: a redirect thrown from inside a try block would be swallowed
  *  by that block's own catch. */
 import axios from "axios"
-import type { AuthOptions, LogoutResponse, MeResponse } from "@/lib/api"
+import type { AuthOptions, HealthResponse, LogoutResponse, MeResponse } from "@/lib/api"
 
 export type MeResult =
   | { ok: true; me: MeResponse }
@@ -111,4 +111,13 @@ export async function logoutThenNavigate(
 ): Promise<void> {
   const { redirectTo } = await doLogout()
   go(redirectTo ?? "/login")
+}
+
+/** What the login page says while the database is down. The login routes
+ *  answer 503 then, so nobody can reach the Status page that would explain
+ *  why. Only the database advisory triggers it; other advisories stay behind
+ *  the login. The sentence is written for this page, not taken from /health. */
+export function databaseDownNotice(health: HealthResponse | null): string | null {
+  const isDown = health?.advisories?.some((advisory) => advisory.id === "database-unavailable")
+  return isDown ? "The database is unavailable, so signing in won't work until it's back." : null
 }

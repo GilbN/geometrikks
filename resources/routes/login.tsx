@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
-import { fetchAuthOptions, fetchMe, login } from "@/lib/api"
-import { loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
+import { fetchAuthOptions, fetchHealth, fetchMe, login } from "@/lib/api"
+import { databaseDownNotice, loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,7 +29,8 @@ export const Route = createFileRoute("/login")({
     if (plan.action === "rethrow") throw plan.error
     // "render": auth is on and nobody is logged in yet. Which methods exist
     // decides what the page shows.
-    return { options: await fetchAuthOptions() }
+    // A failed /health only hides the advisory line, so it must not fail the page.
+    return { options: await fetchAuthOptions(), health: await fetchHealth().catch(() => null) }
   },
   component: LoginPage,
   pendingComponent: LoginPagePending,
@@ -58,7 +59,8 @@ function LoginPagePending() {
 
 function LoginPage() {
   const navigate = useNavigate()
-  const { options } = Route.useRouteContext()
+  const { options, health } = Route.useRouteContext()
+  const databaseNotice = databaseDownNotice(health)
   const { error: errorCode } = Route.useSearch()
   // Read once, then dropped from the URL so a reload does not repeat it.
   const [plan] = useState(() => planLoginForm(options, errorCode ?? null))
@@ -132,6 +134,7 @@ function LoginPage() {
             </Button>
           </form>
         )}
+        {databaseNotice && <p className="text-sm text-muted-foreground">{databaseNotice}</p>}
       </div>
     </BrandScreen>
   )
