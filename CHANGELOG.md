@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Settings > Agents shows the Name row in an instance's details only when `APP_INSTANCE_NAME` isn't set. An instance with a configured name no longer shows "set by APP_INSTANCE_NAME".
+
 ## [0.22.1] - 2026-10-25
 
 ### Fixed
