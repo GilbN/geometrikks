@@ -28,6 +28,11 @@ COPY package.json bun.lock ./
 # source mount used for hot reload replaces this copy at runtime.
 COPY geometrikks/ ./geometrikks/
 
+# Dependencies install first, without the pretend version, so a dependency
+# built from an sdist with setuptools-scm doesn't pick it up.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
 # The wheel metadata keeps the pretend version verbatim, so a tag like
 # v0.22.0-dev.4 has to be written in PEP 440 form here. Without .git uv's
 # build cache is keyed on pyproject.toml alone, so --refresh-package stops a
