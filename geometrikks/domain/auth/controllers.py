@@ -214,10 +214,10 @@ class AuthController(Controller):
     @get("/oidc/start", exclude_from_auth=True, include_in_schema=False)
     async def oidc_start(self, request: Request) -> Redirect:
         """Browser navigation from the login button: send it to the provider."""
-        require_session_database(request)
         client = runtime.get_oidc_client(request.app)
         if client is None:
             raise NotFoundException()
+        require_session_database(request)
         try:
             url, pending = await client.begin()
         except OidcUnavailable as exc:
@@ -241,10 +241,10 @@ class AuthController(Controller):
         error: Annotated[str | None, QueryParameter(required=False)] = None,
     ) -> Redirect:
         """The provider sends the browser back here with a one-time code."""
-        require_session_database(request)
         client = runtime.get_oidc_client(request.app)
         if client is None:
             raise NotFoundException()
+        require_session_database(request)
         session = dict(request.session or {})
         pending = PendingLogin.from_session(session.pop("oidc_pending", None))
         # Consumed either way: a replayed callback must find nothing.

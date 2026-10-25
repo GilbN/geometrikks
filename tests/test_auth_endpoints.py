@@ -420,9 +420,10 @@ def test_login_answers_503_before_checking_the_password_while_the_database_is_do
     with TestClient(app=app) as client:
         response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
     assert response.status_code == 503
+    assert response.json()["detail"] == "The database is unavailable, so nobody can sign in right now."
 
 
-def test_oidc_routes_answer_503_while_the_database_is_down():
+def test_oidc_start_answers_503_while_the_database_is_down():
     from tests.oidc_fake import make_fake_idp
     from tests.test_oidc_flow import make_oidc_app
 
@@ -430,13 +431,39 @@ def test_oidc_routes_answer_503_while_the_database_is_down():
     app = make_oidc_app(fake)
     app.state.db_available = False
     with TestClient(app=app) as client:
-        start = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
-        callback = client.get("/api/v1/auth/oidc/callback?code=x&state=y", follow_redirects=False)
-    assert start.status_code == 503
-    assert callback.status_code == 503
+        response = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+    assert response.status_code == 503
     assert fake.config.discovery_fetches == 0
     assert fake.config.authorize_requests == []
+
+
+def test_oidc_callback_answers_503_without_contacting_the_provider_while_the_database_is_down():
+    from tests.oidc_fake import make_fake_idp
+    from tests.test_oidc_flow import make_oidc_app
+
+    fake = make_fake_idp()
+    app = make_oidc_app(fake)
+    with TestClient(app=app) as client:
+        start = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+        assert start.status_code == 302
+        callback_url = fake.issue_code(start.headers["location"])
+        # The session store would answer 503 for the cookie on its own, so
+        # keep it reachable and leave the handler's guard as the only barrier.
+        app.stores.get("sessions").is_available = lambda: True  # ty: ignore[unresolved-attribute]
+        app.state.db_available = False
+        response = client.get(callback_url, follow_redirects=False)
+    assert response.status_code == 503
     assert fake.config.token_requests == []
+
+
+@pytest.mark.parametrize("path", ["/api/v1/auth/oidc/start", "/api/v1/auth/oidc/callback?code=x&state=y"])
+@pytest.mark.parametrize("build_app", [make_app, make_disabled_app])
+def test_oidc_routes_answer_404_without_oidc_even_while_the_database_is_down(build_app, path):
+    app = build_app()
+    app.state.db_available = False
+    with TestClient(app=app) as client:
+        response = client.get(path, follow_redirects=False)
+    assert response.status_code == 404
 
 
 def test_disabled_mode_login_ignores_the_database():
