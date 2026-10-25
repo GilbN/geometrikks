@@ -78,7 +78,8 @@ def test_app_section_excludes_sub_models():
     overview = build_settings_overview(Settings())
     app_keys = {f.key for f in _section(overview, "app").fields}
     assert "database" not in app_keys
-    assert "name" in app_keys
+    assert "admin_user" in app_keys
+    assert "name" not in app_keys
 
 
 def test_computed_overlay_attaches_to_existing_field():

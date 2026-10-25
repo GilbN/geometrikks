@@ -49,7 +49,6 @@ def baseline_settings_env():
     """
     os.environ.update({
         # App
-        "APP_NAME": "GeoMetrikks API",
         "APP_DEBUG": "false",
         "APP_ENVIRONMENT": "production",
         # API

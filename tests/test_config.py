@@ -22,13 +22,11 @@ def test_default_settings():
 
 def test_environment_override(monkeypatch):
     """Test that environment variables override defaults."""
-    monkeypatch.setenv("APP_NAME", "Custom Name")
     monkeypatch.setenv("APP_DEBUG", "true")
     monkeypatch.setenv("APP_ENVIRONMENT", "development")
     
     settings = Settings()
     
-    assert settings.name == "Custom Name"
     assert settings.debug is True
     assert settings.environment == "development"
 

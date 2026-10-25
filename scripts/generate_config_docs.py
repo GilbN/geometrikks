@@ -41,7 +41,10 @@ SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
     ("Map", settings_module.MapSettings, "MAP_"),
     ("CrowdSec", settings_module.CrowdSecSettings, "CROWDSEC_"),
     ("OpenID Connect", settings_module.OidcSettings, "OIDC_"),
-    ("Vite (development only)", settings_module.ViteSettings, "VITE_"),
+]
+# Every field here is a developer setting, tagged or not.
+DEVELOPER_SECTIONS: list[tuple[type[BaseSettings], str]] = [
+    (settings_module.ViteSettings, "VITE_"),
 ]
 
 # Top-level Settings fields that are sub-models, not env vars.
@@ -82,18 +85,45 @@ def env_name(name: str, field, prefix: str) -> str:
     return f"{prefix}{name}".upper()
 
 
-def render_section(title: str, cls: type[BaseSettings], prefix: str) -> str:
-    lines = [f"## {title}", "", "| Variable | Default | Description |", "|---|---|---|"]
+TABLE_HEADER = ["| Variable | Default | Description |", "|---|---|---|"]
+
+
+def rows(cls: type[BaseSettings], prefix: str, *, developer: bool | None) -> list[str]:
+    """Table rows; developer=None keeps developer and regular fields alike."""
+    lines = []
     for name, field in cls.model_fields.items():
         if cls is settings_module.Settings and name in SKIP_FIELDS:
             continue
         if settings_module.is_legacy_field(field.json_schema_extra):
             continue
+        if developer is not None and settings_module.is_developer_field(field.json_schema_extra) != developer:
+            continue
         env = env_name(name, field, prefix)
         desc = (field.description or "").replace("|", "\\|")
         lines.append(f"| `{env}` | {default_repr(name, field)} | {desc} |")
-    lines.append("")
-    return "\n".join(lines)
+    return lines
+
+
+def render_section(title: str, cls: type[BaseSettings], prefix: str) -> str:
+    return "\n".join([f"## {title}", "", *TABLE_HEADER, *rows(cls, prefix, developer=False), ""])
+
+
+def render_developer_section() -> str:
+    developer_rows = [
+        row for _title, cls, prefix in SECTIONS for row in rows(cls, prefix, developer=True)
+    ]
+    for cls, prefix in DEVELOPER_SECTIONS:
+        developer_rows += rows(cls, prefix, developer=None)
+    return "\n".join([
+        "## Developer settings",
+        "",
+        "For working on GeoMetrikks itself. A deployment leaves these unset; the",
+        "container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` on its own.",
+        "",
+        *TABLE_HEADER,
+        *developer_rows,
+        "",
+    ])
 
 
 def build() -> str:
@@ -112,6 +142,7 @@ def build() -> str:
         "",
     ]
     parts.extend(render_section(*section) for section in SECTIONS)
+    parts.append(render_developer_section())
     return "\n".join(parts) + "\n"
 
 

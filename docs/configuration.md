@@ -14,12 +14,6 @@ from real environment variables. It is read once at import time.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_NAME` | `GeoMetrikks API` | Application name |
-| `APP_DESCRIPTION` | `Real-time GeoIP lookups and traffic analytics API` | Application description |
-| `APP_DEBUG` | `false` | Enable debug mode |
-| `APP_ENVIRONMENT` | `production` | Application environment |
-| `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
-| `APP_IMAGE_TAG` | - | Optional container image tag embedded at build time. |
 | `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
@@ -38,20 +32,16 @@ from real environment variables. It is read once at import time.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_ECHO` | `false` | Enable SQLAlchemy query logging |
-| `DB_ECHO_POOL` | `false` | Enable SQLAlchemy pool logging |
 | `DB_MAX_OVERFLOW` | `10` | Max connections above pool_size |
 | `DB_POOL_SIZE` | `5` | Database connection pool size |
 | `DB_POOL_TIMEOUT` | `30` | Connection pool timeout in seconds |
 | `DB_POOL_RECYCLE` | `3600` | Connection recycle time in seconds |
-| `DB_POOL_DISABLED` | `false` | Disable connection pooling |
 | `DB_POOL_PRE_PING` | `true` | Enable pool pre-ping to check connections |
 | `DB_USER` | `geouser` | Database user |
 | `DB_PASSWORD` | - | Database password |
 | `DB_HOST` | `localhost` | Database host |
 | `DB_PORT` | `5432` | Database port |
 | `DB_DATABASE` | `geometrikks` | Database name |
-| `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (development only) |
 | `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations automatically at app startup. Disable when migrations run as a separate deployment step (`litestar database upgrade`); the app then expects the schema to already be at head and fails startup if it is not usable |
 | `DB_STARTUP_WAIT_SECONDS` | `30` | How long startup waits for the database before serving in degraded mode. 0 probes once. The app keeps re-probing in the background after this window and recovers on its own when the database answers. |
 
@@ -90,7 +80,6 @@ from real environment variables. It is read once at import time.
 | `LOGPARSER_SERVER_NAME` | *(computed)* | Name recorded on every request this server ingests. It is a name you choose for this server, not your nginx `server_name`. Env accepts one value for every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. Formerly `LOGPARSER_HOST_NAME`, which still works until 1.0. |
 | `LOGPARSER_BATCH_SIZE` | `100` | Max records before forced commit. |
 | `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached. |
-| `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
 | `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
 
@@ -123,7 +112,6 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `SCHEDULER_ENABLED` | `true` | Enable scheduled background tasks |
-| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `10` | Minutes between GeoLocation.last_hit refresh jobs |
 
 ## Map
 
@@ -168,10 +156,23 @@ from real environment variables. It is read once at import time.
 | `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session when discovery advertises an end_session_endpoint. Register {app origin}/signed-out as the post-logout redirect URI before enabling it. When the endpoint is absent, logout still clears the GeoMetrikks session but cannot end the provider session. |
 | `OIDC_CA_BUNDLE` | - | PEM file with the CA that signed the identity provider's certificate, for providers behind an internal CA. There is no switch to turn verification off. |
 
-## Vite (development only)
+## Developer settings
+
+For working on GeoMetrikks itself. A deployment leaves these unset; the
+container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` on its own.
 
 | Variable | Default | Description |
 |---|---|---|
+| `APP_DEBUG` | `false` | Litestar debug mode: error responses carry the traceback, and 401, 404 and 503 errors are logged with one too. Never in production. |
+| `APP_ENVIRONMENT` | `production` | Shown on Settings > About. development is the only value that lets DB_DROP_ON_STARTUP run. |
+| `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
+| `APP_IMAGE_TAG` | - | Container image tag, set at image build time. |
+| `DB_ECHO` | `false` | Log every SQL statement |
+| `DB_ECHO_POOL` | `false` | Log connection pool checkouts and returns |
+| `DB_POOL_DISABLED` | `false` | Open a new connection for every session instead of pooling |
+| `DB_DROP_ON_STARTUP` | `false` | Drop every table and TimescaleDB object at startup, then migrate from scratch. Only runs when APP_ENVIRONMENT=development. |
+| `LOGPARSER_SKIP_VALIDATION` | `false` | Start parsing without first waiting for a line in a known format. Auto-detection still picks the format from the first parseable line. |
+| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `10` | Minutes between GeoLocation.last_hit refresh jobs |
 | `VITE_DEV_MODE` | `false` | Start vite development server. |
 | `VITE_USE_SERVER_LIFESPAN` | `true` | Auto start and stop vite processes when running in development mode. |
 | `VITE_HOST` | `0.0.0.0` | The host the vite process will listen on. Defaults to 0.0.0.0. |

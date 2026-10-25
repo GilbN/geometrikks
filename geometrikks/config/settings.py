@@ -11,6 +11,7 @@ from urllib.parse import quote, urlsplit
 
 import msgspec
 from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic.json_schema import JsonDict
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.lib.urls import validate_https_url
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
@@ -46,6 +47,11 @@ OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback"
 
 LEGACY_FIELD_MARKER = "replaced_by"
 
+# json_schema_extra for settings that only matter when working on GeoMetrikks
+# itself; the configuration reference lists them in a section of their own.
+DEVELOPER_FIELD_MARKER = "developer"
+DEVELOPER_FIELD: JsonDict = {DEVELOPER_FIELD_MARKER: True}
+
 
 class LegacyEnvName(msgspec.Struct, frozen=True):
     """An old env var name in use, with the name that replaced it."""
@@ -71,6 +77,11 @@ def _legacy_replacement(json_schema_extra: object) -> str | None:
 def is_legacy_field(json_schema_extra: object) -> bool:
     """True for a field kept only so an old env var name keeps working."""
     return _legacy_replacement(json_schema_extra) is not None
+
+
+def is_developer_field(json_schema_extra: object) -> bool:
+    """True for a field tagged with DEVELOPER_FIELD."""
+    return isinstance(json_schema_extra, dict) and json_schema_extra.get(DEVELOPER_FIELD_MARKER) is True
 
 
 class LegacyEnvNamesSettings(BaseSettings):
@@ -145,20 +156,37 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DB_", env_file=_env_file(), extra="ignore")
 
-    echo: bool = Field(default=False, description="Enable SQLAlchemy query logging")
-    echo_pool: bool = Field(default=False, description="Enable SQLAlchemy pool logging")
+    echo: bool = Field(
+        default=False, description="Log every SQL statement", json_schema_extra=DEVELOPER_FIELD
+    )
+    echo_pool: bool = Field(
+        default=False,
+        description="Log connection pool checkouts and returns",
+        json_schema_extra=DEVELOPER_FIELD,
+    )
     max_overflow: int = Field(default=10, description="Max connections above pool_size")
     pool_size: int = Field(default=5, description="Database connection pool size")
     pool_timeout: int = Field(default=30, description="Connection pool timeout in seconds")
     pool_recycle: int = Field(default=3600, description="Connection recycle time in seconds")
-    pool_disabled: bool = Field(default=False, description="Disable connection pooling")
+    pool_disabled: bool = Field(
+        default=False,
+        description="Open a new connection for every session instead of pooling",
+        json_schema_extra=DEVELOPER_FIELD,
+    )
     pool_pre_ping: bool = Field(default=True, description="Enable pool pre-ping to check connections")
     user: str = Field(default="geouser", description="Database user")
     password: SecretStr = Field(default=SecretStr("geopass"), description="Database password")
     host: str = Field(default="localhost", description="Database host")
     port: int = Field(default=5432, description="Database port")
     database: str = Field(default="geometrikks", description="Database name")
-    drop_on_startup: bool = Field(default=False, description="Drop all tables on startup (development only)")
+    drop_on_startup: bool = Field(
+        default=False,
+        description=(
+            "Drop every table and TimescaleDB object at startup, then migrate "
+            "from scratch. Only runs when APP_ENVIRONMENT=development."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
+    )
     migrate_on_startup: bool = Field(
         default=True,
         description=(
@@ -354,9 +382,13 @@ class LogParserSettings(LegacyEnvNamesSettings):
         default=5.0,
         description="Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached.",
     )
-    skip_validation : bool = Field(
+    skip_validation: bool = Field(
         default=False,
-        description="Skip validation of log lines.",
+        description=(
+            "Start parsing without first waiting for a line in a known format. "
+            "Auto-detection still picks the format from the first parseable line."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
     )
     store_debug_lines: bool = Field(
         default=False,
@@ -735,6 +767,7 @@ class SchedulerSettings(BaseSettings):
     location_refresh_interval_minutes: int = Field(
         default=10,
         description="Minutes between GeoLocation.last_hit refresh jobs",
+        json_schema_extra=DEVELOPER_FIELD,
     )
 
 
@@ -1237,8 +1270,7 @@ class Settings(BaseSettings):
     3. Default values
     
     Example .env file:
-        APP_NAME=GeoMetrikks
-        APP_DEBUG=true
+        APP_ADMIN_PASSWORD=change-me
         GEOIP_DB_PATH=data/GeoLite2-City.mmdb
     """
 
@@ -1250,24 +1282,31 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Application metadata
-    name: str = Field(default="GeoMetrikks API", description="Application name")
-    description: str = Field(
-        default="Real-time GeoIP lookups and traffic analytics API",
-        description="Application description",
+    debug: bool = Field(
+        default=False,
+        description=(
+            "Litestar debug mode: error responses carry the traceback, and "
+            "401, 404 and 503 errors are logged with one too. Never in production."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
     )
-    debug: bool = Field(default=False, description="Enable debug mode")
     environment: Literal["development", "staging", "production"] = Field(
         default="production",
-        description="Application environment",
+        description=(
+            "Shown on Settings > About. development is the only value that lets "
+            "DB_DROP_ON_STARTUP run."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
     )
     runtime: Literal["host", "container"] = Field(
         default="host",
         description="Execution runtime; container images set this to container.",
+        json_schema_extra=DEVELOPER_FIELD,
     )
     image_tag: str | None = Field(
         default=None,
-        description="Optional container image tag embedded at build time.",
+        description="Container image tag, set at image build time.",
+        json_schema_extra=DEVELOPER_FIELD,
     )
 
     # Authentication (single admin user; see Phase 1c design)
@@ -1301,6 +1340,14 @@ class Settings(BaseSettings):
             "Empty (default): forwarded headers are never trusted."
         ),
     )
+
+    @property
+    def name(self) -> str:
+        return "GeoMetrikks API"
+
+    @property
+    def description(self) -> str:
+        return "Real-time GeoIP lookups and traffic analytics API"
 
     @property
     def version(self) -> str:
