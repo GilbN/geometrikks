@@ -4,9 +4,9 @@
  * The API sends the raw PEP 440 version (0.22.0.dev4+g52b67d62c); only display
  * code formats it. These rules mirror geometrikks/lib/versioning.py for the
  * normalized versions the API sends: release numbers, an optional .devN and an
- * optional PEP 440 local suffix. Pre and post releases (rc, post) don't parse
- * here and fall back to the unparseable rules; release.yml only admits tags
- * shaped vX.Y.Z or vX.Y.Z-dev.N, so the API never sends them.
+ * optional PEP 440 local suffix. Pre and post releases such as 0.22.0rc1 don't
+ * parse here and fall back to the unparseable rules. release.yml only admits
+ * tags shaped vX.Y.Z or vX.Y.Z-dev.N, so the API never sends them.
  */
 
 export const LOCAL_BUILD_LABEL = "local build"
