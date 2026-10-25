@@ -154,6 +154,32 @@ async def test_a_failed_store_write_keeps_the_hash_out_of_the_error():
     assert "RuntimeError" in str(raised.value)
 
 
+class MissingTableStore(MemoryStore):
+    """Fails every call the way a missing auth_sessions table would."""
+
+    async def get(self, key: str, renew_for: int | timedelta | None = None) -> bytes | None:
+        raise RuntimeError('relation "auth_sessions" does not exist')
+
+    async def delete_all(self) -> None:
+        raise RuntimeError('relation "auth_sessions" does not exist')
+
+
+async def test_a_failed_fingerprint_read_names_its_cause():
+    with pytest.raises(SessionRevocationError) as raised:
+        await revoke_sessions_if_auth_changed(MemoryStore(), MissingTableStore(), _settings())
+
+    assert "read the auth fingerprint" in str(raised.value)
+    assert 'relation "auth_sessions" does not exist' in str(raised.value)
+
+
+async def test_a_failed_session_delete_names_its_cause():
+    with pytest.raises(SessionRevocationError) as raised:
+        await revoke_sessions_if_auth_changed(MissingTableStore(), MemoryStore(), _settings())
+
+    assert "delete the sessions" in str(raised.value)
+    assert 'relation "auth_sessions" does not exist' in str(raised.value)
+
+
 async def test_a_revocation_whose_write_failed_runs_again_next_start():
     sessions, fingerprints = MemoryStore(), FailingSetStore()
     with pytest.raises(SessionRevocationError):

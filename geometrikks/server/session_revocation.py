@@ -32,7 +32,7 @@ _T = TypeVar("_T")
 
 
 class SessionRevocationError(RuntimeError):
-    """A store call failed; carries only the step and the error type."""
+    """A store call failed. The fingerprint write carries only the step and the error type."""
 
 
 def auth_fingerprint_material(settings: Settings) -> str:
@@ -56,6 +56,15 @@ def auth_fingerprint_material(settings: Settings) -> str:
 
 
 async def _store_step(step: str, operation: Callable[[], Awaitable[_T]]) -> _T:
+    try:
+        return await operation()
+    except Exception as error:
+        raise SessionRevocationError(
+            f"Session revocation could not {step} ({type(error).__name__}: {error})"
+        ) from error
+
+
+async def _sanitized_store_step(step: str, operation: Callable[[], Awaitable[_T]]) -> _T:
     failure = ""
     try:
         return await operation()
@@ -86,7 +95,7 @@ async def revoke_sessions_if_auth_changed(
         return False
     await _store_step("delete the sessions", sessions.delete_all)
     fingerprint = await asyncio.to_thread(_hasher.hash, material)
-    await _store_step(
+    await _sanitized_store_step(
         "store the auth fingerprint",
         lambda: fingerprints.set(FINGERPRINT_KEY, fingerprint, expires_in=_FINGERPRINT_LIFETIME),
     )
