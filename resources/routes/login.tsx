@@ -80,8 +80,8 @@ function LoginPage() {
     try {
       await login(username, password)
       navigate({ to: "/" })
-    } catch (error) {
-      setError(loginErrorMessage(error))
+    } catch (failure) {
+      setError(loginErrorMessage(failure))
     } finally {
       setSubmitting(false)
     }
