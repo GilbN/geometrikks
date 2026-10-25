@@ -9,6 +9,7 @@ import {
 
 const store = new Map<string, string>()
 let blocked = false
+let writesBlocked = false
 
 vi.stubGlobal("localStorage", {
   getItem: (key: string) => {
@@ -16,7 +17,7 @@ vi.stubGlobal("localStorage", {
     return store.get(key) ?? null
   },
   setItem: (key: string, value: string) => {
-    if (blocked) throw new Error("storage blocked")
+    if (blocked || writesBlocked) throw new Error("storage blocked")
     store.set(key, value)
   },
   removeItem: (key: string) => void store.delete(key),
@@ -46,6 +47,7 @@ describe("seen release storage", () => {
   beforeEach(() => store.clear())
   afterEach(() => {
     blocked = false
+    writesBlocked = false
   })
 
   it("round-trips the last seen release", () => {
@@ -68,5 +70,15 @@ describe("seen release storage", () => {
     blocked = true
     expect(() => saveSeenRelease("0.23.0")).not.toThrow()
     expect(hasUnseenRelease(loadSeenRelease(), "0.23.0")).toBe(false)
+  })
+
+  it("prefers the in-memory release when a write fails but reads still work", async () => {
+    vi.resetModules()
+    const fresh = await import("./release-seen")
+    fresh.saveSeenRelease("0.22.1")
+    writesBlocked = true
+    fresh.saveSeenRelease("0.23.0")
+    expect(store.get(RELEASE_SEEN_STORAGE_KEY)).toBe("0.22.1")
+    expect(fresh.hasUnseenRelease(fresh.loadSeenRelease(), "0.23.0")).toBe(false)
   })
 })

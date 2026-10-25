@@ -10,8 +10,17 @@ describe("releaseCheckLine", () => {
     expect(releaseCheckLine(undefined, NOW)).toBeNull()
   })
 
-  it.each(["off", "pending"] as const)("says nothing while the check is %s", (status) => {
-    const releaseCheck: ReleaseCheckResponse = { status, latest: null, checkedAt: null }
+  it.each(["off", "pending"] as const)("says nothing while the check is %s, whatever else is set", (status) => {
+    const releaseCheck: ReleaseCheckResponse = {
+      status,
+      latest: {
+        version: "0.23.0",
+        displayVersion: "v0.23.0",
+        url: NOTES_URL,
+        publishedAt: "2026-10-24T08:00:00Z",
+      },
+      checkedAt: "2026-10-25T09:00:00Z",
+    }
     expect(releaseCheckLine(releaseCheck, NOW)).toBeNull()
   })
 
@@ -61,5 +70,18 @@ describe("checkedAgo", () => {
 
   it("counts whole days from 24 hours up", () => {
     expect(checkedAgo("2026-10-23T10:00:00Z", NOW)).toBe("2 days ago")
+  })
+
+  it.each([
+    ["a checkedAt in the future (clock skew)", "2026-10-25T12:05:00Z", "1 minute ago"],
+    ["exactly now", "2026-10-25T12:00:00Z", "1 minute ago"],
+    ["59 seconds", "2026-10-25T11:59:01Z", "1 minute ago"],
+    ["60 seconds", "2026-10-25T11:59:00Z", "1 minute ago"],
+    ["59 minutes", "2026-10-25T11:01:00Z", "59 minutes ago"],
+    ["60 minutes", "2026-10-25T11:00:00Z", "1 hour ago"],
+    ["23 hours", "2026-10-24T13:00:00Z", "23 hours ago"],
+    ["24 hours", "2026-10-24T12:00:00Z", "1 day ago"],
+  ])("handles %s", (_label, checkedAt, expected) => {
+    expect(checkedAgo(checkedAt, NOW)).toBe(expected)
   })
 })
