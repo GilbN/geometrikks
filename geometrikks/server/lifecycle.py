@@ -341,6 +341,7 @@ async def heartbeat_shutdown_lifespan(app: "Litestar") -> "AsyncGenerator[None]"
 def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
     """Record DB-degraded mode and pause database-bound services."""
     app.state.db_available = False
+    app.state.session_store_ready = False
     app.state.db_degraded_since = datetime.now(timezone.utc)
     poller = runtime.get_crowdsec_poller(app)
     if poller is not None:
@@ -460,6 +461,7 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
     app.state.db_available = True
     await bring_up_database(app)
+    app.state.session_store_ready = True
     yield
 
 
@@ -702,6 +704,7 @@ async def _recover_database(app: "Litestar") -> None:
         logger.info("db_recovery_started", degraded_seconds=degraded_seconds())
         stage = "database setup"
         await bring_up_database(app, _on_stage=set_stage, _shield_migration=True)
+        app.state.session_store_ready = True
 
         deferred = getattr(app.state, "crowdsec_stream_poller_deferred", None)
         if deferred is not None:

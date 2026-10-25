@@ -128,6 +128,6 @@ def install_session_store(app: Litestar, inner: Store) -> SessionStore:
     Call before the first request: the session backend reads the store from
     the registry per request, and register() refuses a name already taken.
     """
-    store = SessionStore(inner, is_available=lambda: runtime.is_db_available(app, default=True))
+    store = SessionStore(inner, is_available=lambda: runtime.is_session_store_ready(app, default=True))
     app.stores.register("sessions", store)
     return store

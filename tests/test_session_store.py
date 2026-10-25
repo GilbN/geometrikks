@@ -126,7 +126,7 @@ def test_unavailable_database_answers_503_without_touching_the_store():
     with TestClient(app=app) as client:
         _login(client)
         calls_after_login = len(inner.calls)
-        app.state.db_available = False
+        app.state.session_store_ready = False
         assert client.get("/api/v1/protected").status_code == 503
         assert len(inner.calls) == calls_after_login
 
@@ -135,9 +135,9 @@ def test_same_cookie_works_once_the_database_is_back():
     app = make_app(inner_store=FailingStore())
     with TestClient(app=app) as client:
         _login(client)
-        app.state.db_available = False
+        app.state.session_store_ready = False
         assert client.get("/api/v1/protected").status_code == 503
-        app.state.db_available = True
+        app.state.session_store_ready = True
         assert client.get("/api/v1/protected").status_code == 200
 
 

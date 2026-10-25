@@ -416,11 +416,24 @@ def test_login_answers_503_before_checking_the_password_while_the_database_is_do
 
     monkeypatch.setattr(AuthState, "verify", fail_if_called)
     app = make_app()
-    app.state.db_available = False
+    app.state.session_store_ready = False
     with TestClient(app=app) as client:
         response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
     assert response.status_code == 503
     assert response.json()["detail"] == "The database is unavailable, so nobody can sign in right now."
+
+
+def test_login_works_when_recovery_left_db_bound_services_down():
+    app = make_app()
+    app.state.db_available = False
+    app.state.session_store_ready = True
+    with TestClient(app=app) as client:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert response.status_code == 200
+        assert client.get("/api/v1/auth/me").status_code == 200
 
 
 def test_oidc_start_answers_503_while_the_database_is_down():
@@ -429,7 +442,7 @@ def test_oidc_start_answers_503_while_the_database_is_down():
 
     fake = make_fake_idp()
     app = make_oidc_app(fake)
-    app.state.db_available = False
+    app.state.session_store_ready = False
     with TestClient(app=app) as client:
         response = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
     assert response.status_code == 503
@@ -450,7 +463,7 @@ def test_oidc_callback_answers_503_without_contacting_the_provider_while_the_dat
         # The session store would answer 503 for the cookie on its own, so
         # keep it reachable and leave the handler's guard as the only barrier.
         app.stores.get("sessions").is_available = lambda: True  # ty: ignore[unresolved-attribute]
-        app.state.db_available = False
+        app.state.session_store_ready = False
         response = client.get(callback_url, follow_redirects=False)
     assert response.status_code == 503
     assert fake.config.token_requests == []
@@ -460,7 +473,7 @@ def test_oidc_callback_answers_503_without_contacting_the_provider_while_the_dat
 @pytest.mark.parametrize("build_app", [make_app, make_disabled_app])
 def test_oidc_routes_answer_404_without_oidc_even_while_the_database_is_down(build_app, path):
     app = build_app()
-    app.state.db_available = False
+    app.state.session_store_ready = False
     with TestClient(app=app) as client:
         response = client.get(path, follow_redirects=False)
     assert response.status_code == 404
@@ -468,7 +481,7 @@ def test_oidc_routes_answer_404_without_oidc_even_while_the_database_is_down(bui
 
 def test_disabled_mode_login_ignores_the_database():
     app = make_disabled_app()
-    app.state.db_available = False
+    app.state.session_store_ready = False
     with TestClient(app=app) as client:
         response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "x"})
     assert response.status_code == 200

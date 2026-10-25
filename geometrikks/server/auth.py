@@ -154,7 +154,7 @@ def require_session_database(request: "Request") -> None:
     way in, so without this a login would pass the password check and only
     fail on the session write, as a bare 500.
     """
-    if not runtime.is_db_available(request.app, default=True):
+    if not runtime.is_session_store_ready(request.app, default=True):
         raise ServiceUnavailableException(
             detail="The database is unavailable, so nobody can sign in right now."
         )
