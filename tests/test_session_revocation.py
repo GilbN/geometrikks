@@ -1,6 +1,8 @@
 """Startup revocation of every session when the auth settings change."""
 from __future__ import annotations
 
+import threading
+from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -12,6 +14,7 @@ from structlog.testing import capture_logs
 from geometrikks.config.settings import OidcSettings, Settings
 from geometrikks.server.session_revocation import (
     FINGERPRINT_KEY,
+    SessionRevocationError,
     auth_fingerprint_material,
     revoke_sessions_if_auth_changed,
 )
@@ -68,6 +71,10 @@ async def test_unchanged_settings_keep_sessions():
         pytest.param({"admin_user": "gil"}, id="admin-user"),
         pytest.param({"oidc": _oidc(allowed_users=["bob@example.com"])}, id="oidc-allowed-users"),
         pytest.param({"oidc": _oidc(scopes="openid email")}, id="oidc-scopes"),
+        pytest.param({"oidc": _oidc(allowed_groups=["admins"])}, id="oidc-allowed-groups"),
+        pytest.param({"oidc": _oidc(groups_claim="roles")}, id="oidc-groups-claim"),
+        pytest.param({"oidc": _oidc(issuer="http://127.0.0.1:10")}, id="oidc-issuer"),
+        pytest.param({"admin_password": None}, id="password-login-off"),
     ],
 )
 async def test_a_changed_setting_revokes_every_session(changed: dict[str, Any]):
@@ -83,6 +90,103 @@ async def test_a_changed_setting_revokes_every_session(changed: dict[str, Any]):
     events = [log_entry for log_entry in captured if log_entry["event"] == "sessions_revoked"]
     assert len(events) == 1
     assert events[0]["reason"] == "auth_settings_changed"
+
+
+async def test_a_missing_fingerprint_clears_existing_sessions():
+    sessions, fingerprints = MemoryStore(), MemoryStore()
+    await sessions.set("session-1", b"payload", expires_in=3600)
+
+    assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
+    assert await sessions.get("session-1") is None
+
+
+async def test_a_stored_value_that_is_no_hash_counts_as_a_change():
+    sessions, fingerprints = MemoryStore(), MemoryStore()
+    await fingerprints.set(FINGERPRINT_KEY, b"not-a-hash", expires_in=3600)
+    await sessions.set("session-1", b"payload", expires_in=3600)
+
+    assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
+    assert await sessions.get("session-1") is None
+    stored = await fingerprints.get(FINGERPRINT_KEY)
+    assert stored is not None
+    assert stored.startswith(b"$argon2")
+
+
+class FailingSetStore(MemoryStore):
+    """Fails every set like a DBAPIError would: the bound value in the message."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.failing = True
+        self.attempted: list[bytes] = []
+
+    async def set(self, key: str, value: str | bytes, expires_in: int | timedelta | None = None) -> None:
+        value_bytes = value.encode() if isinstance(value, str) else value
+        if self.failing:
+            self.attempted.append(value_bytes)
+            raise RuntimeError(f"connection lost [parameters: ({key!r}, {value_bytes!r})]")
+        await super().set(key, value, expires_in=expires_in)
+
+
+def _exception_chain(error: BaseException) -> list[BaseException]:
+    chain: list[BaseException] = []
+    pending: list[BaseException | None] = [error]
+    while pending:
+        current = pending.pop()
+        if current is None or current in chain:
+            continue
+        chain.append(current)
+        pending.extend([current.__cause__, current.__context__])
+    return chain
+
+
+async def test_a_failed_store_write_keeps_the_hash_out_of_the_error():
+    sessions, fingerprints = MemoryStore(), FailingSetStore()
+
+    with pytest.raises(SessionRevocationError) as raised:
+        await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings())
+
+    [attempted_hash] = fingerprints.attempted
+    assert attempted_hash.startswith(b"$argon2")
+    for error in _exception_chain(raised.value):
+        assert attempted_hash.decode() not in str(error)
+        assert attempted_hash.decode() not in repr(error.args)
+    assert "RuntimeError" in str(raised.value)
+
+
+async def test_a_revocation_whose_write_failed_runs_again_next_start():
+    sessions, fingerprints = MemoryStore(), FailingSetStore()
+    with pytest.raises(SessionRevocationError):
+        await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings())
+    await sessions.set("session-1", b"payload", expires_in=3600)
+    fingerprints.failing = False
+
+    assert await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings()) is True
+    assert await sessions.get("session-1") is None
+
+
+async def test_hashing_runs_off_the_event_loop(monkeypatch):
+    from geometrikks.server import session_revocation
+
+    threads: list[threading.Thread] = []
+    real_hasher = session_revocation._hasher
+
+    class RecordingHasher:
+        def hash(self, password: str) -> str:
+            threads.append(threading.current_thread())
+            return real_hasher.hash(password)
+
+        def verify(self, password: str, hash: str | bytes) -> bool:
+            threads.append(threading.current_thread())
+            return real_hasher.verify(password, hash)
+
+    monkeypatch.setattr(session_revocation, "_hasher", RecordingHasher())
+    sessions, fingerprints = MemoryStore(), MemoryStore()
+    await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings())
+    await revoke_sessions_if_auth_changed(sessions, fingerprints, _settings())
+
+    assert len(threads) == 2
+    assert all(thread is not threading.main_thread() for thread in threads)
 
 
 def test_the_material_does_not_depend_on_list_order():
