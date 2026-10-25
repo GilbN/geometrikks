@@ -1,14 +1,45 @@
+import { useEffect } from "react"
 import type { MouseEvent } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { reloadNoticeTitle, reloadNoticeTooltip, useReloadNotice } from "@/lib/reload-notice"
+import { useSidebar } from "@/components/ui/sidebar"
+import { isMobileViewport } from "@/hooks/use-mobile"
+import {
+  claimReloadToast,
+  closeReloadToast,
+  reloadNoticeTitle,
+  reloadNoticeTooltip,
+  reloadToastMessage,
+  useReloadNotice,
+} from "@/lib/reload-notice"
 import { loadNow, reloadNow, useUpdateDetector } from "@/lib/use-update-detector"
 
 const CHANGELOG_HREF = "/settings/changelog"
+const RELOAD_TOAST_ID = "reload-notice"
+
+function ReloadToastMessage() {
+  const { version } = useReloadNotice()
+  return <>{reloadToastMessage(version)}</>
+}
 
 export function ReloadNotice(): null {
+  const { pending } = useReloadNotice()
   useUpdateDetector()
+
+  useEffect(() => {
+    if (!pending || !isMobileViewport() || !claimReloadToast()) return
+    // sonner's Cancel button does not call onDismiss, so both handlers close the toast state.
+    toast(<ReloadToastMessage />, {
+      id: RELOAD_TOAST_ID,
+      duration: Infinity,
+      cancel: { label: "Later", onClick: closeReloadToast },
+      action: { label: "Reload", onClick: reloadNow },
+      onDismiss: closeReloadToast,
+    })
+  }, [pending])
+
   return null
 }
 
@@ -65,5 +96,18 @@ export function ReloadNoticeCollapsedButton() {
         <span>{tooltip}</span>
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+export function ReloadNoticeMenuDot() {
+  const { pending, toastOpen } = useReloadNotice()
+  const { isMobile } = useSidebar()
+  if (!pending || toastOpen || !isMobile) return null
+
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
+    />
   )
 }

@@ -34,7 +34,7 @@ import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { isChromelessRoute } from "@/lib/auth-redirect"
-import { ReloadNotice } from "@/components/reload-notice"
+import { ReloadNotice, ReloadNoticeMenuDot } from "@/components/reload-notice"
 
 export const Route = createRootRoute({
   validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
@@ -150,7 +150,10 @@ function RootLayout() {
               {/* Top header bar */}
               <header className="relative z-10 flex h-14 shrink-0 items-center justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))]">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <SidebarTrigger className="-ml-1" />
+                  <span className="relative inline-flex">
+                    <SidebarTrigger className="-ml-1" />
+                    <ReloadNoticeMenuDot />
+                  </span>
                   <Separator orientation="vertical" className="mr-2 hidden h-4 sm:block" />
                   <AppBreadcrumb />
                 </div>
