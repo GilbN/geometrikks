@@ -56,8 +56,9 @@ events.
 `--workers` (or `LITESTAR_WEB_CONCURRENCY`/`WEB_CONCURRENCY`) must stay at 1.
 Nothing in the runtime is coordinated across processes:
 
-- Admin sessions live in an in-memory server-side store; a second worker
-  would randomly reject logged-in users.
+- Sessions live in the database, but each process has its own lock around
+  session writes and its own throttle on the expired-session sweep. A second
+  worker would race login rotations and logouts.
 - The WebSocket feeds (`/ws/live`, `/ws/crowdsec`, logs) fan out from
   process-local brokers; clients on another worker would see nothing.
 - APScheduler and the log-ingestion pipeline run inside the app process;
@@ -65,9 +66,9 @@ Nothing in the runtime is coordinated across processes:
   log line.
 - Startup migrations (below) are not locked across processes.
 
-Raising the worker count is a design change (shared session store, channel
-backend or fan-out service, external scheduler/ingestion ownership, and
-migration locking), not a tuning knob.
+Raising the worker count is a design change (session locking across workers,
+channel backend or fan-out service, external scheduler/ingestion ownership,
+and migration locking), not a tuning knob.
 
 ## Migration ownership
 
