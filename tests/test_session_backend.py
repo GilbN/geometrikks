@@ -9,10 +9,15 @@ import asyncio
 import re
 import threading
 import time
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import anyio
 import pytest
+import structlog
 from litestar import Request, get
+from litestar.exceptions import ServiceUnavailableException
+from litestar.stores.memory import MemoryStore
 from litestar.testing import AsyncTestClient, TestClient
 
 from geometrikks.config.settings import Settings
@@ -445,3 +450,54 @@ def test_the_sweep_throttle_is_shared_across_routes():
         assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
 
         assert portal.call(store.exists, "stale-after-sweep") is True
+
+
+class SweepFailingStore(MemoryStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.sweeps = 0
+
+    async def delete_expired(self) -> None:
+        self.sweeps += 1
+        raise ServiceUnavailableException("store down")
+
+
+def _sweep_failures(captured: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    return [entry for entry in captured if entry["event"] == "session_sweep_failed"]
+
+
+def test_a_failing_sweep_does_not_fail_the_login():
+    inner = SweepFailingStore()
+    app = make_app(inner_store=inner)
+    with TestClient(app=app) as client, structlog.testing.capture_logs() as captured:
+        res = client.post("/api/v1/auth/login", json=CREDS)
+
+        assert res.status_code == 200
+        assert res.cookies.get("session")
+        assert client.get("/api/v1/protected").status_code == 200
+    [warning] = _sweep_failures(captured)
+    assert warning["log_level"] == "warning"
+    assert warning["cause"] == "ServiceUnavailableException"
+
+
+def test_a_failing_sweep_does_not_fail_a_pending_write():
+    inner = SweepFailingStore()
+    app = make_app(extra_handlers=[seed], inner_store=inner)
+    with TestClient(app=app) as client, structlog.testing.capture_logs() as captured:
+        res = client.get("/api/v1/seed")
+
+        assert res.status_code == 200
+        assert res.cookies.get("session")
+    assert len(_sweep_failures(captured)) == 1
+
+
+def test_a_failed_sweep_waits_for_the_next_interval():
+    inner = SweepFailingStore()
+    app = make_app(inner_store=inner)
+    with TestClient(app=app) as client:
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+        assert inner.sweeps == 1
+
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+
+        assert inner.sweeps == 1

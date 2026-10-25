@@ -319,7 +319,8 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
 
         The throttle is on the config, shared by every handler's backend.
         Two requests passing it together both sweep; that is redundant, not
-        wrong.
+        wrong. The sweep is best-effort: it runs while the response is being
+        sent, so an exception here would fail a login that already succeeded.
         """
         sweep = getattr(store, "delete_expired", None)
         if not callable(sweep):
@@ -328,8 +329,13 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         now = time.monotonic()
         if now < config.next_sweep_at:
             return
+        # Set before the sweep on purpose: a failed sweep waits for the next
+        # interval instead of hitting a failing store on every login.
         config.next_sweep_at = now + PENDING_LIFETIME_SECONDS
-        await sweep()
+        try:
+            await sweep()
+        except Exception as error:
+            logger.warning("session_sweep_failed", cause=type(error).__name__)
 
 
 class RotatingServerSideSessionConfig(ServerSideSessionConfig):
