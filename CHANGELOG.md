@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Brotli is updated to 1.2.1 for CVE-2026-111497. Brotli 1.2.0 and older can crash or run attacker code when they decode crafted data. GeoMetrikks decodes Brotli responses from the servers it calls, such as RDAP registries and the public IP lookup.
 - aiohttp is updated to 3.14.5 and certifi to 2026.10.23. aiohttp 3.14.3 had request smuggling and resource exhaustion advisories, and the old certifi bundle still trusted emSign root CAs whose intermediate keys were compromised.
 
 ## [0.21.0] - 2026-10-18
