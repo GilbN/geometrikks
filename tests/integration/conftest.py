@@ -1,6 +1,6 @@
 """Fixtures for real-TimescaleDB integration tests.
 
-Creates a scratch database `geometrikks_it` on the compose `timescale_db`
+Creates a scratch database (`geometrikks_it`, or `IT_DB_NAME`) on the compose `timescale_db`
 server, migrates it to alembic head, runs setup_timescaledb, and drops it
 at session end. All tests in this package are marked `integration` and are
 skipped automatically when the server is unreachable.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import socket
 from collections.abc import AsyncIterator, Iterator
 
@@ -20,7 +21,14 @@ PG_HOST = os.getenv("IT_DB_HOST", "localhost")
 PG_PORT = int(os.getenv("IT_DB_PORT", "5432"))
 PG_USER = os.getenv("IT_DB_USER", "geouser")
 PG_PASSWORD = os.getenv("IT_DB_PASSWORD", "geopass")
-IT_DBNAME = "geometrikks_it"
+IT_DBNAME = os.getenv("IT_DB_NAME", "geometrikks_it")
+if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,47}", IT_DBNAME):
+    # Interpolated unquoted into DROP/CREATE DATABASE. The cap leaves room for
+    # the suffixes test_server_naming_upgrade_pg.py appends under Postgres's 63 byte limit.
+    raise RuntimeError(
+        f"IT_DB_NAME={IT_DBNAME!r} is not a plain identifier: use 1 to 48 letters, digits "
+        "or underscores, starting with a letter or underscore"
+    )
 
 ADMIN_URL = f"postgresql+asyncpg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/postgres"
 IT_URL = f"postgresql+asyncpg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{IT_DBNAME}"

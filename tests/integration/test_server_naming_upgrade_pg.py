@@ -27,16 +27,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from geometrikks.config.settings import get_settings
 from geometrikks.server import timescale
 from geometrikks.server.migrations import upgrade_to_head
-from tests.integration.conftest import ADMIN_URL, PG_HOST, PG_PASSWORD, PG_PORT, PG_USER
+from tests.integration.conftest import ADMIN_URL, IT_DBNAME, PG_HOST, PG_PASSWORD, PG_PORT, PG_USER
 
 pytestmark = pytest.mark.anyio
 
-RENAME_DBNAME = "geometrikks_it_rename"
+RENAME_DBNAME = f"{IT_DBNAME}_rename"
 RENAME_URL = f"postgresql+asyncpg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{RENAME_DBNAME}"
 # A native install: the app role owns the database but is no superuser, so it
 # has USAGE and not CREATE on the extension's _timescaledb_internal schema.
-OWNER_ROLE = "geometrikks_it_owner"
-OWNER_PASSWORD = "geometrikks_it_owner"
+OWNER_ROLE = f"{IT_DBNAME}_owner"
+OWNER_PASSWORD = OWNER_ROLE
 OWNER_URL = f"postgresql+asyncpg://{OWNER_ROLE}:{OWNER_PASSWORD}@{PG_HOST}:{PG_PORT}/{RENAME_DBNAME}"
 DATABASE_URLS = {"superuser": RENAME_URL, "database_owner": OWNER_URL}
 LEGACY_REVISION = "a4d1f0c2b7e9"
