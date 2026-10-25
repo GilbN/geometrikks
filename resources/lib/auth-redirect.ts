@@ -3,7 +3,6 @@
  *  every throw: a redirect thrown from inside a try block would be swallowed
  *  by that block's own catch. */
 import axios from "axios"
-import type { AxiosRequestConfig } from "axios"
 import type { AuthOptions, HealthResponse, LogoutResponse, MeResponse } from "@/lib/api"
 
 export type MeResult =
@@ -132,11 +131,11 @@ export const LOGIN_HEALTH_TIMEOUT_MS = 3000
  *  /health counts as no health, so the form renders without the notice. */
 export async function loadLoginContext(
   loadOptions: () => Promise<AuthOptions>,
-  loadHealth: (config: AxiosRequestConfig) => Promise<HealthResponse>,
+  loadHealthWithin: (timeoutMs: number) => Promise<HealthResponse>,
 ): Promise<{ options: AuthOptions; health: HealthResponse | null }> {
   const [options, health] = await Promise.all([
     loadOptions(),
-    loadHealth({ timeout: LOGIN_HEALTH_TIMEOUT_MS }).catch(() => null),
+    loadHealthWithin(LOGIN_HEALTH_TIMEOUT_MS).catch(() => null),
   ])
   return { options, health }
 }

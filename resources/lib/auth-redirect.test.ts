@@ -255,9 +255,9 @@ describe("loadLoginContext", () => {
   const health = { status: "healthy" } as HealthResponse
 
   it("bounds the health request so a stalled /health cannot hold the page", async () => {
-    const loadHealth = vi.fn().mockResolvedValue(health)
-    await loadLoginContext(async () => options, loadHealth)
-    expect(loadHealth).toHaveBeenCalledExactlyOnceWith({ timeout: LOGIN_HEALTH_TIMEOUT_MS })
+    const loadHealthWithin = vi.fn().mockResolvedValue(health)
+    await loadLoginContext(async () => options, loadHealthWithin)
+    expect(loadHealthWithin).toHaveBeenCalledExactlyOnceWith(LOGIN_HEALTH_TIMEOUT_MS)
     expect(LOGIN_HEALTH_TIMEOUT_MS).toBe(3000)
   })
 

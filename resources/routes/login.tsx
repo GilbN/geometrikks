@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
-import { fetchAuthOptions, fetchHealth, fetchMe, login } from "@/lib/api"
+import { fetchAuthOptions, fetchHealthWithin, fetchMe, login } from "@/lib/api"
 import { databaseDownNotice, loadLoginContext, loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/login")({
     if (plan.action === "rethrow") throw plan.error
     // "render": auth is on and nobody is logged in yet. Which methods exist
     // decides what the page shows.
-    return loadLoginContext(fetchAuthOptions, fetchHealth)
+    return loadLoginContext(fetchAuthOptions, fetchHealthWithin)
   },
   component: LoginPage,
   pendingComponent: LoginPagePending,

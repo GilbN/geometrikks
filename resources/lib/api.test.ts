@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { client } from "@/generated/api/client.gen"
 import axios from "axios"
-import { api, deleteServerLocation, fetchHealth, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"
+import { api, deleteServerLocation, fetchHealth, fetchHealthWithin, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -83,9 +83,17 @@ describe("deleteServerLocation", () => {
 })
 
 describe("fetchHealth", () => {
-  it("passes the request config through, so a caller can bound the wait", async () => {
+  it("sends no request config, so a TanStack query context cannot reach axios", async () => {
     const get = vi.spyOn(axios, "get").mockResolvedValue({ data: { status: "healthy" } })
-    await fetchHealth({ timeout: 3000 })
+    await (fetchHealth as (context: unknown) => Promise<unknown>)({ queryKey: ["health"], signal: new AbortController().signal })
+    expect(get).toHaveBeenCalledExactlyOnceWith("/health")
+  })
+})
+
+describe("fetchHealthWithin", () => {
+  it("sends the timeout to axios", async () => {
+    const get = vi.spyOn(axios, "get").mockResolvedValue({ data: { status: "healthy" } })
+    await fetchHealthWithin(3000)
     expect(get).toHaveBeenCalledExactlyOnceWith("/health", { timeout: 3000 })
   })
 })

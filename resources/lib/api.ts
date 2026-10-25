@@ -2,7 +2,7 @@
  * API client and types for GeoMetrikks backend.
  */
 
-import axios, { type AxiosRequestConfig } from "axios"
+import axios from "axios"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
@@ -278,8 +278,16 @@ export type {
  * Fetch service health status.
  * Note: /health is at root level, not under /api/v1
  */
-export async function fetchHealth(config?: AxiosRequestConfig): Promise<HealthResponse> {
-  const { data } = await axios.get<HealthResponse>("/health", config)
+export async function fetchHealth(): Promise<HealthResponse> {
+  const { data } = await axios.get<HealthResponse>("/health")
+  return data
+}
+
+/** fetchHealth that gives up after timeoutMs. Separate from fetchHealth because
+ *  that one is a TanStack queryFn, and the query context it receives must not
+ *  reach axios as request config. */
+export async function fetchHealthWithin(timeoutMs: number): Promise<HealthResponse> {
+  const { data } = await axios.get<HealthResponse>("/health", { timeout: timeoutMs })
   return data
 }
 
