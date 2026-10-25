@@ -13,7 +13,6 @@ import {
   jobReportState,
   schemaWaitState,
   sourceReasonLabel,
-  versionText,
   versionTone,
 } from "./agents-logic"
 
@@ -193,6 +192,12 @@ describe("versionTone", () => {
   it("is null when both match", () => {
     expect(versionTone(makeInstance(), head)).toBeNull()
   })
+  it("ignores a local suffix", () => {
+    expect(versionTone(makeInstance({ appVersion: "0.20.0+g52b67d62c" }), head)).toBeNull()
+  })
+  it("stays quiet for a local build", () => {
+    expect(versionTone(makeInstance({ appVersion: "0.0.0+local" }), head)).toBeNull()
+  })
 })
 
 describe("jobReportState", () => {
@@ -259,14 +264,6 @@ describe("agentIngestionState", () => {
   it("ignores failures older than 5 minutes", () => {
     expect(agentIngestionState(makeIngestion({ failedBatches: 3 }), 0)).toEqual({ tone: "emerald", label: "running" })
     expect(agentIngestionState(makeIngestion(), null)).toEqual({ tone: "emerald", label: "running" })
-  })
-})
-
-describe("versionText", () => {
-  it("prefixes real versions and leaves unknown alone", () => {
-    expect(versionText("0.20.0")).toBe("v0.20.0")
-    expect(versionText("unknown")).toBe("unknown")
-    expect(versionText("")).toBe("unknown")
   })
 })
 

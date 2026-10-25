@@ -38,6 +38,7 @@ import {
   ShieldBan,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { displayVersion } from "@/lib/version"
 import { fetchHealth, logout } from "@/lib/api"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
@@ -451,7 +452,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
-      <span className="text-[10px] font-mono">v{settings.version}</span>
+      <span className="text-[10px] font-mono">{displayVersion(settings.version)}</span>
       {settings.runtime.container && (
         <Tooltip>
           <TooltipTrigger asChild>

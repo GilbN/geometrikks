@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { Bug, Cpu, Database, ExternalLink, Globe2 } from "lucide-react"
 import type { AboutResponse } from "@/generated/api/types.gen"
 import { useAbout } from "@/lib/queries"
+import { displayVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -99,7 +100,7 @@ export function AboutPage() {
             <div>
               <div className="flex items-center gap-2.5">
                 <Wordmark className="text-[17px] text-foreground" />
-                <MonoChip>v{data.app.version}</MonoChip>
+                <MonoChip>{displayVersion(data.app.version)}</MonoChip>
                 {data.app.commit && (
                   <a
                     href={`${data.links.repository}/commit/${data.app.commit}`}
