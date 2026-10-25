@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ReleaseCheckResponse } from "@/generated/api/types.gen"
-import { checkedAgo, releaseCheckLine } from "./release-check"
+import { checkedAgo, releaseCheckLine, showsReleaseDot } from "./release-check"
 
 const NOW = Date.parse("2026-10-25T12:00:00Z")
 const NOTES_URL = "https://github.com/GilbN/geometrikks/releases/tag/v0.23.0"
@@ -83,5 +83,23 @@ describe("checkedAgo", () => {
     ["24 hours", "2026-10-24T12:00:00Z", "1 day ago"],
   ])("handles %s", (_label, checkedAt, expected) => {
     expect(checkedAgo(checkedAt, NOW)).toBe(expected)
+  })
+})
+
+describe("showsReleaseDot", () => {
+  it.each([
+    ["nothing seen yet", null, true],
+    ["the latest release seen", "0.23.0", false],
+    ["an older release seen", "0.22.1", true],
+  ])("with %s and no reload pending", (_label, seenVersion, expected) => {
+    expect(showsReleaseDot({ reloadPending: false, latestVersion: "0.23.0", seenVersion })).toBe(expected)
+  })
+
+  it.each([null, "0.23.0", "0.22.1"])("never shows while a reload is pending (seen %s)", (seenVersion) => {
+    expect(showsReleaseDot({ reloadPending: true, latestVersion: "0.23.0", seenVersion })).toBe(false)
+  })
+
+  it.each([null, "0.23.0"])("never shows without a newer release (seen %s)", (seenVersion) => {
+    expect(showsReleaseDot({ reloadPending: false, latestVersion: null, seenVersion })).toBe(false)
   })
 })

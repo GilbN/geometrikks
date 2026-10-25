@@ -49,7 +49,7 @@ function openChangelog(clickEvent: MouseEvent<HTMLAnchorElement>) {
   loadNow(CHANGELOG_HREF)
 }
 
-function GlowDot() {
+export function GlowDot() {
   return <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
 }
 

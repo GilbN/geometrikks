@@ -1,4 +1,5 @@
 import type { ReleaseCheckResponse } from "@/generated/api/types.gen"
+import { hasUnseenRelease } from "@/lib/release-seen"
 
 export type ReleaseCheckLine =
   | { kind: "available"; text: string; url: string }
@@ -31,4 +32,16 @@ export function releaseCheckLine(
   }
   if (!releaseCheck.checkedAt) return null
   return { kind: "up-to-date", text: `Up to date, checked ${checkedAgo(releaseCheck.checkedAt, nowMs)}` }
+}
+
+export function showsReleaseDot({
+  reloadPending,
+  latestVersion,
+  seenVersion,
+}: {
+  reloadPending: boolean
+  latestVersion: string | null
+  seenVersion: string | null
+}): boolean {
+  return !reloadPending && hasUnseenRelease(seenVersion, latestVersion)
 }
