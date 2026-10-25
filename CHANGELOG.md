@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-10-25
+
+### Fixed
+
+- Upgrading from 0.20 or earlier no longer fails at startup with "permission denied for schema _timescaledb_internal" when GeoMetrikks connects as a role that isn't a PostgreSQL superuser, as on a native PostgreSQL install. The bundled TimescaleDB container was not affected.
+
 ## [0.22.0] - 2026-10-25
 
 ### Added
@@ -1168,7 +1174,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.22.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.22.1...develop
+[0.22.1]: https://github.com/GilbN/geometrikks/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/GilbN/geometrikks/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/GilbN/geometrikks/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/GilbN/geometrikks/compare/v0.19.0...v0.20.0
