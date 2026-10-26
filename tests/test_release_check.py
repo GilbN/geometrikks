@@ -8,7 +8,7 @@ import pytest
 import structlog.testing
 from packaging.version import Version
 
-from geometrikks.services.rdap import USER_AGENT
+from geometrikks.lib.outbound import USER_AGENT
 from geometrikks.services.release_check import (
     MAX_RESPONSE_BYTES,
     RELEASES_URL,

@@ -15,9 +15,9 @@ import httpx2
 import msgspec
 from packaging.version import InvalidVersion, Version
 
+from geometrikks.lib.outbound import USER_AGENT
 from geometrikks.lib.versioning import is_local_build
 from geometrikks.server.logging import get_logger
-from geometrikks.services.rdap import USER_AGENT
 
 if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
