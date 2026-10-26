@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import {
   LOGIN_ERROR_MESSAGES,
+  databaseDownNotice,
+  LOGIN_HEALTH_TIMEOUT_MS,
   isChromelessRoute,
+  loadLoginContext,
+  loginErrorMessage,
+  logoutThenNavigate,
   planLoginForm,
   planLoginRoute,
   planLogoutRoute,
   toMeResult,
 } from "@/lib/auth-redirect"
+import type { Advisory, AuthOptions, HealthResponse } from "@/lib/api"
 
 /** Sentinel: the plan must carry this exact object through to the route. */
 const boom = new Error("kaboom")
@@ -167,5 +173,116 @@ describe("isChromelessRoute", () => {
     expect(isChromelessRoute("/")).toBe(false)
     expect(isChromelessRoute("/login/x")).toBe(false)
     expect(isChromelessRoute("/signed-out/")).toBe(false)
+  })
+})
+
+describe("loginErrorMessage", () => {
+  it("names a wrong password for a 401", () => {
+    const error = { isAxiosError: true, response: { status: 401 } }
+    expect(loginErrorMessage(error)).toBe("Invalid username or password")
+  })
+
+  it("names the database outage for a 503", () => {
+    const error = { isAxiosError: true, response: { status: 503 } }
+    expect(loginErrorMessage(error)).toBe(
+      "The database is unavailable, so nobody can sign in right now. Try again in a minute.",
+    )
+  })
+
+  it("does not call any other status a wrong password", () => {
+    const error = { isAxiosError: true, response: { status: 500 } }
+    expect(loginErrorMessage(error)).toBe("Sign-in failed. Try again.")
+  })
+
+  it("covers a network failure and a plain Error", () => {
+    expect(loginErrorMessage({ isAxiosError: true, response: undefined })).toBe("Sign-in failed. Try again.")
+    expect(loginErrorMessage(new Error("offline"))).toBe("Sign-in failed. Try again.")
+  })
+})
+
+describe("logoutThenNavigate", () => {
+  it("lands on the login page after a logout with no provider", async () => {
+    const go = vi.fn()
+    await logoutThenNavigate(async () => ({ redirectTo: null }), go)
+    expect(go).toHaveBeenCalledExactlyOnceWith("/login")
+  })
+
+  it("follows the provider's end-session URL when one is returned", async () => {
+    const go = vi.fn()
+    await logoutThenNavigate(async () => ({ redirectTo: "https://idp.example/logout" }), go)
+    expect(go).toHaveBeenCalledExactlyOnceWith("https://idp.example/logout")
+  })
+
+  it("rejects and never navigates when the logout fails", async () => {
+    const go = vi.fn()
+    const failure = new Error("503")
+    await expect(
+      logoutThenNavigate(() => Promise.reject(failure), go),
+    ).rejects.toBe(failure)
+    expect(go).not.toHaveBeenCalled()
+  })
+})
+
+describe("databaseDownNotice", () => {
+  const healthWith = (advisories?: Advisory[]) => ({ advisories }) as HealthResponse
+  const advisory = (id: string, summary: string): Advisory => ({ id, severity: "critical", summary })
+
+  it("is null when /health could not be fetched", () => {
+    expect(databaseDownNotice(null)).toBeNull()
+  })
+
+  it("is null when there are no advisories", () => {
+    expect(databaseDownNotice(healthWith([]))).toBeNull()
+    expect(databaseDownNotice(healthWith(undefined))).toBeNull()
+  })
+
+  it("returns the login notice when the database advisory is present", () => {
+    const health = healthWith([
+      advisory("geoip-database-stale", "The GeoIP database is old."),
+      advisory("database-unavailable", "The database is unreachable."),
+    ])
+    expect(databaseDownNotice(health)).toBe("The database is unavailable, so signing in won't work until it's back.")
+  })
+
+  it("ignores other advisories on their own", () => {
+    const health = healthWith([advisory("geoip-database-stale", "The GeoIP database is old.")])
+    expect(databaseDownNotice(health)).toBeNull()
+  })
+})
+
+describe("loadLoginContext", () => {
+  const options: AuthOptions = { password: true, oidc: null }
+  const health = { status: "healthy" } as HealthResponse
+
+  it("bounds the health request so a stalled /health cannot hold the page", async () => {
+    const loadHealthWithin = vi.fn().mockResolvedValue(health)
+    await loadLoginContext(async () => options, loadHealthWithin)
+    expect(loadHealthWithin).toHaveBeenCalledExactlyOnceWith(LOGIN_HEALTH_TIMEOUT_MS)
+    expect(LOGIN_HEALTH_TIMEOUT_MS).toBe(3000)
+  })
+
+  it("starts both requests before either finishes", async () => {
+    const started: string[] = []
+    const loadOptions = vi.fn(async () => {
+      started.push("options")
+      return options
+    })
+    const loadHealth = vi.fn(async () => {
+      started.push("health")
+      return health
+    })
+    const pending = loadLoginContext(loadOptions, loadHealth)
+    expect(started).toEqual(["options", "health"])
+    await pending
+  })
+
+  it("returns null health when /health fails or times out", async () => {
+    const result = await loadLoginContext(async () => options, () => Promise.reject(new Error("timeout of 3000ms exceeded")))
+    expect(result).toEqual({ options, health: null })
+  })
+
+  it("still fails when the options request fails", async () => {
+    const failure = new Error("503")
+    await expect(loadLoginContext(() => Promise.reject(failure), async () => health)).rejects.toBe(failure)
   })
 })

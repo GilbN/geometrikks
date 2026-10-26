@@ -730,9 +730,11 @@ APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (se
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
 under `/api/` and `/ws/` requires a session; the web app's static files
 (you need them to reach the login page), `/health`, `/health/ready` and
-`/schema` stay open. **Sessions are held in memory**, so restarting the app
-container logs everyone out, and every session ends 7 days after login
-regardless of use.
+`/schema` stay open. GeoMetrikks keeps sessions in the database, so restarts
+and updates don't log anyone out. A login lasts `APP_SESSION_MAX_AGE_DAYS`
+days, 7 by default. The clock starts when you sign in and using the app
+doesn't reset it. Changing the admin user or password, or who may sign in
+with OIDC, ends every session on the next start.
 
 If something else already controls who reaches the app (an authenticating
 proxy such as Authelia or Tailscale, or a network only you can reach), you

@@ -121,6 +121,15 @@ def is_db_available(app: Litestar, *, default: bool = True) -> bool:
     return bool(getattr(app.state, "db_available", default))
 
 
+def is_session_store_ready(app: Litestar, *, default: bool = True) -> bool:
+    """Whether startup has migrated and set up the database, so session reads and writes can run.
+
+    A recovery that brings the database up but fails to start the scheduler
+    or ingestion leaves this True and ``db_available`` False.
+    """
+    return bool(getattr(app.state, "session_store_ready", default))
+
+
 def get_channels_backend(app: Litestar) -> DegradedTolerantAsyncPgBackend | None:
     """The live-events backend; None on hand-built test apps."""
     return getattr(app.state, "channels_backend", None)

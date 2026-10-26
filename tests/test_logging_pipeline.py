@@ -717,6 +717,16 @@ class TestExceptionLoggingHandler:
         assert event == "service_unavailable"
         assert kw["status_code"] == 503
         assert kw["detail"] == "The database is unavailable."
+        assert "cause" not in kw
+
+    def test_service_unavailable_names_its_cause(self):
+        from litestar.exceptions import ServiceUnavailableException
+        try:
+            raise ServiceUnavailableException(detail="The session store is unavailable.") from OSError("down")
+        except ServiceUnavailableException as exc:
+            logger = self._run(exc, debug=False)
+        assert logger.exceptions == []
+        assert [(e, kw["cause"]) for e, kw in logger.warnings] == [("service_unavailable", "OSError")]
 
     def test_server_error_still_logs_a_traceback(self):
         logger = self._run(ValueError("boom"), debug=False)

@@ -9,13 +9,19 @@ import asyncio
 import re
 import threading
 import time
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import anyio
 import pytest
+import structlog
 from litestar import Request, get
+from litestar.exceptions import ServiceUnavailableException
+from litestar.stores.memory import MemoryStore
 from litestar.testing import AsyncTestClient, TestClient
 
-from geometrikks.server.auth import PENDING_SESSION_HEADROOM_SECONDS, SESSION_MAX_AGE_SECONDS
+from geometrikks.config.settings import Settings
+from geometrikks.server.auth import PENDING_SESSION_HEADROOM_SECONDS
 from geometrikks.services.oidc.client import PENDING_LIFETIME_SECONDS
 from tests.test_auth_endpoints import make_app
 
@@ -77,10 +83,15 @@ async def test_untouched_session_is_not_rewritten_and_does_not_renew():
 async def test_session_expires_absolutely():
     app = make_app(session_max_age=1)
     async with AsyncTestClient(app=app) as client:
-        assert (await client.post("/api/v1/auth/login", json=CREDS)).status_code == 200
-        assert (await client.get("/api/v1/protected")).status_code == 200
+        sid = (await client.post("/api/v1/auth/login", json=CREDS)).cookies["session"]
+        # The cookie jar drops a cookie at its floored Max-Age, before the
+        # server would. Sending the cookie by hand makes the 401 below come
+        # from the store's expiry, not from a request without a cookie.
+        cookie = {"Cookie": f"session={sid}"}
+        assert (await client.get("/api/v1/protected", headers=cookie)).status_code == 200
         await anyio.sleep(1.2)
-        assert (await client.get("/api/v1/protected")).status_code == 401
+        assert (await client.get("/api/v1/protected", headers=cookie)).status_code == 401
+        assert await app.stores.get("sessions").get(sid) is None
 
 
 @get("/api/v1/touch-session", exclude_from_auth=True)
@@ -142,11 +153,15 @@ async def test_final_second_session_write_clears_rather_than_renews():
         else:
             pytest.fail("session never reached its final second")
 
-        res = await client.get("/api/v1/touch-session")
+        # http.cookiejar floors the Max-Age expiry to a whole second, so the
+        # jar can drop the cookie up to a second before the store entry
+        # expires. Send it by hand so the request always carries the session.
+        cookie = {"Cookie": f"session={sid}"}
+        res = await client.get("/api/v1/touch-session", headers=cookie)
         assert res.status_code == 200
         assert await store.get(sid) is None
 
-        assert (await client.get("/api/v1/protected")).status_code == 401
+        assert (await client.get("/api/v1/protected", headers=cookie)).status_code == 401
 
 
 def test_logout_during_a_parked_session_write_is_not_undone():
@@ -373,7 +388,28 @@ def test_pending_session_gets_a_short_lifetime_not_the_configured_one():
         login_sid = login.cookies["session"]
         login_remaining = portal.call(store.expires_in, login_sid)
         assert login_remaining is not None and login_remaining > PENDING_LIFETIME_SECONDS
-        assert f"Max-Age={SESSION_MAX_AGE_SECONDS}" in login.headers["set-cookie"]
+        max_age = Settings(_env_file=None).session_max_age_seconds
+        assert f"Max-Age={max_age}" in login.headers["set-cookie"]
+
+
+def test_login_lifetime_follows_the_session_max_age_days_setting():
+    thirty_days = 30 * 86400
+    pending_ttl = PENDING_LIFETIME_SECONDS + PENDING_SESSION_HEADROOM_SECONDS
+    app = make_app(extra_handlers=[seed], session_max_age_days=30)
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+
+        pending = client.get("/api/v1/seed")
+        assert f"Max-Age={pending_ttl}" in pending.headers["set-cookie"]
+        pending_remaining = portal.call(store.expires_in, pending.cookies["session"])
+        assert pending_remaining is not None and pending_remaining <= pending_ttl
+
+        login = client.post("/api/v1/auth/login", json=CREDS)
+        assert login.status_code == 200
+        assert f"Max-Age={thirty_days}" in login.headers["set-cookie"]
+        login_remaining = portal.call(store.expires_in, login.cookies["session"])
+        assert login_remaining is not None
+        assert thirty_days - 60 < login_remaining <= thirty_days
 
 
 def test_a_pending_write_sweeps_expired_entries_once_the_throttle_allows_it():
@@ -393,3 +429,84 @@ def test_a_pending_write_sweeps_expired_entries_once_the_throttle_allows_it():
         client.get("/api/v1/seed")
 
         assert portal.call(store.exists, "stale-pending") is False
+
+
+def test_a_login_sweeps_expired_entries():
+    app = make_app()
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+        portal.call(store.set, "stale-login", b"{}", 0.01)
+        time.sleep(0.05)
+        assert portal.call(store.exists, "stale-login") is True
+
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+
+        assert portal.call(store.exists, "stale-login") is False
+
+
+def test_the_sweep_throttle_is_shared_across_routes():
+    """Each route handler gets its own backend instance, so a throttle kept on
+    the backend would let the login sweep right after the seed route's sweep.
+    """
+    app = make_app(extra_handlers=[seed])
+    with TestClient(app=app) as client, client.portal() as portal:
+        store = app.stores.get("sessions")
+
+        client.get("/api/v1/seed")
+
+        portal.call(store.set, "stale-after-sweep", b"{}", 0.01)
+        time.sleep(0.05)
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+
+        assert portal.call(store.exists, "stale-after-sweep") is True
+
+
+class SweepFailingStore(MemoryStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.sweeps = 0
+
+    async def delete_expired(self) -> None:
+        self.sweeps += 1
+        raise ServiceUnavailableException("store down")
+
+
+def _sweep_failures(captured: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
+    return [entry for entry in captured if entry["event"] == "session_sweep_failed"]
+
+
+def test_a_failing_sweep_does_not_fail_the_login():
+    inner = SweepFailingStore()
+    app = make_app(inner_store=inner)
+    with TestClient(app=app) as client, structlog.testing.capture_logs() as captured:
+        res = client.post("/api/v1/auth/login", json=CREDS)
+
+        assert res.status_code == 200
+        assert res.cookies.get("session")
+        assert client.get("/api/v1/protected").status_code == 200
+    [warning] = _sweep_failures(captured)
+    assert warning["log_level"] == "warning"
+    assert warning["cause"] == "ServiceUnavailableException"
+
+
+def test_a_failing_sweep_does_not_fail_a_pending_write():
+    inner = SweepFailingStore()
+    app = make_app(extra_handlers=[seed], inner_store=inner)
+    with TestClient(app=app) as client, structlog.testing.capture_logs() as captured:
+        res = client.get("/api/v1/seed")
+
+        assert res.status_code == 200
+        assert res.cookies.get("session")
+    assert len(_sweep_failures(captured)) == 1
+
+
+def test_a_failed_sweep_waits_for_the_next_interval():
+    inner = SweepFailingStore()
+    app = make_app(inner_store=inner)
+    with TestClient(app=app) as client:
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+        assert inner.sweeps == 1
+
+        assert client.post("/api/v1/auth/login", json=CREDS).status_code == 200
+
+        assert inner.sweeps == 1

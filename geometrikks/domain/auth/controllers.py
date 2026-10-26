@@ -16,7 +16,7 @@ from litestar.status_codes import HTTP_200_OK
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.auth import AdminUser, AuthState, rotate_session
+from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
     OidcForbidden,
@@ -106,6 +106,7 @@ class AuthController(Controller):
             # keeps this off the exception path; the SPA redirects away from
             # /login before it can get here anyway.
             return AuthDisabled()
+        require_session_database(request)
         auth_state: AuthState | None = request.app.state.auth_state
         client_ip = resolve_client_ip(request)
         if auth_state is None:
@@ -216,6 +217,7 @@ class AuthController(Controller):
         client = runtime.get_oidc_client(request.app)
         if client is None:
             raise NotFoundException()
+        require_session_database(request)
         try:
             url, pending = await client.begin()
         except OidcUnavailable as exc:
@@ -242,6 +244,7 @@ class AuthController(Controller):
         client = runtime.get_oidc_client(request.app)
         if client is None:
             raise NotFoundException()
+        require_session_database(request)
         session = dict(request.session or {})
         pending = PendingLogin.from_session(session.pop("oidc_pending", None))
         # Consumed either way: a replayed callback must find nothing.

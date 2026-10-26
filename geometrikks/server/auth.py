@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from litestar.datastructures import Cookie, MutableScopeHeaders
+from litestar.exceptions import ServiceUnavailableException
 from litestar.middleware.session.server_side import (
     ServerSideSessionBackend,
     ServerSideSessionConfig,
@@ -24,6 +25,7 @@ from litestar.utils.dataclass import extract_dataclass_items
 from pwdlib import PasswordHash
 
 from geometrikks.lib.session import PENDING_LIFETIME_SECONDS
+from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
@@ -55,8 +57,6 @@ AUTH_EXCLUDE_PATTERNS: list[str] = [
     "^/api/v1/auth/options$",
     "^/api/v1/auth/oidc/(start|callback)$",
 ]
-
-SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7
 
 # Added to PENDING_LIFETIME_SECONDS for the pending session's store TTL and
 # cookie max-age. Without it the store entry vanishes at the instant
@@ -147,6 +147,19 @@ def _scope_dict(connection: "ASGIConnection") -> dict[str, Any]:
     return cast("dict[str, Any]", connection.scope)
 
 
+def require_session_database(request: "Request") -> None:
+    """Refuse a login up front while the session store can't take writes.
+
+    A browser without a session cookie never reads the session store on the
+    way in. Without this check its login would pass the password check and
+    then fail on the session write with a bare 500.
+    """
+    if not runtime.is_session_store_ready(request.app, default=True):
+        raise ServiceUnavailableException(
+            detail="The database is unavailable, so nobody can sign in right now."
+        )
+
+
 def rotate_session(request: "Request") -> None:
     """Issue a fresh session id on this response.
 
@@ -174,10 +187,6 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
       planted by the unauthenticated /oidc/start, a short lifetime instead of
       max_age (_store_pending_session).
     """
-
-    def __init__(self, config: ServerSideSessionConfig) -> None:
-        super().__init__(config)
-        self._next_sweep_at = 0.0
 
     @property
     def _write_lock(self) -> asyncio.Lock:
@@ -239,6 +248,9 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             return
 
         await super().store_in_message(scope_session, message, connection)
+        if rotated:
+            store = self.config.get_store_from_app(scope["app"])
+            await self._sweep_expired_if_due(store)
 
     async def _write_session(
         self,
@@ -320,45 +332,56 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     async def _sweep_expired_if_due(self, store: "Store") -> None:
         """Drop expired store rows, at most once per PENDING_LIFETIME_SECONDS.
 
-        Two requests passing the throttle together both sweep; that is
-        redundant, not wrong.
+        The throttle lives on the config, which every handler's backend
+        shares. Two requests that pass it together both sweep. That is
+        redundant, not wrong. The sweep runs while Litestar sends the
+        response, so it logs a failure instead of raising. Raising would
+        fail a login that already succeeded.
         """
         sweep = getattr(store, "delete_expired", None)
         if not callable(sweep):
             return
+        config = cast("RotatingServerSideSessionConfig", self.config)
         now = time.monotonic()
-        if now < self._next_sweep_at:
+        if now < config.next_sweep_at:
             return
-        self._next_sweep_at = now + PENDING_LIFETIME_SECONDS
-        await sweep()
+        # Set before the sweep so a failed sweep waits for the next interval
+        # instead of hitting a failing store on every login.
+        config.next_sweep_at = now + PENDING_LIFETIME_SECONDS
+        try:
+            await sweep()
+        except Exception as error:
+            logger.warning("session_sweep_failed", cause=type(error).__name__)
 
 
 class RotatingServerSideSessionConfig(ServerSideSessionConfig):
     """ServerSideSessionConfig whose middleware builds the rotating backend.
 
-    Also owns write_lock: see RotatingServerSideSessionBackend._write_lock
-    for why the lock has to live here instead of on the backend.
+    Also owns write_lock and next_sweep_at.
+    RotatingServerSideSessionBackend._write_lock explains why they live here
+    and not on the backend.
     """
 
     _backend_class = RotatingServerSideSessionBackend
     write_lock: asyncio.Lock
+    next_sweep_at: float
 
     def __post_init__(self) -> None:
         super().__post_init__()
         self.write_lock = asyncio.Lock()
+        self.next_sweep_at = 0.0
 
 
 def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:
     """Build the SessionAuth component applied via on_app_init in create_app().
 
-    Server-side sessions with the default in-memory store: an app restart
-    invalidates all sessions (users just log in again) — fine for a
-    single-admin homelab tool and avoids a signing-secret setting.
+    Server-side sessions in the ``sessions`` store. create_app() backs that
+    store with the auth_sessions table, so logins survive a restart.
     """
     session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
         retrieve_user_handler=retrieve_user_handler,
         session_backend_config=RotatingServerSideSessionConfig(
-            max_age=SESSION_MAX_AGE_SECONDS,
+            max_age=settings.session_max_age_seconds,
             secure=settings.session_secure,
             # Sessions exist only for /api and /ws. Without this exclusion the
             # session middleware runs on the SPA shell and every static asset,

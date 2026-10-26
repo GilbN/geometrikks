@@ -681,6 +681,49 @@ async def test_db_availability_accessor_honors_default_and_recorded_state():
     assert is_db_available(cast("Any", app)) is False
 
 
+async def test_session_store_ready_accessor_honors_default_and_recorded_state():
+    from geometrikks.server.runtime import is_session_store_ready
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    assert is_session_store_ready(cast("Any", app)) is True
+    assert is_session_store_ready(cast("Any", app), default=False) is False
+    app.state.session_store_ready = False
+    assert is_session_store_ready(cast("Any", app)) is False
+
+
+def _session_gates_open(app: SimpleNamespace) -> bool:
+    """Whether the session store and the login guard both let requests through."""
+    from litestar.exceptions import ServiceUnavailableException
+    from litestar.stores.memory import MemoryStore
+    from litestar.stores.registry import StoreRegistry
+
+    from geometrikks.server.auth import require_session_database
+    from geometrikks.server.session_store import install_session_store
+
+    probe = SimpleNamespace(state=app.state, stores=StoreRegistry())
+    store_open = install_session_store(cast("Any", probe), MemoryStore()).is_available()
+    try:
+        require_session_database(cast("Any", SimpleNamespace(app=probe)))
+    except ServiceUnavailableException:
+        login_open = False
+    else:
+        login_open = True
+    assert store_open is login_open
+    return store_open
+
+
+async def test_healthy_startup_opens_the_session_store(monkeypatch):
+    from geometrikks.server import lifecycle as lc
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    app = SimpleNamespace(state=SimpleNamespace())
+    async with enter_lifespan(app):
+        assert app.state.session_store_ready is True
+        assert _session_gates_open(app) is True
+
+
 class _RecoveryClock:
     def __init__(self) -> None:
         self.entered: asyncio.Queue[float] = asyncio.Queue()
@@ -723,8 +766,10 @@ async def test_recovery_runs_deferred_startup_with_capped_backoff(monkeypatch):
         assert task.get_name() == "db-recovery"
         for delay in [10.0, 20.0, 40.0, 60.0, 60.0]:
             assert app.state.db_available is False
+            assert _session_gates_open(app) is False
             await clock.tick(delay)
         await asyncio.wait_for(task, timeout=10.0)
+        assert _session_gates_open(app) is True
 
         cast("AsyncMock", lc.migrate_database).assert_awaited_once()
         cast("AsyncMock", lc.setup_timescaledb).assert_awaited_once()
@@ -807,10 +852,13 @@ async def test_recovery_failure_is_terminal_and_unwinds_partial_services(monkeyp
     async with enter_lifespan(app):
         task = app.state.db_recovery_task
         since = app.state.db_degraded_since
+        assert _session_gates_open(app) is False
         await clock.tick(10.0)
         await asyncio.wait_for(task, timeout=10.0)
         assert task.done()
         assert app.state.db_available is False
+        # Sessions only need the migrated tables, not the scheduler or ingestion.
+        assert _session_gates_open(app) is (stage in {"scheduler", "ingestion"})
         assert app.state.db_degraded_since == since
         advisories = runtime.get_advisories(cast("Any", app)).snapshot()
         assert [a.id for a in advisories] == [DATABASE_RECOVERY_FAILED.id]

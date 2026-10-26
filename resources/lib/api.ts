@@ -71,6 +71,7 @@ export type {
   BannedMapCollection,
   AuthOptions,
   OidcStatus,
+  LogoutResponse,
 }
 
 // Create axios instance with base configuration
@@ -279,6 +280,14 @@ export type {
  */
 export async function fetchHealth(): Promise<HealthResponse> {
   const { data } = await axios.get<HealthResponse>("/health")
+  return data
+}
+
+/** fetchHealth that gives up after timeoutMs. Separate from fetchHealth because
+ *  that one is a TanStack queryFn, and the query context it receives must not
+ *  reach axios as request config. */
+export async function fetchHealthWithin(timeoutMs: number): Promise<HealthResponse> {
+  const { data } = await axios.get<HealthResponse>("/health", { timeout: timeoutMs })
   return data
 }
 

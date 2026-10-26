@@ -52,6 +52,12 @@ from geometrikks.server.migrations import migrate_database
 from geometrikks.server import runtime
 from geometrikks.server.plugins import get_app_db_config
 from geometrikks.server.schema_wait import wait_for_schema
+from geometrikks.server.session_revocation import revoke_sessions_if_auth_changed
+from geometrikks.server.session_store import (
+    FINGERPRINT_NAMESPACE,
+    SESSION_NAMESPACE,
+    create_session_table_store,
+)
 from geometrikks.server.timescale import setup_timescaledb
 
 from geometrikks.services.crowdsec import CrowdSecService
@@ -330,6 +336,7 @@ async def heartbeat_shutdown_lifespan(app: "Litestar") -> "AsyncGenerator[None]"
 def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
     """Record DB-degraded mode and pause database-bound services."""
     app.state.db_available = False
+    app.state.session_store_ready = False
     app.state.db_degraded_since = datetime.now(timezone.utc)
     poller = runtime.get_crowdsec_poller(app)
     if poller is not None:
@@ -388,6 +395,14 @@ async def bring_up_database(
         _on_stage("database setup")
     await setup_timescaledb(engine, settings.analytics)
 
+    if not settings.is_agent and not settings.auth_disabled:
+        db_config = get_app_db_config(app)
+        await revoke_sessions_if_auth_changed(
+            create_session_table_store(db_config, namespace=SESSION_NAMESPACE),
+            create_session_table_store(db_config, namespace=FINGERPRINT_NAMESPACE),
+            settings,
+        )
+
     session_maker = get_app_db_config(app).create_session_maker()
     try:
         await reconcile_override_server_locations(session_maker, settings.map.server_locations)
@@ -441,6 +456,7 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
     app.state.db_available = True
     await bring_up_database(app)
+    app.state.session_store_ready = True
     yield
 
 
@@ -683,6 +699,7 @@ async def _recover_database(app: "Litestar") -> None:
         logger.info("db_recovery_started", degraded_seconds=degraded_seconds())
         stage = "database setup"
         await bring_up_database(app, _on_stage=set_stage, _shield_migration=True)
+        app.state.session_store_ready = True
 
         deferred = getattr(app.state, "crowdsec_stream_poller_deferred", None)
         if deferred is not None:
