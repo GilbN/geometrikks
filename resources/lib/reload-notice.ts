@@ -5,15 +5,13 @@
 import { useSyncExternalStore } from "react"
 import { displayVersion } from "@/lib/version"
 
-export interface ReloadNoticeState {
-  pending: boolean
-  version: string | null
-  toastOpen: boolean
-}
+export type ReloadNoticeState =
+  | { pending: false; version: null; toastOpen: false }
+  | { pending: true; version: string; toastOpen: boolean }
 
 const INITIAL_STATE: ReloadNoticeState = { pending: false, version: null, toastOpen: false }
 
-let state = INITIAL_STATE
+let state: ReloadNoticeState = INITIAL_STATE
 let toastClaimed = false
 const listeners = new Set<() => void>()
 
@@ -35,12 +33,11 @@ export function useReloadNotice(): ReloadNoticeState {
   return useSyncExternalStore(subscribeReloadNotice, getReloadNoticeState)
 }
 
-/** True only on the call that turned the notice pending. A null version never erases a known one. */
-export function markUpdatePending(version: string | null): boolean {
+/** True only on the call that turned the notice pending. */
+export function markUpdatePending(version: string): boolean {
   const wasPending = state.pending
-  const nextVersion = version ?? state.version
-  if (!wasPending || nextVersion !== state.version) {
-    setState({ ...state, pending: true, version: nextVersion })
+  if (!wasPending || version !== state.version) {
+    setState({ pending: true, version, toastOpen: state.toastOpen })
   }
   return !wasPending
 }
@@ -63,16 +60,16 @@ export function closeReloadToast(): void {
   setState({ ...state, toastOpen: false })
 }
 
-export function reloadNoticeTitle(version: string | null): string {
-  return version === null ? "A new version is ready" : `${displayVersion(version)} ready`
+export function reloadNoticeTitle(version: string): string {
+  return `${displayVersion(version)} ready`
 }
 
-export function reloadNoticeTooltip(version: string | null): string {
+export function reloadNoticeTooltip(version: string): string {
   return `${reloadNoticeTitle(version)}, click to reload`
 }
 
-export function reloadToastTitle(version: string | null): string {
-  return version === null ? "A new version is ready" : `Updated to ${displayVersion(version)}`
+export function reloadToastTitle(version: string): string {
+  return `Updated to ${displayVersion(version)}`
 }
 
 export function resetReloadNoticeForTests(): void {
