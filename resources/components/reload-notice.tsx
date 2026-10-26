@@ -11,7 +11,7 @@ import {
   closeReloadToast,
   reloadNoticeTitle,
   reloadNoticeTooltip,
-  reloadToastMessage,
+  reloadToastTitle,
   useReloadNotice,
 } from "@/lib/reload-notice"
 import { loadNow, reloadNow, useUpdateDetector } from "@/lib/use-update-detector"
@@ -19,9 +19,31 @@ import { loadNow, reloadNow, useUpdateDetector } from "@/lib/use-update-detector
 const CHANGELOG_HREF = "/settings/changelog"
 const RELOAD_TOAST_ID = "reload-notice"
 
-function ReloadToastMessage() {
+function dismissReloadToast() {
+  toast.dismiss(RELOAD_TOAST_ID)
+  closeReloadToast()
+}
+
+function ReloadToast() {
   const { version } = useReloadNotice()
-  return <>{reloadToastMessage(version)}</>
+
+  return (
+    <Card size="sm" className="toast-surface w-full">
+      <CardContent className="flex items-center gap-3 text-[13px]">
+        <GlowDot />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{reloadToastTitle(version)}</p>
+          <p className="text-muted-foreground">Reload to use it.</p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={dismissReloadToast}>
+          Later
+        </Button>
+        <Button size="sm" onClick={reloadNow}>
+          Reload
+        </Button>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function ReloadNotice(): null {
@@ -30,12 +52,9 @@ export function ReloadNotice(): null {
 
   useEffect(() => {
     if (!pending || !isMobileViewport() || !claimReloadToast()) return
-    // sonner's Cancel button does not call onDismiss, so both handlers close the toast state.
-    toast(<ReloadToastMessage />, {
+    toast.custom(() => <ReloadToast />, {
       id: RELOAD_TOAST_ID,
       duration: Infinity,
-      cancel: { label: "Later", onClick: closeReloadToast },
-      action: { label: "Reload", onClick: reloadNow },
       onDismiss: closeReloadToast,
     })
   }, [pending])

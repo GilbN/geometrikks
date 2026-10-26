@@ -364,8 +364,11 @@
 /* Toasts: the glass surface of the map controls and popups, the theme
    radius and the brand accent on the icon. Sonner's own per-type colours
    are off (no richColors), so this covers every variant; only the icon
-   tells them apart. The .toaster class outranks sonner's stylesheet. */
-.toaster [data-sonner-toast][data-styled='true'] {
+   tells them apart. The .toaster class outranks sonner's stylesheet.
+   A custom toast (the reload notice) opts into the same surface with
+   .toast-surface, since sonner leaves custom toasts unstyled. */
+.toaster [data-sonner-toast][data-styled='true'],
+.toaster .toast-surface {
   background: var(--floating-surface);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border);
