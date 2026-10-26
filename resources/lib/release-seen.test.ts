@@ -24,6 +24,13 @@ vi.stubGlobal("localStorage", {
   clear: () => store.clear(),
 })
 
+const storageEvents = new EventTarget()
+vi.stubGlobal("window", storageEvents)
+
+function dispatchStorageEvent(key: string | null): void {
+  storageEvents.dispatchEvent(Object.assign(new Event("storage"), { key }))
+}
+
 describe("hasUnseenRelease", () => {
   it("shows the dot when nothing was ever marked seen", () => {
     expect(hasUnseenRelease(null, "0.23.0")).toBe(true)
@@ -63,6 +70,18 @@ describe("seen release storage", () => {
     expect(listener).toHaveBeenCalledTimes(1)
     unsubscribe()
     saveSeenRelease("0.24.0")
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it("notifies subscribers when another tab writes the seen release", () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeSeenRelease(listener)
+    dispatchStorageEvent(RELEASE_SEEN_STORAGE_KEY)
+    expect(listener).toHaveBeenCalledTimes(1)
+    dispatchStorageEvent("geometrikks-changelog-seen")
+    expect(listener).toHaveBeenCalledTimes(1)
+    unsubscribe()
+    dispatchStorageEvent(RELEASE_SEEN_STORAGE_KEY)
     expect(listener).toHaveBeenCalledTimes(1)
   })
 

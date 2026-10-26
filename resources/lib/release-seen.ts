@@ -1,7 +1,7 @@
 /**
  * Which release the user last saw announced on the About page. The sidebar
- * and the Settings nav show a dot while a newer release exists that this
- * does not match. Nothing stored means the dot shows.
+ * version shows a dot while a newer release exists that this does not
+ * match. Nothing stored means the dot shows.
  */
 import { useSyncExternalStore } from "react"
 
@@ -23,8 +23,16 @@ export function loadSeenRelease(): string | null {
 const listeners = new Set<() => void>()
 
 export function subscribeSeenRelease(listener: () => void): () => void {
+  // the storage event fires only in other tabs, so About opened there clears this tab's dot
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === RELEASE_SEEN_STORAGE_KEY) listener()
+  }
   listeners.add(listener)
-  return () => void listeners.delete(listener)
+  window.addEventListener("storage", onStorage)
+  return () => {
+    listeners.delete(listener)
+    window.removeEventListener("storage", onStorage)
+  }
 }
 
 export function saveSeenRelease(version: string): void {
