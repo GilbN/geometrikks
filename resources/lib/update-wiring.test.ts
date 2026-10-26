@@ -141,3 +141,29 @@ describe("the return window", () => {
     expect(() => wiring.pollFailed()).not.toThrow()
   })
 })
+
+describe("the reload guard", () => {
+  it("is lifted once per observed restart, before the notice arms", async () => {
+    const reloadGuard = { allows: vi.fn(() => true), pageKeyKnown: vi.fn(), restartObserved: vi.fn() }
+    const markedPendingBeforeLift: boolean[] = []
+    reloadGuard.restartObserved.mockImplementation(() => void markedPendingBeforeLift.push(getReloadNoticeState().pending))
+    const readServerBuild = vi
+      .fn<() => Promise<BuildIdentity>>()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockResolvedValue(build("0.23.0"))
+    const wiring = createUpdateWiring({ readServerBuild, now: () => Date.now(), reportError: vi.fn(), reloadGuard })
+    await wiring.start()
+    await wiring.pollSucceeded("t1")
+    await wiring.pollSucceeded("t1")
+    expect(reloadGuard.restartObserved).not.toHaveBeenCalled()
+
+    await wiring.pollSucceeded("t2")
+    await wiring.pollSucceeded("t2")
+    await wiring.serviceWorkerUpdated()
+    expect(reloadGuard.restartObserved).toHaveBeenCalledTimes(1)
+    expect(markedPendingBeforeLift).toEqual([false])
+
+    await wiring.pollSucceeded("t3")
+    expect(reloadGuard.restartObserved).toHaveBeenCalledTimes(2)
+  })
+})

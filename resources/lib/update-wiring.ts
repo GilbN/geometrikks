@@ -30,9 +30,9 @@ export function createUpdateWiring(deps: UpdateWiringDeps): UpdateWiring {
 
   const detector = createUpdateDetector({
     readServerBuild: deps.readServerBuild,
+    // Lifts the guard before onServerBuild can mark pending: arm() can reload synchronously.
+    onStartedAtChange: () => reloadGuard.restartObserved(),
     onServerBuild: (buildIdentity, isNewBuild) => {
-      // Lift the guard before marking pending: arm() can reload synchronously.
-      if (detector.lastStartedAtChangeAt() !== null) reloadGuard.restartObserved()
       if (isNewBuild) markUpdatePending(buildIdentity.version)
       else nameUpdateVersion(buildIdentity.version)
     },

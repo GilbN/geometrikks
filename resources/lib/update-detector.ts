@@ -21,6 +21,8 @@ export function buildKey(buildIdentity: BuildIdentity): string {
 export interface UpdateDetectorDeps {
   readServerBuild: () => Promise<BuildIdentity>
   onServerBuild: (buildIdentity: BuildIdentity, isNewBuild: boolean) => void
+  /** Runs at each startedAt change, before the build read that change starts. */
+  onStartedAtChange?: () => void
   now: () => number
 }
 
@@ -86,6 +88,7 @@ export function createUpdateDetector(deps: UpdateDetectorDeps): UpdateDetector {
       baselineStartedAt = startedAt
       needsRecheck = true
       changeAt = deps.now()
+      deps.onStartedAtChange?.()
     }
     if (needsRecheck) await readServer()
   }

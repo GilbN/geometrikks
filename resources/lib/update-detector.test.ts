@@ -17,8 +17,9 @@ function deferred<T>() {
 
 function setup(readServerBuild: () => Promise<BuildIdentity>, now = () => 0) {
   const onServerBuild = vi.fn()
-  const detector = createUpdateDetector({ readServerBuild, onServerBuild, now })
-  return { detector, onServerBuild }
+  const onStartedAtChange = vi.fn()
+  const detector = createUpdateDetector({ readServerBuild, onServerBuild, onStartedAtChange, now })
+  return { detector, onServerBuild, onStartedAtChange }
 }
 
 describe("buildKey", () => {
@@ -241,5 +242,26 @@ describe("createUpdateDetector", () => {
     expect(detector.lastStartedAtChangeAt()).toBe(1000)
     await detector.observeStartedAt("t3")
     expect(detector.lastStartedAtChangeAt()).toBe(2000)
+  })
+
+  it("calls onStartedAtChange once per change, before the build read", async () => {
+    const readServerBuild = vi.fn().mockResolvedValue(build("0.22.0"))
+    const { detector, onServerBuild, onStartedAtChange } = setup(readServerBuild)
+    await detector.start()
+    await detector.observeStartedAt("t1")
+    expect(onStartedAtChange).not.toHaveBeenCalled()
+
+    readServerBuild.mockResolvedValueOnce(build("0.23.0"))
+    await detector.observeStartedAt("t2")
+    expect(onStartedAtChange).toHaveBeenCalledTimes(1)
+    expect(onStartedAtChange.mock.invocationCallOrder[0]).toBeLessThan(onServerBuild.mock.invocationCallOrder[0])
+
+    await detector.observeStartedAt("t2")
+    await detector.recheck()
+    expect(onStartedAtChange).toHaveBeenCalledTimes(1)
+    expect(onServerBuild).toHaveBeenCalledTimes(2)
+
+    await detector.observeStartedAt("t3")
+    expect(onStartedAtChange).toHaveBeenCalledTimes(2)
   })
 })
