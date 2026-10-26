@@ -25,14 +25,15 @@ function dismissReloadToast() {
 }
 
 function ReloadToast() {
-  const { version } = useReloadNotice()
+  const notice = useReloadNotice()
+  if (!notice.pending) return null
 
   return (
     <Card size="sm" className="toast-surface w-full">
       <CardContent className="flex items-center gap-3 text-[13px]">
         <GlowDot />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{reloadToastTitle(version)}</p>
+          <p className="truncate font-medium">{reloadToastTitle(notice.version)}</p>
           <p className="text-muted-foreground">Reload to use it.</p>
         </div>
         <Button size="sm" variant="ghost" onClick={dismissReloadToast}>
@@ -73,7 +74,8 @@ export function GlowDot() {
 }
 
 export function ReloadNoticeCard() {
-  const { version } = useReloadNotice()
+  const notice = useReloadNotice()
+  if (!notice.pending) return null
 
   return (
     <Card
@@ -83,7 +85,7 @@ export function ReloadNoticeCard() {
       <CardContent className="flex flex-col gap-2 group-data-[size=sm]/card:px-3">
         <div className="flex items-center gap-2 text-xs font-medium">
           <GlowDot />
-          <span className="truncate">{reloadNoticeTitle(version)}</span>
+          <span className="truncate">{reloadNoticeTitle(notice.version)}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button size="xs" onClick={reloadNow}>
@@ -101,8 +103,9 @@ export function ReloadNoticeCard() {
 }
 
 export function ReloadNoticeCollapsedButton() {
-  const { version } = useReloadNotice()
-  const tooltip = reloadNoticeTooltip(version)
+  const notice = useReloadNotice()
+  if (!notice.pending) return null
+  const tooltip = reloadNoticeTooltip(notice.version)
 
   return (
     <Tooltip>
