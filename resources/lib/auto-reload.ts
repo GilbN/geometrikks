@@ -3,16 +3,32 @@ export const CHUNK_ERROR_WINDOW_MS = 600_000
 export const RELOAD_GUARD_STORAGE_KEY = "geometrikks-reload-guard"
 export const INPUT_EVENTS = ["pointerdown", "keydown", "wheel", "touchstart"] as const
 
-const TEXT_ENTRY_TAG_NAMES = new Set(["INPUT", "TEXTAREA", "SELECT"])
+const TEXT_ENTRY_TAG_NAMES = new Set(["TEXTAREA", "SELECT"])
+const TEXT_ENTRY_INPUT_TYPES = new Set([
+  "text",
+  "search",
+  "email",
+  "url",
+  "tel",
+  "password",
+  "number",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
+])
 
 export interface TextEntryCandidate {
   tagName: string
+  type?: string
   isContentEditable: boolean
 }
 
 export function isTextEntryElement(element: TextEntryCandidate | null): boolean {
   if (element === null) return false
-  return TEXT_ENTRY_TAG_NAMES.has(element.tagName) || element.isContentEditable
+  if (element.isContentEditable || TEXT_ENTRY_TAG_NAMES.has(element.tagName)) return true
+  return element.tagName === "INPUT" && TEXT_ENTRY_INPUT_TYPES.has((element.type ?? "text").toLowerCase())
 }
 
 export function loadReloadGuard(): string | null {

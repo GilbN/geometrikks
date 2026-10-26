@@ -239,9 +239,33 @@ describe("createIdleReloader", () => {
 })
 
 describe("isTextEntryElement", () => {
-  it.each(["INPUT", "TEXTAREA", "SELECT"])("is true for %s", (tagName) => {
+  it.each(["TEXTAREA", "SELECT"])("is true for %s", (tagName) => {
     expect(isTextEntryElement({ tagName, isContentEditable: false })).toBe(true)
   })
+
+  it.each([
+    "text",
+    "search",
+    "email",
+    "url",
+    "tel",
+    "password",
+    "number",
+    "date",
+    "time",
+    "datetime-local",
+    "month",
+    "week",
+  ])("is true for an input of type %s", (type) => {
+    expect(isTextEntryElement({ tagName: "INPUT", type, isContentEditable: false })).toBe(true)
+  })
+
+  it.each(["checkbox", "radio", "range", "button", "submit", "reset", "color", "file", "image", "hidden"])(
+    "is false for an input of type %s",
+    (type) => {
+      expect(isTextEntryElement({ tagName: "INPUT", type, isContentEditable: false })).toBe(false)
+    },
+  )
 
   it("is true for a contenteditable element", () => {
     expect(isTextEntryElement({ tagName: "DIV", isContentEditable: true })).toBe(true)
