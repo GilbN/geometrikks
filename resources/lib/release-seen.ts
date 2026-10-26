@@ -1,7 +1,7 @@
 /**
- * Which release the user last saw announced on the About page. The sidebar
- * version shows a dot while a newer release exists that this does not
- * match. Nothing stored means the dot shows.
+ * The release the About page last announced to this browser. The sidebar
+ * version shows a dot while the latest release differs from it, and with
+ * nothing stored the dot shows.
  */
 import { useSyncExternalStore } from "react"
 

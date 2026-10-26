@@ -13,9 +13,10 @@ export const RELEASE_CHECK_PENDING_POLL_MS = 2 * MINUTE_MS
 export const RELEASE_CHECK_POLL_MS = HOUR_MS
 
 /**
- * How often to ask for the release check. While the first check is still
- * pending the answer is a few seconds to minutes away, so ask often; after
- * that the server only re-checks every 12 hours. False means never poll.
+ * How often to ask the server for the release check. The first check runs a
+ * minute after startup, so poll every 2 minutes until it lands. After that the
+ * server re-checks every 12 hours and an hourly poll is plenty. False means
+ * the check is off and polling stops.
  */
 export function releaseCheckPollMs(status: ReleaseCheckResponse["status"] | undefined): number | false {
   if (status === "off") return false
