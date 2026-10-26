@@ -1,7 +1,6 @@
 """Configuration module for GeoMetrikks API."""
 
 from geometrikks.config.settings import (
-    APISettings,
     AppSettings,
     CrowdSecSettings,
     DatabaseSettings,
@@ -14,7 +13,6 @@ from geometrikks.config.settings import (
 __all__ = [
     "Settings",
     "get_settings",
-    "APISettings",
     "AppSettings",
     "CrowdSecSettings",
     "DatabaseSettings",

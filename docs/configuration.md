@@ -14,13 +14,6 @@ from real environment variables. It is read once at import time.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_NAME` | `GeoMetrikks API` | Application name |
-| `APP_VERSION` | *(computed)* | Application version (defaults to installed package metadata) |
-| `APP_DESCRIPTION` | `Real-time GeoIP lookups and traffic analytics API` | Application description |
-| `APP_DEBUG` | `false` | Enable debug mode |
-| `APP_ENVIRONMENT` | `production` | Application environment |
-| `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
-| `APP_IMAGE_TAG` | - | Optional container image tag embedded at build time. |
 | `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
@@ -35,32 +28,20 @@ from real environment variables. It is read once at import time.
 | `APP_PROXY_ADVISORY` | `true` | Warn on Settings > Status when most recent traffic for a tailed file comes from CDN or private peer addresses, meaning the proxy logs its upstream instead of the visitor. CDN findings for agent-tailed sources are scanned from the database on the head every 5 minutes. Set to false when the traffic mix is deliberate (Tailscale-only access, a CDN you front on purpose). |
 | `APP_INSTANCE_NAME` | - | Name this instance goes by on Settings > Agents, where the head lists every instance that reports in. Unset, agents show as "agent" and the head as "head". Set it on every agent. Two unnamed agents share one name and overwrite each other's status. Up to 255 characters, no slashes, no control characters, and not "." or "..". |
 
-## API server
-
-| Variable | Default | Description |
-|---|---|---|
-| `API_HOST` | `0.0.0.0` | API server host |
-| `API_PORT` | `8000` | API server port |
-| `API_LOG_LEVEL` | - | DEPRECATED: use LOG_LEVEL. Kept as a fallback for existing deployments. |
-
 ## Database
 
 | Variable | Default | Description |
 |---|---|---|
-| `DB_ECHO` | `false` | Enable SQLAlchemy query logging |
-| `DB_ECHO_POOL` | `false` | Enable SQLAlchemy pool logging |
 | `DB_MAX_OVERFLOW` | `10` | Max connections above pool_size |
 | `DB_POOL_SIZE` | `5` | Database connection pool size |
 | `DB_POOL_TIMEOUT` | `30` | Connection pool timeout in seconds |
 | `DB_POOL_RECYCLE` | `3600` | Connection recycle time in seconds |
-| `DB_POOL_DISABLED` | `false` | Disable connection pooling |
 | `DB_POOL_PRE_PING` | `true` | Enable pool pre-ping to check connections |
 | `DB_USER` | `geouser` | Database user |
 | `DB_PASSWORD` | - | Database password |
 | `DB_HOST` | `localhost` | Database host |
 | `DB_PORT` | `5432` | Database port |
 | `DB_DATABASE` | `geometrikks` | Database name |
-| `DB_DROP_ON_STARTUP` | `false` | Drop all tables on startup (development only) |
 | `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations automatically at app startup. Disable when migrations run as a separate deployment step (`litestar database upgrade`); the app then expects the schema to already be at head and fails startup if it is not usable |
 | `DB_STARTUP_WAIT_SECONDS` | `30` | How long startup waits for the database before serving in degraded mode. 0 probes once. The app keeps re-probing in the background after this window and recovers on its own when the database answers. |
 
@@ -70,8 +51,6 @@ from real environment variables. It is read once at import time.
 |---|---|---|
 | `GEOIP_DB_PATH` | `data/geoip/GeoLite2-City.mmdb` | Path to GeoIP2/GeoLite2 database file |
 | `GEOIP_LOCALES` | `["en"]` | List of GeoIP locales to use |
-| `GEOIP_VALIDATE_DB_PATH` | `false` | Fail settings validation when the GeoIP database file is missing. Off by default: the auto-downloader/degraded-mode path owns the missing-file case (set true to fail fast instead). |
-| `GEOIP_VALIDATE_LOCALES` | `true` | Validate that the specified GeoIP locales are supported |
 | `MAXMINDDB_USER_ID` | - | MaxMind account ID for GeoLite2 auto-download |
 | `MAXMINDDB_LICENSE_KEY` | - | MaxMind license key for GeoLite2 auto-download |
 | `GEOIP_REFRESH_DAYS` | `7` | Re-download the GeoLite2 database when older than this many days |
@@ -83,7 +62,7 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `LOG_DIR` | `logs` | Directory for application log files |
-| `LOG_LEVEL` | - | Root log level. Falls back to deprecated API_LOG_LEVEL, then INFO. |
+| `LOG_LEVEL` | `INFO` | Root log level |
 | `LOG_MAIN_MAX_BYTES` | `10485760` | Rotate the main JSONL log when it exceeds this size (bytes) |
 | `LOG_MAIN_BACKUP_COUNT` | `5` | Number of gzipped main-log archives to keep |
 | `LOG_LOGIN_MAX_BYTES` | `10485760` | Rotate the login log when it exceeds this size (bytes) |
@@ -101,7 +80,6 @@ from real environment variables. It is read once at import time.
 | `LOGPARSER_SERVER_NAME` | *(computed)* | Name recorded on every request this server ingests. It is a name you choose for this server, not your nginx `server_name`. Env accepts one value for every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. Formerly `LOGPARSER_HOST_NAME`, which still works until 1.0. |
 | `LOGPARSER_BATCH_SIZE` | `100` | Max records before forced commit. |
 | `LOGPARSER_COMMIT_INTERVAL` | `5.0` | Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached. |
-| `LOGPARSER_SKIP_VALIDATION` | `false` | Skip validation of log lines. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
 | `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
 
@@ -134,7 +112,6 @@ from real environment variables. It is read once at import time.
 | Variable | Default | Description |
 |---|---|---|
 | `SCHEDULER_ENABLED` | `true` | Enable scheduled background tasks |
-| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `10` | Minutes between GeoLocation.last_hit refresh jobs |
 
 ## Map
 
@@ -179,15 +156,26 @@ from real environment variables. It is read once at import time.
 | `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session when discovery advertises an end_session_endpoint. Register {app origin}/signed-out as the post-logout redirect URI before enabling it. When the endpoint is absent, logout still clears the GeoMetrikks session but cannot end the provider session. |
 | `OIDC_CA_BUNDLE` | - | PEM file with the CA that signed the identity provider's certificate, for providers behind an internal CA. There is no switch to turn verification off. |
 
-## Vite (development only)
+## Developer settings
+
+For working on GeoMetrikks itself. Deployments leave these at their
+defaults. The container image sets `APP_RUNTIME` and `APP_IMAGE_TAG` itself.
 
 | Variable | Default | Description |
 |---|---|---|
+| `APP_DEBUG` | `false` | Puts the traceback in error responses and logs 401, 404 and 503 errors with one. Never in production. |
+| `APP_ENVIRONMENT` | `production` | Shown on Settings > About. DB_DROP_ON_STARTUP runs only when this is development. |
+| `APP_RUNTIME` | `host` | Execution runtime; container images set this to container. |
+| `APP_IMAGE_TAG` | - | Container image tag, set at image build time. |
+| `DB_ECHO` | `false` | Log every SQL statement |
+| `DB_ECHO_POOL` | `false` | Log connection pool checkouts and returns |
+| `DB_POOL_DISABLED` | `false` | Open a new connection for every session instead of pooling |
+| `DB_DROP_ON_STARTUP` | `false` | Drop every table and TimescaleDB object at startup, then migrate from scratch. Only runs when APP_ENVIRONMENT=development. |
+| `LOGPARSER_SKIP_VALIDATION` | `false` | Start parsing without first waiting for a line in a known format. Auto-detection still picks the format from the first parseable line. |
+| `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` | `10` | Minutes between GeoLocation.last_hit refresh jobs |
 | `VITE_DEV_MODE` | `false` | Start vite development server. |
 | `VITE_USE_SERVER_LIFESPAN` | `true` | Auto start and stop vite processes when running in development mode. |
 | `VITE_HOST` | `0.0.0.0` | The host the vite process will listen on. Defaults to 0.0.0.0. |
 | `VITE_PORT` | `5173` | The port to start vite on. Default is 5173. |
-| `VITE_ENABLE_REACT_HELPERS` | `true` | Enable React support in HMR. |
 | `VITE_HTTP2` | `true` | Enable HTTP/2 for the Vite development server. |
-| `VITE_EXECUTOR` | `bun` | JS runtime executor for litestar-vite (defaults to bun). |
 

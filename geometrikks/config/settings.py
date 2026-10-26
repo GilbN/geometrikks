@@ -2,7 +2,6 @@ import json
 import os
 import socket
 import unicodedata
-import warnings
 from functools import lru_cache
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from ipaddress import ip_network
@@ -12,6 +11,7 @@ from urllib.parse import quote, urlsplit
 
 import msgspec
 from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic.json_schema import JsonDict
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.lib.urls import validate_https_url
 from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
@@ -47,6 +47,11 @@ OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback"
 
 LEGACY_FIELD_MARKER = "replaced_by"
 
+# json_schema_extra for settings that only matter when working on GeoMetrikks
+# itself; the configuration reference lists them in a section of their own.
+DEVELOPER_FIELD_MARKER = "developer"
+DEVELOPER_FIELD: JsonDict = {DEVELOPER_FIELD_MARKER: True}
+
 
 class LegacyEnvName(msgspec.Struct, frozen=True):
     """An old env var name in use, with the name that replaced it."""
@@ -72,6 +77,11 @@ def _legacy_replacement(json_schema_extra: object) -> str | None:
 def is_legacy_field(json_schema_extra: object) -> bool:
     """True for a field kept only so an old env var name keeps working."""
     return _legacy_replacement(json_schema_extra) is not None
+
+
+def is_developer_field(json_schema_extra: object) -> bool:
+    """True for a field tagged with DEVELOPER_FIELD."""
+    return isinstance(json_schema_extra, dict) and json_schema_extra.get(DEVELOPER_FIELD_MARKER) is True
 
 
 class LegacyEnvNamesSettings(BaseSettings):
@@ -146,20 +156,37 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DB_", env_file=_env_file(), extra="ignore")
 
-    echo: bool = Field(default=False, description="Enable SQLAlchemy query logging")
-    echo_pool: bool = Field(default=False, description="Enable SQLAlchemy pool logging")
+    echo: bool = Field(
+        default=False, description="Log every SQL statement", json_schema_extra=DEVELOPER_FIELD
+    )
+    echo_pool: bool = Field(
+        default=False,
+        description="Log connection pool checkouts and returns",
+        json_schema_extra=DEVELOPER_FIELD,
+    )
     max_overflow: int = Field(default=10, description="Max connections above pool_size")
     pool_size: int = Field(default=5, description="Database connection pool size")
     pool_timeout: int = Field(default=30, description="Connection pool timeout in seconds")
     pool_recycle: int = Field(default=3600, description="Connection recycle time in seconds")
-    pool_disabled: bool = Field(default=False, description="Disable connection pooling")
+    pool_disabled: bool = Field(
+        default=False,
+        description="Open a new connection for every session instead of pooling",
+        json_schema_extra=DEVELOPER_FIELD,
+    )
     pool_pre_ping: bool = Field(default=True, description="Enable pool pre-ping to check connections")
     user: str = Field(default="geouser", description="Database user")
     password: SecretStr = Field(default=SecretStr("geopass"), description="Database password")
     host: str = Field(default="localhost", description="Database host")
     port: int = Field(default=5432, description="Database port")
     database: str = Field(default="geometrikks", description="Database name")
-    drop_on_startup: bool = Field(default=False, description="Drop all tables on startup (development only)")
+    drop_on_startup: bool = Field(
+        default=False,
+        description=(
+            "Drop every table and TimescaleDB object at startup, then migrate "
+            "from scratch. Only runs when APP_ENVIRONMENT=development."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
+    )
     migrate_on_startup: bool = Field(
         default=True,
         description=(
@@ -229,18 +256,6 @@ class GeoIPSettings(BaseSettings):
         default=["en"],
         description="List of GeoIP locales to use",
     )
-    validate_db_path: bool = Field(
-        default=False,
-        description=(
-            "Fail settings validation when the GeoIP database file is missing. "
-            "Off by default: the auto-downloader/degraded-mode path owns the "
-            "missing-file case (set true to fail fast instead)."
-        ),
-    )
-    validate_locales: bool = Field(
-        default=True,
-        description="Validate that the specified GeoIP locales are supported"
-    )
     account_id: str | None = Field(
         default=None,
         validation_alias="MAXMINDDB_USER_ID",
@@ -269,53 +284,26 @@ class GeoIPSettings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def validate_geoip_db_exists(self) -> "GeoIPSettings":
-        """Ensure GeoIP database file exists if validation is enabled.
+    def resolve_db_paths(self) -> "GeoIPSettings":
+        """Resolve relative database paths from the project root.
 
-        Resolves relative paths from the project root to work in all contexts.
+        No existence check: the downloader and degraded mode handle a
+        missing file.
         """
         project_root = Path(__file__).parent.parent.parent
-        db_path = self.db_path
-
-        # If path is relative, resolve from project root
-        if not db_path.is_absolute():
-            db_path = project_root / db_path
-
-        if self.validate_db_path and not db_path.exists():
-            raise ValueError(f"GeoIP database file not found: {db_path}")
-
-        # Update the path to absolute for runtime use
-        self.db_path = db_path
-
-        # Same resolution for the ASN path, but no existence check; the
-        # downloader handles a missing file.
-        asn_db_path = self.asn_db_path
-        if not asn_db_path.is_absolute():
-            asn_db_path = project_root / asn_db_path
-        self.asn_db_path = asn_db_path
+        if not self.db_path.is_absolute():
+            self.db_path = project_root / self.db_path
+        if not self.asn_db_path.is_absolute():
+            self.asn_db_path = project_root / self.asn_db_path
         return self
 
     @model_validator(mode="after")
     def validate_geoip_locales(self) -> "GeoIPSettings":
-        """Ensure GeoIP locales are valid if validation is enabled."""
-        if self.validate_locales:
-            invalid_locales = [loc for loc in self.locales if loc not in ALLOWED_GEOIP_LOCALES]
-            if invalid_locales:
-                raise ValueError(f"Invalid GeoIP locales: {invalid_locales}. Allowed locales are: {ALLOWED_GEOIP_LOCALES}")
+        """Reject locales the GeoLite2 databases do not carry."""
+        invalid_locales = [loc for loc in self.locales if loc not in ALLOWED_GEOIP_LOCALES]
+        if invalid_locales:
+            raise ValueError(f"Invalid GeoIP locales: {invalid_locales}. Allowed locales are: {ALLOWED_GEOIP_LOCALES}")
         return self
-
-
-class APISettings(BaseSettings):
-    """API server configuration settings."""
-
-    model_config = SettingsConfigDict(env_prefix="API_", env_file=_env_file(), extra="ignore")
-
-    host: str = Field(default="0.0.0.0", description="API server host")
-    port: int = Field(default=8000, description="API server port")
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = Field(
-        default=None,
-        description="DEPRECATED: use LOG_LEVEL. Kept as a fallback for existing deployments.",
-    )
 
 
 class LogSettings(BaseSettings):
@@ -324,9 +312,9 @@ class LogSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LOG_", env_file=_env_file(), extra="ignore")
 
     dir: Path = Field(default=Path("logs"), description="Directory for application log files")
-    level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] | None = Field(
-        default=None,
-        description="Root log level. Falls back to deprecated API_LOG_LEVEL, then INFO.",
+    level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        description="Root log level",
     )
     main_max_bytes: int = Field(
         default=10 * 1024 * 1024,
@@ -394,9 +382,13 @@ class LogParserSettings(LegacyEnvNamesSettings):
         default=5.0,
         description="Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached.",
     )
-    skip_validation : bool = Field(
+    skip_validation: bool = Field(
         default=False,
-        description="Skip validation of log lines.",
+        description=(
+            "Start parsing without first waiting for a line in a known format. "
+            "Auto-detection still picks the format from the first parseable line."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
     )
     store_debug_lines: bool = Field(
         default=False,
@@ -775,6 +767,7 @@ class SchedulerSettings(BaseSettings):
     location_refresh_interval_minutes: int = Field(
         default=10,
         description="Minutes between GeoLocation.last_hit refresh jobs",
+        json_schema_extra=DEVELOPER_FIELD,
     )
 
 
@@ -1207,18 +1200,9 @@ class ViteSettings(BaseSettings):
         default=5173,
         description="The port to start vite on. Default is 5173."
     )
-    enable_react_helpers: bool = Field(
-        default=True,
-        description="Enable React support in HMR."
-    )
     http2: bool = Field(
         default=True,
         description="Enable HTTP/2 for the Vite development server."
-    )
-
-    executor: Literal["node", "bun", "deno", "yarn", "pnpm"] | None = Field(
-        default="bun",
-        description="JS runtime executor for litestar-vite (defaults to bun).",
     )
 
 
@@ -1286,8 +1270,7 @@ class Settings(BaseSettings):
     3. Default values
     
     Example .env file:
-        APP_NAME=GeoMetrikks
-        APP_DEBUG=true
+        APP_ADMIN_PASSWORD=change-me
         GEOIP_DB_PATH=data/GeoLite2-City.mmdb
     """
 
@@ -1299,28 +1282,31 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Application metadata
-    name: str = Field(default="GeoMetrikks API", description="Application name")
-    version: str = Field(
-        default_factory=get_installed_version,
-        description="Application version (defaults to installed package metadata)",
+    debug: bool = Field(
+        default=False,
+        description=(
+            "Puts the traceback in error responses and logs 401, 404 and 503 "
+            "errors with one. Never in production."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
     )
-    description: str = Field(
-        default="Real-time GeoIP lookups and traffic analytics API",
-        description="Application description",
-    )
-    debug: bool = Field(default=False, description="Enable debug mode")
     environment: Literal["development", "staging", "production"] = Field(
         default="production",
-        description="Application environment",
+        description=(
+            "Shown on Settings > About. DB_DROP_ON_STARTUP runs only when this "
+            "is development."
+        ),
+        json_schema_extra=DEVELOPER_FIELD,
     )
     runtime: Literal["host", "container"] = Field(
         default="host",
         description="Execution runtime; container images set this to container.",
+        json_schema_extra=DEVELOPER_FIELD,
     )
     image_tag: str | None = Field(
         default=None,
-        description="Optional container image tag embedded at build time.",
+        description="Container image tag, set at image build time.",
+        json_schema_extra=DEVELOPER_FIELD,
     )
 
     # Authentication (single admin user; see Phase 1c design)
@@ -1355,6 +1341,19 @@ class Settings(BaseSettings):
         ),
     )
 
+    @property
+    def name(self) -> str:
+        return "GeoMetrikks API"
+
+    @property
+    def description(self) -> str:
+        return "Real-time GeoIP lookups and traffic analytics API"
+
+    @property
+    def version(self) -> str:
+        """The installed package version."""
+        return get_installed_version()
+
     @field_validator("trusted_proxies", mode="before")
     @classmethod
     def parse_trusted_proxies(cls, value: object) -> object:
@@ -1374,25 +1373,8 @@ class Settings(BaseSettings):
                 ) from exc
         return value
 
-    @model_validator(mode="after")
-    def _resolve_log_level(self) -> "Settings":
-        """LOG_LEVEL wins; deprecated API_LOG_LEVEL is honored with a warning."""
-        if self.log.level is None:
-            if self.api.log_level is not None:
-                warnings.warn(
-                    "API_LOG_LEVEL is deprecated and will be removed in a future "
-                    "release; set LOG_LEVEL instead.",
-                    DeprecationWarning,
-                    stacklevel=2,
-                )
-                self.log.level = self.api.log_level
-            else:
-                self.log.level = "INFO"
-        return self
-
     # Sub-configurations
     app: AppSettings = Field(default_factory=AppSettings)
-    api: APISettings = Field(default_factory=APISettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     geoip: GeoIPSettings = Field(default_factory=GeoIPSettings)
     log: LogSettings = Field(default_factory=LogSettings)
