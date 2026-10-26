@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
+import axios from "axios"
 import { fetchAbout, fetchHealth, fetchRuntimeSettings } from "@/lib/api"
 import {
   autoReloadPage,
@@ -26,6 +27,9 @@ export async function readServerBuild(): Promise<BuildIdentity> {
 }
 
 function reportWiringError(wiringError: unknown): void {
+  // A failed read during a restart or after logout (503, 401, network) is
+  // expected and retried on the next poll, so only a code error is logged.
+  if (axios.isAxiosError(wiringError)) return
   console.error("Update detector failed", wiringError)
 }
 
