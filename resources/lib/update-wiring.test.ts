@@ -106,3 +106,38 @@ describe("a health poll", () => {
     expect(reload).not.toHaveBeenCalled()
   })
 })
+
+describe("the return window", () => {
+  function comeBack(events: EventTarget, state: { visibility: DocumentVisibilityState }) {
+    state.visibility = "visible"
+    events.dispatchEvent(new Event("visibilitychange"))
+  }
+
+  it("reloads at once when the first poll after coming back finds the update", async () => {
+    const { wiring, events, state, reload } = setup([build("0.22.0"), build("0.23.0")], { visibility: "hidden" })
+    await wiring.start()
+    await wiring.pollSucceeded("t1")
+    comeBack(events, state)
+    await wiring.pollSucceeded("t2")
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it("closes when a poll fails, so a later update waits for the idle timer", async () => {
+    const { wiring, events, state, reload } = setup([build("0.22.0"), build("0.23.0")], { visibility: "hidden" })
+    await wiring.start()
+    await wiring.pollSucceeded("t1")
+    comeBack(events, state)
+    wiring.pollFailed()
+    await wiring.pollSucceeded("t2")
+    expect(getReloadNoticeState().pending).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(IDLE_RELOAD_MS)
+    expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it("ignores a failed poll before any reloader is attached", () => {
+    const { wiring, detach } = setup([build("0.22.0")])
+    detach()
+    expect(() => wiring.pollFailed()).not.toThrow()
+  })
+})

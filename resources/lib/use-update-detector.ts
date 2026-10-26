@@ -47,7 +47,7 @@ export function loadNow(href: string): void {
 }
 
 export function useUpdateDetector(): void {
-  const { data: healthResponse, dataUpdatedAt } = useQuery({
+  const { data: healthResponse, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
     refetchInterval: 30_000,
@@ -89,4 +89,9 @@ export function useUpdateDetector(): void {
     if (healthResponse === undefined) return
     void wiring.pollSucceeded(healthResponse.startedAt)
   }, [healthResponse, dataUpdatedAt])
+
+  useEffect(() => {
+    if (errorUpdatedAt === 0) return
+    wiring.pollFailed()
+  }, [errorUpdatedAt])
 }

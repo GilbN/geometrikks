@@ -20,6 +20,7 @@ export interface UpdateWiring {
   start(): Promise<void>
   serviceWorkerUpdated(): Promise<void>
   pollSucceeded(startedAt: string | null): Promise<void>
+  pollFailed(): void
   attachIdleReloader(idleReloader: IdleReloader): () => void
 }
 
@@ -53,6 +54,9 @@ export function createUpdateWiring(deps: UpdateWiringDeps): UpdateWiring {
         .observeStartedAt(startedAt)
         .then(clearGuardOnceKnown, deps.reportError)
         .then(() => attachedReloader?.checkSettled()),
+    // A page that comes back during a restart was visible when the server
+    // returned, so the update it then finds must not reload it at once.
+    pollFailed: () => attachedReloader?.checkSettled(),
     attachIdleReloader(idleReloader) {
       attachedReloader = idleReloader
       const armWhenPending = () => {
