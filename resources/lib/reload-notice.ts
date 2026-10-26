@@ -71,8 +71,8 @@ export function reloadNoticeTooltip(version: string | null): string {
   return `${reloadNoticeTitle(version)}, click to reload`
 }
 
-export function reloadToastMessage(version: string | null): string {
-  return version === null ? "A new version is ready. Reload to use it." : `Updated to ${displayVersion(version)}. Reload to use it.`
+export function reloadToastTitle(version: string | null): string {
+  return version === null ? "A new version is ready" : `Updated to ${displayVersion(version)}`
 }
 
 export function resetReloadNoticeForTests(): void {

@@ -7,7 +7,7 @@ import {
   nameUpdateVersion,
   reloadNoticeTitle,
   reloadNoticeTooltip,
-  reloadToastMessage,
+  reloadToastTitle,
   resetReloadNoticeForTests,
   subscribeReloadNotice,
 } from "./reload-notice"
@@ -74,12 +74,12 @@ describe("copy", () => {
     expect(reloadNoticeTitle("0.23.0")).toBe("v0.23.0 ready")
     expect(reloadNoticeTitle("0.23.0.dev2")).toBe("v0.23.0-dev.2 ready")
     expect(reloadNoticeTooltip("0.23.0")).toBe("v0.23.0 ready, click to reload")
-    expect(reloadToastMessage("0.23.0")).toBe("Updated to v0.23.0. Reload to use it.")
+    expect(reloadToastTitle("0.23.0")).toBe("Updated to v0.23.0")
   })
 
   it("stays generic before a version is known", () => {
     expect(reloadNoticeTitle(null)).toBe("A new version is ready")
     expect(reloadNoticeTooltip(null)).toBe("A new version is ready, click to reload")
-    expect(reloadToastMessage(null)).toBe("A new version is ready. Reload to use it.")
+    expect(reloadToastTitle(null)).toBe("A new version is ready")
   })
 })
