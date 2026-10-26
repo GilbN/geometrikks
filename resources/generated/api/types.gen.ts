@@ -965,6 +965,16 @@ export type LastErrorReport = {
 };
 
 /**
+ * LatestReleaseView
+ */
+export type LatestReleaseView = {
+  displayVersion: string;
+  publishedAt: string;
+  url: string;
+  version: string;
+};
+
+/**
  * ListAccessLogsAccessLogResponseBody
  */
 export type ListAccessLogsAccessLogResponseBody = {
@@ -1223,6 +1233,15 @@ export type PeriodSummary = {
  */
 export type ReadinessResponse = {
   ready: boolean;
+};
+
+/**
+ * ReleaseCheckResponse
+ */
+export type ReleaseCheckResponse = {
+  checkedAt: string | null;
+  latest: LatestReleaseView | null;
+  status: "off" | "pending" | "checked";
 };
 
 /**
@@ -4601,6 +4620,23 @@ export type ApiV1SystemDatabaseGetDatabaseInfoResponses = {
 
 export type ApiV1SystemDatabaseGetDatabaseInfoResponse =
   ApiV1SystemDatabaseGetDatabaseInfoResponses[keyof ApiV1SystemDatabaseGetDatabaseInfoResponses];
+
+export type ApiV1SystemReleaseCheckGetReleaseCheckData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/release-check";
+};
+
+export type ApiV1SystemReleaseCheckGetReleaseCheckResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ReleaseCheckResponse;
+};
+
+export type ApiV1SystemReleaseCheckGetReleaseCheckResponse =
+  ApiV1SystemReleaseCheckGetReleaseCheckResponses[keyof ApiV1SystemReleaseCheckGetReleaseCheckResponses];
 
 export type ApiV1SystemSchedulerJobsGetSchedulerJobsData = {
   body?: never;

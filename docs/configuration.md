@@ -27,6 +27,7 @@ from real environment variables. It is read once at import time.
 |---|---|---|
 | `APP_MODE` | `full` | Application mode: full (all components) or agent (logparser only) |
 | `APP_PROXY_ADVISORY` | `true` | Warn on Settings > Status when most recent traffic for a tailed file comes from CDN or private peer addresses, meaning the proxy logs its upstream instead of the visitor. CDN findings for agent-tailed sources are scanned from the database on the head every 5 minutes. Set to false when the traffic mix is deliberate (Tailscale-only access, a CDN you front on purpose). |
+| `APP_UPDATE_CHECK` | `true` | Check GitHub Releases every 12 hours for a newer GeoMetrikks release and mention it on the About page. The request goes to api.github.com and carries no information about this instance. Set to false for an offline install or if you don't want the app to contact GitHub. |
 | `APP_INSTANCE_NAME` | - | Name this instance goes by on Settings > Agents, where the head lists every instance that reports in. Unset, agents show as "agent" and the head as "head". Set it on every agent. Two unnamed agents share one name and overwrite each other's status. Up to 255 characters, no slashes, no control characters, and not "." or "..". |
 
 ## Database

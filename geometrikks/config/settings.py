@@ -1226,6 +1226,16 @@ class AppSettings(BaseSettings):
             "(Tailscale-only access, a CDN you front on purpose)."
         ),
     )
+    update_check: bool = Field(
+        default=True,
+        description=(
+            "Check GitHub Releases every 12 hours for a newer GeoMetrikks "
+            "release and mention it on the About page. The request goes to "
+            "api.github.com and carries no information about this instance. "
+            "Set to false for an offline install or if you don't want the "
+            "app to contact GitHub."
+        ),
+    )
     instance_name: str | None = Field(
         default=None,
         description=(

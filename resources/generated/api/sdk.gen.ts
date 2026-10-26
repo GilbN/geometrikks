@@ -180,6 +180,8 @@ import type {
   ApiV1SystemChangelogGetChangelogResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
+  ApiV1SystemReleaseCheckGetReleaseCheckData,
+  ApiV1SystemReleaseCheckGetReleaseCheckResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
   ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
   ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData,
@@ -2032,6 +2034,34 @@ export const apiV1SystemDatabaseGetDatabaseInfo = <
       },
     ],
     url: "/api/v1/system/database",
+    ...options,
+  });
+
+/**
+ * GetReleaseCheck
+ */
+export const apiV1SystemReleaseCheckGetReleaseCheck = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1SystemReleaseCheckGetReleaseCheckData, ThrowOnError>,
+): RequestResult<
+  ApiV1SystemReleaseCheckGetReleaseCheckResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1SystemReleaseCheckGetReleaseCheckResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/system/release-check",
     ...options,
   });
 

@@ -177,6 +177,8 @@ import type {
   ApiV1SystemChangelogGetChangelogResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
+  ApiV1SystemReleaseCheckGetReleaseCheckData,
+  ApiV1SystemReleaseCheckGetReleaseCheckResponses,
   ApiV1SystemSchedulerJobsGetSchedulerJobsData,
   ApiV1SystemSchedulerJobsGetSchedulerJobsResponses,
   ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData,
@@ -233,6 +235,7 @@ export type OperationName =
   | 'get_ip_profile'
   | 'get_live_summary'
   | 'get_location_top_ips'
+  | 'get_release_check'
   | 'get_scheduler_jobs'
   | 'get_stats'
   | 'get_status'
@@ -307,6 +310,7 @@ export interface OperationDataTypes {
   'get_ip_profile': ApiV1AnalyticsIpProfileGetIpProfileData
   'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryData
   'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData
+  'get_release_check': ApiV1SystemReleaseCheckGetReleaseCheckData
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsData
   'get_stats': ApiV1CrowdsecStatsGetStatsData
   'get_status': ApiV1CrowdsecStatusGetStatusData
@@ -382,6 +386,7 @@ export interface OperationResponseTypes {
   'get_ip_profile': ApiV1AnalyticsIpProfileGetIpProfileResponses
   'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses
   'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsResponses
+  'get_release_check': ApiV1SystemReleaseCheckGetReleaseCheckResponses
   'get_scheduler_jobs': ApiV1SystemSchedulerJobsGetSchedulerJobsResponses
   'get_stats': ApiV1CrowdsecStatsGetStatsResponses
   'get_status': ApiV1CrowdsecStatusGetStatusResponses
@@ -457,6 +462,7 @@ export interface OperationErrorTypes {
   'get_ip_profile': ApiV1AnalyticsIpProfileGetIpProfileErrors
   'get_live_summary': ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors
   'get_location_top_ips': ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors
+  'get_release_check': never
   'get_scheduler_jobs': never
   'get_stats': never
   'get_status': never

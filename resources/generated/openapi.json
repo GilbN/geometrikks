@@ -3575,6 +3575,31 @@
         "title": "LastErrorReport",
         "type": "object"
       },
+      "LatestReleaseView": {
+        "properties": {
+          "displayVersion": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayVersion",
+          "publishedAt",
+          "url",
+          "version"
+        ],
+        "title": "LatestReleaseView",
+        "type": "object"
+      },
       "ListAccessLogsAccessLogResponseBody": {
         "properties": {
           "autonomousSystemNumber": {
@@ -4598,6 +4623,46 @@
           "ready"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "ReleaseCheckResponse": {
+        "properties": {
+          "checkedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LatestReleaseView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "off",
+              "pending",
+              "checked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkedAt",
+          "latest",
+          "status"
+        ],
+        "title": "ReleaseCheckResponse",
         "type": "object"
       },
       "ReportAlertDTO": {
@@ -14751,6 +14816,29 @@
           }
         },
         "summary": "GetDatabaseInfo",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/release-check": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemReleaseCheckGetReleaseCheck",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseCheckResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetReleaseCheck",
         "tags": [
           "System"
         ]

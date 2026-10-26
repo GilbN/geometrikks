@@ -3,6 +3,7 @@
  */
 
 import { useEffect } from "react"
+import { releaseCheckPollMs } from "@/lib/release-check"
 import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
@@ -81,6 +82,7 @@ import {
   type AccessLogDebugSortField,
   type AccessLogDebugStats,
   type AlertPageView,
+  fetchReleaseCheck,
 } from "./api"
 import {
   applyBannedIpsDelta,
@@ -116,6 +118,7 @@ export const queryKeys = {
     schedulerJobs: ["system", "scheduler-jobs"] as const,
     about: ["system", "about"] as const,
     changelog: ["system", "changelog"] as const,
+    releaseCheck: ["system", "release-check"] as const,
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
@@ -260,6 +263,15 @@ export function useAbout() {
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
     staleTime: Number.POSITIVE_INFINITY,
+  })
+}
+
+export function useReleaseCheck() {
+  return useQuery({
+    queryKey: queryKeys.system.releaseCheck,
+    queryFn: fetchReleaseCheck,
+    staleTime: (query) => releaseCheckPollMs(query.state.data?.status) || Number.POSITIVE_INFINITY,
+    refetchInterval: (query) => releaseCheckPollMs(query.state.data?.status),
   })
 }
 

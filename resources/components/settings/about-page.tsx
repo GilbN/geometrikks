@@ -1,7 +1,9 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Bug, Cpu, Database, ExternalLink, Globe2 } from "lucide-react"
 import type { AboutResponse } from "@/generated/api/types.gen"
-import { useAbout } from "@/lib/queries"
+import { useAbout, useReleaseCheck } from "@/lib/queries"
+import { releaseCheckLine } from "@/lib/release-check"
+import { saveSeenRelease } from "@/lib/release-seen"
 import { displayVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -71,9 +73,47 @@ function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: s
   )
 }
 
+const RELEASE_LINE_TICK_MS = 60_000
+
+/** Marks the release seen only once its announcement is on screen. */
+function ReleaseLine() {
+  const { data: releaseCheck } = useReleaseCheck()
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const releaseLine = releaseCheckLine(releaseCheck, nowMs)
+  const announcedVersion = releaseLine?.kind === "available" ? releaseCheck?.latest?.version : undefined
+
+  useEffect(() => {
+    if (announcedVersion) saveSeenRelease(announcedVersion)
+  }, [announcedVersion])
+
+  const lineShown = releaseLine !== null
+  useEffect(() => {
+    if (!lineShown) return
+    const interval = setInterval(() => setNowMs(Date.now()), RELEASE_LINE_TICK_MS)
+    return () => clearInterval(interval)
+  }, [lineShown])
+
+  if (releaseLine?.kind === "available") {
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-1 text-sm">
+        <span className="font-medium">{releaseLine.text}</span>
+        <Button variant="link" size="sm" className="h-auto px-1 py-0 pointer-coarse:h-10" asChild>
+          <a href={releaseLine.url} target="_blank" rel="noreferrer">
+            Release notes
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </Button>
+      </div>
+    )
+  }
+  if (releaseLine?.kind === "up-to-date") {
+    return <p className="mt-1.5 text-xs text-muted-foreground">{releaseLine.text}</p>
+  }
+  return null
+}
+
 export function AboutPage() {
   const { data, isLoading } = useAbout()
-
   if (isLoading || !data) {
     return (
       <div className="grid gap-4 md:grid-cols-2">
@@ -129,6 +169,7 @@ export function AboutPage() {
                   </Badge>
                 )}
               </div>
+              <ReleaseLine />
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm">

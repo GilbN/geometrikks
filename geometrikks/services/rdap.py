@@ -24,6 +24,7 @@ import httpx2
 import msgspec
 
 from geometrikks.domain.exceptions import DomainNotFoundError, DomainValidationError
+from geometrikks.lib.outbound import USER_AGENT
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -40,7 +41,6 @@ REQUEST_TIMEOUT_SECONDS = 10.0
 MAX_REDIRECTS = 3
 # The IANA ipv6 bootstrap is ~40 KiB and a registry answer a few KiB.
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-USER_AGENT = "GeoMetrikks (+https://geometrikks.dev)"
 
 LookupKind = Literal["ip", "asn"]
 

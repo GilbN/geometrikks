@@ -40,6 +40,8 @@ from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
 from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
+from geometrikks.lib.versioning import display_version
+from geometrikks.services.release_check import release_check_enabled
 
 if TYPE_CHECKING:
     from apscheduler.job import Job
@@ -143,6 +145,24 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     geoip_asn: GeoIPInfoView | None = None
     geoip_asn_enabled: bool = False
     asn_classification: AsnClassificationView | None = None
+
+
+ReleaseCheckStatus = Literal["off", "pending", "checked"]
+
+
+class LatestReleaseView(msgspec.Struct, rename="camel"):
+    version: str
+    display_version: str
+    url: str
+    published_at: datetime
+
+
+class ReleaseCheckResponse(msgspec.Struct, rename="camel"):
+    # "off": this process never checks. "pending": no successful check yet.
+    status: ReleaseCheckStatus
+    # Only a release newer than the running version, else None.
+    latest: LatestReleaseView | None
+    checked_at: datetime | None
 
 
 def _dist_version(name: str) -> str | None:
@@ -396,6 +416,30 @@ class SystemController(Controller):
     async def get_changelog(self) -> changelog.ChangelogResponse:
         """Every release in CHANGELOG.md, newest first, for the Changelog page."""
         return changelog.ChangelogResponse(releases=changelog.read_changelog().releases)
+
+    @get("/release-check")
+    async def get_release_check(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+    ) -> ReleaseCheckResponse:
+        """The newest GitHub release above the running version, once one is known."""
+        if not release_check_enabled(settings):
+            return ReleaseCheckResponse(status="off", latest=None, checked_at=None)
+        release_checker = runtime.get_release_checker(request.app)
+        if release_checker is None or release_checker.checked_at is None:
+            return ReleaseCheckResponse(status="pending", latest=None, checked_at=None)
+        github_release = release_checker.latest
+        return ReleaseCheckResponse(
+            status="checked",
+            latest=None
+            if github_release is None
+            else LatestReleaseView(
+                version=str(github_release.version),
+                display_version=display_version(str(github_release.version)),
+                url=github_release.url,
+                published_at=github_release.published_at,
+            ),
+            checked_at=release_checker.checked_at,
+        )
 
     @get("/database")
     async def get_database_info(

@@ -29,11 +29,17 @@ if TYPE_CHECKING:
     from geometrikks.services.geoip.self_location import SelfLocation
     from geometrikks.services.ingestion import LogIngestionService
     from geometrikks.services.oidc import OidcClient
+    from geometrikks.services.release_check import ReleaseChecker
 
 
 def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
     """None when ingestion never started (DB- or geo-degraded mode)."""
     return getattr(app.state, "ingestion_service", None)
+
+
+def get_release_checker(app: Litestar) -> ReleaseChecker | None:
+    """None when the release check is off or the scheduler never registered it."""
+    return getattr(app.state, "release_checker", None)
 
 
 def get_advisories(app: Litestar) -> AdvisoryRegistry:

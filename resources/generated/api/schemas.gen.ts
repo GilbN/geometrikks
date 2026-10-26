@@ -3384,6 +3384,27 @@ export const LastErrorReportSchema = {
   type: "object",
 } as const;
 
+export const LatestReleaseViewSchema = {
+  properties: {
+    displayVersion: {
+      type: "string",
+    },
+    publishedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    url: {
+      type: "string",
+    },
+    version: {
+      type: "string",
+    },
+  },
+  required: ["displayVersion", "publishedAt", "url", "version"],
+  title: "LatestReleaseView",
+  type: "object",
+} as const;
+
 export const ListAccessLogsAccessLogResponseBodySchema = {
   properties: {
     autonomousSystemNumber: {
@@ -4369,6 +4390,39 @@ export const ReadinessResponseSchema = {
   },
   required: ["ready"],
   title: "ReadinessResponse",
+  type: "object",
+} as const;
+
+export const ReleaseCheckResponseSchema = {
+  properties: {
+    checkedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    latest: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/LatestReleaseView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status: {
+      enum: ["off", "pending", "checked"],
+      type: "string",
+    },
+  },
+  required: ["checkedAt", "latest", "status"],
+  title: "ReleaseCheckResponse",
   type: "object",
 } as const;
 
