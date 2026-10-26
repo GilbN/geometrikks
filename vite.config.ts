@@ -98,6 +98,11 @@ export default defineConfig({
             },
           },
         ],
+        // autoUpdate turns these on only when the plugin injects the
+        // registration, and injectRegister is false above. Without them a new
+        // worker waits until every tab closes, which a wall dashboard never does.
+        skipWaiting: true,
+        clientsClaim: true,
         // Inline the runtime; a sibling workbox-*.js would 404 at the root.
         inlineWorkboxRuntime: true,
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,

@@ -7,8 +7,9 @@ import { routeTree } from "./routeTree.gen"
 import "@/lib/client"
 import "@/main.css"
 import { registerSW } from "virtual:pwa-register"
+import { swRegisterOptions } from "@/lib/sw-register"
 
-registerSW({ immediate: true })
+registerSW(swRegisterOptions())
 
 // The manifest link is injected here instead of index.html: the dev server's
 // HTML transform rewrites root-relative hrefs (prepending the /static/ asset
