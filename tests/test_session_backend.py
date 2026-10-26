@@ -148,11 +148,15 @@ async def test_final_second_session_write_clears_rather_than_renews():
         else:
             pytest.fail("session never reached its final second")
 
-        res = await client.get("/api/v1/touch-session")
+        # http.cookiejar floors the Max-Age expiry to a whole second, so the
+        # jar can drop the cookie up to a second before the store entry
+        # expires. Send it by hand so the request always carries the session.
+        cookie = {"Cookie": f"session={sid}"}
+        res = await client.get("/api/v1/touch-session", headers=cookie)
         assert res.status_code == 200
         assert await store.get(sid) is None
 
-        assert (await client.get("/api/v1/protected")).status_code == 401
+        assert (await client.get("/api/v1/protected", headers=cookie)).status_code == 401
 
 
 def test_logout_during_a_parked_session_write_is_not_undone():
