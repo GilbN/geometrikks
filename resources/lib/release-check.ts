@@ -9,6 +9,20 @@ const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
 
+export const RELEASE_CHECK_PENDING_POLL_MS = 2 * MINUTE_MS
+export const RELEASE_CHECK_POLL_MS = HOUR_MS
+
+/**
+ * How often to ask for the release check. While the first check is still
+ * pending the answer is a few seconds to minutes away, so ask often; after
+ * that the server only re-checks every 12 hours. False means never poll.
+ */
+export function releaseCheckPollMs(status: ReleaseCheckResponse["status"] | undefined): number | false {
+  if (status === "off") return false
+  if (status === "pending") return RELEASE_CHECK_PENDING_POLL_MS
+  return RELEASE_CHECK_POLL_MS
+}
+
 const relativeTime = new Intl.RelativeTimeFormat("en", { numeric: "always" })
 
 export function checkedAgo(checkedAt: string, nowMs: number): string {

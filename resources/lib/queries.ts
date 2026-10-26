@@ -3,6 +3,7 @@
  */
 
 import { useEffect } from "react"
+import { releaseCheckPollMs } from "@/lib/release-check"
 import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
@@ -265,14 +266,12 @@ export function useAbout() {
   })
 }
 
-export const RELEASE_CHECK_POLL_MS = 3_600_000
-
 export function useReleaseCheck() {
   return useQuery({
     queryKey: queryKeys.system.releaseCheck,
     queryFn: fetchReleaseCheck,
-    staleTime: RELEASE_CHECK_POLL_MS,
-    refetchInterval: (query) => (query.state.data?.status === "off" ? false : RELEASE_CHECK_POLL_MS),
+    staleTime: (query) => releaseCheckPollMs(query.state.data?.status) || Number.POSITIVE_INFINITY,
+    refetchInterval: (query) => releaseCheckPollMs(query.state.data?.status),
   })
 }
 

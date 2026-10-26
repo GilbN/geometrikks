@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 import type { ReleaseCheckResponse } from "@/generated/api/types.gen"
-import { checkedAgo, releaseCheckLine, showsReleaseDot } from "./release-check"
+import {
+  RELEASE_CHECK_PENDING_POLL_MS,
+  RELEASE_CHECK_POLL_MS,
+  checkedAgo,
+  releaseCheckLine,
+  releaseCheckPollMs,
+  showsReleaseDot,
+} from "./release-check"
 
 const NOW = Date.parse("2026-10-25T12:00:00Z")
 const NOTES_URL = "https://github.com/GilbN/geometrikks/releases/tag/v0.23.0"
@@ -101,5 +108,25 @@ describe("showsReleaseDot", () => {
 
   it.each([null, "0.23.0"])("never shows without a newer release (seen %s)", (seenVersion) => {
     expect(showsReleaseDot({ reloadPending: false, latestVersion: null, seenVersion })).toBe(false)
+  })
+})
+
+describe("releaseCheckPollMs", () => {
+  it("polls every two minutes while the first check is pending", () => {
+    expect(releaseCheckPollMs("pending")).toBe(RELEASE_CHECK_PENDING_POLL_MS)
+    expect(RELEASE_CHECK_PENDING_POLL_MS).toBe(120_000)
+  })
+
+  it("polls hourly once a check has finished", () => {
+    expect(releaseCheckPollMs("checked")).toBe(RELEASE_CHECK_POLL_MS)
+    expect(RELEASE_CHECK_POLL_MS).toBe(3_600_000)
+  })
+
+  it("does not poll when the check is off", () => {
+    expect(releaseCheckPollMs("off")).toBe(false)
+  })
+
+  it("falls back to hourly before the first response", () => {
+    expect(releaseCheckPollMs(undefined)).toBe(RELEASE_CHECK_POLL_MS)
   })
 })
