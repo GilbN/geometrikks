@@ -21,8 +21,8 @@ repository's `README.md`, `docs/*.md`, `CHANGELOG.md` and `SECURITY.md`,
 splits the README on its H2 headings, rewrites links for the site, and
 writes the result to `src/content/docs/` (gitignored). It also copies
 `data/screenshots/*.png` to `src/assets/screenshots/`, the runr font to
-`public/fonts/`, and the version from `pyproject.toml` to
-`src/data/meta.json`. Edit the sources, not the generated files.
+`public/fonts/`, and the latest released version from the `CHANGELOG.md`
+headings to `src/data/meta.json`. Edit the sources, not the generated files.
 
 A README section that has no entry in `pageMap` fails the sync, so a new
 H2 in the README needs a line there. A link to a README anchor the map does
@@ -39,7 +39,7 @@ Cloudflare dashboard (Workers & Pages, Create, Import a repository):
 | Build command | `bun install --frozen-lockfile && bun run build` |
 | Deploy command | `bunx wrangler deploy` |
 | Production branch | `main` |
-| Build watch paths | `site/**`, `docs/**`, `README.md`, `CHANGELOG.md`, `SECURITY.md`, `pyproject.toml`, `data/screenshots/**`, `resources/static/fonts/**`, `resources/static/brand/**` |
+| Build watch paths | `site/**`, `docs/**`, `README.md`, `CHANGELOG.md`, `SECURITY.md`, `data/screenshots/**`, `resources/static/fonts/**`, `resources/static/brand/**` |
 
 `wrangler.jsonc` names the worker and points it at `dist/`. Every other
 branch and pull request gets a preview URL. The custom domain is attached

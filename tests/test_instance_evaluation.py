@@ -193,6 +193,20 @@ def test_schema_behind_when_revision_is_known() -> None:
     assert problem.remedy == "Upgrade edge-traefik to v0.20.0."
 
 
+def test_schema_behind_names_the_head_when_it_is_a_local_build() -> None:
+    local_head = HeadIdentity(
+        boot_id=HEAD_BOOT_ID,
+        instance_name="head",
+        app_version="0.0.0+local",
+        schema_revision="7c1e9a",
+        known_revisions=frozenset({"4b02d1", "7c1e9a"}),
+    )
+    row = make_row(schema_revision="4b02d1", app_version="0.19.2")
+    problem = evaluate_instance(row, local_head, NOW).problems[0]
+    assert problem.id == "instance-schema-behind"
+    assert problem.remedy == "Upgrade edge-traefik to the head's version."
+
+
 def test_schema_ahead_when_revision_is_unknown() -> None:
     row = make_row(schema_revision="ffffff", app_version="0.21.0")
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
@@ -246,6 +260,20 @@ def test_version_mismatch_on_same_revision() -> None:
     assert "v0.19.9" in problem.summary
     assert "v0.20.0" in problem.summary
     assert problem.remedy == "Run the same GeoMetrikks version on the head and edge-traefik."
+
+
+def test_version_mismatch_ignores_local_suffix() -> None:
+    assert problem_ids(make_row(app_version="0.20.0+g52b67d62c")) == []
+
+
+def test_version_mismatch_skipped_for_local_build() -> None:
+    assert problem_ids(make_row(app_version="0.0.0+local")) == []
+
+
+def test_version_mismatch_shows_tag_style() -> None:
+    problem = evaluate_instance(make_row(app_version="0.20.0.dev3"), HEAD, NOW).problems[0]
+    assert problem.id == "instance-version-mismatch"
+    assert "v0.20.0-dev.3" in problem.summary
 
 
 def test_name_not_set_on_agent_with_fallback_name() -> None:
@@ -383,7 +411,7 @@ def test_naive_payload_timestamps_are_read_as_utc() -> None:
     assert by_name["clean"].status == "ok"
 
 
-def test_unknown_version_is_not_prefixed_with_v() -> None:
+def test_unknown_head_version_is_not_a_mismatch() -> None:
     unknown_head = HeadIdentity(
         boot_id=HEAD_BOOT_ID,
         instance_name="head",
@@ -391,17 +419,13 @@ def test_unknown_version_is_not_prefixed_with_v() -> None:
         schema_revision="7c1e9a",
         known_revisions=frozenset({"4b02d1", "7c1e9a"}),
     )
-    row = make_row(app_version="0.19.9")
-    problem = evaluate_instance(row, unknown_head, NOW).problems[0]
-    assert problem.id == "instance-version-mismatch"
-    assert "the head runs unknown. Both" in problem.summary
-    assert "vunknown" not in problem.summary
+    assert evaluate_instance(make_row(app_version="0.19.9"), unknown_head, NOW).problems == []
 
 
-def test_unknown_agent_version_is_not_prefixed_with_v() -> None:
+def test_unknown_agent_version_is_shown_as_local_build() -> None:
     row = make_row(app_version="unknown", schema_revision="4b02d1")
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
-    assert "runs unknown on migration 4b02d1" in (problem.detail or "")
+    assert "runs local build on migration 4b02d1" in (problem.detail or "")
     assert "vunknown" not in (problem.detail or "")
 
 

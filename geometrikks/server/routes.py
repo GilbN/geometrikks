@@ -47,6 +47,7 @@ def service_worker(settings: NamedDependency[SkipValidation[Settings]]) -> File:
 
 
 API_V1_PREFIX = "/api/v1"
+API_VERSION = "1"
 
 
 def create_api_v1_router(handlers: list[ControllerRouterHandler]) -> Router:

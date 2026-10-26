@@ -10,6 +10,7 @@ import type {
 } from "@/generated/api/types.gen"
 import { useDeleteInstance, useInstances } from "@/lib/queries"
 import { cn } from "@/lib/utils"
+import { displayVersion } from "@/lib/version"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,7 +48,6 @@ import {
   jobReportState,
   schemaWaitState,
   sourceReasonLabel,
-  versionText,
   versionTone,
 } from "@/components/settings/agents-logic"
 
@@ -488,7 +488,7 @@ function InstanceRows({
               drift === "amber" && "text-amber-500",
             )}
           >
-            <span title={driftText ?? undefined}>{versionText(instance.appVersion)}</span>
+            <span title={driftText ?? undefined}>{displayVersion(instance.appVersion)}</span>
             {driftText && <span className="sr-only">, {driftText}</span>}
           </TableCell>
           <TableCell className="hidden text-muted-foreground md:table-cell">
@@ -596,7 +596,7 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
                 Instances
               </CardTitle>
               <CardDescription>
-                The head runs <MonoChip>{versionText(data.head.appVersion)}</MonoChip> on migration{" "}
+                The head runs <MonoChip>{displayVersion(data.head.appVersion)}</MonoChip> on migration{" "}
                 <MonoChip>{data.head.schemaRevision}</MonoChip>. Checked{" "}
                 {new Date(data.checkedAt).toLocaleTimeString()}, refreshed every 30 seconds.
               </CardDescription>

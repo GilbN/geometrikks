@@ -202,6 +202,13 @@ function writePage(page) {
   writeFileSync(file, render(page));
 }
 
+// Digits only, so the `[Unreleased]` heading never matches.
+export function latestReleasedVersion(changelog) {
+  const version = changelog.match(/^## \[(\d[^\]]*)\]/m)?.[1];
+  if (!version) throw new Error("Could not read a released version from CHANGELOG.md");
+  return version;
+}
+
 export function main() {
   const readme = readFileSync(join(REPO, "README.md"), "utf8");
   const sections = splitReadme(readme);
@@ -237,8 +244,7 @@ export function main() {
   mkdirSync(FONTS_OUT, { recursive: true });
   copyFileSync(join(REPO, "resources/static/fonts/runr-Regular.woff2"), join(FONTS_OUT, "runr-Regular.woff2"));
 
-  const version = readFileSync(join(REPO, "pyproject.toml"), "utf8").match(/^version = "(.+)"$/m)?.[1];
-  if (!version) throw new Error("Could not read version from pyproject.toml");
+  const version = latestReleasedVersion(readFileSync(join(REPO, "CHANGELOG.md"), "utf8"));
   mkdirSync(DATA_OUT, { recursive: true });
   writeFileSync(join(DATA_OUT, "meta.json"), JSON.stringify({ version, generatedAt: new Date().toISOString() }, null, 2) + "\n");
 

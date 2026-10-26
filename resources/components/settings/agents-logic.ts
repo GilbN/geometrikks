@@ -10,6 +10,7 @@ import type {
 } from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
 import type { CardState } from "@/components/settings/status-logic"
+import { sameRelease } from "@/lib/version"
 
 export type AgentTone = "emerald" | "amber" | "red" | "muted"
 
@@ -148,7 +149,7 @@ export function versionTone(
   head: HeadIdentityView,
 ): "red" | "amber" | null {
   if (instance.schemaRevision !== head.schemaRevision) return "red"
-  if (instance.appVersion !== head.appVersion) return "amber"
+  if (!sameRelease(instance.appVersion, head.appVersion)) return "amber"
   return null
 }
 
@@ -199,10 +200,4 @@ export function agentIngestionState(
     return { tone: "amber", label: "running, a source is unavailable" }
   }
   return { tone: "emerald", label: "running" }
-}
-
-/** Same rule as the backend's problem text: a source checkout reports "unknown". */
-export function versionText(version: string): string {
-  if (!version) return "unknown"
-  return /^\d/.test(version) ? `v${version}` : version
 }

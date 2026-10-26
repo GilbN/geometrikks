@@ -4,6 +4,7 @@ import type { ChangelogEntry, ChangelogRelease, ChangelogSection } from "@/gener
 import { useAbout, useChangelog } from "@/lib/queries"
 import { currentBuildKey, saveSeenBuild } from "@/lib/changelog-seen"
 import { cn } from "@/lib/utils"
+import { publicVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -151,7 +152,7 @@ export function ChangelogPage() {
   // contains those changes, whatever the image tag says.
   const ahead = releases.some((release) => release.unreleased)
   const isThisBuild = (release: ChangelogRelease) =>
-    ahead ? release.unreleased : release.version === about.app.version
+    ahead ? release.unreleased : release.version === publicVersion(about.app.version)
   const isOpen = (release: ChangelogRelease) => overrides[release.version] ?? isThisBuild(release)
   const setAll = (open: boolean) =>
     setOverrides(Object.fromEntries(releases.map((release) => [release.version, open])))

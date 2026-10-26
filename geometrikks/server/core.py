@@ -13,7 +13,7 @@ from litestar.config.compression import CompressionConfig
 from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
+from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.logging import get_logger
 
@@ -97,7 +97,7 @@ def create_app(
         route_handlers = get_route_handlers()
         openapi_config = OpenAPIConfig(
             title=settings.name,
-            version=settings.version,
+            version=API_VERSION,
             description=settings.description,
             create_examples=False,
             render_plugins=[ScalarRenderPlugin()],

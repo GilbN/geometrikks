@@ -6430,7 +6430,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.22.1"
+    "version": "1"
   },
   "openapi": "3.1.0",
   "paths": {

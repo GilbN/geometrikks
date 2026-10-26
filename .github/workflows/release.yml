@@ -81,5 +81,6 @@ jobs:
           build-args: |
             APP_IMAGE_TAG=${{ github.ref_name }}
             GIT_SHA=${{ github.sha }}
+            GEOMETRIKKS_VERSION=${{ github.ref_name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

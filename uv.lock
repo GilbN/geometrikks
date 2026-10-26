@@ -499,7 +499,6 @@ wheels = [
 
 [[package]]
 name = "geometrikks"
-version = "0.22.1"
 source = { editable = "." }
 dependencies = [
     { name = "advanced-alchemy", extra = ["argon2", "cli", "passlib", "pwdlib"] },
@@ -516,6 +515,7 @@ dependencies = [
     { name = "litestar-geoalchemy" },
     { name = "litestar-granian" },
     { name = "litestar-vite" },
+    { name = "packaging" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
 ]
@@ -531,7 +531,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "advanced-alchemy", extras = ["argon2", "passlib", "pwdlib", "cli"], specifier = ">=1.11.0" },
+    { name = "advanced-alchemy", extras = ["argon2", "cli", "passlib", "pwdlib"], specifier = ">=1.11.0" },
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "apscheduler", specifier = ">=3.11.3,<4.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
@@ -541,10 +541,11 @@ requires-dist = [
     { name = "geoip2", specifier = ">=5.3.0" },
     { name = "httpx2", specifier = ">=2.12.0" },
     { name = "ipy", specifier = ">=1.1" },
-    { name = "litestar", extras = ["standard", "brotli", "jwt", "structlog", "pydantic"], specifier = ">=2.24.0,<3" },
+    { name = "litestar", extras = ["brotli", "jwt", "pydantic", "standard", "structlog"], specifier = ">=2.24.0,<3" },
     { name = "litestar-geoalchemy", specifier = ">=0.3.0" },
     { name = "litestar-granian", specifier = ">=0.16.0" },
     { name = "litestar-vite", specifier = ">=0.32.0" },
+    { name = "packaging", specifier = ">=24" },
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
 ]
