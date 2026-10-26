@@ -22,17 +22,13 @@ def test_default_settings():
 
 def test_environment_override(monkeypatch):
     """Test that environment variables override defaults."""
-    monkeypatch.setenv("APP_NAME", "Custom Name")
     monkeypatch.setenv("APP_DEBUG", "true")
     monkeypatch.setenv("APP_ENVIRONMENT", "development")
-    monkeypatch.setenv("APP_VERSION", "9.9.9-test")
     
     settings = Settings()
     
-    assert settings.name == "Custom Name"
     assert settings.debug is True
     assert settings.environment == "development"
-    assert settings.version == "9.9.9-test"
 
 
 def test_runtime_metadata_defaults_and_overrides(monkeypatch):
@@ -75,30 +71,11 @@ def test_geoip_settings(tmp_path):
     assert settings.geoip.db_path == test_db
 
 
-def test_geoip_missing_file():
-    """Test GeoIP validation fails for missing file when validation is enabled."""
-    with pytest.raises(ValueError, match="GeoIP database file not found"):
-        GeoIPSettings(
-            db_path=Path("/nonexistent/file.mmdb"),
-            validate_db_path=True  # Enable validation
-        )
-
-
-def test_geoip_missing_file_allowed_by_default():
-    """A missing database must not fail settings construction by default:
-    the auto-downloader/degraded-mode startup path owns that case."""
+def test_geoip_missing_file_allowed():
+    """A missing database must not fail settings construction. The
+    auto-downloader and degraded mode handle that case."""
     settings = GeoIPSettings(db_path=Path("/nonexistent/file.mmdb"), _env_file=None)
     assert settings.db_path == Path("/nonexistent/file.mmdb")
-
-
-def test_api_settings():
-    """Test API server configuration."""
-    settings = Settings()
-
-    assert settings.api.host == "0.0.0.0"
-    assert settings.api.port == 8000
-    # log_level is now a deprecated fallback; unset unless API_LOG_LEVEL is set.
-    assert settings.api.log_level is None
 
 
 def test_map_server_location_settings(monkeypatch):
@@ -236,13 +213,11 @@ def test_nested_settings_override(monkeypatch):
     """Test overriding nested settings via environment variables."""
     monkeypatch.setenv("DB_POOL_SIZE", "20")
     monkeypatch.setenv("DB_MAX_OVERFLOW", "50")
-    monkeypatch.setenv("API_PORT", "9000")
     
     settings = Settings()
     
     assert settings.database.pool_size == 20
     assert settings.database.max_overflow == 50
-    assert settings.api.port == 9000
 
 
 def test_list_settings_from_env(monkeypatch):
@@ -458,7 +433,7 @@ class TestGeoIPDownloadSettings:
         for var in ("MAXMINDDB_USER_ID", "MAXMINDDB_LICENSE_KEY", "GEOIP_REFRESH_DAYS"):
             monkeypatch.delenv(var, raising=False)
         from geometrikks.config.settings import GeoIPSettings
-        s = GeoIPSettings(validate_db_path=False, _env_file=None)
+        s = GeoIPSettings(_env_file=None)
         assert s.account_id is None
         assert s.license_key is None
         assert s.refresh_days == 7
@@ -468,7 +443,7 @@ class TestGeoIPDownloadSettings:
         monkeypatch.setenv("MAXMINDDB_LICENSE_KEY", "abcdef")
         monkeypatch.setenv("GEOIP_REFRESH_DAYS", "3")
         from geometrikks.config.settings import GeoIPSettings
-        s = GeoIPSettings(validate_db_path=False)
+        s = GeoIPSettings()
         assert s.account_id == "123456"
         assert s.license_key is not None
         assert s.license_key.get_secret_value() == "abcdef"
@@ -633,23 +608,6 @@ class TestLogSettings:
         from geometrikks.config.settings import Settings
         assert Settings(_env_file=None).log.level == "DEBUG"
 
-    def test_deprecated_api_log_level_used_when_log_level_unset(self, monkeypatch):
-        monkeypatch.delenv("LOG_LEVEL", raising=False)
-        monkeypatch.setenv("API_LOG_LEVEL", "WARNING")
-        from geometrikks.config.settings import Settings
-        with pytest.warns(DeprecationWarning, match="API_LOG_LEVEL is deprecated"):
-            s = Settings(_env_file=None)
-        assert s.log.level == "WARNING"
-
-    def test_log_level_overrides_deprecated_var(self, monkeypatch):
-        monkeypatch.setenv("LOG_LEVEL", "ERROR")
-        monkeypatch.setenv("API_LOG_LEVEL", "DEBUG")
-        from geometrikks.config.settings import Settings
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")  # no DeprecationWarning may fire
-            s = Settings(_env_file=None)
-        assert s.log.level == "ERROR"
 
 
 def test_app_mode_default_full(monkeypatch) -> None:

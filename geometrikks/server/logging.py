@@ -511,13 +511,13 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         handlers=handlers,
         loggers={
             "litestar": {
-                "level": settings.log.level or "INFO",
+                "level": settings.log.level,
                 "handlers": ["queue_listener"],
                 "propagate": False,
             },
             LOGIN_LOGGER_NAME: {"level": "INFO"},
         },
-        root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
+        root={"level": settings.log.level, "handlers": ["queue_listener"]},
         log_exceptions="always",
     )
 
