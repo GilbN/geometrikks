@@ -83,10 +83,15 @@ async def test_untouched_session_is_not_rewritten_and_does_not_renew():
 async def test_session_expires_absolutely():
     app = make_app(session_max_age=1)
     async with AsyncTestClient(app=app) as client:
-        assert (await client.post("/api/v1/auth/login", json=CREDS)).status_code == 200
-        assert (await client.get("/api/v1/protected")).status_code == 200
+        sid = (await client.post("/api/v1/auth/login", json=CREDS)).cookies["session"]
+        # The cookie jar drops a cookie at its floored Max-Age, before the
+        # server would. Sending the cookie by hand makes the 401 below come
+        # from the store's expiry, not from a request without a cookie.
+        cookie = {"Cookie": f"session={sid}"}
+        assert (await client.get("/api/v1/protected", headers=cookie)).status_code == 200
         await anyio.sleep(1.2)
-        assert (await client.get("/api/v1/protected")).status_code == 401
+        assert (await client.get("/api/v1/protected", headers=cookie)).status_code == 401
+        assert await app.stores.get("sessions").get(sid) is None
 
 
 @get("/api/v1/touch-session", exclude_from_auth=True)
