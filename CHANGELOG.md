@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- A new version no longer reloads a page you are using without warning. The page shows the notice first and reloads itself only after 5 minutes with no input.
+- A new version no longer reloads a page you are using without warning. The page shows the notice first. It reloads by itself only after 5 minutes with no input, or when you come back to a tab that was in the background during the update.
 - While the database is down, the login page says so, and a failed sign-in explains why instead of saying "Invalid username or password". A logout that fails now says so and keeps you on the page.
 - Logins survive restarts and updates. Updating to this release logs you out once, because sessions used to live only in memory. Changing the admin user or password, or who may sign in with OIDC, still logs everyone out on the next start.
 - Dev images and source checkouts report the version they were built from, such as v0.22.0-dev.4, instead of the last stable release. A build without a version, such as a plain `docker build`, shows "local build". The agents page no longer warns about version differences when either side is a local build.
