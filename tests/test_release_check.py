@@ -392,6 +392,7 @@ async def test_rate_limited_answer_is_one_quiet_failure() -> None:
         "HTTP 403",
         "HTTP 429",
     ]
+    assert all("exc_info" not in log for log in logs if log["event"] == "release_check_failed")
     assert len(fake_github.requests) == 4
 
 
@@ -565,6 +566,7 @@ async def test_unexpected_error_is_a_logged_failed_check(monkeypatch: pytest.Mon
 
     failed_logs = [log for log in logs if log["event"] == "release_check_failed"]
     assert [log["reason"] for log in failed_logs] == ["ZeroDivisionError"]
+    assert isinstance(failed_logs[0]["exc_info"], ZeroDivisionError)
     assert release_checker.etag is None
     assert release_checker.checked_at is None
 

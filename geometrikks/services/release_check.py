@@ -185,7 +185,7 @@ class ReleaseChecker:
             except ReleaseCheckError as error:
                 self._record_failure(str(error))
             except Exception as error:
-                self._record_failure(type(error).__name__)
+                self._record_failure(type(error).__name__, exc_info=error)
 
     async def _refresh(self) -> None:
         request_headers = {
@@ -243,8 +243,11 @@ class ReleaseChecker:
                 latest_version=str(self._latest.version),
             )
 
-    def _record_failure(self, reason: str) -> None:
+    def _record_failure(self, reason: str, *, exc_info: BaseException | None = None) -> None:
         if reason == self._last_failure_reason:
             return
         self._last_failure_reason = reason
-        logger.info("release_check_failed", reason=reason)
+        if exc_info is None:
+            logger.info("release_check_failed", reason=reason)
+        else:
+            logger.info("release_check_failed", reason=reason, exc_info=exc_info)
