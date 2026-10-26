@@ -99,15 +99,22 @@ export function ReloadNoticeCollapsedButton() {
   )
 }
 
+export const RELOAD_NOTICE_MENU_DESCRIPTION_ID = "reload-notice-menu-description"
+
 export function ReloadNoticeMenuDot() {
-  const { pending, toastOpen } = useReloadNotice()
+  const { pending, version, toastOpen } = useReloadNotice()
   const { isMobile } = useSidebar()
   if (!pending || toastOpen || !isMobile) return null
 
   return (
-    <span
-      aria-hidden="true"
-      className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
-    />
+    <>
+      <span
+        aria-hidden="true"
+        className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
+      />
+      <span id={RELOAD_NOTICE_MENU_DESCRIPTION_ID} className="sr-only">
+        {reloadNoticeTitle(version)}
+      </span>
+    </>
   )
 }
