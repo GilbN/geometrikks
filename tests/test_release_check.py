@@ -53,6 +53,17 @@ def test_stable_build_ignores_prereleases() -> None:
     assert selected.version == Version("0.22.1")
 
 
+def test_stable_build_ignores_a_dev_tag_published_without_the_prerelease_flag() -> None:
+    unflagged_dev_release = make_release("v0.23.0-dev.1", prerelease=False)
+    assert select_newer_release([unflagged_dev_release], "0.22.0", NOW) is None
+
+
+def test_dev_build_sees_a_dev_tag_published_without_the_prerelease_flag() -> None:
+    unflagged_dev_release = make_release("v0.23.0-dev.1", prerelease=False)
+    selected = select_newer_release([unflagged_dev_release], "0.22.1.dev1+g1234", NOW)
+    assert selected == unflagged_dev_release
+
+
 def test_dev_build_sees_a_newer_dev_prerelease() -> None:
     github_release = make_release("v0.22.1-dev.2", prerelease=True)
     selected = select_newer_release([github_release], "0.22.1.dev1+g1234", NOW)
@@ -552,9 +563,8 @@ async def test_unexpected_error_is_a_logged_failed_check(monkeypatch: pytest.Mon
     with structlog.testing.capture_logs() as logs:
         await release_checker.run()
 
-    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
-        "ZeroDivisionError"
-    ]
+    failed_logs = [log for log in logs if log["event"] == "release_check_failed"]
+    assert [log["reason"] for log in failed_logs] == ["ZeroDivisionError"]
     assert release_checker.etag is None
     assert release_checker.checked_at is None
 

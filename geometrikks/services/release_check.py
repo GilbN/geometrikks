@@ -107,7 +107,10 @@ def select_newer_release(
     candidates = [
         github_release
         for github_release in github_releases
-        if (parsed_running.is_prerelease or not github_release.prerelease)
+        if (
+            parsed_running.is_prerelease
+            or not (github_release.prerelease or github_release.version.is_prerelease)
+        )
         and now - github_release.published_at >= MIN_RELEASE_AGE
         and github_release.version > running_public
     ]
