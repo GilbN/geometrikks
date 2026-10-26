@@ -250,24 +250,26 @@ async def test_agent_health_check_job_feeds_the_monitor(monkeypatch):
     assert [log["event"] for log in logs] == ["agent_seen", "agent_down"]
 
 
-def _release_check_settings(*, update_check: bool = True, version: str = "0.22.0"):
+def _release_check_settings(
+    monkeypatch: pytest.MonkeyPatch, *, update_check: bool = True, version: str = "0.22.0"
+):
     from geometrikks.config.settings import AppSettings, SchedulerSettings, Settings
 
+    monkeypatch.setattr("geometrikks.config.settings.get_installed_version", lambda: version)
     return Settings(
         scheduler=SchedulerSettings(enabled=True, _env_file=None),
         app=AppSettings(update_check=update_check, _env_file=None),
-        version=version,
     )
 
 
-async def test_release_check_registered_on_a_head_with_the_setting_and_an_app():
+async def test_release_check_registered_on_a_head_with_the_setting_and_an_app(monkeypatch):
     from datetime import datetime, timedelta, timezone
 
     from litestar import Litestar
 
     app = Litestar(route_handlers=[])
     before = datetime.now(timezone.utc)
-    scheduler = await sched.create_scheduler(MagicMock(), _release_check_settings(), mode="full", app=app)
+    scheduler = await sched.create_scheduler(MagicMock(), _release_check_settings(monkeypatch), mode="full", app=app)
 
     job = scheduler.get_job("release-check")
     assert job is not None
@@ -291,21 +293,21 @@ async def test_release_check_registered_on_a_head_with_the_setting_and_an_app():
     ],
     ids=["setting-off", "agent", "no-app", "local-build", "custom-version"],
 )
-async def test_release_check_not_registered(update_check, mode, with_app, version):
+async def test_release_check_not_registered(update_check, mode, with_app, version, monkeypatch):
     from litestar import Litestar
 
     app = Litestar(route_handlers=[]) if with_app else None
-    settings = _release_check_settings(update_check=update_check, version=version)
+    settings = _release_check_settings(monkeypatch, update_check=update_check, version=version)
     scheduler = await sched.create_scheduler(MagicMock(), settings, mode=mode, app=app)
 
     assert scheduler.get_job("release-check") is None
 
 
-async def test_release_check_keeps_its_checker_when_the_scheduler_is_rebuilt():
+async def test_release_check_keeps_its_checker_when_the_scheduler_is_rebuilt(monkeypatch):
     from litestar import Litestar
 
     app = Litestar(route_handlers=[])
-    settings = _release_check_settings()
+    settings = _release_check_settings(monkeypatch)
     first = await sched.create_scheduler(MagicMock(), settings, mode="full", app=app)
     second = await sched.create_scheduler(MagicMock(), settings, mode="full", app=app)
 
@@ -316,7 +318,7 @@ async def test_release_check_keeps_its_checker_when_the_scheduler_is_rebuilt():
     assert first_job.args[0] is second_job.args[0]
 
 
-async def test_release_check_job_runs_the_checker():
+async def test_release_check_job_runs_the_checker(monkeypatch):
     release_checker = MagicMock()
     release_checker.run = AsyncMock()
 

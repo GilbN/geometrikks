@@ -418,7 +418,7 @@ async def seeded_release_checker(
 
 def enable_release_check(monkeypatch: pytest.MonkeyPatch, version: str = "0.22.0") -> None:
     monkeypatch.setenv("APP_UPDATE_CHECK", "true")
-    monkeypatch.setenv("APP_VERSION", version)
+    monkeypatch.setattr("geometrikks.config.settings.get_installed_version", lambda: version)
 
 
 @pytest.mark.parametrize(
@@ -426,13 +426,16 @@ def enable_release_check(monkeypatch: pytest.MonkeyPatch, version: str = "0.22.0
     [
         ("APP_UPDATE_CHECK", "false"),
         ("SCHEDULER_ENABLED", "false"),
-        ("APP_VERSION", "0.0.0+local"),
-        ("APP_VERSION", "custom"),
+        ("version", "0.0.0+local"),
+        ("version", "custom"),
     ],
 )
 async def test_release_check_off_when_disabled(monkeypatch, name, value):
-    enable_release_check(monkeypatch)
-    monkeypatch.setenv(name, value)
+    if name == "version":
+        enable_release_check(monkeypatch, version=value)
+    else:
+        enable_release_check(monkeypatch)
+        monkeypatch.setenv(name, value)
     app = make_app()
     app.state.release_checker = await seeded_release_checker(
         "0.22.0", release_transport("v0.23.0")
