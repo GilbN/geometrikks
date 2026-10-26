@@ -1745,4 +1745,5 @@ The integration suite creates a scratch database `geometrikks_it` on the
 compose server (migrated to alembic head plus timescale objects) and drops
 it at session end; it never touches the `geometrikks` dev database.
 Connection overrides: `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER`,
-`IT_DB_PASSWORD`.
+`IT_DB_PASSWORD`. Set `IT_DB_NAME` to give each worktree its own scratch
+database, since two runs on one name drop each other's.
