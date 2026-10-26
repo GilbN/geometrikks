@@ -1,7 +1,7 @@
 /**
  * What the update hook does on each signal: a health poll, a service worker
- * update, a pending notice. Kept apart from React and the API client so the
- * decisions run under test.
+ * update, a pending notice. It lives outside React and the API client so tests
+ * can run the decisions directly.
  */
 import { createReloadGuard, type IdleReloader, type ReloadGuard } from "@/lib/auto-reload"
 import { getReloadNoticeState, markUpdatePending, nameUpdateVersion, subscribeReloadNotice } from "@/lib/reload-notice"
@@ -30,7 +30,7 @@ export function createUpdateWiring(deps: UpdateWiringDeps): UpdateWiring {
 
   const detector = createUpdateDetector({
     readServerBuild: deps.readServerBuild,
-    // Lifts the guard before onServerBuild can mark pending: arm() can reload synchronously.
+    // Lift the guard before onServerBuild can mark pending, because arm() can reload synchronously.
     onStartedAtChange: () => reloadGuard.restartObserved(),
     onServerBuild: (buildIdentity, isNewBuild) => {
       if (isNewBuild) markUpdatePending(buildIdentity.version)

@@ -4,9 +4,9 @@ let updateListener: (() => void) | null = null
 let updateMissed = false
 
 /**
- * A new worker only means the server may run a new build: a page that just
+ * A new worker only means the server may run a new build. A page that just
  * reloaded onto that build sees the same event while the old worker still
- * controls it. Listeners compare builds instead of trusting the event.
+ * controls it, so listeners compare builds instead of trusting the event.
  */
 export function onServiceWorkerUpdate(listener: () => void): () => void {
   updateListener = listener
@@ -28,7 +28,7 @@ export function swRegisterOptions(): RegisterSWOptions {
   return {
     immediate: true,
     // Without onNeedReload the plugin calls window.location.reload() itself
-    // when a new service worker activates, under the user's hands.
+    // when a new service worker activates, even while the user is mid-task.
     onNeedReload: reportServiceWorkerUpdate,
   }
 }
