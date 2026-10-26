@@ -474,6 +474,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
           <TooltipTrigger asChild>
             <Link
               to="/settings/about"
+              aria-label={`${displayVersion(settings.version)}, ${latestRelease.displayVersion} is available`}
               className="inline-flex items-center gap-1.5 text-[10px] font-mono hover:text-sidebar-foreground/60"
             >
               {displayVersion(settings.version)}
