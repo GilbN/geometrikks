@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 RELEASES_URL = "https://api.github.com/repos/GilbN/geometrikks/releases?per_page=30"
 REQUEST_TIMEOUT_SECONDS = 10.0
 MAX_RESPONSE_BYTES = 1024 * 1024
-MIN_RELEASE_AGE = timedelta(hours=1)
+MIN_RELEASE_AGE = timedelta(minutes=15)
 GITHUB_URL_PREFIX = "https://github.com/"
 
 
