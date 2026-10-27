@@ -92,17 +92,17 @@ def test_unparseable_running_version_selects_nothing() -> None:
     assert select_newer_release([make_release("v0.23.0")], "custom", NOW) is None
 
 
-def test_release_younger_than_an_hour_does_not_count() -> None:
+def test_release_younger_than_15_minutes_does_not_count() -> None:
     older_release = make_release("v0.22.1")
-    fresh_release = make_release("v0.23.0", published_at=NOW - timedelta(minutes=59))
+    fresh_release = make_release("v0.23.0", published_at=NOW - timedelta(minutes=14))
     selected = select_newer_release([fresh_release, older_release], "0.22.0", NOW)
     assert selected == older_release
 
-    boundary_release = make_release("v0.23.0", published_at=NOW - timedelta(hours=1))
+    boundary_release = make_release("v0.23.0", published_at=NOW - timedelta(minutes=15))
     selected = select_newer_release([boundary_release, older_release], "0.22.0", NOW)
     assert selected == boundary_release
 
-    settled_release = make_release("v0.23.0", published_at=NOW - timedelta(minutes=61))
+    settled_release = make_release("v0.23.0", published_at=NOW - timedelta(minutes=16))
     selected = select_newer_release([settled_release, older_release], "0.22.0", NOW)
     assert selected == settled_release
 
@@ -294,7 +294,7 @@ async def test_not_modified_keeps_the_answer() -> None:
 @pytest.mark.anyio
 async def test_not_modified_lets_a_fresh_release_count_later() -> None:
     clock = MutableClock(NOW)
-    published_at = NOW - timedelta(minutes=30)
+    published_at = NOW - timedelta(minutes=10)
     fake_github = FakeGithub(
         releases_response(etag='"one"', published_at=published_at), httpx2.Response(304)
     )
