@@ -4,7 +4,7 @@
  * AlertHistoryUnavailable takes its place otherwise.
  * Selecting a row opens the alert's context, events and decisions.
  */
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -47,6 +47,8 @@ import {
 } from "@/components/security/alert-filter-controls"
 import { AlertKindHelp } from "@/components/security/alert-kind-help"
 import { AlertRunRows } from "@/components/security/alert-run-rows"
+import { IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 
 const SINCE_OPTIONS = [
@@ -138,6 +140,20 @@ export function AlertsTable() {
     setIpText("")
     setIp(undefined)
   }
+  const filterTargetsFor = useCallback(
+    ({ ip: value }: IpRowValues) => [
+      singleFilterTarget({
+        noun: "IP",
+        value,
+        current: ip,
+        setValue: (next) => {
+          setIpText(next ?? "")
+          setIp(next)
+        },
+      }),
+    ],
+    [ip],
+  )
   const activeFilters = activeAlertFilters({ kind, scenarios, ip })
   const clearFilterGroup = (group: AlertFilterGroup) => {
     if (group === "kind") changeKind("all")
@@ -245,16 +261,19 @@ export function AlertsTable() {
                       ))}
                     </TableRow>
                   ))
-                : alerts &&
-                  groupConsecutiveAlerts(alerts).map((alertRun) => (
-                    <AlertRunRows
-                      key={alertRun.key}
-                      run={alertRun}
-                      open={isRunOpen(alertRun, expandedAlertKeys)}
-                      onToggle={() => setExpandedAlertKeys((current) => toggleRun(current, alertRun))}
-                      onOpenAlert={setSelected}
-                    />
-                  ))}
+                : alerts && (
+                    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+                      {groupConsecutiveAlerts(alerts).map((alertRun) => (
+                        <AlertRunRows
+                          key={alertRun.key}
+                          run={alertRun}
+                          open={isRunOpen(alertRun, expandedAlertKeys)}
+                          onToggle={() => setExpandedAlertKeys((current) => toggleRun(current, alertRun))}
+                          onOpenAlert={setSelected}
+                        />
+                      ))}
+                    </IpFilterTargetsProvider>
+                  )}
               {!isLoading && isError && !alerts && (
                 <TableRow>
                   <TableCell colSpan={8} className="h-24 text-center text-destructive">

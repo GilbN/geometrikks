@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import { CountryLabel } from "@/components/country-flag"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -11,13 +12,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useCrowdsecLiveUpdates, useTopIpStats } from "@/lib/queries"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { analyticsFilterTargets } from "@/lib/ip-filter-targets"
+import { useAnalyticsFilters } from "@/lib/analytics-filters-context"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopIpsTable() {
   const { data, isLoading } = useTopIpStats({ limit: 25 })
+  const { filters, setFilters } = useAnalyticsFilters()
+  const filterTargetsFor = useMemo(() => analyticsFilterTargets(filters, setFilters), [filters, setFilters])
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   // Keep banned badges in sync with external cscli/console decisions.
   useCrowdsecLiveUpdates()
@@ -43,24 +47,23 @@ export function TopIpsTable() {
                   <TableHead className="text-right">Bytes</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {pageItems.map((row) => (
-                  <TableRow key={row.ipAddress}>
-                    <TableCell className="font-mono text-xs">
-                      {row.ipAddress}
-                      <IpBanControls ip={row.ipAddress}>
-                        <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                        <FlyToIpButton ip={row.ipAddress} />
-                      </IpBanControls>
-                    </TableCell>
-                    <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
-                    <TableCell>{row.city ?? "-"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+              <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+                <TableBody>
+                  {pageItems.map((row) => (
+                    <TableRow key={row.ipAddress}>
+                      <TableCell className="font-mono text-xs">
+                        <IpLabel ip={row.ipAddress} />
+                        <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} city={row.city} />
+                      </TableCell>
+                      <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
+                      <TableCell>{row.city ?? "-"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </IpFilterTargetsProvider>
             </Table>
             <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
           </>

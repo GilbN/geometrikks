@@ -6,7 +6,7 @@
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
  */
-import { memo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import {
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { DataTableFrame } from "@/components/data/data-table-frame"
-import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import {
   GEO_LOG_COLUMNS,
@@ -40,9 +40,9 @@ import {
 import { GeoLogDetailSheet } from "@/components/geo-logs/geo-log-detail-sheet"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber, type GeoLogSortField, type GeoLogSortOrder } from "@/lib/api"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { geoLogFilterTargets } from "@/lib/ip-filter-targets"
 import { useGeoLogs } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
@@ -62,7 +62,7 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
     case "countryName":
       return <span className="whitespace-nowrap">{r.countryName}</span>
     case "ipAddress":
-      return <span className="font-mono">{r.ipAddress}</span>
+      return <IpLabel ip={r.ipAddress} />
     case "latitude":
       return <span className="tabular-nums">{r.latitude.toFixed(4)}</span>
     case "longitude":
@@ -116,12 +116,15 @@ const GeoLogTableBody = memo(function GeoLogTableBody({
             <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
               {renderCell(c, row)}
               {c.key === "ipAddress" && (
-                <span {...stopRowActivation}>
-                  <IpBanControls ip={row.ipAddress}>
-                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                    <FlyToIpButton ip={row.ipAddress} locationId={row.locationId} />
-                  </IpBanControls>
-                </span>
+                <IpActionsMenu
+                  ip={row.ipAddress}
+                  locationId={row.locationId}
+                  countryCode={row.countryCode}
+                  countryName={row.countryName}
+                  city={row.city}
+                  asn={row.asn}
+                  asOrganization={row.asOrganization}
+                />
               )}
             </TableCell>
           ))}
@@ -150,7 +153,8 @@ export function GeoLogsTable({
 }) {
   const [selected, setSelected] = useState<GeoLogEntry | null>(null)
   const { range, customRange } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, setFilters } = useGeoLogFilters()
+  const filterTargetsFor = useMemo(() => geoLogFilterTargets(filters, setFilters), [filters, setFilters])
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-geo-logs", GEO_LOG_COLUMNS, GEO_LOG_RENAMED_COLUMN_KEYS)
 
@@ -262,7 +266,9 @@ export function GeoLogsTable({
               })}
             </TableRow>
           </TableHeader>
-          <GeoLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+          <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+            <GeoLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+          </IpFilterTargetsProvider>
         </VirtualTable>
       </DataTableFrame>
 

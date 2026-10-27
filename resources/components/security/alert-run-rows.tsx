@@ -10,11 +10,10 @@ import { ChevronRight } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { rowActivation } from "@/components/data/row-activation"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
 import type { AlertView } from "@/lib/api"
 import { alertOutcome, alertSummary, runScenarioLabel, type AlertRun } from "@/lib/crowdsec-alerts"
 import { cn } from "@/lib/utils"
@@ -82,19 +81,23 @@ function AlertRow({
         </span>
       </TableCell>
       <TableCell className="font-mono">
-        {alert.value}
-        {alert.scope === "Ip" && (
-          <span {...stopRowActivation}>
-            <IpBanControls
+        {alert.scope === "Ip" ? (
+          <>
+            <IpLabel
               ip={alert.value}
-              badgeTitle={(decisionType) =>
+              title={(decisionType) =>
                 `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
               }
-            >
-              <InspectIpButton ip={alert.value} className="ml-1" />
-              <FlyToIpButton ip={alert.value} />
-            </IpBanControls>
-          </span>
+            />
+            <IpActionsMenu
+              ip={alert.value}
+              countryCode={alert.countryCode}
+              countryName={alert.countryName}
+              asOrganization={alert.asName}
+            />
+          </>
+        ) : (
+          alert.value
         )}
       </TableCell>
       <TableCell>
