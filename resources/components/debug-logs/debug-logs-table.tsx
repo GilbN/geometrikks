@@ -4,7 +4,7 @@
  * city, malformed tri-state. Clicking a row opens the raw-line detail
  * dialog. Pairs with GET /api/v1/access-log-debug/.
  */
-import { memo, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
@@ -47,11 +47,11 @@ import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rai
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
 import { DataTableFrame } from "@/components/data/data-table-frame"
-import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { countryLabel, listFilterTarget, singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@/lib/queries"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
@@ -154,7 +154,7 @@ const COLUMNS: ColumnDef[] = [
     sortField: "ipAddress",
     defaultVisible: true,
     mobileHidden: true,
-    render: (r) => <span className="font-mono">{r.ipAddress ?? "-"}</span>,
+    render: (r) => (r.ipAddress ? <IpLabel ip={r.ipAddress} /> : <span className="font-mono">-</span>),
   },
   {
     key: "url",
@@ -245,12 +245,12 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
             <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
               {c.render(row)}
               {c.key === "ipAddress" && row.ipAddress && (
-                <span {...stopRowActivation}>
-                  <IpBanControls ip={row.ipAddress}>
-                    <InspectIpButton ip={row.ipAddress} />
-                    <FlyToIpButton ip={row.ipAddress} />
-                  </IpBanControls>
-                </span>
+                <IpActionsMenu
+                  ip={row.ipAddress}
+                  countryCode={row.countryCode}
+                  countryName={row.countryName}
+                  city={row.city}
+                />
               )}
             </TableCell>
           ))}
@@ -276,6 +276,25 @@ export function DebugLogsTable() {
   const [ipInput, setIpInput] = useState(initial.ip ?? "")
   const [cities, setCities] = useState<string[]>([])
   const [countries, setCountries] = useState<string[]>([])
+  const filterTargetsFor = useCallback(
+    ({ ip, countryCode, countryName }: IpRowValues) => [
+      singleFilterTarget({ noun: "IP", value: ip, current: ipInput || undefined, setValue: (next) => setIpInput(next ?? "") }),
+      ...(countryCode
+        ? [
+            listFilterTarget({
+              noun: "country",
+              value: countryCode,
+              label: countryLabel(countryCode, countryName),
+              filters: { countries },
+              setFilters: (updater) => setCountries((prev) => updater({ countries: prev }).countries),
+              includeKey: "countries",
+              excludeKey: null,
+            }),
+          ]
+        : []),
+    ],
+    [ipInput, countries],
+  )
   const [malformedFilter, setMalformedFilter] = useState<MalformedFilter>(initial.malformed ?? "all")
   // Facet values are fetched lazily, on first open of either dropdown.
   const [facetsEnabled, setFacetsEnabled] = useState(false)
@@ -540,7 +559,9 @@ export function DebugLogsTable() {
               })}
             </TableRow>
           </TableHeader>
-          <DebugLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+          <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+            <DebugLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+          </IpFilterTargetsProvider>
         </VirtualTable>
       </DataTableFrame>
 

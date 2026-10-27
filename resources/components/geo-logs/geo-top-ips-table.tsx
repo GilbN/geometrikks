@@ -2,6 +2,7 @@
  * Top IPs by geo-event count for the geo-logs page, across all locations,
  * with the organization behind each IP.
  */
+import { useMemo } from "react"
 import { CountryLabel } from "@/components/country-flag"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { dataState } from "@/components/data/types"
@@ -9,13 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatNumber } from "@/lib/api"
 import { useGeoLogTopIps } from "@/lib/queries"
 import { AsnCell } from "@/components/geo-logs/asn-cell"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { geoLogFilterTargets } from "@/lib/ip-filter-targets"
+import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 export function GeoTopIpsTable() {
   const { data, isError, isLoading } = useGeoLogTopIps({ limit: 10 })
+  const { filters, setFilters } = useGeoLogFilters()
+  const filterTargetsFor = useMemo(() => geoLogFilterTargets(filters, setFilters), [filters, setFilters])
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   const state = dataState(isLoading, isError, data?.items.length ?? 0)
 
@@ -43,25 +47,30 @@ export function GeoTopIpsTable() {
             <TableHead className="text-right">Events</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>
-          {pageItems.map((row) => (
-            <TableRow key={row.ipAddress}>
-              <TableCell className="font-mono text-xs">
-                {row.ipAddress}
-                <IpBanControls ip={row.ipAddress}>
-                  <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                  <FlyToIpButton ip={row.ipAddress} />
-                </IpBanControls>
-              </TableCell>
-              <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
-              <TableCell>{row.city ?? "-"}</TableCell>
-              <TableCell className="max-w-[220px]">
-                <AsnCell asn={row.asn} organization={row.asOrganization} />
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
+        <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+          <TableBody>
+            {pageItems.map((row) => (
+              <TableRow key={row.ipAddress}>
+                <TableCell className="font-mono text-xs">
+                  <IpLabel ip={row.ipAddress} />
+                  <IpActionsMenu
+                    ip={row.ipAddress}
+                    countryCode={row.countryCode}
+                    city={row.city}
+                    asn={row.asn}
+                    asOrganization={row.asOrganization}
+                  />
+                </TableCell>
+                <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
+                <TableCell>{row.city ?? "-"}</TableCell>
+                <TableCell className="max-w-[220px]">
+                  <AsnCell asn={row.asn} organization={row.asOrganization} />
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </IpFilterTargetsProvider>
       </Table>
     </DataTableFrame>
   )

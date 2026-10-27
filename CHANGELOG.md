@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- IP columns in the log, analytics and security tables have a copy button and one actions menu in place of the inspect, fly-to and ban buttons. The menu inspects the IP, flies to it, bans or unbans it, and adds the row's IP, host, server, country or ASN to the page's filters or takes it out again. Its header shows the IP's decision with the scenario and time left, plus the IP's location and network. On phones the menu opens as a bottom drawer. An IP with an active CrowdSec decision takes the decision's colour instead of carrying a Banned badge.
+- Selecting text in a table row no longer opens the row's details, so you can highlight an IP or URL and copy it straight from the table.
 - A new version no longer reloads a page you are using without warning. The page shows the notice first. It reloads by itself only after 5 minutes with no input, or when you come back to a tab that was in the background during the update.
 - While the database is down, the login page says so, and a failed sign-in explains why instead of saying "Invalid username or password". A logout that fails now says so and keeps you on the page.
 - Logins survive restarts and updates. Updating to this release logs you out once, because sessions used to live only in memory. Changing the admin user or password, or who may sign in with OIDC, still logs everyone out on the next start.

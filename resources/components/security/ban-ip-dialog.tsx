@@ -3,7 +3,7 @@
  * a preset or custom duration, and a reason. It validates before sending,
  * and the server validates again and normalizes the range and duration.
  */
-import { useState } from "react"
+import { useState, type RefObject } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -165,14 +165,25 @@ export function BanIpDialog({
   open,
   onOpenChange,
   initialIp = "",
+  returnFocusTo,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   initialIp?: string
+  /** Gets focus back on close. Without a trigger of its own the dialog
+   *  would otherwise drop focus on the body. */
+  returnFocusTo?: RefObject<HTMLElement | null>
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent
+        className="sm:max-w-sm"
+        onCloseAutoFocus={(event) => {
+          if (!returnFocusTo?.current) return
+          event.preventDefault()
+          returnFocusTo.current.focus({ preventScroll: true })
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Ban an IP or range</DialogTitle>
           <DialogDescription>

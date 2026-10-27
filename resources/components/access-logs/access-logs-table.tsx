@@ -6,7 +6,7 @@
  * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { memo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import {
@@ -20,7 +20,7 @@ import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTableFrame } from "@/components/data/data-table-frame"
-import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { AccessLogDetailSheet } from "@/components/access-logs/access-log-detail-sheet"
 import {
@@ -39,9 +39,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { accessLogFilterTargets } from "@/lib/ip-filter-targets"
 import {
   formatBytes,
   formatDuration,
@@ -86,7 +86,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
         </span>
       )
     case "ipAddress":
-      return <span className="font-mono">{r.ipAddress}</span>
+      return <IpLabel ip={r.ipAddress} />
     case "bytesSent":
       return <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>
     case "requestTime":
@@ -163,12 +163,16 @@ const AccessLogTableBody = memo(function AccessLogTableBody({
             <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
               {renderCell(c, row)}
               {c.key === "ipAddress" && (
-                <span {...stopRowActivation}>
-                  <IpBanControls ip={row.ipAddress}>
-                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                    <FlyToIpButton ip={row.ipAddress} />
-                  </IpBanControls>
-                </span>
+                <IpActionsMenu
+                  ip={row.ipAddress}
+                  host={row.host}
+                  server={row.server}
+                  countryCode={row.countryCode}
+                  countryName={row.countryName}
+                  city={row.city}
+                  asn={row.autonomousSystemNumber}
+                  asOrganization={row.autonomousSystemOrganization}
+                />
               )}
             </TableCell>
           ))}
@@ -197,7 +201,8 @@ export function AccessLogsTable({
   onPageSizeChange,
   onSortChange,
 }: AccessLogsTableProps) {
-  const { filters } = useAccessLogFilters()
+  const { filters, setFilters } = useAccessLogFilters()
+  const filterTargetsFor = useMemo(() => accessLogFilterTargets(filters, setFilters), [filters, setFilters])
   const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
@@ -325,7 +330,9 @@ export function AccessLogsTable({
               })}
             </TableRow>
           </TableHeader>
-          <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+          <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+            <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
+          </IpFilterTargetsProvider>
         </VirtualTable>
       </DataTableFrame>
 

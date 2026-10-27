@@ -241,12 +241,16 @@ for (const fixture of [
     await expect(dialog).toHaveCount(0)
     await expect(lastRow).toBeFocused()
 
-    const inspect = lastRow.getByRole("button", { name: "Inspect 192.0.2.1", exact: true })
-    await inspect.click()
-    await expect(dialog).toBeVisible()
+    // Inspect sits in the row's actions menu, a bottom drawer on phones. The
+    // inspector opens once the menu has closed and returns focus to its button.
+    const actions = lastRow.getByRole("button", { name: "Actions for 192.0.2.1", exact: true })
+    await actions.click()
+    await page.getByRole("mobile" in fixture ? "button" : "menuitem", { name: "Inspect IP", exact: true }).click()
+    await expect(page.locator('[data-slot="sheet-content"]')).toBeVisible()
+    await expect(dialog).toHaveCount(1)
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
-    await expect(inspect).toBeFocused()
+    await expect(actions).toBeFocused()
 
     // Replacing a record sheet with the inspector still returns to its row.
     await lastRow.focus()
