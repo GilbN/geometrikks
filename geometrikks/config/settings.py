@@ -14,7 +14,7 @@ from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_valida
 from pydantic.json_schema import JsonDict
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from geometrikks.lib.urls import validate_https_url
-from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES
+from geometrikks.lib.geoip import ALLOWED_GEOIP_LOCALES
 
 
 def _env_file() -> str | None:

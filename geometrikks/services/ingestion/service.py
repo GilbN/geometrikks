@@ -33,9 +33,9 @@ from geometrikks.domain.geo.utils import make_point
 from geometrikks.domain.instances.schemas import ERROR_MESSAGE_MAX_CHARS
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
-from geometrikks.services.logparser.constants import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import LogSource
+from geometrikks.lib.geoip import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
 from .lookups import GeoLookups
