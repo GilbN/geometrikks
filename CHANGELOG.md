@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `APP_NAME` and `APP_DESCRIPTION`. They only set the API schema's title and description.
 - `VITE_ENABLE_REACT_HELPERS` and `VITE_EXECUTOR`. Dev mode always runs Vite through bun with React refresh on.
 
+### Fixed
+
+- The close button on a row's details and on the IP inspector sits in the middle of the header. On phones it sat about 10px below the title.
+
 ## [0.22.1] - 2026-10-25
 
 ### Fixed
