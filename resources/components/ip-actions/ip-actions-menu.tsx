@@ -68,6 +68,8 @@ interface IpAction {
   detail?: string
   /** `source` is the clicked element; the copy fallback needs it. */
   run: (source: HTMLElement) => void
+  /** Opens a sheet or dialog, so it waits for the menu or drawer to close. */
+  opensDialog?: boolean
 }
 
 function filterActions(ip: string, target: FilterTarget): IpAction[] {
@@ -180,12 +182,26 @@ export function IpActionsMenu({
   const ban = useBanIp()
   const unban = useUnbanIp()
   const [banDialogOpen, setBanDialogOpen] = useState(false)
-  // The ban dialog waits for the drawer to finish closing. Opened during the
-  // close animation, it leaves pointer-events: none on the body after it is
-  // dismissed, and the page stops taking taps. vaul only reports the end of
-  // a close it made itself, so every drawer action closes it through
-  // DrawerClose rather than a controlled `open`.
-  const banDialogAfterDrawer = useRef(false)
+  // An action that opens a sheet or dialog runs once the menu or drawer has
+  // closed and focus is back on the trigger. The sheet takes the focused
+  // element as the one to return to, and a dialog opened during the drawer's
+  // close animation leaves pointer-events: none on the body after it is
+  // dismissed. vaul only reports the end of a close it made itself, so every
+  // drawer action closes it through DrawerClose rather than a controlled `open`.
+  const afterClose = useRef<(() => void) | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const runAfterClose = () => {
+    const run = afterClose.current
+    afterClose.current = null
+    if (run === null) return false
+    triggerRef.current?.focus({ preventScroll: true })
+    run()
+    return true
+  }
+  const select = (action: IpAction, source: HTMLElement) => {
+    if (action.opensDialog) afterClose.current = () => action.run(source)
+    else action.run(source)
+  }
   const decision = bannedIps?.get(ip) ?? null
   const banned = decision !== null
   const isPending = ban.isPending || unban.isPending
@@ -211,7 +227,7 @@ export function IpActionsMenu({
   const sections: IpAction[][] = [
     [
       { key: "copy", icon: <Copy />, label: "Copy IP", run: (source: HTMLElement) => void copy(source) },
-      { key: "inspect", icon: <ScanSearch />, label: "Inspect IP", run: () => inspect(ip) },
+      { key: "inspect", icon: <ScanSearch />, label: "Inspect IP", run: () => inspect(ip), opensDialog: true },
       {
         key: "fly-to",
         icon: <LocateFixed />,
@@ -228,6 +244,7 @@ export function IpActionsMenu({
 
   const trigger = (
     <Button
+      ref={triggerRef}
       variant="ghost"
       size="icon-xs"
       className={cn("align-middle text-muted-foreground pointer-coarse:size-8", className)}
@@ -244,9 +261,7 @@ export function IpActionsMenu({
       {isMobile ? (
         <Drawer
           onAnimationEnd={(open) => {
-            if (open || !banDialogAfterDrawer.current) return
-            banDialogAfterDrawer.current = false
-            setBanDialogOpen(true)
+            if (!open) runAfterClose()
           }}
         >
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
@@ -269,7 +284,7 @@ export function IpActionsMenu({
                       <Button
                         variant="ghost"
                         className="h-11 justify-start gap-3 px-3 font-normal"
-                        onClick={(event) => action.run(event.currentTarget)}
+                        onClick={(event) => select(action, event.currentTarget)}
                       >
                         {action.icon}
                         {action.label}
@@ -318,7 +333,7 @@ export function IpActionsMenu({
                             variant="outline"
                             className="h-11"
                             onClick={() => {
-                              banDialogAfterDrawer.current = true
+                              afterClose.current = () => setBanDialogOpen(true)
                             }}
                           >
                             More options…
@@ -335,7 +350,13 @@ export function IpActionsMenu({
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-auto min-w-48">
+          <DropdownMenuContent
+            align="start"
+            className="w-auto min-w-48"
+            onCloseAutoFocus={(event) => {
+              if (runAfterClose()) event.preventDefault()
+            }}
+          >
             <DropdownMenuLabel className="flex flex-col items-start justify-start gap-0.5">
               <span className="flex items-center gap-2 font-mono">
                 {ip}
@@ -347,7 +368,7 @@ export function IpActionsMenu({
               <Fragment key={index}>
                 {index > 0 && <DropdownMenuSeparator />}
                 {section.map((action) => (
-                  <DropdownMenuItem key={action.key} onSelect={(event) => action.run(event.target as HTMLElement)}>
+                  <DropdownMenuItem key={action.key} onSelect={(event) => select(action, event.target as HTMLElement)}>
                     {action.icon}
                     {action.label}
                     <ActionDetail value={action.detail} />
@@ -376,7 +397,13 @@ export function IpActionsMenu({
                         </DropdownMenuItem>
                       ))}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => setBanDialogOpen(true)}>More options…</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          afterClose.current = () => setBanDialogOpen(true)
+                        }}
+                      >
+                        More options…
+                      </DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
@@ -385,7 +412,7 @@ export function IpActionsMenu({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <BanIpDialog open={banDialogOpen} onOpenChange={setBanDialogOpen} initialIp={ip} />
+      <BanIpDialog open={banDialogOpen} onOpenChange={setBanDialogOpen} initialIp={ip} returnFocusTo={triggerRef} />
     </span>
   )
 }
