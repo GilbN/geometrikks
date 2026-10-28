@@ -10,11 +10,15 @@ from packaging.version import Version
 
 from geometrikks.lib.outbound import USER_AGENT
 from geometrikks.services.release_check import (
+    MAX_RELEASE_PAGES,
     MAX_RESPONSE_BYTES,
+    RELEASES_PAGE_SIZE,
     RELEASES_URL,
     GithubRelease,
     ReleaseCheckError,
     ReleaseChecker,
+    newer_count_is_exact,
+    newer_releases,
     parse_releases,
     select_newer_release,
     tag_version,
@@ -112,6 +116,65 @@ def test_out_of_order_list_picks_the_highest_version() -> None:
     selected = select_newer_release(github_releases, "0.21.0", NOW)
     assert selected is not None
     assert selected.version == Version("0.23.0")
+
+
+def test_newer_releases_lists_every_applicable_release_newest_first() -> None:
+    github_releases = [
+        make_release("v0.20.0"),
+        make_release("v0.21.0"),
+        make_release("v0.23.0"),
+        make_release("v0.22.1-dev.1", prerelease=True),
+        make_release("v0.22.0"),
+        make_release("v0.24.0", published_at=NOW - timedelta(minutes=5)),
+    ]
+    selected = newer_releases(github_releases, "0.20.1", NOW)
+    assert [str(github_release.version) for github_release in selected] == [
+        "0.23.0",
+        "0.22.0",
+        "0.21.0",
+    ]
+
+
+def test_newer_releases_for_a_dev_build_counts_dev_tags_too() -> None:
+    github_releases = [
+        make_release("v0.22.1-dev.1", prerelease=True),
+        make_release("v0.22.1-dev.2", prerelease=True),
+        make_release("v0.22.1"),
+    ]
+    selected = newer_releases(github_releases, "0.22.1.dev1+g1234", NOW)
+    assert [str(github_release.version) for github_release in selected] == [
+        "0.22.1",
+        "0.22.1.dev2",
+    ]
+
+
+def test_newer_releases_is_empty_for_a_local_build() -> None:
+    assert newer_releases([make_release("v0.23.0")], "0.0.0+local", NOW) == []
+
+
+def test_newer_count_is_exact_when_the_page_is_not_full() -> None:
+    github_releases = [make_release("v0.23.0"), make_release("v0.22.0")]
+    assert newer_count_is_exact(github_releases, "0.20.0", page_full=False)
+
+
+def test_newer_count_is_exact_when_a_full_page_reaches_the_running_version() -> None:
+    github_releases = [make_release("v0.23.0"), make_release("v0.20.0")]
+    assert newer_count_is_exact(github_releases, "0.20.0", page_full=True)
+
+
+def test_newer_count_judges_a_full_page_by_its_oldest_entry() -> None:
+    # A late patch for an older line is on the page, but the page's oldest
+    # entry is still above the running version, so page 2 may hold more.
+    github_releases = [make_release("v0.23.0"), make_release("v0.19.1"), make_release("v0.21.0")]
+    assert not newer_count_is_exact(github_releases, "0.20.0", page_full=True)
+
+
+def test_newer_count_is_a_lower_bound_when_a_full_page_stops_above_the_running_version() -> None:
+    # A page full of dev tags a stable build skips can hide older stable releases.
+    github_releases = [
+        make_release(f"v0.23.0-dev.{dev_number}", prerelease=True) for dev_number in range(1, 29)
+    ] + [make_release("v0.22.0"), make_release("v0.21.0")]
+    assert not newer_count_is_exact(github_releases, "0.19.0", page_full=True)
 
 
 def test_parse_skips_drafts_unparseable_tags_and_foreign_urls() -> None:
@@ -486,6 +549,123 @@ async def test_found_logs_again_when_a_newer_release_appears() -> None:
 
 
 @pytest.mark.anyio
+async def test_checker_counts_the_newer_releases() -> None:
+    body = json.loads(release_body("v0.23.0")) + json.loads(release_body("v0.22.1"))
+    fake_github = FakeGithub(httpx2.Response(200, content=json.dumps(body).encode()))
+    release_checker = fake_github.checker()
+
+    assert release_checker.newer_release_count == 0
+    await release_checker.run()
+
+    assert release_checker.latest is not None
+    assert release_checker.latest.version == Version("0.23.0")
+    assert release_checker.newer_release_count == 2
+    assert release_checker.newer_release_count_exact
+
+
+def release_page(*tags: str, etag: str | None = None) -> httpx2.Response:
+    body = [json.loads(release_body(tag))[0] for tag in tags]
+    headers = {"ETag": etag} if etag else {}
+    return httpx2.Response(200, content=json.dumps(body).encode(), headers=headers)
+
+
+def full_page_tags(page_index: int = 0) -> list[str]:
+    """A page's worth of distinct stable tags, all above 0.22.0, newest first."""
+    minor = 99 - page_index
+    return [f"v0.{minor}.{patch}" for patch in reversed(range(RELEASES_PAGE_SIZE))]
+
+
+@pytest.mark.anyio
+async def test_checker_pages_back_until_it_reaches_the_running_version() -> None:
+    fake_github = FakeGithub(
+        release_page(*full_page_tags(), etag='"one"'), release_page("v0.22.1", "v0.21.0")
+    )
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+
+    assert [str(request.url) for request in fake_github.requests] == [
+        RELEASES_URL,
+        f"{RELEASES_URL}&page=2",
+    ]
+    assert "if-none-match" not in fake_github.requests[1].headers
+    assert release_checker.newer_release_count == RELEASES_PAGE_SIZE + 1
+    assert release_checker.newer_release_count_exact
+    assert release_checker.etag == '"one"'
+
+
+@pytest.mark.anyio
+async def test_checker_stops_paging_at_the_cap_and_marks_the_count_inexact() -> None:
+    fake_github = FakeGithub(
+        *[release_page(*full_page_tags(page_index)) for page_index in range(MAX_RELEASE_PAGES)]
+    )
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+
+    assert len(fake_github.requests) == MAX_RELEASE_PAGES
+    assert release_checker.newer_release_count == RELEASES_PAGE_SIZE * MAX_RELEASE_PAGES
+    assert not release_checker.newer_release_count_exact
+
+
+@pytest.mark.anyio
+async def test_not_modified_first_page_still_refetches_the_later_pages() -> None:
+    # The ETag only covers page 1, so a release removed from page 2 must still drop out.
+    fake_github = FakeGithub(
+        release_page(*full_page_tags(), etag='"one"'),
+        release_page("v0.22.1", "v0.21.0"),
+        httpx2.Response(304),
+        release_page("v0.21.0"),
+    )
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+    await release_checker.run()
+
+    assert [str(request.url) for request in fake_github.requests[2:]] == [
+        RELEASES_URL,
+        f"{RELEASES_URL}&page=2",
+    ]
+    assert fake_github.requests[2].headers["if-none-match"] == '"one"'
+    assert release_checker.newer_release_count == RELEASES_PAGE_SIZE
+    assert release_checker.newer_release_count_exact
+
+
+@pytest.mark.anyio
+async def test_release_pushed_onto_page_2_by_a_new_one_counts_once() -> None:
+    first_page_tags = full_page_tags()
+    fake_github = FakeGithub(
+        release_page(*first_page_tags), release_page(first_page_tags[-1], "v0.21.0")
+    )
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+
+    assert release_checker.newer_release_count == RELEASES_PAGE_SIZE
+
+
+@pytest.mark.anyio
+async def test_failed_later_page_keeps_the_last_good_answer() -> None:
+    fake_github = FakeGithub(
+        release_page("v0.23.0", etag='"one"'),
+        release_page(*full_page_tags(), etag='"two"'),
+        httpx2.Response(502),
+    )
+    release_checker = fake_github.checker()
+
+    await release_checker.run()
+    with structlog.testing.capture_logs() as logs:
+        await release_checker.run()
+
+    assert [log["reason"] for log in logs if log["event"] == "release_check_failed"] == [
+        "HTTP 502"
+    ]
+    assert release_checker.etag == '"one"'
+    assert release_checker.newer_release_count == 1
+    assert release_checker.newer_release_count_exact
+
+
+@pytest.mark.anyio
 async def test_malformed_body_after_a_success_changes_nothing() -> None:
     clock = MutableClock(NOW)
     fake_github = FakeGithub(
@@ -557,7 +737,7 @@ async def test_unexpected_error_is_a_logged_failed_check(monkeypatch: pytest.Mon
     def explode(*_args: object) -> None:
         raise ZeroDivisionError
 
-    monkeypatch.setattr("geometrikks.services.release_check.select_newer_release", explode)
+    monkeypatch.setattr("geometrikks.services.release_check.newer_releases", explode)
     fake_github = FakeGithub(releases_response(etag='"one"'))
     release_checker = fake_github.checker()
 

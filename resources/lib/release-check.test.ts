@@ -7,6 +7,7 @@ import {
   releaseCheckLine,
   releaseCheckPollMs,
   showsReleaseDot,
+  skippedReleasesText,
 } from "./release-check"
 
 const NOW = Date.parse("2026-10-25T12:00:00Z")
@@ -25,6 +26,8 @@ describe("releaseCheckLine", () => {
         displayVersion: "v0.23.0",
         url: NOTES_URL,
         publishedAt: "2026-10-24T08:00:00Z",
+        newerReleaseCount: 1,
+        newerReleaseCountExact: true,
       },
       checkedAt: "2026-10-25T09:00:00Z",
     }
@@ -39,6 +42,8 @@ describe("releaseCheckLine", () => {
         displayVersion: "v0.23.0",
         url: NOTES_URL,
         publishedAt: "2026-10-24T08:00:00Z",
+        newerReleaseCount: 1,
+        newerReleaseCountExact: true,
       },
       checkedAt: "2026-10-25T09:00:00Z",
     }
@@ -128,5 +133,23 @@ describe("releaseCheckPollMs", () => {
 
   it("falls back to hourly before the first response", () => {
     expect(releaseCheckPollMs(undefined)).toBe(RELEASE_CHECK_POLL_MS)
+  })
+})
+
+describe("skippedReleasesText", () => {
+  it("says nothing when the newest release is the next one", () => {
+    expect(skippedReleasesText(1, true)).toBeNull()
+    expect(skippedReleasesText(0, true)).toBeNull()
+  })
+
+  it("counts the releases between the running one and the newest", () => {
+    expect(skippedReleasesText(2, true)).toBe("1 more release in between")
+    expect(skippedReleasesText(4, true)).toBe("3 more releases in between")
+  })
+
+  it("hedges when the count may be missing releases", () => {
+    expect(skippedReleasesText(30, false)).toBe("29 or more releases in between")
+    expect(skippedReleasesText(2, false)).toBe("1 or more releases in between")
+    expect(skippedReleasesText(1, false)).toBe("There may be more releases in between")
   })
 })

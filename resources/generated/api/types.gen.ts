@@ -969,6 +969,8 @@ export type LastErrorReport = {
  */
 export type LatestReleaseView = {
   displayVersion: string;
+  newerReleaseCount: number;
+  newerReleaseCountExact: boolean;
   publishedAt: string;
   url: string;
   version: string;

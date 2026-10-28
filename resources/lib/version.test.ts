@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { LOCAL_BUILD_LABEL, displayVersion, isLocalBuild, publicVersion, sameRelease } from "./version"
+import {
+  LOCAL_BUILD_LABEL,
+  displayVersion,
+  hasUncommittedChanges,
+  isLocalBuild,
+  publicVersion,
+  sameRelease,
+} from "./version"
 
 describe("displayVersion", () => {
   it.each([
@@ -48,5 +55,18 @@ describe("publicVersion", () => {
   it("drops the local suffix", () => {
     expect(publicVersion("0.22.0+g2d297914e")).toBe("0.22.0")
     expect(publicVersion("0.22.0.dev4")).toBe("0.22.0.dev4")
+  })
+})
+
+describe("hasUncommittedChanges", () => {
+  it("spots the date hatch-vcs appends for a dirty tree", () => {
+    expect(hasUncommittedChanges("0.23.0.dev3+g391c32657.d20261027")).toBe(true)
+    expect(hasUncommittedChanges("0.0.0+d20261027")).toBe(true)
+  })
+
+  it("is false for a clean build", () => {
+    expect(hasUncommittedChanges("0.23.0.dev3+g391c32657")).toBe(false)
+    expect(hasUncommittedChanges("0.23.0.dev3")).toBe(false)
+    expect(hasUncommittedChanges("unknown")).toBe(false)
   })
 })

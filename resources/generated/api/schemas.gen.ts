@@ -3389,6 +3389,12 @@ export const LatestReleaseViewSchema = {
     displayVersion: {
       type: "string",
     },
+    newerReleaseCount: {
+      type: "integer",
+    },
+    newerReleaseCountExact: {
+      type: "boolean",
+    },
     publishedAt: {
       format: "date-time",
       type: "string",
@@ -3400,7 +3406,14 @@ export const LatestReleaseViewSchema = {
       type: "string",
     },
   },
-  required: ["displayVersion", "publishedAt", "url", "version"],
+  required: [
+    "displayVersion",
+    "newerReleaseCount",
+    "newerReleaseCountExact",
+    "publishedAt",
+    "url",
+    "version",
+  ],
   title: "LatestReleaseView",
   type: "object",
 } as const;

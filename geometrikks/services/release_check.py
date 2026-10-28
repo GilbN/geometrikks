@@ -24,7 +24,12 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-RELEASES_URL = "https://api.github.com/repos/GilbN/geometrikks/releases?per_page=30"
+RELEASES_PAGE_SIZE = 30
+RELEASES_URL = (
+    f"https://api.github.com/repos/GilbN/geometrikks/releases?per_page={RELEASES_PAGE_SIZE}"
+)
+# Ten pages reach back 300 releases; an install further behind gets an "or more" count.
+MAX_RELEASE_PAGES = 10
 REQUEST_TIMEOUT_SECONDS = 10.0
 MAX_RESPONSE_BYTES = 1024 * 1024
 MIN_RELEASE_AGE = timedelta(minutes=15)
@@ -62,12 +67,18 @@ def tag_version(tag: str) -> Version | None:
         return None
 
 
-def parse_releases(body: bytes) -> list[GithubRelease]:
+def decode_release_entries(body: bytes) -> list[ReleaseEntry]:
     try:
-        release_entries = msgspec.json.decode(body, type=list[ReleaseEntry])
+        return msgspec.json.decode(body, type=list[ReleaseEntry])
     except (msgspec.DecodeError, msgspec.ValidationError) as error:
         raise ReleaseCheckError("invalid response") from error
 
+
+def parse_releases(body: bytes) -> list[GithubRelease]:
+    return releases_from_entries(decode_release_entries(body))
+
+
+def releases_from_entries(release_entries: Sequence[ReleaseEntry]) -> list[GithubRelease]:
     github_releases: list[GithubRelease] = []
     for release_entry in release_entries:
         if release_entry.draft or release_entry.published_at is None:
@@ -92,16 +103,16 @@ def parse_releases(body: bytes) -> list[GithubRelease]:
     return github_releases
 
 
-def select_newer_release(
+def newer_releases(
     github_releases: Sequence[GithubRelease], running_version: str, now: datetime
-) -> GithubRelease | None:
-    """The highest settled release above the running build, or None."""
+) -> list[GithubRelease]:
+    """Every settled release above the running build that applies to it, newest first."""
     if is_local_build(running_version):
-        return None
+        return []
     try:
         parsed_running = Version(running_version)
     except InvalidVersion:
-        return None
+        return []
 
     running_public = Version(parsed_running.public)
     candidates = [
@@ -114,9 +125,52 @@ def select_newer_release(
         and now - github_release.published_at >= MIN_RELEASE_AGE
         and github_release.version > running_public
     ]
-    if not candidates:
-        return None
-    return max(candidates, key=lambda github_release: github_release.version)
+    return sorted(candidates, key=lambda github_release: github_release.version, reverse=True)
+
+
+def newer_count_is_exact(
+    github_releases: Sequence[GithubRelease], running_version: str, *, page_full: bool
+) -> bool:
+    """Whether the pages fetched so far hold every release above the running build.
+
+    GitHub lists releases newest first by creation date, so the next page holds
+    only releases created before the oldest one fetched. Once that one is at or
+    below the running version, the next page is too, as long as releases go out
+    in version order. A patch for an older line published after a newer release
+    breaks that, and the count can then miss releases further back.
+    """
+    if not page_full:
+        return True
+    if not github_releases:
+        return False
+    try:
+        running_public = Version(Version(running_version).public)
+    except InvalidVersion:
+        return True
+    return github_releases[-1].version <= running_public
+
+
+def select_newer_release(
+    github_releases: Sequence[GithubRelease], running_version: str, now: datetime
+) -> GithubRelease | None:
+    """The highest settled release above the running build, or None."""
+    candidates = newer_releases(github_releases, running_version, now)
+    return candidates[0] if candidates else None
+
+
+async def _fetch_page(
+    client: httpx2.AsyncClient, url: str, etag: str | None
+) -> tuple[int, str | None, bytes]:
+    """GET one page of releases: status, ETag and, for a 200, the capped body."""
+    headers = {"If-None-Match": etag} if etag is not None else {}
+    body = bytearray()
+    async with client.stream("GET", url, headers=headers) as response:
+        if response.status_code == 200:
+            async for chunk in response.aiter_bytes():
+                body += chunk
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise ReleaseCheckError("response too large")
+        return response.status_code, response.headers.get("etag"), bytes(body)
 
 
 def release_check_enabled(settings: "Settings") -> bool:
@@ -154,8 +208,11 @@ class ReleaseChecker:
         self._running_version = running_version
         self._transport = transport
         self._clock = clock
-        self._github_releases: list[GithubRelease] = []
+        self._first_page_releases: list[GithubRelease] = []
+        self._first_page_full = False
         self._latest: GithubRelease | None = None
+        self._newer_release_count = 0
+        self._newer_release_count_exact = True
         self._checked_at: datetime | None = None
         self._etag: str | None = None
         self._last_failure_reason: str | None = None
@@ -168,6 +225,16 @@ class ReleaseChecker:
     @property
     def latest(self) -> GithubRelease | None:
         return self._latest
+
+    @property
+    def newer_release_count(self) -> int:
+        """How many releases above the running one apply to it, the latest included."""
+        return self._newer_release_count
+
+    @property
+    def newer_release_count_exact(self) -> bool:
+        """False when the pages fetched stopped short of the running version."""
+        return self._newer_release_count_exact
 
     @property
     def checked_at(self) -> datetime | None:
@@ -193,10 +260,9 @@ class ReleaseChecker:
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": USER_AGENT,
         }
-        if self._etag is not None:
-            request_headers["If-None-Match"] = self._etag
-
-        body = bytearray()
+        first_page_releases = self._first_page_releases
+        first_page_full = self._first_page_full
+        etag = self._etag
         try:
             async with httpx2.AsyncClient(
                 timeout=REQUEST_TIMEOUT_SECONDS,
@@ -204,34 +270,58 @@ class ReleaseChecker:
                 headers=request_headers,
                 transport=self._transport,
             ) as client:
-                async with client.stream("GET", RELEASES_URL) as response:
-                    status_code = response.status_code
-                    response_etag = response.headers.get("etag")
-                    if status_code == 200:
-                        async for chunk in response.aiter_bytes():
-                            body += chunk
-                            if len(body) > MAX_RESPONSE_BYTES:
-                                raise ReleaseCheckError("response too large")
+                # The ETag covers only the page it came with. A 304 spares the
+                # first page, and the later ones get fetched again every run.
+                status_code, response_etag, body = await _fetch_page(
+                    client, RELEASES_URL, self._etag
+                )
+                if status_code == 200:
+                    release_entries = decode_release_entries(body)
+                    first_page_releases = releases_from_entries(release_entries)
+                    first_page_full = len(release_entries) >= RELEASES_PAGE_SIZE
+                    etag = response_etag
+                elif status_code != 304:
+                    raise ReleaseCheckError(f"HTTP {status_code}")
+
+                github_releases = first_page_releases
+                last_page_full = first_page_full
+                page_number = 1
+                while page_number < MAX_RELEASE_PAGES and not newer_count_is_exact(
+                    github_releases, self._running_version, page_full=last_page_full
+                ):
+                    page_number += 1
+                    status_code, _, body = await _fetch_page(
+                        client, f"{RELEASES_URL}&page={page_number}", None
+                    )
+                    if status_code != 200:
+                        raise ReleaseCheckError(f"HTTP {status_code}")
+                    release_entries = decode_release_entries(body)
+                    # a release published between two requests pushes the last
+                    # one of the previous page onto this one
+                    seen_urls = {github_release.url for github_release in github_releases}
+                    github_releases = github_releases + [
+                        github_release
+                        for github_release in releases_from_entries(release_entries)
+                        if github_release.url not in seen_urls
+                    ]
+                    last_page_full = len(release_entries) >= RELEASES_PAGE_SIZE
         except httpx2.TimeoutException as error:
             raise ReleaseCheckError("timeout") from error
         except httpx2.HTTPError as error:
             raise ReleaseCheckError(type(error).__name__) from error
 
-        github_releases = self._github_releases
-        etag = self._etag
-        if status_code == 200:
-            github_releases = parse_releases(bytes(body))
-            etag = response_etag
-        elif status_code != 304:
-            raise ReleaseCheckError(f"HTTP {status_code}")
-
         now = self._clock()
         previous_latest = self._latest
-        latest = select_newer_release(github_releases, self._running_version, now)
+        candidates = newer_releases(github_releases, self._running_version, now)
 
-        self._github_releases = github_releases
+        self._first_page_releases = first_page_releases
+        self._first_page_full = first_page_full
         self._etag = etag
-        self._latest = latest
+        self._latest = candidates[0] if candidates else None
+        self._newer_release_count = len(candidates)
+        self._newer_release_count_exact = newer_count_is_exact(
+            github_releases, self._running_version, page_full=last_page_full
+        )
         self._checked_at = now
         self._last_failure_reason = None
         if self._latest is not None and (

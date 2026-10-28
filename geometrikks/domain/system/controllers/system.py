@@ -155,6 +155,10 @@ class LatestReleaseView(msgspec.Struct, rename="camel"):
     display_version: str
     url: str
     published_at: datetime
+    # Releases above the running version, this one included.
+    newer_release_count: int
+    # False when the release check stopped paging before reaching the running version.
+    newer_release_count_exact: bool
 
 
 class ReleaseCheckResponse(msgspec.Struct, rename="camel"):
@@ -437,6 +441,8 @@ class SystemController(Controller):
                 display_version=display_version(str(github_release.version)),
                 url=github_release.url,
                 published_at=github_release.published_at,
+                newer_release_count=release_checker.newer_release_count,
+                newer_release_count_exact=release_checker.newer_release_count_exact,
             ),
             checked_at=release_checker.checked_at,
         )
