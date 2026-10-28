@@ -497,7 +497,23 @@ async def test_release_check_checked_with_a_newer_release(monkeypatch):
         "version": "0.23.0",
         "displayVersion": "v0.23.0",
         "url": "https://github.com/GilbN/geometrikks/releases/tag/v0.23.0",
+        "newerReleaseCount": 1,
+        "newerReleaseCountExact": True,
     }
+
+
+async def test_release_check_counts_every_release_above_the_running_one(monkeypatch):
+    enable_release_check(monkeypatch)
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.0", release_transport("v0.21.0", "v0.22.1", "v0.23.0", "v0.23.1")
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    latest = resp.json()["latest"]
+    assert latest["version"] == "0.23.1"
+    assert latest["newerReleaseCount"] == 3
+    assert latest["newerReleaseCountExact"] is True
 
 
 async def test_release_check_dev_release_uses_tag_style(monkeypatch):

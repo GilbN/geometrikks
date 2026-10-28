@@ -3580,6 +3580,12 @@
           "displayVersion": {
             "type": "string"
           },
+          "newerReleaseCount": {
+            "type": "integer"
+          },
+          "newerReleaseCountExact": {
+            "type": "boolean"
+          },
           "publishedAt": {
             "format": "date-time",
             "type": "string"
@@ -3593,6 +3599,8 @@
         },
         "required": [
           "displayVersion",
+          "newerReleaseCount",
+          "newerReleaseCountExact",
           "publishedAt",
           "url",
           "version"
