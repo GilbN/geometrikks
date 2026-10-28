@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Settings > Environment wraps long list and map values, such as a full `APP_TRUSTED_PROXIES` or `MAP_SERVER_LOCATIONS`, between their items. A long value used to run off the side of the page and squeeze its description to one word per line.
+- The top bar on Settings > Appearance and Settings > Changelog shows the page name instead of "Page".
+- Settings > Environment shows one Application group. It listed two groups with that name, and the second one's shortcut jumped to the first.
+- Settings > Status says "Attention" when advisories or agents need attention, like the sidebar does. It used to say "Healthy, All components operational" right above the list of problems.
+- The malformed share on Debug Logs reads "100.0% of total" instead of "+100.0% of total".
+- The Columns menu on Access Logs, Geo Logs and Debug Logs uses the height left on screen instead of stopping at 320px, so it lists more columns before you have to scroll it.
+- A grouped decision on the Security page counts its scenarios, not its decisions. An IP with 28 decisions from 6 scenarios said "28 scenarios". When every decision comes from one scenario, the row shows that scenario.
 
 ### Removed
 

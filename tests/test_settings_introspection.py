@@ -74,6 +74,15 @@ def test_descriptions_defaults_and_sections_present():
     assert server_name.value  # current value still present
 
 
+def test_app_section_holds_root_and_app_settings_fields_once():
+    overview = build_settings_overview(Settings())
+    names = [s.name for s in overview.sections]
+    assert names.count("app") == 1
+    app_keys = [f.key for f in _section(overview, "app").fields]
+    assert {"debug", "admin_user", "mode", "instance_name"} <= set(app_keys)
+    assert len(app_keys) == len(set(app_keys))
+
+
 def test_app_section_excludes_sub_models():
     overview = build_settings_overview(Settings())
     app_keys = {f.key for f in _section(overview, "app").fields}

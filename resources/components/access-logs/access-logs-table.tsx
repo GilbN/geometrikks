@@ -249,7 +249,7 @@ export function AccessLogsTable({
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
+      <DropdownMenuContent align="end" collisionPadding={8} className="w-auto min-w-44">
         <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {ACCESS_LOG_COLUMNS.map((c) => (

@@ -162,6 +162,11 @@ export function resolveDecision(
   return bannedIps.get(ip) ?? null
 }
 
+/** One IP often carries several decisions from the same scenario. */
+export function distinctScenarioCount(decisions: readonly { scenario: string }[]): number {
+  return new Set(decisions.map((decision) => decision.scenario)).size
+}
+
 /** Badge text for a decision type; bouncer-defined names show as sent. */
 export function decisionLabel(type: string): string {
   if (type === "ban") return "Banned"

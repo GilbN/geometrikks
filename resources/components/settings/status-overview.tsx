@@ -46,7 +46,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
-import { agentAdvisoryCards, agentSummary } from "@/components/settings/agents-logic"
+import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
 import {
   accessLogFiles,
   accessLogUnavailableLabel,
@@ -191,7 +191,6 @@ export function StatusOverview() {
   useLiveEvents(() => {}, true)
 
   const now = Date.now()
-  const overall = overallState(health, healthError)
   const access = accessLogFiles(files)
   const lokiSources = stats?.lokiSources ?? []
   const uptime = formatUptime(health?.startedAt, now)
@@ -203,6 +202,7 @@ export function StatusOverview() {
   // failed refetch; the advisory cards do not, since that answer may be stale.
   const agentOverview = agentSummary(instances)
   const agentCards = instancesError ? [] : agentAdvisoryCards(instances)
+  const overall = overallState(health, healthError, instancesError ? 0 : agentsNeedingAttention(instances).length)
   const bottomCardsBefore = (agentOverview ? 1 : 0) + (locationRows.length > 0 ? 1 : 0)
 
   if (healthLoading) {
