@@ -47,10 +47,23 @@ const computedLabel: Record<string, string> = {
   runtime: "runtime",
 }
 
+// JSON.stringify with a space after each comma and colon, so a long list or
+// map wraps between items instead of inside an address.
+function formatJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(formatJson).join(", ")}]`
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value).map(
+      ([key, entryValue]) => `${JSON.stringify(key)}: ${formatJson(entryValue)}`,
+    )
+    return `{${entries.join(", ")}}`
+  }
+  return JSON.stringify(value)
+}
+
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return "not set"
   if (typeof value === "boolean") return value ? "true" : "false"
-  if (typeof value === "object") return JSON.stringify(value)
+  if (typeof value === "object") return formatJson(value)
   return String(value)
 }
 
@@ -87,7 +100,7 @@ function ValueBlock({ field }: { field: SettingFieldView }) {
     const label = computedLabel[field.computedSource ?? ""] ?? "computed"
     return (
       <span className="inline-flex items-baseline gap-1.5">
-        <code className="font-mono text-xs break-all font-medium text-foreground">
+        <code className="font-mono text-xs wrap-anywhere font-medium text-foreground">
           {formatValue(field.computedValue)}
         </code>
         <Badge
@@ -105,7 +118,7 @@ function ValueBlock({ field }: { field: SettingFieldView }) {
       {overridden && <StatusLed tone="accent" className="self-center" />}
       <code
         className={cn(
-          "font-mono text-xs break-all",
+          "font-mono text-xs wrap-anywhere",
           overridden ? "font-medium text-foreground" : "text-muted-foreground",
         )}
       >
@@ -119,13 +132,13 @@ function FieldRow({ field }: { field: SettingFieldView }) {
   const overridden = isOverridden(field)
   return (
     <div className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-      <div className="min-w-0">
+      <div className="min-w-0 sm:flex-1">
         <div className="text-sm font-medium">{field.key}</div>
         {field.description && (
           <div className="max-w-md text-xs text-muted-foreground">{field.description}</div>
         )}
       </div>
-      <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end sm:text-right">
+      <div className="flex min-w-0 flex-col items-start gap-1 sm:max-w-1/2 sm:items-end sm:text-right">
         <ValueBlock field={field} />
         <div className="flex items-center gap-2">
           {overridden && !field.isSecret && (

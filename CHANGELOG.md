@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Agents shows the Name row in an instance's details only when `APP_INSTANCE_NAME` isn't set. An instance with a configured name no longer shows "set by APP_INSTANCE_NAME".
 - `docs/configuration.md` lists the settings for working on GeoMetrikks itself in a Developer settings section at the end: `APP_DEBUG`, `APP_ENVIRONMENT`, the SQL echo and pool switches, `DB_DROP_ON_STARTUP`, `LOGPARSER_SKIP_VALIDATION`, `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` and the Vite settings.
 
+### Fixed
+
+- Settings > Environment wraps long list and map values, such as a full `APP_TRUSTED_PROXIES` or `MAP_SERVER_LOCATIONS`, between their items. A long value used to run off the side of the page and squeeze its description to one word per line.
+
 ### Removed
 
 - `API_HOST` and `API_PORT`. The server never read them. It listens on the host and port given to `litestar run`, which is `0.0.0.0:8000` in the image.
