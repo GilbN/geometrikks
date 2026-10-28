@@ -8,9 +8,6 @@ import { memo, useCallback, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
   Columns3,
   Search,
 } from "lucide-react"
@@ -20,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { SortableHead } from "@/components/data/sortable-head"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
@@ -394,7 +392,7 @@ export function DebugLogsTable() {
           value={malformedFilter}
           onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
         >
-          <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
+          <SelectTrigger size="sm" className={cn("h-8 text-xs", inDrawer ? "w-full" : "w-40")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -463,7 +461,7 @@ export function DebugLogsTable() {
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
+        <Button variant="outline" size="sm" className="h-8">
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
@@ -528,33 +526,22 @@ export function DebugLogsTable() {
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
-                const active = c.sortField && sortField === c.sortField
+                if (!c.sortField) {
+                  return (
+                    <TableHead key={c.key}>
+                      {c.label}
+                    </TableHead>
+                  )
+                }
+                const columnSortField = c.sortField
                 return (
-                  <TableHead key={c.key}>
-                    {c.sortField ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(c.sortField!)}
-                        className={cn(
-                          "inline-flex items-center gap-1 hover:text-foreground",
-                          active ? "text-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        {c.label}
-                        {active ? (
-                          sortOrder === "asc" ? (
-                            <ArrowUp className="h-3 w-3" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3" />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </button>
-                    ) : (
-                      c.label
-                    )}
-                  </TableHead>
+                  <SortableHead
+                    key={c.key}
+                    label={c.label}
+                    active={sortField === columnSortField}
+                    sortOrder={sortOrder}
+                    onToggle={() => toggleSort(columnSortField)}
+                  />
                 )
               })}
             </TableRow>

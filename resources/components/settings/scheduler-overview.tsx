@@ -366,7 +366,6 @@ export function SchedulerOverview() {
                 <TableCell className="align-top">
                   <Button
                     size="sm"
-                    className="pointer-coarse:h-10"
                     variant="outline"
                     disabled={job.running || runJob.isPending}
                     onClick={() => runJob.mutate(job.id)}

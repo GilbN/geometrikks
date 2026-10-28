@@ -25,7 +25,7 @@ export function FlyToIpButton({
     <Button
       variant="ghost"
       size="icon-xs"
-      className={cn("align-middle text-muted-foreground", className)}
+      className={cn("align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
       title="Fly to on the map"
       aria-label={`Fly to ${ip} on the map`}
       onKeyDown={stopRowActivation.onKeyDown}

@@ -90,7 +90,7 @@ function AccessLogsPage() {
           subtitle="Explore request history or follow new traffic as it arrives."
         />
         <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
-          <TabsList className="pointer-coarse:h-10">
+          <TabsList>
             <TabsTrigger value="history">
               <History className="h-4 w-4" /> History
             </TabsTrigger>

@@ -7,7 +7,7 @@
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
 import { memo, useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
+import { Columns3 } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import {
   TableCell,
@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { SortableHead } from "@/components/data/sortable-head"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
@@ -245,7 +246,7 @@ export function AccessLogsTable({
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
+        <Button variant="outline" size="sm" className="h-8">
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
@@ -298,34 +299,22 @@ export function AccessLogsTable({
           <TableHeader>
             <TableRow>
               {shownColumns.map((c) => {
-                const active = c.sortField && sortField === c.sortField
+                if (!c.sortField) {
+                  return (
+                    <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+                      {c.label}
+                    </TableHead>
+                  )
+                }
+                const columnSortField = c.sortField
                 return (
-                  <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {c.sortField ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(c.sortField!)}
-                        className={cn(
-                          "inline-flex items-center gap-1 hover:text-foreground",
-                          c.align === "right" && "flex-row-reverse",
-                          active ? "text-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        {c.label}
-                        {active ? (
-                          sortOrder === "asc" ? (
-                            <ArrowUp className="h-3 w-3" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3" />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </button>
-                    ) : (
-                      c.label
-                    )}
-                  </TableHead>
+                  <SortableHead
+                    key={c.key}
+                    label={c.label}
+                    active={sortField === columnSortField}
+                    sortOrder={sortOrder} alignRight={c.align === "right"}
+                    onToggle={() => toggleSort(columnSortField)}
+                  />
                 )
               })}
             </TableRow>

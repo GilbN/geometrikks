@@ -236,7 +236,7 @@ export function StatusOverview() {
                 href={card.docsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-primary underline underline-offset-2"
+                className="tap-area text-xs text-primary underline underline-offset-2"
               >
                 Setup guide
               </a>
@@ -262,7 +262,7 @@ export function StatusOverview() {
                 <Link
                   to="/settings/agents"
                   search={{ instance: card.instanceName }}
-                  className="text-primary underline underline-offset-2"
+                  className="tap-area text-primary underline underline-offset-2"
                 >
                   Open {card.instanceName} on the Agents page
                 </Link>
@@ -520,7 +520,7 @@ export function StatusOverview() {
               {crowdsecStats && (
                 <Link
                   to="/security"
-                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  className="tap-area text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                 >
                   {crowdsecStats.total.toLocaleString()} active decisions
                 </Link>
@@ -537,7 +537,7 @@ export function StatusOverview() {
                 <CardTitle className="text-base">Scheduler</CardTitle>
                 <CardDescription>
                   Background jobs ·{" "}
-                  <Link to="/settings/scheduler" className="underline underline-offset-2">
+                  <Link to="/settings/scheduler" className="tap-area underline underline-offset-2">
                     details
                   </Link>
                 </CardDescription>
@@ -606,7 +606,7 @@ export function StatusOverview() {
                   <StatusLed tone={agentOverview.tone} pulse={agentOverview.tone === "emerald"} />
                   <Link
                     to="/settings/agents"
-                    className="text-sm font-medium underline underline-offset-2"
+                    className="tap-area text-sm font-medium underline underline-offset-2"
                   >
                     {agentOverview.line}
                   </Link>
@@ -643,7 +643,7 @@ export function StatusOverview() {
                 <CardTitle className="text-base">Recent errors</CardTitle>
                 <CardDescription>
                   Latest error-level events from the application log ·{" "}
-                  <Link to="/settings/logs" className="underline underline-offset-2">
+                  <Link to="/settings/logs" className="tap-area underline underline-offset-2">
                     open Logs
                   </Link>
                 </CardDescription>
