@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from litestar import Request
 from litestar.di import NamedDependency
-from litestar.params import QueryParameter
+from litestar.params import QueryParameter, SkipValidation
 from advanced_alchemy.extensions.litestar import filters
 
+from geometrikks.config.settings import Settings
 from geometrikks.server import runtime
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
+from geometrikks.services.geoip.locator import GeoIpLocator
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
 
@@ -37,6 +39,18 @@ async def provide_security_enrichment_repo(
 ) -> SecurityEnrichmentRepository:
     """Provide SecurityEnrichmentRepository for decision enrichment."""
     return SecurityEnrichmentRepository(session=db_session)
+
+
+def provide_geoip_locator(
+    request: Request, settings: NamedDependency[SkipValidation[Settings]]
+) -> GeoIpLocator | None:
+    """Provide GeoLite2 lookups for IPs without stored traffic.
+
+    Returns None in geo-degraded mode.
+    """
+    if not runtime.is_geoip_available(request.app):
+        return None
+    return GeoIpLocator(settings.geoip.db_path, settings.geoip.locales)
 
 
 def provide_limit_offset_pagination(

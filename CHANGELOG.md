@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Banned IPs on the Security page get their country and city from the GeoLite2 database when GeoMetrikks has no traffic from them. Bans from mail or SSH scenarios, and IPs last seen in the proxy logs more than 30 days ago, showed "-" in the Country column.
+- Alert details and alert history show the full country name where CrowdSec sends only a code, such as "Netherlands" in place of "NL".
 - The close button on a row's details and on the IP inspector sits in the middle of the header. On phones it sat about 10px below the title.
 
 ## [0.22.1] - 2026-10-25
