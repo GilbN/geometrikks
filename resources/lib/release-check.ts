@@ -60,3 +60,11 @@ export function showsReleaseDot({
 }): boolean {
   return !reloadPending && hasUnseenRelease(seenVersion, latestVersion)
 }
+
+/** The releases a jump to the newest one would skip, or null when there are none. */
+export function skippedReleasesText(newerReleaseCount: number, countIsExact: boolean): string | null {
+  const skipped = newerReleaseCount - 1
+  if (skipped < 1) return countIsExact ? null : "There may be more releases in between"
+  if (!countIsExact) return `${skipped} or more releases in between`
+  return `${skipped} more release${skipped === 1 ? "" : "s"} in between`
+}

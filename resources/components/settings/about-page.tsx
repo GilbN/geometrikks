@@ -2,9 +2,10 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Bug, Cpu, Database, ExternalLink, Globe2 } from "lucide-react"
 import type { AboutResponse } from "@/generated/api/types.gen"
 import { useAbout, useReleaseCheck } from "@/lib/queries"
-import { releaseCheckLine } from "@/lib/release-check"
+import { releaseCheckLine, skippedReleasesText } from "@/lib/release-check"
 import { saveSeenRelease } from "@/lib/release-seen"
-import { displayVersion } from "@/lib/version"
+import { displayVersion, hasUncommittedChanges, publicVersion } from "@/lib/version"
+import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -76,7 +77,7 @@ function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ className?: s
 const RELEASE_LINE_TICK_MS = 60_000
 
 /** Marks the release seen only once its announcement is on screen. */
-function ReleaseLine() {
+function useReleaseLine() {
   const { data: releaseCheck } = useReleaseCheck()
   const [nowMs, setNowMs] = useState(() => Date.now())
   const releaseLine = releaseCheckLine(releaseCheck, nowMs)
@@ -93,23 +94,192 @@ function ReleaseLine() {
     return () => clearInterval(interval)
   }, [lineShown])
 
-  if (releaseLine?.kind === "available") {
-    return (
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-1 text-sm">
-        <span className="font-medium">{releaseLine.text}</span>
-        <Button variant="link" size="sm" className="h-auto px-1 py-0 pointer-coarse:h-10" asChild>
-          <a href={releaseLine.url} target="_blank" rel="noreferrer">
-            Release notes
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </Button>
+  return { releaseLine, latest: releaseCheck?.latest ?? null }
+}
+
+/** Grows a small link's hit area to thumb size without moving the layout. */
+const TAP_AREA = "relative after:absolute after:-inset-y-2 after:-inset-x-1 after:content-['']"
+
+const TRACK_STEP =
+  "relative flex gap-3.5 pb-5 last:pb-0 @2xl:min-w-0 @2xl:flex-1 @2xl:pb-0 @2xl:pr-10 @2xl:group-data-[steps]/track:flex-col @2xl:group-data-[steps]/track:gap-2.5"
+
+/** Dashed line from a step's node to the next step's. */
+function TrackConnector() {
+  return (
+    <span
+      aria-hidden
+      className="absolute top-4 bottom-1 left-[5px] border-l border-dashed border-muted-foreground/40 @2xl:top-[10px] @2xl:right-2 @2xl:bottom-auto @2xl:left-5 @2xl:border-t @2xl:border-l-0"
+    />
+  )
+}
+
+/** One stop on the version track: the running build or the newer release. */
+function TrackStop({
+  stop,
+  label,
+  version,
+  versionTitle,
+  children,
+  connector = false,
+}: {
+  stop: "running" | "available"
+  label: string
+  version: string
+  versionTitle?: string
+  children?: ReactNode
+  connector?: boolean
+}) {
+  return (
+    <li className={cn(TRACK_STEP, "@2xl:max-w-64")}>
+      {connector && <TrackConnector />}
+      <span
+        aria-hidden
+        className={cn(
+          "relative mt-[5px] size-[11px] shrink-0 rounded-full",
+          stop === "running"
+            ? "bg-foreground"
+            : "border-[1.5px] border-primary bg-card shadow-[0_0_8px_color-mix(in_oklab,var(--primary)_40%,transparent)]",
+        )}
+      />
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p
+          title={versionTitle}
+          className={cn(
+            "mt-0.5 font-mono leading-tight tracking-tight break-all",
+            stop === "running"
+              ? "text-[22px] font-semibold"
+              : "text-[17px] font-medium text-muted-foreground",
+          )}
+        >
+          {version}
+        </p>
+        {children}
       </div>
-    )
-  }
-  if (releaseLine?.kind === "up-to-date") {
-    return <p className="mt-1.5 text-xs text-muted-foreground">{releaseLine.text}</p>
-  }
-  return null
+    </li>
+  )
+}
+
+/** The releases between the running build and the newest, as one small step. */
+function SkippedReleases({ text, href }: { text: string; href: string }) {
+  // Keeps the link icon on the same line as the last word when the text wraps.
+  const lastSpace = text.lastIndexOf(" ")
+  return (
+    <li className={cn(TRACK_STEP, "@2xl:max-w-64")}>
+      <TrackConnector />
+      <span aria-hidden className="relative mt-[5px] flex size-[11px] shrink-0 items-center justify-center">
+        <span className="size-[5px] rounded-full bg-muted-foreground/70" />
+      </span>
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(
+          "self-start pt-[3px] text-xs text-muted-foreground hover:text-foreground @2xl:pt-0",
+          TAP_AREA,
+        )}
+      >
+        {text.slice(0, lastSpace + 1)}
+        <span className="whitespace-nowrap">
+          {text.slice(lastSpace + 1)}
+          <ExternalLink className="ml-1.5 inline h-3 w-3 align-[-1px]" />
+        </span>
+      </a>
+    </li>
+  )
+}
+
+/** The running version, its uptime, and the newer release when there is one. */
+function InstallationCard({ app, repository }: { app: AboutResponse["app"]; repository: string }) {
+  const { releaseLine, latest } = useReleaseLine()
+  // The +local suffix repeats the commit linked below, so the headline drops
+  // it and keeps the full string on hover.
+  const fullVersion = displayVersion(app.version)
+  const version = displayVersion(publicVersion(app.version))
+  const newer = releaseLine?.kind === "available" && latest ? { ...releaseLine, latest } : null
+  const skippedText = newer ? skippedReleasesText(newer.latest.newerReleaseCount, newer.latest.newerReleaseCountExact) : null
+  // The release workflow tags images with the version, so a tag that matches
+  // it says nothing new; a hand-built image tagged "latest" or "local" does.
+  const runtimeLabel = app.container
+    ? app.imageTag && app.imageTag !== version
+      ? `container: ${app.imageTag}`
+      : "container"
+    : "host"
+
+  return (
+    <Card className="@container md:col-span-2">
+      <CardContent className="flex flex-wrap items-center gap-x-4 gap-y-2 py-5">
+        <div className="order-1 flex grow items-center gap-2.5">
+          <BrandMark size={28} className="text-foreground @2xl:size-8" decorative />
+          <Wordmark className="text-[14px] text-foreground @2xl:text-[16px]" />
+        </div>
+        <div className="order-2 flex items-center gap-2 text-sm @2xl:order-3">
+          <StatusLed tone="emerald" pulse />
+          <span className="text-muted-foreground">up</span>
+          <span className="font-medium tabular-nums">{formatUptime(app.startedAt)}</span>
+        </div>
+        <ol
+          className="group/track order-3 mt-3 flex basis-full flex-col @2xl:order-4 @2xl:flex-row"
+          data-steps={newer ? "" : undefined}
+        >
+          <TrackStop
+            stop="running"
+            label="Running"
+            version={version}
+            versionTitle={fullVersion !== version ? fullVersion : undefined}
+            connector={newer !== null}
+          >
+            {app.commit && (
+              <a
+                href={`${repository}/commit/${app.commit}`}
+                target="_blank"
+                rel="noreferrer"
+                title={app.commit}
+                className={cn(
+                  "mt-1 inline-flex items-baseline gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground",
+                  TAP_AREA,
+                )}
+              >
+                commit <span className="font-mono text-xs">{app.commit.slice(0, 7)}</span>
+                <ExternalLink className="h-3 w-3 self-center" />
+              </a>
+            )}
+            {hasUncommittedChanges(app.version) && (
+              <p className="mt-1 text-xs text-muted-foreground">Built with uncommitted changes</p>
+            )}
+            {releaseLine?.kind === "up-to-date" && (
+              <p className="mt-2 text-xs text-muted-foreground">{releaseLine.text}</p>
+            )}
+          </TrackStop>
+          {skippedText && <SkippedReleases text={skippedText} href={`${repository}/releases`} />}
+          {newer && (
+            <TrackStop stop="available" label="Available" version={newer.latest.displayVersion}>
+              <a
+                href={newer.url}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  "mt-1 inline-flex items-center gap-1.5 text-[12.5px] underline decoration-muted-foreground/50 underline-offset-[3px] hover:decoration-foreground",
+                  TAP_AREA,
+                )}
+              >
+                Release notes
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </TrackStop>
+          )}
+        </ol>
+        <div className="order-4 mt-3 flex basis-full flex-wrap gap-1.5 border-t border-border/60 pt-4 @2xl:order-2 @2xl:mt-0 @2xl:mr-2 @2xl:basis-auto @2xl:border-0 @2xl:pt-0">
+          <Badge variant="outline" className="text-muted-foreground">
+            {app.environment}
+          </Badge>
+          <Badge variant="outline" className="text-muted-foreground">
+            {runtimeLabel}
+          </Badge>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function AboutPage() {
@@ -133,52 +303,7 @@ export function AboutPage() {
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <Card className="md:col-span-2">
-        <CardContent className="flex flex-wrap items-center justify-between gap-4 py-5">
-          <div className="flex items-center gap-4">
-            <BrandMark size={48} className="text-foreground" decorative />
-            <div>
-              <div className="flex items-center gap-2.5">
-                <Wordmark className="text-[17px] text-foreground" />
-                <MonoChip>{displayVersion(data.app.version)}</MonoChip>
-                {data.app.commit && (
-                  <a
-                    href={`${data.links.repository}/commit/${data.app.commit}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={data.app.commit}
-                    aria-label={`Commit ${data.app.commit.slice(0, 7)} on GitHub`}
-                    className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-                  >
-                    <MonoChip className="transition-colors hover:text-foreground">{data.app.commit.slice(0, 7)}</MonoChip>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-              <div className="mt-1 flex items-center gap-1.5">
-                <Badge variant="outline" className="text-muted-foreground">
-                  {data.app.environment}
-                </Badge>
-                {data.app.container ? (
-                  <Badge variant="secondary">
-                    container{data.app.imageTag ? `: ${data.app.imageTag}` : ""}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground">
-                    host
-                  </Badge>
-                )}
-              </div>
-              <ReleaseLine />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <StatusLed tone="emerald" pulse />
-            <span className="text-muted-foreground">up</span>
-            <span className="font-medium">{formatUptime(data.app.startedAt)}</span>
-          </div>
-        </CardContent>
-      </Card>
+      <InstallationCard app={data.app} repository={data.links.repository} />
 
       <Card>
         <CardHeader>

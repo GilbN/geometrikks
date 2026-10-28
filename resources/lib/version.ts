@@ -26,6 +26,12 @@ export function publicVersion(version: string): string {
   return suffixStart === -1 ? version : version.slice(0, suffixStart)
 }
 
+/** True when hatch-vcs marked the build dirty: its local suffix ends in .dYYYYMMDD. */
+export function hasUncommittedChanges(version: string): boolean {
+  const suffixStart = version.indexOf("+")
+  return suffixStart !== -1 && /(?:^|\.)d\d{8}$/.test(version.slice(suffixStart + 1))
+}
+
 /** Tag style: 0.22.0.dev4 becomes v0.22.0-dev.4. */
 export function displayVersion(version: string): string {
   if (isLocalBuild(version)) return LOCAL_BUILD_LABEL
