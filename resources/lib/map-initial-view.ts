@@ -186,11 +186,11 @@ export function trafficWindow(
     weight -= ring[start].weight
   }
   const window = ring.slice(bestStart, bestEnd)
-  return {
-    coordinates: window.map((point) => point.coordinate),
-    west: window[0].longitude,
-    east: window[window.length - 1].longitude,
-  }
+  // The shortest box around the window, not its first and last entries:
+  // when everything fits, the window starts at the westernmost location,
+  // which can be the long way round the world.
+  const [west, east] = longitudeSpan(window.map((point) => wrapLongitude(point.longitude)))
+  return { coordinates: window.map((point) => point.coordinate), west, east }
 }
 
 /** trafficWindow framed with fit(): a view of the traffic, or null. */

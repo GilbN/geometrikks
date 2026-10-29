@@ -256,6 +256,13 @@ describe("trafficView", () => {
     expect(window.east).toBeCloseTo(-157.86 + 360)
   })
 
+  it("frames traffic across the Pacific the short way when it all fits", () => {
+    const SAN_FRANCISCO = { latitude: 37.77, longitude: -122.42 }
+    const window = trafficWindow([point(TOKYO, 10), point(SAN_FRANCISCO, 10)], SIZE)!
+    expect(window.east - window.west).toBeLessThan(180)
+    expect(window.west).toBeCloseTo(139.69)
+  })
+
   it("ignores the padding of a container that hasn't been laid out", () => {
     // A 1px span would pick one location; the unpadded width still shows a region.
     const window = trafficWindow([point(OSLO, 5), point(BERGEN, 3)], { width: 100, height: 100 })!

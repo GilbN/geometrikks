@@ -585,7 +585,8 @@ function GeoMapInner({
         [window.west, south],
         [window.east, north],
       ],
-      { padding, maxZoom: 12, duration: 1000 },
+      // pitch 0: the zoom assumes a flat map. linear: ease, rather than fly out and back in.
+      { padding, maxZoom: 12, duration: 1000, pitch: 0, linear: true },
     )
   }, [fitData])
 
