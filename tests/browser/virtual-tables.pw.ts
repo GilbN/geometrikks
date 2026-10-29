@@ -278,6 +278,25 @@ for (const fixture of [
       })
       expect(focused.row).toBe(String(covered))
       expect(focused.gap).toBeGreaterThanOrEqual(-1)
+
+      // Opening and closing the Sort drawer leaves the page where it is.
+      const main = table.locator("xpath=ancestor::main[1]")
+      const settledScrollTop = () => main.evaluate((element) => new Promise<number>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve(element.scrollTop)))))
+      const scrolled = await settledScrollTop()
+      expect(scrolled).toBeGreaterThan(0)
+      for (const close of ["Escape", "overlay"]) {
+        await page.getByRole("button", { name: /^Sort by/ }).click()
+        await expect(page.getByRole("radiogroup", { name: "Sort by" })).toBeVisible()
+        expect(await settledScrollTop()).toBe(scrolled)
+        if (close === "Escape") await page.keyboard.press("Escape")
+        else await page.locator('[data-slot="drawer-overlay"]').click({ position: { x: 5, y: 5 } })
+        await expect(page.getByRole("radiogroup", { name: "Sort by" })).toHaveCount(0)
+        expect(await settledScrollTop()).toBe(scrolled)
+      }
+      // Only <main> scrolls, so the app bar never slides away.
+      expect(await page.evaluate(() =>
+        document.scrollingElement!.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0)
     }
     expect(await table.locator("th").evaluateAll((cells) =>
       cells.map((cell) => cell.getBoundingClientRect().width))).toEqual(widths)
