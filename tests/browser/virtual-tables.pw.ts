@@ -244,6 +244,41 @@ for (const fixture of [
     }
     await expect(lastRow).toBeVisible()
     expect(await rows.count()).toBeLessThan(80)
+    // The card header sticks under the app bar, so rows pass beneath it.
+    const stickyGap = (element: HTMLElement, index: number) => {
+      const main = element.closest("main")!
+      const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+      const row = element.querySelector(`tr[data-index="${index}"]`)
+      return {
+        header: header.getBoundingClientRect().top - main.getBoundingClientRect().top,
+        row: row ? row.getBoundingClientRect().top - header.getBoundingClientRect().bottom : null,
+      }
+    }
+    if (mobile) {
+      expect(Math.abs((await table.evaluate(stickyGap, 0)).header)).toBeLessThanOrEqual(1)
+      // Shift+Tab onto a row's controls under the header scrolls them back out.
+      const covered = await table.evaluate((element) => {
+        const main = element.closest("main")!
+        const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        main.scrollTop -= 600
+        const row = [...element.querySelectorAll<HTMLElement>("tr[data-index]")]
+          .find((tr) => tr.getBoundingClientRect().top > header.getBoundingClientRect().bottom)!
+        main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top
+        return Number(row.dataset.index)
+      })
+      await table.locator(`tr[data-index="${covered + 1}"]`).focus()
+      await page.keyboard.press("Shift+Tab")
+      const focused = await page.evaluate(() => {
+        const control = document.activeElement!
+        const header = control.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        return {
+          row: control.closest("tr")?.dataset.index,
+          gap: control.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
+        }
+      })
+      expect(focused.row).toBe(String(covered))
+      expect(focused.gap).toBeGreaterThanOrEqual(-1)
+    }
     expect(await table.locator("th").evaluateAll((cells) =>
       cells.map((cell) => cell.getBoundingClientRect().width))).toEqual(widths)
 
@@ -297,6 +332,8 @@ for (const fixture of [
       await sortChoice.click()
       await page.keyboard.press("Escape")
       await expect(page.getByRole("button", { name: new RegExp(`^Sort by ${sortLabel}`) })).toBeVisible()
+      // Back at the first row, which sits just below the stuck header.
+      await expect.poll(async () => Math.abs((await table.evaluate(stickyGap, 0)).row ?? 99)).toBeLessThanOrEqual(1)
     } else {
       await table.locator("th button").first().click()
       await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
