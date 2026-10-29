@@ -56,14 +56,14 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
   const navCallbackRef = useCallback((node: HTMLElement | null) => {
     navRef.current = node
     const main = node?.closest<HTMLElement>("main") ?? null
-    // The padding is set and cleared here, not in the effect: a table that
+    // The offset is set and cleared here, not in the effect: a table that
     // resets in this same commit reads it before any effect runs, and the
     // effect cleanup of the bar on the previous page would run after this
     // page's bar set it. React detaches the old ref before attaching the new.
     if (node && main) {
-      main.style.scrollPaddingTop = `${node.offsetHeight}px`
+      main.style.setProperty("--sticky-top", `${node.offsetHeight}px`)
     } else if (paddedMainRef.current) {
-      paddedMainRef.current.style.scrollPaddingTop = ""
+      paddedMainRef.current.style.removeProperty("--sticky-top")
     }
     paddedMainRef.current = main
     setScroller(main)
@@ -114,12 +114,13 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
     // presence is rechecked on DOM changes.
     const observer = new MutationObserver(schedule)
     observer.observe(scroller, { childList: true, subtree: true })
-    // The bar's height as scroll padding, so scrolls the page makes for other
-    // reasons (a table going back to its first row, focus moving to a row)
-    // stop below the bar instead of under it.
+    // The bar's height as --sticky-top, which <main> turns into scroll padding,
+    // so scrolls the page makes for other reasons (a table going back to its
+    // first row, focus moving to a row) stop below the bar instead of under it,
+    // and a sticky table header sits below the bar.
     const nav = navRef.current
     const resizeObserver = new ResizeObserver(() => {
-      scroller.style.scrollPaddingTop = `${nav?.offsetHeight ?? 0}px`
+      scroller.style.setProperty("--sticky-top", `${nav?.offsetHeight ?? 0}px`)
     })
     if (nav) resizeObserver.observe(nav)
     return () => {
