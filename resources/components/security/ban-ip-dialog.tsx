@@ -3,7 +3,7 @@
  * a preset or custom duration, and a reason. It validates before sending,
  * and the server validates again and normalizes the range and duration.
  */
-import { useState, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -49,7 +49,15 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
   const rangeSize = rangeSizeLabel(ip.trim())
 
   const [flushing, setFlushing] = useState(false)
+  // Enter reaches submit even while the button is disabled, and a closed
+  // dialog unmounts this form mid-flush; neither may send the ban.
+  const submitting = useRef(false)
+  const mounted = useRef(true)
+  useEffect(() => () => {
+    mounted.current = false
+  }, [])
   const submit = async () => {
+    if (submitting.current || ban.isPending) return
     const target = ip.trim()
     if (!isValidBanTarget(target)) {
       setError("Enter a full IPv4 or IPv6 address, or a range such as 203.0.113.0/24.")
@@ -64,12 +72,15 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
     // A ban or unban still in its undo window would land after this one and
     // could undo it, even under another spelling of the same address or
     // range. Sending those first keeps the form, the newer intent, last.
+    submitting.current = true
     setFlushing(true)
     try {
       await flushIpActions()
     } finally {
-      setFlushing(false)
+      submitting.current = false
+      if (mounted.current) setFlushing(false)
     }
+    if (!mounted.current) return
     ban.mutate(
       { ip: target, duration, reason: reason.trim() || undefined, type },
       {
