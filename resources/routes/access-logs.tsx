@@ -37,6 +37,7 @@ const DEFAULT_ORDER: SortOrder = "desc"
 export const Route = createFileRoute("/access-logs")({
   validateSearch: (search: Record<string, unknown>): AccessLogsSearch =>
     accessLogsSearchSchema.parse(search),
+  staticData: { timeRange: true },
   component: AccessLogsPage,
 })
 

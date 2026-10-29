@@ -45,6 +45,7 @@ type AnalyticsSearch = z.infer<typeof analyticsSearchSchema>
 export const Route = createFileRoute("/analytics")({
   validateSearch: (search: Record<string, unknown>): AnalyticsSearch =>
     analyticsSearchSchema.parse(search),
+  staticData: { timeRange: true, chartBuckets: true },
   component: AnalyticsPage,
 })
 

@@ -1,14 +1,5 @@
 import { useRouterState } from "@tanstack/react-router"
-import { RotateCw, Filter, Timer, BarChart3 } from "lucide-react"
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from "@/components/ui/dropdown-menu"
+import { ChevronDown, RotateCw, Filter } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { TimeRangePicker, timeRangeLabel } from "@/components/time-range-picker"
@@ -26,15 +17,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useTimeRange } from "@/lib/time-range-context"
-import { POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
+import { useRouteHeader } from "@/lib/route-header"
+import { CHART_GRANULARITY_OPTIONS, POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useIsFetching } from "@tanstack/react-query"
-
-const GRANULARITY_OPTIONS: { label: string; value: ChartGranularity }[] = [
-  { label: "Auto", value: "auto" },
-  { label: "Hourly", value: "hourly" },
-  { label: "Daily", value: "daily" },
-]
 
 export function TimeRangeToolbar() {
   const {
@@ -48,6 +34,7 @@ export function TimeRangeToolbar() {
   } = useTimeRange()
   const isFetching = useIsFetching()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const routeHeader = useRouteHeader()
   // The map page has no time-series charts, so granularity is irrelevant there.
   const showGranularity = pathname !== "/map"
   const rangeLabel = timeRangeLabel(range, customRange)
@@ -117,7 +104,7 @@ export function TimeRangeToolbar() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {GRANULARITY_OPTIONS.map((option) => (
+              {CHART_GRANULARITY_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -127,91 +114,69 @@ export function TimeRangeToolbar() {
         )}
       </div>
 
-      {/* Mobile Layout - icon buttons + time-range drawer */}
-      <div className="md:hidden flex items-center gap-1">
-        {/* Time Range Drawer (bottom sheet on phones, see TimeRangePicker) */}
-        <TimeRangePicker
-          trigger={
-            <Button variant="outline" size="icon-sm" className="shrink-0">
-              <Filter className="h-4 w-4" />
-              <span className="sr-only">Time Range</span>
-            </Button>
-          }
-        />
-
-        {/* Refresh Button */}
-        <Button
-          variant="outline"
-          size="icon-sm"
-          onClick={refresh}
-          disabled={isFetching > 0}
-          className="shrink-0"
-        >
-          <RotateCw
-            className={cn(
-              "h-4 w-4",
-              isFetching > 0 && "animate-spin"
-            )}
-          />
-          <span className="sr-only">Refresh data</span>
-        </Button>
-
-        {/* Poll Interval Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon-sm" className="shrink-0">
-              <Timer className="h-4 w-4" />
-              <span className="sr-only">Auto Refresh</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Auto Refresh</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={String(pollInterval)}
-              onValueChange={(value) => setPollInterval(Number(value))}
-            >
-              {POLL_INTERVAL_OPTIONS.map((option) => (
-                <DropdownMenuRadioItem
-                  key={option.value}
-                  value={String(option.value)}
-                  className="text-xs"
-                >
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Chart Granularity Dropdown */}
-        {showGranularity && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon-sm" className="shrink-0">
-                <BarChart3 className="h-4 w-4" />
-                <span className="sr-only">Chart Granularity</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Chart Granularity</DropdownMenuLabel>
-              <DropdownMenuRadioGroup
-                value={granularity}
-                onValueChange={(value) => setGranularity(value as ChartGranularity)}
+      {/* Phones: a refresh button and a range pill that opens one drawer
+          for the range, auto refresh and chart buckets. Pages that don't
+          follow the range show neither. */}
+      {routeHeader.timeRange && (
+        <div className="md:hidden flex items-center gap-1.5">
+          <RefreshButton />
+          <TimeRangePicker
+            refreshControls={{ chartBuckets: routeHeader.chartBuckets }}
+            trigger={
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={`Time range and refresh, ${rangeLabel}`}
+                className="shrink-0 gap-1 rounded-full border-primary/40 bg-primary/10 px-3 text-xs text-primary hover:bg-primary/15 hover:text-primary"
               >
-                {GRANULARITY_OPTIONS.map((option) => (
-                  <DropdownMenuRadioItem
-                    key={option.value}
-                    value={option.value}
-                    className="text-xs"
-                  >
-                    {option.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </div>
+                <span className="max-w-28 truncate">{rangeLabel}</span>
+                <ChevronDown aria-hidden className="size-3.5" />
+              </Button>
+            }
+          />
+        </div>
+      )}
     </>
+  )
+}
+
+/** Refresh now. While auto refresh is on, a ring around the button fills
+ *  once per interval. It runs on its own clock, so it shows the cadence
+ *  rather than the exact moment each query refetches. */
+function RefreshButton() {
+  const { refresh, pollInterval, lastRefresh } = useTimeRange()
+  const isFetching = useIsFetching()
+  // A new page's queries start their poll timers when they mount.
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  return (
+    <Button
+      variant="outline"
+      size="icon-sm"
+      onClick={refresh}
+      disabled={isFetching > 0}
+      className="relative shrink-0 rounded-full"
+    >
+      {pollInterval > 0 && (
+        <svg
+          key={`${pollInterval}-${lastRefresh}-${pathname}`}
+          aria-hidden
+          viewBox="0 0 36 36"
+          className="pointer-events-none absolute inset-0 size-full -rotate-90 motion-reduce:hidden"
+        >
+          <circle
+            cx="18"
+            cy="18"
+            r="16.5"
+            pathLength={100}
+            fill="none"
+            strokeWidth="2"
+            className="refresh-ring stroke-primary"
+            style={{ animationDuration: `${pollInterval}ms` }}
+          />
+        </svg>
+      )}
+      <RotateCw className={cn("h-4 w-4", isFetching > 0 && "animate-spin")} />
+      <span className="sr-only">Refresh data</span>
+    </Button>
   )
 }

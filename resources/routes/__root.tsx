@@ -164,8 +164,12 @@ function RootLayout() {
                   {/* Portal target for page-specific header actions (e.g. the
                       mobile map-controls drawer trigger in MapControls). */}
                   <span id="header-actions-slot" className="contents" />
-                  <Separator orientation="vertical" className="hidden h-6 sm:block" />
-                  <ModeToggle />
+                  {/* Phones switch the color scheme on Settings > Appearance;
+                      the header keeps its room for the range and refresh. */}
+                  <div className="hidden md:contents">
+                    <Separator orientation="vertical" className="h-6" />
+                    <ModeToggle />
+                  </div>
                 </div>
               </header>
               {/* Main content area */}
