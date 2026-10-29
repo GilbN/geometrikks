@@ -40,7 +40,7 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
             disabled={isPending && !waiting}
             title={banned ? "Unban this IP" : "Ban this IP"}
           >
-            {isPending ? <Loader2 className="animate-spin" /> : <ShieldBan />}
+            {isPending && !waiting ? <Loader2 className="animate-spin" /> : <ShieldBan />}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">

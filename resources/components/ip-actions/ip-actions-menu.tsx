@@ -281,7 +281,7 @@ export function IpActionsMenu({
       title="IP actions"
       aria-label={`Actions for ${ip}`}
     >
-      {isPending ? <Loader2 className="animate-spin" /> : <EllipsisVertical />}
+      {isPending && !waiting ? <Loader2 className="animate-spin" /> : <EllipsisVertical />}
     </Button>
   )
 

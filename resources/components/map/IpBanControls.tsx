@@ -55,6 +55,7 @@ export function IpBanControls({
   const isPending = pending !== null
   // Waiting, not sent yet: the menu offers Undo instead of ban and unban.
   const waiting = pending !== null && !pending.sending
+  const sending = isPending && !waiting
 
   if (!banned && !status?.writeEnabled) return <>{children}</>
 
@@ -82,7 +83,7 @@ export function IpBanControls({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              disabled={isPending && !waiting}
+              disabled={sending}
               title={isFooter ? undefined : banned ? `Unban ${ip}` : `Ban ${ip}`}
               aria-label={banned ? `Unban ${ip}` : `Ban ${ip}`}
               style={
@@ -97,7 +98,7 @@ export function IpBanControls({
                       borderRadius: "4px",
                       padding: "2px 8px",
                       fontSize: "10px",
-                      cursor: isPending ? "wait" : "pointer",
+                      cursor: sending ? "wait" : "pointer",
                       color: "var(--popup-muted)",
                     }
                   : {
@@ -106,12 +107,12 @@ export function IpBanControls({
                       background: "transparent",
                       border: "none",
                       padding: "2px",
-                      cursor: isPending ? "wait" : "pointer",
+                      cursor: sending ? "wait" : "pointer",
                       color: isPending ? "var(--primary)" : "var(--popup-muted)",
                     }
               }
             >
-              {isPending ? (
+              {sending ? (
                 <Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
               ) : banned ? (
                 <ShieldOff style={{ width: 12, height: 12 }} />

@@ -413,12 +413,24 @@
   transition: opacity 0.4s;
 }
 
-.toaster [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface {
+.toaster:not(:focus-within) [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface {
   height: 100%;
 }
 
-.toaster [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface > * {
+.toaster:not(:focus-within) [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface > * {
   opacity: 0;
+}
+
+/* Sonner expands the stack on hover but not on focus, so Tab could reach an
+   Undo hidden behind the front toast. These rules copy sonner's expanded
+   layout and apply it while focus is inside the stack. */
+.toaster:focus-within [data-sonner-toast][data-mounted='true'][data-expanded='false']:not([data-removed='true']) {
+  --y: translateY(calc(var(--lift) * var(--offset)));
+  height: var(--initial-height);
+}
+
+.toaster:focus-within [data-sonner-toast][data-expanded='false'][data-styled='true'] > * {
+  opacity: 1;
 }
 
 .toaster [data-sonner-toast][data-styled='true'] [data-description] {
