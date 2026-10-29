@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { undoIpAction } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
   BAN_DURATIONS,
@@ -59,6 +60,9 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
       return
     }
     setError(null)
+    // A ban or unban of this IP still in its undo window would land after
+    // this one and undo it; the form is the newer intent.
+    undoIpAction(target)
     ban.mutate(
       { ip: target, duration, reason: reason.trim() || undefined, type },
       {

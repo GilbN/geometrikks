@@ -127,14 +127,14 @@ export function IpBanControls({
                 {pending.action.kind === "ban" ? "Undo ban" : "Undo unban"}
               </DropdownMenuItem>
             ) : banned ? (
-              <DropdownMenuItem onClick={() => unban(ip)}>
+              <DropdownMenuItem disabled={isPending} onClick={() => unban(ip)}>
                 Unban {ip}
               </DropdownMenuItem>
             ) : (
               <>
                 <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
                 {BAN_DURATIONS.map((d) => (
-                  <DropdownMenuItem key={d.value} onClick={() => ban(ip, d.value, d.label)}>
+                  <DropdownMenuItem key={d.value} disabled={isPending} onClick={() => ban(ip, d.value, d.label)}>
                     {d.label}
                   </DropdownMenuItem>
                 ))}

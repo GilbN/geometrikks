@@ -37,6 +37,7 @@ import {
   PowerOff,
   ShieldBan,
 } from "lucide-react"
+import { flushIpActions } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 import { displayVersion } from "@/lib/version"
 import { fetchHealth, logout } from "@/lib/api"
@@ -338,6 +339,8 @@ function LogoutButton() {
 
   async function onLogout() {
     try {
+      // A ban or unban still in its undo window goes out while the session lives.
+      await flushIpActions()
       // Hard navigation is deliberate, not a leftover: it discards the
       // TanStack Query cache holding the previous session's data, which a
       // client-side redirect would not. The /logout route does the same.
