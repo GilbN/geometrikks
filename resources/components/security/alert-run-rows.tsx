@@ -101,7 +101,9 @@ function AlertRow({
       </span>
     )
     const outcomeText = (
-      <span className={cn("whitespace-nowrap text-xs", outcome.muted && "text-muted-foreground")}>{outcome.text}</span>
+      <span className={cn("whitespace-normal text-right text-xs [overflow-wrap:anywhere]", outcome.muted && "text-muted-foreground")}>
+        {outcome.text}
+      </span>
     )
     const scenarioLine = (
       <>
@@ -119,7 +121,7 @@ function AlertRow({
             top={
               <>
                 <span className="flex min-w-0 items-center gap-1.5">{scenarioLine}</span>
-                <span className="ml-auto shrink-0 pl-1">{outcomeText}</span>
+                <span className="ml-auto flex max-w-[60%] shrink-0 justify-end pl-1">{outcomeText}</span>
               </>
             }
             bottom={<span className="truncate text-muted-foreground">{alert.machineId}</span>}
