@@ -554,6 +554,7 @@ export function DebugLogsTable() {
           title="Captured source lines"
           description="Raw parser input and linked request context. Select a row for the complete record."
           count={data ? total : undefined}
+          stickyHeader={narrow && isMobile}
           tools={
             narrow ? (
               <TableSortDrawer
