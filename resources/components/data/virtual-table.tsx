@@ -155,8 +155,11 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
       virtualizer.scrollToOffset(0)
     } else {
       // Back to the first row, but leave a page that hasn't reached the table where it is.
-      // <main>'s scroll padding is the height of whatever sticks to its top.
-      const firstRowTop = scrollMarginRef.current - (parseFloat(getComputedStyle(pageScrollerNow).scrollPaddingTop) || 0)
+      // The bars stuck to <main>'s top publish their heights there in px.
+      const style = getComputedStyle(pageScrollerNow)
+      const stuckAbove = ["--sticky-top", "--table-header-height"]
+        .reduce((total, name) => total + (parseFloat(style.getPropertyValue(name)) || 0), 0)
+      const firstRowTop = scrollMarginRef.current - stuckAbove
       if (pageScrollerNow.scrollTop > firstRowTop) pageScrollerNow.scrollTo({ top: firstRowTop })
     }
   }, [resetKey, virtualizer])
