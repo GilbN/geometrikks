@@ -51,9 +51,22 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
   // shouldn't hand the light to the last section.
   const tappedRef = useRef<string | null>(null)
 
+  const paddedMainRef = useRef<HTMLElement | null>(null)
+
   const navCallbackRef = useCallback((node: HTMLElement | null) => {
     navRef.current = node
-    setScroller(node?.closest<HTMLElement>("main") ?? null)
+    const main = node?.closest<HTMLElement>("main") ?? null
+    // The padding is set and cleared here, not in the effect: a table that
+    // resets in this same commit reads it before any effect runs, and the
+    // effect cleanup of the bar on the previous page would run after this
+    // page's bar set it. React detaches the old ref before attaching the new.
+    if (node && main) {
+      main.style.scrollPaddingTop = `${node.offsetHeight}px`
+    } else if (paddedMainRef.current) {
+      paddedMainRef.current.style.scrollPaddingTop = ""
+    }
+    paddedMainRef.current = main
+    setScroller(main)
   }, [])
 
   useEffect(() => {
@@ -120,19 +133,27 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
       for (const type of manualScrollEvents) scroller.removeEventListener(type, forgetTap)
       observer.disconnect()
       resizeObserver.disconnect()
-      scroller.style.scrollPaddingTop = ""
     }
   }, [scroller, sections])
 
-  // Keep the lit chip in view inside the bar.
+  // Keep the lit chip in view inside the bar, also when the row's width changes.
   useEffect(() => {
     const chips = chipsRef.current
     const chip = chips?.querySelector<HTMLElement>(`[data-section="${active}"]`)
     if (!chips || !chip) return
-    chips.scrollTo({
-      left: chip.offsetLeft - (chips.clientWidth - chip.offsetWidth) / 2,
-      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    const center = (behavior: ScrollBehavior) =>
+      chips.scrollTo({ left: chip.offsetLeft - (chips.clientWidth - chip.offsetWidth) / 2, behavior })
+    center(prefersReducedMotion() ? "auto" : "smooth")
+    // Only on a real width change: the observer's first report would cut the
+    // smooth scroll above short.
+    let width = chips.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (chips.clientWidth === width) return
+      width = chips.clientWidth
+      center("auto")
     })
+    observer.observe(chips)
+    return () => observer.disconnect()
     // isMobile and present: the row is new after a remount, or its chips moved.
   }, [active, isMobile, present])
 
@@ -155,6 +176,10 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
       }, 1000)
     }
     scroller.scrollTo({ top, behavior: reduced ? "auto" : "smooth" })
+    // Move focus with the page, so Tab goes on into the section rather than
+    // to the next chip.
+    if (!target.hasAttribute("tabindex")) target.tabIndex = -1
+    target.focus({ preventScroll: true })
   }
 
   if (!isMobile) return null
