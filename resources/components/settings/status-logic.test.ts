@@ -76,6 +76,29 @@ describe("overallState", () => {
       label: "Degraded",
     })
   })
+  it("is amber Attention when healthy but advisories or agents need attention", () => {
+    const withAdvisories = makeHealth({
+      advisories: [
+        { id: "a", severity: "warning", summary: "a" },
+        { id: "b", severity: "critical", summary: "b" },
+      ],
+    })
+    expect(overallState(withAdvisories, false)).toEqual({
+      tone: "amber",
+      label: "Attention",
+      detail: "2 advisories need attention.",
+    })
+    expect(overallState(withAdvisories, false, 1)).toEqual({
+      tone: "amber",
+      label: "Attention",
+      detail: "2 advisories need attention. 1 agent needs attention.",
+    })
+    expect(overallState(makeHealth(), false, 2)).toMatchObject({ label: "Attention", detail: "2 agents need attention." })
+  })
+  it("keeps Degraded ahead of Attention", () => {
+    const degraded = makeHealth({ status: "degraded", advisories: [{ id: "a", severity: "warning", summary: "a" }] })
+    expect(overallState(degraded, false, 1)).toMatchObject({ label: "Degraded" })
+  })
 })
 
 describe("ingestionState", () => {

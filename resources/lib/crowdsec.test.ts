@@ -8,6 +8,7 @@ import {
   decisionLabel,
   decisionPopupColor,
   decisionWinner,
+  distinctScenarioCount,
   isClientError,
   isValidBanDuration,
   isValidBanTarget,
@@ -183,5 +184,19 @@ describe("external links", () => {
     expect(bgpAsUrl("13335")).toBe("https://bgp.he.net/AS13335")
     expect(bgpAsUrl(null)).toBeNull()
     expect(bgpAsUrl("")).toBeNull()
+  })
+})
+
+describe("distinctScenarioCount", () => {
+  it("counts each scenario once", () => {
+    const decisions = [
+      { scenario: "crowdsecurity/http-probing" },
+      { scenario: "crowdsecurity/http-probing" },
+      { scenario: "crowdsecurity/http-bad-user-agent" },
+    ]
+    expect(distinctScenarioCount(decisions)).toBe(2)
+  })
+  it("is 1 when every decision comes from one scenario", () => {
+    expect(distinctScenarioCount([{ scenario: "http:scan" }, { scenario: "http:scan" }])).toBe(1)
   })
 })

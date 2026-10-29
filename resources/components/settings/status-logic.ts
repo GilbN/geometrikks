@@ -27,14 +27,26 @@ export interface AdvisoryCard {
   docsUrl?: string
 }
 
-export function overallState(health: HealthResponse | undefined, isError: boolean): CardState {
+export function overallState(
+  health: HealthResponse | undefined,
+  isError: boolean,
+  agentAttentionCount = 0,
+): CardState {
   if (isError) {
     return { tone: "red", label: "Unreachable", detail: "The API did not answer the health probe." }
   }
   if (!health) return { tone: "muted", label: "Loading" }
-  return health.status === "healthy"
-    ? { tone: "emerald", label: "Healthy", detail: "All components operational." }
-    : { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
+  if (health.status !== "healthy") {
+    return { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
+  }
+  const advisoryCount = (health.advisories ?? []).length
+  if (advisoryCount > 0 || agentAttentionCount > 0) {
+    const counts: string[] = []
+    if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
+    if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
+    return { tone: "amber", label: "Attention", detail: counts.join(" ") }
+  }
+  return { tone: "emerald", label: "Healthy", detail: "All components operational." }
 }
 
 /** Generic operator advisories from health; one status-page card each. */

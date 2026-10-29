@@ -15,7 +15,7 @@ import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import type { DecisionGroupView, GroupedDecisionView } from "@/generated/api/types.gen"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
+import { crowdsecErrorMessage, distinctScenarioCount } from "@/lib/crowdsec"
 import { decisionHasAlert } from "@/lib/crowdsec-alerts"
 import { useUnbanIp } from "@/lib/queries"
 import { cn } from "@/lib/utils"
@@ -79,6 +79,7 @@ export function DecisionGroupRows(props: Props) {
   const [open, setOpen] = useState(false)
   const alertActivation = alertActivationFor(props)
   const multiple = group.decisionCount > 1
+  const scenarioCount = distinctScenarioCount(group.decisions)
   const isIp = group.scope === "Ip"
   // Enrichment only covers Ip decisions; a Country decision's value is the code.
   const countryCode = group.countryCode ?? (group.scope === "Country" ? group.ip : null)
@@ -121,8 +122,8 @@ export function DecisionGroupRows(props: Props) {
             ))}
           </span>
         </TableCell>
-        {multiple ? (
-          <TableCell className="text-xs text-muted-foreground">{group.decisionCount} scenarios</TableCell>
+        {scenarioCount > 1 ? (
+          <TableCell className="text-xs text-muted-foreground">{scenarioCount} scenarios</TableCell>
         ) : (
           <ScenarioCell scenario={group.decisions[0].scenario} />
         )}
