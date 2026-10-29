@@ -180,47 +180,6 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
           >
             <Trash2 />
           </Button>
-          {isMobile && confirming && (
-            <div
-              role="group"
-              aria-label={`Remove the location for ${row.server}?`}
-              className="basis-full space-y-2 rounded-md border border-border/60 p-2"
-            >
-              <p className="text-muted-foreground">
-                Remove the location for {row.server}? Its beacon leaves the map and live routes stop
-                flying to it. If an agent still ingests as {row.server}, the location comes back at that
-                agent's next refresh.
-              </p>
-              {removeError && (
-                <p role="alert" className="text-destructive">
-                  {removeError}
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button
-                  ref={keepRef}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  autoFocus
-                  // Closing mid-request would hide whether the removal worked.
-                  disabled={remove.isPending}
-                  onClick={() => setConfirming(false)}
-                >
-                  Keep
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="destructive"
-                  disabled={remove.isPending}
-                  onClick={removeLocationInline}
-                >
-                  Remove
-                </Button>
-              </div>
-            </div>
-          )}
           <AlertDialog open={!isMobile && confirming} onOpenChange={setConfirming}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -243,6 +202,51 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
             </AlertDialogContent>
           </AlertDialog>
         </>
+      )}
+      {/* Outside the auto/override branch: a 409 refetch turns the row into an
+          override, and the explanation has to stay on screen. */}
+      {isMobile && confirming && (
+        <div
+          role="group"
+          aria-label={`Remove the location for ${row.server}?`}
+          className="basis-full space-y-2 rounded-md border border-border/60 p-2"
+        >
+          <p className="text-muted-foreground">
+            Remove the location for {row.server}? Its beacon leaves the map and live routes stop
+            flying to it. If an agent still ingests as {row.server}, the location comes back at that
+            agent's next refresh.
+          </p>
+          {removeError && (
+            <p role="alert" className="text-destructive">
+              {removeError}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              ref={keepRef}
+              type="button"
+              size="sm"
+              variant="outline"
+              autoFocus
+              // Closing mid-request would hide whether the removal worked.
+              disabled={remove.isPending}
+              onClick={() => setConfirming(false)}
+            >
+              Keep
+            </Button>
+            {row.source !== "override" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={remove.isPending}
+                onClick={removeLocationInline}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
