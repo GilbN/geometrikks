@@ -18,13 +18,22 @@ export function ExpandChevron({ open }: { open: boolean }) {
   )
 }
 
-/** The expand chevron, flag, value and actions that start the first line. */
+/** Phone-row class for an IP or other target value, which wraps rather than
+ *  truncates, so a long IPv6 address stays readable. */
+export const ROW_TARGET_VALUE_CLASS = "min-w-0 whitespace-normal font-mono [overflow-wrap:anywhere]"
+
+/**
+ * The first line of a row with a target: expand chevron, flag, value and
+ * actions, then the status at the right. When they don't fit on one line
+ * the status moves below rather than squeezing the value.
+ */
 export function RowTarget({
   open,
   countryCode,
   countryName,
   value,
   actions,
+  status,
 }: {
   /** Set on a row that expands, to draw its chevron. */
   open?: boolean
@@ -32,14 +41,18 @@ export function RowTarget({
   countryName: string | null | undefined
   value: ReactNode
   actions?: ReactNode
+  status: ReactNode
 }) {
   return (
-    <>
-      {open !== undefined && <ExpandChevron open={open} />}
-      <CountryFlag code={countryCode} name={countryName} standalone />
-      {value}
-      {actions}
-    </>
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
+      <span className="flex min-w-0 items-center gap-1.5">
+        {open !== undefined && <ExpandChevron open={open} />}
+        <CountryFlag code={countryCode} name={countryName} standalone />
+        {value}
+        {actions}
+      </span>
+      <span className="ml-auto flex shrink-0 items-center gap-1">{status}</span>
+    </div>
   )
 }
 

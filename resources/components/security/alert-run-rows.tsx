@@ -12,7 +12,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { rowActivation } from "@/components/data/row-activation"
 import { ScenarioLabel } from "@/components/crowdsec/scenario-label"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
-import { ExpandChevron, RowTarget, TwoLineCell } from "@/components/security/two-line-cell"
+import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell } from "@/components/security/two-line-cell"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import type { AlertView } from "@/lib/api"
@@ -78,7 +78,7 @@ function AlertRow({
     <>
       <IpLabel
         ip={alert.value}
-        className={narrow ? "ml-0 min-w-0 truncate" : undefined}
+        className={narrow ? cn("ml-0", ROW_TARGET_VALUE_CLASS) : undefined}
         title={(decisionType) =>
           `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
         }
@@ -91,7 +91,7 @@ function AlertRow({
       />
     </>
   ) : (
-    <span className="min-w-0 truncate font-mono">{alert.value}</span>
+    <span className={narrow ? ROW_TARGET_VALUE_CLASS : undefined}>{alert.value}</span>
   )
 
   if (narrow) {
@@ -100,18 +100,8 @@ function AlertRow({
         {formatRowTime(alert.createdAt, { seconds: false })}
       </span>
     )
-    // Beside a source the outcome gives way first, so the IP shows in full.
     const outcomeText = (
-      <span
-        className={cn(
-          "ml-auto min-w-0 truncate pl-1 text-xs",
-          inRun ? "shrink-0" : "shrink-[1000]",
-          outcome.muted && "text-muted-foreground",
-        )}
-        title={outcome.text}
-      >
-        {outcome.text}
-      </span>
+      <span className={cn("whitespace-nowrap text-xs", outcome.muted && "text-muted-foreground")}>{outcome.text}</span>
     )
     const scenarioLine = (
       <>
@@ -129,7 +119,7 @@ function AlertRow({
             top={
               <>
                 <span className="flex min-w-0 items-center gap-1.5">{scenarioLine}</span>
-                {outcomeText}
+                <span className="ml-auto shrink-0 pl-1">{outcomeText}</span>
               </>
             }
             bottom={<span className="truncate text-muted-foreground">{alert.machineId}</span>}
@@ -138,15 +128,13 @@ function AlertRow({
         ) : (
           <TwoLineCell
             top={
-              <>
-                <RowTarget
-                  open={summary?.open}
-                  countryCode={alert.countryCode}
-                  countryName={alert.countryName}
-                  value={source}
-                />
-                {outcomeText}
-              </>
+              <RowTarget
+                open={summary?.open}
+                countryCode={alert.countryCode}
+                countryName={alert.countryName}
+                value={source}
+                status={outcomeText}
+              />
             }
             bottom={scenarioLine}
             bottomEnd={time}

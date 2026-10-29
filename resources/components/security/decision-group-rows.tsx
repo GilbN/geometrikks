@@ -21,7 +21,7 @@ import { decisionHasAlert, formatTimeLeft, timeLeftText } from "@/lib/crowdsec-a
 import { useUnbanIp } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import type { DecisionRef } from "./alert-detail-sheet"
-import { ExpandChevron, RowTarget, TwoLineCell } from "./two-line-cell"
+import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell } from "./two-line-cell"
 
 type Props = {
   group: DecisionGroupView
@@ -108,30 +108,30 @@ export function DecisionGroupRows(props: Props) {
         <TableRow {...summary} className={cn(summary?.className, dimmed && "opacity-60")}>
           <TwoLineCell
             top={
-              <>
-                <RowTarget
-                  open={multiple ? open : undefined}
-                  countryCode={countryCode}
-                  countryName={group.countryName}
-                  value={<span className="min-w-0 truncate font-mono">{group.ip}</span>}
-                  actions={
-                    isIp ? (
-                      <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
-                    ) : (
-                      <Badge variant="outline" className="shrink-0">{group.scope}</Badge>
-                    )
-                  }
-                />
-                <span className="ml-auto flex shrink-0 items-center gap-1">
-                  <DecisionBadge type={group.type} />
-                  {/* Ranges have no IP actions menu, so they keep their own unban button. */}
-                  {writeEnabled && group.scope === "Range" && (
-                    <span {...stopRowActivation}>
-                      <UnbanButton group={group} />
-                    </span>
-                  )}
-                </span>
-              </>
+              <RowTarget
+                open={multiple ? open : undefined}
+                countryCode={countryCode}
+                countryName={group.countryName}
+                value={<span className={ROW_TARGET_VALUE_CLASS}>{group.ip}</span>}
+                actions={
+                  isIp ? (
+                    <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
+                  ) : (
+                    <Badge variant="outline" className="shrink-0">{group.scope}</Badge>
+                  )
+                }
+                status={
+                  <>
+                    <DecisionBadge type={group.type} />
+                    {/* Ranges have no IP actions menu, so they keep their own unban button. */}
+                    {writeEnabled && group.scope === "Range" && (
+                      <span {...stopRowActivation}>
+                        <UnbanButton group={group} />
+                      </span>
+                    )}
+                  </>
+                }
+              />
             }
             bottom={scenarioSummary}
             bottomEnd={
