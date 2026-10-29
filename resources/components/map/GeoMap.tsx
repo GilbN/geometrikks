@@ -28,7 +28,7 @@ import {
   useIpLocations,
 } from "@/lib/queries"
 import { beaconLabel, buildServerLocationResolver, serverBeacons, type Coordinate, type ServerLocationsData } from "@/lib/server-locations"
-import { FIT_PADDING, initialMapView, WORLD_VIEW } from "@/lib/map-initial-view"
+import { FIT_PADDING, initialMapView, trafficView, trafficWindow, WORLD_VIEW, type WeightedCoordinate } from "@/lib/map-initial-view"
 import { useMapStyle } from "./hooks/useMapStyle"
 import { useMapStartFailure } from "./hooks/useMapStartFailure"
 import { MapAttribution } from "./MapAttribution"
@@ -84,6 +84,33 @@ export type MapProjection = "mercator" | "globe"
 // panel is 240px wide and sits 16px in, and the first view keeps server
 // locations out from under it.
 const DESKTOP_CONTROLS_INSET = 240 + 16
+
+/** Each location weighted by its traffic, for framing the map on it. */
+function weightedPoints(
+  collection: { features: { geometry: { coordinates: unknown }; properties?: unknown }[] } | undefined,
+): WeightedCoordinate[] {
+  return (collection?.features ?? []).map((feature) => {
+    const properties = (feature.properties ?? {}) as { eventCount?: unknown; ipCount?: unknown }
+    const weight =
+      typeof properties.eventCount === "number"
+        ? properties.eventCount
+        : typeof properties.ipCount === "number"
+          ? properties.ipCount
+          : 1
+    return { coordinate: feature.geometry.coordinates as Coordinate, weight }
+  })
+}
+
+/** The padding that keeps fitted locations clear of the map's edges and,
+ *  from md up, of the controls panel on the right. */
+function fitPadding() {
+  return {
+    top: FIT_PADDING,
+    right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
+    bottom: FIT_PADDING,
+    left: FIT_PADDING,
+  }
+}
 
 // Placeholder until initialMapView resolves. The map mounts only after that.
 const INITIAL_VIEW_STATE = {
@@ -432,20 +459,25 @@ function GeoMapInner({
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
 
   useEffect(() => {
+    // A phone opens on the traffic rather than the server locations, so it
+    // waits for the traffic too. A portrait screen framed on the servers
+    // alone often shows none of it.
     if (initialViewResolved || runtimeSettingsPending || serverLocationsPending) return
+    const defaultView = runtimeSettings?.map.defaultView
+    const onTraffic = isMobile && !defaultView
+    if (onTraffic && isLoadingGeoJSON) return
     const rect = mapContainerRef.current?.getBoundingClientRect()
-    const view = initialMapView({
-      defaultView: runtimeSettings?.map.defaultView,
-      serverLocations: serverLocationsData,
-      selectedServers,
-      size: { width: rect?.width ?? 0, height: rect?.height ?? 0 },
-      padding: {
-        top: FIT_PADDING,
-        right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
-        bottom: FIT_PADDING,
-        left: FIT_PADDING,
-      },
-    })
+    const size = { width: rect?.width ?? 0, height: rect?.height ?? 0 }
+    const padding = fitPadding()
+    const view =
+      (onTraffic ? trafficView(weightedPoints(geojson), size, padding) : null) ??
+      initialMapView({
+        defaultView,
+        serverLocations: serverLocationsData,
+        selectedServers,
+        size,
+        padding,
+      })
     setViewState((previous) => ({ ...previous, ...view }))
     mercatorZoomRef.current = view.zoom
     setInitialViewResolved(true)
@@ -456,6 +488,9 @@ function GeoMapInner({
     runtimeSettings,
     serverLocationsData,
     selectedServers,
+    isLoadingGeoJSON,
+    geojson,
+    isMobile,
   ])
 
   useEffect(() => {
@@ -528,31 +563,31 @@ function GeoMapInner({
     setViewState(evt.viewState)
   }, [])
 
-  // Fit map to data bounds
+  // Fit the map to the data: all of it when it fits across the map, else
+  // the stretch of longitude with the most traffic. A plain bounding box
+  // of traffic from the US to Japan centred a phone on the South Atlantic.
   const fitToBounds = useCallback(() => {
     if (!fitData?.features.length || !mapRef.current) return
-
-    // Single pass: spreading thousands of coordinates into Math.min/max
-    // can blow the call stack.
-    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity
-    for (const f of fitData.features) {
-      const [lng, lat] = f.geometry.coordinates as [number, number]
-      if (lng < minLng) minLng = lng
-      if (lng > maxLng) maxLng = lng
-      if (lat < minLat) minLat = lat
-      if (lat > maxLat) maxLat = lat
+    const rect = mapRef.current.getContainer().getBoundingClientRect()
+    const padding = fitPadding()
+    const window = trafficWindow(weightedPoints(fitData), { width: rect.width, height: rect.height }, padding)
+    if (!window) return
+    let south = Infinity
+    let north = -Infinity
+    for (const [, latitude] of window.coordinates) {
+      south = Math.min(south, latitude)
+      north = Math.max(north, latitude)
     }
-
-    const bounds: [[number, number], [number, number]] = [
-      [minLng, minLat],
-      [maxLng, maxLat],
-    ]
-
-    mapRef.current.fitBounds(bounds, {
-      padding: 50,
-      maxZoom: 12,
-      duration: 1000,
-    })
+    // fitBounds frames the window the way the projection draws it (the globe
+    // included) and turns the map north-up again.
+    mapRef.current.fitBounds(
+      [
+        [window.west, south],
+        [window.east, north],
+      ],
+      // pitch 0: the zoom assumes a flat map. linear: ease, rather than fly out and back in.
+      { padding, maxZoom: 12, duration: 1000, pitch: 0, linear: true },
+    )
   }, [fitData])
 
   const flyToCoordinate = useCallback((coordinates: Coordinate) => {
