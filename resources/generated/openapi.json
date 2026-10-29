@@ -10476,6 +10476,27 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "description": "Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.",
+              "maxLength": 200,
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {

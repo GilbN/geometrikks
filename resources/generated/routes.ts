@@ -487,6 +487,7 @@ export interface RouteQueryParams {
     currentPage?: number;
     origins?: string;
     pageSize?: number;
+    q?: string;
   };
   'list_files': Record<string, never>;
   'list_geo_events': {
@@ -904,7 +905,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'origins', 'pageSize'] as const,
+    queryParams: ['currentPage', 'origins', 'pageSize', 'q'] as const,
   },
   'list_files': {
     path: '/api/v1/logs/files',

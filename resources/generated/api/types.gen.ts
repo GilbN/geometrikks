@@ -3068,6 +3068,10 @@ export type ApiV1CrowdsecDecisionsListDecisionsData = {
     currentPage?: number;
     pageSize?: number;
     origins?: string | null;
+    /**
+     * Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.
+     */
+    q?: string | null;
   };
   url: "/api/v1/crowdsec/decisions";
 };

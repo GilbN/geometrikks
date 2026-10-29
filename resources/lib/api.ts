@@ -373,15 +373,18 @@ export async function fetchCrowdsecStatus(): Promise<CrowdSecStatusResponse> {
 }
 
 /** One page of active decisions. Server defaults to local origins
- *  (crowdsec,cscli,geometrikks); pass `origins` to widen to CAPI/lists. */
+ *  (crowdsec,cscli,geometrikks); pass `origins` to widen to CAPI/lists.
+ *  `q` searches; an IP or CIDR searches every origin. */
 export async function fetchCrowdsecDecisions(params?: {
   origins?: string
+  q?: string
   currentPage?: number
   pageSize?: number
 }): Promise<CrowdSecDecisionsPage> {
   const { data } = await api.get<CrowdSecDecisionsPage>("/crowdsec/decisions", {
     params: {
       origins: params?.origins || undefined,
+      q: params?.q || undefined,
       currentPage: params?.currentPage ?? 1,
       pageSize: params?.pageSize ?? 50,
     },

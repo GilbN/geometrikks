@@ -430,6 +430,7 @@ export function useCrowdsecStats() {
 /** One server-paginated page of active decisions for the Security table. */
 export function useCrowdsecDecisions(params: {
   origins?: string
+  q?: string
   currentPage: number
   pageSize: number
 }) {

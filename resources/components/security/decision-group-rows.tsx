@@ -28,6 +28,8 @@ type Props = {
   dimmed: boolean
   /** One cell per row on two lines, for a narrow card. */
   narrow?: boolean
+  /** Start with the group's decisions listed, when it has more than one. */
+  defaultOpen?: boolean
   onOpenAlert: (decision: DecisionRef) => void
 }
 
@@ -78,8 +80,9 @@ function UnbanButton({ group }: { group: DecisionGroupView }) {
 }
 
 export function DecisionGroupRows(props: Props) {
-  const { group, writeEnabled, dimmed, narrow = false } = props
-  const [open, setOpen] = useState(false)
+  const { group, writeEnabled, dimmed, narrow = false, defaultOpen = false } = props
+  // A one-decision group has nothing to list under it.
+  const [open, setOpen] = useState(defaultOpen && group.decisionCount > 1)
   const alertActivation = alertActivationFor(props)
   const multiple = group.decisionCount > 1
   const scenarioCount = distinctScenarioCount(group.decisions)

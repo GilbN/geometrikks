@@ -682,7 +682,8 @@
       "queryParameters": {
         "currentPage": "number | undefined",
         "origins": "string | undefined",
-        "pageSize": "number | undefined"
+        "pageSize": "number | undefined",
+        "q": "string | undefined"
       },
       "uri": "/api/v1/crowdsec/decisions"
     },

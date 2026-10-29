@@ -42,7 +42,7 @@ from geometrikks.domain.security.alert_history import (
     decode_cursor,
     fetch_alert_page,
 )
-from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
+from geometrikks.domain.security.grouping import DecisionGroup, group_decisions, search_groups, search_network
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
@@ -491,6 +491,18 @@ class CrowdSecController(Controller):
         geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         limit_offset: NamedDependency[filters.LimitOffset],
         origins: Annotated[str | None, QueryParameter(required=False)] = None,
+        q: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                max_length=200,
+                description=(
+                    "Search. An IP or CIDR matches decisions on addresses inside it and "
+                    "ranges that hold it, across every origin. Other text matches the "
+                    "start of the target or any part of a scenario name."
+                ),
+            ),
+        ] = None,
     ) -> OffsetPagination[DecisionGroupView]:
         """Active decisions, one item per target, geo-enriched per displayed page.
 
@@ -503,8 +515,17 @@ class CrowdSecController(Controller):
         GeoLite2 fills in IPs that stored traffic has no country for.
         """
         service = _require_service(crowdsec)
-        decisions = await service.get_decisions(origins=origins or DEFAULT_ORIGINS)
+        query = (q or "").strip()
+        if query and search_network(query) is not None:
+            # "Is this IP banned" has the same answer on every tab, so an IP or
+            # range search reads every origin; the LAPI sends them all when
+            # none are named, console and cscli-import included.
+            decisions = await service.get_decisions()
+        else:
+            decisions = await service.get_decisions(origins=origins or DEFAULT_ORIGINS)
         groups = group_decisions(decisions)
+        if query:
+            groups = search_groups(groups, query)
         page = groups[limit_offset.offset : limit_offset.offset + limit_offset.limit]
 
         page_ips = [group.value for group in page if group.scope == "Ip"]
