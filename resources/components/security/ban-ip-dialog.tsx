@@ -38,7 +38,7 @@ import {
 
 const CUSTOM_DURATION = "custom"
 
-function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => void }) {
+function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boolean; onDone: () => void }) {
   const [ip, setIp] = useState(initialIp)
   const [type, setType] = useState<BanDecisionType>("ban")
   const [preset, setPreset] = useState<string>("4h")
@@ -52,10 +52,16 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
   // Enter reaches submit even while the button is disabled, and a closed
   // dialog unmounts this form mid-flush; neither may send the ban.
   const submitting = useRef(false)
-  const mounted = useRef(true)
-  useEffect(() => () => {
-    mounted.current = false
-  }, [])
+  // Radix keeps the form mounted through the close animation, so a closed
+  // dialog shows up as open=false before it unmounts.
+  const live = useRef(open)
+  live.current = open
+  useEffect(() => {
+    live.current = open
+    return () => {
+      live.current = false
+    }
+  }, [open])
   const submit = async () => {
     if (submitting.current || ban.isPending) return
     const target = ip.trim()
@@ -78,9 +84,9 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
       await flushIpActions()
     } finally {
       submitting.current = false
-      if (mounted.current) setFlushing(false)
+      if (live.current) setFlushing(false)
     }
-    if (!mounted.current) return
+    if (!live.current) return
     ban.mutate(
       { ip: target, duration, reason: reason.trim() || undefined, type },
       {
@@ -213,7 +219,7 @@ export function BanIpDialog({
             Your bouncer enforces it.
           </DialogDescription>
         </DialogHeader>
-        <BanIpForm initialIp={initialIp} onDone={() => onOpenChange(false)} />
+        <BanIpForm initialIp={initialIp} open={open} onDone={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )
