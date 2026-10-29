@@ -51,7 +51,7 @@ export function SignalPanel({
           dissolves into the header so a SignalPanelNote can drop to a line
           of its own instead of pushing the controls under the title. */}
       <header className="flex min-w-0 gap-2 border-b border-border/50 px-4 py-3 max-md:flex-wrap max-md:items-center md:items-start md:justify-between">
-        <div className="min-w-0 max-md:flex-1">
+        <div className="min-w-0 max-md:flex-1 max-md:[overflow-wrap:anywhere]">
           <h2 id={titleId} className={FRAME_LABEL}>
             {title}
           </h2>

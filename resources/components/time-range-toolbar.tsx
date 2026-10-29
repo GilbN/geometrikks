@@ -126,9 +126,13 @@ export function TimeRangeToolbar() {
               <Button
                 size="sm"
                 aria-label={`Time range and refresh, ${rangeLabel}`}
-                // The focus ring is the primary colour too, so it needs a gap
-                // to show against the filled pill.
-                className="shrink-0 gap-1 rounded-full px-3 text-xs font-semibold dark:border-transparent dark:bg-primary dark:text-primary-foreground hover:bg-primary/85 dark:hover:bg-primary/85 active:bg-primary/70 dark:active:bg-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                // Hover and press mix in the page text colour, which sits on
+                // the far side of the primary from its label in every theme,
+                // so the label's contrast grows instead of fading. Night's
+                // primary is its text colour, so the press also shrinks the
+                // pill. The focus ring is the primary colour too and needs a
+                // gap to show.
+                className="shrink-0 gap-1 rounded-full px-3 text-xs font-semibold dark:border-transparent dark:bg-primary dark:text-primary-foreground hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--foreground))] dark:hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--foreground))] active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--foreground))] dark:active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--foreground))] active:scale-95 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <span className="max-w-28 truncate tabular-nums">{rangeLabel}</span>
                 <ChevronDown aria-hidden className="size-3.5" />
