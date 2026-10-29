@@ -9,7 +9,7 @@ import type {
   JobReport,
 } from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
-import type { CardState } from "@/components/settings/status-logic"
+import { relativeTime, type CardState } from "@/components/settings/status-logic"
 import { sameRelease } from "@/lib/version"
 
 export type AgentTone = "emerald" | "amber" | "red" | "muted"
@@ -24,6 +24,8 @@ export interface AgentAdvisoryCard {
   tone: "red" | "amber"
   summary: string
   moreCount: number
+  /** "2d ago", against the head's clock rather than the browser's. */
+  lastSeenAgo: string
 }
 
 interface ProblemKind {
@@ -111,6 +113,8 @@ export function agentSummary(response: InstancesResponse | undefined): AgentSumm
 /** One card per agent needing attention. The backend sorts problems worst
  *  first, so the first one is the headline. */
 export function agentAdvisoryCards(response: InstancesResponse | undefined): AgentAdvisoryCard[] {
+  if (!response) return []
+  const checkedAtMs = Date.parse(response.checkedAt)
   return agentsNeedingAttention(response).flatMap((agent) => {
     const worstProblem = agent.problems[0]
     if (!worstProblem) return []
@@ -120,6 +124,7 @@ export function agentAdvisoryCards(response: InstancesResponse | undefined): Age
         tone: agent.status === "critical" ? "red" : "amber",
         summary: worstProblem.summary,
         moreCount: agent.problems.length - 1,
+        lastSeenAgo: relativeTime(agent.lastSeen, checkedAtMs),
       },
     ]
   })

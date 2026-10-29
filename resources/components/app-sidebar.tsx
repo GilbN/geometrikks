@@ -50,12 +50,10 @@ import {
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
 import { agentsNeedingAttention } from "@/components/settings/agents-logic"
-import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useReleaseCheck, useRuntimeSettings } from "@/lib/queries"
+import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 import { useReloadNotice } from "@/lib/reload-notice"
 import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
-import { showsReleaseDot } from "@/lib/release-check"
-import { useSeenRelease } from "@/lib/release-seen"
 
 const navigationItems = [
   {
@@ -450,14 +448,7 @@ function CollapseToggle() {
 function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
   const { data: settings } = useRuntimeSettings()
   const { pending: updatePending } = useReloadNotice()
-  const { data: releaseCheck } = useReleaseCheck()
-  const seenRelease = useSeenRelease()
-  const latestRelease = releaseCheck?.latest ?? null
-  const releaseDotShown = showsReleaseDot({
-    reloadPending: updatePending,
-    latestVersion: latestRelease?.version ?? null,
-    seenVersion: seenRelease,
-  })
+  const unseenRelease = useUnseenRelease()
 
   if (updatePending) return collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />
   if (collapsed || !settings) return null
@@ -469,12 +460,12 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
-      {releaseDotShown && latestRelease ? (
+      {unseenRelease ? (
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
               to="/settings/about"
-              aria-label={`${displayVersion(settings.version)}, ${latestRelease.displayVersion} is available`}
+              aria-label={`${displayVersion(settings.version)}, ${unseenRelease.displayVersion} is available`}
               className="inline-flex items-center gap-1.5 text-[10px] font-mono hover:text-sidebar-foreground/60"
             >
               {displayVersion(settings.version)}
@@ -482,7 +473,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
             </Link>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <span>{latestRelease.displayVersion} is available</span>
+            <span>{unseenRelease.displayVersion} is available</span>
           </TooltipContent>
         </Tooltip>
       ) : (
