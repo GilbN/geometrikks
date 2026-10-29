@@ -822,7 +822,10 @@ function GeoMapInner({
   }
 
   return (
-    <div className="h-full w-full relative">
+    // On a phone the controls bar covers the bottom of the map, so MapLibre's
+    // bottom-corner controls (the attribution) sit above it. Important,
+    // because MapLibre's unlayered CSS beats Tailwind's utilities layer.
+    <div className="h-full w-full relative max-md:[&_.maplibregl-ctrl-bottom-left]:bottom-[calc(4.25rem+env(safe-area-inset-bottom))]! max-md:[&_.maplibregl-ctrl-bottom-right]:bottom-[calc(4.25rem+env(safe-area-inset-bottom))]!">
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -844,8 +847,8 @@ function GeoMapInner({
         cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
-        {/* Navigation controls */}
-        <NavigationControl position="bottom-right" showCompass={true} />
+        {/* Phones pinch to zoom and turn; the bottom bar takes this corner. */}
+        {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
         <MapAttribution />
 

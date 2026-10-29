@@ -8,8 +8,7 @@
  * time-range toolbar) that opens a bottom drawer with the same sections.
  */
 
-import { useEffect, useState } from "react"
-import { createPortal } from "react-dom"
+import { useState } from "react"
 import { MapOverlay } from "./MapOverlay"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +39,7 @@ import {
   Flame,
   Globe2,
   Home,
+  Layers,
   Loader2,
   MapPin,
   Maximize2,
@@ -256,12 +256,6 @@ export function MapControls({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
 
-  // The header slot only exists after the root layout commits, so resolve it
-  // post-mount rather than during render.
-  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
-  useEffect(() => {
-    setHeaderSlot(document.getElementById("header-actions-slot"))
-  }, [])
 
   const toolsMenu = (
     <DropdownMenu>
@@ -271,19 +265,14 @@ export function MapControls({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
-        {isMobile && (
-          <DropdownMenuItem onSelect={onFitBounds} disabled={isLoading || !hasMapData}>
-            <Maximize2 className="h-4 w-4" />
-            Fit to data bounds
-          </DropdownMenuItem>
-        )}
-        {serverLocationAvailable && onGoToServerLocation && (
+        {/* On a phone the bottom bar has these as All traffic and Server. */}
+        {!isMobile && serverLocationAvailable && onGoToServerLocation && (
           <DropdownMenuItem onSelect={onGoToServerLocation}>
             <Home className="h-4 w-4" />
             Go to server location
           </DropdownMenuItem>
         )}
-        {(isMobile || (serverLocationAvailable && onGoToServerLocation)) && <DropdownMenuSeparator />}
+        {!isMobile && serverLocationAvailable && onGoToServerLocation && <DropdownMenuSeparator />}
         <DropdownMenuCheckboxItem
           checked={frameRateEnabled}
           onCheckedChange={onFrameRateChange}
@@ -499,26 +488,58 @@ export function MapControls({
     </>
   )
 
-  // Mobile: a trigger in the top header bar (same icon as the desktop panel
-  // toggle) opens a bottom drawer. Portaled into the header's action slot so
-  // it sits with the toolbar buttons instead of floating over the map.
+  // Mobile: a labelled bar along the bottom of the map, in thumb reach.
+  // Layers opens the full controls in a bottom drawer; the other three are
+  // the actions a phone reaches for most. Pinch zooms, so there are no zoom
+  // buttons.
   if (isMobile) {
+    const barButton = "h-auto min-h-14 flex-1 flex-col gap-1 rounded-lg px-1 py-1.5 text-[11px] font-medium"
     return (
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        {headerSlot && createPortal(
+        <nav
+          aria-label="Map actions"
+          className="absolute inset-x-0 bottom-0 z-10 flex gap-1 border-t border-border/50 bg-background/90 px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+        >
           <DrawerTrigger asChild>
             <Button
-              size="icon-sm"
-              variant="outline"
-              className="shrink-0 cursor-pointer"
-              title="Show map controls"
+              variant="ghost"
+              className={barButton}
+              aria-label={
+                activeFilterCount > 0 ? `Layers and filters, ${activeFilterCount} active filter groups` : "Layers and filters"
+              }
             >
-              <SlidersHorizontal className="h-4 w-4" />
-              <span className="sr-only">Map Controls</span>
+              <span className="relative">
+                <Layers className="size-5" />
+                {activeFilterCount > 0 && (
+                  <span aria-hidden className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />
+                )}
+              </span>
+              Layers
             </Button>
-          </DrawerTrigger>,
-          headerSlot,
-        )}
+          </DrawerTrigger>
+          <Button variant="ghost" className={barButton} onClick={onFitBounds} disabled={isLoading || !hasMapData}>
+            <Maximize2 className="size-5" />
+            All traffic
+          </Button>
+          <Button
+            variant="ghost"
+            className={barButton}
+            onClick={onGoToServerLocation}
+            disabled={!serverLocationAvailable || !onGoToServerLocation}
+          >
+            <Home className="size-5" />
+            Server
+          </Button>
+          <Button
+            variant="ghost"
+            className={cn(barButton, liveMode && "text-primary")}
+            aria-pressed={liveMode}
+            onClick={() => onLiveModeChange(!liveMode)}
+          >
+            <Radio className={cn("size-5", liveMode && "animate-pulse motion-reduce:animate-none")} />
+            {demoTrafficMode === "off" ? "Live" : "Demo"}
+          </Button>
+        </nav>
         <DrawerContent>
           <DrawerHeader>
             <div className="flex items-center justify-between gap-2">

@@ -171,9 +171,6 @@ function RootLayout() {
                 </div>
                 <div className="flex shrink-0 items-center gap-1 sm:gap-3">
                   <TimeRangeToolbar />
-                  {/* Portal target for page-specific header actions (e.g. the
-                      mobile map-controls drawer trigger in MapControls). */}
-                  <span id="header-actions-slot" className="contents" />
                   {/* Phones switch the color scheme on Settings > Appearance;
                       the header keeps its room for the range and refresh. */}
                   <div className="hidden md:contents">
