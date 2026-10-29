@@ -60,8 +60,8 @@ export function DecisionsTable() {
   const banIpButton = status?.writeEnabled && <BanIpButton />
 
   return (
-    <Card ref={layoutRef} className="py-4">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+    <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 max-md:pb-2.5">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         {isMobile && banIpButton}
         <div className={cn("flex flex-wrap items-center gap-2", isMobile && "basis-full")}>

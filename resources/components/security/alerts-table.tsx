@@ -205,13 +205,13 @@ export function AlertsTable() {
   )
 
   return (
-    <Card ref={layoutRef} className="py-4">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+    <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 max-md:pb-2.5">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
         {!isMobile && sinceTabs}
       </CardHeader>
       {isMobile ? (
-        <div className="flex flex-col gap-2 px-6 pb-2 -mt-6">
+        <div className="flex flex-col gap-2 px-6 pb-2.5">
           <div className="flex items-center justify-between gap-2">
             {sinceTabs}
             <div onClick={() => setScenarioPickerOpened(true)}>
