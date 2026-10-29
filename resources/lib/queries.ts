@@ -1475,7 +1475,11 @@ export function useDeleteServerLocation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (server: string) => deleteServerLocation(server),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations }),
+    // Settled, not success, as in useDeleteInstance: a 404 means it is already
+    // gone, and the refetch takes the row away.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations })
+    },
   })
 }
 
