@@ -6,8 +6,8 @@
  */
 import { useState } from "react"
 import { toast } from "sonner"
-import { ChevronRight, Loader2, ShieldOff } from "lucide-react"
-import { CountryFlag, CountryLabel } from "@/components/country-flag"
+import { Loader2, ShieldOff } from "lucide-react"
+import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
@@ -21,6 +21,7 @@ import { decisionHasAlert, formatTimeLeft, timeLeftText } from "@/lib/crowdsec-a
 import { useUnbanIp } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import type { DecisionRef } from "./alert-detail-sheet"
+import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell } from "./two-line-cell"
 
 type Props = {
   group: DecisionGroupView
@@ -97,12 +98,7 @@ export function DecisionGroupRows(props: Props) {
       }
     : alertActivation(group.decisions[0])
 
-  const chevron = multiple && (
-    <ChevronRight
-      aria-hidden
-      className={cn("mr-1 inline size-3.5 align-middle text-muted-foreground transition-transform", open && "rotate-90")}
-    />
-  )
+  const chevron = multiple && <ExpandChevron open={open} />
   const scenarioSummary = scenarioCount > 1 ? (
     <span className="text-xs text-muted-foreground">{scenarioCount} scenarios</span>
   ) : (
@@ -113,41 +109,50 @@ export function DecisionGroupRows(props: Props) {
     return (
       <>
         <TableRow {...summary} className={cn(summary?.className, dimmed && "opacity-60")}>
-          <TableCell className="py-2.5">
-            <div className="flex min-w-0 items-center gap-1.5">
-              {chevron}
-              <CountryFlag code={countryCode} name={group.countryName} standalone />
-              <span className="min-w-0 truncate font-mono">{group.ip}</span>
-              {isIp ? (
-                <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
-              ) : (
-                <Badge variant="outline" className="shrink-0">{group.scope}</Badge>
-              )}
-              <span className="ml-auto flex shrink-0 items-center gap-1">
-                <DecisionBadge type={group.type} />
-                {/* Ranges have no IP actions menu, so they keep their own unban button. */}
-                {writeEnabled && group.scope === "Range" && (
-                  <span {...stopRowActivation}>
-                    <UnbanButton group={group} />
+          <TwoLineCell
+            top={
+              <RowTarget
+                open={multiple ? open : undefined}
+                countryCode={countryCode}
+                countryName={group.countryName}
+                value={<span className={ROW_TARGET_VALUE_CLASS}>{group.ip}</span>}
+                actions={
+                  isIp ? (
+                    <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
+                  ) : (
+                    <Badge variant="outline" className="shrink-0">{group.scope}</Badge>
+                  )
+                }
+                status={
+                  <>
+                    <DecisionBadge type={group.type} />
+                    {/* Ranges have no IP actions menu, so they keep their own unban button. */}
+                    {writeEnabled && group.scope === "Range" && (
+                      <span {...stopRowActivation}>
+                        <UnbanButton group={group} />
+                      </span>
+                    )}
+                  </>
+                }
+              />
+            }
+            bottom={scenarioSummary}
+            bottomEnd={
+              <>
+                {(group.requestCount24h ?? 0) > 0 && (
+                  <span className="shrink-0 font-semibold tabular-nums text-amber-500" title="Requests in this server's logs in the last 24 hours">
+                    {group.requestCount24h} seen
                   </span>
                 )}
-              </span>
-            </div>
-            <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
-              <span className="flex min-w-0 flex-1 items-center">{scenarioSummary}</span>
-              {(group.requestCount24h ?? 0) > 0 && (
-                <span className="shrink-0 font-semibold tabular-nums text-amber-500" title="Requests in this server's logs in the last 24 hours">
-                  {group.requestCount24h} seen
+                <span
+                  className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground"
+                  title={multiple ? "When the last of these decisions expires" : undefined}
+                >
+                  {timeLeftText(group.duration)}
                 </span>
-              )}
-              <span
-                className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground"
-                title={multiple ? "When the last of these decisions expires" : undefined}
-              >
-                {timeLeftText(group.duration)}
-              </span>
-            </div>
-          </TableCell>
+              </>
+            }
+          />
         </TableRow>
         {open &&
           group.decisions.map((decision, index) => {
@@ -158,16 +163,19 @@ export function DecisionGroupRows(props: Props) {
                 {...activation}
                 className={cn("bg-muted/30 hover:bg-muted/40", activation?.className, dimmed && "opacity-60")}
               >
-                <TableCell className="py-2 pl-7">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <DecisionBadge type={decision.type} />
-                    <ScenarioLabel scenario={decision.scenario} shownOrigins={[decision.origin]} className="flex-1" />
-                  </div>
-                  <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span className="truncate">{decision.origin}</span>
-                    <span className="shrink-0 whitespace-nowrap tabular-nums">{timeLeftText(decision.duration)}</span>
-                  </div>
-                </TableCell>
+                <TwoLineCell
+                  nested
+                  top={
+                    <>
+                      <DecisionBadge type={decision.type} />
+                      <ScenarioLabel scenario={decision.scenario} shownOrigins={[decision.origin]} className="flex-1" />
+                    </>
+                  }
+                  bottom={<span className="truncate text-muted-foreground">{decision.origin}</span>}
+                  bottomEnd={
+                    <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">{timeLeftText(decision.duration)}</span>
+                  }
+                />
               </TableRow>
             )
           })}

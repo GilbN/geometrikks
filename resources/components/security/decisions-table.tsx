@@ -74,11 +74,13 @@ export function DecisionsTable() {
   const colCount = narrow ? 1 : status?.writeEnabled ? 9 : 8
 
   return (
-    <Card ref={layoutRef} className="py-4">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          {status?.writeEnabled && <BanIpButton />}
+    <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
+      <CardHeader className="flex flex-row flex-wrap items-center gap-2 pb-2 max-md:pb-2.5">
+        <CardTitle className="mr-auto text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
+        {/* One element on every width, so rotating a phone keeps an open Ban IP
+            dialog. Phones push the tabs below it and keep it on the title line. */}
+        {status?.writeEnabled && <BanIpButton />}
+        <div className="flex flex-wrap items-center gap-2 max-md:basis-full">
           <Tabs
             value={scope}
             onValueChange={(value) => {
