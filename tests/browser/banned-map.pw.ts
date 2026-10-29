@@ -143,15 +143,27 @@ for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] 
     await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(5)
     await expect.poll(clear).toBe(true)
 
-    // Drag the map down from its top-left corner, clear of the popup.
-    const before = (await popup.boundingBox())!
+    // Drag the map down from its top-left corner, clear of the popup. The
+    // drag can flip the popup to the other side of its point, so follow the
+    // point itself: the last translate MapLibre puts on the popup (plus an
+    // offset of at most 8px for a corner anchor).
+    const pointY = () =>
+      page.locator(".maplibregl-popup").evaluate((element) => {
+        const moves = [...(element as HTMLElement).style.transform.matchAll(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/g)]
+        return Number(moves.at(-1)?.[2])
+      })
+    const before = await pointY()
     const mapBox = (await map.boundingBox())!
     await page.mouse.move(mapBox.x + 12, mapBox.y + 12)
     await page.mouse.down()
     await page.mouse.move(mapBox.x + 12, mapBox.y + 92, { steps: 8 })
     await page.mouse.up()
     await page.waitForTimeout(1000)
-    expect((await popup.boundingBox())!.y).toBeGreaterThan(before.y + 40)
+    const dragged = await pointY()
+    expect(dragged).toBeGreaterThan(before + 40)
+    // No correction pan undoes the drag afterwards.
+    await page.waitForTimeout(1000)
+    expect(Math.abs((await pointY()) - dragged)).toBeLessThanOrEqual(1)
   })
 }
 
