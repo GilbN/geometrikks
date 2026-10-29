@@ -4,12 +4,16 @@
  * The mobile drawer puts Filters last.
  * Toggles are switch rows rather than buttons so it fits without scrolling.
  * Desktop: a collapsible MapOverlay docked top-right.
- * Mobile: a trigger button portaled into the top header bar (next to the
- * time-range toolbar) that opens a bottom drawer with the same sections.
+ * Mobile: a labelled action bar along the bottom of the map, whose Layers
+ * button opens a bottom drawer with the same sections.
  */
 
 import { useState } from "react"
 import { MapOverlay } from "./MapOverlay"
+
+/** On a phone the map ends this far above the bottom of its area, and the
+ *  action bar fills the gap. GeoMap pads the map and its placeholder by it. */
+export const PHONE_MAP_BAR_PADDING = "max-md:pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -91,7 +95,7 @@ interface MapControlsProps {
   bannedAvailable: boolean
   banned: BannedSummary
   onFitBounds: () => void
-  /** Fly to the resolved server location; button hidden when serverLocationAvailable is false. */
+  /** Fly to the resolved server location. Hidden on desktop and disabled on a phone when serverLocationAvailable is false. */
   onGoToServerLocation?: () => void
   isLoading?: boolean
   featureStats: GeoJSONFeatureStats
@@ -255,7 +259,6 @@ export function MapControls({
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const isMobile = useIsMobile()
-
 
   const toolsMenu = (
     <DropdownMenu>
@@ -493,12 +496,14 @@ export function MapControls({
   // the actions a phone reaches for most. Pinch zooms, so there are no zoom
   // buttons.
   if (isMobile) {
-    const barButton = "h-auto min-h-14 flex-1 flex-col gap-1 rounded-lg px-1 py-1.5 text-[11px] font-medium"
+    // The bar's height is fixed (GeoMap pads the map by it), and the buttons fill it.
+    const barButton = "h-auto flex-1 flex-col gap-1 rounded-lg px-1 py-1.5 text-[11px] font-medium"
     return (
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+        {/* Its height matches PHONE_MAP_BAR_PADDING. */}
         <nav
           aria-label="Map actions"
-          className="absolute inset-x-0 bottom-0 z-10 flex gap-1 border-t border-border/50 bg-background/90 px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] backdrop-blur-md"
+          className="absolute inset-x-0 bottom-0 z-10 flex h-[calc(4.25rem+env(safe-area-inset-bottom))] gap-1 border-t border-border/50 bg-background/90 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] backdrop-blur-md"
         >
           <DrawerTrigger asChild>
             <Button

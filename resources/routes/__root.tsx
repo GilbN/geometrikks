@@ -134,6 +134,13 @@ function GeoDegradedBanner() {
   )
 }
 
+/** On a phone the map has an action bar along the bottom, so toasts there
+ *  rise above it instead of covering its buttons. */
+function RootToaster() {
+  const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
+  return <Toaster mobileOffset={onMap ? { bottom: "calc(4.75rem + env(safe-area-inset-bottom))" } : undefined} />
+}
+
 function RootLayout() {
   const isChromeless = useRouterState({
     select: (state) => isChromelessRoute(state.location.pathname),
@@ -190,7 +197,7 @@ function RootLayout() {
           </LiveFeedProvider>
         </TimeRangeProvider>
       </TooltipProvider>
-      <Toaster />
+      <RootToaster />
       <ReloadNotice />
     </ThemeProvider>
   )

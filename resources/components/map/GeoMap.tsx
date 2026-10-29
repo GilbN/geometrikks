@@ -43,7 +43,8 @@ import {
   unclusteredPointLabelLayer,
   unclusteredPointLayer,
 } from "./layers"
-import { MapControls, type BannedSummary } from "./MapControls"
+import { MapControls, PHONE_MAP_BAR_PADDING, type BannedSummary } from "./MapControls"
+import { cn } from "@/lib/utils"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
@@ -815,17 +816,21 @@ function GeoMapInner({
 
   if (!mapReady || !initialViewResolved) {
     return (
-      <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
-        <MapBackdrop tone="quiet" />
+      // Padded like the live map below, so the opening view is worked out
+      // for the same size as the map it lands on.
+      <div className={cn("h-full w-full", PHONE_MAP_BAR_PADDING)}>
+        <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
+          <MapBackdrop tone="quiet" />
+        </div>
       </div>
     )
   }
 
   return (
-    // On a phone the controls bar covers the bottom of the map, so MapLibre's
-    // bottom-corner controls (the attribution) sit above it. Important,
-    // because MapLibre's unlayered CSS beats Tailwind's utilities layer.
-    <div className="h-full w-full relative max-md:[&_.maplibregl-ctrl-bottom-left]:bottom-[calc(4.25rem+env(safe-area-inset-bottom))]! max-md:[&_.maplibregl-ctrl-bottom-right]:bottom-[calc(4.25rem+env(safe-area-inset-bottom))]!">
+    // On a phone the map ends above the bottom action bar (MapControls), so
+    // fitting, popups and MapLibre's corner controls work in the part that
+    // shows. The bar sits in this padding.
+    <div className={cn("h-full w-full relative", PHONE_MAP_BAR_PADDING)}>
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}

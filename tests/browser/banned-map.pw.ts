@@ -71,8 +71,9 @@ async function openCenterPopup(page: Page) {
 }
 
 // A full 20-row page makes a tall card. Opened from the map's centre, it fits
-// whole on the map only in a viewport about this tall.
-const CROWDED_POPUP_HEIGHT = 1000
+// whole on the map only in a viewport about this tall. On a phone the action
+// bar along the bottom takes about 70px of it.
+const CROWDED_POPUP_HEIGHT = 1070
 
 // Never click a control that hangs below the map's edge. Playwright scrolls
 // the map's overflow-hidden container to reach it and MapLibre resets that
