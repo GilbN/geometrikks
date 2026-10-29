@@ -936,6 +936,7 @@ function GeoMapInner({
         {/* Popup */}
         {popup && activeLayer === "markers" && (
           <MapPopup
+            key={`${popup.longitude},${popup.latitude}`}
             longitude={popup.longitude}
             latitude={popup.latitude}
             properties={popup.properties}
@@ -947,7 +948,7 @@ function GeoMapInner({
         )}
 
         {livePopup && livePopup.coordinates && (
-          <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
+          <LiveRequestPopup key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} />
         )}
       </Map>
 

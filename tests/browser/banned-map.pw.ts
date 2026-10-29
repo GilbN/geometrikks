@@ -121,20 +121,20 @@ for (const width of [1280, 390]) {
 
 // Opened from the centre of a phone map, the 20-row list is too tall to sit
 // above its point, so it opens below it, over the action card. The map pans
-// it clear; at 640px it is taller than the room and its list scrolls.
-for (const height of [844, 640]) {
-  test(`a phone popup stays clear of the action card at 390x${height}`, async ({ page }) => {
+// it clear; at 640px it is taller than the room and its list scrolls. With
+// reduced motion the pan is a jump, and a later drag must stay where the
+// user left it.
+for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] as const) {
+  test(`a phone popup stays clear of the action card at 390x${height}${reducedMotion ? " with reduced motion" : ""}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height })
+    if (reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
     await setup(page)
     await openCenterPopup(page)
     const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
     const card = page.getByRole("navigation", { name: "Map actions", exact: true })
+    const map = page.locator(".maplibregl-map")
     const clear = async () => {
-      const [popupBox, cardBox, mapBox] = await Promise.all([
-        popup.boundingBox(),
-        card.boundingBox(),
-        page.locator(".maplibregl-map").boundingBox(),
-      ])
+      const [popupBox, cardBox, mapBox] = await Promise.all([popup.boundingBox(), card.boundingBox(), map.boundingBox()])
       if (!popupBox || !cardBox || !mapBox) return false
       return popupBox.y >= mapBox.y && popupBox.y + popupBox.height <= cardBox.y
     }
@@ -142,6 +142,16 @@ for (const height of [844, 640]) {
     await popup.getByRole("button", { name: "Next", exact: true }).click()
     await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(5)
     await expect.poll(clear).toBe(true)
+
+    // Drag the map down from its top-left corner, clear of the popup.
+    const before = (await popup.boundingBox())!
+    const mapBox = (await map.boundingBox())!
+    await page.mouse.move(mapBox.x + 12, mapBox.y + 12)
+    await page.mouse.down()
+    await page.mouse.move(mapBox.x + 12, mapBox.y + 92, { steps: 8 })
+    await page.mouse.up()
+    await page.waitForTimeout(1000)
+    expect((await popup.boundingBox())!.y).toBeGreaterThan(before.y + 40)
   })
 }
 

@@ -37,6 +37,10 @@ export function usePopupPadding(): PaddingOptions | undefined {
 const ACTION_CARD_GAP = 8
 /** MapLibre's popup tip, drawn outside the card. */
 const POPUP_TIP = 10
+/** Pans per correction. The second covers MapLibre flipping the popup to
+ *  the other side of its point after the first. */
+const MAX_PANS = 2
+const USER_GESTURES = ["pointerdown", "touchstart", "wheel"] as const
 
 /**
  * On a phone, keeps an open popup whole between the map's top edge and the
@@ -45,7 +49,9 @@ const POPUP_TIP = 10
  * grows past the card, the map pans up by the overlap. Returns the tallest
  * the popup may be, so one taller than that room scrolls instead.
  *
- * Only the popup's own changes pan the map. A user's pan is left alone.
+ * Only the popup's own changes pan the map. A user's pan is left alone, and
+ * a correction the user interrupts is dropped. A popup that moves to another
+ * item must remount (callers key it) to be checked again.
  */
 function useClearOfActionCard(cardRef: RefObject<HTMLDivElement | null>): number | undefined {
   const { current: mapRef } = useMap()
@@ -63,31 +69,58 @@ function useClearOfActionCard(cardRef: RefObject<HTMLDivElement | null>): number
     const measureRoom = () =>
       setMaxHeight(container.clientHeight - phoneActionCardTop() - 2 * ACTION_CARD_GAP - POPUP_TIP)
 
-    const keepClear = () => {
+    let pans = 0
+    let lastOverlap = Infinity
+    // A user's gesture ends with an originalEvent; only camera moves without
+    // one (a flight that opened the popup, or this hook's own pan) recheck.
+    const onMoveEnd = (event: { originalEvent?: unknown }) => {
+      if (!event.originalEvent) keepClear()
+    }
+    const waitForMoveEnd = () => {
+      map.off("moveend", onMoveEnd)
+      map.once("moveend", onMoveEnd)
+    }
+    const cancel = () => {
+      map.off("moveend", onMoveEnd)
+    }
+
+    function keepClear() {
       // Wait for a flight or zoom that opened the popup, rather than cut it short.
-      if (map.isMoving()) {
-        map.off("moveend", keepClear)
-        map.once("moveend", keepClear)
+      if (map!.isMoving()) {
+        waitForMoveEnd()
         return
       }
       const bounds = container.getBoundingClientRect()
-      const rect = card.getBoundingClientRect()
+      const rect = card!.getBoundingClientRect()
       const overlap = rect.bottom - (bounds.bottom - phoneActionCardTop() - ACTION_CARD_GAP)
       const pan = Math.min(overlap, rect.top - bounds.top - ACTION_CARD_GAP)
-      if (pan < 1) return
-      map.panBy([0, pan], { duration: 250 })
-      // The pan can flip the popup to the other side of its point; check again.
-      map.once("moveend", keepClear)
+      // Stop when the last pan didn't help: the camera can be pinned by its
+      // zoom or latitude limits.
+      if (pan < 1 || pans >= MAX_PANS || overlap > lastOverlap - 1) return
+      pans += 1
+      lastOverlap = overlap
+      // Registered first: with reduced motion the pan ends before panBy returns.
+      waitForMoveEnd()
+      map!.panBy([0, pan], { duration: 250 })
+    }
+
+    const correct = () => {
+      pans = 0
+      lastOverlap = Infinity
+      keepClear()
     }
 
     measureRoom()
     map.on("resize", measureRoom)
-    const observer = new ResizeObserver(keepClear)
+    const canvas = map.getCanvasContainer()
+    for (const gesture of USER_GESTURES) canvas.addEventListener(gesture, cancel, { passive: true })
+    const observer = new ResizeObserver(correct)
     observer.observe(card)
     return () => {
       observer.disconnect()
+      for (const gesture of USER_GESTURES) canvas.removeEventListener(gesture, cancel)
       map.off("resize", measureRoom)
-      map.off("moveend", keepClear)
+      cancel()
     }
   }, [mapRef, cardRef, isMobile])
 
