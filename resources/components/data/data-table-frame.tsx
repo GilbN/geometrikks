@@ -93,7 +93,7 @@ export function DataTableFrame({
           "flex min-w-0 border-b border-border/50 px-4",
           stickyHeader
             ? "sticky top-[var(--sticky-top,0px)] z-20 flex-row items-center justify-between gap-2 bg-card py-2.5"
-            : "flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between",
+            : "flex-wrap items-center justify-between gap-3 py-3 sm:flex-nowrap",
         )}
       >
         <div className="min-w-0">
@@ -106,7 +106,9 @@ export function DataTableFrame({
             )}
           </div>
           {description && (
-            <p className={stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground"}>{description}</p>
+            <p className={stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground max-md:sr-only"}>
+              {description}
+            </p>
           )}
         </div>
         {tools && (

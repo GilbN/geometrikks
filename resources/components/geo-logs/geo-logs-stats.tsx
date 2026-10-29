@@ -3,7 +3,7 @@
  * range and filters, with percent-change trends vs the previous period.
  */
 import { Activity, Building2, Globe2, Users } from "lucide-react"
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
 import { ErrorBanner } from "@/components/error-banner"
 import { formatNumber } from "@/lib/api"
 import { useGeoLogSummary } from "@/lib/queries"
@@ -22,19 +22,19 @@ export function GeoLogsStats() {
 
   if (isLoading || !summary) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <StatGrid className="lg:grid-cols-4">
         <StatCardSkeleton />
         <StatCardSkeleton />
         <StatCardSkeleton />
         <StatCardSkeleton />
-      </div>
+      </StatGrid>
     )
   }
 
   const changes = summary.percentChanges
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <StatGrid className="lg:grid-cols-4">
       <StatCard
         title="Total Events"
         value={formatNumber(summary.currentPeriod.totalEvents)}
@@ -63,6 +63,6 @@ export function GeoLogsStats() {
         icon={Building2}
         trend={{ value: changes?.uniqueCities ?? null }}
       />
-    </div>
+    </StatGrid>
   )
 }

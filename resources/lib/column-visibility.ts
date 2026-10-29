@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react"
 
-import { isMobileViewport } from "@/lib/utils"
+import { isMobileViewport } from "@/hooks/use-mobile"
 
 export interface VisibilityColumn {
   key: string

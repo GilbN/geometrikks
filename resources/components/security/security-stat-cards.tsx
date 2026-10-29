@@ -3,9 +3,10 @@
  * this box) plus LAPI connection state. Fed by /crowdsec/stats and /status.
  */
 import { Radio, ShieldBan, ShieldCheck, UserRound } from "lucide-react"
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
 import { useCrowdsecStats, useCrowdsecStatus } from "@/lib/queries"
 import { scenarioText } from "@/lib/scenario-name"
+import { cn } from "@/lib/utils"
 
 /** Origins created on this box rather than pulled from the crowd. */
 const LOCAL_ORIGINS = new Set(["crowdsec", "cscli", "geometrikks"])
@@ -19,11 +20,11 @@ export function SecurityStatCards() {
   // stay visible while the LAPI is down.
   if (!status || (isPending && !stats)) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatGrid className="xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <StatCardSkeleton key={i} />
         ))}
-      </div>
+      </StatGrid>
     )
   }
 
@@ -36,7 +37,7 @@ export function SecurityStatCards() {
   const topScenario = stats?.topScenarios[0]
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <StatGrid className="xl:grid-cols-4">
       <StatCard
         title="Active decisions"
         value={stats ? stats.total.toLocaleString() : "-"}
@@ -55,7 +56,7 @@ export function SecurityStatCards() {
       <StatCard
         title="Top scenario"
         value={topScenario ? scenarioText(topScenario.scenario) : "-"}
-        valueClassName="text-lg truncate"
+        valueClassName="text-lg max-md:line-clamp-2 max-md:text-base max-md:break-words md:truncate"
         subtitle={
           topScenario
             ? `${topScenario.count.toLocaleString()} decisions`
@@ -68,11 +69,11 @@ export function SecurityStatCards() {
       <StatCard
         title="LAPI"
         value={status.lapiReachable ? "Connected" : "Unreachable"}
-        valueClassName={status.lapiReachable ? "text-emerald-500" : "text-red-500"}
+        valueClassName={cn("max-md:text-lg", status.lapiReachable ? "text-emerald-500" : "text-red-500")}
         subtitle={status.writeEnabled ? "ban/unban enabled" : "read-only (no machine credentials)"}
         icon={ShieldCheck}
         iconClassName={status.lapiReachable ? "text-emerald-500" : "text-red-500"}
       />
-    </div>
+    </StatGrid>
   )
 }

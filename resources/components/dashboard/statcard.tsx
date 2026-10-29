@@ -6,15 +6,38 @@ import { formatPercent } from "@/lib/api"
 import { FLAT_DELTA_LABEL, deltaDirection, deltaTone } from "@/lib/stat-delta"
 import { cn } from "@/lib/utils"
 
+/**
+ * The grid for a row of stat cards. Below md the cards sit two to a row and
+ * an odd last card takes the whole row; `className` sets the wider columns.
+ */
+export function StatGrid({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-3 md:gap-4 max-md:[&>:last-child:nth-child(odd)]:col-span-2",
+        className
+      )}
+    >
+      {children}
+    </div>
+  )
+}
+
+// A two-row subgrid of the StatGrid, so titles and values line up across a
+// row when one title wraps onto more lines than its neighbours.
+const CARD_CLASS = "relative row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid overflow-hidden gap-1.5 py-3 md:gap-6 md:py-4"
+const HEADER_CLASS = "flex flex-row items-center justify-between px-3 md:px-6 md:pb-2"
+const CONTENT_CLASS = "px-3 md:px-6"
+
 export function StatCardSkeleton() {
   return (
-    <Card className="relative overflow-hidden py-4">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+    <Card className={CARD_CLASS}>
+      <CardHeader className={HEADER_CLASS}>
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-4 w-4 rounded" />
       </CardHeader>
-      <CardContent>
-        <Skeleton className="h-8 w-32 mb-2" />
+      <CardContent className={CONTENT_CLASS}>
+        <Skeleton className="mb-2 h-7 w-24 md:h-8 md:w-32" />
         <Skeleton className="h-3 w-20" />
       </CardContent>
     </Card>
@@ -54,14 +77,14 @@ export function StatCard({
   const tone = deltaTone(deltaValue, trend?.positive)
 
   return (
-    <Card className="relative overflow-hidden py-4">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+    <Card className={CARD_CLASS}>
+      <CardHeader className={HEADER_CLASS}>
+        <CardTitle className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           {title}
         </CardTitle>
-        <Icon className={cn("h-4 w-4 text-primary", iconClassName)} />
+        <Icon className={cn("h-4 w-4 shrink-0 text-primary", iconClassName)} />
       </CardHeader>
-      <CardContent>
+      <CardContent className={CONTENT_CLASS}>
         <div
           className={cn(
             "text-2xl font-semibold tracking-tight tabular-nums",
@@ -70,7 +93,7 @@ export function StatCard({
         >
           {value}
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="text-xs text-muted-foreground">{subtitle}</span>
           {tone !== null && deltaValue != null && (
             <DeltaBadge value={deltaValue} tone={tone} />

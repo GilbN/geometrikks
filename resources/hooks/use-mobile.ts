@@ -1,25 +1,14 @@
-import * as React from "react"
+import { useMediaQuery } from "@/hooks/use-media-query"
 
-const MOBILE_BREAKPOINT = 768
+/** Tailwind's max-md query, so components that branch on useIsMobile agree
+ *  with max-md: classes, also when the browser's font size isn't 16px. */
+const MOBILE_QUERY = "(width < 48rem)"
 
-/** Reads the breakpoint synchronously. For one-shot decisions that can't
- *  wait for useIsMobile, which reports false until its effect has run. */
+/** Reads the breakpoint synchronously, for one-shot decisions outside render. */
 export function isMobileViewport(): boolean {
-  return window.innerWidth < MOBILE_BREAKPOINT
+  return window.matchMedia(MOBILE_QUERY).matches
 }
 
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(isMobileViewport())
-    }
-    mql.addEventListener("change", onChange)
-    setIsMobile(isMobileViewport())
-    return () => mql.removeEventListener("change", onChange)
-  }, [])
-
-  return !!isMobile
+  return useMediaQuery(MOBILE_QUERY)
 }

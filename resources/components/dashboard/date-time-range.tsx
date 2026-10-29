@@ -37,6 +37,16 @@ const ZONE_LABEL =
 
 const fullFormat = (d: Date) => d.toUTCString()
 
+/** Date and time, or the date alone below md so the band fits on one line. */
+function DateTime({ date }: { date: Date }) {
+  return (
+    <>
+      <span className="md:hidden">{DATE_ONLY.format(date)}</span>
+      <span className="max-md:hidden">{DATE_TIME.format(date)}</span>
+    </>
+  )
+}
+
 export function DateTimeRange({ start, end }: { start: string; end: string }) {
   const startDate = new Date(start)
   const endDate = new Date(end)
@@ -47,12 +57,12 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
     startDate.getDate() === endDate.getDate()
 
   return (
-    <div className="inline-flex items-center gap-2 rounded-md bg-muted/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground shadow-inner">
+    <div className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md *:whitespace-nowrap bg-muted/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground shadow-inner">
       <Clock className="h-4 w-4 text-primary" />
       <Tooltip>
         <TooltipTrigger asChild>
           <span suppressHydrationWarning className="cursor-default font-mono">
-            {sameDay ? DATE_ONLY.format(startDate) : DATE_TIME.format(startDate)}
+            {sameDay ? DATE_ONLY.format(startDate) : <DateTime date={startDate} />}
           </span>
         </TooltipTrigger>
         <TooltipContent>
@@ -92,7 +102,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
           <Tooltip>
             <TooltipTrigger asChild>
                 <span suppressHydrationWarning className="cursor-default font-mono">
-                {DATE_TIME.format(endDate)}
+                <DateTime date={endDate} />
               </span>
             </TooltipTrigger>
             <TooltipContent>
