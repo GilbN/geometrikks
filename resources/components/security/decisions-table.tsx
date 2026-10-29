@@ -5,8 +5,11 @@
  * /crowdsec/decisions, one row per target; origin scope toggles between
  * local and crowd bans.
  */
-import { useState } from "react"
+import { useRef, useState } from "react"
+import { Info, Search, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -19,7 +22,10 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
+import type { CrowdSecDecisionsPage } from "@/lib/api"
+import { isValidBanTarget } from "@/lib/crowdsec"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpButton } from "./ban-ip-dialog"
@@ -44,9 +50,22 @@ export function DecisionsTable() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(10)
   const origins = ORIGIN_SCOPES.find((s) => s.key === scope)?.origins
+  const [searchInput, setSearchInput] = useState("")
+  const searchRef = useRef<HTMLInputElement>(null)
+  const q = useDebouncedValue(searchInput.trim())
+  // The server searches every origin for an IP or a range, whatever the tab.
+  const searchesEveryOrigin = q !== "" && isValidBanTarget(q)
+  const [searchedFor, setSearchedFor] = useState(q)
+  if (searchedFor !== q) {
+    setSearchedFor(q)
+    setPage(1)
+  }
 
   const { data, isLoading, isError, isPlaceholderData } = useCrowdsecDecisions({
-    origins,
+    // The server ignores the tab for an IP or range search; leaving it out
+    // of the key keeps a tab switch from refetching the same answer.
+    origins: searchesEveryOrigin ? undefined : origins,
+    q: q || undefined,
     currentPage: page,
     pageSize,
   })
@@ -54,8 +73,10 @@ export function DecisionsTable() {
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
 
   const total = data?.total ?? 0
+  const singleMatch = searchesEveryOrigin && total === 1 && !isPlaceholderData
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const colCount = narrow ? 1 : status?.writeEnabled ? 9 : 8
+  const searchHint = q === "" ? "" : decisionSearchHint(searchesEveryOrigin, data, isPlaceholderData)
 
   return (
     <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
@@ -75,13 +96,70 @@ export function DecisionsTable() {
           >
             <TabsList>
               {ORIGIN_SCOPES.map((s) => (
-                <TabsTrigger key={s.key} value={s.key} aria-label={isMobile ? s.label : undefined}>
+                <TabsTrigger
+                  key={s.key}
+                  value={s.key}
+                  aria-label={isMobile ? s.label : undefined}
+                  disabled={searchesEveryOrigin}
+                  // Off reads as plain muted text with no selected pill, rather than half-faded.
+                  className="disabled:border-transparent! disabled:bg-transparent! disabled:text-muted-foreground! disabled:opacity-100 disabled:shadow-none!"
+                >
                   {isMobile ? s.shortLabel : s.label}
                 </TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
         </div>
+        {/* A wide header fits the field beside the tabs. Narrower ones give it
+            its own line, so the hint below always starts under the field. */}
+        <div className="basis-full max-md:order-3 @4xl/card-header:basis-auto">
+          <div className="relative md:w-64">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              ref={searchRef}
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="IP, range or scenario"
+              aria-label="Search active decisions"
+              aria-describedby={searchHint ? "decision-search-scope" : undefined}
+              maxLength={200}
+              className="pl-8 pr-9 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchInput !== "" && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                aria-label="Clear search"
+                onClick={() => {
+                  setSearchInput("")
+                  // The button goes away with the text, so focus goes back to the field.
+                  searchRef.current?.focus()
+                }}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
+        </div>
+        {/* Always in the DOM: a live region that appears with its text may not be
+            announced. Empty, it stays sr-only so it adds no row gap. */}
+        <p
+          id="decision-search-scope"
+          aria-live="polite"
+          className={
+            searchHint
+              ? "flex basis-full items-start gap-2 px-1 text-xs max-md:order-3 text-muted-foreground @4xl/card-header:justify-end @4xl/card-header:text-right"
+              : "sr-only max-md:order-3"
+          }
+        >
+          {searchesEveryOrigin && searchHint && <Info aria-hidden className="mt-px size-3.5 shrink-0" />}
+          {searchHint}
+        </p>
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
@@ -121,7 +199,9 @@ export function DecisionsTable() {
                   ))
                 : data?.items.map((group) => (
                     <DecisionGroupRows
-                      key={`${group.scope}:${group.ip}`}
+                      // A row that becomes the single match of an IP search remounts open.
+                      key={`${group.scope}:${group.ip}:${singleMatch ? "open" : ""}`}
+                      defaultOpen={singleMatch}
                       group={group}
                       writeEnabled={status?.writeEnabled === true}
                       dimmed={isPlaceholderData}
@@ -139,13 +219,13 @@ export function DecisionsTable() {
                   </TableCell>
                 </TableRow>
               )}
-              {!isLoading && !isError && total === 0 && (
+              {!isLoading && !isError && !isPlaceholderData && total === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={colCount}
                     className="h-24 text-center text-muted-foreground"
                   >
-                    No active decisions for this origin scope.
+                    {q ? `No active decisions match "${q}".` : "No active decisions for this origin scope."}
                   </TableCell>
                 </TableRow>
               )}
@@ -157,6 +237,8 @@ export function DecisionsTable() {
           pageCount={pageCount}
           total={total}
           onPageChange={setPage}
+          // The counts belong to the last answer until the new one lands.
+          disabled={isPlaceholderData}
           pageSize={pageSize}
           pageSizes={[...PAGE_SIZES]}
           onPageSizeChange={(size) => {
@@ -168,4 +250,29 @@ export function DecisionsTable() {
       <DecisionAlertSheet decision={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </Card>
   )
+}
+
+function plural(count: number, noun: string): string {
+  return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`
+}
+
+function decisionSearchHint(
+  searchesEveryOrigin: boolean,
+  data: CrowdSecDecisionsPage | undefined,
+  isPlaceholderData: boolean,
+): string {
+  const settled = data !== undefined && !isPlaceholderData
+  if (searchesEveryOrigin) {
+    const lead = "An IP or range search covers every origin, so the tabs step aside."
+    if (!settled) return lead
+    // Count decisions only when every target is on this page.
+    const decisions =
+      data.items.length === data.total
+        ? data.items.reduce((sum, group) => sum + group.decisionCount, 0)
+        : undefined
+    const counts = decisions === undefined ? plural(data.total, "target") : `${plural(data.total, "target")}, ${plural(decisions, "decision")}`
+    return `${lead} ${counts}.`
+  }
+  const rule = "Matches scenario names and the start of an IP or range."
+  return settled ? `${plural(data.total, "target")}. ${rule}` : rule
 }

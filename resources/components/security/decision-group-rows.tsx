@@ -28,6 +28,8 @@ type Props = {
   dimmed: boolean
   /** One cell per row on two lines, for a narrow card. */
   narrow?: boolean
+  /** Start with the group's decisions listed, when it has more than one. */
+  defaultOpen?: boolean
   onOpenAlert: (decision: DecisionRef) => void
 }
 
@@ -100,10 +102,11 @@ function UnbanningBadge() {
 }
 
 export function DecisionGroupRows(props: Props) {
-  const { group, writeEnabled, narrow = false } = props
+  const { group, writeEnabled, narrow = false, defaultOpen = false } = props
   const unbanning = usePendingIpAction(group.ip)?.action.kind === "unban"
   const dimmed = props.dimmed || unbanning
-  const [open, setOpen] = useState(false)
+  // A one-decision group has nothing to list under it.
+  const [open, setOpen] = useState(defaultOpen && group.decisionCount > 1)
   const alertActivation = alertActivationFor(props)
   const multiple = group.decisionCount > 1
   const scenarioCount = distinctScenarioCount(group.decisions)

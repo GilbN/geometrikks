@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Active decisions on the Security page has a search field. An IP or a range such as 45.148.0.0/16 searches every origin, crowd bans included, and a single match opens to list its decisions. Other text narrows the current tab to targets that start with it or scenarios that contain it. A line under the field says which of the two searches ran and how many targets match.
 - `APP_SESSION_MAX_AGE_DAYS` sets how long a login lasts, 7 days by default. Raise it for a wall screen that nobody logs in to by hand.
 - An open page now says when the server has been updated. On desktop the sidebar version turns into a card with a Reload button. On phones a toast offers Reload or Later and leaves a dot on the menu button. A page nobody has touched for 5 minutes reloads itself, so a wall screen moves to the new version without help.
 - GeoMetrikks checks GitHub every 12 hours for a newer release. Settings > About announces it and the sidebar version gets a dot. Set `APP_UPDATE_CHECK=false` to turn the check off.
