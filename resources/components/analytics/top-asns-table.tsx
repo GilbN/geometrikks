@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopAsns } from "@/lib/queries"
 import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
+import { useFitLayout } from "@/components/data/narrow-layout"
+import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
@@ -32,9 +34,10 @@ export function TopAsnsTable() {
   const { data, isError, error } = useTopAsns({ limit: 25 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   const report = useAbuseReportDialog()
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => row.asn).join())
 
   return (
-    <Card>
+    <Card ref={layoutRef}>
       <CardHeader>
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top ASNs</CardTitle>
       </CardHeader>
@@ -47,24 +50,51 @@ export function TopAsnsTable() {
           <Skeleton className="h-48 w-full" />
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Organization</TableHead>
-                  <TableHead>ASN</TableHead>
-                  <TableHead>
-                    <span className="inline-flex items-center gap-1.5">
-                      Category
+            <Table className={narrow ? "table-fixed" : undefined}>
+              {narrow ? (
+                <RankedNarrowHeader
+                  label={
+                    <>
+                      Organization
                       <AsnCategoryInfo />
-                    </span>
-                  </TableHead>
-                  <TableHead className="text-right">Hits</TableHead>
-                  <TableHead className="text-right">Bytes</TableHead>
-                  <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
-                </TableRow>
-              </TableHeader>
+                    </>
+                  }
+                  valueLabel="Hits"
+                />
+              ) : (
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>ASN</TableHead>
+                    <TableHead>
+                      <span className="inline-flex items-center gap-1.5">
+                        Category
+                        <AsnCategoryInfo />
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-right">Hits</TableHead>
+                    <TableHead className="text-right">Bytes</TableHead>
+                    <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+              )}
               <TableBody>
-                {pageItems.map((row) => (
+                {pageItems.map((row) => narrow ? (
+                  <TableRow key={row.asn}>
+                    <RankedNarrowCell
+                      primary={<span className="line-clamp-2" title={row.organization ?? undefined}>{row.organization ?? "Unknown"}</span>}
+                      value={formatNumber(row.hits)}
+                      trailing={<AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />}
+                      secondary={
+                        <>
+                          <span className="font-mono">AS{row.asn}</span>
+                          <CategoryBadge category={row.category} />
+                          <span>{formatBytes(row.totalBytes)}</span>
+                        </>
+                      }
+                    />
+                  </TableRow>
+                ) : (
                   <TableRow key={row.asn}>
                     <TableCell className="max-w-[420px] truncate" title={row.organization ?? undefined}>
                       {row.organization ?? "Unknown"}

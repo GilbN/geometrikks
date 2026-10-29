@@ -1,5 +1,7 @@
 import { useMemo } from "react"
-import { CountryLabel } from "@/components/country-flag"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
+import { useFitLayout } from "@/components/data/narrow-layout"
+import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -25,9 +27,10 @@ export function TopIpsTable() {
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   // Keep banned badges in sync with external cscli/console decisions.
   useCrowdsecLiveUpdates()
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => row.ipAddress).join())
 
   return (
-    <Card>
+    <Card ref={layoutRef}>
       <CardHeader>
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top IPs</CardTitle>
       </CardHeader>
@@ -36,20 +39,48 @@ export function TopIpsTable() {
           <Skeleton className="h-48 w-full" />
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead className="text-right">Hits</TableHead>
-                  <TableHead className="text-right">Errors</TableHead>
-                  <TableHead className="text-right">Bytes</TableHead>
-                </TableRow>
-              </TableHeader>
+            <Table className={narrow ? "table-fixed" : undefined}>
+              {narrow ? (
+                <RankedNarrowHeader label="IP" valueLabel="Hits" />
+              ) : (
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead>City</TableHead>
+                    <TableHead className="text-right">Hits</TableHead>
+                    <TableHead className="text-right">Errors</TableHead>
+                    <TableHead className="text-right">Bytes</TableHead>
+                  </TableRow>
+                </TableHeader>
+              )}
               <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
                 <TableBody>
-                  {pageItems.map((row) => (
+                  {pageItems.map((row) => narrow ? (
+                    <TableRow key={row.ipAddress}>
+                      <RankedNarrowCell
+                        primary={
+                          <>
+                            <IpLabel ip={row.ipAddress} className="truncate font-mono text-xs" />
+                            <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} city={row.city} />
+                          </>
+                        }
+                        value={formatNumber(row.hits)}
+                        secondary={
+                          <>
+                            {(row.countryCode || row.city) && (
+                              <span className="flex items-center gap-1">
+                                <CountryFlag code={row.countryCode} standalone />
+                                {[row.countryCode, row.city].filter(Boolean).join(", ")}
+                              </span>
+                            )}
+                            <span>{formatNumber(row.errorHits)} {row.errorHits === 1 ? "error" : "errors"}</span>
+                            <span>{formatBytes(row.totalBytes)}</span>
+                          </>
+                        }
+                      />
+                    </TableRow>
+                  ) : (
                     <TableRow key={row.ipAddress}>
                       <TableCell className="font-mono text-xs">
                         <IpLabel ip={row.ipAddress} />
