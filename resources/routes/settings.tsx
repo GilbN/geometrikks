@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { MapBackdrop } from "@/components/brand/backdrops"
-import { useChangelogUnseen } from "@/lib/queries"
+import { useChangelogUnseen, useUnseenRelease } from "@/lib/queries"
 
 export const Route = createFileRoute("/settings")({
   component: SettingsLayout,
@@ -17,11 +17,11 @@ const tabs = [
   { to: "/settings/about", label: "About" },
 ] as const
 
-function UnseenDot() {
+function UnseenDot({ label }: { label: string }) {
   return (
     <span
       className="ml-2 inline-flex h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]"
-      aria-label="New changes to read"
+      aria-label={label}
       role="img"
     />
   )
@@ -29,7 +29,12 @@ function UnseenDot() {
 
 function SettingsLayout() {
   const changelogUnseen = useChangelogUnseen()
-  const showsDot = (tab: (typeof tabs)[number]) => tab.to === "/settings/changelog" && changelogUnseen
+  const unseenRelease = useUnseenRelease()
+  const dotLabel = (tab: (typeof tabs)[number]): string | null => {
+    if (tab.to === "/settings/changelog" && changelogUnseen) return "New changes to read"
+    if (tab.to === "/settings/about" && unseenRelease) return `${unseenRelease.displayVersion} is available`
+    return null
+  }
 
   return (
     <div className="relative min-h-full min-w-0">
@@ -47,19 +52,22 @@ function SettingsLayout() {
           Settings
         </p>
         <ul className="space-y-0.5 border-l border-border/50">
-          {tabs.map((tab) => (
-            <li key={tab.to}>
-              <Link
-                to={tab.to}
-                className="relative -ml-px flex items-center border-l-2 py-1.5 pl-3 pr-2 text-sm transition-colors"
-                activeProps={{ className: "border-primary font-medium text-foreground" }}
-                inactiveProps={{ className: "border-transparent text-muted-foreground hover:text-foreground" }}
-              >
-                {tab.label}
-                {showsDot(tab) && <UnseenDot />}
-              </Link>
-            </li>
-          ))}
+          {tabs.map((tab) => {
+            const unseenLabel = dotLabel(tab)
+            return (
+              <li key={tab.to}>
+                <Link
+                  to={tab.to}
+                  className="relative -ml-px flex items-center border-l-2 py-1.5 pl-3 pr-2 text-sm transition-colors"
+                  activeProps={{ className: "border-primary font-medium text-foreground" }}
+                  inactiveProps={{ className: "border-transparent text-muted-foreground hover:text-foreground" }}
+                >
+                  {tab.label}
+                  {unseenLabel && <UnseenDot label={unseenLabel} />}
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       </nav>
       <div className="relative min-w-0">
