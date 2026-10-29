@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- When a top list on Analytics or Geo Logs is too narrow for its columns, as on a phone, the top IPs, URLs, user agents and networks show each entry on two lines. The name and its count sit on top, with the supporting numbers below. URLs and user agents wrap onto two lines instead of being cut off at one.
 - On a phone or in a narrow window, Active decisions and Alert history on the Security page show each row on two lines. Both put the IP on top, with its decision type or the alert's outcome at the right, and the scenario and time below. Alert times leave out the seconds. On a phone, Ban IP shares a row with the origin tabs, and the Alert history range tabs share a row with Filters.
 - Scenario names in the Security tables, the Top scenario card, the IP actions menu, the IP inspector and the banned-IP map popup leave out the `crowdsecurity/` prefix. Any other author stays next to the name, and a manual decision shows its reason only when you gave one. The alert details still show the full name.
 - Active decisions, the alert details, the IP actions menu, the IP inspector and the banned-IP map popup show the time left as "3h 49m" or "6d 21h", and a decision that runs for years as "Forever", instead of CrowdSec's raw duration such as `86471h2m44s`.
