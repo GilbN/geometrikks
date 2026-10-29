@@ -81,7 +81,7 @@ export function DecisionsTable() {
   return (
     <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
       <CardHeader className="flex flex-row flex-wrap items-center gap-2 pb-2 max-md:pb-2.5">
-        <CardTitle className="mr-auto text-[11px] max-md:basis-full font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
+        <CardTitle className="mr-auto max-md:basis-full text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         {/* One element on every width, so rotating a phone keeps an open Ban IP
             dialog. Phones give the title its own line and put the button at the
             end of the tabs' row. */}
