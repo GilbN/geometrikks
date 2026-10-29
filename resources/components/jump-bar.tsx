@@ -114,10 +114,9 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
     // presence is rechecked on DOM changes.
     const observer = new MutationObserver(schedule)
     observer.observe(scroller, { childList: true, subtree: true })
-    // The bar's height as --sticky-top, which <main> turns into scroll padding,
-    // so scrolls the page makes for other reasons (a table going back to its
-    // first row, focus moving to a row) stop below the bar instead of under it,
-    // and a sticky table header sits below the bar.
+    // The bar's height as --sticky-top on <main>, so a sticky table header sits
+    // below the bar, and scrolls the page makes for other reasons (a table going
+    // back to its first row, focus moving to a row) stop below it too.
     const nav = navRef.current
     const resizeObserver = new ResizeObserver(() => {
       scroller.style.setProperty("--sticky-top", `${nav?.offsetHeight ?? 0}px`)
