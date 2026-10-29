@@ -153,9 +153,12 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTo
     const pageScrollerNow = pageScrollerRef.current
     if (!pageScrollerNow) {
       virtualizer.scrollToOffset(0)
-    } else if (pageScrollerNow.scrollTop > scrollMarginRef.current) {
-      // Back to the first row, but leave a page that hasn't reached the table where it is.
-      pageScrollerNow.scrollTo({ top: scrollMarginRef.current })
+    } else {
+      // Back to the first row, but leave a page that hasn't reached the table
+      // where it is. scrollTo ignores scroll padding, which is where a sticky
+      // bar over the page (JumpBar) says how much of the top it covers.
+      const top = scrollMarginRef.current - (parseFloat(getComputedStyle(pageScrollerNow).scrollPaddingTop) || 0)
+      if (pageScrollerNow.scrollTop > top) pageScrollerNow.scrollTo({ top })
     }
   }, [resetKey, virtualizer])
 
