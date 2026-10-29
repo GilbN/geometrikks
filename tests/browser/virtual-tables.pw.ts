@@ -244,13 +244,15 @@ for (const fixture of [
     }
     await expect(lastRow).toBeVisible()
     expect(await rows.count()).toBeLessThan(80)
-    // The card header sticks under the app bar, so rows pass beneath it.
+    // The card header sticks under the app bar, or under the jump bar where a
+    // page has one, so rows pass beneath it.
     const stickyGap = (element: HTMLElement, index: number) => {
       const main = element.closest("main")!
       const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
       const row = element.querySelector(`tr[data-index="${index}"]`)
+      const stickyTop = parseFloat(getComputedStyle(main).getPropertyValue("--sticky-top")) || 0
       return {
-        header: header.getBoundingClientRect().top - main.getBoundingClientRect().top,
+        header: header.getBoundingClientRect().top - main.getBoundingClientRect().top - stickyTop,
         row: row ? row.getBoundingClientRect().top - header.getBoundingClientRect().bottom : null,
       }
     }
