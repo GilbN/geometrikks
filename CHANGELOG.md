@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- On a phone, Settings opens on a list of its sections, each with a live line such as "4 things need attention" or "7 jobs, next in 12s". Changelog and About get a dot while there are changes or a newer release you haven't opened yet, as they do in the desktop Settings menu. A section's top bar has a Settings link back to the list, in place of the section dropdown.
+- On a phone, Settings opens on a list of its sections, each with a live line such as "4 things need attention" or "7 jobs, next in 12s". Changelog and About get a dot while there are changes or a newer release you haven't opened yet. The desktop Settings menu now dots About too, next to the dot it already showed on Changelog. A section's top bar has a Settings link back to the list, in place of the section dropdown.
 - On a phone, Settings > Status opens on one card that says how many things need attention and lists them, worst first. An agent's problem says when the agent was last seen. Tapping a problem shows its detail and fix. Each component follows as a small tile with its state, and tapping a tile shows the full card.
 - On a phone, the top bar shows the time range as a button, next to a refresh button with a ring that fills once per auto refresh interval. The range button opens one drawer for the range, split into Recent, Calendar and Custom tabs, plus auto refresh and, on Analytics and Geo Logs, chart buckets. Pages the range doesn't affect, such as Security and Settings, show neither button, and the color scheme switch lives on Settings > Appearance.
 - On a phone, a chart's view and scale options open in a drawer with full-width rows instead of a small menu.
