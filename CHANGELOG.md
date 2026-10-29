@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On a phone or in a narrow window, Access Logs, Geo Logs and Debug Logs show each row on two lines instead of a table you scroll sideways. On Access Logs the status, method and full URL sit on top, with the time, country and IP below. The list scrolls with the page rather than in a box of its own, and a Sort button opens a drawer to pick the field and the order.
+- Live tail says it is waiting for requests until the first one arrives, instead of showing an empty table.
 - On touch screens, buttons, tabs, menu and list rows, dropdowns and the map zoom and compass buttons are at least 40px, and table sort headers fill their header cell. Icon buttons inside table rows stay at 32px so the rows don't grow. Small links on Settings > Status and Settings > About get a larger tap area. With a mouse, sizes stay as they were.
 - The info button next to the ASN categories on Analytics and Geo Logs opens its explanation on click or tap. It used to need a hover, which a phone can't do.
 - IP columns in the log, analytics and security tables have a copy button and one actions menu in place of the inspect, fly-to and ban buttons. The menu inspects the IP, flies to it, bans or unbans it, and adds the row's IP, host, server, country or ASN to the page's filters or takes it out again. Its header shows the IP's decision with the scenario and time left, plus the IP's location and network. On phones the menu opens as a bottom drawer. An IP with an active CrowdSec decision takes the decision's colour instead of carrying a Banned badge.

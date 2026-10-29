@@ -129,6 +129,8 @@ for (const fixture of [
   { path: "geo-logs", endpoint: "/api/v1/geo-events/logs", rows: geoRows, size: 500 },
   { path: "debug-logs", endpoint: "/api/v1/access-log-debug", rows: debugRows, size: 1_000 },
   { path: "access-logs", endpoint: "/api/v1/access-logs", rows: accessRows, size: 1_000, mobile: true },
+  { path: "geo-logs", endpoint: "/api/v1/geo-events/logs", rows: geoRows, size: 500, mobile: true },
+  { path: "debug-logs", endpoint: "/api/v1/access-log-debug", rows: debugRows, size: 1_000, mobile: true },
 ]) {
   test(`${fixture.path}${"mobile" in fixture ? " mobile, reduced motion" : ""}: bounded rows, deep scrolling, keyboard and modal focus`, async ({ page }, testInfo) => {
     if ("mobile" in fixture) {
@@ -149,9 +151,13 @@ for (const fixture of [
       await page.getByRole("combobox", { name: "Rows per page" }).click()
       await page.getByRole("option", { name: String(fixture.size), exact: true }).click()
     }
+    // A phone gets the narrow layout: two-line rows, no header row, and the
+    // page scrolls instead of a box inside it.
+    const mobile = "mobile" in fixture
+    const headerRows = mobile ? 0 : 1
     const table = page.locator("table[aria-rowcount]")
     const rows = table.locator("tr[data-index]")
-    await expect(table).toHaveAttribute("aria-rowcount", String(fixture.size + 1))
+    await expect(table).toHaveAttribute("aria-rowcount", String(fixture.size + headerRows))
     await expect(rows.first()).toHaveAttribute("data-index", "0")
     await page.evaluate(() => document.fonts.ready)
     expect(await rows.count()).toBeLessThan(80)
@@ -161,9 +167,9 @@ for (const fixture of [
       overflow: element.parentElement!.scrollWidth - element.parentElement!.clientWidth,
     }))
     if ("mobile" in fixture) {
-      // Compact fields may need horizontal scrolling on a phone, but the
-      // five mobile columns must not keep the old 965px minimum width.
+      // The two-line rows fit the phone, so nothing scrolls sideways.
       expect(layout.table).toBeLessThan(700)
+      expect(layout.overflow).toBeLessThanOrEqual(1)
     } else {
       expect(layout.overflow).toBeLessThanOrEqual(1)
       await page.setViewportSize({ width: 1440, height: 900 })
@@ -221,10 +227,21 @@ for (const fixture of [
       document.activeElement?.closest("tr")?.getAttribute("data-index"),
     ))).toBeGreaterThan(edge)
 
-    await table.evaluate((element) => {
-      element.parentElement!.scrollTop = element.parentElement!.scrollHeight
-    })
     const lastRow = table.locator(`tr[data-index="${fixture.size - 1}"]`)
+    if (mobile) {
+      // Measured rows can grow the page after each jump, so keep going until the last one mounts.
+      await expect.poll(async () => {
+        await table.evaluate((element) => {
+          const main = element.closest("main")!
+          main.scrollTop = main.scrollHeight
+        })
+        return lastRow.count()
+      }).toBe(1)
+    } else {
+      await table.evaluate((element) => {
+        element.parentElement!.scrollTop = element.parentElement!.scrollHeight
+      })
+    }
     await expect(lastRow).toBeVisible()
     expect(await rows.count()).toBeLessThan(80)
     expect(await table.locator("th").evaluateAll((cells) =>
@@ -235,7 +252,10 @@ for (const fixture of [
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
     await expect(dialog).toHaveAttribute("aria-modal", "true")
-    await page.getByRole("button", { name: "Columns", exact: true, includeHidden: true }).evaluate((button: HTMLElement) => button.focus())
+    const behindDialog = mobile
+      ? page.getByRole("button", { name: /^Sort by/, includeHidden: true })
+      : page.getByRole("button", { name: "Columns", exact: true, includeHidden: true })
+    await behindDialog.evaluate((button: HTMLElement) => button.focus())
     await expect.poll(() => dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true)
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
@@ -270,14 +290,27 @@ for (const fixture of [
       await expect(lastRow).toBeFocused()
     }
 
-    await table.locator("th button").first().click()
-    await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
+    if (mobile) {
+      await page.getByRole("button", { name: /^Sort by/ }).click()
+      const sortChoice = page.getByRole("radiogroup", { name: "Sort by" }).getByRole("radio").nth(1)
+      const sortLabel = (await sortChoice.locator("..").innerText()).trim()
+      await sortChoice.click()
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("button", { name: new RegExp(`^Sort by ${sortLabel}`) })).toBeVisible()
+    } else {
+      await table.locator("th button").first().click()
+      await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
+    }
     await expect(rows.first()).toHaveAttribute("data-index", "0")
 
     await page.getByRole("combobox", { name: "Rows per page" }).click()
     await page.getByRole("option", { name: "20", exact: true }).click()
-    await expect(table).toHaveAttribute("aria-rowcount", "21")
+    await expect(table).toHaveAttribute("aria-rowcount", String(20 + headerRows))
     await expect(rows.first()).toHaveAttribute("data-index", "0")
+    if (mobile) {
+      expect(errors).toEqual([])
+      return
+    }
     await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
 
     const columnCount = await table.locator("th").count()
@@ -292,3 +325,27 @@ for (const fixture of [
     expect(errors).toEqual([])
   })
 }
+
+test("access-logs mobile: rows that arrive late leave a scrolled page where it is", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 560 })
+  let release = () => {}
+  const held = new Promise<void>((resolve) => { release = resolve })
+  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", async (route) => {
+    await held
+    await route.fulfill({ json: { items: accessRows.slice(0, 20), total: accessRows.length, limit: 20, offset: 0 } })
+  })
+  await page.goto("/access-logs")
+  await expect(page.locator('[data-state="loading"]').first()).toBeVisible()
+  const scrolledTo = await page.evaluate(() => {
+    const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
+    main.scrollTop = 150
+    return main.scrollTop
+  })
+  expect(scrolledTo).toBeGreaterThan(0)
+  release()
+  await expect(page.locator("table[aria-rowcount] tr[data-index]").first()).toBeVisible()
+  expect(await page.evaluate(() => {
+    const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
+    return main.scrollTop
+  })).toBe(scrolledTo)
+})
