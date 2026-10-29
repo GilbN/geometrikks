@@ -127,8 +127,8 @@ export function TimeRangeToolbar() {
                 size="sm"
                 aria-label={`Time range and refresh, ${rangeLabel}`}
                 // The focus ring is the primary colour too and needs a gap to
-                // show against the filled pill.
-                className="shrink-0 gap-1 rounded-full px-3 text-xs font-semibold dark:border-transparent dark:bg-primary dark:text-primary-foreground hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--primary-state-mix))] dark:hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--primary-state-mix))] active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--primary-state-mix))] dark:active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--primary-state-mix))] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                // show against the light theme's filled pill.
+                className="shrink-0 gap-1 rounded-full px-3 text-xs font-semibold not-dark:hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--primary-state-mix))] not-dark:active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--primary-state-mix))] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 <span className="max-w-28 truncate tabular-nums">{rangeLabel}</span>
                 <ChevronDown aria-hidden className="size-3.5" />
