@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react"
+import { focusManager } from "@tanstack/react-query"
 import type { ChartGranularity, CustomTimeRange, TimeRangeValue } from "./api"
 
 const STORAGE_KEY = "geometrikks-time-range"
@@ -104,6 +105,15 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
   const refetchInterval = holds === 0 && state.pollInterval > 0 ? state.pollInterval : false
+  // A held page also skips the refetch on returning to the tab. Reporting the
+  // window as unfocused stops it; on release TanStack checks focus again and
+  // refreshes what went stale.
+  const held = holds > 0
+  useEffect(() => {
+    if (!held) return
+    focusManager.setFocused(false)
+    return () => focusManager.setFocused(undefined)
+  }, [held])
 
   return (
     <TimeRangeContext.Provider

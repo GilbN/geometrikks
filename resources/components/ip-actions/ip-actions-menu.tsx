@@ -187,6 +187,9 @@ export function IpActionsMenu({
   // rows can't push the row, and the open menu with it, off the page.
   const [menuOpen, setMenuOpen] = useState(false)
   usePollingHold(menuOpen || banDialogOpen)
+  // Crossing the breakpoint swaps the drawer for the dropdown or back
+  // without an onOpenChange(false), which would leave the hold on.
+  useEffect(() => setMenuOpen(false), [isMobile])
   // An action that opens a sheet or dialog runs once the menu or drawer has
   // closed and focus is back on the trigger. The sheet takes the focused
   // element as the one to return to, and a dialog opened during the drawer's
