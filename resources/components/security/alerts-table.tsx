@@ -52,10 +52,11 @@ import { IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu
 import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 
+// The short labels fit the card's header on a 320px phone.
 const SINCE_OPTIONS = [
-  { key: "24h", label: "Last 24h" },
-  { key: "168h", label: "Last 7 days" },
-  { key: "720h", label: "Last 30 days" },
+  { key: "24h", label: "Last 24h", short: "24h" },
+  { key: "168h", label: "Last 7 days", short: "7 days" },
+  { key: "720h", label: "Last 30 days", short: "30 days" },
 ] as const
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
@@ -197,10 +198,11 @@ export function AlertsTable() {
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
         <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
-          <TabsList>
+          <TabsList aria-label="Time range">
             {SINCE_OPTIONS.map((option) => (
               <TabsTrigger key={option.key} value={option.key}>
-                {option.label}
+                <span className="sm:hidden">{option.short}</span>
+                <span className="max-sm:hidden">{option.label}</span>
               </TabsTrigger>
             ))}
           </TabsList>
