@@ -1,5 +1,5 @@
 import {
-  cloneElement, createContext, Fragment, useCallback, useContext, useLayoutEffect,
+  cloneElement, createContext, Fragment, useCallback, useContext, useEffect, useLayoutEffect,
   useMemo, useRef, useState, type ComponentProps, type ReactElement,
 } from "react"
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
@@ -58,10 +58,13 @@ export function VirtualTable({
  * Give it a key that changes with the table's `narrow` prop, because the
  * virtualizer carries its scroll offset across a change of scroll element.
  */
-export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: {
+export function VirtualTableBody<T>({ rows, columnCount, getRowKey, onAwayFromTopChange, children }: {
   rows: readonly T[]
   columnCount: number
   getRowKey: (row: T) => string | number
+  /** Called when the scroll moves more than a row past the top of the list,
+   *  and back. A list that grows at the top can hold new rows meanwhile. */
+  onAwayFromTopChange?: (away: boolean) => void
   children: (row: T) => ReactElement<ComponentProps<"tr">>
 }) {
   const context = useContext(ScrollContext)
@@ -92,8 +95,22 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
     return () => observer.disconnect()
   }, [pageScroller, scrollElement])
   const margin = pageScroller ? scrollMargin : 0
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  // By key, not index: rows that arrive at the top move the focused row down.
+  const [focusedKey, setFocusedKey] = useState<string | number | null>(null)
+  const focusedIndex = useMemo(() => {
+    if (focusedKey === null) return null
+    const index = rows.findIndex((row) => getRowKey(row) === focusedKey)
+    return index === -1 ? null : index
+  }, [focusedKey, rows, getRowKey])
   const getItemKey = useCallback((index: number) => getRowKey(rows[index]), [getRowKey, rows])
+  // Null until the first report, so a fresh body says where it is even when
+  // that is the top; the one it replaced may have last said "away".
+  const awayFromTopRef = useRef<boolean | null>(null)
+  const onAwayFromTopChangeRef = useRef(onAwayFromTopChange)
+  onAwayFromTopChangeRef.current = onAwayFromTopChange
+  useEffect(() => () => {
+    if (awayFromTopRef.current) onAwayFromTopChangeRef.current?.(false)
+  }, [])
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => pageScroller ?? scrollElement,
@@ -106,6 +123,14 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
     estimateSize: () => rowEstimate,
     overscan: 15,
     scrollMargin: margin,
+    onChange: (instance) => {
+      if (!onAwayFromTopChangeRef.current) return
+      const away = (instance.scrollOffset ?? 0) - scrollMarginRef.current > rowEstimate
+      if (away !== awayFromTopRef.current) {
+        awayFromTopRef.current = away
+        onAwayFromTopChangeRef.current(away)
+      }
+    },
     paddingStart: headerHeight,
     scrollPaddingStart: headerHeight,
     // Keep the focused row and its neighbours mounted so Tab can cross the
@@ -121,7 +146,7 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
   })
 
   useLayoutEffect(() => {
-    setFocusedIndex(null)
+    setFocusedKey(null)
     // A scroll queued before the virtualizer has its element would land as 0
     // on whatever it attaches to.
     if (!virtualizer.scrollElement) return
@@ -148,7 +173,7 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
     <TableBody
       onFocusCapture={(event) => {
         const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("tr[data-index]")
-        if (row) setFocusedIndex(Number(row.dataset.index))
+        if (row) setFocusedKey(getRowKey(rows[Number(row.dataset.index)]))
       }}
     >
       {items.map((item, index) => (
