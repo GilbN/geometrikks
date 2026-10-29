@@ -183,8 +183,10 @@ function RootLayout() {
                 </div>
               </header>
               {/* Main content area. Bars that stick to its top set --sticky-top
-                  and --table-header-height so focus and scroll resets land below them. */}
-              <main className="min-h-0 flex-1 overflow-auto scroll-pt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]">
+                  and --table-header-height on it, so content below can keep clear
+                  of them. relative keeps sr-only text inside it; placed against an
+                  outer box, that text makes the document scroll the app bar away. */}
+              <main className="relative min-h-0 flex-1 overflow-auto">
                 <Outlet />
               </main>
             </SidebarInset>

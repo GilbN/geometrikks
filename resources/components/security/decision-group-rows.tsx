@@ -21,7 +21,7 @@ import { decisionHasAlert, formatTimeLeft, timeLeftText } from "@/lib/crowdsec-a
 import { useUnbanIp } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import type { DecisionRef } from "./alert-detail-sheet"
-import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell } from "./two-line-cell"
+import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell, WRAPPING_BADGE_CLASS } from "./two-line-cell"
 
 type Props = {
   group: DecisionGroupView
@@ -122,7 +122,7 @@ export function DecisionGroupRows(props: Props) {
                 }
                 status={
                   <>
-                    <DecisionBadge type={group.type} />
+                    <DecisionBadge type={group.type} className={WRAPPING_BADGE_CLASS} />
                     {/* Ranges have no IP actions menu, so they keep their own unban button. */}
                     {writeEnabled && group.scope === "Range" && (
                       <span {...stopRowActivation}>
@@ -164,7 +164,7 @@ export function DecisionGroupRows(props: Props) {
                   nested
                   top={
                     <>
-                      <DecisionBadge type={decision.type} />
+                      <DecisionBadge type={decision.type} className={cn(WRAPPING_BADGE_CLASS, "max-w-[60%]")} />
                       <ScenarioLabel scenario={decision.scenario} shownOrigins={[decision.origin]} className="flex-1" />
                     </>
                   }
