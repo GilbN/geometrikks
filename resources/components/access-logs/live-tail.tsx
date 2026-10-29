@@ -87,7 +87,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
         <Button
           variant="outline"
           size="sm"
-          className="h-7 pointer-coarse:h-10"
+          className="h-7"
           onClick={() => setManuallyPaused((p) => !p)}
         >
           {manuallyPaused ? (

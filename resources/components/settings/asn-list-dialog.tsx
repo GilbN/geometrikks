@@ -38,7 +38,7 @@ export function AsnListDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="pointer-coarse:h-10">
+        <Button variant="outline" size="sm">
           Browse list
         </Button>
       </DialogTrigger>

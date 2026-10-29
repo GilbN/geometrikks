@@ -302,7 +302,7 @@ export function LogsOverview() {
             value={activeTab}
             onValueChange={(v) => setActiveTab(v as "app" | "login" | "downloads")}
           >
-            <TabsList className="pointer-coarse:h-10">
+            <TabsList>
               <TabsTrigger value="app">System log</TabsTrigger>
               <TabsTrigger value="login">Login log</TabsTrigger>
               <TabsTrigger value="downloads">Downloads</TabsTrigger>
@@ -325,7 +325,6 @@ export function LogsOverview() {
               <Button
                 variant="outline"
                 size="sm"
-                className="pointer-coarse:h-10"
                 disabled={rotateLogs.isPending}
                 onClick={() => rotateLogs.mutate()}
               >
@@ -386,7 +385,6 @@ export function LogsOverview() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="pointer-coarse:h-10"
                             asChild
                           >
                             <a
@@ -401,7 +399,6 @@ export function LogsOverview() {
                           <Button
                             variant="outline"
                             size="sm"
-                            className="pointer-coarse:h-10"
                             disabled
                           >
                             <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -421,7 +418,6 @@ export function LogsOverview() {
             <Button
               variant="outline"
               size="sm"
-              className="pointer-coarse:h-10"
               onClick={togglePause}
             >
               {paused ? (
@@ -442,7 +438,7 @@ export function LogsOverview() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-36 justify-between text-xs pointer-coarse:h-10"
+                  className="h-8 w-36 justify-between text-xs"
                 >
                   <span className="truncate">{multiSelectLabel(levelFilters, "All levels")}</span>
                   <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
@@ -467,7 +463,7 @@ export function LogsOverview() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-40 justify-between text-xs pointer-coarse:h-10"
+                  className="h-8 w-40 justify-between text-xs"
                 >
                   <span className="truncate">
                     {multiSelectLabel(componentFilters, "All components")}
@@ -579,7 +575,6 @@ export function LogsOverview() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          className="pointer-coarse:h-10"
                           aria-label="View traceback"
                           onClick={(e) => {
                             e.stopPropagation()

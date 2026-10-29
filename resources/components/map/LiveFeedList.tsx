@@ -32,7 +32,7 @@ export function LiveFeedTabs({
 }) {
   return (
     <Tabs value={lane} onValueChange={(value) => onLaneChange(value as FeedLane)}>
-      <TabsList className={cn("w-full", size === "compact" ? "h-7" : "pointer-coarse:h-10")}>
+      <TabsList className={cn("w-full", size === "compact" && "h-7")}>
         <TabsTrigger value="all" className={cn("flex-1", size === "compact" && "text-[11px]")}>
           All {formatNumber(total)}
         </TabsTrigger>

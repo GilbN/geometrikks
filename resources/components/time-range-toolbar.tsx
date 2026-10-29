@@ -132,7 +132,7 @@ export function TimeRangeToolbar() {
         {/* Time Range Drawer (bottom sheet on phones, see TimeRangePicker) */}
         <TimeRangePicker
           trigger={
-            <Button variant="outline" size="icon-sm" className="shrink-0 pointer-coarse:size-10">
+            <Button variant="outline" size="icon-sm" className="shrink-0">
               <Filter className="h-4 w-4" />
               <span className="sr-only">Time Range</span>
             </Button>
@@ -145,7 +145,7 @@ export function TimeRangeToolbar() {
           size="icon-sm"
           onClick={refresh}
           disabled={isFetching > 0}
-          className="shrink-0 pointer-coarse:size-10"
+          className="shrink-0"
         >
           <RotateCw
             className={cn(
@@ -159,7 +159,7 @@ export function TimeRangeToolbar() {
         {/* Poll Interval Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon-sm" className="shrink-0 pointer-coarse:size-10">
+            <Button variant="outline" size="icon-sm" className="shrink-0">
               <Timer className="h-4 w-4" />
               <span className="sr-only">Auto Refresh</span>
             </Button>
@@ -187,7 +187,7 @@ export function TimeRangeToolbar() {
         {showGranularity && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon-sm" className="shrink-0 pointer-coarse:size-10">
+              <Button variant="outline" size="icon-sm" className="shrink-0">
                 <BarChart3 className="h-4 w-4" />
                 <span className="sr-only">Chart Granularity</span>
               </Button>

@@ -254,7 +254,6 @@ export function EnvironmentOverview() {
           </div>
           <Button
             size="sm"
-            className="pointer-coarse:h-10"
             variant={overriddenOnly ? "secondary" : "outline"}
             onClick={() => setOverriddenOnly((v) => !v)}
             aria-pressed={overriddenOnly}
@@ -278,15 +277,16 @@ export function EnvironmentOverview() {
           {sections.map((section) => {
             const Icon = sectionIcons[section.name] ?? Settings2
             return (
-              <button
+              <Button
                 key={section.name}
-                type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => jumpTo(section.name)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                className="h-auto gap-1.5 border-border/60 py-1 font-normal text-muted-foreground hover:border-primary/40 hover:bg-transparent dark:hover:bg-transparent"
               >
-                <Icon className="h-3 w-3 text-primary" />
+                <Icon className="text-primary" />
                 {section.title}
-              </button>
+              </Button>
             )
           })}
         </div>

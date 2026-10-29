@@ -43,7 +43,7 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
           <Button
             variant="ghost"
             size="icon-xs"
-            className="ml-1 align-middle text-muted-foreground"
+            className="ml-1 align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
             disabled={isPending}
             title={banned ? "Unban this IP" : "Ban this IP"}
           >

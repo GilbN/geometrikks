@@ -119,7 +119,7 @@ function CopyIpButton({ ip }: { ip: string }) {
     <Button
       variant="ghost"
       size="icon-xs"
-      className="ml-1 align-middle text-muted-foreground pointer-coarse:size-8"
+      className="ml-1 align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
       title={copied ? "Copied" : "Copy IP"}
       aria-label={copied ? `Copied ${ip}` : `Copy ${ip}`}
       onClick={(event) => void copy(event.currentTarget)}
@@ -247,7 +247,7 @@ export function IpActionsMenu({
       ref={triggerRef}
       variant="ghost"
       size="icon-xs"
-      className={cn("align-middle text-muted-foreground pointer-coarse:size-8", className)}
+      className={cn("align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
       title="IP actions"
       aria-label={`Actions for ${ip}`}
     >

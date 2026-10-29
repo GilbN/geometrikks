@@ -302,7 +302,7 @@ export function MapControls({
         onClick={onFitBounds}
         disabled={isLoading || !hasMapData}
         title="Fit to data bounds"
-        className="cursor-pointer pointer-coarse:size-10"
+        className="cursor-pointer"
       >
         <Maximize2 className="h-4 w-4" />
         <span className="sr-only">Fit to data bounds</span>
@@ -346,7 +346,7 @@ export function MapControls({
         <Button
           variant="ghost"
           size="sm"
-          className="h-8 w-full justify-start px-2 pointer-coarse:h-10"
+          className="h-8 w-full justify-start px-2"
           onClick={() => {
             onCountriesChange([])
             onCitiesChange([])
@@ -365,7 +365,7 @@ export function MapControls({
     <>
       <Section label="Visualization">
         <Tabs value={activeLayer} onValueChange={(value) => onLayerChange(value as LayerType)}>
-          <TabsList className={cn("grid h-8 w-full pointer-coarse:h-10", bannedAvailable ? "grid-cols-3" : "grid-cols-2")}>
+          <TabsList className={cn("grid h-8 w-full", bannedAvailable ? "grid-cols-3" : "grid-cols-2")}>
             <TabsTrigger value="heatmap" className={cn(LAYER_TAB, "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30")}>
               <Flame className="h-3.5 w-3.5" />
               Heatmap
@@ -510,7 +510,7 @@ export function MapControls({
             <Button
               size="icon-sm"
               variant="outline"
-              className="shrink-0 pointer-coarse:size-10 cursor-pointer"
+              className="shrink-0 cursor-pointer"
               title="Show map controls"
             >
               <SlidersHorizontal className="h-4 w-4" />

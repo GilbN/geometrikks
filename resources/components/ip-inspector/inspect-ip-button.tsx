@@ -25,7 +25,7 @@ export function InspectIpButton({
     <Button
       variant="ghost"
       size="icon-xs"
-      className={cn("align-middle text-muted-foreground", className)}
+      className={cn("align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
       title="Inspect IP"
       aria-label={`Inspect ${ip}`}
       onKeyDown={stopRowActivation.onKeyDown}

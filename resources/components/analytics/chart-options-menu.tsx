@@ -46,7 +46,7 @@ export function ChartOptionsMenu({
           variant="ghost"
           size="xs"
           aria-label={chartOptionsLabel(title, chips)}
-          className="gap-1 px-1.5 text-muted-foreground"
+          className="gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
         >
           {chips.map((chip) => (
             <span key={chip} className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">

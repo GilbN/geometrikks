@@ -59,7 +59,7 @@ function UnbanButton({ group }: { group: DecisionGroupView }) {
     <Button
       variant="ghost"
       size="icon-xs"
-      className="text-muted-foreground"
+      className="text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
       title={title}
       disabled={unban.isPending}
       onClick={() =>

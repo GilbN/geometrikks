@@ -31,7 +31,7 @@ export function ExternalLink({
 
 export function ExternalLinkButton({ href, label, className }: { href: string; label: string; className?: string }) {
   return (
-    <Button asChild variant="ghost" size="icon-xs" className={cn("align-middle text-muted-foreground", className)}>
+    <Button asChild variant="ghost" size="icon-xs" className={cn("align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}>
       <a href={href} target="_blank" rel="noopener noreferrer" title={label} aria-label={label}>
         <ExternalLinkIcon />
       </a>
