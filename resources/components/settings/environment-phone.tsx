@@ -94,8 +94,8 @@ export function EnvironmentPhone({ sections }: { sections: readonly SettingsSect
           value={query}
           onChange={(event) => {
             setQuery(event.target.value)
-            // A new search starts with every matching group open, even one
-            // closed the last time the same words were searched.
+            // Clearing the field forgets the groups closed during the search,
+            // so searching the same words again opens every match.
             if (!event.target.value.trim()) setSearchClosed({ query: "", names: new Set() })
           }}
           className="h-11 bg-glass-card pl-9 backdrop-blur-[2px]"

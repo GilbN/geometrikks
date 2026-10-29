@@ -12,7 +12,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   useCrowdsecStats,
   useCrowdsecStatus,
@@ -111,6 +111,16 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   // keeps focus out of a nested AlertDialog, so the confirmation is inline.
   const isMobile = useIsMobile()
   const removeLocation = () => remove.mutate(row.server, { onSettled: () => setConfirming(false) })
+  // The inline confirmation stays open on a failed removal, so it can say so.
+  const removeLocationInline = () => remove.mutate(row.server, { onSuccess: () => setConfirming(false) })
+  // Focus goes back to the trash button when the inline confirmation closes;
+  // otherwise the drawer's focus trap drops it at the top of the drawer.
+  const trashRef = useRef<HTMLButtonElement>(null)
+  const wasConfirming = useRef(false)
+  useEffect(() => {
+    if (wasConfirming.current && !confirming && isMobile) trashRef.current?.focus()
+    wasConfirming.current = confirming
+  }, [confirming, isMobile])
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <MonoChip>{row.server}</MonoChip>
@@ -131,12 +141,16 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
         <>
           <span className="ml-auto text-muted-foreground">auto</span>
           <Button
+            ref={trashRef}
             type="button"
             variant="ghost"
             size="icon-xs"
             aria-label={`Remove location for ${row.server}`}
             className="text-muted-foreground hover:text-destructive"
-            onClick={() => setConfirming(true)}
+            onClick={() => {
+              remove.reset()
+              setConfirming(true)
+            }}
           >
             <Trash2 />
           </Button>
@@ -151,11 +165,22 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
                 flying to it. If an agent still ingests as {row.server}, the location comes back at that
                 agent's next refresh.
               </p>
+              {remove.isError && (
+                <p role="alert" className="text-destructive">
+                  The location could not be removed. Try again.
+                </p>
+              )}
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="outline" autoFocus onClick={() => setConfirming(false)}>
                   Keep
                 </Button>
-                <Button type="button" size="sm" variant="destructive" disabled={remove.isPending} onClick={removeLocation}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  disabled={remove.isPending}
+                  onClick={removeLocationInline}
+                >
                   Remove
                 </Button>
               </div>
