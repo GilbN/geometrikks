@@ -17,7 +17,10 @@
  */
 import { useCallback, useSyncExternalStore } from "react"
 import { useQueryClient, type QueryClient } from "@tanstack/react-query"
+import { ShieldBan, ShieldOff, Undo2 } from "lucide-react"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { banIp, unbanIp, type DecisionView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
 
@@ -78,10 +81,6 @@ export function undoIpAction(ip: string) {
 /** "for 4 hours", or "for good" rather than "for Forever". */
 function forDuration(durationLabel: string): string {
   return durationLabel === "Forever" ? "for good" : `for ${durationLabel}`
-}
-
-function title(action: PendingIpAction): string {
-  return action.kind === "ban" ? `Banning ${action.ip} ${forDuration(action.durationLabel)}` : `Unbanning ${action.ip}`
 }
 
 function done(action: PendingIpAction): string {
@@ -220,6 +219,30 @@ export function describeUnban(decisions: readonly Pick<DecisionView, "origin">[]
   return `Removes ${count}, ${crowd} of them from the crowd.`
 }
 
+/** The same card as ReloadToast in reload-notice.tsx. Change both together. */
+function PendingIpToast({ action, description }: { action: PendingIpAction; description: string }) {
+  const Icon = action.kind === "ban" ? ShieldBan : ShieldOff
+  return (
+    <Card size="sm" className="toast-surface w-full">
+      <CardContent className="flex items-center gap-3 text-[13px]">
+        <Icon aria-hidden="true" className="size-4 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">
+            {action.kind === "ban" ? "Banning " : "Unbanning "}
+            <span className="font-mono">{action.ip}</span>
+            {action.kind === "ban" ? ` ${forDuration(action.durationLabel)}` : null}
+          </p>
+          <p className="text-muted-foreground">{description}</p>
+        </div>
+        <Button size="sm" onClick={() => undoIpAction(action.ip)}>
+          <Undo2 />
+          Undo
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 /** The action waiting or on its way for one IP, or null. */
 export function usePendingIpAction(ip: string): PendingIpState | null {
   const all = useSyncExternalStore(subscribe, () => snapshot)
@@ -244,16 +267,14 @@ export function useIpActions() {
       const id = `ip-action:${action.ip}:${++toastSerial}`
       const seconds = Math.round(UNDO_WINDOW_MS / 1000)
       const summary = action.kind === "unban" ? `${unbanSummary(action.ip)} ` : ""
-      toast(title(action), {
+      const description = `${summary}Sent to CrowdSec in ${seconds} seconds.`
+      toast.custom(() => <PendingIpToast action={action} description={description} />, {
         id,
-        description: `${summary}Sent to CrowdSec in ${seconds} seconds.`,
         // The store's timer decides when the request goes, not the toast's,
-        // which pauses while hovered. Without a close button or a swipe,
-        // the toast only goes away by Undo or by sending.
+        // which pauses while hovered. A custom toast has no close button, and
+        // without a swipe it only goes away by Undo or by sending.
         duration: Number.POSITIVE_INFINITY,
         dismissible: false,
-        closeButton: false,
-        action: { label: "Undo", onClick: () => undoIpAction(action.ip) },
       })
       const timer = window.setTimeout(() => send(action.ip, false), UNDO_WINDOW_MS)
       entries.set(action.ip, { action, sending: false, timer, toastId: id })
