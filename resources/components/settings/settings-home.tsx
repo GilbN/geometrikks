@@ -16,6 +16,7 @@ import {
   ScrollText,
   SlidersHorizontal,
 } from "lucide-react"
+import { GlowDot } from "@/components/reload-notice"
 import { useTheme } from "@/components/theme-provider"
 import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
@@ -34,6 +35,7 @@ import {
   useInstances,
   useSchedulerJobs,
   useSystemSettings,
+  useUnseenRelease,
 } from "@/lib/queries"
 import { THEME_CATALOG } from "@/lib/theme"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -45,6 +47,8 @@ interface SectionLink {
   icon: React.ComponentType<{ className?: string }>
   line: string
   tone?: LedTone
+  /** Something new behind this row: a dot, plus screen reader text when the line doesn't already say it. */
+  unseen?: true | string
 }
 
 export function SettingsHome() {
@@ -54,6 +58,7 @@ export function SettingsHome() {
   const { data: settings } = useSystemSettings()
   const { data: about } = useAbout()
   const changelogUnseen = useChangelogUnseen()
+  const unseenRelease = useUnseenRelease()
   const { resolvedTheme, colorTheme } = useTheme()
   const idPrefix = useId()
   const isMobile = useIsMobile()
@@ -129,13 +134,14 @@ export function SettingsHome() {
           label: "Changelog",
           icon: FileClock,
           line: changelogUnseen ? "New changes to read" : "What changed in each release",
-          tone: changelogUnseen ? "accent" : undefined,
+          unseen: changelogUnseen || undefined,
         },
         {
           to: "/settings/about",
           label: "About",
           icon: Info,
           line: about ? displayVersion(publicVersion(about.app.version)) : "Version and links",
+          unseen: unseenRelease ? `${unseenRelease.displayVersion} is available` : undefined,
         },
       ],
     },
@@ -157,7 +163,15 @@ export function SettingsHome() {
                     <link.icon className="size-4 text-primary" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium">{link.label}</span>
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      {link.label}
+                      {link.unseen && (
+                        <>
+                          <GlowDot />
+                          {typeof link.unseen === "string" && <span className="sr-only">, {link.unseen}</span>}
+                        </>
+                      )}
+                    </span>
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       {link.tone && link.tone !== "emerald" && link.tone !== "muted" && <StatusLed tone={link.tone} />}
                       <span className="truncate">{link.line}</span>
