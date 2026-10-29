@@ -172,8 +172,9 @@ function RootLayout() {
                   </div>
                 </div>
               </header>
-              {/* Main content area */}
-              <main className="min-h-0 flex-1 overflow-auto">
+              {/* Main content area. Bars that stick to its top set --sticky-top
+                  and --table-header-height so focus and scroll resets land below them. */}
+              <main className="min-h-0 flex-1 overflow-auto scroll-pt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]">
                 <Outlet />
               </main>
             </SidebarInset>
