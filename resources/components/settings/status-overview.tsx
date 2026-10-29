@@ -147,6 +147,8 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
             size="icon-xs"
             aria-label={`Remove location for ${row.server}`}
             className="text-muted-foreground hover:text-destructive"
+            // Reopening mid-request would reset the mutation and lose its outcome.
+            disabled={remove.isPending}
             onClick={() => {
               remove.reset()
               setConfirming(true)
