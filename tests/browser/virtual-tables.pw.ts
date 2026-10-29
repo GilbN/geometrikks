@@ -256,6 +256,28 @@ for (const fixture of [
     }
     if (mobile) {
       expect(Math.abs((await table.evaluate(stickyGap, 0)).header)).toBeLessThanOrEqual(1)
+      // Shift+Tab onto a row's controls under the header scrolls them back out.
+      const covered = await table.evaluate((element) => {
+        const main = element.closest("main")!
+        const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        main.scrollTop -= 600
+        const row = [...element.querySelectorAll<HTMLElement>("tr[data-index]")]
+          .find((tr) => tr.getBoundingClientRect().top > header.getBoundingClientRect().bottom)!
+        main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top
+        return Number(row.dataset.index)
+      })
+      await table.locator(`tr[data-index="${covered + 1}"]`).focus()
+      await page.keyboard.press("Shift+Tab")
+      const focused = await page.evaluate(() => {
+        const control = document.activeElement!
+        const header = control.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        return {
+          row: control.closest("tr")?.dataset.index,
+          gap: control.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
+        }
+      })
+      expect(focused.row).toBe(String(covered))
+      expect(focused.gap).toBeGreaterThanOrEqual(-1)
     }
     expect(await table.locator("th").evaluateAll((cells) =>
       cells.map((cell) => cell.getBoundingClientRect().width))).toEqual(widths)

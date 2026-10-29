@@ -4,7 +4,6 @@ import {
 } from "react"
 import { defaultRangeExtractor, useVirtualizer } from "@tanstack/react-virtual"
 import { Table, TableBody } from "@/components/ui/table"
-import { StickyFrameHeaderContext } from "./data-table-frame"
 
 const HEADER_HEIGHT = 40
 const ScrollContext = createContext<{
@@ -93,26 +92,6 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
     return () => observer.disconnect()
   }, [pageScroller, scrollElement])
   const margin = pageScroller ? scrollMargin : 0
-  // A frame header stuck to the top of <main> covers the rows scrolled under
-  // it, so a reset stops that many pixels above the table.
-  const stickyHeader = useContext(StickyFrameHeaderContext)
-  const [stickyHeight, setStickyHeight] = useState(0)
-  const stickyHeightRef = useRef(0)
-  useLayoutEffect(() => {
-    if (!pageScroller || !stickyHeader) {
-      stickyHeightRef.current = 0
-      setStickyHeight(0)
-      return
-    }
-    const measure = () => {
-      stickyHeightRef.current = Math.round(stickyHeader.getBoundingClientRect().height)
-      setStickyHeight(stickyHeightRef.current)
-    }
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(stickyHeader)
-    return () => observer.disconnect()
-  }, [pageScroller, stickyHeader])
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
   const getItemKey = useCallback((index: number) => getRowKey(rows[index]), [getRowKey, rows])
   const virtualizer = useVirtualizer({
@@ -128,7 +107,7 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
     overscan: 15,
     scrollMargin: margin,
     paddingStart: headerHeight,
-    scrollPaddingStart: headerHeight + stickyHeight,
+    scrollPaddingStart: headerHeight,
     // Keep the focused row and its neighbours mounted so Tab can cross the
     // rendered window, and a sheet can return focus to its original row.
     rangeExtractor: useCallback((range) => {
@@ -151,7 +130,8 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
       virtualizer.scrollToOffset(0)
     } else {
       // Back to the first row, but leave a page that hasn't reached the table where it is.
-      const firstRowTop = scrollMarginRef.current - stickyHeightRef.current
+      // <main>'s scroll padding is the height of whatever sticks to its top.
+      const firstRowTop = scrollMarginRef.current - (parseFloat(getComputedStyle(pageScrollerNow).scrollPaddingTop) || 0)
       if (pageScrollerNow.scrollTop > firstRowTop) pageScrollerNow.scrollTo({ top: firstRowTop })
     }
   }, [resetKey, virtualizer])
@@ -173,22 +153,17 @@ export function VirtualTableBody<T>({ rows, columnCount, getRowKey, children }: 
         if (row) setFocusedIndex(Number(row.dataset.index))
       }}
     >
-      {items.map((item, index) => {
-        const row = children(rows[item.index])
-        return (
-          <Fragment key={item.key}>
-            {spacer(item.start - (items[index - 1]?.end ?? margin + headerHeight), `before-${item.key}`)}
-            {cloneElement(row, {
-              ref: virtualizer.measureElement,
-              "data-index": item.index,
-              "aria-rowindex": item.index + (narrow ? 1 : 2),
-              role: "row",
-              // Focus scrolls a row out from under the sticky header.
-              style: stickyHeight > 0 ? { ...row.props.style, scrollMarginTop: stickyHeight } : row.props.style,
-            } as ComponentProps<"tr">)}
-          </Fragment>
-        )
-      })}
+      {items.map((item, index) => (
+        <Fragment key={item.key}>
+          {spacer(item.start - (items[index - 1]?.end ?? margin + headerHeight), `before-${item.key}`)}
+          {cloneElement(children(rows[item.index]), {
+            ref: virtualizer.measureElement,
+            "data-index": item.index,
+            "aria-rowindex": item.index + (narrow ? 1 : 2),
+            role: "row",
+          } as ComponentProps<"tr">)}
+        </Fragment>
+      ))}
       {spacer(totalSize + margin - (items.at(-1)?.end ?? margin + headerHeight), "after")}
     </TableBody>
   )

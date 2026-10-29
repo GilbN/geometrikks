@@ -1,4 +1,4 @@
-import { createContext, useId, useState } from "react"
+import { useId, useLayoutEffect, useState } from "react"
 
 import { ErrorBanner } from "@/components/error-banner"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -21,16 +21,15 @@ function TableSkeleton() {
   )
 }
 
-/** The frame's header while it sticks to the top of the scrolling page, so a
- *  table inside can keep rows clear of it. */
-export const StickyFrameHeaderContext = createContext<HTMLElement | null>(null)
-
 /**
  * One card around a table: title, help text, result count and tools in the
  * header, the table (or its loading/error/empty stand-in) in the body, and
  * pagination in the footer. The header and footer stay put across states.
- * A sticky header is one compact row that stays under the app bar while the
- * page scrolls, and only screen readers get its description.
+ * A sticky header is one compact row that stays at the top of the scrolling
+ * <main>, below anything that sets --sticky-top there, and only screen
+ * readers get its description. While mounted it publishes its height as
+ * --table-header-height on <main>, whose scroll-padding keeps focused
+ * content and scroll resets clear of both.
  */
 export function DataTableFrame({
   title,
@@ -58,64 +57,76 @@ export function DataTableFrame({
 }) {
   const titleId = useId()
   const [header, setHeader] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const main = stickyHeader ? header?.closest("main") : null
+    if (!header || !main) return
+    const publish = () => main.style.setProperty("--table-header-height", `${header.getBoundingClientRect().height}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(header)
+    return () => {
+      observer.disconnect()
+      main.style.removeProperty("--table-header-height")
+    }
+  }, [stickyHeader, header])
   // overflow-hidden would make the section a scroll container and pin the
-  // sticky header to it instead of the page.
-  const surface = cn(FRAME_SURFACE, stickyHeader && "overflow-clip", className)
+  // sticky header to it instead of the page. The browser picks its scroll
+  // anchor from below <main>'s scroll padding, which can land under the rows
+  // and jump the page when they mount; the virtualizer keeps the offset itself.
+  const surface = cn(FRAME_SURFACE, stickyHeader && "overflow-clip [overflow-anchor:none]", className)
   return (
-    <StickyFrameHeaderContext.Provider value={stickyHeader ? header : null}>
-      <section
-        data-slot="data-table-frame"
-        data-state={state}
-        aria-labelledby={titleId}
-        aria-busy={state === "loading"}
-        className={surface}
-        {...props}
+    <section
+      data-slot="data-table-frame"
+      data-state={state}
+      aria-labelledby={titleId}
+      aria-busy={state === "loading"}
+      className={surface}
+      {...props}
+    >
+      <header
+        ref={setHeader}
+        className={cn(
+          "flex min-w-0 border-b border-border/50 px-4",
+          stickyHeader
+            ? "sticky top-[var(--sticky-top,0px)] z-20 flex-row items-center justify-between gap-2 bg-card py-2.5"
+            : "flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between",
+        )}
       >
-        <header
-          ref={setHeader}
-          className={cn(
-            "flex min-w-0 border-b border-border/50 px-4",
-            stickyHeader
-              ? "sticky top-0 z-20 flex-row items-center justify-between gap-2 bg-card py-2.5"
-              : "flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between",
-          )}
-        >
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-2">
-              <h2 id={titleId} className={FRAME_LABEL}>
-                {title}
-              </h2>
-              {count !== undefined && (
-                <span className="text-xs tabular-nums text-muted-foreground">{count.toLocaleString()}</span>
-              )}
-            </div>
-            {description && (
-              <p className={stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground"}>{description}</p>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h2 id={titleId} className={FRAME_LABEL}>
+              {title}
+            </h2>
+            {count !== undefined && (
+              <span className="text-xs tabular-nums text-muted-foreground">{count.toLocaleString()}</span>
             )}
           </div>
-          {tools && (
-            <div className={cn("flex min-w-0 flex-wrap items-center gap-2", stickyHeader && "shrink-0")}>{tools}</div>
+          {description && (
+            <p className={stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground"}>{description}</p>
           )}
-        </header>
-
-        {state === "loading" && <TableSkeleton />}
-        {state === "error" && (
-          <div data-slot="data-table-frame-error" className="p-4">
-            <ErrorBanner title={error} />
-          </div>
+        </div>
+        {tools && (
+          <div className={cn("flex min-w-0 flex-wrap items-center gap-2", stickyHeader && "shrink-0")}>{tools}</div>
         )}
-        {state === "empty" && (
-          <div
-            data-slot="data-table-frame-empty"
-            className="flex min-h-40 items-center justify-center px-6 py-12 text-center text-sm text-muted-foreground"
-          >
-            {empty}
-          </div>
-        )}
-        {state === "ready" && <div className="min-w-0 overflow-x-auto">{children}</div>}
+      </header>
 
-        {footer && <footer className="border-t border-border/50 px-4 py-3">{footer}</footer>}
-      </section>
-    </StickyFrameHeaderContext.Provider>
+      {state === "loading" && <TableSkeleton />}
+      {state === "error" && (
+        <div data-slot="data-table-frame-error" className="p-4">
+          <ErrorBanner title={error} />
+        </div>
+      )}
+      {state === "empty" && (
+        <div
+          data-slot="data-table-frame-empty"
+          className="flex min-h-40 items-center justify-center px-6 py-12 text-center text-sm text-muted-foreground"
+        >
+          {empty}
+        </div>
+      )}
+      {state === "ready" && <div className="min-w-0 overflow-x-auto">{children}</div>}
+
+      {footer && <footer className="border-t border-border/50 px-4 py-3">{footer}</footer>}
+    </section>
   )
 }
