@@ -6,13 +6,13 @@
  * alert.
  */
 import type { ReactNode } from "react"
-import { ChevronRight } from "lucide-react"
-import { CountryFlag, CountryLabel } from "@/components/country-flag"
+import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { rowActivation } from "@/components/data/row-activation"
 import { ScenarioLabel } from "@/components/crowdsec/scenario-label"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
+import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell } from "@/components/security/two-line-cell"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import type { AlertView } from "@/lib/api"
@@ -78,7 +78,7 @@ function AlertRow({
     <>
       <IpLabel
         ip={alert.value}
-        className={narrow ? "truncate" : undefined}
+        className={narrow ? cn("ml-0", ROW_TARGET_VALUE_CLASS) : undefined}
         title={(decisionType) =>
           `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
         }
@@ -91,31 +91,55 @@ function AlertRow({
       />
     </>
   ) : (
-    <span className="min-w-0 truncate">{alert.value}</span>
+    <span className={narrow ? ROW_TARGET_VALUE_CLASS : undefined}>{alert.value}</span>
   )
 
   if (narrow) {
+    const time = (
+      <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
+        {formatRowTime(alert.createdAt, { seconds: false })}
+      </span>
+    )
+    const outcomeText = (
+      <span className={cn("whitespace-nowrap text-xs", outcome.muted && "text-muted-foreground")}>{outcome.text}</span>
+    )
+    const scenarioLine = (
+      <>
+        {scenario}
+        <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
+        {scenarioTrail}
+      </>
+    )
     return (
       <TableRow {...activation} className={cn(activation?.className, className)}>
-        <TableCell className={cn("py-2.5", inRun && "pl-7")}>
-          <div className="flex min-w-0 items-center gap-1.5">
-            {timeLead}
-            <span className="flex min-w-0 flex-1 items-center">{scenario}</span>
-            <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
-            {scenarioTrail}
-          </div>
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
-            <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(alert.createdAt)}</span>
-            <span className={cn("min-w-16 flex-1 truncate", outcome.muted && "text-muted-foreground")}>{outcome.text}</span>
-            {/* A run shares one source, so its sub-rows leave it to the summary row. */}
-            {!inRun && (
-              <span className="flex min-w-0 max-w-[65%] items-center gap-1.5 font-mono">
-                <CountryFlag code={alert.countryCode} name={alert.countryName} standalone />
-                {source}
-              </span>
-            )}
-          </div>
-        </TableCell>
+        {inRun ? (
+          // A run shares one source, so its sub-rows leave it to the summary row.
+          <TwoLineCell
+            nested
+            top={
+              <>
+                <span className="flex min-w-0 items-center gap-1.5">{scenarioLine}</span>
+                <span className="ml-auto shrink-0 pl-1">{outcomeText}</span>
+              </>
+            }
+            bottom={<span className="truncate text-muted-foreground">{alert.machineId}</span>}
+            bottomEnd={time}
+          />
+        ) : (
+          <TwoLineCell
+            top={
+              <RowTarget
+                open={summary?.open}
+                countryCode={alert.countryCode}
+                countryName={alert.countryName}
+                value={source}
+                status={outcomeText}
+              />
+            }
+            bottom={scenarioLine}
+            bottomEnd={time}
+          />
+        )}
       </TableRow>
     )
   }
@@ -173,12 +197,7 @@ export function AlertRunRows({ run: alertRun, open, narrow = false, onToggle, on
         narrow={narrow}
         summary={{ open, label: `${runSize} alerts from ${newest.value}`, onToggle }}
         scenarioLabel={runScenarioLabel(alertRun)}
-        timeLead={
-          <ChevronRight
-            aria-hidden
-            className={cn("mr-1 inline size-3.5 align-middle text-muted-foreground transition-transform", open && "rotate-90")}
-          />
-        }
+        timeLead={<ExpandChevron open={open} />}
         scenarioTrail={
           <Badge variant="secondary" className="shrink-0 tabular-nums">×{runSize}</Badge>
         }
