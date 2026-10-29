@@ -175,11 +175,14 @@ function ProblemDetail({ problem }: { problem: StatusProblem }) {
             {problem.label}
           </span>
         </DrawerTitle>
-        <DrawerDescription className={problem.detail ? undefined : "sr-only"}>
+        {/* The detail can run long, so it scrolls with the fix below rather
+            than sit in the header and push the fix off the screen. */}
+        <DrawerDescription className="sr-only">
           {problem.detail ?? "A problem GeoMetrikks found with this install."}
         </DrawerDescription>
       </DrawerHeader>
       <div className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6">
+        {problem.detail && <p aria-hidden className="text-sm text-muted-foreground">{problem.detail}</p>}
         {problem.remedy && (
           <code className="block whitespace-pre-line rounded bg-muted px-2 py-1.5 text-xs">{problem.remedy}</code>
         )}
