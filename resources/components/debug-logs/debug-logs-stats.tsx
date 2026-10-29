@@ -4,7 +4,7 @@
  * selected time range.
  */
 import { AlertTriangle, Bug, ScrollText } from "lucide-react"
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
 import { ErrorBanner } from "@/components/error-banner"
 import { formatNumber } from "@/lib/api"
 import { useAccessLogDebugStats } from "@/lib/queries"
@@ -23,11 +23,11 @@ export function DebugLogsStats() {
 
   if (isLoading || !data) {
     return (
-      <div className="grid gap-4 md:grid-cols-3">
+      <StatGrid className="md:grid-cols-3">
         <StatCardSkeleton />
         <StatCardSkeleton />
         <StatCardSkeleton />
-      </div>
+      </StatGrid>
     )
   }
 
@@ -35,7 +35,7 @@ export function DebugLogsStats() {
     data.total > 0 ? `${((data.malformed / data.total) * 100).toFixed(1)}%` : null
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <StatGrid className="md:grid-cols-3">
       <StatCard
         title="Debug Lines"
         value={formatNumber(data.total)}
@@ -60,6 +60,6 @@ export function DebugLogsStats() {
         }
         icon={Bug}
       />
-    </div>
+    </StatGrid>
   )
 }

@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On a phone, the stat cards on the Overview, Security, Geo Logs and Debug Logs pages sit two to a row and take less height, so the Overview is about half as long. The top bar already names the page, so the page title and description are hidden, as are the descriptions on table and chart cards. Access Logs puts its Filters button next to the History and Live tail tabs, and the Overview's date range leaves out the times when it spans more than a day.
+- The Overview page heading says Overview, matching the menu, instead of Summary.
+- Stat card titles and values line up across a row when one card's title wraps onto more lines.
 - Settings > Logs draws only the lines on screen, so a full 2,000-line buffer scrolls smoothly. On a phone or in a narrow window each line takes two rows, with the level, component and time on top and up to two lines of the message below, and the list scrolls with the page. While you're scrolled down the list, new lines wait until you're back at the top, and a button over the list says how many and takes you there. Closing a line's details puts keyboard focus back on that line.
 - When a top list on Analytics or Geo Logs is too narrow for its columns, as on a phone, the top IPs, URLs, user agents and networks show each entry on two lines. The name and its count sit on top, with the supporting numbers below. URLs and user agents wrap onto two lines instead of being cut off at one.
 - On a phone or in a narrow window, Active decisions and Alert history on the Security page show each row on two lines. A decision has its IP and type on top, with the scenario and time left below. An alert has its scenario on top, with the time, outcome and IP below.
@@ -38,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Pages on a phone no longer show the desktop filter bar for a moment while they load.
 - Settings > Environment wraps long list and map values, such as a full `APP_TRUSTED_PROXIES` or `MAP_SERVER_LOCATIONS`, between their items. A long value used to run off the side of the page and squeeze its description to one word per line.
 - The top bar on Settings > Appearance and Settings > Changelog shows the page name instead of "Page".
 - Settings > Environment shows one Application group. It listed two groups with that name, and the second one's shortcut jumped to the first.

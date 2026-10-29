@@ -58,7 +58,7 @@ export function DataTableFrame({
       className={cn(FRAME_SURFACE, className)}
       {...props}
     >
-      <header className="flex min-w-0 flex-col gap-3 border-b border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:flex-nowrap">
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-2">
             <h2 id={titleId} className={FRAME_LABEL}>
@@ -68,7 +68,7 @@ export function DataTableFrame({
               <span className="text-xs tabular-nums text-muted-foreground">{count.toLocaleString()}</span>
             )}
           </div>
-          {description && <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>}
+          {description && <p className="mt-0.5 text-[13px] text-muted-foreground max-md:sr-only">{description}</p>}
         </div>
         {tools && <div className="flex min-w-0 flex-wrap items-center gap-2">{tools}</div>}
       </header>

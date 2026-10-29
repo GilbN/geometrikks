@@ -154,7 +154,7 @@ test("production image serves the authenticated dashboard without browser errors
   // Wait for the dashboard to render before reloading: reloading straight
   // after the URL change races the router's post-login navigation and the
   // reload gets aborted (net::ERR_ABORTED).
-  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible()
 
   const healthResponse = await page.request.get("/health")
   expect(healthResponse.ok()).toBe(true)
@@ -177,7 +177,7 @@ test("production image serves the authenticated dashboard without browser errors
   // dashboard's live polling.
   await page.reload()
 
-  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible()
   await expect(serviceStatus).toContainText(expectedSidebarStatus)
   await expect(page.getByRole("heading", { name: "Traffic Overview" })).toBeVisible()
   await expect(page.getByText("Access Log Records", { exact: true })).toBeVisible()

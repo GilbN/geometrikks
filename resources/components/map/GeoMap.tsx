@@ -441,8 +441,6 @@ function GeoMapInner({
       size: { width: rect?.width ?? 0, height: rect?.height ?? 0 },
       padding: {
         top: FIT_PADDING,
-        // Not useIsMobile, which reads false on the first render. With both
-        // queries cached, this effect resolves the view in that same render.
         right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
         bottom: FIT_PADDING,
         left: FIT_PADDING,
