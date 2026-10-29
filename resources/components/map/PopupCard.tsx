@@ -3,12 +3,15 @@
  * a header row. Inline styles, matching the rest of the popup content.
  *
  * Callers leave the Popup's anchor unset so MapLibre flips it to whichever
- * side keeps it inside the map, and pass POPUP_OFFSET. Side anchors keep
- * their tip, colored in main.css; corner anchors hide it and sit a few
- * pixels off the point so the marker stays visible.
+ * side keeps it inside the map, and pass POPUP_OFFSET and usePopupPadding().
+ * Side anchors keep their tip, colored in main.css; corner anchors hide it
+ * and sit a few pixels off the point so the marker stays visible.
  */
-import type { CSSProperties, ReactNode } from "react"
-import type { Offset } from "maplibre-gl"
+import { useMemo, type CSSProperties, type ReactNode } from "react"
+import type { Offset, PaddingOptions } from "maplibre-gl"
+
+import { useIsMobile } from "@/hooks/use-mobile"
+import { phoneActionCardTop } from "./phone-action-card"
 
 export const POPUP_OFFSET: Offset = {
   center: [0, 0],
@@ -20,6 +23,13 @@ export const POPUP_OFFSET: Offset = {
   "top-right": [-8, 8],
   "bottom-left": [8, -8],
   "bottom-right": [-8, -8],
+}
+
+/** On a phone, makes MapLibre open a popup above its point rather than behind
+ *  the action card. MapLibre reads it when the popup opens. */
+export function usePopupPadding(): PaddingOptions | undefined {
+  const isMobile = useIsMobile()
+  return useMemo(() => (isMobile ? { bottom: phoneActionCardTop() } : undefined), [isMobile])
 }
 
 export const POPUP_CODE_STYLE: CSSProperties = {

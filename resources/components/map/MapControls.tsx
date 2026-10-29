@@ -4,16 +4,13 @@
  * The mobile drawer puts Filters last.
  * Toggles are switch rows rather than buttons so it fits without scrolling.
  * Desktop: a collapsible MapOverlay docked top-right.
- * Mobile: a labelled action bar along the bottom of the map, whose Layers
- * button opens a bottom drawer with the same sections.
+ * Mobile: a labelled action card floating over the bottom of the map, whose
+ * Layers button opens a bottom drawer with the same sections.
  */
 
 import { useState } from "react"
 import { MapOverlay } from "./MapOverlay"
-
-/** On a phone the map ends this far above the bottom of its area, and the
- *  action bar fills the gap. GeoMap pads the map and its placeholder by it. */
-export const PHONE_MAP_BAR_PADDING = "max-md:pb-[calc(4.25rem+env(safe-area-inset-bottom))]"
+import { PHONE_ACTION_CARD_BOTTOM, PHONE_ACTION_CARD_HEIGHT } from "./phone-action-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -268,7 +265,7 @@ export function MapControls({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
-        {/* On a phone the bottom bar has these as All traffic and Server. */}
+        {/* On a phone the action card has these as All traffic and Server. */}
         {!isMobile && serverLocationAvailable && onGoToServerLocation && (
           <DropdownMenuItem onSelect={onGoToServerLocation}>
             <Home className="h-4 w-4" />
@@ -491,24 +488,26 @@ export function MapControls({
     </>
   )
 
-  // Mobile: a labelled bar along the bottom of the map, in thumb reach.
-  // Layers opens the full controls in a bottom drawer; the other three are
-  // the actions a phone reaches for most. Pinch zooms, so there are no zoom
-  // buttons.
+  // Mobile: a labelled card floating over the bottom of the map, in thumb
+  // reach. Layers opens the full controls in a bottom drawer; the other three
+  // are the actions a phone reaches for most. Pinch zooms, so there are no
+  // zoom buttons.
   if (isMobile) {
-    // The bar's height is fixed (GeoMap pads the map by it), and the buttons fill it.
-    const barButton = "h-auto flex-1 flex-col gap-1 rounded-lg px-1 py-1.5 text-[11px] font-medium"
+    const cardButton = "h-full flex-col gap-1 rounded-lg px-1 text-[11px] font-medium"
     return (
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        {/* Its height matches PHONE_MAP_BAR_PADDING. */}
         <nav
           aria-label="Map actions"
-          className="absolute inset-x-0 bottom-0 z-10 flex h-[calc(4.25rem+env(safe-area-inset-bottom))] gap-1 border-t border-border/50 bg-background/90 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(0.5rem,env(safe-area-inset-right))] backdrop-blur-md"
+          style={{
+            bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))`,
+            height: PHONE_ACTION_CARD_HEIGHT,
+          }}
+          className="absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-10 grid grid-cols-4 gap-1 rounded-xl border border-border bg-floating p-1 backdrop-blur-sm"
         >
           <DrawerTrigger asChild>
             <Button
               variant="ghost"
-              className={barButton}
+              className={cardButton}
               aria-label={
                 activeFilterCount > 0 ? `Layers and filters, ${activeFilterCount} active filter groups` : "Layers and filters"
               }
@@ -522,13 +521,13 @@ export function MapControls({
               Layers
             </Button>
           </DrawerTrigger>
-          <Button variant="ghost" className={barButton} onClick={onFitBounds} disabled={isLoading || !hasMapData}>
+          <Button variant="ghost" className={cardButton} onClick={onFitBounds} disabled={isLoading || !hasMapData}>
             <Maximize2 className="size-5" />
             All traffic
           </Button>
           <Button
             variant="ghost"
-            className={barButton}
+            className={cardButton}
             onClick={onGoToServerLocation}
             disabled={!serverLocationAvailable || !onGoToServerLocation}
           >
@@ -537,7 +536,7 @@ export function MapControls({
           </Button>
           <Button
             variant="ghost"
-            className={cn(barButton, liveMode && "text-primary")}
+            className={cn(cardButton, liveMode && "text-primary")}
             aria-pressed={liveMode}
             onClick={() => onLiveModeChange(!liveMode)}
           >

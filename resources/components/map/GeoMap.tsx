@@ -43,8 +43,8 @@ import {
   unclusteredPointLabelLayer,
   unclusteredPointLayer,
 } from "./layers"
-import { MapControls, PHONE_MAP_BAR_PADDING, type BannedSummary } from "./MapControls"
-import { cn } from "@/lib/utils"
+import { MapControls, type BannedSummary } from "./MapControls"
+import { phoneActionCardTop } from "./phone-action-card"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
@@ -102,13 +102,15 @@ function weightedPoints(
   })
 }
 
-/** The padding that keeps fitted locations clear of the map's edges and,
- *  from md up, of the controls panel on the right. */
+/** The padding that keeps fitted locations clear of the map's edges, of the
+ *  controls panel on the right from md up, and of the action card at the
+ *  bottom on a phone. */
 function fitPadding() {
+  const isMobile = isMobileViewport()
   return {
     top: FIT_PADDING,
-    right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
-    bottom: FIT_PADDING,
+    right: FIT_PADDING + (isMobile ? 0 : DESKTOP_CONTROLS_INSET),
+    bottom: FIT_PADDING + (isMobile ? phoneActionCardTop() : 0),
     left: FIT_PADDING,
   }
 }
@@ -816,21 +818,14 @@ function GeoMapInner({
 
   if (!mapReady || !initialViewResolved) {
     return (
-      // Padded like the live map below, so the opening view is worked out
-      // for the same size as the map it lands on.
-      <div className={cn("h-full w-full", PHONE_MAP_BAR_PADDING)}>
-        <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
-          <MapBackdrop tone="quiet" />
-        </div>
+      <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
+        <MapBackdrop tone="quiet" />
       </div>
     )
   }
 
   return (
-    // On a phone the map ends above the bottom action bar (MapControls), so
-    // fitting, popups and MapLibre's corner controls work in the part that
-    // shows. The bar sits in this padding.
-    <div className={cn("h-full w-full relative", PHONE_MAP_BAR_PADDING)}>
+    <div className="h-full w-full relative">
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -852,10 +847,11 @@ function GeoMapInner({
         cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
-        {/* Phones pinch to zoom and turn; the bottom bar takes this corner. */}
+        {/* Phones pinch to zoom and turn; the action card takes this corner. */}
         {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
-        <MapAttribution />
+        {/* On a phone the attribution is a line of text under the action card. */}
+        <MapAttribution key={isMobile ? "line" : "pill"} compact={!isMobile} />
 
         {/* GeoJSON data source */}
         {/* The `key` only flips when the clustering requirement changes (markers

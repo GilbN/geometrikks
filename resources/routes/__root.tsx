@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { abovePhoneActionCard } from "@/components/map/phone-action-card"
 import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -135,14 +136,14 @@ function GeoDegradedBanner() {
   )
 }
 
-/** On a phone the map has an action bar along the bottom, so toasts there
- *  rise above it instead of covering its buttons. */
+/** On a phone the map has an action card floating at the bottom, so toasts
+ *  there rise above it instead of covering its buttons. */
 function RootToaster() {
   const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
   const isMobile = useIsMobile()
   // Both offsets: Sonner switches to mobileOffset only up to 600px, and the
-  // bar shows up to md.
-  const lift = onMap && isMobile ? { bottom: "calc(4.75rem + env(safe-area-inset-bottom))" } : undefined
+  // card shows up to md.
+  const lift = onMap && isMobile ? { bottom: abovePhoneActionCard(8) } : undefined
   return <Toaster offset={lift} mobileOffset={lift} />
 }
 
