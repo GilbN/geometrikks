@@ -60,7 +60,6 @@ import {
   fetchAbuseContact,
   type AbuseReportTarget,
   banIp,
-  unbanIp,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortField,
@@ -514,15 +513,6 @@ export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: banIp,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
-  })
-}
-
-/** Remove all active decisions for an IP, then refresh badges/decisions/stats. */
-export function useUnbanIp() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (ip: string) => unbanIp(ip),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }
