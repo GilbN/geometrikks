@@ -11,6 +11,7 @@
 import { lazy, Suspense } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { PageHeader } from "@/components/page-header"
+import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
 import { GeoLogsStats } from "@/components/geo-logs/geo-logs-stats"
@@ -38,6 +39,14 @@ export const Route = createFileRoute("/geo-logs")({
     geoLogsSearchSchema.parse(search),
   component: GeoLogsPage,
 })
+
+const SECTIONS: readonly JumpSection[] = [
+  { id: "map", label: "Map" },
+  { id: "over-time", label: "Over time" },
+  { id: "top-ips", label: "Top IPs" },
+  { id: "locations", label: "Locations" },
+  { id: "events", label: "Events" },
+]
 
 function GeoLogsPage() {
   const search = Route.useSearch({
@@ -69,44 +78,49 @@ function GeoLogsPage() {
           title="Geo Logs"
           subtitle="Trace where traffic originates, how locations change over time, and which clients recur."
         />
+        <JumpBar sections={SECTIONS} />
         <GeoLogsFilterBar />
         <GeoLogsStats />
         <div className="grid gap-4 lg:grid-cols-2">
-          <Suspense
-            fallback={
-              <SignalPanel
-                title="Spatial preview"
-                description="Request locations in the selected range."
-                state="loading"
-                bodyClassName="min-h-[320px]"
-              />
-            }
-          >
-            <GeoLogsMap />
-          </Suspense>
-          <GeoLogsChart />
+          <JumpTarget id="map">
+            <Suspense
+              fallback={
+                <SignalPanel
+                  title="Spatial preview"
+                  description="Request locations in the selected range."
+                  state="loading"
+                  bodyClassName="min-h-[320px]"
+                />
+              }
+            >
+              <GeoLogsMap />
+            </Suspense>
+          </JumpTarget>
+          <JumpTarget id="over-time"><GeoLogsChart /></JumpTarget>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <GeoTopIpsTable />
-          <GeoTopCountriesCities />
+          <JumpTarget id="top-ips"><GeoTopIpsTable /></JumpTarget>
+          <JumpTarget id="locations"><GeoTopCountriesCities /></JumpTarget>
         </div>
-        <GeoLogsTable
-          page={page}
-          pageSize={pageSize}
-          sortField={sortBy}
-          sortOrder={sort}
-          onPageChange={(next) => patchSearch({ page: dropDefault(next, 1) })}
-          onPageSizeChange={(next) =>
-            patchSearch({ pageSize: dropDefault(next, 50), page: undefined })
-          }
-          onSortChange={(nextField, nextOrder) =>
-            patchSearch({
-              sortBy: dropDefault(nextField, "eventCount"),
-              sort: dropDefault(nextOrder, "desc"),
-              page: undefined,
-            })
-          }
-        />
+        <JumpTarget id="events">
+          <GeoLogsTable
+            page={page}
+            pageSize={pageSize}
+            sortField={sortBy}
+            sortOrder={sort}
+            onPageChange={(next) => patchSearch({ page: dropDefault(next, 1) })}
+            onPageSizeChange={(next) =>
+              patchSearch({ pageSize: dropDefault(next, 50), page: undefined })
+            }
+            onSortChange={(nextField, nextOrder) =>
+              patchSearch({
+                sortBy: dropDefault(nextField, "eventCount"),
+                sort: dropDefault(nextOrder, "desc"),
+                page: undefined,
+              })
+            }
+          />
+        </JumpTarget>
       </div>
     </GeoLogFiltersProvider>
   )
