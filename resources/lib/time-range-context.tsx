@@ -16,6 +16,11 @@ interface TimeRangeState {
 }
 
 interface TimeRangeContextValue extends TimeRangeState {
+  /** What queries poll with: the auto refresh setting, or false while it is
+   *  off or held. The pollInterval field stays the setting, for the controls. */
+  refetchInterval: number | false
+  /** Pauses auto refresh until the returned release runs. See usePollingHold. */
+  holdPolling: () => () => void
   setRange: (range: TimeRangeValue) => void
   setPollInterval: (interval: number) => void
   setGranularity: (granularity: ChartGranularity) => void
@@ -88,10 +93,24 @@ export function TimeRangeProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, lastRefresh: Date.now() }))
   }, [])
 
+  const [holds, setHolds] = useState(0)
+  const holdPolling = useCallback(() => {
+    setHolds((count) => count + 1)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      setHolds((count) => count - 1)
+    }
+  }, [])
+  const refetchInterval = holds === 0 && state.pollInterval > 0 ? state.pollInterval : false
+
   return (
     <TimeRangeContext.Provider
       value={{
         ...state,
+        refetchInterval,
+        holdPolling,
         setRange,
         setPollInterval,
         setGranularity,
@@ -110,4 +129,15 @@ export function useTimeRange() {
     throw new Error("useTimeRange must be used within a TimeRangeProvider")
   }
   return context
+}
+
+/**
+ * Holds auto refresh while `active`. For menus and dialogs that belong to
+ * a row: a refresh can push that row off the page (newer requests fill
+ * page 1 of Access Logs from the top), and the row takes its open menu
+ * with it.
+ */
+export function usePollingHold(active: boolean) {
+  const { holdPolling } = useTimeRange()
+  useEffect(() => (active ? holdPolling() : undefined), [active, holdPolling])
 }
