@@ -7,7 +7,7 @@ vi.mock("sonner", () => {
   const toast = Object.assign(vi.fn(), { dismiss: vi.fn(), success: vi.fn(), error: vi.fn() })
   return { toast }
 })
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: async () => {}, getQueryCache: () => ({ findAll: () => [] }) }) }))
+vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: async () => {}, isFetching: () => 0, getQueryCache: () => ({ findAll: () => [] }) }) }))
 vi.mock("react", async (original) => ({ ...(await original<typeof import("react")>()), useCallback: <T,>(fn: T) => fn }))
 
 const { useIpActions, undoIpAction, flushIpActions, UNDO_WINDOW_MS } = await import("./pending-ip-actions")

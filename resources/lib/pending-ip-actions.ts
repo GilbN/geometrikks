@@ -41,6 +41,8 @@ interface Entry extends PendingIpState {
   /** Unique per scheduled action: a toast still animating out after an Undo
    *  would take a new toast with the same id along with it. */
   toastId: string
+  /** The request once sent, so a flush can wait for it too. */
+  request?: Promise<void>
 }
 
 const entries = new Map<string, Entry>()
@@ -97,6 +99,12 @@ function failure(action: PendingIpAction, error: unknown) {
 async function settle(ip: string) {
   try {
     await queryClient?.invalidateQueries({ queryKey: ["crowdsec"] })
+    // Another action settling meanwhile cancels and restarts this refetch,
+    // so wait until no CrowdSec query is still fetching, within reason.
+    const deadline = Date.now() + 10_000
+    while (queryClient && queryClient.isFetching({ queryKey: ["crowdsec"] }) > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, 100))
+    }
   } finally {
     entries.delete(ip)
     publish()
@@ -132,7 +140,8 @@ async function keepaliveRequest(action: PendingIpAction): Promise<void> {
 /** Sends a waiting action now. `keepalive` lets the request outlive the page. */
 function send(ip: string, keepalive: boolean): Promise<void> {
   const entry = entries.get(ip)
-  if (!entry || entry.sending) return Promise.resolve()
+  if (!entry) return Promise.resolve()
+  if (entry.sending) return entry.request ?? Promise.resolve()
   window.clearTimeout(entry.timer)
   entry.sending = true
   publish()
@@ -143,7 +152,7 @@ function send(ip: string, keepalive: boolean): Promise<void> {
     : action.kind === "ban"
       ? banIp({ ip, duration: action.duration })
       : unbanIp(ip)
-  return request.then(
+  entry.request = request.then(
     () => {
       toast.success(done(action))
       return settle(ip)
@@ -153,10 +162,12 @@ function send(ip: string, keepalive: boolean): Promise<void> {
       return settle(ip)
     },
   )
+  return entry.request
 }
 
-/** Sends every waiting action now and resolves once each has settled. Log
- *  out awaits it, so nothing waits behind a session that is about to end. */
+/** Sends every waiting action now and resolves once each, and any already
+ *  on its way, has settled. Log out awaits it, so no request is left
+ *  behind a session that is about to end. */
 export function flushIpActions(): Promise<unknown> {
   return Promise.all([...entries.keys()].map((ip) => send(ip, false)))
 }

@@ -63,6 +63,8 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
     // A ban or unban of this IP still in its undo window would land after
     // this one and undo it; the form is the newer intent.
     undoIpAction(target)
+    // The backend treats a single-address range as the address itself.
+    undoIpAction(target.replace(/\/(32|128)$/, ""))
     ban.mutate(
       { ip: target, duration, reason: reason.trim() || undefined, type },
       {
