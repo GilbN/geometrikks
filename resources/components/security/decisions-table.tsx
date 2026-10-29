@@ -26,7 +26,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import type { CrowdSecDecisionsPage } from "@/lib/api"
 import { isValidBanTarget } from "@/lib/crowdsec"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
-import { cn } from "@/lib/utils"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpButton } from "./ban-ip-dialog"
 import { DecisionGroupRows } from "./decision-group-rows"
@@ -91,53 +90,67 @@ export function DecisionsTable() {
               setPage(1)
             }}
           >
-            <TabsList className={cn("transition-opacity", searchesEveryOrigin && "opacity-50")}>
+            <TabsList>
               {ORIGIN_SCOPES.map((s) => (
-                <TabsTrigger key={s.key} value={s.key}>
+                <TabsTrigger
+                  key={s.key}
+                  value={s.key}
+                  disabled={searchesEveryOrigin}
+                  // Off reads as plain muted text with no selected pill, rather than half-faded.
+                  className="disabled:border-transparent! disabled:bg-transparent! disabled:text-muted-foreground! disabled:opacity-100 disabled:shadow-none!"
+                >
                   {s.label}
                 </TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
         </div>
-        <div className="relative max-md:basis-full md:w-64">
-          <Search
-            aria-hidden
-            className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            ref={searchRef}
-            type="search"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="IP, range or scenario"
-            aria-label="Search active decisions"
-            aria-describedby={searchHint ? "decision-search-scope" : undefined}
-            maxLength={200}
-            className="pl-8 pr-9 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden"
-          />
-          {searchInput !== "" && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
-              aria-label="Clear search"
-              onClick={() => {
-                setSearchInput("")
-                // The button goes away with the text, so focus goes back to the field.
-                searchRef.current?.focus()
-              }}
-            >
-              <X />
-            </Button>
-          )}
+        {/* A wide header fits the field beside the tabs. Narrower ones give it
+            its own line, so the hint below always starts under the field. */}
+        <div className="basis-full @4xl/card-header:basis-auto">
+          <div className="relative md:w-64">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              ref={searchRef}
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="IP, range or scenario"
+              aria-label="Search active decisions"
+              aria-describedby={searchHint ? "decision-search-scope" : undefined}
+              maxLength={200}
+              className="pl-8 pr-9 pointer-coarse:h-11 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchInput !== "" && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground"
+                aria-label="Clear search"
+                onClick={() => {
+                  setSearchInput("")
+                  // The button goes away with the text, so focus goes back to the field.
+                  searchRef.current?.focus()
+                }}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
         </div>
         {/* Always in the DOM: a live region that appears with its text may not be
             announced. Empty, it stays sr-only so it adds no row gap. */}
         <p
           id="decision-search-scope"
           aria-live="polite"
-          className={searchHint ? "flex basis-full items-start gap-2 px-1 text-xs text-muted-foreground" : "sr-only"}
+          className={
+            searchHint
+              ? "flex basis-full items-start gap-2 px-1 text-xs text-muted-foreground @4xl/card-header:justify-end @4xl/card-header:text-right"
+              : "sr-only"
+          }
         >
           {searchesEveryOrigin && searchHint && <Info aria-hidden className="mt-px size-3.5 shrink-0" />}
           {searchHint}
@@ -245,7 +258,7 @@ function decisionSearchHint(
 ): string {
   const settled = data !== undefined && !isPlaceholderData
   if (searchesEveryOrigin) {
-    const lead = "An IP search covers every origin, so the tabs step aside."
+    const lead = "An IP or range search covers every origin, so the tabs step aside."
     if (!settled) return lead
     // Count decisions only when every target is on this page.
     const decisions =
