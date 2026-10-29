@@ -336,11 +336,13 @@ export function AlertsTable() {
           </div>
         )}
       </CardContent>
-      <AlertDetailSheet
-        alert={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
-        onFilterScenario={showOnlyScenario}
-      />
+      <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+        <AlertDetailSheet
+          alert={selected}
+          onOpenChange={(open) => !open && setSelected(null)}
+          onFilterScenario={showOnlyScenario}
+        />
+      </IpFilterTargetsProvider>
     </Card>
   )
 }

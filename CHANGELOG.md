@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The details of a request, location, debug line or CrowdSec alert open with the IP at the top, with its decision, place and network below it and a copy button beside it. Inspect IP, Show on map and the IP actions menu sit along the bottom of the sheet, within thumb reach on a phone, and the menu has the same filters as the table rows. They replace the small inspect, fly-to and ban icons that sat next to the IP.
 - On a phone, a card floats over the bottom of the map with Layers, All traffic, Server and Live, each with a label. Layers opens the map controls that used to sit behind an icon in the top bar. The map runs to the bottom of the screen behind the card, and the OpenStreetMap and CARTO credits sit in one line under it. The zoom buttons are gone on phones, where you pinch to zoom.
 - On a phone, the map opens on your traffic instead of the server locations. When the traffic is spread wider than the screen shows, it opens on the stretch with the most events. `MAP_DEFAULT_VIEW` still decides the view when it is set.
 - On a phone, Settings > Environment opens on the settings you changed from their defaults, with every other group folded up to one line that shows how many settings it holds and how many you changed. Searching opens the groups that match. Each setting is one line with its value. Tapping it shows the description and the environment variable, and for a changed setting its default.

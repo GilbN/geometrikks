@@ -4,15 +4,27 @@
  * the list is the same shape for every request.
  */
 import { CountryLabel } from "@/components/country-flag"
+import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import { Badge } from "@/components/ui/badge"
 import { formatBytes, formatDuration, type AccessLog } from "@/lib/api"
+import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { formatDurationOrNa } from "@/lib/timing"
 import { cn } from "@/lib/utils"
+
+function ipValues(entry: AccessLog): IpRowValues {
+  return {
+    ip: entry.ipAddress,
+    host: entry.host,
+    server: entry.server,
+    countryCode: entry.countryCode,
+    countryName: entry.countryName,
+    city: entry.city,
+    asn: entry.autonomousSystemNumber,
+    asOrganization: entry.autonomousSystemOrganization,
+  }
+}
 
 export function AccessLogDetailSheet({
   entry,
@@ -29,7 +41,9 @@ export function AccessLogDetailSheet({
       description={
         entry ? `${new Date(entry.timestamp).toLocaleString()} · ${entry.method ?? "Unknown method"}` : undefined
       }
+      footer={entry && <DetailIpActions values={ipValues(entry)} onNavigate={() => onOpenChange(false)} />}
     >
+      {entry && <DetailIpBlock values={ipValues(entry)} />}
       {entry && (
         <dl>
           <DetailField
@@ -41,18 +55,6 @@ export function AccessLogDetailSheet({
             }
           />
           <DetailField label="Time" value={new Date(entry.timestamp).toLocaleString()} />
-          <DetailField
-            label="IP address"
-            value={
-              <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
-                {entry.ipAddress}
-                <IpBanControls ip={entry.ipAddress}>
-                  <InspectIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
-                  <FlyToIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
-                </IpBanControls>
-              </span>
-            }
-          />
           <DetailField label="Method" value={entry.method} mono />
           <DetailField label="URL" value={entry.url} mono />
           <DetailField label="Host" value={entry.host} mono />
