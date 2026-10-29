@@ -433,6 +433,13 @@
   opacity: 1;
 }
 
+/* Sonner hides every toast past the third. One that holds focus stays
+   visible and clickable, or Enter would act on a toast nobody can see. */
+.toaster [data-sonner-toast][data-visible='false']:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .toaster [data-sonner-toast][data-styled='true'] [data-description] {
   color: var(--muted-foreground);
 }
