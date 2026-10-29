@@ -44,6 +44,7 @@ import {
   unclusteredPointLayer,
 } from "./layers"
 import { MapControls, type BannedSummary } from "./MapControls"
+import { phoneActionCardTop } from "./phone-action-card"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
@@ -101,13 +102,15 @@ function weightedPoints(
   })
 }
 
-/** The padding that keeps fitted locations clear of the map's edges and,
- *  from md up, of the controls panel on the right. */
+/** The padding that keeps fitted locations clear of the map's edges, of the
+ *  controls panel on the right from md up, and of the action card at the
+ *  bottom on a phone. */
 function fitPadding() {
+  const isMobile = isMobileViewport()
   return {
     top: FIT_PADDING,
-    right: FIT_PADDING + (isMobileViewport() ? 0 : DESKTOP_CONTROLS_INSET),
-    bottom: FIT_PADDING,
+    right: FIT_PADDING + (isMobile ? 0 : DESKTOP_CONTROLS_INSET),
+    bottom: FIT_PADDING + (isMobile ? phoneActionCardTop() : 0),
     left: FIT_PADDING,
   }
 }
@@ -844,10 +847,11 @@ function GeoMapInner({
         cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
-        {/* Navigation controls */}
-        <NavigationControl position="bottom-right" showCompass={true} />
+        {/* Phones pinch to zoom and turn; the action card takes this corner. */}
+        {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
-        <MapAttribution />
+        {/* On a phone the attribution is a line of text under the action card. */}
+        <MapAttribution key={isMobile ? "line" : "pill"} compact={!isMobile} />
 
         {/* GeoJSON data source */}
         {/* The `key` only flips when the clustering requirement changes (markers
@@ -932,6 +936,7 @@ function GeoMapInner({
         {/* Popup */}
         {popup && activeLayer === "markers" && (
           <MapPopup
+            key={`${popup.longitude},${popup.latitude}`}
             longitude={popup.longitude}
             latitude={popup.latitude}
             properties={popup.properties}
@@ -943,7 +948,7 @@ function GeoMapInner({
         )}
 
         {livePopup && livePopup.coordinates && (
-          <LiveRequestPopup request={livePopup} onClose={() => setLivePopup(null)} />
+          <LiveRequestPopup key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} />
         )}
       </Map>
 
