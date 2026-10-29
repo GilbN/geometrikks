@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpButton } from "./ban-ip-dialog"
@@ -26,17 +27,19 @@ import { DecisionGroupRows } from "./decision-group-rows"
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
+// The short labels leave room for Ban IP on the tabs' row of a phone.
 const ORIGIN_SCOPES = [
   // undefined origins -> the server's local-origins default
-  { key: "local", label: "Local", origins: undefined },
-  { key: "all", label: "All origins", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
-  { key: "capi", label: "Crowd (CAPI)", origins: "CAPI,lists" },
+  { key: "local", label: "Local", shortLabel: "Local", origins: undefined },
+  { key: "all", label: "All origins", shortLabel: "All", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
+  { key: "capi", label: "Crowd (CAPI)", shortLabel: "Crowd", origins: "CAPI,lists" },
 ] as const
 
 type OriginScopeKey = (typeof ORIGIN_SCOPES)[number]["key"]
 
 export function DecisionsTable() {
   const { data: status } = useCrowdsecStatus()
+  const isMobile = useIsMobile()
   const [scope, setScope] = useState<OriginScopeKey>("local")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(10)
@@ -57,11 +60,12 @@ export function DecisionsTable() {
   return (
     <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
       <CardHeader className="flex flex-row flex-wrap items-center gap-2 pb-2 max-md:pb-2.5">
-        <CardTitle className="mr-auto text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
+        <CardTitle className="mr-auto text-[11px] max-md:basis-full font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         {/* One element on every width, so rotating a phone keeps an open Ban IP
-            dialog. Phones push the tabs below it and keep it on the title line. */}
-        {status?.writeEnabled && <BanIpButton />}
-        <div className="flex flex-wrap items-center gap-2 max-md:basis-full">
+            dialog. Phones give the title its own line and put the button at the
+            end of the tabs' row. */}
+        {status?.writeEnabled && <BanIpButton className="max-md:order-2 max-md:ml-auto" />}
+        <div className="flex flex-wrap items-center gap-2 max-md:order-1">
           <Tabs
             value={scope}
             onValueChange={(value) => {
@@ -71,8 +75,8 @@ export function DecisionsTable() {
           >
             <TabsList>
               {ORIGIN_SCOPES.map((s) => (
-                <TabsTrigger key={s.key} value={s.key}>
-                  {s.label}
+                <TabsTrigger key={s.key} value={s.key} aria-label={isMobile ? s.label : undefined}>
+                  {isMobile ? s.shortLabel : s.label}
                 </TabsTrigger>
               ))}
             </TabsList>
