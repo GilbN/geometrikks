@@ -17,6 +17,9 @@
   --popover-foreground: oklch(0.22 0.03 250);
   --primary: oklch(var(--brand-l) var(--brand-c) var(--brand-h));
   --primary-foreground: oklch(0.985 0.005 200);
+  /* Mixed into a filled primary for hover and press. It must sit on the far
+     side of --primary from --primary-foreground so the label gains contrast. */
+  --primary-state-mix: var(--foreground);
   --secondary: oklch(0.94 0.012 225);
   --secondary-foreground: oklch(0.3 0.03 250);
   --muted: oklch(0.94 0.012 225);
