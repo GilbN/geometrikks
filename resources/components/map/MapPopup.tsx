@@ -11,7 +11,7 @@ import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
 import { CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { POPUP_OFFSET, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
+import { POPUP_OFFSET, usePopupPadding, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 import {
   Tooltip,
@@ -81,12 +81,14 @@ export function MapPopup({
   // Build location string
   const locationParts = [city, state, countryName].filter(Boolean)
   const locationString = locationParts.join(", ") || "Unknown Location"
+  const popupPadding = usePopupPadding()
 
   return (
     <Popup
       longitude={longitude}
       latitude={latitude}
       offset={POPUP_OFFSET}
+      padding={popupPadding}
       onClose={onClose}
       closeButton={false}
       closeOnClick={false}

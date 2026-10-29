@@ -36,6 +36,7 @@ export function IpLocationsBlock({ ip }: { ip: string }) {
                   size="icon-xs"
                   title="Fly to on the map"
                   aria-label={`Fly to ${r.city ?? r.countryName}`}
+                  className="pointer-coarse:min-h-8 pointer-coarse:min-w-8"
                   onClick={() =>
                     void navigate({
                       to: "/map",

@@ -28,7 +28,7 @@ for (const width of [1280, 390]) {
     const openMenu = async () => {
       if (width < 768 && !(await page.locator('[data-slot="drawer-content"]').isVisible())) {
         await page
-          .getByRole("button", { name: "Map Controls", exact: true })
+          .getByRole("button", { name: /^Layers and filters/ })
           .click()
       }
       await toolsMenu.click()

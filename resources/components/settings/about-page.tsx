@@ -97,9 +97,6 @@ function useReleaseLine() {
   return { releaseLine, latest: releaseCheck?.latest ?? null }
 }
 
-/** Grows a small link's hit area to thumb size without moving the layout. */
-const TAP_AREA = "relative after:absolute after:-inset-y-2 after:-inset-x-1 after:content-['']"
-
 const TRACK_STEP =
   "relative flex gap-3.5 pb-5 last:pb-0 @2xl:min-w-0 @2xl:flex-1 @2xl:pb-0 @2xl:pr-10 @2xl:group-data-[steps]/track:flex-col @2xl:group-data-[steps]/track:gap-2.5"
 
@@ -176,7 +173,7 @@ function SkippedReleases({ text, href }: { text: string; href: string }) {
         rel="noreferrer"
         className={cn(
           "self-start pt-[3px] text-xs text-muted-foreground hover:text-foreground @2xl:pt-0",
-          TAP_AREA,
+          "tap-area",
         )}
       >
         {text.slice(0, lastSpace + 1)}
@@ -237,7 +234,7 @@ function InstallationCard({ app, repository }: { app: AboutResponse["app"]; repo
                 title={app.commit}
                 className={cn(
                   "mt-1 inline-flex items-baseline gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground",
-                  TAP_AREA,
+                  "tap-area",
                 )}
               >
                 commit <span className="font-mono text-xs">{app.commit.slice(0, 7)}</span>
@@ -260,7 +257,7 @@ function InstallationCard({ app, repository }: { app: AboutResponse["app"]; repo
                 rel="noreferrer"
                 className={cn(
                   "mt-1 inline-flex items-center gap-1.5 text-[12.5px] underline decoration-muted-foreground/50 underline-offset-[3px] hover:decoration-foreground",
-                  TAP_AREA,
+                  "tap-area",
                 )}
               >
                 Release notes
@@ -496,7 +493,7 @@ export function AboutPage() {
               href="https://www.maxmind.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline underline-offset-2"
+              className="tap-area underline underline-offset-2"
             >
               maxmind.com
             </a>
@@ -507,13 +504,13 @@ export function AboutPage() {
 
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap gap-2 py-4">
-          <Button variant="outline" size="sm" className="pointer-coarse:h-10" asChild>
+          <Button variant="outline" size="sm" asChild>
             <a href={data.links.repository} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
               GitHub repository
             </a>
           </Button>
-          <Button variant="outline" size="sm" className="pointer-coarse:h-10" asChild>
+          <Button variant="outline" size="sm" asChild>
             <a href={data.links.issues} target="_blank" rel="noopener noreferrer">
               <Bug className="mr-1.5 h-3.5 w-3.5" />
               Issue tracker

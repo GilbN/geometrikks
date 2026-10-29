@@ -36,6 +36,8 @@ import {
   toggleRun,
   shortFingerprint,
   signalNote,
+  formatTimeLeft,
+  timeLeftText,
 } from "./crowdsec-alerts"
 
 const HTTP_META = {
@@ -727,5 +729,29 @@ describe("ALERT_KIND_OPTIONS descriptions", () => {
       "An AppSec rule matched a request. Many never ban.",
       "Bot challenge rejections and the bans they lead to.",
     ])
+  })
+})
+
+describe("formatTimeLeft", () => {
+  it("shortens CrowdSec's Go durations", () => {
+    expect(formatTimeLeft("3h49m12.5s")).toBe("3h 49m")
+    expect(formatTimeLeft("165h2m1s")).toBe("6d 21h")
+    expect(formatTimeLeft("47m3s")).toBe("47m")
+    expect(formatTimeLeft("24h0m0s")).toBe("1d")
+    expect(formatTimeLeft("31s")).toBe("under 1m")
+    expect(formatTimeLeft("4h0m0s")).toBe("4h")
+  })
+  it("calls a decision years away Forever", () => {
+    expect(formatTimeLeft("86471h2m44s")).toBe("Forever")
+  })
+  it("passes anything else through", () => {
+    expect(formatTimeLeft("soon")).toBe("soon")
+  })
+})
+
+describe("timeLeftText", () => {
+  it("adds left to a duration but not to Forever", () => {
+    expect(timeLeftText("3h49m0s")).toBe("3h 49m left")
+    expect(timeLeftText("86471h2m44s")).toBe("Forever")
   })
 })

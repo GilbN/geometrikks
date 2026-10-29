@@ -6,6 +6,8 @@ import { useState } from "react"
 import { CountryLabel } from "@/components/country-flag"
 import { DataTableFrame } from "@/components/data/data-table-frame"
 import { dataState } from "@/components/data/types"
+import { useFitLayout } from "@/components/data/narrow-layout"
+import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
@@ -27,6 +29,7 @@ export function GeoTopCountriesCities() {
   const { pageItems: cityItems, ...cityPagination } = usePagedRows(cities.data?.items)
   const { pageItems: asnItems, ...asnPagination } = usePagedRows(asns.data?.items)
   const report = useAbuseReportDialog()
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(`${view}:${asnItems.map((row) => row.asn).join()}`)
 
   const active = view === "countries" ? countries : view === "cities" ? cities : asns
   const pagination =
@@ -34,100 +37,132 @@ export function GeoTopCountriesCities() {
   const state = dataState(active.isLoading, active.isError, active.data?.items.length ?? 0)
 
   return (
-    <Tabs value={view} onValueChange={(value) => setView(value as View)}>
-      <DataTableFrame
-        title="Top locations"
-        description="Countries, cities and networks ranked by geo event count."
-        count={active.data?.items.length}
-        state={state}
-        error="Failed to load top locations."
-        empty="No geo events match these filters."
-        tools={
-          <TabsList className="h-8">
-            <TabsTrigger value="countries">Countries</TabsTrigger>
-            <TabsTrigger value="cities">Cities</TabsTrigger>
-            <TabsTrigger value="asns">ASNs</TabsTrigger>
-          </TabsList>
-        }
-        footer={
-          pagination.total > pagination.pageSize ? (
-            <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
-          ) : undefined
-        }
-      >
-        {view === "countries" ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Country</TableHead>
-                <TableHead className="text-right">Events</TableHead>
-                <TableHead className="text-right">Unique IPs</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {countryItems.map((row) => (
-                <TableRow key={row.countryCode}>
-                  <TableCell><CountryLabel code={row.countryCode} name={row.countryName} /></TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+    <div ref={layoutRef} className="min-w-0">
+      <Tabs value={view} onValueChange={(value) => setView(value as View)}>
+        <DataTableFrame
+          title="Top locations"
+          description="Countries, cities and networks ranked by geo event count."
+          count={active.data?.items.length}
+          state={state}
+          error="Failed to load top locations."
+          empty="No geo events match these filters."
+          tools={
+            <TabsList className="h-8">
+              <TabsTrigger value="countries">Countries</TabsTrigger>
+              <TabsTrigger value="cities">Cities</TabsTrigger>
+              <TabsTrigger value="asns">ASNs</TabsTrigger>
+            </TabsList>
+          }
+          footer={
+            pagination.total > pagination.pageSize ? (
+              <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
+            ) : undefined
+          }
+        >
+          {view === "countries" ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Country</TableHead>
+                  <TableHead className="text-right">Events</TableHead>
+                  <TableHead className="text-right">Unique IPs</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : view === "cities" ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>City</TableHead>
-                <TableHead className="text-right">Events</TableHead>
-                <TableHead className="text-right">Unique IPs</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {cityItems.map((row, index) => (
-                <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
-                  <TableCell><CountryLabel code={row.countryCode}>{row.city}</CountryLabel></TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+              </TableHeader>
+              <TableBody>
+                {countryItems.map((row) => (
+                  <TableRow key={row.countryCode}>
+                    <TableCell><CountryLabel code={row.countryCode} name={row.countryName} /></TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : view === "cities" ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>City</TableHead>
+                  <TableHead className="text-right">Events</TableHead>
+                  <TableHead className="text-right">Unique IPs</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Organization</TableHead>
-                <TableHead>
-                  <span className="inline-flex items-center gap-1.5">
-                    Category
+              </TableHeader>
+              <TableBody>
+                {cityItems.map((row, index) => (
+                  <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
+                    <TableCell><CountryLabel code={row.countryCode}>{row.city}</CountryLabel></TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : narrow ? (
+            <Table className="table-fixed">
+              <RankedNarrowHeader
+                label={
+                  <>
+                    Organization
                     <AsnCategoryInfo />
-                  </span>
-                </TableHead>
-                <TableHead className="text-right">Events</TableHead>
-                <TableHead className="text-right">Unique IPs</TableHead>
-                <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {asnItems.map((row) => (
-                <TableRow key={row.asn}>
-                  <TableCell className="max-w-[260px]">
-                    <AsnCell asn={row.asn} organization={row.organization} />
-                  </TableCell>
-                  <TableCell><CategoryBadge category={row.category} /></TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
-                  <TableCell className="py-0 text-right">
-                    <AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />
-                  </TableCell>
+                  </>
+                }
+                valueLabel="Events"
+              />
+              <TableBody>
+                {asnItems.map((row) => (
+                  <TableRow key={row.asn}>
+                    <RankedNarrowCell
+                      primary={<span className="line-clamp-2" title={row.organization ?? undefined}>{row.organization ?? "Unknown"}</span>}
+                      value={formatNumber(row.eventCount)}
+                      trailing={<AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />}
+                      secondary={
+                        <>
+                          <span className="font-mono">AS{row.asn}</span>
+                          <CategoryBadge category={row.category} />
+                          <span>{formatNumber(row.uniqueIps)} {row.uniqueIps === 1 ? "IP" : "IPs"}</span>
+                        </>
+                      }
+                    />
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Organization</TableHead>
+                  <TableHead>
+                    <span className="inline-flex items-center gap-1.5">
+                      Category
+                      <AsnCategoryInfo />
+                    </span>
+                  </TableHead>
+                  <TableHead className="text-right">Events</TableHead>
+                  <TableHead className="text-right">Unique IPs</TableHead>
+                  <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-        {report.dialog}
-      </DataTableFrame>
-    </Tabs>
+              </TableHeader>
+              <TableBody>
+                {asnItems.map((row) => (
+                  <TableRow key={row.asn}>
+                    <TableCell className="max-w-[260px]">
+                      <AsnCell asn={row.asn} organization={row.organization} />
+                    </TableCell>
+                    <TableCell><CategoryBadge category={row.category} /></TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                    <TableCell className="py-0 text-right">
+                      <AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {report.dialog}
+        </DataTableFrame>
+      </Tabs>
+    </div>
   )
 }

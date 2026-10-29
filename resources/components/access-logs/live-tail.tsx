@@ -87,7 +87,7 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
         <Button
           variant="outline"
           size="sm"
-          className="h-7 pointer-coarse:h-10"
+          className="h-7"
           onClick={() => setManuallyPaused((p) => !p)}
         >
           {manuallyPaused ? (
@@ -105,75 +105,85 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           a sideways scroll carries every column. Rows stay in normal flow
           (offset by a single translate) rather than absolutely positioned, or
           they would never widen the container past the viewport. */}
-      <div
-        ref={parentRef}
-        className="max-h-[70dvh] overflow-auto font-mono text-xs"
-        onMouseEnter={() => canHover && setHoverPaused(true)}
-        onMouseLeave={() => setHoverPaused(false)}
-      >
-        <div className={cn(COLS, "sticky top-0 z-10 border-b bg-card py-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
-          <span className="w-20 shrink-0">Time</span>
-          <span className="w-14 shrink-0">Status</span>
-          <span className="w-14 shrink-0">Method</span>
-          <span className="w-[220px] shrink-0">URL</span>
-          <span className="hidden w-[320px] shrink-0 md:block">Referrer</span>
-          <span className="w-40 shrink-0">Host</span>
-          <span className="w-32 shrink-0">IP</span>
-          <span className="hidden w-16 shrink-0 md:block">User</span>
-          <span className="w-16 shrink-0 text-right">Bytes</span>
-          <span className="w-16 shrink-0 text-right">Req</span>
-          <span className="hidden w-16 shrink-0 md:block">HTTP Ver</span>
-          <span className="w-16 shrink-0">Country</span>
-          <span className="w-16 shrink-0">City</span>
+      {rows.length === 0 && feedStatus !== "unavailable" ? (
+        <div className="flex flex-col items-center gap-1 px-4 py-10 text-center">
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <span aria-hidden className="size-2 rounded-full bg-primary motion-safe:animate-pulse" />
+            Waiting for requests
+          </span>
+          <span className="text-xs text-muted-foreground">New requests appear here as your proxy logs them.</span>
         </div>
-        <div style={{ height: virtualizer.getTotalSize() }} className="min-w-max">
-          <div style={{ transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)` }}>
-            {virtualizer.getVirtualItems().map((item) => {
-              const row = rows[item.index]
-              return (
-                <div
-                  key={item.key}
-                  className={cn(COLS, "border-b border-border/40")}
-                  style={{ height: item.size }}
-                >
-                  <span className="w-20 shrink-0 text-muted-foreground">
-                    {new Date(row.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span className="w-14 shrink-0">
-                    <Badge
-                      className={cn("w-10 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
-                    >
-                      {row.status_code}
-                    </Badge>
-                  </span>
-                  <span className="w-14 shrink-0">{row.method ?? "-"}</span>
-                  <span className="w-[220px] shrink-0 truncate" title={row.url ?? undefined}>
-                    {row.url ?? "-"}
-                  </span>
-                  <span className="hidden w-[320px] shrink-0 truncate md:block" title={row.referrer ?? undefined}>
-                    {row.referrer ?? "-"}
-                  </span>
-                  <span className="w-40 shrink-0 truncate" title={row.host ?? undefined}>
-                    {row.host ?? "-"}
-                  </span>
-                  <span className="w-32 shrink-0 text-muted-foreground">{row.ip_address}</span>
-                  <span className="hidden w-16 shrink-0 truncate text-muted-foreground md:block">{row.remote_user ?? "-"}</span>
-                  <span className="w-16 shrink-0 text-right tabular-nums">{formatBytes(row.bytes_sent)}</span>
-                  <span className="w-16 shrink-0 text-right tabular-nums">{formatDurationOrNa(row.request_time)}</span>
-                  <span className="hidden w-16 shrink-0 text-muted-foreground md:block">{row.http_version ?? "-"}</span>
-                  <span className="flex w-16 shrink-0 items-center gap-1" title={row.country_code ?? undefined}>
-                    <CountryFlag code={row.country_code} name={row.country_name} />
-                    <span className="truncate">{row.country_name ?? row.country_code ?? "-"}</span>
-                  </span>
-                  <span className="w-16 shrink-0 truncate" title={row.city ?? undefined}>
-                    {row.city ?? "-"}
-                  </span>
-                </div>
-              )
-            })}
+      ) : (
+        <div
+          ref={parentRef}
+          className="max-h-[70dvh] overflow-auto font-mono text-xs"
+          onMouseEnter={() => canHover && setHoverPaused(true)}
+          onMouseLeave={() => setHoverPaused(false)}
+        >
+          <div className={cn(COLS, "sticky top-0 z-10 border-b bg-card py-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
+            <span className="w-20 shrink-0">Time</span>
+            <span className="w-14 shrink-0">Status</span>
+            <span className="w-14 shrink-0">Method</span>
+            <span className="w-[220px] shrink-0">URL</span>
+            <span className="hidden w-[320px] shrink-0 md:block">Referrer</span>
+            <span className="w-40 shrink-0">Host</span>
+            <span className="w-32 shrink-0">IP</span>
+            <span className="hidden w-16 shrink-0 md:block">User</span>
+            <span className="w-16 shrink-0 text-right">Bytes</span>
+            <span className="w-16 shrink-0 text-right">Req</span>
+            <span className="hidden w-16 shrink-0 md:block">HTTP Ver</span>
+            <span className="w-16 shrink-0">Country</span>
+            <span className="w-16 shrink-0">City</span>
+          </div>
+          <div style={{ height: virtualizer.getTotalSize() }} className="min-w-max">
+            <div style={{ transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)` }}>
+              {virtualizer.getVirtualItems().map((item) => {
+                const row = rows[item.index]
+                return (
+                  <div
+                    key={item.key}
+                    className={cn(COLS, "border-b border-border/40")}
+                    style={{ height: item.size }}
+                  >
+                    <span className="w-20 shrink-0 text-muted-foreground">
+                      {new Date(row.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className="w-14 shrink-0">
+                      <Badge
+                        className={cn("w-10 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
+                      >
+                        {row.status_code}
+                      </Badge>
+                    </span>
+                    <span className="w-14 shrink-0">{row.method ?? "-"}</span>
+                    <span className="w-[220px] shrink-0 truncate" title={row.url ?? undefined}>
+                      {row.url ?? "-"}
+                    </span>
+                    <span className="hidden w-[320px] shrink-0 truncate md:block" title={row.referrer ?? undefined}>
+                      {row.referrer ?? "-"}
+                    </span>
+                    <span className="w-40 shrink-0 truncate" title={row.host ?? undefined}>
+                      {row.host ?? "-"}
+                    </span>
+                    <span className="w-32 shrink-0 text-muted-foreground">{row.ip_address}</span>
+                    <span className="hidden w-16 shrink-0 truncate text-muted-foreground md:block">{row.remote_user ?? "-"}</span>
+                    <span className="w-16 shrink-0 text-right tabular-nums">{formatBytes(row.bytes_sent)}</span>
+                    <span className="w-16 shrink-0 text-right tabular-nums">{formatDurationOrNa(row.request_time)}</span>
+                    <span className="hidden w-16 shrink-0 text-muted-foreground md:block">{row.http_version ?? "-"}</span>
+                    <span className="flex w-16 shrink-0 items-center gap-1" title={row.country_code ?? undefined}>
+                      <CountryFlag code={row.country_code} name={row.country_name} />
+                      <span className="truncate">{row.country_name ?? row.country_code ?? "-"}</span>
+                    </span>
+                    <span className="w-16 shrink-0 truncate" title={row.city ?? undefined}>
+                      {row.city ?? "-"}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

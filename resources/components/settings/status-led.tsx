@@ -56,3 +56,16 @@ export function MonoChip({ children, className }: { children: React.ReactNode; c
     </code>
   )
 }
+
+/** A component's state: its light and label, with the detail underneath. */
+export function StateLine({ state }: { state: { tone: LedTone; label: string; detail?: string } }) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <StatusLed tone={state.tone} pulse={state.tone === "emerald"} />
+        <span className="text-sm font-medium">{state.label}</span>
+      </div>
+      {state.detail && <p className="text-xs text-muted-foreground">{state.detail}</p>}
+    </div>
+  )
+}

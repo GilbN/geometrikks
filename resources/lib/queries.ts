@@ -3,7 +3,10 @@
  */
 
 import { useEffect } from "react"
-import { releaseCheckPollMs } from "@/lib/release-check"
+import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
+import { useSeenRelease } from "@/lib/release-seen"
+import { useReloadNotice } from "@/lib/reload-notice"
+import type { LatestReleaseView } from "@/generated/api/types.gen"
 import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
@@ -60,7 +63,6 @@ import {
   fetchAbuseContact,
   type AbuseReportTarget,
   banIp,
-  unbanIp,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortField,
@@ -298,6 +300,19 @@ export function useChangelogUnseen(): boolean {
   return hasUnseenChanges(seen, current)
 }
 
+/**
+ * The newer release while About has not announced it to this browser yet,
+ * else null. A pending reload takes the dot's place, so it is null then too.
+ */
+export function useUnseenRelease(): LatestReleaseView | null {
+  const { data: releaseCheck } = useReleaseCheck()
+  const seenRelease = useSeenRelease()
+  const { pending: reloadPending } = useReloadNotice()
+  const latest = releaseCheck?.latest ?? null
+  const shown = showsReleaseDot({ reloadPending, latestVersion: latest?.version ?? null, seenVersion: seenRelease })
+  return shown ? latest : null
+}
+
 /** The vendored hosting-ASN list; fetched only while its dialog is open. */
 export function useAsnClassification(enabled: boolean) {
   return useQuery({
@@ -430,6 +445,7 @@ export function useCrowdsecStats() {
 /** One server-paginated page of active decisions for the Security table. */
 export function useCrowdsecDecisions(params: {
   origins?: string
+  q?: string
   currentPage: number
   pageSize: number
 }) {
@@ -514,15 +530,6 @@ export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: banIp,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
-  })
-}
-
-/** Remove all active decisions for an IP, then refresh badges/decisions/stats. */
-export function useUnbanIp() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (ip: string) => unbanIp(ip),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }
@@ -1475,7 +1482,11 @@ export function useDeleteServerLocation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (server: string) => deleteServerLocation(server),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations }),
+    // Settled, not success, as in useDeleteInstance: a 404 means it is already
+    // gone, and the refetch takes the row away.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations })
+    },
   })
 }
 

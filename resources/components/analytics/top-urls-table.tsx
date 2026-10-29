@@ -11,14 +11,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopUrls } from "@/lib/queries"
 import { formatDurationOrNa } from "@/lib/timing"
+import { useFitLayout } from "@/components/data/narrow-layout"
+import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopUrlsTable() {
   const { data, isLoading } = useTopUrls({ limit: 25 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => `${row.host ?? ""} ${row.url}`).join())
 
   return (
-    <Card>
+    <Card ref={layoutRef}>
       <CardHeader>
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top URLs</CardTitle>
       </CardHeader>
@@ -27,19 +30,38 @@ export function TopUrlsTable() {
           <Skeleton className="h-48 w-full" />
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Host</TableHead>
-                  <TableHead>Path</TableHead>
-                  <TableHead className="text-right">Hits</TableHead>
-                  <TableHead className="text-right">Errors</TableHead>
-                  <TableHead className="text-right">Bytes</TableHead>
-                  <TableHead className="text-right">Avg time</TableHead>
-                </TableRow>
-              </TableHeader>
+            <Table className={narrow ? "table-fixed" : undefined}>
+              {narrow ? (
+                <RankedNarrowHeader label="Path" valueLabel="Hits" />
+              ) : (
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Host</TableHead>
+                    <TableHead>Path</TableHead>
+                    <TableHead className="text-right">Hits</TableHead>
+                    <TableHead className="text-right">Errors</TableHead>
+                    <TableHead className="text-right">Bytes</TableHead>
+                    <TableHead className="text-right">Avg time</TableHead>
+                  </TableRow>
+                </TableHeader>
+              )}
               <TableBody>
-                {pageItems.map((row) => (
+                {pageItems.map((row) => narrow ? (
+                  <TableRow key={`${row.host ?? ""} ${row.url}`}>
+                    <RankedNarrowCell
+                      primary={<span className="line-clamp-2 break-all font-mono text-xs" title={row.url}>{row.url}</span>}
+                      value={formatNumber(row.hits)}
+                      secondary={
+                        <>
+                          {row.host && <span className="min-w-0 truncate">{row.host}</span>}
+                          <span>{formatNumber(row.errorHits)} {row.errorHits === 1 ? "error" : "errors"}</span>
+                          <span>{formatBytes(row.totalBytes)}</span>
+                          {row.avgRequestTime != null && <span>{formatDurationOrNa(row.avgRequestTime)} avg</span>}
+                        </>
+                      }
+                    />
+                  </TableRow>
+                ) : (
                   <TableRow key={`${row.host ?? ""} ${row.url}`}>
                     <TableCell
                       className="max-w-[220px] truncate text-xs text-muted-foreground"

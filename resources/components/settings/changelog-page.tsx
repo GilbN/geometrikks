@@ -74,7 +74,7 @@ function ReleaseCard({
         {/* The GitHub link sits beside the trigger, not inside it: a link
             inside a button is invalid and would toggle the card. */}
         <CardHeader className="flex flex-row items-center gap-2">
-          <CollapsibleTrigger className="group/release flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 text-left">
+          <CollapsibleTrigger className="group/release flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 text-left pointer-coarse:min-h-10">
             <MonoChip className="text-[13px] text-foreground">
               {release.unreleased ? "Unreleased" : `v${release.version}`}
             </MonoChip>

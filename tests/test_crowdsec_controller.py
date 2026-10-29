@@ -250,6 +250,42 @@ async def test_decisions_origins_override():
     assert service.calls == [{"origins": "CAPI"}]
 
 
+async def test_decisions_ip_search_reads_every_origin():
+    decisions = [
+        make_decision(id=1, value="45.148.10.80", origin="CAPI", scenario="crowdsecurity/http-probing"),
+        make_decision(id=2, value="5.6.7.8"),
+    ]
+    service = FakeCrowdSec(decisions)
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (await client.get("/api/v1/crowdsec/decisions", params={"q": "45.148.10.80"})).json()
+    assert service.calls == [{}]
+    assert body["total"] == 1
+    assert [item["ip"] for item in body["items"]] == ["45.148.10.80"]
+
+
+async def test_decisions_text_search_keeps_the_origin_tab_and_pages_the_matches():
+    decisions = [
+        make_decision(id=i, value=f"10.0.0.{i}", scenario="crowdsecurity/ssh-bf" if i % 2 else "crowdsecurity/http-probing")
+        for i in range(6)
+    ]
+    service = FakeCrowdSec(decisions)
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (
+            await client.get(
+                "/api/v1/crowdsec/decisions", params={"q": "ssh", "origins": "CAPI", "currentPage": 2, "pageSize": 2}
+            )
+        ).json()
+    assert service.calls == [{"origins": "CAPI"}]
+    assert body["total"] == 3
+    assert [item["ip"] for item in body["items"]] == ["10.0.0.5"]
+
+
+async def test_decisions_search_is_length_limited():
+    async with AsyncTestClient(app=make_app(FakeCrowdSec([]))) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions", params={"q": "x" * 201})
+    assert resp.status_code == 400
+
+
 async def test_decisions_pagination_slices_after_fetch():
     decisions = [make_decision(id=i, value=f"10.0.0.{i}") for i in range(5)]
     async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:

@@ -1,9 +1,12 @@
 /**
  * Time-range picker shared by the toolbar and the IP inspector: a dropdown
  * with the preset list and custom from/to fields from `md` up, a bottom
- * drawer with a preset grid below it. The caller supplies the trigger.
+ * drawer below it with the presets split into Recent, Calendar and Custom
+ * tabs. The caller supplies the trigger. With `refreshControls` the drawer
+ * also sets auto refresh and, on chart pages, the chart buckets, which the
+ * phone header has no room for.
  */
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -22,8 +25,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { TIME_RANGE_PRESETS, type CustomTimeRange, type TimeRangeValue } from "@/lib/api"
+import {
+  CHART_GRANULARITY_OPTIONS,
+  POLL_INTERVAL_OPTIONS,
+  TIME_RANGE_PRESETS,
+  type ChartGranularity,
+  type CustomTimeRange,
+  type TimeRangeValue,
+} from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
 
@@ -34,7 +46,15 @@ export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRan
     : TIME_RANGE_PRESETS.find((p) => p.value === range)?.label || "Range"
 }
 
-function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void }) {
+function CustomRangeFields({
+  onApply,
+  className = "w-64",
+  inputClassName,
+}: {
+  onApply: (r: CustomTimeRange) => void
+  className?: string
+  inputClassName?: string
+}) {
   const { customRange } = useTimeRange()
   const toLocal = (iso?: string) => {
     if (!iso) return ""
@@ -46,14 +66,13 @@ function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void 
   const [to, setTo] = useState(toLocal(customRange?.to))
   const valid = from && to && new Date(from) < new Date(to)
   return (
-    <div className="flex flex-col gap-2 p-2 w-64">
+    <div className={cn("flex flex-col gap-2 p-2", className)}>
       <label className="text-xs text-muted-foreground">From</label>
-      <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+      <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClassName} />
       <label className="text-xs text-muted-foreground">To</label>
-      <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
+      <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={inputClassName} />
       <Button
         size="sm"
-        className="pointer-coarse:h-10"
         disabled={!valid}
         onClick={() => onApply({ from: new Date(from).toISOString(), to: new Date(to).toISOString() })}
       >
@@ -63,63 +82,133 @@ function CustomRangeFields({ onApply }: { onApply: (r: CustomTimeRange) => void 
   )
 }
 
+const RECENT_PRESETS = TIME_RANGE_PRESETS.filter((preset) => preset.minutes > 0)
+const CALENDAR_PRESETS = TIME_RANGE_PRESETS.filter((preset) => preset.minutes < 0)
+
+type RangeTab = "recent" | "calendar" | "custom"
+
+function rangeTab(range: TimeRangeValue): RangeTab {
+  if (range === "custom") return "custom"
+  return CALENDAR_PRESETS.some((preset) => preset.value === range) ? "calendar" : "recent"
+}
+
 export function TimeRangePicker({
   trigger,
   align = "start",
+  refreshControls,
 }: {
   trigger: React.ReactNode
   align?: "start" | "end"
+  refreshControls?: { chartBuckets: boolean }
 }) {
-  const { range, setRange, setCustomRange } = useTimeRange()
+  const { range, setRange, setCustomRange, pollInterval, setPollInterval, granularity, setGranularity } = useTimeRange()
   const isMobile = useIsMobile()
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
+  const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
+  // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
+  useEffect(() => {
+    if (!isMobile) setRangeDrawerOpen(false)
+  }, [isMobile])
 
   if (isMobile) {
+    const presetButtons = (presets: typeof TIME_RANGE_PRESETS) =>
+      presets.map((preset) => (
+        <Button
+          key={preset.value}
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setRange(preset.value)
+            setRangeDrawerOpen(false)
+          }}
+          className={cn("text-xs", range === preset.value && "bg-primary/20 text-primary border-primary/40")}
+        >
+          {preset.label}
+        </Button>
+      ))
     return (
-      /* Time Range Drawer - a bottom sheet with a preset grid, replacing the
-          cramped tall dropdown that overflowed the viewport. */
-      <Drawer open={rangeDrawerOpen} onOpenChange={setRangeDrawerOpen}>
+      <Drawer
+        open={rangeDrawerOpen}
+        onOpenChange={(open) => {
+          if (open) setTab(rangeTab(range))
+          setRangeDrawerOpen(open)
+        }}
+      >
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Time Range</DrawerTitle>
+            <DrawerTitle>{refreshControls ? "Time range and refresh" : "Time range"}</DrawerTitle>
             <DrawerDescription className="sr-only">
-              Choose a preset time range or set a custom from/to range.
+              {refreshControls
+                ? "Choose the time range, how often the page refreshes and how charts bucket their data."
+                : "Choose a preset time range or set a custom from/to range."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-6">
-            {/* Presets as a compact grid instead of a long scroll list */}
-            <div className="grid grid-cols-3 gap-2">
-              {TIME_RANGE_PRESETS.map((preset) => (
-                <Button
-                  key={preset.value}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setRange(preset.value)
+          <div className="flex flex-col gap-5 overflow-y-auto overscroll-contain px-4 pb-6">
+            <Tabs value={tab} onValueChange={(value) => setTab(value as RangeTab)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="recent">Recent</TabsTrigger>
+                <TabsTrigger value="calendar">Calendar</TabsTrigger>
+                <TabsTrigger value="custom">Custom</TabsTrigger>
+              </TabsList>
+              <TabsContent value="recent" className="grid grid-cols-3 gap-2 pt-2">
+                {presetButtons(RECENT_PRESETS)}
+              </TabsContent>
+              <TabsContent value="calendar" className="grid grid-cols-2 gap-2 pt-2">
+                {presetButtons(CALENDAR_PRESETS)}
+              </TabsContent>
+              {/* Kept mounted so dates typed but not applied survive a look
+                  at another tab. */}
+              <TabsContent value="custom" forceMount className="pt-2 data-[state=inactive]:hidden">
+                <CustomRangeFields
+                  className="w-full px-0"
+                  // iOS Safari sizes its native date control by its content
+                  // and ignores width: 100% unless the native look is off,
+                  // and it centers the value.
+                  inputClassName="block appearance-none text-left [&::-webkit-date-and-time-value]:text-left"
+                  onApply={(r) => {
+                    setCustomRange(r)
                     setRangeDrawerOpen(false)
                   }}
-                  className={cn(
-                    "text-xs pointer-coarse:h-10",
-                    range === preset.value &&
-                      "bg-primary/20 text-primary border-primary/40"
-                  )}
+                />
+              </TabsContent>
+            </Tabs>
+            {refreshControls && (
+              <RefreshControl label="Auto refresh">
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  aria-label="Auto refresh"
+                  value={String(pollInterval)}
+                  onValueChange={(value) => value && setPollInterval(Number(value))}
+                  className="w-full"
                 >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
-            <div className="mt-4 border-t border-border/50 pt-2">
-              <div className="text-xs font-medium text-muted-foreground px-2">
-                Custom range
-              </div>
-              <CustomRangeFields
-                onApply={(r) => {
-                  setCustomRange(r)
-                  setRangeDrawerOpen(false)
-                }}
-              />
-            </div>
+                  {POLL_INTERVAL_OPTIONS.map((option) => (
+                    <ToggleGroupItem key={option.value} value={String(option.value)} className="flex-1 text-xs">
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </RefreshControl>
+            )}
+            {refreshControls?.chartBuckets && (
+              <RefreshControl label="Chart buckets">
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  aria-label="Chart buckets"
+                  value={granularity}
+                  onValueChange={(value) => value && setGranularity(value as ChartGranularity)}
+                  className="w-full"
+                >
+                  {CHART_GRANULARITY_OPTIONS.map((option) => (
+                    <ToggleGroupItem key={option.value} value={option.value} className="flex-1 text-xs">
+                      {option.label}
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </RefreshControl>
+            )}
           </div>
         </DrawerContent>
       </Drawer>
@@ -149,5 +238,14 @@ export function TimeRangePicker({
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function RefreshControl({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {children}
+    </div>
   )
 }

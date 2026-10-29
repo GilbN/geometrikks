@@ -5,6 +5,7 @@
  * rendering is an exhaustive switch in access-logs-table.tsx.
  */
 import type { AccessLogSortField } from "@/lib/api"
+import type { SortKind } from "@/components/data/sort-options"
 import type { RenamedColumnKeys, VisibilityColumn } from "@/lib/column-visibility"
 
 export type AccessLogColumnKey =
@@ -33,18 +34,19 @@ export interface AccessLogColumn extends VisibilityColumn {
   label: string
   grow?: boolean
   sortField?: AccessLogSortField
+  sortKind?: SortKind
   align?: "right"
 }
 
 export const ACCESS_LOG_COLUMNS = [
-  { key: "timestamp", label: "Time", sortField: "timestamp", defaultVisible: true },
-  { key: "statusCode", label: "Status", sortField: "statusCode", defaultVisible: true },
+  { key: "timestamp", label: "Time", sortField: "timestamp", sortKind: "time", defaultVisible: true },
+  { key: "statusCode", label: "Status", sortField: "statusCode", sortKind: "number", defaultVisible: true },
   { key: "method", label: "Method", sortField: "method", defaultVisible: true },
   { key: "url", grow: true, label: "URL", sortField: "url", defaultVisible: true },
   { key: "host", grow: true, label: "Host", sortField: "host", defaultVisible: true, mobileHidden: true },
   { key: "ipAddress", label: "IP", sortField: "ipAddress", defaultVisible: true },
-  { key: "bytesSent", label: "Bytes", sortField: "bytesSent", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "requestTime", label: "Req time", sortField: "requestTime", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "bytesSent", label: "Bytes", sortField: "bytesSent", sortKind: "number", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "requestTime", label: "Req time", sortField: "requestTime", sortKind: "number", defaultVisible: true, align: "right", mobileHidden: true },
   { key: "remoteUser", grow: true, label: "Remote user", defaultVisible: false },
   { key: "httpVersion", label: "HTTP ver", defaultVisible: false },
   { key: "referrer", grow: true, label: "Referrer", defaultVisible: true, mobileHidden: true },

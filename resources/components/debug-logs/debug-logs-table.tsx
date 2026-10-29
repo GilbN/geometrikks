@@ -8,9 +8,6 @@ import { memo, useCallback, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
-  ArrowDown,
-  ArrowUp,
-  ChevronsUpDown,
   Columns3,
   Search,
 } from "lucide-react"
@@ -20,6 +17,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { sortOptions, type SortKind } from "@/components/data/sort-options"
+import { SortableHead } from "@/components/data/sortable-head"
+import { TableSortDrawer } from "@/components/data/table-sort-drawer"
+import { formatRowTime } from "@/lib/row-time"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
@@ -70,6 +72,7 @@ interface ColumnDef {
   grow?: boolean
   label: string
   sortField?: AccessLogDebugSortField
+  sortKind?: SortKind
   defaultVisible: boolean
   /** Start hidden on mobile viewports (still selectable via the Columns menu). */
   mobileHidden?: boolean
@@ -81,6 +84,7 @@ const COLUMNS: ColumnDef[] = [
     key: "createdAt",
     label: "Captured",
     sortField: "createdAt",
+    sortKind: "time",
     defaultVisible: true,
     render: (r) => (
       <span className="whitespace-nowrap text-muted-foreground">
@@ -92,6 +96,7 @@ const COLUMNS: ColumnDef[] = [
     key: "isMalformed",
     label: "Malformed",
     sortField: "isMalformed",
+    sortKind: "flag",
     defaultVisible: true,
     render: (r) =>
       r.isMalformed ? (
@@ -130,6 +135,7 @@ const COLUMNS: ColumnDef[] = [
     key: "statusCode",
     label: "Status",
     sortField: "statusCode",
+    sortKind: "number",
     defaultVisible: true,
     mobileHidden: true,
     render: (r) =>
@@ -183,6 +189,7 @@ const COLUMNS: ColumnDef[] = [
     key: "timestamp",
     label: "Log time",
     sortField: "timestamp",
+    sortKind: "time",
     defaultVisible: false,
     render: (r) => (
       <span className="whitespace-nowrap text-muted-foreground">
@@ -224,36 +231,74 @@ const COLUMNS: ColumnDef[] = [
 
 const getRowKey = (row: AccessLogDebugEntry) => row.id
 
+const SORT_OPTIONS = sortOptions(COLUMNS)
+
+function DebugLogIpActions({ row }: { row: AccessLogDebugEntry }) {
+  if (!row.ipAddress) return null
+  return (
+    <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} countryName={row.countryName} city={row.city} />
+  )
+}
+
+/** A narrow row: the raw line and whether it parsed on top, when and from where below. */
+function DebugLogNarrowCell({ row }: { row: AccessLogDebugEntry }) {
+  return (
+    <TableCell className="py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        {row.isMalformed && (
+          <Badge className="shrink-0 border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400">Malformed</Badge>
+        )}
+        <span className="min-w-0 flex-1 truncate font-mono text-xs" title={row.rawLine}>
+          {row.rawLine}
+        </span>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+        <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(row.createdAt)}</span>
+        {row.parseError && (
+          <span className="min-w-0 truncate text-muted-foreground" title={row.parseError}>
+            {row.parseError}
+          </span>
+        )}
+        {row.ipAddress && (
+          <span className="ml-auto flex min-w-0 items-center gap-1.5">
+            <IpLabel ip={row.ipAddress} className="truncate" />
+            <DebugLogIpActions row={row} />
+          </span>
+        )}
+      </div>
+    </TableCell>
+  )
+}
+
 const DebugLogTableBody = memo(function DebugLogTableBody({
   rows,
   shownColumns,
+  narrow,
   onSelect,
 }: {
   rows: AccessLogDebugEntry[]
   shownColumns: ColumnDef[]
+  narrow: boolean
   onSelect: (row: AccessLogDebugEntry) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
       {(row) => (
         <TableRow
           key={row.id}
           aria-label={`Debug line ${row.id}, ${row.isMalformed ? "malformed" : "parsed"}`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
-          {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
-              {c.render(row)}
-              {c.key === "ipAddress" && row.ipAddress && (
-                <IpActionsMenu
-                  ip={row.ipAddress}
-                  countryCode={row.countryCode}
-                  countryName={row.countryName}
-                  city={row.city}
-                />
-              )}
-            </TableCell>
-          ))}
+          {narrow ? (
+            <DebugLogNarrowCell row={row} />
+          ) : (
+            shownColumns.map((c) => (
+              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate")}>
+                {c.render(row)}
+                {c.key === "ipAddress" && <DebugLogIpActions row={row} />}
+              </TableCell>
+            ))
+          )}
         </TableRow>
       )}
     </VirtualTableBody>
@@ -311,6 +356,7 @@ export function DebugLogsTable() {
 
   // Detail sheet.
   const [selected, setSelected] = useState<AccessLogDebugEntry | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
 
   // Keep banned badges in sync with external cscli/console decisions.
   useCrowdsecLiveUpdates()
@@ -394,7 +440,7 @@ export function DebugLogsTable() {
           value={malformedFilter}
           onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
         >
-          <SelectTrigger size="sm" className={cn("h-8 text-xs pointer-coarse:h-10", inDrawer ? "w-full" : "w-40")}>
+          <SelectTrigger size="sm" className={cn("h-8 text-xs", inDrawer ? "w-full" : "w-40")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -463,11 +509,11 @@ export function DebugLogsTable() {
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
+        <Button variant="outline" size="sm" className="h-8">
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
+      <DropdownMenuContent align="end" collisionPadding={8} className="w-auto min-w-44">
         <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {COLUMNS.map((c) => (
@@ -490,82 +536,91 @@ export function DebugLogsTable() {
   )
 
   return (
-    <div className="space-y-4">
-      {isMobile ? (
-        <div onClick={() => setFacetsEnabled(true)}>
-          <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
-            {renderFilters(true)}
-          </FiltersDrawer>
+    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+      {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
+      <div className="space-y-4">
+        {isMobile ? (
+          <div onClick={() => setFacetsEnabled(true)}>
+            <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
+              {renderFilters(true)}
+            </FiltersDrawer>
+          </div>
+        ) : (
+          <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
+            {renderFilters(false)}
+          </FilterRail>
+        )}
+
+        <div ref={layoutRef}>
+          <DataTableFrame
+            title="Captured source lines"
+            description="Raw parser input and linked request context. Select a row for the complete record."
+            count={data ? total : undefined}
+            stickyHeader={narrow && isMobile}
+            tools={
+              narrow ? (
+                <TableSortDrawer
+                  options={SORT_OPTIONS}
+                  sortField={sortField}
+                  sortOrder={sortOrder}
+                  onSortChange={(field, order) => {
+                    setSortField(field)
+                    setSortOrder(order)
+                  }}
+                />
+              ) : (
+                columnsMenu
+              )
+            }
+            state={state}
+            error="Failed to load debug logs."
+            empty="No debug lines match these filters."
+            footer={
+              <PaginationFooter
+                page={page}
+                pageCount={pageCount}
+                total={total}
+                onPageChange={setPage}
+                disabled={isPlaceholderData}
+                pageSize={pageSize}
+                pageSizes={PAGE_SIZES}
+                onPageSizeChange={setPageSize}
+              />
+            }
+          >
+            <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
+              {!narrow && (
+                <TableHeader>
+                  <TableRow>
+                    {shownColumns.map((c) => {
+                      if (!c.sortField) {
+                        return (
+                          <TableHead key={c.key}>
+                            {c.label}
+                          </TableHead>
+                        )
+                      }
+                      const columnSortField = c.sortField
+                      return (
+                        <SortableHead
+                          key={c.key}
+                          label={c.label}
+                          active={sortField === columnSortField}
+                          sortOrder={sortOrder}
+                          onToggle={() => toggleSort(columnSortField)}
+                        />
+                      )
+                    })}
+                  </TableRow>
+                </TableHeader>
+              )}
+              <DebugLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+            </VirtualTable>
+          </DataTableFrame>
         </div>
-      ) : (
-        <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
-          {renderFilters(false)}
-        </FilterRail>
-      )}
 
-      <DataTableFrame
-        title="Captured source lines"
-        description="Raw parser input and linked request context. Select a row for the complete record."
-        count={data ? total : undefined}
-        tools={columnsMenu}
-        state={state}
-        error="Failed to load debug logs."
-        empty="No debug lines match these filters."
-        footer={
-          <PaginationFooter
-            page={page}
-            pageCount={pageCount}
-            total={total}
-            onPageChange={setPage}
-            disabled={isPlaceholderData}
-            pageSize={pageSize}
-            pageSizes={PAGE_SIZES}
-            onPageSizeChange={setPageSize}
-          />
-        }
-      >
-        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
-          <TableHeader>
-            <TableRow>
-              {shownColumns.map((c) => {
-                const active = c.sortField && sortField === c.sortField
-                return (
-                  <TableHead key={c.key}>
-                    {c.sortField ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(c.sortField!)}
-                        className={cn(
-                          "inline-flex items-center gap-1 hover:text-foreground",
-                          active ? "text-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        {c.label}
-                        {active ? (
-                          sortOrder === "asc" ? (
-                            <ArrowUp className="h-3 w-3" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3" />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </button>
-                    ) : (
-                      c.label
-                    )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          </TableHeader>
-          <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
-            <DebugLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-          </IpFilterTargetsProvider>
-        </VirtualTable>
-      </DataTableFrame>
-
-      <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
-    </div>
+        <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
+      </div>
+    </IpFilterTargetsProvider>
   )
 }

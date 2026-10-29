@@ -21,11 +21,10 @@ import {
   CornerUpRight,
 } from "lucide-react"
 
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
 import { SectionHeader } from "@/components/section-header"
 import { formatNumber, formatBytes, type SummaryResponse } from "@/lib/api"
 import { formatDurationOrNa, timingCoverage, TIMING_HINT } from "@/lib/timing"
-import { cn } from "@/lib/utils"
 
 interface SectionProps {
   summary: SummaryResponse | undefined
@@ -55,10 +54,10 @@ function Section({
   return (
     <>
       <SectionHeader>{title}</SectionHeader>
-      <div className={cn("grid gap-4", gridClassName)}>
+      <StatGrid className={gridClassName}>
         {children ??
           Array.from({ length: skeletons }, (_, i) => <StatCardSkeleton key={i} />)}
-      </div>
+      </StatGrid>
     </>
   )
 }
@@ -72,7 +71,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: Se
   return (
     <Section
       title="Traffic Overview"
-      gridClassName="md:grid-cols-2 lg:grid-cols-4"
+      gridClassName="lg:grid-cols-4"
       skeletons={4}
       isLoading={isLoading}
     >
@@ -126,7 +125,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
   return (
     <Section
       title="HTTP Status Codes"
-      gridClassName="grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+      gridClassName="md:grid-cols-3 lg:grid-cols-5"
       skeletons={5}
       isLoading={isLoading}
     >
@@ -198,7 +197,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel }: Section
   return (
     <Section
       title="Performance & Bandwidth"
-      gridClassName="md:grid-cols-2 lg:grid-cols-4"
+      gridClassName="lg:grid-cols-4"
       skeletons={4}
       isLoading={isLoading}
     >

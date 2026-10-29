@@ -12,9 +12,8 @@ import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
 import { ExternalLink, ExternalLinkButton } from "@/components/crowdsec/external-link"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
+import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -36,6 +35,7 @@ import {
   shortFingerprint,
   signalNote,
   type ChallengeContext,
+  timeLeftText,
 } from "@/lib/crowdsec-alerts"
 import type { UseQueryResult } from "@tanstack/react-query"
 import { useCrowdsecAlert, useCrowdsecDecisionAlert } from "@/lib/queries"
@@ -208,14 +208,25 @@ function ScenarioTitle({ scenario }: { scenario: string }) {
   )
 }
 
+/** The alert's source as IP actions values, or null when it isn't one IP. */
+function alertIpValues(alert: AlertDetailView | undefined): IpRowValues | null {
+  if (!alert || alert.scope !== "Ip") return null
+  const asn = alert.asNumber !== null && /^\d+$/.test(alert.asNumber) ? Number(alert.asNumber) : null
+  return {
+    ip: alert.value,
+    countryCode: alert.countryCode,
+    countryName: alert.countryName,
+    asn,
+    asOrganization: alert.asName,
+  }
+}
+
 function AlertBody({
   alert,
   onNavigate,
-  showFlyTo,
 }: {
   alert: AlertDetailView
   onNavigate: () => void
-  showFlyTo: boolean
 }) {
   const isIp = alert.scope === "Ip"
   const http = hasHttpEvents(alert.events)
@@ -234,21 +245,7 @@ function AlertBody({
 
       <SectionTitle>Source</SectionTitle>
       <dl>
-        <DetailField
-          label={isIp ? "IP address" : alert.scope}
-          value={
-            <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
-              {alert.value}
-              {isIp && (
-                <IpBanControls ip={alert.value}>
-                  <InspectIpButton ip={alert.value} onOpen={onNavigate} />
-                  {showFlyTo && <FlyToIpButton ip={alert.value} onOpen={onNavigate} />}
-                  <ExternalLinkButton href={crowdsecCtiUrl(alert.value)} label="Look up in CrowdSec CTI" />
-                </IpBanControls>
-              )}
-            </span>
-          }
-        />
+        {!isIp && <DetailField label={alert.scope} value={alert.value} mono />}
         <DetailField
           label="Country"
           value={
@@ -313,7 +310,7 @@ function AlertBody({
               />
               <span className="font-mono">{decision.value}</span>
               <span className="text-muted-foreground">
-                {decision.origin} · {decision.expired ? "expired" : `${decision.duration} left`}
+                {decision.origin} · {decision.expired ? "expired" : timeLeftText(decision.duration)}
                 {decision.simulated && " · simulated"}
               </span>
             </li>
@@ -361,13 +358,20 @@ function AlertSheet({
   showFlyTo?: boolean
   onFilterScenario?: (scenario: string) => void
 }) {
+  const ip = alertIpValues(detail.data)
   return (
     <DetailSheet
       open={open}
       onOpenChange={onOpenChange}
       title={scenario ? <ScenarioTitle scenario={scenario} /> : <span className="font-mono text-sm">Alert details</span>}
       description={description}
+      footer={ip && <DetailIpActions values={ip} showOnMap={showFlyTo} onNavigate={() => onOpenChange(false)} />}
     >
+      {ip && (
+        <DetailIpBlock values={ip}>
+          <ExternalLinkButton href={crowdsecCtiUrl(ip.ip)} label="Look up in CrowdSec CTI" />
+        </DetailIpBlock>
+      )}
       {onFilterScenario && scenario && (
         <Button
           variant="outline"
@@ -394,7 +398,7 @@ function AlertSheet({
           {crowdsecErrorMessage(detail.error, errorFallback)}
         </p>
       )}
-      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} showFlyTo={showFlyTo} />}
+      {detail.data && <AlertBody alert={detail.data} onNavigate={() => onOpenChange(false)} />}
     </DetailSheet>
   )
 }

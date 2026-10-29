@@ -1,21 +1,6 @@
 import { useState } from "react"
-import {
-  AppWindow,
-  BarChart3,
-  Clock,
-  Database,
-  FileText,
-  Globe2,
-  Lock,
-  Map as MapIcon,
-  Network,
-  Search,
-  Settings2,
-  SlidersHorizontal,
-  Zap,
-} from "lucide-react"
+import { Search, Settings2, SlidersHorizontal } from "lucide-react"
 import { useSystemSettings } from "@/lib/queries"
-import { cn } from "@/lib/utils"
 import {
   Card,
   CardContent,
@@ -29,104 +14,16 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import type { SettingFieldView, SettingsSectionView } from "@/generated/api/types.gen"
-
-const sectionIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  app: AppWindow,
-  api: Network,
-  database: Database,
-  geoip: Globe2,
-  logparser: FileText,
-  analytics: BarChart3,
-  scheduler: Clock,
-  map: MapIcon,
-  vite: Zap,
-}
-
-const computedLabel: Record<string, string> = {
-  external_ip: "auto-detected",
-  runtime: "runtime",
-}
-
-// JSON.stringify with a space after each comma and colon, so a long list or
-// map wraps between items instead of inside an address.
-function formatJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(formatJson).join(", ")}]`
-  if (value !== null && typeof value === "object") {
-    const entries = Object.entries(value).map(
-      ([key, entryValue]) => `${JSON.stringify(key)}: ${formatJson(entryValue)}`,
-    )
-    return `{${entries.join(", ")}}`
-  }
-  return JSON.stringify(value)
-}
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) return "not set"
-  if (typeof value === "boolean") return value ? "true" : "false"
-  if (typeof value === "object") return formatJson(value)
-  return String(value)
-}
-
-function isOverridden(field: SettingFieldView): boolean {
-  // default null means dynamic default (default_factory); never emphasize
-  if (field.default === null || field.default === undefined) return false
-  return JSON.stringify(field.value) !== JSON.stringify(field.default)
-}
-
-function ValueBlock({ field }: { field: SettingFieldView }) {
-  if (field.isSecret) {
-    const isSet = field.value !== null && field.value !== undefined
-    return (
-      <span className="inline-flex items-center gap-1.5">
-        <Lock className="h-3 w-3 text-muted-foreground" />
-        {isSet ? (
-          <Badge
-            variant="outline"
-            className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          >
-            set (hidden)
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground">
-            not set
-          </Badge>
-        )}
-      </span>
-    )
-  }
-  const hasValue = field.value !== null && field.value !== undefined
-  const hasComputed = field.computedValue !== null && field.computedValue !== undefined
-  if (!hasValue && hasComputed) {
-    const label = computedLabel[field.computedSource ?? ""] ?? "computed"
-    return (
-      <span className="inline-flex items-baseline gap-1.5">
-        <code className="font-mono text-xs wrap-anywhere font-medium text-foreground">
-          {formatValue(field.computedValue)}
-        </code>
-        <Badge
-          variant="outline"
-          className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-        >
-          {label}
-        </Badge>
-      </span>
-    )
-  }
-  const overridden = isOverridden(field)
-  return (
-    <span className="inline-flex items-baseline gap-1.5">
-      {overridden && <StatusLed tone="accent" className="self-center" />}
-      <code
-        className={cn(
-          "font-mono text-xs wrap-anywhere",
-          overridden ? "font-medium text-foreground" : "text-muted-foreground",
-        )}
-      >
-        {formatValue(field.value)}
-      </code>
-    </span>
-  )
-}
+import {
+  envSettingCount,
+  fieldMatches,
+  formatValue,
+  isOverridden,
+  sectionIcons,
+  ValueBlock,
+} from "@/components/settings/environment-fields"
+import { EnvironmentPhone } from "@/components/settings/environment-phone"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 function FieldRow({ field }: { field: SettingFieldView }) {
   const overridden = isOverridden(field)
@@ -199,6 +96,7 @@ export function EnvironmentOverview() {
   const { data, isLoading } = useSystemSettings()
   const [query, setQuery] = useState("")
   const [overriddenOnly, setOverriddenOnly] = useState(false)
+  const isMobile = useIsMobile()
 
   if (isLoading || !data) {
     return (
@@ -210,6 +108,8 @@ export function EnvironmentOverview() {
     )
   }
 
+  if (isMobile) return <EnvironmentPhone sections={data.sections} />
+
   const q = query.trim().toLowerCase()
   const totalOverridden = data.sections.reduce(
     (n, s) => n + s.fields.filter(isOverridden).length,
@@ -220,13 +120,7 @@ export function EnvironmentOverview() {
       ...section,
       overriddenCount: section.fields.filter(isOverridden).length,
       fields: section.fields.filter(
-        (f) =>
-          (!overriddenOnly || isOverridden(f)) &&
-          (!q ||
-            f.key.toLowerCase().includes(q) ||
-            (f.envVar ?? "").toLowerCase().includes(q) ||
-            section.title.toLowerCase().includes(q) ||
-            (f.description ?? "").toLowerCase().includes(q)),
+        (f) => (!overriddenOnly || isOverridden(f)) && fieldMatches(f, section, q),
       ),
     }))
     .filter((section) => section.fields.length > 0)
@@ -254,7 +148,6 @@ export function EnvironmentOverview() {
           </div>
           <Button
             size="sm"
-            className="pointer-coarse:h-10"
             variant={overriddenOnly ? "secondary" : "outline"}
             onClick={() => setOverriddenOnly((v) => !v)}
             aria-pressed={overriddenOnly}
@@ -264,12 +157,7 @@ export function EnvironmentOverview() {
           </Button>
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <StatusLed tone="accent" />
-            {totalOverridden} of{" "}
-            {data.sections.reduce(
-              (n, s) => n + s.fields.filter((f) => f.envVar).length,
-              0,
-            )}{" "}
-            settings
+            {totalOverridden} of {envSettingCount(data.sections)} settings
             overridden by env
           </span>
         </div>
@@ -278,15 +166,16 @@ export function EnvironmentOverview() {
           {sections.map((section) => {
             const Icon = sectionIcons[section.name] ?? Settings2
             return (
-              <button
+              <Button
                 key={section.name}
-                type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => jumpTo(section.name)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                className="h-auto gap-1.5 border-border/60 py-1 font-normal text-muted-foreground hover:border-primary/40 hover:bg-transparent dark:hover:bg-transparent"
               >
-                <Icon className="h-3 w-3 text-primary" />
+                <Icon className="text-primary" />
                 {section.title}
-              </button>
+              </Button>
             )
           })}
         </div>
