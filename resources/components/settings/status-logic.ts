@@ -474,3 +474,81 @@ export function loginMethodBadges(status: OidcStatus | undefined): string[] {
     status.idpLogout ? "IdP logout on" : "IdP logout off",
   ]
 }
+
+/** One row in the phone Status page's problem list: an operator advisory or
+ *  an agent that needs attention. */
+export interface StatusProblem {
+  id: string
+  tone: "red" | "amber"
+  label: string
+  detail?: string
+  remedy?: string
+  docsUrl?: string
+  /** Set for agent problems: the agent to open on the Agents page. */
+  agentName?: string
+}
+
+/** Advisories and agent problems in one list, critical ones first. */
+export function statusProblems(
+  advisories: readonly AdvisoryCard[],
+  agents: readonly { instanceName: string; tone: "red" | "amber"; summary: string; moreCount: number }[],
+): StatusProblem[] {
+  const rows: StatusProblem[] = [
+    ...advisories.map((card) => ({
+      id: card.id,
+      tone: card.tone === "red" ? ("red" as const) : ("amber" as const),
+      label: card.label,
+      detail: card.detail,
+      remedy: card.remedy,
+      docsUrl: card.docsUrl,
+    })),
+    ...agents.map((card) => ({
+      id: `agent-${card.instanceName}`,
+      tone: card.tone,
+      label: card.summary,
+      detail: agentMoreProblemsText(card.moreCount) ?? undefined,
+      agentName: card.instanceName,
+    })),
+  ]
+  return rows.sort((a, b) => Number(b.tone === "red") - Number(a.tone === "red"))
+}
+
+/** The phone verdict: how many things need attention, or the overall state. */
+export function verdictTitle(overall: CardState, problemCount: number): string {
+  if (overall.label === "Attention" && problemCount > 0) {
+    return problemCount === 1 ? "1 thing needs attention" : `${problemCount} things need attention`
+  }
+  return overall.label
+}
+
+const TONE_RANK: Record<LedTone, number> = { red: 4, amber: 3, accent: 2, emerald: 1, muted: 0 }
+
+/** The Scheduler tile: the worst job state as its light, and the next run. */
+export function schedulerSummary(
+  jobs: readonly SchedulerJobView[] | undefined,
+  isError: boolean,
+  now: number,
+): CardState {
+  if (isError) return { tone: "muted", label: "Unavailable" }
+  if (!jobs) return { tone: "muted", label: "Loading" }
+  const tone = jobs
+    .map((job) => schedulerJobState(job).tone)
+    .reduce<LedTone>((worst, next) => (TONE_RANK[next] > TONE_RANK[worst] ? next : worst), "muted")
+  const nextRun = jobs
+    .map((job) => job.nextRunTime)
+    .filter((time): time is string => !!time)
+    .sort((a, b) => Date.parse(a) - Date.parse(b))[0]
+  // The light alone doesn't reach a screen reader, so problems go in the text.
+  const failed = jobs.filter((job) => !job.running && job.lastStatus === "error").length
+  const missed = jobs.filter((job) => !job.running && job.lastStatus === "missed").length
+  const parts = [
+    jobs.length === 1 ? "1 job" : `${jobs.length} jobs`,
+    failed > 0 ? `${failed} failed` : null,
+    missed > 0 ? `${missed} missed` : null,
+  ]
+  return {
+    tone,
+    label: parts.filter(Boolean).join(", "),
+    detail: nextRun ? `Next ${relativeTime(nextRun, now)}` : undefined,
+  }
+}

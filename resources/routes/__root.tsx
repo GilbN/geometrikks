@@ -29,7 +29,7 @@ import { TimeRangeToolbar } from "@/components/time-range-toolbar"
 import { BrandScreen } from "@/components/brand/brand-screen"
 import { ErrorBanner } from "@/components/error-banner"
 import { Button } from "@/components/ui/button"
-import { RefreshCw, Home } from "lucide-react"
+import { ChevronLeft, RefreshCw, Home } from "lucide-react"
 import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
@@ -82,6 +82,16 @@ function AppBreadcrumb() {
               <BreadcrumbLink href="/settings">Settings</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="hidden md:block" />
+            {/* Phones have no settings nav on the page; this goes back to the list. */}
+            <BreadcrumbItem className="md:hidden">
+              <BreadcrumbLink asChild>
+                <Link to="/settings" className="-ml-1 flex min-h-10 items-center gap-0.5 pr-1">
+                  <ChevronLeft aria-hidden className="size-4" />
+                  Settings
+                </Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="md:hidden" />
           </>
         )}
         <BreadcrumbItem className="min-w-0">

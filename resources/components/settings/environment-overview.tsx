@@ -67,7 +67,7 @@ function formatValue(value: unknown): string {
   return String(value)
 }
 
-function isOverridden(field: SettingFieldView): boolean {
+export function isOverridden(field: SettingFieldView): boolean {
   // default null means dynamic default (default_factory); never emphasize
   if (field.default === null || field.default === undefined) return false
   return JSON.stringify(field.value) !== JSON.stringify(field.default)

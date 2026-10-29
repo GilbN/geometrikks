@@ -1,14 +1,6 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router"
 import { MapBackdrop } from "@/components/brand/backdrops"
 import { useChangelogUnseen } from "@/lib/queries"
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 export const Route = createFileRoute("/settings")({
   component: SettingsLayout,
@@ -36,18 +28,8 @@ function UnseenDot() {
 }
 
 function SettingsLayout() {
-  const navigate = Route.useNavigate()
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const activeTab = tabs.find((tab) => pathname.startsWith(tab.to)) ?? tabs[0]
   const changelogUnseen = useChangelogUnseen()
   const showsDot = (tab: (typeof tabs)[number]) => tab.to === "/settings/changelog" && changelogUnseen
-
-  const handleTabChange = (value: string) => {
-    const tab = tabs.find((candidate) => candidate.to === value)
-    if (tab) {
-      void navigate({ to: tab.to })
-    }
-  }
 
   return (
     <div className="relative min-h-full min-w-0">
@@ -55,19 +37,8 @@ function SettingsLayout() {
       {/* Glass cards, scoped to Settings: the backdrop shows through them
           softly instead of only between them. */}
       <div className="relative min-w-0 p-4 md:grid md:grid-cols-[11rem_minmax(0,1fr)] md:gap-8 md:p-6 [&_[data-slot=card]]:bg-glass-card [&_[data-slot=card]]:backdrop-blur-[2px]">
-      <Select value={activeTab.to} onValueChange={handleTabChange}>
-        <SelectTrigger aria-label="Settings section" className="mb-4 h-10 w-full bg-glass-card-strong backdrop-blur-[2px] md:hidden">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {tabs.map((tab) => (
-            <SelectItem key={tab.to} value={tab.to}>
-              {tab.label}
-              {showsDot(tab) && <UnseenDot />}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Phones reach the sections from the /settings list and come back
+          with the top bar's Settings link. */}
       <nav
         aria-label="Settings"
         className="relative hidden self-start rounded-xl bg-glass-card-strong p-3 ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px] md:sticky md:top-4 md:block"
