@@ -49,9 +49,11 @@ export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRan
 function CustomRangeFields({
   onApply,
   className = "w-64",
+  inputClassName,
 }: {
   onApply: (r: CustomTimeRange) => void
   className?: string
+  inputClassName?: string
 }) {
   const { customRange } = useTimeRange()
   const toLocal = (iso?: string) => {
@@ -66,9 +68,9 @@ function CustomRangeFields({
   return (
     <div className={cn("flex flex-col gap-2 p-2", className)}>
       <label className="text-xs text-muted-foreground">From</label>
-      <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+      <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClassName} />
       <label className="text-xs text-muted-foreground">To</label>
-      <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
+      <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={inputClassName} />
       <Button
         size="sm"
         disabled={!valid}
@@ -160,6 +162,10 @@ export function TimeRangePicker({
               <TabsContent value="custom" forceMount className="pt-2 data-[state=inactive]:hidden">
                 <CustomRangeFields
                   className="w-full px-0"
+                  // iOS Safari sizes its native date control by its content
+                  // and ignores width: 100% unless the native look is off,
+                  // and it centers the value.
+                  inputClassName="block appearance-none text-left [&::-webkit-date-and-time-value]:text-left"
                   onApply={(r) => {
                     setCustomRange(r)
                     setRangeDrawerOpen(false)
