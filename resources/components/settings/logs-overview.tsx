@@ -4,10 +4,11 @@
  * traceback dialog for exceptions, a full-record detail dialog, and a
  * downloads tab for the raw files behind the stream.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Archive,
+  ArrowUp,
   ChevronsUpDown,
   Download,
   FolderDown,
@@ -43,8 +44,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
-  Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -56,6 +55,9 @@ import { useLogFiles, useLogTail, queryKeys } from "@/lib/queries"
 import { logStream, type LogRecord, type LogStreamStatus } from "@/lib/logstream"
 import { apiV1LogsRotateRotate } from "@/generated/api/sdk.gen"
 import type { LogFileView } from "@/generated/api/types.gen"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 
 const MAX_RECORDS = 2000
 const FLOW_IDLE_MS = 2000
@@ -130,6 +132,104 @@ interface Entry {
   record: LogRecord
 }
 
+/** Below this card width a log line goes on two lines, the message on its own. */
+const LOG_NARROW_WIDTH = 640
+
+const LOG_COLUMNS = [
+  { key: "time" },
+  { key: "level" },
+  { key: "component" },
+  { key: "message", grow: true },
+  { key: "traceback" },
+] as const
+
+const getEntryKey = (entry: Entry) => entry.id
+
+function LevelBadge({ level }: { level: string | null | undefined }) {
+  return (
+    <Badge variant="outline" className={cn("gap-1 uppercase", levelBadgeClasses[level ?? ""] ?? levelBadgeClasses.info)}>
+      {level ?? "info"}
+    </Badge>
+  )
+}
+
+function LogMessage({ record, className }: { record: LogRecord; className?: string }) {
+  const context = formatContext(record)
+  const eventText = record.event ?? "(no message)"
+  return (
+    <span className={cn("font-mono text-xs", className)} title={context ? `${eventText} ${context}` : eventText}>
+      {eventText}
+      {context ? <span className="text-muted-foreground"> {context}</span> : null}
+    </span>
+  )
+}
+
+function TracebackButton({ record, onOpen }: { record: LogRecord; onOpen: (record: LogRecord) => void }) {
+  if (typeof record.exception !== "string" || record.exception.length === 0) return null
+  return (
+    <span {...stopRowActivation}>
+      <Button variant="ghost" size="icon-sm" aria-label="View traceback" onClick={() => onOpen(record)}>
+        <Layers className="h-3.5 w-3.5" />
+      </Button>
+    </span>
+  )
+}
+
+/** Passes the props VirtualTableBody adds (its measuring ref, index and role)
+ *  on to the row element. */
+function LogRow({
+  entry,
+  narrow,
+  onOpenRecord,
+  onOpenTraceback,
+  ...rowProps
+}: ComponentProps<"tr"> & {
+  entry: Entry
+  narrow: boolean
+  onOpenRecord: (record: LogRecord) => void
+  onOpenTraceback: (record: LogRecord) => void
+}) {
+  const record = entry.record
+  const activation = { ...rowActivation<HTMLTableRowElement>(() => onOpenRecord(record)), ...rowProps }
+  const time = record.timestamp ? new Date(record.timestamp) : null
+  if (narrow) {
+    return (
+      <TableRow {...activation}>
+        <TableCell className="py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <LevelBadge level={record.level} />
+            <MonoChip className="min-w-0 truncate">{component(record)}</MonoChip>
+            <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground" title={time?.toLocaleString()}>
+              {time ? time.toLocaleTimeString() : "-"}
+            </span>
+            <TracebackButton record={record} onOpen={onOpenTraceback} />
+          </div>
+          <LogMessage record={record} className="mt-1 line-clamp-2 break-all whitespace-normal" />
+        </TableCell>
+      </TableRow>
+    )
+  }
+  return (
+    <TableRow {...activation}>
+      <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
+        <span title={time?.toLocaleString()}>{time ? time.toLocaleTimeString() : "-"}</span>
+      </TableCell>
+      <TableCell className="w-24 py-1.5">
+        <LevelBadge level={record.level} />
+      </TableCell>
+      <TableCell className="w-28 py-1.5">
+        <MonoChip>{component(record)}</MonoChip>
+      </TableCell>
+      <TableCell className="w-full max-w-0 py-1.5">
+        <LogMessage record={record} className="block truncate" />
+      </TableCell>
+      <TableCell className="w-10 py-1.5">
+        <TracebackButton record={record} onOpen={onOpenTraceback} />
+      </TableCell>
+    </TableRow>
+  )
+}
+
 export function LogsOverview() {
   const { data: tailRecords } = useLogTail(500)
   const { data: loginTailRecords } = useLogTail(500, "login")
@@ -156,9 +256,14 @@ export function LogsOverview() {
   const flowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [paused, setPaused] = useState(false)
+  // New lines also wait while the list is scrolled down, so they don't push
+  // away the lines being read. They flow again at the top.
+  const [scrolledAway, setScrolledAway] = useState(false)
   const pausedRef = useRef(false)
   const pausedBufferRef = useRef<LogRecord[]>([])
   const [pendingCount, setPendingCount] = useState(0)
+  const [pendingLoginCount, setPendingLoginCount] = useState(0)
+  const pauseButtonRef = useRef<HTMLButtonElement | null>(null)
   const [totalDropped, setTotalDropped] = useState(0)
 
   const [levelFilters, setLevelFilters] = useState<string[]>([])
@@ -168,6 +273,42 @@ export function LogsOverview() {
 
   const [selected, setSelected] = useState<LogRecord | null>(null)
   const [tracebackRecord, setTracebackRecord] = useState<LogRecord | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>(LOG_NARROW_WIDTH)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const wrapperRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      listRef.current = element
+      layoutRef(element)
+    },
+    [layoutRef],
+  )
+  /** Back to the newest line: the top of the list's own box, or of the page. */
+  function showNewest() {
+    const list = listRef.current
+    const box = list?.querySelector("table")?.parentElement
+    if (!list || !box) return
+    if (box.scrollHeight > box.clientHeight + 1) {
+      box.scrollTo({ top: 0 })
+      return
+    }
+    const main = list.closest("main")
+    if (main) main.scrollTo({ top: main.scrollTop + list.getBoundingClientRect().top - main.getBoundingClientRect().top })
+  }
+  // These dialogs have no trigger for Radix to return focus to, so remember
+  // what opened them: the row, or its traceback button.
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const openRecord = (record: LogRecord) => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setSelected(record)
+  }
+  const openTraceback = (record: LogRecord) => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setTracebackRecord(record)
+  }
+  const returnFocus = (event: Event) => {
+    event.preventDefault()
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus()
+  }
 
   function toEntries(records: LogRecord[]): Entry[] {
     return records.map((record) => {
@@ -201,9 +342,24 @@ export function LogsOverview() {
     }
   }, [loginTailRecords])
 
+  function flushBuffer() {
+    const buffered = pausedBufferRef.current
+    pausedBufferRef.current = []
+    setPendingCount(0)
+    setPendingLoginCount(0)
+    if (buffered.length > 0) {
+      setEntries((prev) => appendCapped(prev, buffered))
+      const loginBuffered = buffered.filter((r) => r.logger === LOGIN_LOGGER_NAME)
+      if (loginBuffered.length > 0) {
+        setLoginEntries((prev) => appendCapped(prev, loginBuffered))
+      }
+    }
+  }
+
   useEffect(() => {
-    pausedRef.current = paused
-  }, [paused])
+    pausedRef.current = paused || scrolledAway
+    if (!paused && !scrolledAway) flushBuffer()
+  }, [paused, scrolledAway])
 
   useEffect(() => {
     const unsubscribeRecords = logStream.onRecords((records, dropped) => {
@@ -220,6 +376,7 @@ export function LogsOverview() {
         if (overflow > 0) setTotalDropped((d) => d + overflow)
         pausedBufferRef.current = combined.slice(-MAX_RECORDS)
         setPendingCount(pausedBufferRef.current.length)
+        setPendingLoginCount(pausedBufferRef.current.filter((r) => r.logger === LOGIN_LOGGER_NAME).length)
         return
       }
 
@@ -240,24 +397,13 @@ export function LogsOverview() {
   }, [])
 
   function togglePause() {
-    if (paused) {
-      const buffered = pausedBufferRef.current
-      pausedBufferRef.current = []
-      setPendingCount(0)
-      setPaused(false)
-      if (buffered.length > 0) {
-        setEntries((prev) => appendCapped(prev, buffered))
-        const loginBuffered = buffered.filter((r) => r.logger === LOGIN_LOGGER_NAME)
-        if (loginBuffered.length > 0) {
-          setLoginEntries((prev) => appendCapped(prev, loginBuffered))
-        }
-      }
-    } else {
-      setPaused(true)
-    }
+    // Resuming further down the list shows what was held, like the pill does.
+    if (paused && scrolledAway) showNewest()
+    setPaused((current) => !current)
   }
 
   const activeEntries = activeTab === "login" ? loginEntries : entries
+  const activePending = activeTab === "login" ? pendingLoginCount : pendingCount
 
   const components = useMemo(() => {
     const set = new Set<string>()
@@ -296,7 +442,8 @@ export function LogsOverview() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      {/* Clips like the default but lets the new-lines pill stick to the page. */}
+      <Card className="overflow-clip">
         <CardHeader>
           <Tabs
             value={activeTab}
@@ -418,12 +565,13 @@ export function LogsOverview() {
             <Button
               variant="outline"
               size="sm"
+              ref={pauseButtonRef}
               onClick={togglePause}
             >
               {paused ? (
                 <>
                   <Play className="mr-1.5 h-3.5 w-3.5" />
-                  {pendingCount > 0 ? `Resume (${pendingCount} new)` : "Resume"}
+                  {activePending > 0 ? `Resume (${activePending} new)` : "Resume"}
                 </>
               ) : (
                 <>
@@ -500,111 +648,78 @@ export function LogsOverview() {
             </div>
           </div>
 
-          <Table
-            containerClassName="max-h-[65vh] overflow-y-auto rounded-md border"
-          >
-            <TableHeader>
-              <TableRow>
-                <TableHead className="sticky top-0 z-10 w-24 bg-card">Time</TableHead>
-                <TableHead className="sticky top-0 z-10 w-24 bg-card">Level</TableHead>
-                <TableHead className="sticky top-0 z-10 w-28 bg-card">Component</TableHead>
-                <TableHead className="sticky top-0 z-10 bg-card">Message</TableHead>
-                <TableHead className="sticky top-0 z-10 w-10 bg-card" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((entry) => {
-                const r = entry.record
-                const hasTraceback = typeof r.exception === "string" && r.exception.length > 0
-                return (
-                  <TableRow
-                    key={entry.id}
-                    tabIndex={0}
-                    role="button"
-                    className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                    onClick={() => setSelected(r)}
-                    onKeyDown={(e) => {
-                      // Only react when the row itself is the event target: a
-                      // native keydown on a nested control (the traceback
-                      // button) still bubbles up here even though its click
-                      // handler calls stopPropagation, since that only stops
-                      // the click event, not this separate keydown binding.
-                      if (e.target !== e.currentTarget) return
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault()
-                        setSelected(r)
-                      }
-                    }}
+          <div ref={wrapperRef} className="min-w-0">
+            {filtered.length === 0 ? (
+              <p className="flex h-24 items-center justify-center rounded-md border text-center text-sm text-muted-foreground">
+                {activeEntries.length === 0
+                  ? "Waiting for log lines..."
+                  : "No log lines match the current filters."}
+              </p>
+            ) : (
+              <div className="overflow-clip rounded-md border">
+                {/* Zero height, so the pill floats over the list without moving it.
+                    The box clips rather than hides its overflow: hidden would make
+                    it the pill's sticky container, and the pill would scroll away. */}
+                <div className="sticky top-2 z-20 flex h-0 justify-center">
+                  {!paused && scrolledAway && activePending > 0 && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="mt-2 rounded-full shadow-md"
+                      onClick={() => {
+                        showNewest()
+                        // The pill goes away once the lines show; keep keyboard focus in the card.
+                        pauseButtonRef.current?.focus({ preventScroll: true })
+                      }}
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                      {activePending.toLocaleString()} new {activePending === 1 ? "line" : "lines"}
+                    </Button>
+                  )}
+                </div>
+                <VirtualTable
+                  narrow={narrow}
+                  columns={LOG_COLUMNS}
+                  rowCount={filtered.length}
+                  resetKey={JSON.stringify([activeTab, levelFilters, componentFilters, search])}
+                >
+                  {!narrow && (
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-24">Time</TableHead>
+                        <TableHead className="w-24">Level</TableHead>
+                        <TableHead className="w-28">Component</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead className="w-10" />
+                      </TableRow>
+                    </TableHeader>
+                  )}
+                  <VirtualTableBody
+                    key={narrow ? "narrow" : "wide"}
+                    rows={filtered}
+                    columnCount={narrow ? 1 : LOG_COLUMNS.length}
+                    getRowKey={getEntryKey}
+                    onAwayFromTopChange={setScrolledAway}
                   >
-                    <TableCell className="w-24 py-1.5 text-xs tabular-nums text-muted-foreground">
-                      <span title={r.timestamp ? new Date(r.timestamp).toLocaleString() : undefined}>
-                        {r.timestamp ? new Date(r.timestamp).toLocaleTimeString() : "-"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="w-24 py-1.5">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "gap-1 uppercase",
-                          levelBadgeClasses[r.level ?? ""] ?? levelBadgeClasses.info,
-                        )}
-                      >
-                        {r.level ?? "info"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="w-28 py-1.5">
-                      <MonoChip>{component(r)}</MonoChip>
-                    </TableCell>
-                    <TableCell className="w-full max-w-0 py-1.5">
-                      {(() => {
-                        const context = formatContext(r)
-                        const eventText = r.event ?? "(no message)"
-                        return (
-                          <span
-                            className="block truncate font-mono text-xs"
-                            title={context ? `${eventText} ${context}` : eventText}
-                          >
-                            {eventText}
-                            {context ? <span className="text-muted-foreground"> {context}</span> : null}
-                          </span>
-                        )
-                      })()}
-                    </TableCell>
-                    <TableCell className="w-10 py-1.5">
-                      {hasTraceback ? (
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="View traceback"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setTracebackRecord(r)
-                          }}
-                        >
-                          <Layers className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                    {activeEntries.length === 0
-                      ? "Waiting for log lines..."
-                      : "No log lines match the current filters."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                    {(entry) => (
+                      <LogRow
+                        entry={entry}
+                        narrow={narrow}
+                        onOpenRecord={openRecord}
+                        onOpenTraceback={openTraceback}
+                      />
+                    )}
+                  </VirtualTableBody>
+                </VirtualTable>
+              </div>
+            )}
+          </div>
         </CardContent>
         )}
       </Card>
 
       <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={returnFocus}>
           {selected && (
             <>
               <DialogHeader>
@@ -637,7 +752,7 @@ export function LogsOverview() {
         open={tracebackRecord !== null}
         onOpenChange={(open) => !open && setTracebackRecord(null)}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={returnFocus}>
           {tracebackRecord && (
             <>
               <DialogHeader>
