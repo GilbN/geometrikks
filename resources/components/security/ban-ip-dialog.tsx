@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { undoIpAction } from "@/lib/pending-ip-actions"
+import { flushIpActions } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
   BAN_DURATIONS,
@@ -48,7 +48,8 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
   const ban = useBanIp()
   const rangeSize = rangeSizeLabel(ip.trim())
 
-  const submit = () => {
+  const [flushing, setFlushing] = useState(false)
+  const submit = async () => {
     const target = ip.trim()
     if (!isValidBanTarget(target)) {
       setError("Enter a full IPv4 or IPv6 address, or a range such as 203.0.113.0/24.")
@@ -60,11 +61,15 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
       return
     }
     setError(null)
-    // A ban or unban of this IP still in its undo window would land after
-    // this one and undo it; the form is the newer intent.
-    undoIpAction(target)
-    // The backend treats a single-address range as the address itself.
-    undoIpAction(target.replace(/\/(32|128)$/, ""))
+    // A ban or unban still in its undo window would land after this one and
+    // could undo it, even under another spelling of the same address or
+    // range. Sending those first keeps the form, the newer intent, last.
+    setFlushing(true)
+    try {
+      await flushIpActions()
+    } finally {
+      setFlushing(false)
+    }
     ban.mutate(
       { ip: target, duration, reason: reason.trim() || undefined, type },
       {
@@ -76,7 +81,7 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
     )
   }
 
-  const submitOnEnter = (event: React.KeyboardEvent) => event.key === "Enter" && submit()
+  const submitOnEnter = (event: React.KeyboardEvent) => event.key === "Enter" && void submit()
 
   return (
     <>
@@ -157,7 +162,7 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
         <Button variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button variant="destructive" onClick={submit} disabled={ban.isPending || !ip.trim()}>
+        <Button variant="destructive" onClick={submit} disabled={flushing || ban.isPending || !ip.trim()}>
           {ban.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
           {type === "ban" ? "Ban" : "Require captcha"}
         </Button>

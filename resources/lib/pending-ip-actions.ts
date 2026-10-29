@@ -97,11 +97,16 @@ function failure(action: PendingIpAction, error: unknown) {
 /** Clears the entry once fresh CrowdSec data is in, so the controls never
  *  show the state from before the request in between. */
 async function settle(ip: string) {
+  // Within reason: a stalled CrowdSec request must not leave the controls
+  // pending, or logout waiting, for good.
+  const deadline = Date.now() + 10_000
   try {
-    await queryClient?.invalidateQueries({ queryKey: ["crowdsec"] })
+    await Promise.race([
+      queryClient?.invalidateQueries({ queryKey: ["crowdsec"] }),
+      new Promise((resolve) => window.setTimeout(resolve, 10_000)),
+    ])
     // Another action settling meanwhile cancels and restarts this refetch,
-    // so wait until no CrowdSec query is still fetching, within reason.
-    const deadline = Date.now() + 10_000
+    // so wait until no CrowdSec query is still fetching.
     while (queryClient && queryClient.isFetching({ queryKey: ["crowdsec"] }) > 0 && Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, 100))
     }
