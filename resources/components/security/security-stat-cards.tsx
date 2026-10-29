@@ -5,6 +5,7 @@
 import { Radio, ShieldBan, ShieldCheck, UserRound } from "lucide-react"
 import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
 import { useCrowdsecStats, useCrowdsecStatus } from "@/lib/queries"
+import { scenarioText } from "@/lib/scenario-name"
 
 /** Origins created on this box rather than pulled from the crowd. */
 const LOCAL_ORIGINS = new Set(["crowdsec", "cscli", "geometrikks"])
@@ -53,7 +54,7 @@ export function SecurityStatCards() {
       />
       <StatCard
         title="Top scenario"
-        value={topScenario ? shortScenario(topScenario.scenario) : "-"}
+        value={topScenario ? scenarioText(topScenario.scenario) : "-"}
         valueClassName="text-lg truncate"
         subtitle={
           topScenario
@@ -74,9 +75,4 @@ export function SecurityStatCards() {
       />
     </div>
   )
-}
-
-/** "crowdsecurity/ssh-bf" reads better as "ssh-bf" in a card. */
-function shortScenario(scenario: string): string {
-  return scenario.split("/").pop() ?? scenario
 }

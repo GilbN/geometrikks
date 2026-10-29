@@ -7,16 +7,17 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { ChevronRight, Loader2, ShieldOff } from "lucide-react"
-import { CountryLabel } from "@/components/country-flag"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { ScenarioLabel } from "@/components/crowdsec/scenario-label"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import type { DecisionGroupView, GroupedDecisionView } from "@/generated/api/types.gen"
 import { crowdsecErrorMessage, distinctScenarioCount } from "@/lib/crowdsec"
-import { decisionHasAlert } from "@/lib/crowdsec-alerts"
+import { decisionHasAlert, formatTimeLeft, timeLeftText } from "@/lib/crowdsec-alerts"
 import { useUnbanIp } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import type { DecisionRef } from "./alert-detail-sheet"
@@ -25,6 +26,8 @@ type Props = {
   group: DecisionGroupView
   writeEnabled: boolean
   dimmed: boolean
+  /** One cell per row on two lines, for a narrow card. */
+  narrow?: boolean
   onOpenAlert: (decision: DecisionRef) => void
 }
 
@@ -41,10 +44,10 @@ function alertActivationFor({ group, writeEnabled, onOpenAlert }: Props) {
   }
 }
 
-function ScenarioCell({ scenario }: { scenario: string }) {
+function ScenarioCell({ scenario, shownOrigins }: { scenario: string; shownOrigins: readonly string[] }) {
   return (
-    <TableCell className="max-w-[260px] truncate font-mono text-xs" title={scenario}>
-      {scenario}
+    <TableCell className="max-w-[260px]">
+      <ScenarioLabel scenario={scenario} shownOrigins={shownOrigins} className="max-w-full" />
     </TableCell>
   )
 }
@@ -75,7 +78,7 @@ function UnbanButton({ group }: { group: DecisionGroupView }) {
 }
 
 export function DecisionGroupRows(props: Props) {
-  const { group, writeEnabled, dimmed } = props
+  const { group, writeEnabled, dimmed, narrow = false } = props
   const [open, setOpen] = useState(false)
   const alertActivation = alertActivationFor(props)
   const multiple = group.decisionCount > 1
@@ -91,16 +94,89 @@ export function DecisionGroupRows(props: Props) {
       }
     : alertActivation(group.decisions[0])
 
+  const chevron = multiple && (
+    <ChevronRight
+      aria-hidden
+      className={cn("mr-1 inline size-3.5 align-middle text-muted-foreground transition-transform", open && "rotate-90")}
+    />
+  )
+  const scenarioSummary = scenarioCount > 1 ? (
+    <span className="text-xs text-muted-foreground">{scenarioCount} scenarios</span>
+  ) : (
+    <ScenarioLabel scenario={group.decisions[0].scenario} />
+  )
+
+  if (narrow) {
+    return (
+      <>
+        <TableRow {...summary} className={cn(summary?.className, dimmed && "opacity-60")}>
+          <TableCell className="py-2.5">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {chevron}
+              <CountryFlag code={countryCode} name={group.countryName} standalone />
+              <span className="min-w-0 truncate font-mono">{group.ip}</span>
+              {isIp ? (
+                <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
+              ) : (
+                <Badge variant="outline" className="shrink-0">{group.scope}</Badge>
+              )}
+              <span className="ml-auto flex shrink-0 items-center gap-1">
+                <DecisionBadge type={group.type} />
+                {/* Ranges have no IP actions menu, so they keep their own unban button. */}
+                {writeEnabled && group.scope === "Range" && (
+                  <span {...stopRowActivation}>
+                    <UnbanButton group={group} />
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+              <span className="flex min-w-0 flex-1 items-center">{scenarioSummary}</span>
+              {(group.requestCount24h ?? 0) > 0 && (
+                <span className="shrink-0 font-semibold tabular-nums text-amber-500" title="Requests in this server's logs in the last 24 hours">
+                  {group.requestCount24h} seen
+                </span>
+              )}
+              <span
+                className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground"
+                title={multiple ? "When the last of these decisions expires" : undefined}
+              >
+                {timeLeftText(group.duration)}
+              </span>
+            </div>
+          </TableCell>
+        </TableRow>
+        {open &&
+          group.decisions.map((decision, index) => {
+            const activation = alertActivation(decision)
+            return (
+              <TableRow
+                key={decision.id ?? index}
+                {...activation}
+                className={cn("bg-muted/30 hover:bg-muted/40", activation?.className, dimmed && "opacity-60")}
+              >
+                <TableCell className="py-2 pl-7">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <DecisionBadge type={decision.type} />
+                    <ScenarioLabel scenario={decision.scenario} shownOrigins={[decision.origin]} className="flex-1" />
+                  </div>
+                  <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="truncate">{decision.origin}</span>
+                    <span className="shrink-0 whitespace-nowrap tabular-nums">{timeLeftText(decision.duration)}</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+      </>
+    )
+  }
+
   return (
     <>
       <TableRow {...summary} className={cn(summary?.className, dimmed && "opacity-60")}>
         <TableCell className="font-mono">
-          {multiple && (
-            <ChevronRight
-              aria-hidden
-              className={cn("mr-1 inline size-3.5 align-middle text-muted-foreground transition-transform", open && "rotate-90")}
-            />
-          )}
+          {chevron}
           {group.ip}
           {isIp ? (
             <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
@@ -125,13 +201,13 @@ export function DecisionGroupRows(props: Props) {
         {scenarioCount > 1 ? (
           <TableCell className="text-xs text-muted-foreground">{scenarioCount} scenarios</TableCell>
         ) : (
-          <ScenarioCell scenario={group.decisions[0].scenario} />
+          <ScenarioCell scenario={group.decisions[0].scenario} shownOrigins={group.origins} />
         )}
         <TableCell
           className="whitespace-nowrap tabular-nums"
           title={multiple ? "When the last of these decisions expires" : undefined}
         >
-          {group.duration}
+          {formatTimeLeft(group.duration)}
         </TableCell>
         <TableCell
           className={cn("text-right tabular-nums", (group.requestCount24h ?? 0) > 0 && "font-semibold text-amber-500")}
@@ -157,8 +233,8 @@ export function DecisionGroupRows(props: Props) {
               <TableCell>
                 <Badge variant="secondary">{decision.origin}</Badge>
               </TableCell>
-              <ScenarioCell scenario={decision.scenario} />
-              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{decision.duration}</TableCell>
+              <ScenarioCell scenario={decision.scenario} shownOrigins={[decision.origin]} />
+              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{formatTimeLeft(decision.duration)}</TableCell>
               <TableCell colSpan={writeEnabled ? 2 : 1} />
             </TableRow>
           )

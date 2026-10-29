@@ -1,5 +1,6 @@
 /** Shaping helpers for the CrowdSec alert history and detail sheet. */
 import type { AlertContextView, AlertEventView, AlertView, ScenarioCount } from "@/generated/api/types.gen"
+import { scenarioName } from "@/lib/scenario-name"
 
 /** Alerts per page of the alert history; "Load older" fetches another page this size. */
 export const ALERT_PAGE_SIZE = 50
@@ -51,7 +52,7 @@ export function scenarioOptions(counts: readonly ScenarioCount[] | undefined, se
 }
 
 function scenarioShortName(scenario: string): string {
-  return scenario.split("/").at(-1) ?? scenario
+  return scenarioName(scenario).name
 }
 
 /** "http-probing · 41", or the bare name while the count is unknown. */
@@ -428,6 +429,29 @@ export function formatGoDuration(value: string): string | null {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
   const minutes = Math.round(seconds / 60)
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+/** A decision longer than this reads as permanent; CrowdSec has no "forever". */
+const FOREVER_MS = 5 * 365 * 24 * 3_600_000
+
+/** A decision's remaining time, "6d 21h", "3h 49m", "47m", or "Forever". */
+export function formatTimeLeft(value: string): string {
+  const ms = goDurationMs(value)
+  if (ms === null) return value
+  if (ms >= FOREVER_MS) return "Forever"
+  const minutes = Math.floor(ms / 60_000)
+  if (minutes < 1) return "under 1m"
+  const days = Math.floor(minutes / 1440)
+  const hours = Math.floor((minutes % 1440) / 60)
+  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`
+  if (hours > 0) return minutes % 60 > 0 ? `${hours}h ${minutes % 60}m` : `${hours}h`
+  return `${minutes}m`
+}
+
+/** formatTimeLeft for a line of its own: "3h 49m left", or just "Forever". */
+export function timeLeftText(value: string): string {
+  const timeLeft = formatTimeLeft(value)
+  return timeLeft === "Forever" ? timeLeft : `${timeLeft} left`
 }
 
 const OVERFLOW_MESSAGE = /^Ip (\S+) performed '.*' \((\d+) events over (\S+)\) at /

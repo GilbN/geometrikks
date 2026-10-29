@@ -28,7 +28,7 @@ export function IpLabel({
   if (decision === null) return <span className={cn("font-mono", className)}>{ip}</span>
   return (
     <span
-      className={cn("-ml-1.5 rounded-md px-1.5 py-0.5 font-mono", decisionTone(decision), className)}
+      className={cn("relative -ml-1.5 rounded-md px-1.5 py-0.5 font-mono", decisionTone(decision), className)}
       title={title?.(decision) ?? `Active CrowdSec ${decision} decision`}
     >
       {ip}

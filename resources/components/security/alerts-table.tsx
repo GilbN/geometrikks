@@ -47,6 +47,7 @@ import {
 } from "@/components/security/alert-filter-controls"
 import { AlertKindHelp } from "@/components/security/alert-kind-help"
 import { AlertRunRows } from "@/components/security/alert-run-rows"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
 import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
@@ -109,6 +110,7 @@ export function AlertsTable() {
     kind,
   })
   const [selected, setSelected] = useState<AlertView | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<ReadonlySet<string>>(() => new Set())
 
   const scenarioPickerEnabled = scenarioFilterAllowed(kind)
@@ -191,7 +193,7 @@ export function AlertsTable() {
   )
 
   return (
-    <Card className="py-4">
+    <Card ref={layoutRef} className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
         <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
@@ -237,28 +239,37 @@ export function AlertsTable() {
       )}
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Scenario</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>AS</TableHead>
-                <TableHead>Machine</TableHead>
-                <TableHead className="text-right">Events</TableHead>
-                <TableHead>Outcome</TableHead>
-              </TableRow>
-            </TableHeader>
+          <Table className={narrow ? "table-fixed" : undefined}>
+            {!narrow && (
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Scenario</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>AS</TableHead>
+                  <TableHead>Machine</TableHead>
+                  <TableHead className="text-right">Events</TableHead>
+                  <TableHead>Outcome</TableHead>
+                </TableRow>
+              </TableHeader>
+            )}
             <TableBody>
               {isLoading
                 ? Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 8 }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-4 w-full" />
+                      {narrow ? (
+                        <TableCell className="space-y-2 py-3">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
                         </TableCell>
-                      ))}
+                      ) : (
+                        Array.from({ length: 8 }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))
+                      )}
                     </TableRow>
                   ))
                 : alerts && (
@@ -268,6 +279,7 @@ export function AlertsTable() {
                           key={alertRun.key}
                           run={alertRun}
                           open={isRunOpen(alertRun, expandedAlertKeys)}
+                          narrow={narrow}
                           onToggle={() => setExpandedAlertKeys((current) => toggleRun(current, alertRun))}
                           onOpenAlert={setSelected}
                         />
@@ -276,14 +288,14 @@ export function AlertsTable() {
                   )}
               {!isLoading && isError && !alerts && (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-destructive">
+                  <TableCell colSpan={narrow ? 1 : 8} className="h-24 text-center text-destructive">
                     {crowdsecErrorMessage(error, "Failed to load alerts; the CrowdSec LAPI may be unreachable.")}
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && !isError && alerts?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                  <TableCell colSpan={narrow ? 1 : 8} className="h-24 text-center text-muted-foreground">
                     {alertsEmptyMessage(kind)}
                   </TableCell>
                 </TableRow>

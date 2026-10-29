@@ -18,6 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpButton } from "./ban-ip-dialog"
@@ -47,13 +48,14 @@ export function DecisionsTable() {
     pageSize,
   })
   const [selected, setSelected] = useState<DecisionRef | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
 
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = status?.writeEnabled ? 9 : 8
+  const colCount = narrow ? 1 : status?.writeEnabled ? 9 : 8
 
   return (
-    <Card className="py-4">
+    <Card ref={layoutRef} className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         <div className="flex flex-wrap items-center gap-2">
@@ -77,29 +79,38 @@ export function DecisionsTable() {
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>IP / value</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>Origin</TableHead>
-                <TableHead>Scenario</TableHead>
-                <TableHead>Expires in</TableHead>
-                <TableHead className="text-right">Seen 24h</TableHead>
-                {status?.writeEnabled && <TableHead className="w-10" />}
-              </TableRow>
-            </TableHeader>
+          <Table className={narrow ? "table-fixed" : undefined}>
+            {!narrow && (
+              <TableHeader>
+                <TableRow>
+                  <TableHead>IP / value</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Origin</TableHead>
+                  <TableHead>Scenario</TableHead>
+                  <TableHead>Expires in</TableHead>
+                  <TableHead className="text-right">Seen 24h</TableHead>
+                  {status?.writeEnabled && <TableHead className="w-10" />}
+                </TableRow>
+              </TableHeader>
+            )}
             <TableBody>
               {isLoading
                 ? Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: colCount }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-4 w-full" />
+                      {narrow ? (
+                        <TableCell className="space-y-2 py-3">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
                         </TableCell>
-                      ))}
+                      ) : (
+                        Array.from({ length: colCount }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))
+                      )}
                     </TableRow>
                   ))
                 : data?.items.map((group) => (
@@ -108,6 +119,7 @@ export function DecisionsTable() {
                       group={group}
                       writeEnabled={status?.writeEnabled === true}
                       dimmed={isPlaceholderData}
+                      narrow={narrow}
                       onOpenAlert={setSelected}
                     />
                   ))}

@@ -7,20 +7,24 @@
  */
 import type { ReactNode } from "react"
 import { ChevronRight } from "lucide-react"
-import { CountryLabel } from "@/components/country-flag"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { rowActivation } from "@/components/data/row-activation"
+import { ScenarioLabel } from "@/components/crowdsec/scenario-label"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import type { AlertView } from "@/lib/api"
 import { alertOutcome, alertSummary, runScenarioLabel, type AlertRun } from "@/lib/crowdsec-alerts"
+import { formatRowTime } from "@/lib/row-time"
 import { cn } from "@/lib/utils"
 
 type Props = {
   run: AlertRun
   open: boolean
+  /** One cell per row on two lines, for a narrow card. */
+  narrow?: boolean
   onToggle: () => void
   onOpenAlert: (alert: AlertView) => void
 }
@@ -35,6 +39,9 @@ type AlertRowProps = {
   scenarioTrail?: ReactNode
   className?: string
   timeClassName?: string
+  narrow?: boolean
+  /** A sub-row of an expanded run, which shares the run's source. */
+  inRun?: boolean
 }
 
 function AlertRow({
@@ -46,6 +53,8 @@ function AlertRow({
   scenarioTrail,
   className,
   timeClassName,
+  narrow = false,
+  inRun = false,
 }: AlertRowProps) {
   const outcome = alertOutcome(alert)
   const activation = summary
@@ -60,6 +69,57 @@ function AlertRow({
           ...rowActivation<HTMLTableRowElement>(() => onOpenAlert(alert)),
         }
       : { "aria-label": `Alert, ${alert.scenario}, ${alert.value}`, className: undefined }
+  const scenario = scenarioLabel ? (
+    <span className="truncate text-xs text-muted-foreground">{scenarioLabel}</span>
+  ) : (
+    <ScenarioLabel scenario={alert.scenario} />
+  )
+  const source = alert.scope === "Ip" ? (
+    <>
+      <IpLabel
+        ip={alert.value}
+        className={narrow ? "truncate" : undefined}
+        title={(decisionType) =>
+          `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
+        }
+      />
+      <IpActionsMenu
+        ip={alert.value}
+        countryCode={alert.countryCode}
+        countryName={alert.countryName}
+        asOrganization={alert.asName}
+      />
+    </>
+  ) : (
+    <span className="min-w-0 truncate">{alert.value}</span>
+  )
+
+  if (narrow) {
+    return (
+      <TableRow {...activation} className={cn(activation?.className, className)}>
+        <TableCell className={cn("py-2.5", inRun && "pl-7")}>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {timeLead}
+            <span className="flex min-w-0 flex-1 items-center">{scenario}</span>
+            <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
+            {scenarioTrail}
+          </div>
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+            <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(alert.createdAt)}</span>
+            <span className={cn("min-w-16 flex-1 truncate", outcome.muted && "text-muted-foreground")}>{outcome.text}</span>
+            {/* A run shares one source, so its sub-rows leave it to the summary row. */}
+            {!inRun && (
+              <span className="flex min-w-0 max-w-[65%] items-center gap-1.5 font-mono">
+                <CountryFlag code={alert.countryCode} name={alert.countryName} standalone />
+                {source}
+              </span>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+    )
+  }
+
   return (
     <TableRow
       {...activation}
@@ -71,35 +131,12 @@ function AlertRow({
       </TableCell>
       <TableCell className="max-w-[280px]" title={scenarioLabel ? undefined : alertSummary(alert.message)}>
         <span className="flex items-center gap-1.5">
-          {scenarioLabel ? (
-            <span className="truncate text-xs text-muted-foreground">{scenarioLabel}</span>
-          ) : (
-            <span className="truncate font-mono text-xs" title={alert.scenario}>{alert.scenario}</span>
-          )}
+          {scenario}
           <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
           {scenarioTrail}
         </span>
       </TableCell>
-      <TableCell className="font-mono">
-        {alert.scope === "Ip" ? (
-          <>
-            <IpLabel
-              ip={alert.value}
-              title={(decisionType) =>
-                `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
-              }
-            />
-            <IpActionsMenu
-              ip={alert.value}
-              countryCode={alert.countryCode}
-              countryName={alert.countryName}
-              asOrganization={alert.asName}
-            />
-          </>
-        ) : (
-          alert.value
-        )}
-      </TableCell>
+      <TableCell className="font-mono">{source}</TableCell>
       <TableCell>
         {alert.countryCode || alert.countryName ? (
           <CountryLabel code={alert.countryCode} name={alert.countryName} />
@@ -121,11 +158,11 @@ function AlertRow({
   )
 }
 
-export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert }: Props) {
+export function AlertRunRows({ run: alertRun, open, narrow = false, onToggle, onOpenAlert }: Props) {
   const [newest] = alertRun.alerts
   const runSize = alertRun.alerts.length
   if (runSize === 1) {
-    return <AlertRow alert={newest} onOpenAlert={onOpenAlert} />
+    return <AlertRow alert={newest} onOpenAlert={onOpenAlert} narrow={narrow} />
   }
 
   return (
@@ -133,6 +170,7 @@ export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert }: Pro
       <AlertRow
         alert={newest}
         onOpenAlert={onOpenAlert}
+        narrow={narrow}
         summary={{ open, label: `${runSize} alerts from ${newest.value}`, onToggle }}
         scenarioLabel={runScenarioLabel(alertRun)}
         timeLead={
@@ -153,6 +191,8 @@ export function AlertRunRows({ run: alertRun, open, onToggle, onOpenAlert }: Pro
             onOpenAlert={onOpenAlert}
             className="bg-muted/30 hover:bg-muted/40"
             timeClassName="pl-9"
+            narrow={narrow}
+            inRun
           />
         ))}
     </>

@@ -38,6 +38,8 @@ import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { copyText } from "@/lib/clipboard"
 import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
+import { timeLeftText } from "@/lib/crowdsec-alerts"
+import { scenarioText } from "@/lib/scenario-name"
 import { countryLabel, type FilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
@@ -136,8 +138,8 @@ function DecisionDetail({ ip }: { ip: string }) {
   if (decision === null) return null
   return (
     <span className="flex max-w-80 gap-1">
-      <span className="truncate" title={decision.scenario}>{decision.scenario}</span>
-      <span className="shrink-0">· {decision.duration} left</span>
+      <span className="truncate" title={decision.scenario}>{scenarioText(decision.scenario)}</span>
+      <span className="shrink-0">· {timeLeftText(decision.duration)}</span>
     </span>
   )
 }
