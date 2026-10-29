@@ -6,6 +6,7 @@
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ResponsiveRadioMenu } from "@/components/responsive-radio-menu"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   CHART_SCALE_LABELS,
   chartOptionChips,
@@ -24,6 +25,7 @@ export function ChartOptionsMenu({
   spec: ChartOptionsSpec
   options: ChartOptionsState
 }) {
+  const isMobile = useIsMobile()
   const chips = chartOptionChips(options)
   const { view } = options
 
@@ -36,10 +38,14 @@ export function ChartOptionsMenu({
       trigger={
         <Button
           type="button"
-          variant="ghost"
-          size="xs"
+          variant={isMobile ? "outline" : "ghost"}
+          size={isMobile ? "default" : "xs"}
           aria-label={chartOptionsLabel(title, chips)}
-          className="gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
+          className={
+            isMobile
+              ? "min-w-9 gap-1.5 px-2 text-muted-foreground pointer-coarse:min-w-10"
+              : "gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
+          }
         >
           {chips.map((chip) => (
             <span key={chip} className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">

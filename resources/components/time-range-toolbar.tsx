@@ -124,12 +124,13 @@ export function TimeRangeToolbar() {
             refreshControls={{ chartBuckets: routeHeader.chartBuckets }}
             trigger={
               <Button
-                variant="outline"
                 size="sm"
                 aria-label={`Time range and refresh, ${rangeLabel}`}
-                className="shrink-0 gap-1 rounded-full border-primary/40 bg-primary/10 px-3 text-xs text-primary hover:bg-primary/15 hover:text-primary"
+                // The focus ring is the primary colour too, so it needs a gap
+                // to show against the filled pill.
+                className="shrink-0 gap-1 rounded-full px-3 text-xs font-semibold dark:border-transparent dark:bg-primary dark:text-primary-foreground hover:bg-primary/85 dark:hover:bg-primary/85 active:bg-primary/70 dark:active:bg-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                <span className="max-w-28 truncate">{rangeLabel}</span>
+                <span className="max-w-28 truncate tabular-nums">{rangeLabel}</span>
                 <ChevronDown aria-hidden className="size-3.5" />
               </Button>
             }
