@@ -5,8 +5,7 @@
  * the decision has one.
  */
 import { useState } from "react"
-import { toast } from "sonner"
-import { Loader2, ShieldOff } from "lucide-react"
+import { Loader2, ShieldOff, Undo2 } from "lucide-react"
 import { CountryLabel } from "@/components/country-flag"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,9 +15,9 @@ import { ScenarioLabel } from "@/components/crowdsec/scenario-label"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import type { DecisionGroupView, GroupedDecisionView } from "@/generated/api/types.gen"
-import { crowdsecErrorMessage, distinctScenarioCount } from "@/lib/crowdsec"
+import { distinctScenarioCount } from "@/lib/crowdsec"
 import { decisionHasAlert, formatTimeLeft, timeLeftText } from "@/lib/crowdsec-alerts"
-import { useUnbanIp } from "@/lib/queries"
+import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 import type { DecisionRef } from "./alert-detail-sheet"
 import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell, WRAPPING_BADGE_CLASS } from "./two-line-cell"
@@ -56,8 +55,25 @@ function ScenarioCell({ scenario, shownOrigins }: { scenario: string; shownOrigi
 }
 
 function UnbanButton({ group }: { group: DecisionGroupView }) {
-  const unban = useUnbanIp()
+  const { unban } = useIpActions()
+  const pendingAction = usePendingIpAction(group.ip)
+  const pending = pendingAction !== null
   const { ip } = group
+  // While the unban waits to be sent, this button undoes it.
+  if (pendingAction && !pendingAction.sending) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
+        title={`Undo the unban of ${ip}`}
+        aria-label={`Undo the unban of ${ip}`}
+        onClick={() => undoIpAction(ip)}
+      >
+        <Undo2 />
+      </Button>
+    )
+  }
   const title = group.scope === "Range"
     ? `Unban ${ip}. Removes every active decision on this range, from any origin.`
     : `Unban ${ip}. Removes every active decision on this IP, from any origin. A range decision covering it stays.`
@@ -67,21 +83,28 @@ function UnbanButton({ group }: { group: DecisionGroupView }) {
       size="icon-xs"
       className="text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
       title={title}
-      disabled={unban.isPending}
-      onClick={() =>
-        unban.mutate(ip, {
-          onError: (err) =>
-            toast.error(crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`)),
-        })
-      }
+      disabled={pending}
+      onClick={() => unban(ip)}
     >
-      {unban.isPending ? <Loader2 className="animate-spin" /> : <ShieldOff />}
+      {pending ? <Loader2 className="animate-spin" /> : <ShieldOff />}
     </Button>
   )
 }
 
+/** Stands in for the decision badge while an unban waits in the undo window. */
+function UnbanningBadge() {
+  return (
+    <Badge variant="outline" className="shrink-0 gap-1 text-muted-foreground">
+      <Loader2 className="animate-spin" />
+      Unbanning
+    </Badge>
+  )
+}
+
 export function DecisionGroupRows(props: Props) {
-  const { group, writeEnabled, dimmed, narrow = false, defaultOpen = false } = props
+  const { group, writeEnabled, narrow = false, defaultOpen = false } = props
+  const unbanning = usePendingIpAction(group.ip)?.action.kind === "unban"
+  const dimmed = props.dimmed || unbanning
   // A one-decision group has nothing to list under it.
   const [open, setOpen] = useState(defaultOpen && group.decisionCount > 1)
   const alertActivation = alertActivationFor(props)
@@ -125,7 +148,7 @@ export function DecisionGroupRows(props: Props) {
                 }
                 status={
                   <>
-                    <DecisionBadge type={group.type} className={WRAPPING_BADGE_CLASS} />
+                    {unbanning ? <UnbanningBadge /> : <DecisionBadge type={group.type} className={WRAPPING_BADGE_CLASS} />}
                     {/* Ranges have no IP actions menu, so they keep their own unban button. */}
                     {writeEnabled && group.scope === "Range" && (
                       <span {...stopRowActivation}>
@@ -196,7 +219,7 @@ export function DecisionGroupRows(props: Props) {
           )}
         </TableCell>
         <TableCell>
-          <DecisionBadge type={group.type} />
+          {unbanning ? <UnbanningBadge /> : <DecisionBadge type={group.type} />}
         </TableCell>
         <TableCell>
           {countryCode ? <CountryLabel code={countryCode} name={group.countryName} /> : "-"}

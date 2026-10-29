@@ -9,6 +9,9 @@
  * sources to report their attribution, then adds the compact classes in an
  * expanded state. The stored preference is applied at that moment, and only
  * class changes after it count as the user's choice.
+ *
+ * With `compact` off (phones) there is no toggle: the full text always shows,
+ * restyled as a line under the action card in main.css.
  */
 
 import { AttributionControl } from "maplibre-gl"
@@ -20,10 +23,10 @@ import { loadAttributionPreference, saveAttributionPreference } from "@/lib/map-
 const COMPACT_CLASS = "maplibregl-compact"
 const SHOW_CLASS = "maplibregl-compact-show"
 
-export function MapAttribution() {
+export function MapAttribution({ compact = true }: { compact?: boolean }) {
   const observer = useRef<MutationObserver | null>(null)
   useControl(
-    () => new AttributionControl({ compact: true }),
+    () => new AttributionControl({ compact }),
     ({ map }) => {
       const container = map.getContainer().querySelector<HTMLDetailsElement>(".maplibregl-ctrl-attrib")
       const button = container?.querySelector<HTMLElement>(".maplibregl-ctrl-attrib-button")

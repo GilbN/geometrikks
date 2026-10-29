@@ -3,7 +3,7 @@
  * a preset or custom duration, and a reason. It validates before sending,
  * and the server validates again and normalizes the range and duration.
  */
-import { useState, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { flushIpActions } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
   BAN_DURATIONS,
@@ -37,7 +38,7 @@ import {
 
 const CUSTOM_DURATION = "custom"
 
-function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => void }) {
+function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boolean; onDone: () => void }) {
   const [ip, setIp] = useState(initialIp)
   const [type, setType] = useState<BanDecisionType>("ban")
   const [preset, setPreset] = useState<string>("4h")
@@ -47,7 +48,22 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
   const ban = useBanIp()
   const rangeSize = rangeSizeLabel(ip.trim())
 
-  const submit = () => {
+  const [flushing, setFlushing] = useState(false)
+  // Enter reaches submit even while the button is disabled, and a closed
+  // dialog unmounts this form mid-flush; neither may send the ban.
+  const submitting = useRef(false)
+  // Radix keeps the form mounted through the close animation, so a closed
+  // dialog shows up as open=false before it unmounts.
+  const live = useRef(open)
+  live.current = open
+  useEffect(() => {
+    live.current = open
+    return () => {
+      live.current = false
+    }
+  }, [open])
+  const submit = async () => {
+    if (submitting.current || ban.isPending) return
     const target = ip.trim()
     if (!isValidBanTarget(target)) {
       setError("Enter a full IPv4 or IPv6 address, or a range such as 203.0.113.0/24.")
@@ -59,6 +75,18 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
       return
     }
     setError(null)
+    // A ban or unban still in its undo window would land after this one and
+    // could undo it, even under another spelling of the same address or
+    // range. Sending those first keeps the form, the newer intent, last.
+    submitting.current = true
+    setFlushing(true)
+    try {
+      await flushIpActions()
+    } finally {
+      submitting.current = false
+      if (live.current) setFlushing(false)
+    }
+    if (!live.current) return
     ban.mutate(
       { ip: target, duration, reason: reason.trim() || undefined, type },
       {
@@ -70,7 +98,7 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
     )
   }
 
-  const submitOnEnter = (event: React.KeyboardEvent) => event.key === "Enter" && submit()
+  const submitOnEnter = (event: React.KeyboardEvent) => event.key === "Enter" && void submit()
 
   return (
     <>
@@ -151,7 +179,7 @@ function BanIpForm({ initialIp, onDone }: { initialIp: string; onDone: () => voi
         <Button variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button variant="destructive" onClick={submit} disabled={ban.isPending || !ip.trim()}>
+        <Button variant="destructive" onClick={submit} disabled={flushing || ban.isPending || !ip.trim()}>
           {ban.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
           {type === "ban" ? "Ban" : "Require captcha"}
         </Button>
@@ -191,7 +219,7 @@ export function BanIpDialog({
             Your bouncer enforces it.
           </DialogDescription>
         </DialogHeader>
-        <BanIpForm initialIp={initialIp} onDone={() => onOpenChange(false)} />
+        <BanIpForm initialIp={initialIp} open={open} onDone={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )

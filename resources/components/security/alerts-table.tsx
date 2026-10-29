@@ -52,6 +52,7 @@ import { IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu
 import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 
+// The short labels fit the tabs and Filters on one row of a 320px phone.
 const SINCE_OPTIONS = [
   { key: "24h", label: "Last 24h", shortLabel: "24h" },
   { key: "168h", label: "Last 7 days", shortLabel: "7d" },
@@ -194,7 +195,7 @@ export function AlertsTable() {
 
   const sinceTabs = (
     <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
-      <TabsList>
+      <TabsList aria-label="Time range">
         {SINCE_OPTIONS.map((option) => (
           <TabsTrigger key={option.key} value={option.key} aria-label={isMobile ? option.label : undefined}>
             {isMobile ? option.shortLabel : option.label}
@@ -335,11 +336,13 @@ export function AlertsTable() {
           </div>
         )}
       </CardContent>
-      <AlertDetailSheet
-        alert={selected}
-        onOpenChange={(open) => !open && setSelected(null)}
-        onFilterScenario={showOnlyScenario}
-      />
+      <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+        <AlertDetailSheet
+          alert={selected}
+          onOpenChange={(open) => !open && setSelected(null)}
+          onFilterScenario={showOnlyScenario}
+        />
+      </IpFilterTargetsProvider>
     </Card>
   )
 }

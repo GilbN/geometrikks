@@ -3,18 +3,11 @@
  * trigger name any non-default choice, so the state shows without opening
  * the menu, and the accessible name carries the same text.
  */
-import { useId } from "react"
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { SignalPanelNote } from "@/components/data/signal-panel"
+import { ResponsiveRadioMenu } from "@/components/responsive-radio-menu"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   CHART_SCALE_LABELS,
   chartOptionChips,
@@ -33,63 +26,62 @@ export function ChartOptionsMenu({
   spec: ChartOptionsSpec
   options: ChartOptionsState
 }) {
-  const viewLabelId = useId()
-  const scaleLabelId = useId()
+  const isMobile = useIsMobile()
   const chips = chartOptionChips(options)
   const { view } = options
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <ResponsiveRadioMenu
+      title={title}
+      description="Choose how this chart draws its data and scales its y-axis."
+      // The shared content matches the trigger width; this trigger is tiny.
+      contentClassName="w-56"
+      trigger={
         <Button
           type="button"
-          variant="ghost"
-          size="xs"
+          variant={isMobile ? "outline" : "ghost"}
+          size={isMobile ? "default" : "xs"}
           aria-label={chartOptionsLabel(title, chips)}
-          className="gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
+          className={
+            isMobile
+              ? "min-w-9 gap-1.5 px-2 text-muted-foreground pointer-coarse:min-w-10"
+              : "gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
+          }
         >
+          {/* Under 360px the chips would squeeze the chart title down to a
+              few letters a line; the accessible name still lists them. */}
           {chips.map((chip) => (
-            <span key={chip} className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+            <span
+              key={chip}
+              className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary max-[22.5rem]:hidden"
+            >
               {chip}
             </span>
           ))}
           <SlidersHorizontal aria-hidden />
         </Button>
-      </DropdownMenuTrigger>
-      {/* The shared content matches the trigger width; this trigger is tiny. */}
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel id={viewLabelId}>View</DropdownMenuLabel>
-        <DropdownMenuRadioGroup aria-labelledby={viewLabelId} value={view.id} onValueChange={options.setView}>
-          {spec.views.map((item) => (
-            <DropdownMenuRadioItem key={item.id} value={item.id}>
-              {item.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel id={scaleLabelId}>Scale</DropdownMenuLabel>
-        {view.scales.length > 1 ? (
-          <DropdownMenuRadioGroup
-            aria-labelledby={scaleLabelId}
-            value={options.scale}
-            onValueChange={(value) => options.setScale(value as ChartScale)}
-          >
-            {view.scales.map((scale) => (
-              <DropdownMenuRadioItem key={scale} value={scale} className="flex-col items-start gap-0">
-                {CHART_SCALE_LABELS[scale]}
-                {view.scaleHints?.[scale] && (
-                  <span className="text-xs text-muted-foreground">{view.scaleHints[scale]}</span>
-                )}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        ) : (
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">
-            {view.fixedScaleNote ?? CHART_SCALE_LABELS[view.scales[0]]}
-          </p>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      }
+      groups={[
+        {
+          label: "View",
+          value: view.id,
+          options: spec.views.map((item) => ({ value: item.id, label: item.label })),
+          onValueChange: options.setView,
+        },
+        {
+          label: "Scale",
+          value: options.scale,
+          options: view.scales.map((scale) => ({
+            value: scale,
+            label: CHART_SCALE_LABELS[scale],
+            hint: view.scaleHints?.[scale],
+          })),
+          onValueChange: (value) => options.setScale(value as ChartScale),
+          stacked: true,
+          note: view.scales.length > 1 ? undefined : (view.fixedScaleNote ?? CHART_SCALE_LABELS[view.scales[0]]),
+        },
+      ]}
+    />
   )
 }
 
@@ -97,8 +89,8 @@ export function ChartOptionsMenu({
 export function ScaleNotes({ clip, zerosRaised }: { clip: string | null; zerosRaised: number }) {
   return (
     <>
-      {clip != null && <span>y-axis clipped at {clip}</span>}
-      {zerosRaised > 0 && <span>zeros drawn at the bottom edge</span>}
+      {clip != null && <SignalPanelNote>y-axis clipped at {clip}</SignalPanelNote>}
+      {zerosRaised > 0 && <SignalPanelNote>zeros drawn at the bottom edge</SignalPanelNote>}
     </>
   )
 }

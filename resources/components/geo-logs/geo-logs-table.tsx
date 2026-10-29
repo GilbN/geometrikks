@@ -253,7 +253,8 @@ export function GeoLogsTable({
   )
 
   return (
-    <>
+    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+      {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
       <div ref={layoutRef}>
         <DataTableFrame
           title="Geo events by location and IP"
@@ -310,14 +311,12 @@ export function GeoLogsTable({
                 </TableRow>
               </TableHeader>
             )}
-            <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
-              <GeoLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
-            </IpFilterTargetsProvider>
+            <GeoLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
           </VirtualTable>
         </DataTableFrame>
       </div>
 
       <GeoLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
-    </>
+    </IpFilterTargetsProvider>
   )
 }

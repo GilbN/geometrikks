@@ -1453,6 +1453,12 @@ export interface PollIntervalOption {
   value: number // milliseconds, 0 = off
 }
 
+export const CHART_GRANULARITY_OPTIONS: { label: string; value: ChartGranularity }[] = [
+  { label: "Auto", value: "auto" },
+  { label: "Hourly", value: "hourly" },
+  { label: "Daily", value: "daily" },
+]
+
 export const POLL_INTERVAL_OPTIONS: PollIntervalOption[] = [
   { label: "Off", value: 0 },
   { label: "5s", value: 5000 },

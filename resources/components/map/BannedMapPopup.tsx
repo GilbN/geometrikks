@@ -18,7 +18,7 @@ import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { ExternalLinkButton } from "@/components/crowdsec/external-link"
 import type { DecisionRef } from "@/components/security/alert-detail-sheet"
-import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
+import { POPUP_OFFSET, usePopupPadding, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { scenarioText } from "@/lib/scenario-name"
 
@@ -228,12 +228,14 @@ export function BannedMapPopup({
   const selected = selectedIp === null ? null : ips.find((ip) => ip.ip === selectedIp) ?? null
   const hasIpv6 = ips.some((ip) => ip.ip.includes(":"))
   const title = selected ? "Banned IP" : `${ips.length.toLocaleString()} banned IP${ips.length === 1 ? "" : "s"}`
+  const popupPadding = usePopupPadding()
 
   return (
     <Popup
       longitude={longitude}
       latitude={latitude}
       offset={POPUP_OFFSET}
+      padding={popupPadding}
       onClose={onClose}
       closeButton={false}
       closeOnClick={false}

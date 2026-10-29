@@ -1,9 +1,6 @@
 /**
- * Decision badge + ban/unban dropdown for an IP rendered in a table cell.
- * Self-contained: subscribes to the shared banned-IP map and CrowdSec
- * status (TanStack Query dedupes per-row subscriptions), so callers just
- * pass the IP. Renders nothing when the integration is off, and only the
- * badge when it is read-only (no machine credentials).
+ * Ban/unban dropdown for one IP, used by the IP inspector. Subscribes to
+ * the CrowdSec status, so callers pass only the IP and whether it is banned.
  */
 import { useState } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
@@ -17,24 +14,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
-import { toast } from "sonner"
-import {
-  useBanIp,
-  useBannedIps,
-  useCrowdsecStatus,
-  useUnbanIp,
-} from "@/lib/queries"
-import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
-import { DecisionBadge } from "./decision-badge"
+import { useCrowdsecStatus } from "@/lib/queries"
+import { BAN_DURATIONS } from "@/lib/crowdsec"
+import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 
 /** Ban/unban dropdown on the IP cell; hidden unless machine credentials
  *  enable write access on the CrowdSec integration. */
 export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
   const { data: status } = useCrowdsecStatus()
-  const ban = useBanIp()
-  const unban = useUnbanIp()
+  const { ban, unban } = useIpActions()
   const [dialogOpen, setDialogOpen] = useState(false)
-  const isPending = ban.isPending || unban.isPending
+  const pending = usePendingIpAction(ip)
+  const isPending = pending !== null
+  // Waiting, not sent yet: the menu offers Undo instead of ban and unban.
+  const waiting = pending !== null && !pending.sending
   if (!status?.writeEnabled) return null
   return (
     <>
@@ -44,44 +37,26 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
             variant="ghost"
             size="icon-xs"
             className="ml-1 align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
-            disabled={isPending}
+            disabled={isPending && !waiting}
             title={banned ? "Unban this IP" : "Ban this IP"}
           >
-            {isPending ? <Loader2 className="animate-spin" /> : <ShieldBan />}
+            {isPending && !waiting ? <Loader2 className="animate-spin" /> : <ShieldBan />}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          {banned ? (
-            <DropdownMenuItem
-              onClick={() =>
-                unban.mutate(ip, {
-                  onError: (err) =>
-                    toast.error(
-                      crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`),
-                    ),
-                })
-              }
-            >
+          {waiting ? (
+            <DropdownMenuItem onClick={() => undoIpAction(ip)}>
+              {pending.action.kind === "ban" ? "Undo ban" : "Undo unban"}
+            </DropdownMenuItem>
+          ) : banned ? (
+            <DropdownMenuItem disabled={isPending} onClick={() => unban(ip)}>
               Unban {ip}
             </DropdownMenuItem>
           ) : (
             <>
               <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
               {BAN_DURATIONS.map((d) => (
-                <DropdownMenuItem
-                  key={d.value}
-                  onClick={() =>
-                    ban.mutate(
-                      { ip, duration: d.value },
-                      {
-                        onError: (err) =>
-                          toast.error(
-                            crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`),
-                          ),
-                      },
-                    )
-                  }
-                >
+                <DropdownMenuItem key={d.value} disabled={isPending} onClick={() => ban(ip, d.value, d.label)}>
                   {d.label}
                 </DropdownMenuItem>
               ))}
@@ -92,36 +67,6 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
         </DropdownMenuContent>
       </DropdownMenu>
       <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />
-    </>
-  )
-}
-
-/** Decision badge plus the ban/unban dropdown, driven by the shared
- *  banned-IP map. `children` (the inspect button) sit between the badge
- *  and the shield so the two icons stay together. */
-export function IpBanControls({
-  ip,
-  badgeTitle,
-  children,
-}: {
-  ip: string
-  /** Replaces the badge's default tooltip for the decision type. */
-  badgeTitle?: (decisionType: string) => string
-  children?: React.ReactNode
-}) {
-  const { data: bannedIps } = useBannedIps()
-  const decision = bannedIps?.get(ip) ?? null
-  return (
-    <>
-      {decision !== null && (
-        <DecisionBadge
-          type={decision}
-          className="ml-2 align-middle"
-          title={badgeTitle?.(decision)}
-        />
-      )}
-      {children}
-      <IpBanAction ip={ip} banned={decision !== null} />
     </>
   )
 }

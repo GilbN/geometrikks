@@ -1,6 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { fetchMe, logout } from "@/lib/api"
 import { planLogoutRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
+import { flushIpActions } from "@/lib/pending-ip-actions"
 
 /** A bookmarkable equivalent of the sidebar's Log out button, and the reason
  *  /logout cannot land on a dead page when APP_AUTH_DISABLED=true. Never
@@ -15,6 +16,8 @@ export const Route = createFileRoute("/logout")({
     }
     const plan = planLogoutRoute(result)
     if (plan.action === "endSessionThenRedirect") {
+      // A ban or unban still in its undo window goes out while the session lives.
+      await flushIpActions()
       const { redirectTo } = await logout()
       // Hard navigation, matching the sidebar's Log out button: it discards
       // the TanStack Query cache holding the previous session's data, which

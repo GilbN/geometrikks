@@ -3,12 +3,22 @@
  * opened by selecting the row.
  */
 import { CountryLabel } from "@/components/country-flag"
+import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
 import type { GeoLogEntry } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
+import type { IpRowValues } from "@/lib/ip-filter-targets"
+
+function ipValues(entry: GeoLogEntry): IpRowValues {
+  return {
+    ip: entry.ipAddress,
+    countryCode: entry.countryCode,
+    countryName: entry.countryName,
+    city: entry.city,
+    asn: entry.asn,
+    asOrganization: entry.asOrganization,
+  }
+}
 
 export function GeoLogDetailSheet({
   entry,
@@ -23,7 +33,13 @@ export function GeoLogDetailSheet({
       onOpenChange={onOpenChange}
       title={entry ? entry.city || entry.countryName || "Location details" : "Location details"}
       description={entry ? `${formatNumber(entry.eventCount)} events · ${entry.ipAddress}` : undefined}
+      footer={
+        entry && (
+          <DetailIpActions values={ipValues(entry)} locationId={entry.locationId} onNavigate={() => onOpenChange(false)} />
+        )
+      }
     >
+      {entry && <DetailIpBlock values={ipValues(entry)} />}
       {entry && (
         <dl>
           <DetailField label="City" value={entry.city} />
@@ -36,18 +52,6 @@ export function GeoLogDetailSheet({
               <CountryLabel code={entry.countryCode} name={entry.countryName}>
                 {`${entry.countryName} (${entry.countryCode})`}
               </CountryLabel>
-            }
-          />
-          <DetailField
-            label="IP address"
-            value={
-              <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
-                {entry.ipAddress}
-                <IpBanControls ip={entry.ipAddress}>
-                  <InspectIpButton ip={entry.ipAddress} fromLocationId={entry.locationId} onOpen={() => onOpenChange(false)} />
-                  <FlyToIpButton ip={entry.ipAddress} locationId={entry.locationId} onOpen={() => onOpenChange(false)} />
-                </IpBanControls>
-              </span>
             }
           />
           <DetailField
