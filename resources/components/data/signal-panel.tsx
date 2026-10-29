@@ -47,14 +47,21 @@ export function SignalPanel({
       className={cn(FRAME_SURFACE, className)}
       {...props}
     >
-      <header className="flex min-w-0 flex-col gap-2 border-b border-border/50 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+      {/* Phones keep the title and the controls on one line. The actions box
+          dissolves into the header so a SignalPanelNote can drop to a line
+          of its own instead of pushing the controls under the title. */}
+      <header className="flex min-w-0 gap-2 border-b border-border/50 px-4 py-3 max-md:flex-wrap max-md:items-center md:items-start md:justify-between">
+        <div className="min-w-0 max-md:flex-1">
           <h2 id={titleId} className={FRAME_LABEL}>
             {title}
           </h2>
           {description && <p className="mt-0.5 text-[13px] text-muted-foreground max-md:sr-only">{description}</p>}
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground max-md:contents">
+            {actions}
+          </div>
+        )}
       </header>
 
       <div className={cn("min-w-0 p-4", bodyClassName)}>
@@ -82,4 +89,10 @@ export function SignalPanel({
       )}
     </section>
   )
+}
+
+/** A line of header text among a SignalPanel's actions. Phones show it on its
+ *  own line under the title row. */
+export function SignalPanelNote({ children }: { children: React.ReactNode }) {
+  return <span className="max-md:order-last max-md:basis-full">{children}</span>
 }

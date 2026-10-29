@@ -5,6 +5,7 @@
  */
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SignalPanelNote } from "@/components/data/signal-panel"
 import { ResponsiveRadioMenu } from "@/components/responsive-radio-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -83,8 +84,8 @@ export function ChartOptionsMenu({
 export function ScaleNotes({ clip, zerosRaised }: { clip: string | null; zerosRaised: number }) {
   return (
     <>
-      {clip != null && <span>y-axis clipped at {clip}</span>}
-      {zerosRaised > 0 && <span>zeros drawn at the bottom edge</span>}
+      {clip != null && <SignalPanelNote>y-axis clipped at {clip}</SignalPanelNote>}
+      {zerosRaised > 0 && <SignalPanelNote>zeros drawn at the bottom edge</SignalPanelNote>}
     </>
   )
 }
