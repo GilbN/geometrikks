@@ -19,7 +19,9 @@ import {
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
+import { cn } from "@/lib/utils"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpButton } from "./ban-ip-dialog"
 import { DecisionGroupRows } from "./decision-group-rows"
@@ -53,13 +55,17 @@ export function DecisionsTable() {
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const colCount = narrow ? 1 : status?.writeEnabled ? 9 : 8
+  // Phones put the button on the title line, so it doesn't cost a row of its own.
+  const isMobile = useIsMobile()
+  const banIpButton = status?.writeEnabled && <BanIpButton />
 
   return (
     <Card ref={layoutRef} className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          {status?.writeEnabled && <BanIpButton />}
+        {isMobile && banIpButton}
+        <div className={cn("flex flex-wrap items-center gap-2", isMobile && "basis-full")}>
+          {!isMobile && banIpButton}
           <Tabs
             value={scope}
             onValueChange={(value) => {

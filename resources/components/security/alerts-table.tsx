@@ -53,9 +53,9 @@ import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 
 const SINCE_OPTIONS = [
-  { key: "24h", label: "Last 24h" },
-  { key: "168h", label: "Last 7 days" },
-  { key: "720h", label: "Last 30 days" },
+  { key: "24h", label: "Last 24h", shortLabel: "24h" },
+  { key: "168h", label: "Last 7 days", shortLabel: "7d" },
+  { key: "720h", label: "Last 30 days", shortLabel: "30d" },
 ] as const
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
@@ -192,28 +192,35 @@ export function AlertsTable() {
     />
   )
 
+  const sinceTabs = (
+    <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
+      <TabsList>
+        {SINCE_OPTIONS.map((option) => (
+          <TabsTrigger key={option.key} value={option.key} aria-label={isMobile ? option.label : undefined}>
+            {isMobile ? option.shortLabel : option.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  )
+
   return (
     <Card ref={layoutRef} className="py-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
-        <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
-          <TabsList>
-            {SINCE_OPTIONS.map((option) => (
-              <TabsTrigger key={option.key} value={option.key}>
-                {option.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        {!isMobile && sinceTabs}
       </CardHeader>
       {isMobile ? (
-        <div className="flex flex-col items-start gap-2 px-6 pb-2 -mt-6">
-          <div onClick={() => setScenarioPickerOpened(true)}>
-            <FiltersDrawer activeCount={activeFilters.length} onClear={clearFilters}>
-              <AlertKindRadioGroup kind={kind} onChange={changeKind} />
-              {scenarioFilter(true)}
-              {ipFilter(true)}
-            </FiltersDrawer>
+        <div className="flex flex-col gap-2 px-6 pb-2 -mt-6">
+          <div className="flex items-center justify-between gap-2">
+            {sinceTabs}
+            <div onClick={() => setScenarioPickerOpened(true)}>
+              <FiltersDrawer activeCount={activeFilters.length} onClear={clearFilters}>
+                <AlertKindRadioGroup kind={kind} onChange={changeKind} />
+                {scenarioFilter(true)}
+                {ipFilter(true)}
+              </FiltersDrawer>
+            </div>
           </div>
           <AlertFilterChips chips={activeFilters} onRemove={clearFilterGroup} />
         </div>
