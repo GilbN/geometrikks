@@ -48,8 +48,13 @@ export function ChartOptionsMenu({
               : "gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
           }
         >
+          {/* Under 360px the chips would squeeze the chart title down to a
+              few letters a line; the accessible name still lists them. */}
           {chips.map((chip) => (
-            <span key={chip} className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+            <span
+              key={chip}
+              className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary max-[22.5rem]:hidden"
+            >
               {chip}
             </span>
           ))}
