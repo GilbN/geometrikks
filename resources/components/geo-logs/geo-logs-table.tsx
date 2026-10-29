@@ -8,14 +8,19 @@
  */
 import { memo, useMemo, useState } from "react"
 import { Columns3 } from "lucide-react"
-import { CountryLabel } from "@/components/country-flag"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { sortOptions } from "@/components/data/sort-options"
 import { SortableHead } from "@/components/data/sortable-head"
+import { TableSortDrawer } from "@/components/data/table-sort-drawer"
+import { formatRowTime } from "@/lib/row-time"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
@@ -96,39 +101,76 @@ function renderCell(column: GeoLogColumn, r: GeoLogEntry): React.ReactNode {
 
 const getRowKey = (row: GeoLogEntry) => `${row.locationId}-${row.ipAddress}`
 
+const SORT_OPTIONS = sortOptions(GEO_LOG_COLUMNS)
+
+function GeoLogIpActions({ row }: { row: GeoLogEntry }) {
+  return (
+    <IpActionsMenu
+      ip={row.ipAddress}
+      locationId={row.locationId}
+      countryCode={row.countryCode}
+      countryName={row.countryName}
+      city={row.city}
+      asn={row.asn}
+      asOrganization={row.asOrganization}
+    />
+  )
+}
+
+/** A narrow row: where and how much on top, who and when below. */
+function GeoLogNarrowCell({ row }: { row: GeoLogEntry }) {
+  return (
+    <TableCell className="py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <CountryFlag code={row.countryCode} name={row.countryName} />
+        <span className="min-w-0 flex-1 truncate">
+          {row.city ?? row.countryName ?? "-"}
+          {row.city && row.countryName && <span className="text-muted-foreground">, {row.countryName}</span>}
+        </span>
+        <span className="shrink-0 font-medium tabular-nums">{formatNumber(row.eventCount)}</span>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <IpLabel ip={row.ipAddress} className="truncate" />
+          <GeoLogIpActions row={row} />
+        </span>
+        <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+          {row.lastSeen ? formatRowTime(row.lastSeen) : "-"}
+        </span>
+      </div>
+    </TableCell>
+  )
+}
+
 const GeoLogTableBody = memo(function GeoLogTableBody({
   rows,
   shownColumns,
+  narrow,
   onSelect,
 }: {
   rows: GeoLogEntry[]
   shownColumns: GeoLogColumn[]
+  narrow: boolean
   onSelect: (row: GeoLogEntry) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
       {(row) => (
         <TableRow
           key={`${row.locationId}-${row.ipAddress}`}
           aria-label={`${row.city ?? row.countryName}, ${row.ipAddress}, ${formatNumber(row.eventCount)} events`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
-          {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
-              {renderCell(c, row)}
-              {c.key === "ipAddress" && (
-                <IpActionsMenu
-                  ip={row.ipAddress}
-                  locationId={row.locationId}
-                  countryCode={row.countryCode}
-                  countryName={row.countryName}
-                  city={row.city}
-                  asn={row.asn}
-                  asOrganization={row.asOrganization}
-                />
-              )}
-            </TableCell>
-          ))}
+          {narrow ? (
+            <GeoLogNarrowCell row={row} />
+          ) : (
+            shownColumns.map((c) => (
+              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+                {renderCell(c, row)}
+                {c.key === "ipAddress" && <GeoLogIpActions row={row} />}
+              </TableCell>
+            ))
+          )}
         </TableRow>
       )}
     </VirtualTableBody>
@@ -153,6 +195,8 @@ export function GeoLogsTable({
   onSortChange: (sortField: GeoLogSortField, sortOrder: GeoLogSortOrder) => void
 }) {
   const [selected, setSelected] = useState<GeoLogEntry | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const isMobile = useIsMobile()
   const { range, customRange } = useTimeRange()
   const { filters, setFilters } = useGeoLogFilters()
   const filterTargetsFor = useMemo(() => geoLogFilterTargets(filters, setFilters), [filters, setFilters])
@@ -210,56 +254,68 @@ export function GeoLogsTable({
 
   return (
     <>
-      <DataTableFrame
-        title="Geo events by location and IP"
-        description="Grouped locations in the selected time range. Select a row for the complete record."
-        count={data ? total : undefined}
-        tools={columnsMenu}
-        state={state}
-        error="Failed to load geo logs."
-        empty="No geo events match these filters."
-        footer={
-          <PaginationFooter
-            page={page}
-            pageCount={pageCount}
-            total={total}
-            onPageChange={onPageChange}
-            disabled={isPlaceholderData}
-            pageSize={pageSize}
-            pageSizes={GEO_LOGS_PAGE_SIZES}
-            onPageSizeChange={onPageSizeChange}
-          />
-        }
-      >
-        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
-          <TableHeader>
-            <TableRow>
-              {shownColumns.map((c) => {
-                if (!c.sortField) {
-                  return (
-                    <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                      {c.label}
-                    </TableHead>
-                  )
-                }
-                const columnSortField = c.sortField
-                return (
-                  <SortableHead
-                    key={c.key}
-                    label={c.label}
-                    active={sortField === columnSortField}
-                    sortOrder={sortOrder} alignRight={c.align === "right"}
-                    onToggle={() => toggleSort(columnSortField)}
-                  />
-                )
-              })}
-            </TableRow>
-          </TableHeader>
-          <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
-            <GeoLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-          </IpFilterTargetsProvider>
-        </VirtualTable>
-      </DataTableFrame>
+      <div ref={layoutRef}>
+        <DataTableFrame
+          title="Geo events by location and IP"
+          description="Grouped locations in the selected time range. Select a row for the complete record."
+          count={data ? total : undefined}
+          stickyHeader={narrow && isMobile}
+          tools={
+            narrow ? (
+              <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
+            ) : (
+              columnsMenu
+            )
+          }
+          state={state}
+          error="Failed to load geo logs."
+          empty="No geo events match these filters."
+          footer={
+            <PaginationFooter
+              page={page}
+              pageCount={pageCount}
+              total={total}
+              onPageChange={onPageChange}
+              disabled={isPlaceholderData}
+              pageSize={pageSize}
+              pageSizes={GEO_LOGS_PAGE_SIZES}
+              onPageSizeChange={onPageSizeChange}
+            />
+          }
+        >
+          <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
+            {!narrow && (
+              <TableHeader>
+                <TableRow>
+                  {shownColumns.map((c) => {
+                    if (!c.sortField) {
+                      return (
+                        <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+                          {c.label}
+                        </TableHead>
+                      )
+                    }
+                    const columnSortField = c.sortField
+                    return (
+                      <SortableHead
+                        key={c.key}
+                        label={c.label}
+                        active={sortField === columnSortField}
+                        sortOrder={sortOrder}
+                        alignRight={c.align === "right"}
+                        onToggle={() => toggleSort(columnSortField)}
+                      />
+                    )
+                  })}
+                </TableRow>
+              </TableHeader>
+            )}
+            <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+              <GeoLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+            </IpFilterTargetsProvider>
+          </VirtualTable>
+        </DataTableFrame>
+      </div>
 
       <GeoLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </>

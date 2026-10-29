@@ -168,8 +168,11 @@ function RootLayout() {
                   <ModeToggle />
                 </div>
               </header>
-              {/* Main content area */}
-              <main className="min-h-0 flex-1 overflow-auto">
+              {/* Main content area. Bars that stick to its top set --sticky-top
+                  and --table-header-height on it, so content below can keep clear
+                  of them. relative keeps sr-only text inside it; placed against an
+                  outer box, that text makes the document scroll the app bar away. */}
+              <main className="relative min-h-0 flex-1 overflow-auto">
                 <Outlet />
               </main>
             </SidebarInset>

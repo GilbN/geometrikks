@@ -8,14 +8,18 @@
  */
 import { memo, useMemo, useState } from "react"
 import { Columns3 } from "lucide-react"
-import { CountryLabel } from "@/components/country-flag"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { sortOptions } from "@/components/data/sort-options"
 import { SortableHead } from "@/components/data/sortable-head"
+import { TableSortDrawer } from "@/components/data/table-sort-drawer"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +59,7 @@ import { useColumnVisibility } from "@/lib/column-visibility"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { formatDurationOrNa } from "@/lib/timing"
+import { formatRowTime } from "@/lib/row-time"
 
 export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -143,40 +148,77 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
 
 const getRowKey = (row: AccessLog) => row.id
 
+const SORT_OPTIONS = sortOptions(ACCESS_LOG_COLUMNS)
+
+function AccessLogIpActions({ row }: { row: AccessLog }) {
+  return (
+    <IpActionsMenu
+      ip={row.ipAddress}
+      host={row.host}
+      server={row.server}
+      countryCode={row.countryCode}
+      countryName={row.countryName}
+      city={row.city}
+      asn={row.autonomousSystemNumber}
+      asOrganization={row.autonomousSystemOrganization}
+    />
+  )
+}
+
+/** A narrow row: what was asked and the answer on top, when and who below. */
+function AccessLogNarrowCell({ row }: { row: AccessLog }) {
+  return (
+    <TableCell className="py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <Badge className={cn("shrink-0 tabular-nums border-transparent", statusBadgeClass(row.statusCode))}>
+          {row.statusCode}
+        </Badge>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">{row.method ?? "-"}</span>
+        <span className="min-w-0 flex-1 truncate font-mono" title={row.url ?? undefined}>
+          {row.url ?? "-"}
+        </span>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+        <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(row.timestamp)}</span>
+        <span className="ml-auto flex min-w-0 items-center gap-1.5">
+          <CountryFlag code={row.countryCode} name={row.countryName} standalone />
+          <IpLabel ip={row.ipAddress} className="truncate" />
+          <AccessLogIpActions row={row} />
+        </span>
+      </div>
+    </TableCell>
+  )
+}
+
 const AccessLogTableBody = memo(function AccessLogTableBody({
   rows,
   shownColumns,
+  narrow,
   onSelect,
 }: {
   rows: AccessLog[]
   shownColumns: AccessLogColumn[]
+  narrow: boolean
   onSelect: (row: AccessLog) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
       {(row) => (
         <TableRow
           key={row.id}
           aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
-          {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
-              {renderCell(c, row)}
-              {c.key === "ipAddress" && (
-                <IpActionsMenu
-                  ip={row.ipAddress}
-                  host={row.host}
-                  server={row.server}
-                  countryCode={row.countryCode}
-                  countryName={row.countryName}
-                  city={row.city}
-                  asn={row.autonomousSystemNumber}
-                  asOrganization={row.autonomousSystemOrganization}
-                />
-              )}
-            </TableCell>
-          ))}
+          {narrow ? (
+            <AccessLogNarrowCell row={row} />
+          ) : (
+            shownColumns.map((c) => (
+              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+                {renderCell(c, row)}
+                {c.key === "ipAddress" && <AccessLogIpActions row={row} />}
+              </TableCell>
+            ))
+          )}
         </TableRow>
       )}
     </VirtualTableBody>
@@ -207,6 +249,8 @@ export function AccessLogsTable({
   const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const isMobile = useIsMobile()
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS)
@@ -274,56 +318,68 @@ export function AccessLogsTable({
 
   return (
     <>
-      <DataTableFrame
-        title="Request history"
-        description="Requests captured in the selected time range. Select a row for the complete record."
-        count={data ? total : undefined}
-        tools={columnsMenu}
-        state={state}
-        error="Failed to load access logs."
-        empty="No access logs match these filters."
-        footer={
-          <PaginationFooter
-            page={page}
-            pageCount={pageCount}
-            total={total}
-            onPageChange={onPageChange}
-            disabled={isPlaceholderData}
-            pageSize={pageSize}
-            pageSizes={ACCESS_LOGS_PAGE_SIZES}
-            onPageSizeChange={onPageSizeChange}
-          />
-        }
-      >
-        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
-          <TableHeader>
-            <TableRow>
-              {shownColumns.map((c) => {
-                if (!c.sortField) {
-                  return (
-                    <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                      {c.label}
-                    </TableHead>
-                  )
-                }
-                const columnSortField = c.sortField
-                return (
-                  <SortableHead
-                    key={c.key}
-                    label={c.label}
-                    active={sortField === columnSortField}
-                    sortOrder={sortOrder} alignRight={c.align === "right"}
-                    onToggle={() => toggleSort(columnSortField)}
-                  />
-                )
-              })}
-            </TableRow>
-          </TableHeader>
-          <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
-            <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-          </IpFilterTargetsProvider>
-        </VirtualTable>
-      </DataTableFrame>
+      <div ref={layoutRef}>
+        <DataTableFrame
+          title="Request history"
+          description="Requests captured in the selected time range. Select a row for the complete record."
+          count={data ? total : undefined}
+          stickyHeader={narrow && isMobile}
+          tools={
+            narrow ? (
+              <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
+            ) : (
+              columnsMenu
+            )
+          }
+          state={state}
+          error="Failed to load access logs."
+          empty="No access logs match these filters."
+          footer={
+            <PaginationFooter
+              page={page}
+              pageCount={pageCount}
+              total={total}
+              onPageChange={onPageChange}
+              disabled={isPlaceholderData}
+              pageSize={pageSize}
+              pageSizes={ACCESS_LOGS_PAGE_SIZES}
+              onPageSizeChange={onPageSizeChange}
+            />
+          }
+        >
+          <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
+            {!narrow && (
+              <TableHeader>
+                <TableRow>
+                  {shownColumns.map((c) => {
+                    if (!c.sortField) {
+                      return (
+                        <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+                          {c.label}
+                        </TableHead>
+                      )
+                    }
+                    const columnSortField = c.sortField
+                    return (
+                      <SortableHead
+                        key={c.key}
+                        label={c.label}
+                        active={sortField === columnSortField}
+                        sortOrder={sortOrder}
+                        alignRight={c.align === "right"}
+                        onToggle={() => toggleSort(columnSortField)}
+                      />
+                    )
+                  })}
+                </TableRow>
+              </TableHeader>
+            )}
+            <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+              <AccessLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+            </IpFilterTargetsProvider>
+          </VirtualTable>
+        </DataTableFrame>
+      </div>
 
       <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
     </>
