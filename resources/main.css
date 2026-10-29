@@ -431,6 +431,47 @@
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
 }
 
+/* Sonner sizes and collapses only its styled toasts, so custom toasts get
+   both here. Above sonner's 600px phone layout they take the toaster width.
+   Behind the front toast the card shrinks to its collapsed slot and hides
+   its content. */
+@media (min-width: 601px) {
+  .toaster [data-sonner-toast][data-styled='false'] {
+    width: var(--width);
+  }
+}
+
+.toaster .toast-surface > * {
+  transition: opacity 0.4s;
+}
+
+.toaster:not(:focus-within) [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface {
+  height: 100%;
+}
+
+.toaster:not(:focus-within) [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface > * {
+  opacity: 0;
+}
+
+/* Sonner expands the stack on hover but not on focus, so Tab could reach an
+   Undo hidden behind the front toast. These rules copy sonner's expanded
+   layout and apply it while focus is inside the stack. */
+.toaster:focus-within [data-sonner-toast][data-mounted='true'][data-expanded='false']:not([data-removed='true']) {
+  --y: translateY(calc(var(--lift) * var(--offset)));
+  height: var(--initial-height);
+}
+
+.toaster:focus-within [data-sonner-toast][data-expanded='false'][data-styled='true'] > * {
+  opacity: 1;
+}
+
+/* Sonner hides every toast past the third. One that holds focus stays
+   visible and clickable, or Enter would act on a toast nobody can see. */
+.toaster [data-sonner-toast][data-visible='false']:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .toaster [data-sonner-toast][data-styled='true'] [data-description] {
   color: var(--muted-foreground);
 }

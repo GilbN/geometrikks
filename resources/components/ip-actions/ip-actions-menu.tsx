@@ -7,7 +7,7 @@
  */
 import { Fragment, createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Check, Copy, EllipsisVertical, Eye, EyeOff, Filter, FilterX, Loader2, LocateFixed, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
+import { Check, Copy, EllipsisVertical, Eye, EyeOff, Filter, FilterX, Loader2, LocateFixed, ScanSearch, ShieldBan, ShieldOff, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,13 +38,14 @@ import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { copyText } from "@/lib/clipboard"
-import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
+import { BAN_DURATIONS, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { scenarioText } from "@/lib/scenario-name"
 import { countryLabel, type FilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
-import { useBanIp, useBannedIps, useCrowdsecStatus, useIpDecisions, useUnbanIp } from "@/lib/queries"
+import { useBannedIps, useCrowdsecStatus, useIpDecisions } from "@/lib/queries"
+import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 
 type FilterTargetsFor = (values: IpRowValues) => FilterTarget[]
@@ -197,10 +198,8 @@ export function IpActionsMenu({
   const targetsFor = useContext(FilterTargetsContext)
   const { data: status } = useCrowdsecStatus()
   const { data: bannedIps } = useBannedIps()
-  // The mutations live here, not in the menu content, so their error
-  // toasts still fire after the menu closes and unmounts.
-  const ban = useBanIp()
-  const unban = useUnbanIp()
+  const ipActions = useIpActions()
+  const pendingAction = usePendingIpAction(ip)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   // An action that opens a sheet or dialog runs once the menu or drawer has
   // closed and focus is back on the trigger. The sheet takes the focused
@@ -225,7 +224,11 @@ export function IpActionsMenu({
   }
   const decision = bannedIps?.get(ip) ?? null
   const banned = decision !== null
-  const isPending = ban.isPending || unban.isPending
+  const isPending = pendingAction !== null
+  // While an action waits to be sent, the menu offers Undo in place of ban
+  // and unban: the toast's Undo is out of reach inside a sheet's focus trap.
+  const waiting = pendingAction !== null && !pendingAction.sending
+  const undoLabel = pendingAction?.action.kind === "ban" ? "Undo ban" : "Undo unban"
 
   async function copy(source: HTMLElement) {
     // The fallback textarea has to live inside the menu or drawer, or its
@@ -235,15 +238,8 @@ export function IpActionsMenu({
     else toast.error("The browser blocked the copy.")
   }
 
-  const banFor = (duration: string) =>
-    ban.mutate(
-      { ip, duration },
-      { onError: (err) => toast.error(crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`)) },
-    )
-  const unbanIp = () =>
-    unban.mutate(ip, {
-      onError: (err) => toast.error(crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`)),
-    })
+  const banFor = (duration: (typeof BAN_DURATIONS)[number]) => ipActions.ban(ip, duration.value, duration.label)
+  const unbanIp = () => ipActions.unban(ip)
 
   const navigation: IpAction[] = footer
     ? []
@@ -285,7 +281,7 @@ export function IpActionsMenu({
       title="IP actions"
       aria-label={`Actions for ${ip}`}
     >
-      {isPending ? <Loader2 className="animate-spin" /> : <EllipsisVertical />}
+      {isPending && !waiting ? <Loader2 className="animate-spin" /> : <EllipsisVertical />}
     </Button>
   )
 
@@ -333,7 +329,18 @@ export function IpActionsMenu({
               {status?.writeEnabled && (
                 <>
                   <Separator className="my-2" />
-                  {banned ? (
+                  {waiting ? (
+                    <DrawerClose asChild>
+                      <Button
+                        variant="ghost"
+                        className="h-11 justify-start gap-3 px-3 font-normal"
+                        onClick={() => undoIpAction(ip)}
+                      >
+                        <Undo2 />
+                        {undoLabel}
+                      </Button>
+                    </DrawerClose>
+                  ) : banned ? (
                     <DrawerClose asChild>
                       <Button
                         variant="ghost"
@@ -358,7 +365,7 @@ export function IpActionsMenu({
                               variant="outline"
                               className="h-11"
                               disabled={isPending}
-                              onClick={() => banFor(duration.value)}
+                              onClick={() => banFor(duration)}
                             >
                               {duration.label}
                             </Button>
@@ -419,7 +426,12 @@ export function IpActionsMenu({
             {status?.writeEnabled && (
               <>
                 {sections.length > 0 && <DropdownMenuSeparator />}
-                {banned ? (
+                {waiting ? (
+                  <DropdownMenuItem onSelect={() => undoIpAction(ip)}>
+                    <Undo2 />
+                    {undoLabel}
+                  </DropdownMenuItem>
+                ) : banned ? (
                   <DropdownMenuItem disabled={isPending} onSelect={unbanIp}>
                     <ShieldOff />
                     Unban IP
@@ -437,7 +449,7 @@ export function IpActionsMenu({
                         key={duration.value}
                         className="pl-8"
                         disabled={isPending}
-                        onSelect={() => banFor(duration.value)}
+                        onSelect={() => banFor(duration)}
                       >
                         {duration.label}
                       </DropdownMenuItem>
@@ -460,7 +472,7 @@ export function IpActionsMenu({
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
                       {BAN_DURATIONS.map((duration) => (
-                        <DropdownMenuItem key={duration.value} onSelect={() => banFor(duration.value)}>
+                        <DropdownMenuItem key={duration.value} onSelect={() => banFor(duration)}>
                           {duration.label}
                         </DropdownMenuItem>
                       ))}
