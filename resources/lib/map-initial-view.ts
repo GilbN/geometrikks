@@ -70,7 +70,12 @@ function centerOn([longitude, latitude]: Coordinate): MapView {
 
 /** Center and zoom that keep every coordinate inside the padded container.
  *  Uneven padding shifts the center away from the wider side. */
-function fit(coordinates: Coordinate[], size: { width: number; height: number }, padding: Padding): MapView {
+function fit(
+  coordinates: Coordinate[],
+  size: { width: number; height: number },
+  padding: Padding,
+  maxZoom = FIT_MAX_ZOOM,
+): MapView {
   const [west, east] = longitudeSpan(coordinates.map(([longitude]) => longitude))
   const minX = mercatorX(west)
   const maxX = mercatorX(east)
@@ -94,7 +99,7 @@ function fit(coordinates: Coordinate[], size: { width: number; height: number },
   // MapLibre zooms in until the world is at least as tall as the map, so a
   // lower zoom would be overridden with a different framing.
   const minZoom = Math.max(Math.log2(size.height / TILE_SIZE), 0)
-  const zoom = Math.max(Math.min(Math.log2(Math.min(scaleX, scaleY)), FIT_MAX_ZOOM), minZoom)
+  const zoom = Math.max(Math.min(Math.log2(Math.min(scaleX, scaleY)), maxZoom), minZoom)
 
   // Put the box's middle at the middle of the padded area. That point sits
   // off the container's middle by half the padding difference on each axis.
@@ -126,6 +131,67 @@ function longitudeSpan(longitudes: number[]): [number, number] {
     }
   }
   return [west, east]
+}
+
+export interface WeightedCoordinate {
+  coordinate: Coordinate
+  /** How much traffic sits here, such as the location's event count. */
+  weight: number
+}
+
+/**
+ * A view of the traffic: every location when they fit across the container,
+ * otherwise the stretch of longitude that holds the most traffic. A portrait
+ * phone shows about half the world at the lowest zoom, so fitting traffic
+ * from the US to Japan would leave the middle of the Atlantic on screen.
+ * Null when there is no traffic.
+ */
+export function trafficView(
+  points: readonly WeightedCoordinate[],
+  size: { width: number; height: number },
+  padding: Padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
+  maxZoom = FIT_MAX_ZOOM,
+): MapView | null {
+  if (points.length === 0) return null
+  const sorted = points
+    .map((point) => ({ ...point, longitude: wrapLongitude(point.coordinate[0]) }))
+    .sort((a, b) => a.longitude - b.longitude)
+  const count = sorted.length
+  // Each point again one turn east, so a window can run across the antimeridian.
+  const ring = [...sorted, ...sorted.map((point) => ({ ...point, longitude: point.longitude + 360 }))]
+  const span = visibleLongitudeSpan(size, padding)
+
+  let bestWeight = -1
+  let bestStart = 0
+  let bestEnd = 0
+  let end = 0
+  let weight = 0
+  for (let start = 0; start < count; start++) {
+    if (end < start) {
+      end = start
+      weight = 0
+    }
+    while (end < start + count && ring[end].longitude - ring[start].longitude <= span) {
+      weight += ring[end].weight
+      end++
+    }
+    if (weight > bestWeight) {
+      bestWeight = weight
+      bestStart = start
+      bestEnd = end
+    }
+    weight -= ring[start].weight
+  }
+  const window = ring.slice(bestStart, bestEnd).map((point) => point.coordinate)
+  return fit(window, size, padding, maxZoom)
+}
+
+/** Degrees of longitude the padded container shows at the lowest zoom
+ *  MapLibre allows for its height. */
+function visibleLongitudeSpan(size: { width: number; height: number }, padding: Padding): number {
+  const minZoom = Math.max(Math.log2(size.height / TILE_SIZE), 0)
+  const width = Math.max(size.width - padding.left - padding.right, 1)
+  return Math.min((360 * width) / (TILE_SIZE * 2 ** minZoom), 360)
 }
 
 function wrapLongitude(longitude: number): number {

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On a phone, the map opens on your traffic instead of the server locations. When the traffic is spread wider than the screen shows, it opens on the stretch with the most events. `MAP_DEFAULT_VIEW` still decides the view when it is set.
 - On a phone, Settings > Environment opens on the settings you changed from their defaults, with every other group folded up to one line that shows how many settings it holds and how many you changed. Searching opens the groups that match. Each setting is one line with its value. Tapping it shows the description and the environment variable, and for a changed setting its default.
 - On a phone, Settings opens on a list of its sections, each with a live line such as "4 things need attention" or "7 jobs, next in 12s". A section's top bar has a Settings link back to the list, in place of the section dropdown.
 - On a phone, Settings > Status opens on one card that says how many things need attention and lists them, worst first. Tapping a problem shows its detail and fix. Each component follows as a small tile with its state, and tapping a tile shows the full card.
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fit to data bounds frames the traffic on a phone instead of the open ocean between it, and on desktop it keeps the locations clear of the map controls panel.
 - On a phone or in a narrow window, the time range tabs on Security > Alert history read 24h, 7 days and 30 days, so they fit inside the card instead of running past its edge.
 - Pages on a phone no longer show the desktop filter bar for a moment while they load.
 - Settings > Environment wraps long list and map values, such as a full `APP_TRUSTED_PROXIES` or `MAP_SERVER_LOCATIONS`, between their items. A long value used to run off the side of the page and squeeze its description to one word per line.
