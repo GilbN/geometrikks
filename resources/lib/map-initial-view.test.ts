@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, trafficView, type MapView } from "@/lib/map-initial-view"
+import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, trafficView, trafficWindow, type MapView } from "@/lib/map-initial-view"
 import type { ServerLocationsData } from "@/lib/server-locations"
 
 const SIZE = { width: 1200, height: 800 }
@@ -246,6 +246,20 @@ describe("trafficView", () => {
     const view = trafficView([point(AUCKLAND, 10), point(HONOLULU, 10)], PHONE)!
     expect(inView(view, AUCKLAND, PHONE)).toBe(true)
     expect(inView(view, HONOLULU, PHONE)).toBe(true)
+  })
+
+  it("gives a window across the antimeridian an east edge past 180", () => {
+    const AUCKLAND = { latitude: -36.85, longitude: 174.76 }
+    const HONOLULU = { latitude: 21.31, longitude: -157.86 }
+    const window = trafficWindow([point(AUCKLAND, 10), point(HONOLULU, 10)], PHONE)!
+    expect(window.west).toBeCloseTo(174.76)
+    expect(window.east).toBeCloseTo(-157.86 + 360)
+  })
+
+  it("ignores the padding of a container that hasn't been laid out", () => {
+    // A 1px span would pick one location; the unpadded width still shows a region.
+    const window = trafficWindow([point(OSLO, 5), point(BERGEN, 3)], { width: 100, height: 100 })!
+    expect(window.coordinates).toHaveLength(2)
   })
 
   it("lets the caller raise the zoom cap for a single location", () => {

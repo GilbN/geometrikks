@@ -28,7 +28,7 @@ import {
   useIpLocations,
 } from "@/lib/queries"
 import { beaconLabel, buildServerLocationResolver, serverBeacons, type Coordinate, type ServerLocationsData } from "@/lib/server-locations"
-import { FIT_PADDING, initialMapView, trafficView, WORLD_VIEW, type WeightedCoordinate } from "@/lib/map-initial-view"
+import { FIT_PADDING, initialMapView, trafficView, trafficWindow, WORLD_VIEW, type WeightedCoordinate } from "@/lib/map-initial-view"
 import { useMapStyle } from "./hooks/useMapStyle"
 import { useMapStartFailure } from "./hooks/useMapStartFailure"
 import { MapAttribution } from "./MapAttribution"
@@ -462,14 +462,15 @@ function GeoMapInner({
     // A phone opens on the traffic rather than the server locations, so it
     // waits for the traffic too. A portrait screen framed on the servers
     // alone often shows none of it.
-    const phone = isMobileViewport()
-    if (initialViewResolved || runtimeSettingsPending || serverLocationsPending || (phone && isLoadingGeoJSON)) return
+    if (initialViewResolved || runtimeSettingsPending || serverLocationsPending) return
+    const defaultView = runtimeSettings?.map.defaultView
+    const onTraffic = isMobile && !defaultView
+    if (onTraffic && isLoadingGeoJSON) return
     const rect = mapContainerRef.current?.getBoundingClientRect()
     const size = { width: rect?.width ?? 0, height: rect?.height ?? 0 }
     const padding = fitPadding()
-    const defaultView = runtimeSettings?.map.defaultView
     const view =
-      (phone && !defaultView ? trafficView(weightedPoints(geojson), size, padding) : null) ??
+      (onTraffic ? trafficView(weightedPoints(geojson), size, padding) : null) ??
       initialMapView({
         defaultView,
         serverLocations: serverLocationsData,
@@ -489,6 +490,7 @@ function GeoMapInner({
     selectedServers,
     isLoadingGeoJSON,
     geojson,
+    isMobile,
   ])
 
   useEffect(() => {
@@ -567,14 +569,24 @@ function GeoMapInner({
   const fitToBounds = useCallback(() => {
     if (!fitData?.features.length || !mapRef.current) return
     const rect = mapRef.current.getContainer().getBoundingClientRect()
-    const view = trafficView(
-      weightedPoints(fitData),
-      { width: rect.width, height: rect.height },
-      fitPadding(),
-      12,
+    const padding = fitPadding()
+    const window = trafficWindow(weightedPoints(fitData), { width: rect.width, height: rect.height }, padding)
+    if (!window) return
+    let south = Infinity
+    let north = -Infinity
+    for (const [, latitude] of window.coordinates) {
+      south = Math.min(south, latitude)
+      north = Math.max(north, latitude)
+    }
+    // fitBounds frames the window the way the projection draws it (the globe
+    // included) and turns the map north-up again.
+    mapRef.current.fitBounds(
+      [
+        [window.west, south],
+        [window.east, north],
+      ],
+      { padding, maxZoom: 12, duration: 1000 },
     )
-    if (!view) return
-    mapRef.current.easeTo({ center: [view.longitude, view.latitude], zoom: view.zoom, duration: 1000 })
   }, [fitData])
 
   const flyToCoordinate = useCallback((coordinates: Coordinate) => {

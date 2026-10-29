@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fit to data bounds frames the traffic on a phone instead of the open ocean between it, and on desktop it keeps the locations clear of the map controls panel.
+- Fit to data bounds frames the traffic on a phone instead of the open ocean between the locations, and on desktop it keeps the locations clear of the map controls panel.
 - On a phone or in a narrow window, the time range tabs on Security > Alert history read 24h, 7 days and 30 days, so they fit inside the card instead of running past its edge.
 - Pages on a phone no longer show the desktop filter bar for a moment while they load.
 - Settings > Environment wraps long list and map values, such as a full `APP_TRUSTED_PROXIES` or `MAP_SERVER_LOCATIONS`, between their items. A long value used to run off the side of the page and squeeze its description to one word per line.

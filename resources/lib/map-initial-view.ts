@@ -139,19 +139,26 @@ export interface WeightedCoordinate {
   weight: number
 }
 
+/** The stretch of longitude to frame for some traffic: its locations, and
+ *  its west and east edges, with east past 180 when it crosses the
+ *  antimeridian. Null when there is no traffic. */
+export interface TrafficWindow {
+  coordinates: Coordinate[]
+  west: number
+  east: number
+}
+
 /**
- * A view of the traffic: every location when they fit across the container,
- * otherwise the stretch of longitude that holds the most traffic. A portrait
- * phone shows about half the world at the lowest zoom, so fitting traffic
- * from the US to Japan would leave the middle of the Atlantic on screen.
- * Null when there is no traffic.
+ * Every location when they fit across the container, otherwise the stretch
+ * of longitude that holds the most traffic. A portrait phone shows about
+ * half the world at the lowest zoom, so fitting traffic from the US to
+ * Japan would leave the middle of the Atlantic on screen.
  */
-export function trafficView(
+export function trafficWindow(
   points: readonly WeightedCoordinate[],
   size: { width: number; height: number },
   padding: Padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
-  maxZoom = FIT_MAX_ZOOM,
-): MapView | null {
+): TrafficWindow | null {
   if (points.length === 0) return null
   const sorted = points
     .map((point) => ({ ...point, longitude: wrapLongitude(point.coordinate[0]) }))
@@ -167,10 +174,6 @@ export function trafficView(
   let end = 0
   let weight = 0
   for (let start = 0; start < count; start++) {
-    if (end < start) {
-      end = start
-      weight = 0
-    }
     while (end < start + count && ring[end].longitude - ring[start].longitude <= span) {
       weight += ring[end].weight
       end++
@@ -182,15 +185,33 @@ export function trafficView(
     }
     weight -= ring[start].weight
   }
-  const window = ring.slice(bestStart, bestEnd).map((point) => point.coordinate)
-  return fit(window, size, padding, maxZoom)
+  const window = ring.slice(bestStart, bestEnd)
+  return {
+    coordinates: window.map((point) => point.coordinate),
+    west: window[0].longitude,
+    east: window[window.length - 1].longitude,
+  }
+}
+
+/** trafficWindow framed with fit(): a view of the traffic, or null. */
+export function trafficView(
+  points: readonly WeightedCoordinate[],
+  size: { width: number; height: number },
+  padding: Padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
+  maxZoom = FIT_MAX_ZOOM,
+): MapView | null {
+  const window = trafficWindow(points, size, padding)
+  return window ? fit(window.coordinates, size, padding, maxZoom) : null
 }
 
 /** Degrees of longitude the padded container shows at the lowest zoom
  *  MapLibre allows for its height. */
 function visibleLongitudeSpan(size: { width: number; height: number }, padding: Padding): number {
   const minZoom = Math.max(Math.log2(size.height / TILE_SIZE), 0)
-  const width = Math.max(size.width - padding.left - padding.right, 1)
+  // Same rule as fit(): a container with no room inside the padding hasn't
+  // been laid out, so its padding is ignored rather than leaving a 1px span.
+  const roomy = size.width > padding.left + padding.right && size.height > padding.top + padding.bottom
+  const width = Math.max(roomy ? size.width - padding.left - padding.right : size.width, 1)
   return Math.min((360 * width) / (TILE_SIZE * 2 ** minZoom), 360)
 }
 
