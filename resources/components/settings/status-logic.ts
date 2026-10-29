@@ -491,7 +491,13 @@ export interface StatusProblem {
 /** Advisories and agent problems in one list, critical ones first. */
 export function statusProblems(
   advisories: readonly AdvisoryCard[],
-  agents: readonly { instanceName: string; tone: "red" | "amber"; summary: string; moreCount: number }[],
+  agents: readonly {
+    instanceName: string
+    tone: "red" | "amber"
+    summary: string
+    moreCount: number
+    lastSeenAgo: string
+  }[],
 ): StatusProblem[] {
   const rows: StatusProblem[] = [
     ...advisories.map((card) => ({
@@ -506,11 +512,17 @@ export function statusProblems(
       id: `agent-${card.instanceName}`,
       tone: card.tone,
       label: card.summary,
-      detail: agentMoreProblemsText(card.moreCount) ?? undefined,
+      detail: agentProblemDetail(card.lastSeenAgo, card.moreCount),
       agentName: card.instanceName,
     })),
   ]
   return rows.sort((a, b) => Number(b.tone === "red") - Number(a.tone === "red"))
+}
+
+function agentProblemDetail(lastSeenAgo: string, moreCount: number): string {
+  const lastSeen = `Last seen ${lastSeenAgo}`
+  if (moreCount <= 0) return lastSeen
+  return `${lastSeen}, and ${moreCount} more ${moreCount === 1 ? "problem" : "problems"}`
 }
 
 /** The phone verdict: how many things need attention, or the overall state. */

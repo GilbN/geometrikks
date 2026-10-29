@@ -5,7 +5,9 @@
  */
 import { SlidersHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SignalPanelNote } from "@/components/data/signal-panel"
 import { ResponsiveRadioMenu } from "@/components/responsive-radio-menu"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   CHART_SCALE_LABELS,
   chartOptionChips,
@@ -24,6 +26,7 @@ export function ChartOptionsMenu({
   spec: ChartOptionsSpec
   options: ChartOptionsState
 }) {
+  const isMobile = useIsMobile()
   const chips = chartOptionChips(options)
   const { view } = options
 
@@ -36,13 +39,22 @@ export function ChartOptionsMenu({
       trigger={
         <Button
           type="button"
-          variant="ghost"
-          size="xs"
+          variant={isMobile ? "outline" : "ghost"}
+          size={isMobile ? "default" : "xs"}
           aria-label={chartOptionsLabel(title, chips)}
-          className="gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
+          className={
+            isMobile
+              ? "min-w-9 gap-1.5 px-2 text-muted-foreground pointer-coarse:min-w-10"
+              : "gap-1 px-1.5 text-muted-foreground pointer-coarse:min-w-10"
+          }
         >
+          {/* Under 360px the chips would squeeze the chart title down to a
+              few letters a line; the accessible name still lists them. */}
           {chips.map((chip) => (
-            <span key={chip} className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+            <span
+              key={chip}
+              className="rounded-md bg-primary/15 px-1.5 text-[11px] font-semibold text-primary max-[22.5rem]:hidden"
+            >
               {chip}
             </span>
           ))}
@@ -77,8 +89,8 @@ export function ChartOptionsMenu({
 export function ScaleNotes({ clip, zerosRaised }: { clip: string | null; zerosRaised: number }) {
   return (
     <>
-      {clip != null && <span>y-axis clipped at {clip}</span>}
-      {zerosRaised > 0 && <span>zeros drawn at the bottom edge</span>}
+      {clip != null && <SignalPanelNote>y-axis clipped at {clip}</SignalPanelNote>}
+      {zerosRaised > 0 && <SignalPanelNote>zeros drawn at the bottom edge</SignalPanelNote>}
     </>
   )
 }

@@ -52,11 +52,11 @@ import { IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu
 import { singleFilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { AlertDetailSheet } from "@/components/security/alert-detail-sheet"
 
-// The short labels fit the card's header on a 320px phone.
+// The short labels fit the tabs and Filters on one row of a 320px phone.
 const SINCE_OPTIONS = [
-  { key: "24h", label: "Last 24h", short: "24h" },
-  { key: "168h", label: "Last 7 days", short: "7 days" },
-  { key: "720h", label: "Last 30 days", short: "30 days" },
+  { key: "24h", label: "Last 24h", shortLabel: "24h" },
+  { key: "168h", label: "Last 7 days", shortLabel: "7d" },
+  { key: "720h", label: "Last 30 days", shortLabel: "30d" },
 ] as const
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
@@ -193,29 +193,35 @@ export function AlertsTable() {
     />
   )
 
+  const sinceTabs = (
+    <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
+      <TabsList aria-label="Time range">
+        {SINCE_OPTIONS.map((option) => (
+          <TabsTrigger key={option.key} value={option.key} aria-label={isMobile ? option.label : undefined}>
+            {isMobile ? option.shortLabel : option.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  )
+
   return (
-    <Card ref={layoutRef} className="py-4">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+    <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 max-md:pb-2.5">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
-        <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
-          <TabsList aria-label="Time range">
-            {SINCE_OPTIONS.map((option) => (
-              <TabsTrigger key={option.key} value={option.key}>
-                <span className="sm:hidden">{option.short}</span>
-                <span className="max-sm:hidden">{option.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        {!isMobile && sinceTabs}
       </CardHeader>
       {isMobile ? (
-        <div className="flex flex-col items-start gap-2 px-6 pb-2 -mt-6">
-          <div onClick={() => setScenarioPickerOpened(true)}>
-            <FiltersDrawer activeCount={activeFilters.length} onClear={clearFilters}>
-              <AlertKindRadioGroup kind={kind} onChange={changeKind} />
-              {scenarioFilter(true)}
-              {ipFilter(true)}
-            </FiltersDrawer>
+        <div className="flex flex-col gap-2 px-6 pb-2.5">
+          <div className="flex items-center justify-between gap-2">
+            {sinceTabs}
+            <div onClick={() => setScenarioPickerOpened(true)}>
+              <FiltersDrawer activeCount={activeFilters.length} onClear={clearFilters}>
+                <AlertKindRadioGroup kind={kind} onChange={changeKind} />
+                {scenarioFilter(true)}
+                {ipFilter(true)}
+              </FiltersDrawer>
+            </div>
           </div>
           <AlertFilterChips chips={activeFilters} onRemove={clearFilterGroup} />
         </div>
