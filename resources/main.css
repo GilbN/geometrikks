@@ -20,6 +20,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* The phone refresh button's auto refresh ring: one fill per interval. The
+   button sets the interval as an inline animation-duration. */
+@utility refresh-ring {
+  stroke-dasharray: 100;
+  animation: refresh-ring linear infinite;
+}
+
+@keyframes refresh-ring {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Grows a small link's hit area without moving the layout. */
 @utility tap-area {
   position: relative;
@@ -348,12 +364,28 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent) !important;
 }
 
-/* On mobile the full-page map's bottom-right zoom/compass control needs to
-   clear the safe-area inset (home indicator). Scoped to .fullscreen-map so
-   embedded card maps (geo-logs) are unaffected. */
-@media (max-width: 767px) {
-  .fullscreen-map .maplibregl-ctrl-bottom-right {
-    bottom: env(safe-area-inset-bottom, 0px) !important;
+/* On a phone the full-page map's attribution (MapAttribution, not compact)
+   is a small centred line under the floating action card, above the
+   safe-area inset. Scoped to .fullscreen-map so embedded card maps
+   (geo-logs) are unaffected. The query matches useIsMobile. */
+@media (width < 48rem) {
+  .fullscreen-map .maplibregl-ctrl-bottom-left {
+    left: 0;
+    right: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
+    display: flex;
+    justify-content: center;
+  }
+
+  .fullscreen-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+    float: none;
+    margin: 0 0.75rem 8px;
+    padding: 0;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 10px;
+    line-height: 1.2;
+    text-align: center;
   }
 }
 

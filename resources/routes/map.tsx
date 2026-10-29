@@ -15,6 +15,7 @@ const GeoMap = lazy(() => import("@/components/map/GeoMap"))
 
 export const Route = createFileRoute("/map")({
   validateSearch: (search: Record<string, unknown>) => mapSearchSchema.parse(search),
+  staticData: { timeRange: true },
   component: MapPage,
 })
 

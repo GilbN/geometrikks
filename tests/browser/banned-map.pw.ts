@@ -119,6 +119,54 @@ for (const width of [1280, 390]) {
   })
 }
 
+// Opened from the centre of a phone map, the 20-row list is too tall to sit
+// above its point, so it opens below it, over the action card. The map pans
+// it clear; at 640px it is taller than the room and its list scrolls. With
+// reduced motion the pan is a jump, and a later drag must stay where the
+// user left it.
+for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] as const) {
+  test(`a phone popup stays clear of the action card at 390x${height}${reducedMotion ? " with reduced motion" : ""}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height })
+    if (reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
+    await setup(page)
+    await openCenterPopup(page)
+    const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    const card = page.getByRole("navigation", { name: "Map actions", exact: true })
+    const map = page.locator(".maplibregl-map")
+    const clear = async () => {
+      const [popupBox, cardBox, mapBox] = await Promise.all([popup.boundingBox(), card.boundingBox(), map.boundingBox()])
+      if (!popupBox || !cardBox || !mapBox) return false
+      return popupBox.y >= mapBox.y && popupBox.y + popupBox.height <= cardBox.y
+    }
+    await expect.poll(clear).toBe(true)
+    await popup.getByRole("button", { name: "Next", exact: true }).click()
+    await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(5)
+    await expect.poll(clear).toBe(true)
+
+    // Drag the map down from its top-left corner, clear of the popup. The
+    // drag can flip the popup to the other side of its point, so follow the
+    // point itself: the last translate MapLibre puts on the popup (plus an
+    // offset of at most 8px for a corner anchor).
+    const pointY = () =>
+      page.locator(".maplibregl-popup").evaluate((element) => {
+        const moves = [...(element as HTMLElement).style.transform.matchAll(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/g)]
+        return Number(moves.at(-1)?.[2])
+      })
+    const before = await pointY()
+    const mapBox = (await map.boundingBox())!
+    await page.mouse.move(mapBox.x + 12, mapBox.y + 12)
+    await page.mouse.down()
+    await page.mouse.move(mapBox.x + 12, mapBox.y + 92, { steps: 8 })
+    await page.mouse.up()
+    await page.waitForTimeout(1000)
+    const dragged = await pointY()
+    expect(dragged).toBeGreaterThan(before + 40)
+    // No correction pan undoes the drag afterwards.
+    await page.waitForTimeout(1000)
+    expect(Math.abs((await pointY()) - dragged)).toBeLessThanOrEqual(1)
+  })
+}
+
 test("overlapping groups remain reachable after cluster expansion", async ({ page }) => {
   await setup(page, collection([group("2", 25), group("3", 2, 10.00000001)]))
   await openCenterPopup(page)

@@ -145,9 +145,26 @@ describe("agentAdvisoryCards", () => {
         tone: "red",
         summary: "edge-traefik runs an older database migration than the head.",
         moreCount: 2,
+        lastSeenAgo: "30s ago",
       },
-      { instanceName: "vps", tone: "amber", summary: "instance-version-mismatch summary", moreCount: 0 },
+      {
+        instanceName: "vps",
+        tone: "amber",
+        summary: "instance-version-mismatch summary",
+        moreCount: 0,
+        lastSeenAgo: "30s ago",
+      },
     ])
+  })
+  it("measures last seen against the head's check time", () => {
+    const stale = makeInstance({
+      instanceName: "old",
+      status: "critical",
+      checkingIn: false,
+      lastSeen: "2026-10-15T09:00:00+00:00",
+      problems: [makeProblem("instance-not-checking-in", "critical")],
+    })
+    expect(agentAdvisoryCards(makeResponse([HEAD, stale]))[0].lastSeenAgo).toBe("2d ago")
   })
   it("is empty when every agent is healthy", () => {
     expect(agentAdvisoryCards(makeResponse([HEAD, HEALTHY]))).toEqual([])

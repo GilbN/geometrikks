@@ -75,6 +75,7 @@ Keep related roles separate even when their colors happen to match:
 | Role | Tokens |
 | --- | --- |
 | Page and cards | `--background`, `--card`, `--glass-card`, `--glass-card-strong` |
+| Filled primary hover and press | `--primary-state-mix` |
 | Text fields and selects | `--control-bg`, `--control-hover-bg`, `--input`, `--ring` |
 | Dialogs, sheets, drawers | `--panel-bg`, `--panel-border`, `--drawer-handle` |
 | Grouped controls and badges | `--muted`, `--secondary`, and their foregrounds |

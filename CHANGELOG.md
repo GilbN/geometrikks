@@ -16,6 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The details of a request, location, debug line or CrowdSec alert open with the IP at the top, with its decision, place and network below it and a copy button beside it. Inspect IP, Show on map and the IP actions menu sit along the bottom of the sheet, within thumb reach on a phone, and the menu has the same filters as the table rows. They replace the small inspect, fly-to and ban icons that sat next to the IP.
+- On a phone, a card floats over the bottom of the map with Layers, All traffic, Server and Live, each with a label. Layers opens the map controls that used to sit behind an icon in the top bar. The map runs to the bottom of the screen behind the card, and the OpenStreetMap and CARTO credits sit in one line under it. The zoom buttons are gone on phones, where you pinch to zoom.
+- On a phone, the map opens on your traffic instead of the server locations. When the traffic is spread wider than the screen shows, it opens on the stretch with the most events. `MAP_DEFAULT_VIEW` still decides the view when it is set.
+- On a phone, Settings > Environment opens on the settings you changed from their defaults, with every other group folded up to one line that shows how many settings it holds and how many you changed. Searching opens the groups that match. Each setting is one line with its value. Tapping it shows the description and the environment variable, and for a changed setting its default.
+- On a phone, Settings opens on a list of its sections, each with a live line such as "4 things need attention" or "7 jobs, next in 12s". Changelog and About get a dot while there are changes or a newer release you haven't opened yet. The desktop Settings menu now dots About too, next to the dot it already showed on Changelog. A section's top bar has a Settings link back to the list, in place of the section dropdown.
+- On a phone, Settings > Status opens on one card that says how many things need attention and lists them, worst first. An agent's problem says when the agent was last seen. Tapping a problem shows its detail and fix. Each component follows as a small tile with its state, and tapping a tile shows the full card.
+- On a phone, the top bar shows the time range as a teal button, next to a refresh button with a ring that fills once per auto refresh interval. The range button opens one drawer for the range, split into Recent, Calendar and Custom tabs, plus auto refresh and, on Analytics and Geo Logs, chart buckets. Pages the range doesn't affect, such as Security and Settings, show neither button, and the color scheme switch lives on Settings > Appearance.
+- On a phone, a chart's view and scale options sit behind a larger bordered button next to the chart title and open in a drawer with full-width rows instead of a small menu.
 - On a phone, Analytics and Geo Logs have a row of section buttons pinned under the top bar. Tap one to jump to that chart or list. The button for the section you're looking at lights up. Chart legends show two entries per line.
 - On a phone, the stat cards on the Overview, Security, Geo Logs and Debug Logs pages sit two to a row and take less height, so the Overview is about half as long. The top bar already names the page, so the page title and description are hidden, as are the descriptions on table and chart cards. Access Logs puts its Filters button next to the History and Live tail tabs, and the Overview's date range leaves out the times when it spans more than a day.
 - The Overview page heading says Overview, matching the menu, instead of Summary.
@@ -43,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fit to data bounds frames the traffic on a phone instead of the open ocean between the locations, and on desktop it keeps the locations clear of the map controls panel.
 - Pages on a phone no longer show the desktop filter bar for a moment while they load.
 - Settings > Environment wraps long list and map values, such as a full `APP_TRUSTED_PROXIES` or `MAP_SERVER_LOCATIONS`, between their items. A long value used to run off the side of the page and squeeze its description to one word per line.
 - The top bar on Settings > Appearance and Settings > Changelog shows the page name instead of "Page".
