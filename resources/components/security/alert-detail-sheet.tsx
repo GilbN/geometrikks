@@ -36,6 +36,7 @@ import {
   shortFingerprint,
   signalNote,
   type ChallengeContext,
+  timeLeftText,
 } from "@/lib/crowdsec-alerts"
 import type { UseQueryResult } from "@tanstack/react-query"
 import { useCrowdsecAlert, useCrowdsecDecisionAlert } from "@/lib/queries"
@@ -313,7 +314,7 @@ function AlertBody({
               />
               <span className="font-mono">{decision.value}</span>
               <span className="text-muted-foreground">
-                {decision.origin} · {decision.expired ? "expired" : `${decision.duration} left`}
+                {decision.origin} · {decision.expired ? "expired" : timeLeftText(decision.duration)}
                 {decision.simulated && " · simulated"}
               </span>
             </li>

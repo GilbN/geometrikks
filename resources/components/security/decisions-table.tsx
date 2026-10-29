@@ -18,6 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
 import { DecisionAlertSheet, type DecisionRef } from "./alert-detail-sheet"
 import { BanIpButton } from "./ban-ip-dialog"
@@ -25,17 +27,19 @@ import { DecisionGroupRows } from "./decision-group-rows"
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
+// The short labels leave room for Ban IP on the tabs' row of a phone.
 const ORIGIN_SCOPES = [
   // undefined origins -> the server's local-origins default
-  { key: "local", label: "Local", origins: undefined },
-  { key: "all", label: "All origins", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
-  { key: "capi", label: "Crowd (CAPI)", origins: "CAPI,lists" },
+  { key: "local", label: "Local", shortLabel: "Local", origins: undefined },
+  { key: "all", label: "All origins", shortLabel: "All", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
+  { key: "capi", label: "Crowd (CAPI)", shortLabel: "Crowd", origins: "CAPI,lists" },
 ] as const
 
 type OriginScopeKey = (typeof ORIGIN_SCOPES)[number]["key"]
 
 export function DecisionsTable() {
   const { data: status } = useCrowdsecStatus()
+  const isMobile = useIsMobile()
   const [scope, setScope] = useState<OriginScopeKey>("local")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(10)
@@ -47,17 +51,21 @@ export function DecisionsTable() {
     pageSize,
   })
   const [selected, setSelected] = useState<DecisionRef | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
 
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const colCount = status?.writeEnabled ? 9 : 8
+  const colCount = narrow ? 1 : status?.writeEnabled ? 9 : 8
 
   return (
-    <Card className="py-4">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
-        <div className="flex flex-wrap items-center gap-2">
-          {status?.writeEnabled && <BanIpButton />}
+    <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
+      <CardHeader className="flex flex-row flex-wrap items-center gap-2 pb-2 max-md:pb-2.5">
+        <CardTitle className="mr-auto max-md:basis-full text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
+        {/* One element on every width, so rotating a phone keeps an open Ban IP
+            dialog. Phones give the title its own line and put the button at the
+            end of the tabs' row. */}
+        {status?.writeEnabled && <BanIpButton className="max-md:order-2 max-md:ml-auto" />}
+        <div className="flex flex-wrap items-center gap-2 max-md:order-1">
           <Tabs
             value={scope}
             onValueChange={(value) => {
@@ -67,8 +75,8 @@ export function DecisionsTable() {
           >
             <TabsList>
               {ORIGIN_SCOPES.map((s) => (
-                <TabsTrigger key={s.key} value={s.key}>
-                  {s.label}
+                <TabsTrigger key={s.key} value={s.key} aria-label={isMobile ? s.label : undefined}>
+                  {isMobile ? s.shortLabel : s.label}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -77,29 +85,38 @@ export function DecisionsTable() {
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>IP / value</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>City</TableHead>
-                <TableHead>Origin</TableHead>
-                <TableHead>Scenario</TableHead>
-                <TableHead>Expires in</TableHead>
-                <TableHead className="text-right">Seen 24h</TableHead>
-                {status?.writeEnabled && <TableHead className="w-10" />}
-              </TableRow>
-            </TableHeader>
+          <Table className={narrow ? "table-fixed" : undefined}>
+            {!narrow && (
+              <TableHeader>
+                <TableRow>
+                  <TableHead>IP / value</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Country</TableHead>
+                  <TableHead>City</TableHead>
+                  <TableHead>Origin</TableHead>
+                  <TableHead>Scenario</TableHead>
+                  <TableHead>Expires in</TableHead>
+                  <TableHead className="text-right">Seen 24h</TableHead>
+                  {status?.writeEnabled && <TableHead className="w-10" />}
+                </TableRow>
+              </TableHeader>
+            )}
             <TableBody>
               {isLoading
                 ? Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: colCount }).map((_, j) => (
-                        <TableCell key={j}>
-                          <Skeleton className="h-4 w-full" />
+                      {narrow ? (
+                        <TableCell className="space-y-2 py-3">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
                         </TableCell>
-                      ))}
+                      ) : (
+                        Array.from({ length: colCount }).map((_, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-4 w-full" />
+                          </TableCell>
+                        ))
+                      )}
                     </TableRow>
                   ))
                 : data?.items.map((group) => (
@@ -108,6 +125,7 @@ export function DecisionsTable() {
                       group={group}
                       writeEnabled={status?.writeEnabled === true}
                       dimmed={isPlaceholderData}
+                      narrow={narrow}
                       onOpenAlert={setSelected}
                     />
                   ))}

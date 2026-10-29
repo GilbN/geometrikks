@@ -24,6 +24,8 @@ import { IpSignalsStrip } from "./ip-signals-strip"
 import { IpStatsBlock } from "./ip-stats-block"
 import { IpTopList } from "./ip-top-list"
 import { bucketFloor, computeSignals } from "./signals"
+import { timeLeftText } from "@/lib/crowdsec-alerts"
+import { scenarioText } from "@/lib/scenario-name"
 
 export function IpInspectorSheet() {
   const { ip, close } = useIpInspector()
@@ -150,7 +152,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
             className="h-auto max-w-full whitespace-normal break-words text-left"
             title={`Origin: ${decision.origin}`}
           >
-            {decisionLabel(decision.type)} · {decision.scenario} · {decision.duration} left
+            {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
           </DecisionBadge>
         )}
       </header>
