@@ -119,6 +119,32 @@ for (const width of [1280, 390]) {
   })
 }
 
+// Opened from the centre of a phone map, the 20-row list is too tall to sit
+// above its point, so it opens below it, over the action card. The map pans
+// it clear; at 640px it is taller than the room and its list scrolls.
+for (const height of [844, 640]) {
+  test(`a phone popup stays clear of the action card at 390x${height}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height })
+    await setup(page)
+    await openCenterPopup(page)
+    const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    const card = page.getByRole("navigation", { name: "Map actions", exact: true })
+    const clear = async () => {
+      const [popupBox, cardBox, mapBox] = await Promise.all([
+        popup.boundingBox(),
+        card.boundingBox(),
+        page.locator(".maplibregl-map").boundingBox(),
+      ])
+      if (!popupBox || !cardBox || !mapBox) return false
+      return popupBox.y >= mapBox.y && popupBox.y + popupBox.height <= cardBox.y
+    }
+    await expect.poll(clear).toBe(true)
+    await popup.getByRole("button", { name: "Next", exact: true }).click()
+    await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(5)
+    await expect.poll(clear).toBe(true)
+  })
+}
+
 test("overlapping groups remain reachable after cluster expansion", async ({ page }) => {
   await setup(page, collection([group("2", 25), group("3", 2, 10.00000001)]))
   await openCenterPopup(page)

@@ -7,8 +7,9 @@
  * Side anchors keep their tip, colored in main.css; corner anchors hide it
  * and sit a few pixels off the point so the marker stays visible.
  */
-import { useMemo, type CSSProperties, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
 import type { Offset, PaddingOptions } from "maplibre-gl"
+import { useMap } from "react-map-gl/maplibre"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { phoneActionCardTop } from "./phone-action-card"
@@ -30,6 +31,67 @@ export const POPUP_OFFSET: Offset = {
 export function usePopupPadding(): PaddingOptions | undefined {
   const isMobile = useIsMobile()
   return useMemo(() => (isMobile ? { bottom: phoneActionCardTop() } : undefined), [isMobile])
+}
+
+/** Room kept between a popup and the map's top edge or the action card. */
+const ACTION_CARD_GAP = 8
+/** MapLibre's popup tip, drawn outside the card. */
+const POPUP_TIP = 10
+
+/**
+ * On a phone, keeps an open popup whole between the map's top edge and the
+ * action card. MapLibre picks the popup's side when it opens, so a tall one
+ * can open below its point and run behind the card. When the popup opens or
+ * grows past the card, the map pans up by the overlap. Returns the tallest
+ * the popup may be, so one taller than that room scrolls instead.
+ *
+ * Only the popup's own changes pan the map. A user's pan is left alone.
+ */
+function useClearOfActionCard(cardRef: RefObject<HTMLDivElement | null>): number | undefined {
+  const { current: mapRef } = useMap()
+  const isMobile = useIsMobile()
+  const [maxHeight, setMaxHeight] = useState<number>()
+
+  useEffect(() => {
+    const map = mapRef?.getMap()
+    const card = cardRef.current
+    if (!map || !card || !isMobile) {
+      setMaxHeight(undefined)
+      return
+    }
+    const container = map.getContainer()
+    const measureRoom = () =>
+      setMaxHeight(container.clientHeight - phoneActionCardTop() - 2 * ACTION_CARD_GAP - POPUP_TIP)
+
+    const keepClear = () => {
+      // Wait for a flight or zoom that opened the popup, rather than cut it short.
+      if (map.isMoving()) {
+        map.off("moveend", keepClear)
+        map.once("moveend", keepClear)
+        return
+      }
+      const bounds = container.getBoundingClientRect()
+      const rect = card.getBoundingClientRect()
+      const overlap = rect.bottom - (bounds.bottom - phoneActionCardTop() - ACTION_CARD_GAP)
+      const pan = Math.min(overlap, rect.top - bounds.top - ACTION_CARD_GAP)
+      if (pan < 1) return
+      map.panBy([0, pan], { duration: 250 })
+      // The pan can flip the popup to the other side of its point; check again.
+      map.once("moveend", keepClear)
+    }
+
+    measureRoom()
+    map.on("resize", measureRoom)
+    const observer = new ResizeObserver(keepClear)
+    observer.observe(card)
+    return () => {
+      observer.disconnect()
+      map.off("resize", measureRoom)
+      map.off("moveend", keepClear)
+    }
+  }, [mapRef, cardRef, isMobile])
+
+  return maxHeight
 }
 
 export const POPUP_CODE_STYLE: CSSProperties = {
@@ -101,8 +163,11 @@ export function PopupCard({
   minWidth?: string
   children: ReactNode
 }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const maxHeight = useClearOfActionCard(cardRef)
   return (
     <div
+      ref={cardRef}
       style={{
         // Positioned so the close button anchors to this card rather than
         // to whichever ancestor MapLibre happens to have positioned.
@@ -115,6 +180,7 @@ export function PopupCard({
         boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
         border: "1px solid var(--popup-border)",
         minWidth,
+        ...(maxHeight !== undefined && { maxHeight, display: "flex", flexDirection: "column" }),
       }}
     >
       <button
@@ -147,11 +213,14 @@ export function PopupCard({
           paddingRight: "24px",
           marginBottom: "8px",
           borderBottom: "1px solid var(--popup-border)",
+          flexShrink: 0,
         }}
       >
         {header}
       </div>
-      {children}
+      <div style={maxHeight === undefined ? undefined : { minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
+        {children}
+      </div>
     </div>
   )
 }
