@@ -22,10 +22,15 @@ export function ExpandChevron({ open }: { open: boolean }) {
  *  truncates, so a long IPv6 address stays readable. */
 export const ROW_TARGET_VALUE_CLASS = "min-w-0 whitespace-normal font-mono [overflow-wrap:anywhere]"
 
+/** Lets a decision badge wrap inside a phone row, for a bouncer's own
+ *  decision type that is longer than the row is wide. */
+export const WRAPPING_BADGE_CLASS = "h-auto min-h-5 max-w-full whitespace-normal [overflow-wrap:anywhere]"
+
 /**
  * The first line of a row with a target: expand chevron, flag, value and
  * actions, then the status at the right. When they don't fit on one line
- * the status moves below rather than squeezing the value.
+ * the status moves below rather than squeezing the value, and a status
+ * wider than the row wraps.
  */
 export function RowTarget({
   open,
@@ -51,7 +56,7 @@ export function RowTarget({
         {value}
         {actions}
       </span>
-      <span className="ml-auto flex shrink-0 items-center gap-1">{status}</span>
+      <span className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1">{status}</span>
     </div>
   )
 }
