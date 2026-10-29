@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On a phone, Settings > Environment opens on the settings you changed from their defaults, with every other group folded up to one line that shows how many settings it holds and how many you changed. Searching opens the groups that match. Each setting is one line with its value. Tapping it shows the description and the environment variable, and for a changed setting its default.
 - On a phone, Settings opens on a list of its sections, each with a live line such as "4 things need attention" or "7 jobs, next in 12s". A section's top bar has a Settings link back to the list, in place of the section dropdown.
 - On a phone, Settings > Status opens on one card that says how many things need attention and lists them, worst first. Tapping a problem shows its detail and fix. Each component follows as a small tile with its state, and tapping a tile shows the full card.
 - On a phone, the top bar shows the time range as a button, next to a refresh button with a ring that fills once per auto refresh interval. The range button opens one drawer for the range, split into Recent, Calendar and Custom tabs, plus auto refresh and, on Analytics and Geo Logs, chart buckets. Pages the range doesn't affect, such as Security and Settings, show neither button, and the color scheme switch lives on Settings > Appearance.

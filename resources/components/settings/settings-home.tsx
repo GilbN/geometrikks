@@ -19,7 +19,7 @@ import {
 import { useTheme } from "@/components/theme-provider"
 import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
-import { isOverridden } from "@/components/settings/environment-overview"
+import { envSettingCount, isOverridden } from "@/components/settings/environment-fields"
 import {
   advisoryCards,
   overallState,
@@ -68,7 +68,6 @@ export function SettingsHome() {
   const problems = statusProblems(advisoryCards(health), instancesError ? [] : agentAdvisoryCards(instances))
   const agents = instancesError ? null : agentSummary(instances)
   const scheduler = schedulerSummary(schedulerData?.jobs, jobsError, Date.now())
-  const fields = settings?.sections.flatMap((section) => section.fields)
 
   const groups: { title: string; links: SectionLink[] }[] = [
     {
@@ -110,8 +109,8 @@ export function SettingsHome() {
           label: "Environment",
           icon: SlidersHorizontal,
           // Counted as the Environment page counts them.
-          line: fields
-            ? `${fields.filter(isOverridden).length} of ${fields.filter((field) => field.envVar).length} settings overridden`
+          line: settings
+            ? `${settings.sections.flatMap((section) => section.fields).filter(isOverridden).length} of ${envSettingCount(settings.sections)} settings overridden`
             : "Settings from the environment",
         },
         {
