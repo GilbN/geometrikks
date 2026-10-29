@@ -227,9 +227,9 @@ function PendingIpToast({ action, description }: { action: PendingIpAction; desc
       <CardContent className="flex items-center gap-3 text-[13px]">
         <Icon aria-hidden="true" className="size-4 shrink-0 text-primary" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">
+          <p className="font-medium">
             {action.kind === "ban" ? "Banning " : "Unbanning "}
-            <span className="font-mono">{action.ip}</span>
+            <span className="font-mono wrap-anywhere">{action.ip}</span>
             {action.kind === "ban" ? ` ${forDuration(action.durationLabel)}` : null}
           </p>
           <p className="text-muted-foreground">{description}</p>

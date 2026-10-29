@@ -399,6 +399,28 @@
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
 }
 
+/* Sonner sizes and collapses only its styled toasts, so custom toasts get
+   both here. Above sonner's 600px phone layout they take the toaster width.
+   Behind the front toast the card shrinks to its collapsed slot and hides
+   its content. */
+@media (min-width: 601px) {
+  .toaster [data-sonner-toast][data-styled='false'] {
+    width: var(--width);
+  }
+}
+
+.toaster .toast-surface > * {
+  transition: opacity 0.4s;
+}
+
+.toaster [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface {
+  height: 100%;
+}
+
+.toaster [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface > * {
+  opacity: 0;
+}
+
 .toaster [data-sonner-toast][data-styled='true'] [data-description] {
   color: var(--muted-foreground);
 }
