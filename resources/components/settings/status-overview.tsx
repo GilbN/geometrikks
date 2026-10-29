@@ -107,8 +107,12 @@ function Counter({ label, value }: { label: string; value: number | undefined })
 function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   const [confirming, setConfirming] = useState(false)
   const remove = useDeleteServerLocation()
+  // On a phone this line sits in a vaul drawer, whose bundled Radix copy
+  // keeps focus out of a nested AlertDialog, so the confirmation is inline.
+  const isMobile = useIsMobile()
+  const removeLocation = () => remove.mutate(row.server, { onSettled: () => setConfirming(false) })
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2 text-xs">
       <MonoChip>{row.server}</MonoChip>
       <span className="text-muted-foreground tabular-nums">{row.coords}</span>
       <span className={cn("tabular-nums", row.stale ? "text-amber-500" : "text-muted-foreground")}>
@@ -136,7 +140,28 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
           >
             <Trash2 />
           </Button>
-          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+          {isMobile && confirming && (
+            <div
+              role="group"
+              aria-label={`Remove the location for ${row.server}?`}
+              className="basis-full space-y-2 rounded-md border border-border/60 p-2"
+            >
+              <p className="text-muted-foreground">
+                Remove the location for {row.server}? Its beacon leaves the map and live routes stop
+                flying to it. If an agent still ingests as {row.server}, the location comes back at that
+                agent's next refresh.
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" autoFocus onClick={() => setConfirming(false)}>
+                  Keep
+                </Button>
+                <Button type="button" size="sm" variant="destructive" disabled={remove.isPending} onClick={removeLocation}>
+                  Remove
+                </Button>
+              </div>
+            </div>
+          )}
+          <AlertDialog open={!isMobile && confirming} onOpenChange={setConfirming}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove the location for {row.server}?</AlertDialogTitle>
@@ -150,7 +175,7 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
                 <AlertDialogAction
                   variant="destructive"
                   disabled={remove.isPending}
-                  onClick={() => remove.mutate(row.server, { onSettled: () => setConfirming(false) })}
+                  onClick={removeLocation}
                 >
                   Remove
                 </AlertDialogAction>
