@@ -17,6 +17,7 @@ const debugLogsSearchSchema = z.object({
 
 export const Route = createFileRoute("/debug-logs")({
   validateSearch: (search) => debugLogsSearchSchema.parse(search),
+  staticData: { timeRange: true },
   component: DebugLogsPage,
 })
 

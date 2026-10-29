@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On a phone, the top bar shows the time range as a teal button, next to a refresh button with a ring that fills once per auto refresh interval. The range button opens one drawer for the range, split into Recent, Calendar and Custom tabs, plus auto refresh and, on Analytics and Geo Logs, chart buckets. Pages the range doesn't affect, such as Security and Settings, show neither button, and the color scheme switch lives on Settings > Appearance.
+- On a phone, a chart's view and scale options sit behind a larger bordered button next to the chart title and open in a drawer with full-width rows instead of a small menu.
 - On a phone, Analytics and Geo Logs have a row of section buttons pinned under the top bar. Tap one to jump to that chart or list. The button for the section you're looking at lights up. Chart legends show two entries per line.
 - On a phone, the stat cards on the Overview, Security, Geo Logs and Debug Logs pages sit two to a row and take less height, so the Overview is about half as long. The top bar already names the page, so the page title and description are hidden, as are the descriptions on table and chart cards. Access Logs puts its Filters button next to the History and Live tail tabs, and the Overview's date range leaves out the times when it spans more than a day.
 - The Overview page heading says Overview, matching the menu, instead of Summary.

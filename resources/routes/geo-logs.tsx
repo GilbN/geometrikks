@@ -37,6 +37,7 @@ const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
 export const Route = createFileRoute("/geo-logs")({
   validateSearch: (search: Record<string, unknown>): GeoLogsSearch =>
     geoLogsSearchSchema.parse(search),
+  staticData: { timeRange: true, chartBuckets: true },
   component: GeoLogsPage,
 })
 

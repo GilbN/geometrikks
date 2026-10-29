@@ -20,6 +20,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* The phone refresh button's auto refresh ring: one fill per interval. The
+   button sets the interval as an inline animation-duration. */
+@utility refresh-ring {
+  stroke-dasharray: 100;
+  animation: refresh-ring linear infinite;
+}
+
+@keyframes refresh-ring {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Grows a small link's hit area without moving the layout. */
 @utility tap-area {
   position: relative;
