@@ -28,8 +28,8 @@ function TableSkeleton() {
  * A sticky header is one compact row that stays at the top of the scrolling
  * <main>, below anything that sets --sticky-top there, and only screen
  * readers get its description. While mounted it publishes its height as
- * --table-header-height on <main>, whose scroll-padding keeps focused
- * content and scroll resets clear of both.
+ * --table-header-height on <main>, so focus and scroll resets keep the rows
+ * clear of both.
  */
 export function DataTableFrame({
   title,
@@ -70,10 +70,14 @@ export function DataTableFrame({
     }
   }, [stickyHeader, header])
   // overflow-hidden would make the section a scroll container and pin the
-  // sticky header to it instead of the page. The browser picks its scroll
-  // anchor from below <main>'s scroll padding, which can land under the rows
-  // and jump the page when they mount; the virtualizer keeps the offset itself.
-  const surface = cn(FRAME_SURFACE, stickyHeader && "overflow-clip [overflow-anchor:none]", className)
+  // sticky header to it instead of the page. The scroll margin lets focus
+  // bring a row's controls out from under the header. Scroll padding on
+  // <main> would also cover the sticky bars, and tapping one would scroll.
+  const surface = cn(
+    FRAME_SURFACE,
+    stickyHeader && "overflow-clip [&_tbody_*]:scroll-mt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]",
+    className,
+  )
   return (
     <section
       data-slot="data-table-frame"
