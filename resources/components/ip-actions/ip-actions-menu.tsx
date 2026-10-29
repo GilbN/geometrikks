@@ -5,7 +5,7 @@
  * inspect, fly-to and ban buttons. Desktop gets a dropdown menu. Phones get
  * the same actions in a bottom drawer, like the Filters drawer.
  */
-import { Fragment, createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
+import { Fragment, createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { Check, Copy, EllipsisVertical, Eye, EyeOff, Filter, FilterX, Loader2, LocateFixed, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
 import { toast } from "sonner"
@@ -22,6 +22,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -100,7 +101,7 @@ function ActionDetail({ value }: { value?: string }) {
 }
 
 /** Copies the IP in one click; the icon turns into a check for a moment. */
-function CopyIpButton({ ip }: { ip: string }) {
+export function CopyIpButton({ ip, className }: { ip: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(resetTimer.current), [])
@@ -121,7 +122,7 @@ function CopyIpButton({ ip }: { ip: string }) {
     <Button
       variant="ghost"
       size="icon-xs"
-      className="ml-1 align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8"
+      className={cn("ml-1 align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
       title={copied ? "Copied" : "Copy IP"}
       aria-label={copied ? `Copied ${ip}` : `Copy ${ip}`}
       onClick={(event) => void copy(event.currentTarget)}
@@ -133,30 +134,39 @@ function CopyIpButton({ ip }: { ip: string }) {
 
 /** Scenario and time left for the IP's decision. The menu mounts it only
  *  while it is open on a banned IP, so a table of IPs makes no lookups. */
-function DecisionDetail({ ip }: { ip: string }) {
+function DecisionDetail({ ip, wrap }: { ip: string; wrap: boolean }) {
   const decision = winningDecision(useIpDecisions(ip).data)
   if (decision === null) return null
   return (
-    <span className="flex max-w-80 gap-1">
-      <span className="truncate" title={decision.scenario}>{scenarioText(decision.scenario)}</span>
+    <span className={cn("flex gap-1", wrap ? "min-w-0" : "max-w-80")}>
+      <span className={wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate"} title={decision.scenario}>{scenarioText(decision.scenario)}</span>
       <span className="shrink-0">· {timeLeftText(decision.duration)}</span>
     </span>
   )
 }
 
-/** The lines under the IP: its decision, then where the row places it. */
-function IpContext({ values, decision }: { values: IpRowValues; decision: string | null }) {
+/** The lines under the IP: its decision, then where the row places it.
+ *  `wrap` lets long lines wrap instead of truncating, for a full-width sheet. */
+export function IpContext({
+  values,
+  decision,
+  wrap = false,
+}: {
+  values: IpRowValues
+  decision: string | null
+  wrap?: boolean
+}) {
   const { ip, countryCode, countryName, city, asn, asOrganization } = values
   const place = [city, countryCode ? countryLabel(countryCode, countryName) : null].filter(Boolean).join(", ")
   const network = [asn != null ? `AS${asn}` : null, asOrganization].filter(Boolean).join(" ")
   const where = [place, network].filter(Boolean).join(" · ")
   return (
     <>
-      {decision !== null && <DecisionDetail ip={ip} />}
+      {decision !== null && <DecisionDetail ip={ip} wrap={wrap} />}
       {where && (
-        <span className="flex max-w-80 items-center gap-1.5">
+        <span className={cn("flex items-center gap-1.5", wrap ? "min-w-0" : "max-w-80")}>
           <CountryFlag code={countryCode} name={countryName} />
-          <span className="truncate" title={where}>{where}</span>
+          <span className={wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate"} title={where}>{where}</span>
         </span>
       )}
     </>
@@ -166,11 +176,19 @@ function IpContext({ values, decision }: { values: IpRowValues; decision: string
 export function IpActionsMenu({
   locationId,
   className,
+  footer = false,
+  onFilter,
   ...values
 }: IpRowValues & {
   /** Where Fly to lands; without it the map picks the IP's busiest location. */
   locationId?: number
   className?: string
+  /** For a record sheet's footer: a full-size button and a dropdown at every
+   *  width, since a vaul drawer can't nest in the sheet's dialog. Copy,
+   *  inspect and fly-to are left out because the sheet has its own. */
+  footer?: boolean
+  /** Runs after a filter action, so a sheet can close over the filtered table. */
+  onFilter?: () => void
 }) {
   const { ip } = values
   const isMobile = useIsMobile()
@@ -192,6 +210,7 @@ export function IpActionsMenu({
   // drawer action closes it through DrawerClose rather than a controlled `open`.
   const afterClose = useRef<(() => void) | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const banLabelId = useId()
   const runAfterClose = () => {
     const run = afterClose.current
     afterClose.current = null
@@ -226,30 +245,43 @@ export function IpActionsMenu({
       onError: (err) => toast.error(crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`)),
     })
 
-  const sections: IpAction[][] = [
-    [
-      { key: "copy", icon: <Copy />, label: "Copy IP", run: (source: HTMLElement) => void copy(source) },
-      { key: "inspect", icon: <ScanSearch />, label: "Inspect IP", run: () => inspect(ip), opensDialog: true },
-      {
-        key: "fly-to",
-        icon: <LocateFixed />,
-        label: "Fly to on the map",
-        run: () =>
-          void navigate({
-            to: "/map",
-            search: (prev: Record<string, unknown>) => ({ ...prev, ...flyToSearch(ip, locationId) }),
-          }),
-      },
-    ],
-    (targetsFor?.(values) ?? []).flatMap((target) => filterActions(ip, target)),
-  ].filter((section) => section.length > 0)
+  const navigation: IpAction[] = footer
+    ? []
+    : [
+        { key: "copy", icon: <Copy />, label: "Copy IP", run: (source: HTMLElement) => void copy(source) },
+        { key: "inspect", icon: <ScanSearch />, label: "Inspect IP", run: () => inspect(ip), opensDialog: true },
+        {
+          key: "fly-to",
+          icon: <LocateFixed />,
+          label: "Fly to on the map",
+          run: () =>
+            void navigate({
+              to: "/map",
+              search: (prev: Record<string, unknown>) => ({ ...prev, ...flyToSearch(ip, locationId) }),
+            }),
+        },
+      ]
+  const filters = (targetsFor?.(values) ?? [])
+    .flatMap((target) => filterActions(ip, target))
+    .map((action): IpAction => {
+      if (!onFilter) return action
+      return {
+        ...action,
+        run: (source) => {
+          action.run(source)
+          onFilter()
+        },
+      }
+    })
+  const sections = [navigation, filters].filter((section) => section.length > 0)
+  if (footer && sections.length === 0 && !status?.writeEnabled) return null
 
   const trigger = (
     <Button
       ref={triggerRef}
-      variant="ghost"
-      size="icon-xs"
-      className={cn("align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
+      variant={footer ? "outline" : "ghost"}
+      size={footer ? "icon-lg" : "icon-xs"}
+      className={cn(!footer && "align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
       title="IP actions"
       aria-label={`Actions for ${ip}`}
     >
@@ -258,9 +290,11 @@ export function IpActionsMenu({
   )
 
   return (
-    <span {...stopRowActivation}>
-      <CopyIpButton ip={ip} />
-      {isMobile ? (
+    // A sheet footer sits in no row, and stopping its keydowns would keep Tab
+    // from reaching the sheet's focus trap.
+    <span {...(footer ? {} : stopRowActivation)}>
+      {!footer && <CopyIpButton ip={ip} />}
+      {isMobile && !footer ? (
         <Drawer
           onAnimationEnd={(open) => {
             if (!open) runAfterClose()
@@ -353,19 +387,23 @@ export function IpActionsMenu({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           <DropdownMenuContent
-            align="start"
-            className="w-auto min-w-48"
+            align={footer ? "end" : "start"}
+            side={footer ? "top" : undefined}
+            className={cn("w-auto min-w-48", footer && "max-w-[calc(100vw-2rem)]")}
             onCloseAutoFocus={(event) => {
               if (runAfterClose()) event.preventDefault()
             }}
           >
-            <DropdownMenuLabel className="flex flex-col items-start justify-start gap-0.5">
-              <span className="flex items-center gap-2 font-mono">
-                {ip}
-                {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
-              </span>
-              <IpContext values={values} decision={decision} />
-            </DropdownMenuLabel>
+            {/* In a sheet the IP block above already says all this. */}
+            {!footer && (
+              <DropdownMenuLabel className="flex flex-col items-start justify-start gap-0.5">
+                <span className="flex items-center gap-2 font-mono">
+                  {ip}
+                  {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                </span>
+                <IpContext values={values} decision={decision} />
+              </DropdownMenuLabel>
+            )}
             {sections.map((section, index) => (
               <Fragment key={index}>
                 {index > 0 && <DropdownMenuSeparator />}
@@ -380,12 +418,40 @@ export function IpActionsMenu({
             ))}
             {status?.writeEnabled && (
               <>
-                <DropdownMenuSeparator />
+                {sections.length > 0 && <DropdownMenuSeparator />}
                 {banned ? (
                   <DropdownMenuItem disabled={isPending} onSelect={unbanIp}>
                     <ShieldOff />
                     Unban IP
                   </DropdownMenuItem>
+                ) : footer ? (
+                  // Inline rather than a submenu: a phone has no room beside
+                  // the footer menu for one.
+                  <DropdownMenuGroup aria-labelledby={banLabelId}>
+                    <DropdownMenuLabel id={banLabelId} className="flex items-center gap-2 font-normal">
+                      <ShieldBan className="size-4" />
+                      Ban IP for
+                    </DropdownMenuLabel>
+                    {BAN_DURATIONS.map((duration) => (
+                      <DropdownMenuItem
+                        key={duration.value}
+                        className="pl-8"
+                        disabled={isPending}
+                        onSelect={() => banFor(duration.value)}
+                      >
+                        {duration.label}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuItem
+                      className="pl-8"
+                      disabled={isPending}
+                      onSelect={() => {
+                        afterClose.current = () => setBanDialogOpen(true)
+                      }}
+                    >
+                      More options…
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 ) : (
                   <DropdownMenuSub>
                     <DropdownMenuSubTrigger disabled={isPending}>

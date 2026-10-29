@@ -536,89 +536,90 @@ export function DebugLogsTable() {
   )
 
   return (
-    <div className="space-y-4">
-      {isMobile ? (
-        <div onClick={() => setFacetsEnabled(true)}>
-          <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
-            {renderFilters(true)}
-          </FiltersDrawer>
-        </div>
-      ) : (
-        <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
-          {renderFilters(false)}
-        </FilterRail>
-      )}
+    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+      {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
+      <div className="space-y-4">
+        {isMobile ? (
+          <div onClick={() => setFacetsEnabled(true)}>
+            <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
+              {renderFilters(true)}
+            </FiltersDrawer>
+          </div>
+        ) : (
+          <FilterRail label="Debug filters" activeCount={activeFilterCount} onClear={clearFilters}>
+            {renderFilters(false)}
+          </FilterRail>
+        )}
 
-      <div ref={layoutRef}>
-        <DataTableFrame
-          title="Captured source lines"
-          description="Raw parser input and linked request context. Select a row for the complete record."
-          count={data ? total : undefined}
-          tools={
-            narrow ? (
-              <TableSortDrawer
-                options={SORT_OPTIONS}
-                sortField={sortField}
-                sortOrder={sortOrder}
-                onSortChange={(field, order) => {
-                  setSortField(field)
-                  setSortOrder(order)
-                }}
+        <div ref={layoutRef}>
+          <DataTableFrame
+            title="Captured source lines"
+            description="Raw parser input and linked request context. Select a row for the complete record."
+            count={data ? total : undefined}
+            tools={
+              narrow ? (
+                <TableSortDrawer
+                  options={SORT_OPTIONS}
+                  sortField={sortField}
+                  sortOrder={sortOrder}
+                  onSortChange={(field, order) => {
+                    setSortField(field)
+                    setSortOrder(order)
+                  }}
+                />
+              ) : (
+                columnsMenu
+              )
+            }
+            state={state}
+            error="Failed to load debug logs."
+            empty="No debug lines match these filters."
+            footer={
+              <PaginationFooter
+                page={page}
+                pageCount={pageCount}
+                total={total}
+                onPageChange={setPage}
+                disabled={isPlaceholderData}
+                pageSize={pageSize}
+                pageSizes={PAGE_SIZES}
+                onPageSizeChange={setPageSize}
               />
-            ) : (
-              columnsMenu
-            )
-          }
-          state={state}
-          error="Failed to load debug logs."
-          empty="No debug lines match these filters."
-          footer={
-            <PaginationFooter
-              page={page}
-              pageCount={pageCount}
-              total={total}
-              onPageChange={setPage}
-              disabled={isPlaceholderData}
-              pageSize={pageSize}
-              pageSizes={PAGE_SIZES}
-              onPageSizeChange={setPageSize}
-            />
-          }
-        >
-          <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
-            {!narrow && (
-              <TableHeader>
-                <TableRow>
-                  {shownColumns.map((c) => {
-                    if (!c.sortField) {
+            }
+          >
+            <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, search, ip, cities, countries, malformedFilter, range, customRange])}>
+              {!narrow && (
+                <TableHeader>
+                  <TableRow>
+                    {shownColumns.map((c) => {
+                      if (!c.sortField) {
+                        return (
+                          <TableHead key={c.key}>
+                            {c.label}
+                          </TableHead>
+                        )
+                      }
+                      const columnSortField = c.sortField
                       return (
-                        <TableHead key={c.key}>
-                          {c.label}
-                        </TableHead>
+                        <SortableHead
+                          key={c.key}
+                          label={c.label}
+                          active={sortField === columnSortField}
+                          sortOrder={sortOrder}
+                          onToggle={() => toggleSort(columnSortField)}
+                        />
                       )
-                    }
-                    const columnSortField = c.sortField
-                    return (
-                      <SortableHead
-                        key={c.key}
-                        label={c.label}
-                        active={sortField === columnSortField}
-                        sortOrder={sortOrder}
-                        onToggle={() => toggleSort(columnSortField)}
-                      />
-                    )
-                  })}
-                </TableRow>
-              </TableHeader>
-            )}
-            <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+                    })}
+                  </TableRow>
+                </TableHeader>
+              )}
               <DebugLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
-            </IpFilterTargetsProvider>
-          </VirtualTable>
-        </DataTableFrame>
-      </div>
+            </VirtualTable>
+          </DataTableFrame>
+        </div>
 
-      <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
-    </div>
+        <DebugLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
+      </div>
+    </IpFilterTargetsProvider>
   )
 }

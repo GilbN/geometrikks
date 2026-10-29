@@ -275,7 +275,7 @@ for (const fixture of [
     // Replacing a record sheet with the inspector still returns to its row.
     await lastRow.focus()
     await page.keyboard.press("Enter")
-    await dialog.getByRole("button", { name: "Inspect 192.0.2.1", exact: true }).click()
+    await dialog.getByRole("button", { name: "Inspect IP", exact: true }).click()
     await expect(dialog).toHaveCount(1)
     await expect(dialog.getByRole("heading", { level: 2 })).toContainText("192.0.2.1")
     await page.keyboard.press("Escape")

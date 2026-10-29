@@ -1,9 +1,6 @@
 /**
- * Decision badge + ban/unban dropdown for an IP rendered in a table cell.
- * Self-contained: subscribes to the shared banned-IP map and CrowdSec
- * status (TanStack Query dedupes per-row subscriptions), so callers just
- * pass the IP. Renders nothing when the integration is off, and only the
- * badge when it is read-only (no machine credentials).
+ * Ban/unban dropdown for one IP, used by the IP inspector. Subscribes to
+ * the CrowdSec status, so callers pass only the IP and whether it is banned.
  */
 import { useState } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
@@ -20,12 +17,10 @@ import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { toast } from "sonner"
 import {
   useBanIp,
-  useBannedIps,
   useCrowdsecStatus,
   useUnbanIp,
 } from "@/lib/queries"
 import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
-import { DecisionBadge } from "./decision-badge"
 
 /** Ban/unban dropdown on the IP cell; hidden unless machine credentials
  *  enable write access on the CrowdSec integration. */
@@ -92,36 +87,6 @@ export function IpBanAction({ ip, banned }: { ip: string; banned: boolean }) {
         </DropdownMenuContent>
       </DropdownMenu>
       <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />
-    </>
-  )
-}
-
-/** Decision badge plus the ban/unban dropdown, driven by the shared
- *  banned-IP map. `children` (the inspect button) sit between the badge
- *  and the shield so the two icons stay together. */
-export function IpBanControls({
-  ip,
-  badgeTitle,
-  children,
-}: {
-  ip: string
-  /** Replaces the badge's default tooltip for the decision type. */
-  badgeTitle?: (decisionType: string) => string
-  children?: React.ReactNode
-}) {
-  const { data: bannedIps } = useBannedIps()
-  const decision = bannedIps?.get(ip) ?? null
-  return (
-    <>
-      {decision !== null && (
-        <DecisionBadge
-          type={decision}
-          className="ml-2 align-middle"
-          title={badgeTitle?.(decision)}
-        />
-      )}
-      {children}
-      <IpBanAction ip={ip} banned={decision !== null} />
     </>
   )
 }

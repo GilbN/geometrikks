@@ -315,7 +315,8 @@ export function AccessLogsTable({
   )
 
   return (
-    <>
+    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+      {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
       <div ref={layoutRef}>
         <DataTableFrame
           title="Request history"
@@ -371,14 +372,12 @@ export function AccessLogsTable({
                 </TableRow>
               </TableHeader>
             )}
-            <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
-              <AccessLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
-            </IpFilterTargetsProvider>
+            <AccessLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
           </VirtualTable>
         </DataTableFrame>
       </div>
 
       <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
-    </>
+    </IpFilterTargetsProvider>
   )
 }

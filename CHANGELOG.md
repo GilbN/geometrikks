@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The details of a request, location, debug line or CrowdSec alert open with the IP at the top, with its decision, place and network below it and a copy button beside it. Inspect IP, Show on map and the IP actions menu sit along the bottom of the sheet, within thumb reach on a phone, and the menu has the same filters as the table rows. They replace the small inspect, fly-to and ban icons that sat next to the IP.
 - On a phone, Analytics and Geo Logs have a row of section buttons pinned under the top bar. Tap one to jump to that chart or list. The button for the section you're looking at lights up. Chart legends show two entries per line.
 - On a phone, the stat cards on the Overview, Security, Geo Logs and Debug Logs pages sit two to a row and take less height, so the Overview is about half as long. The top bar already names the page, so the page title and description are hidden, as are the descriptions on table and chart cards. Access Logs puts its Filters button next to the History and Live tail tabs, and the Overview's date range leaves out the times when it spans more than a day.
 - The Overview page heading says Overview, matching the menu, instead of Summary.
