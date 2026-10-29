@@ -23,6 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useIsMobile } from "@/hooks/use-mobile"
 import type { CrowdSecDecisionsPage } from "@/lib/api"
 import { isValidBanTarget } from "@/lib/crowdsec"
 import { useCrowdsecDecisions, useCrowdsecStatus } from "@/lib/queries"
@@ -32,17 +33,19 @@ import { DecisionGroupRows } from "./decision-group-rows"
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
+// The short labels leave room for Ban IP on the tabs' row of a phone.
 const ORIGIN_SCOPES = [
   // undefined origins -> the server's local-origins default
-  { key: "local", label: "Local", origins: undefined },
-  { key: "all", label: "All origins", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
-  { key: "capi", label: "Crowd (CAPI)", origins: "CAPI,lists" },
+  { key: "local", label: "Local", shortLabel: "Local", origins: undefined },
+  { key: "all", label: "All origins", shortLabel: "All", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
+  { key: "capi", label: "Crowd (CAPI)", shortLabel: "Crowd", origins: "CAPI,lists" },
 ] as const
 
 type OriginScopeKey = (typeof ORIGIN_SCOPES)[number]["key"]
 
 export function DecisionsTable() {
   const { data: status } = useCrowdsecStatus()
+  const isMobile = useIsMobile()
   const [scope, setScope] = useState<OriginScopeKey>("local")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(10)
@@ -78,11 +81,12 @@ export function DecisionsTable() {
   return (
     <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
       <CardHeader className="flex flex-row flex-wrap items-center gap-2 pb-2 max-md:pb-2.5">
-        <CardTitle className="mr-auto text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
+        <CardTitle className="mr-auto text-[11px] max-md:basis-full font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
         {/* One element on every width, so rotating a phone keeps an open Ban IP
-            dialog. Phones push the tabs below it and keep it on the title line. */}
-        {status?.writeEnabled && <BanIpButton />}
-        <div className="flex flex-wrap items-center gap-2 max-md:basis-full">
+            dialog. Phones give the title its own line and put the button at the
+            end of the tabs' row. */}
+        {status?.writeEnabled && <BanIpButton className="max-md:order-2 max-md:ml-auto" />}
+        <div className="flex flex-wrap items-center gap-2 max-md:order-1">
           <Tabs
             value={scope}
             onValueChange={(value) => {
@@ -95,11 +99,12 @@ export function DecisionsTable() {
                 <TabsTrigger
                   key={s.key}
                   value={s.key}
+                  aria-label={isMobile ? s.label : undefined}
                   disabled={searchesEveryOrigin}
                   // Off reads as plain muted text with no selected pill, rather than half-faded.
                   className="disabled:border-transparent! disabled:bg-transparent! disabled:text-muted-foreground! disabled:opacity-100 disabled:shadow-none!"
                 >
-                  {s.label}
+                  {isMobile ? s.shortLabel : s.label}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -107,7 +112,7 @@ export function DecisionsTable() {
         </div>
         {/* A wide header fits the field beside the tabs. Narrower ones give it
             its own line, so the hint below always starts under the field. */}
-        <div className="basis-full @4xl/card-header:basis-auto">
+        <div className="basis-full max-md:order-3 @4xl/card-header:basis-auto">
           <div className="relative md:w-64">
             <Search
               aria-hidden
@@ -148,8 +153,8 @@ export function DecisionsTable() {
           aria-live="polite"
           className={
             searchHint
-              ? "flex basis-full items-start gap-2 px-1 text-xs text-muted-foreground @4xl/card-header:justify-end @4xl/card-header:text-right"
-              : "sr-only"
+              ? "flex basis-full items-start gap-2 px-1 text-xs max-md:order-3 text-muted-foreground @4xl/card-header:justify-end @4xl/card-header:text-right"
+              : "sr-only max-md:order-3"
           }
         >
           {searchesEveryOrigin && searchHint && <Info aria-hidden className="mt-px size-3.5 shrink-0" />}
