@@ -111,8 +111,32 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   // keeps focus out of a nested AlertDialog, so the confirmation is inline.
   const isMobile = useIsMobile()
   const removeLocation = () => remove.mutate(row.server, { onSettled: () => setConfirming(false) })
-  // The inline confirmation stays open on a failed removal, so it can say so.
-  const removeLocationInline = () => remove.mutate(row.server, { onSuccess: () => setConfirming(false) })
+  // The inline confirmation stays open on a failed removal, so it can say so,
+  // and puts focus on Keep, since disabling Remove while it ran dropped it.
+  // A 404 means the location is already gone, which is what was asked for.
+  const keepRef = useRef<HTMLButtonElement>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const removeLocationInline = () => {
+    setRemoveError(null)
+    remove.mutate(row.server, {
+      onSuccess: () => setConfirming(false),
+      onError: (error) => {
+        // The generated client throws the parsed error body.
+        const status =
+          typeof error === "object" && error !== null && "status_code" in error ? error.status_code : undefined
+        if (status === 404) {
+          setConfirming(false)
+          return
+        }
+        setRemoveError(
+          status === 409
+            ? `${row.server}'s location is now pinned by MAP_SERVER_LOCATIONS. Edit it there.`
+            : "The location could not be removed. Try again.",
+        )
+        requestAnimationFrame(() => keepRef.current?.focus())
+      },
+    })
+  }
   // Focus goes back to the trash button when the inline confirmation closes;
   // otherwise the drawer's focus trap drops it at the top of the drawer.
   const trashRef = useRef<HTMLButtonElement>(null)
@@ -150,7 +174,7 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
             // Reopening mid-request would reset the mutation and lose its outcome.
             disabled={remove.isPending}
             onClick={() => {
-              remove.reset()
+              setRemoveError(null)
               setConfirming(true)
             }}
           >
@@ -167,13 +191,22 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
                 flying to it. If an agent still ingests as {row.server}, the location comes back at that
                 agent's next refresh.
               </p>
-              {remove.isError && (
+              {removeError && (
                 <p role="alert" className="text-destructive">
-                  The location could not be removed. Try again.
+                  {removeError}
                 </p>
               )}
               <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" autoFocus onClick={() => setConfirming(false)}>
+                <Button
+                  ref={keepRef}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  autoFocus
+                  // Closing mid-request would hide whether the removal worked.
+                  disabled={remove.isPending}
+                  onClick={() => setConfirming(false)}
+                >
                   Keep
                 </Button>
                 <Button
