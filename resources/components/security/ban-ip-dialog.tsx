@@ -225,11 +225,11 @@ export function BanIpDialog({
   )
 }
 
-export function BanIpButton() {
+export function BanIpButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" className={className} onClick={() => setOpen(true)}>
         <ShieldBan data-icon="inline-start" />
         Ban IP
       </Button>
