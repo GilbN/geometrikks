@@ -321,6 +321,7 @@ export function AccessLogsTable({
           title="Request history"
           description="Requests captured in the selected time range. Select a row for the complete record."
           count={data ? total : undefined}
+          stickyHeader={narrow}
           tools={
             narrow ? (
               <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
