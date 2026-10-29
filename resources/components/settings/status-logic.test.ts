@@ -34,6 +34,9 @@ import {
   sidebarIngestionVariant,
   sidebarStatusTooltip,
   serverLocationRows,
+  schedulerSummary,
+  statusProblems,
+  verdictTitle,
 } from "./status-logic"
 
 function makeHealth(overrides: Partial<HealthResponse> = {}): HealthResponse {
@@ -868,5 +871,66 @@ describe("advisoryCards", () => {
       "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME",
       "MAP_HOME_LATITUDE → MAP_SERVER_LATITUDE",
     ])
+  })
+})
+
+describe("statusProblems", () => {
+  it("lists advisories and agent problems with critical ones first", () => {
+    const rows = statusProblems(
+      [{ id: "renamed-env", tone: "amber", label: "3 environment variables use their old names." }],
+      [
+        { instanceName: "edge", tone: "amber", summary: "edge is behind.", moreCount: 0, lastSeenAgo: "12s ago" },
+        { instanceName: "agent", tone: "red", summary: "agent stopped checking in.", moreCount: 2, lastSeenAgo: "2d ago" },
+      ],
+    )
+    expect(rows.map((row) => row.label)).toEqual([
+      "agent stopped checking in.",
+      "3 environment variables use their old names.",
+      "edge is behind.",
+    ])
+    expect(rows[0]).toMatchObject({ agentName: "agent", detail: "Last seen 2d ago, and 2 more problems" })
+    expect(rows[2]).toMatchObject({ agentName: "edge", detail: "Last seen 12s ago" })
+  })
+
+  it("names a single extra problem in the singular", () => {
+    const [row] = statusProblems([], [
+      { instanceName: "vps", tone: "amber", summary: "vps is behind.", moreCount: 1, lastSeenAgo: "3m ago" },
+    ])
+    expect(row.detail).toBe("Last seen 3m ago, and 1 more problem")
+  })
+})
+
+describe("verdictTitle", () => {
+  it("counts the problems when something needs attention", () => {
+    expect(verdictTitle({ tone: "amber", label: "Attention" }, 4)).toBe("4 things need attention")
+    expect(verdictTitle({ tone: "amber", label: "Attention" }, 1)).toBe("1 thing needs attention")
+  })
+
+  it("keeps the overall label otherwise", () => {
+    expect(verdictTitle({ tone: "emerald", label: "Healthy" }, 0)).toBe("Healthy")
+    expect(verdictTitle({ tone: "amber", label: "Degraded" }, 2)).toBe("Degraded")
+  })
+})
+
+describe("schedulerSummary", () => {
+  const now = Date.parse("2026-10-29T12:00:00Z")
+  const job = (overrides: Partial<SchedulerJobView>): SchedulerJobView =>
+    ({ id: "x", name: "x", running: false, lastStatus: "success", nextRunTime: null, ...overrides }) as SchedulerJobView
+
+  it("takes the worst job's light and the soonest next run", () => {
+    const state = schedulerSummary(
+      [
+        job({ id: "a", nextRunTime: "2026-10-29T12:10:00+00:00" }),
+        job({ id: "b", lastStatus: "error", nextRunTime: "2026-10-29T12:00:30Z" }),
+      ],
+      false,
+      now,
+    )
+    expect(state).toMatchObject({ tone: "red", label: "2 jobs, 1 failed" })
+    expect(state.detail).toBe(`Next ${relativeTime("2026-10-29T12:00:30Z", now)}`)
+  })
+
+  it("says when the job list is unavailable", () => {
+    expect(schedulerSummary(undefined, true, now)).toEqual({ tone: "muted", label: "Unavailable" })
   })
 })

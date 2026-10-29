@@ -10,6 +10,7 @@
   --popover: #ffffff;
   --popover-foreground: #171717;
   --primary-foreground: #ffffff;
+  --primary-state-mix: var(--background);
   --secondary: #ebebeb;
   --secondary-foreground: #262626;
   --muted: #ebebeb;
@@ -36,6 +37,7 @@
   --popover: #141414;
   --popover-foreground: #e8e8e8;
   --primary-foreground: #000000;
+  --primary-state-mix: var(--background);
   --secondary: #282828;
   --secondary-foreground: #e8e8e8;
   --muted: #242424;

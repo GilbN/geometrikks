@@ -3,7 +3,10 @@
  */
 
 import { useEffect } from "react"
-import { releaseCheckPollMs } from "@/lib/release-check"
+import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
+import { useSeenRelease } from "@/lib/release-seen"
+import { useReloadNotice } from "@/lib/reload-notice"
+import type { LatestReleaseView } from "@/generated/api/types.gen"
 import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
@@ -295,6 +298,19 @@ export function useChangelogUnseen(): boolean {
     if (current && seen === null) saveSeenBuild(current)
   }, [current, seen])
   return hasUnseenChanges(seen, current)
+}
+
+/**
+ * The newer release while About has not announced it to this browser yet,
+ * else null. A pending reload takes the dot's place, so it is null then too.
+ */
+export function useUnseenRelease(): LatestReleaseView | null {
+  const { data: releaseCheck } = useReleaseCheck()
+  const seenRelease = useSeenRelease()
+  const { pending: reloadPending } = useReloadNotice()
+  const latest = releaseCheck?.latest ?? null
+  const shown = showsReleaseDot({ reloadPending, latestVersion: latest?.version ?? null, seenVersion: seenRelease })
+  return shown ? latest : null
 }
 
 /** The vendored hosting-ASN list; fetched only while its dialog is open. */
@@ -1465,7 +1481,11 @@ export function useDeleteServerLocation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (server: string) => deleteServerLocation(server),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations }),
+    // Settled, not success, as in useDeleteInstance: a 404 means it is already
+    // gone, and the refetch takes the row away.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.geo.serverLocations })
+    },
   })
 }
 
