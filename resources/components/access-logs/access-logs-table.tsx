@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { sortOptions } from "@/components/data/sort-options"
 import { SortableHead } from "@/components/data/sortable-head"
 import { TableSortDrawer } from "@/components/data/table-sort-drawer"
@@ -249,6 +250,7 @@ export function AccessLogsTable({
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const isMobile = useIsMobile()
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS)
@@ -322,6 +324,7 @@ export function AccessLogsTable({
           title="Request history"
           description="Requests captured in the selected time range. Select a row for the complete record."
           count={data ? total : undefined}
+          stickyHeader={narrow && isMobile}
           tools={
             narrow ? (
               <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
