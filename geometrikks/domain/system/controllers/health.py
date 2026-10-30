@@ -28,9 +28,9 @@ from geometrikks.lib.utils import geoip_info
 from geometrikks.lib.advisories import (
     Advisory,
     CITY_DATABASE_MISSING,
-    INGESTION_WRITE_FAILURES_ID,
     INGESTION_STOPPED,
-    last_write_error_sentence,
+    INGESTION_WRITE_FAILURES_ID,
+    ONGOING_FAILED_BATCHES,
     legacy_env_advisory,
 )
 from geometrikks.server import runtime
@@ -273,18 +273,20 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
 
 
 def _write_failures_advisory(service: LogIngestionService, now: datetime) -> Advisory:
-    """Critical once every write in the last WRITE_FAILURE_WINDOW failed, a
-    warning while some still land or the failures stopped."""
+    """Critical while writes keep failing: ONGOING_FAILED_BATCHES failed
+    batches in the last WRITE_FAILURE_WINDOW and nothing written in it. A
+    warning otherwise, so one bad record on a quiet server stays amber.
+
+    /health is public, so the detail never quotes the error itself.
+    """
     window_start = now - WRITE_FAILURE_WINDOW
-    batch_error = service.last_batch_error
+    recent_failed_batches = sum(1 for failed_at in service.last_failed_batch_times if failed_at >= window_start)
     last_written_at = service.last_written_at
-    every_recent_write_failed = (
-        batch_error is not None
-        and batch_error.at >= window_start
-        and (last_written_at is None or last_written_at < window_start)
+    writes_keep_failing = recent_failed_batches >= ONGOING_FAILED_BATCHES and (
+        last_written_at is None or last_written_at < window_start
     )
     since_startup = f"{service.failed_batches} batches ({service.failed_records} records)"
-    if every_recent_write_failed:
+    if writes_keep_failing:
         summary = (
             f"Every write in the last 5 minutes failed. {since_startup} could not "
             "be written to the database since startup."
@@ -296,21 +298,15 @@ def _write_failures_advisory(service: LogIngestionService, now: datetime) -> Adv
         if service.is_running
         else "Ingestion is not running. Fix the problem, then restart the app."
     )
-    error_sentence = last_write_error_sentence(batch_error.message if batch_error else None)
     return Advisory(
         id=INGESTION_WRITE_FAILURES_ID,
-        severity="critical" if every_recent_write_failed else "warning",
+        severity="critical" if writes_keep_failing else "warning",
         summary=summary,
-        detail=" ".join(
-            sentence
-            for sentence in (
-                error_sentence,
-                "The app dropped the affected records and will not retry them.",
-                ingestion_state,
-                "Check the app log for ingestion_batch_failed.",
-                "Persistent failures usually mean a schema mismatch or a full disk.",
-            )
-            if sentence
+        detail=(
+            "The app dropped the affected records and will not retry them. "
+            f"{ingestion_state} Check the app log for ingestion_batch_failed, or "
+            "the last error under this instance on Settings > Agents. "
+            "Persistent failures usually mean a schema mismatch or a full disk."
         ),
     )
 

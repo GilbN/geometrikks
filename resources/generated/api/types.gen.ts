@@ -775,6 +775,7 @@ export type HealthResponse = {
  */
 export type HeartbeatPayload = {
   failed5M?: number | null;
+  failedBatches5M?: number | null;
   health?: {
     [key: string]: unknown;
   };

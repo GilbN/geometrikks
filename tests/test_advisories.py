@@ -8,6 +8,7 @@ from geometrikks.config.settings import LegacyEnvName
 from geometrikks.lib.advisories import (
     Advisory,
     AdvisoryRegistry,
+    error_headline,
     last_write_error_sentence,
     legacy_env_advisory,
 )
@@ -86,3 +87,38 @@ def test_last_write_error_sentence_keeps_a_final_period() -> None:
 
 def test_last_write_error_sentence_is_none_without_a_message() -> None:
     assert (last_write_error_sentence(None), last_write_error_sentence("  ")) == (None, None)
+
+
+def test_error_headline_cuts_a_bound_argument_value() -> None:
+    message = (
+        "(sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: "
+        "invalid input for query argument $4: '/login?token=s3cr3t' (expected str, got int)\n"
+        "[SQL: INSERT INTO access_logs ...]"
+    )
+    assert error_headline(message) == "invalid input for query argument $4"
+
+
+def test_error_headline_hides_quoted_literals_and_keeps_names() -> None:
+    message = "value 's3cr3t' too long for column \"url\" of relation \"access_logs\""
+    assert error_headline(message) == "value '…' too long for column \"url\" of relation \"access_logs\""
+
+
+def test_error_headline_hides_an_unclosed_quoted_literal() -> None:
+    assert error_headline("bad value 'user:s3cr3t") == "bad value '…'"
+
+
+def test_error_headline_hides_rejected_input_after_a_colon() -> None:
+    message = 'invalid input syntax for type inet: "10.0.0.5 s3cr3t"'
+    assert error_headline(message) == 'invalid input syntax for type inet: "…"'
+
+
+def test_error_headline_strips_repeated_exception_prefixes() -> None:
+    message = (
+        "(sqlalchemy.exc.DBAPIError) (sqlalchemy.dialects.postgresql.asyncpg.Error) "
+        "<class 'asyncpg.exceptions.DiskFullError'>: could not extend file"
+    )
+    assert error_headline(message) == "could not extend file"
+
+
+def test_error_headline_keeps_a_message_that_starts_with_a_parenthesis() -> None:
+    assert error_headline("(see the server log) connection reset") == "(see the server log) connection reset"

@@ -29,9 +29,16 @@ class RollingCounter:
         self._window_seconds = window_seconds
         self._samples: deque[tuple[float, int]] = deque()
 
+    def restarted(self, total: int) -> bool:
+        """Whether total is below the last reading, as after an ingestion service rebuild."""
+        return bool(self._samples) and total < self._samples[-1][1]
+
+    def reset(self) -> None:
+        self._samples.clear()
+
     def sample(self, at_monotonic: float, total: int) -> int | None:
         """Record a reading; None until a sample a full window old exists."""
-        if self._samples and total < self._samples[-1][1]:
+        if self.restarted(total):
             # The total restarted (the ingestion service was rebuilt), so the
             # old samples no longer describe this counter.
             self._samples.clear()
@@ -54,6 +61,7 @@ def build_payload(
     lines_5m: int | None,
     failed_5m: int | None,
     written_5m: int | None,
+    failed_batches_5m: int | None,
     recent_starts: list[datetime],
     name_conflict_at: datetime | None,
 ) -> HeartbeatPayload:
@@ -113,6 +121,7 @@ def build_payload(
         lines_5m=lines_5m,
         failed_5m=failed_5m,
         written_5m=written_5m,
+        failed_batches_5m=failed_batches_5m,
         recent_starts=recent_starts,
         name_conflict_at=name_conflict_at,
         server_names=settings.ingest_server_names(),

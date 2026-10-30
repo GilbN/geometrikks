@@ -129,6 +129,21 @@ describe("agentSummary", () => {
       line: "2 agents, 1 with failing writes",
     })
   })
+  it("counts an agent's own critical write failures as failing writes", () => {
+    const failingAtStart = makeInstance({
+      instanceName: "edge-json",
+      status: "critical",
+      problems: [makeProblem("ingestion-write-failures", "critical")],
+    })
+    const failedOnce = makeInstance({
+      instanceName: "edge-old",
+      status: "warning",
+      problems: [makeProblem("ingestion-write-failures", "warning")],
+    })
+    expect(agentSummary(makeResponse([HEAD, failingAtStart, failedOnce]))?.line).toBe(
+      "2 agents, 1 with failing writes, 1 needs attention",
+    )
+  })
   it("counts an agent on a newer migration apart from the out of date ones", () => {
     const newer = makeInstance({
       instanceName: "edge-new",

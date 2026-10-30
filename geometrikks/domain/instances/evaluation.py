@@ -21,6 +21,7 @@ from geometrikks.lib.advisories import (
     DATABASE_UNAVAILABLE,
     INGESTION_STOPPED,
     INGESTION_WRITE_FAILURES_ID,
+    ONGOING_FAILED_BATCHES,
     Advisory,
     last_write_error_sentence,
 )
@@ -34,6 +35,7 @@ RESTART_LOOP_WINDOW = timedelta(hours=1)
 # agent running a few minutes ahead must still count.
 SKEW_ALLOWANCE = timedelta(minutes=10)
 UNAVAILABLE_SOURCES_NAMED = 3
+WRITES_FAILING_ID = "instance-writes-failing"
 
 DROPPED_FORWARDED_IDS = frozenset({"proxy-peer-cdn"})
 INGESTION_STOP_CAUSES = frozenset({CITY_DATABASE_MISSING.id, INGESTION_STOPPED.id, DATABASE_UNAVAILABLE.id})
@@ -280,26 +282,31 @@ def _record_count(count: int) -> str:
 
 
 def _writes_failing(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisory | None:
-    """Critical when no write landed in the last 5 minutes, a warning when
-    some did or the agent is too old to report written_5m."""
+    """Critical while writes keep failing: ONGOING_FAILED_BATCHES failed
+    batches in the last 5 minutes and nothing written. A warning otherwise,
+    so one bad record on a quiet agent, or an agent too old to send the
+    counts, stays amber.
+
+    Only /api/v1/instances serves this, behind the login, so it may quote
+    the redacted last error.
+    """
     failed_count = payload.failed_5m
     if failed_count is None or failed_count <= 0:
         return None
     written_count = payload.written_5m
+    failed_batch_count = payload.failed_batches_5m
     error_sentence = last_write_error_sentence(payload.last_error.message if payload.last_error else None)
-    dropped = f"{row.instance_name} drops the records it cannot write and does not retry them."
     remedy = f"Check the log of {row.instance_name} for ingestion_batch_failed."
-    if written_count == 0:
+    if written_count == 0 and failed_batch_count is not None and failed_batch_count >= ONGOING_FAILED_BATCHES:
         return Advisory(
-            id="instance-writes-failing",
+            id=WRITES_FAILING_ID,
             severity="critical",
             summary=f"Every write from {row.instance_name} failed in the last 5 minutes.",
             detail=" ".join(
                 sentence
                 for sentence in (
                     error_sentence,
-                    f"It lost {_record_count(failed_count)} and does not retry them.",
-                    "Nothing it reads reaches the database until you fix the cause.",
+                    f"It lost {_record_count(failed_count)} in {failed_batch_count:,} batches and does not retry them.",
                 )
                 if sentence
             ),
@@ -311,10 +318,17 @@ def _writes_failing(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisory | 
         else f"{failed_count:,} of {_record_count(failed_count + written_count)}"
     )
     return Advisory(
-        id="instance-writes-failing",
+        id=WRITES_FAILING_ID,
         severity="warning",
         summary=f"{row.instance_name} could not write {attempted} in the last 5 minutes.",
-        detail=" ".join(sentence for sentence in (error_sentence, dropped) if sentence),
+        detail=" ".join(
+            sentence
+            for sentence in (
+                error_sentence,
+                f"{row.instance_name} drops the records it cannot write and does not retry them.",
+            )
+            if sentence
+        ),
         remedy=remedy,
     )
 

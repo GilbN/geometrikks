@@ -53,11 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The OpenAPI schema at `/schema` reports the API version, 1, instead of the app version.
 - Settings > Agents shows the Name row in an instance's details only when `APP_INSTANCE_NAME` isn't set. An instance with a configured name no longer shows "set by APP_INSTANCE_NAME".
 - On a phone or in a narrow window, Settings > Agents lists each instance on two lines. The top line has its name and when it was last seen. The second says what is wrong, or for a healthy agent how many lines it read in the last 5 minutes. A version shows only when it differs from the head's. Tapping an agent opens a drawer with its problems, then one line per section, such as Ingestion, Scheduled jobs or GeoIP, that opens to the full details. Every fix has a copy button. An agent that stopped checking in has a Remove from the list button in its problem, and the link from Settings > Status opens that agent's drawer.
+- Settings > Agents and Settings > Status flag an agent whose database writes failed in the last 5 minutes. The agent turns red when two or more batches fail and nothing gets written, and amber while some writes still land or only one batch failed. Its problem quotes the last database error, with the values from the failed record hidden. On a phone or in a narrow window, its row says "Writes failing" or "Some writes failing". The head's own failed-writes notice on Settings > Status turns red by the same rule.
 - `docs/configuration.md` lists the settings for working on GeoMetrikks itself in a Developer settings section at the end: `APP_DEBUG`, `APP_ENVIRONMENT`, the SQL echo and pool switches, `DB_DROP_ON_STARTUP`, `LOGPARSER_SKIP_VALIDATION`, `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` and the Vite settings.
 
 ### Fixed
 
-- Settings > Agents and Settings > Status flag an agent whose database writes failed in the last 5 minutes. It turns red when none of its writes landed and amber while some still do. Its row says "Writes failing" or "Some writes failing", and the problem quotes the database's last error. The head's own failed-writes notice on Settings > Status turns red the same way and quotes the last error too.
 - The sidebar version leaves out the local build suffix, such as +g05b43030f, as Settings > About and the Settings list already did.
 - The version card on Settings > About has less empty space above the logo and below the badges.
 - With a newer release out, the version card on Settings > About still says when the check ran.

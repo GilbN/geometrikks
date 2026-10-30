@@ -58,6 +58,7 @@ class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
     lines_5m: int | None = None
     failed_5m: int | None = None
     written_5m: int | None = None
+    failed_batches_5m: int | None = None
     recent_starts: list[datetime] = []
     name_conflict_at: datetime | None = None
     server_names: list[str] = []

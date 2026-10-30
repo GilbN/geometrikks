@@ -147,6 +147,7 @@ def _build(app: Litestar) -> Any:
         lines_5m=None,
         failed_5m=None,
         written_5m=None,
+        failed_batches_5m=None,
         recent_starts=[],
         name_conflict_at=None,
     )
@@ -204,6 +205,7 @@ def test_build_payload_without_ingestion_or_scheduler() -> None:
         lines_5m=None,
         failed_5m=None,
         written_5m=None,
+        failed_batches_5m=None,
         recent_starts=[],
         name_conflict_at=None,
     )
@@ -223,6 +225,7 @@ def test_build_payload_lists_every_source() -> None:
         lines_5m=7,
         failed_5m=0,
         written_5m=5,
+        failed_batches_5m=1,
         recent_starts=[],
         name_conflict_at=None,
     )
@@ -234,7 +237,7 @@ def test_build_payload_lists_every_source() -> None:
     assert by_kind["loki"].reason == "rejected"
     assert by_kind["loki"].log_format == "nginx"
     assert by_kind["loki"].parsed_lines == 3
-    assert (payload.lines_5m, payload.failed_5m, payload.written_5m) == (7, 0, 5)
+    assert (payload.lines_5m, payload.failed_5m, payload.written_5m, payload.failed_batches_5m) == (7, 0, 5, 1)
 
 
 def test_build_payload_labels_loki_by_query_and_files_by_path() -> None:
@@ -246,6 +249,7 @@ def test_build_payload_labels_loki_by_query_and_files_by_path() -> None:
         lines_5m=None,
         failed_5m=None,
         written_5m=None,
+        failed_batches_5m=None,
         recent_starts=[],
         name_conflict_at=None,
     )
@@ -265,6 +269,7 @@ def test_build_payload_round_trips_through_decode() -> None:
         lines_5m=1,
         failed_5m=0,
         written_5m=5,
+        failed_batches_5m=1,
         recent_starts=[datetime(2026, 10, 17, tzinfo=timezone.utc)],
         name_conflict_at=None,
     )
@@ -279,6 +284,7 @@ def test_agent_schema_wait_reports_waiting_before_result() -> None:
         lines_5m=None,
         failed_5m=None,
         written_5m=None,
+        failed_batches_5m=None,
         recent_starts=[],
         name_conflict_at=None,
     )

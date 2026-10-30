@@ -152,10 +152,74 @@ def test_problem_logs_again_after_it_clears() -> None:
     assert events_of(logs) == ["agent_version_mismatch", "agent_version_mismatch"]
 
 
-def test_failing_writes_log_a_warning() -> None:
+
+def writes_row(**counts: Any) -> HeartbeatRow:
+    return make_row(payload={"instanceNameSource": "env", **counts})
+
+
+SOME_FAILING = {"failed5M": 14, "written5M": 290, "failedBatches5M": 1}
+ALL_FAILING = {"failed5M": 300, "written5M": 0, "failedBatches5M": 6}
+RECOVERED = {"failed5M": 0, "written5M": 310, "failedBatches5M": 0}
+
+
+def writes_events(logs: Sequence[Mapping[str, Any]]) -> list[tuple[Any, ...]]:
+    return [
+        (log["event"], log["log_level"], log["severity"], log["failed_5m"], log["written_5m"])
+        for log in logs
+        if log["event"].startswith("agent_writes")
+    ]
+
+
+def test_failing_writes_log_a_warning_with_the_counts() -> None:
     monitor = InstanceMonitor()
     monitor.observe(evaluate(make_row()), HEAD)
-    failing = make_row(payload={"instanceNameSource": "env", "failed5M": 14, "written5M": 0})
     with capture_logs() as logs:
-        monitor.observe(evaluate(failing), HEAD)
-    assert [(log["event"], log["log_level"]) for log in logs] == [("agent_writes_failing", "warning")]
+        monitor.observe(evaluate(writes_row(**SOME_FAILING)), HEAD)
+    assert writes_events(logs) == [("agent_writes_failing", "warning", "warning", 14, 290)]
+    assert logs[0]["instance_name"] == "edge-traefik"
+
+
+def test_failing_writes_that_turn_critical_log_again() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(make_row()), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(writes_row(**SOME_FAILING)), HEAD)
+        monitor.observe(evaluate(writes_row(**SOME_FAILING)), HEAD)
+        monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+        monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    assert writes_events(logs) == [
+        ("agent_writes_failing", "warning", "warning", 14, 290),
+        ("agent_writes_failing", "warning", "critical", 300, 0),
+    ]
+
+
+def test_failing_writes_that_ease_to_a_warning_log_nothing() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(writes_row(**SOME_FAILING)), HEAD)
+    assert writes_events(logs) == []
+
+
+def test_writes_recovering_log_info() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(writes_row(**RECOVERED)), HEAD)
+    assert writes_events(logs) == [("agent_writes_recovered", "info", "critical", 0, 310)]
+
+
+def test_agent_that_stops_checking_in_does_not_log_recovered_writes() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(stale_row()), HEAD)
+    assert events_of(logs) == ["agent_down"]
+
+
+def test_failing_writes_at_the_first_observation_log_nothing() -> None:
+    monitor = InstanceMonitor()
+    with capture_logs() as logs:
+        monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+        monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    assert logs == []

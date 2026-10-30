@@ -15,6 +15,7 @@ import asyncio
 import enum
 import os
 import time
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard
 from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import LogSource
+from geometrikks.lib.advisories import ONGOING_FAILED_BATCHES
 from geometrikks.lib.geoip import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
@@ -203,6 +205,7 @@ class LogIngestionService:
         self.last_batch_error: BatchError | None = None
         self.written_records: int = 0
         self.last_written_at: datetime | None = None
+        self.last_failed_batch_times: deque[datetime] = deque(maxlen=ONGOING_FAILED_BATCHES)
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -665,9 +668,14 @@ class LogIngestionService:
                 self.unexpected_stop = True
             self.is_running = False
 
-    async def _process_record(self, record: ParsedLogRecord, repos: IngestionRepos, flushed: dict[str, int]) -> None:
-        """Process a single parsed record within the current flush session."""
+    async def _process_record(self, record: ParsedLogRecord, repos: IngestionRepos, flushed: dict[str, int]) -> bool:
+        """Process a single parsed record within the current flush session.
+
+        Returns whether the record added a row: an ignored private IP without
+        access logs adds none.
+        """
         access_log_model: AccessLog | None = None
+        added_row = False
 
         if record.geo_data and record.ip_address:
             location_id: int | None = await self._get_or_create_location(record.geo_data, repos)
@@ -685,6 +693,7 @@ class LogIngestionService:
                 # hundred records/s. Deferring to the batch commit lets
                 # SQLAlchemy bulk-insert the whole batch (insertmanyvalues).
                 repos.geo_event.session.add(geo_event)
+                added_row = True
                 self.total_geo_records += 1
                 flushed["geo"] += 1
 
@@ -695,15 +704,18 @@ class LogIngestionService:
                 server=record.server or self.server,
             )
             repos.access_log.session.add(access_log_model)
+            added_row = True
             self.total_log_records += 1
             flushed["log"] += 1
 
         if self.store_debug_lines or record.is_malformed:
-            await self._create_debug_entry(record, access_log_model, repos)
+            if await self._create_debug_entry(record, access_log_model, repos):
+                added_row = True
             self.total_debug_records += 1
             flushed["debug"] += 1
 
         self.total_processed += 1
+        return added_row
 
     async def _get_or_create_location(self, geo_data: ParsedGeoData, repos: IngestionRepos) -> int | None:
         """Return the GeoLocation id for this geohash, creating the row if needed."""
@@ -782,10 +794,10 @@ class LogIngestionService:
         # Replace null bytes with unicode replacement character for visibility
         return value.replace('\x00', '\ufffd')
 
-    async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None, repos: IngestionRepos) -> None:
-        """Create AccessLogDebug entry for debugging/malformed requests."""
+    async def _create_debug_entry(self, record: ParsedLogRecord, access_log: AccessLog | None, repos: IngestionRepos) -> bool:
+        """Create AccessLogDebug entry for debugging/malformed requests; False when there is no raw line."""
         if not record.raw_line:
-            return
+            return False
 
         # Flush to get access_log.id if we have one
         if access_log:
@@ -814,6 +826,7 @@ class LogIngestionService:
             user_agent=access_log.user_agent if access_log else None,
         )
         repos.access_log_debug.session.add(debug_entry)
+        return True
 
     async def _flush_batch(self) -> None:
         """Write the buffered batch in one fresh session: open -> repos -> flush -> commit -> close.
@@ -833,6 +846,8 @@ class LogIngestionService:
         # post-commit. A per-record failure rolls back earlier records of this
         # batch (matching existing semantics), so reset the list on failure too.
         committed_candidates: list[ParsedLogRecord] = []
+        # Candidates that added a row, so written_records skips records that write nothing.
+        candidates_with_rows = 0
         batch_failed = False
         lost_records = 0
 
@@ -841,7 +856,8 @@ class LogIngestionService:
                 repos = self._repos_factory(session)
                 for record in batch:
                     try:
-                        await self._process_record(record, repos, flushed)
+                        if await self._process_record(record, repos, flushed):
+                            candidates_with_rows += 1
                         committed_candidates.append(record)
                     except Exception as e:
                         rolled_back_records = len(committed_candidates) + 1
@@ -855,6 +871,7 @@ class LogIngestionService:
                         self._record_batch_error(e)
                         lost_records += rolled_back_records
                         committed_candidates = []
+                        candidates_with_rows = 0
                         try:
                             await session.rollback()
                         except Exception as rollback_err:
@@ -894,14 +911,15 @@ class LogIngestionService:
                         self._evict_batch_locations(batch)
                 else:
                     self._uncommitted_geohashes.clear()
-                    if committed_candidates:
-                        self.written_records += len(committed_candidates)
+                    if candidates_with_rows:
+                        self.written_records += candidates_with_rows
                         self.last_written_at = datetime.now(timezone.utc)
                     self._publish(committed_candidates)
         finally:
             if batch_failed:
                 self.failed_batches += 1
                 self.failed_records += lost_records
+                self.last_failed_batch_times.append(datetime.now(timezone.utc))
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",

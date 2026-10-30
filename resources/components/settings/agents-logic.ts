@@ -29,8 +29,10 @@ export interface AgentAdvisoryCard {
   lastSeenAgo: string
 }
 
+type ProblemRef = Pick<Advisory, "id" | "severity">
+
 interface ProblemKind {
-  matches: (problemId: string) => boolean
+  matches: (problem: ProblemRef) => boolean
   label: string
   pluralLabel?: string
 }
@@ -40,18 +42,24 @@ const OUT_OF_DATE_IDS = new Set(["instance-schema-behind", "instance-version-mis
 // Order is the summary's word order, worst first. The last kind catches
 // advisories forwarded from the agent's own /health and anything newer.
 const PROBLEM_KINDS: ProblemKind[] = [
-  { matches: (problemId) => problemId === "instance-not-checking-in", label: "not checking in" },
-  { matches: (problemId) => problemId === "instance-writes-failing", label: "with failing writes" },
-  { matches: (problemId) => OUT_OF_DATE_IDS.has(problemId), label: "out of date" },
-  { matches: (problemId) => problemId === "instance-schema-ahead", label: "newer than the head" },
-  { matches: (problemId) => problemId === "instance-name-conflict", label: "with a name conflict" },
-  { matches: (problemId) => problemId === "instance-name-not-set", label: "unnamed" },
-  { matches: (problemId) => problemId === "instance-restart-loop", label: "restarting" },
+  { matches: ({ id }) => id === "instance-not-checking-in", label: "not checking in" },
+  // In an agent's first 5 minutes the head has no counts yet, so only the
+  // agent's own report says its writes are failing now.
+  {
+    matches: ({ id, severity }) =>
+      id === "instance-writes-failing" || (id === "ingestion-write-failures" && severity === "critical"),
+    label: "with failing writes",
+  },
+  { matches: ({ id }) => OUT_OF_DATE_IDS.has(id), label: "out of date" },
+  { matches: ({ id }) => id === "instance-schema-ahead", label: "newer than the head" },
+  { matches: ({ id }) => id === "instance-name-conflict", label: "with a name conflict" },
+  { matches: ({ id }) => id === "instance-name-not-set", label: "unnamed" },
+  { matches: ({ id }) => id === "instance-restart-loop", label: "restarting" },
   { matches: () => true, label: "needs attention", pluralLabel: "need attention" },
 ]
 
-function problemKindIndex(problemId: string): number {
-  return PROBLEM_KINDS.findIndex((kind) => kind.matches(problemId))
+function problemKindIndex(problem: ProblemRef): number {
+  return PROBLEM_KINDS.findIndex((kind) => kind.matches(problem))
 }
 
 export function agentInstances(response: InstancesResponse | undefined): InstanceView[] {
@@ -94,7 +102,7 @@ export function agentSummary(response: InstancesResponse | undefined): AgentSumm
   if (agents.length === 0) return null
   const kindCounts = PROBLEM_KINDS.map(() => 0)
   for (const agent of agents) {
-    const agentKinds = new Set(agent.problems.map((problem) => problemKindIndex(problem.id)))
+    const agentKinds = new Set(agent.problems.map((problem) => problemKindIndex(problem)))
     for (const kindIndex of agentKinds) kindCounts[kindIndex] += 1
   }
   const agentCount = agents.length === 1 ? "1 agent" : `${agents.length} agents`

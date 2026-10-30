@@ -1396,7 +1396,6 @@ async def test_commit_failure_counts_lost_records_once_and_success_does_not_incr
     assert service.failed_records == 2
 
 
-
 async def test_successful_commit_counts_written_records() -> None:
     service, _repos, _sessions = make_service([])
     before = datetime.now(timezone.utc)
@@ -1439,8 +1438,30 @@ async def test_partly_failed_batch_counts_the_records_it_wrote() -> None:
         _geo_record(TEST_DB_IPS[0], -0.29),
     ])
 
-    assert service.failed_records + service.written_records == 3
+    assert service.failed_records == 2
     assert service.written_records == 1
+
+
+async def test_record_that_adds_no_row_is_not_written() -> None:
+    service, _repos, _sessions = make_service([])
+    record_without_rows = ParsedLogRecord(ip_address="10.0.0.5", geo_data=None, access_log=None, raw_line="x")
+
+    await service.flush_records([record_without_rows])
+
+    assert (service.written_records, service.last_written_at) == (0, None)
+
+
+async def test_failed_batch_records_when_it_failed() -> None:
+    service, repos, _sessions = make_service([])
+    repos.fail_next_commits = 2
+    before = datetime.now(timezone.utc)
+
+    await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
+    await service.flush_records([_geo_record(TEST_DB_IPS[1], -0.19)])
+
+    assert len(service.last_failed_batch_times) == 2
+    assert all(before <= failed_at <= datetime.now(timezone.utc) for failed_at in service.last_failed_batch_times)
+
 
 async def test_failed_batch_records_last_error() -> None:
     service, repos, _sessions = make_service([])

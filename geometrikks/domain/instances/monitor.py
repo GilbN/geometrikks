@@ -1,5 +1,5 @@
 """Log agent state changes seen by the head's scheduled check."""
-from geometrikks.domain.instances.evaluation import HeadIdentity, InstanceEvaluation
+from geometrikks.domain.instances.evaluation import WRITES_FAILING_ID, HeadIdentity, InstanceEvaluation
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -13,7 +13,6 @@ _PROBLEM_EVENTS: dict[str, tuple[str, str]] = {
     "instance-version-mismatch": ("agent_version_mismatch", "info"),
     "instance-name-conflict": ("agent_name_conflict", "info"),
     "instance-restart-loop": ("agent_restart_loop", "info"),
-    "instance-writes-failing": ("agent_writes_failing", "warning"),
 }
 
 
@@ -26,6 +25,7 @@ class InstanceMonitor:
 
     def __init__(self) -> None:
         self._problem_ids_by_name: dict[str, frozenset[str]] | None = None
+        self._writes_severity_by_name: dict[str, str] = {}
 
     def observe(self, evaluations: list[InstanceEvaluation], head: HeadIdentity) -> None:
         current = {
@@ -35,6 +35,14 @@ class InstanceMonitor:
         }
         previous = self._problem_ids_by_name
         self._problem_ids_by_name = current
+        previous_writes_severity = self._writes_severity_by_name
+        self._writes_severity_by_name = {
+            evaluation.row.instance_name: problem.severity
+            for evaluation in evaluations
+            if not evaluation.is_self
+            for problem in evaluation.problems
+            if problem.id == WRITES_FAILING_ID
+        }
         if previous is None:
             return
 
@@ -61,3 +69,32 @@ class InstanceMonitor:
             }
             for event, level in sorted(new_events):
                 getattr(logger, level)(event, **context)
+            _log_writes_change(
+                evaluation,
+                previous_writes_severity.get(name),
+                self._writes_severity_by_name.get(name),
+                context,
+            )
+
+
+def _log_writes_change(
+    evaluation: InstanceEvaluation,
+    previous_severity: str | None,
+    severity: str | None,
+    context: dict[str, str],
+) -> None:
+    """Log failing writes when they start or turn critical, and when they stop.
+
+    An agent that stops checking in loses the problem too, but agent_down
+    already says so.
+    """
+    payload = evaluation.payload
+    counts = {
+        "failed_5m": payload.failed_5m if payload is not None else None,
+        "written_5m": payload.written_5m if payload is not None else None,
+    }
+    escalated = previous_severity == "warning" and severity == "critical"
+    if severity is not None and (previous_severity is None or escalated):
+        logger.warning("agent_writes_failing", severity=severity, **counts, **context)
+    elif severity is None and previous_severity is not None and evaluation.checking_in:
+        logger.info("agent_writes_recovered", severity=previous_severity, **counts, **context)

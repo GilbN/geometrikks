@@ -2663,6 +2663,16 @@ export const HeartbeatPayloadSchema = {
         },
       ],
     },
+    failedBatches5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     health: {
       additionalProperties: {},
       type: "object",
