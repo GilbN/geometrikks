@@ -3,6 +3,7 @@ import asyncio
 import time
 from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -37,6 +38,16 @@ _WRITE_TIMEOUT_SECONDS = 10.0
 _COUNTER_WINDOW_SECONDS = 300.0
 
 
+@dataclass(frozen=True, slots=True)
+class WindowCounts:
+    """Increases over the last 5 minutes; None until a full window was sampled."""
+
+    lines: int | None = None
+    failed_records: int | None = None
+    written_records: int | None = None
+    failed_batches: int | None = None
+
+
 class HeartbeatWriter:
     """Upserts this instance's heartbeat every interval until stopped.
 
@@ -68,6 +79,9 @@ class HeartbeatWriter:
         self._task: asyncio.Task[None] | None = None
         self._lines_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
         self._failed_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
+        self._written_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
+        self._failed_batches_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
+        self._counted_service: object | None = None
         # None until the first successful write has merged the previous row's starts.
         self._recent_starts: list[datetime] | None = None
         self._foreign_sightings: deque[float] = deque()
@@ -135,7 +149,7 @@ class HeartbeatWriter:
             self._schema_revision = bundled_head_revision()
         schema_revision = self._schema_revision
         at_monotonic = self._clock()
-        lines_5m, failed_5m = self._sample_counters(at_monotonic)
+        window_counts = self._sample_counters(at_monotonic)
 
         async with self._engine.begin() as connection:
             first_write = self._recent_starts is None
@@ -146,8 +160,10 @@ class HeartbeatWriter:
             payload = build_payload(
                 self._app,
                 self._settings,
-                lines_5m=lines_5m,
-                failed_5m=failed_5m,
+                lines_5m=window_counts.lines,
+                failed_5m=window_counts.failed_records,
+                written_5m=window_counts.written_records,
+                failed_batches_5m=window_counts.failed_batches,
                 recent_starts=recent_starts,
                 name_conflict_at=self._name_conflict_at,
             )
@@ -163,13 +179,32 @@ class HeartbeatWriter:
                 await upsert_heartbeat(connection, self._heartbeat_write(payload, schema_revision))
         self._recent_starts = recent_starts
 
-    def _sample_counters(self, at_monotonic: float) -> tuple[int | None, int | None]:
+    def _sample_counters(self, at_monotonic: float) -> WindowCounts:
         ingestion_service = runtime.get_ingestion_service(self._app)
         if ingestion_service is None:
-            return None, None
-        return (
-            self._lines_counter.sample(at_monotonic, ingestion_service.parsed_lines),
-            self._failed_counter.sample(at_monotonic, ingestion_service.failed_records),
+            return WindowCounts()
+        readings = (
+            (self._lines_counter, ingestion_service.parsed_lines),
+            (self._failed_counter, ingestion_service.failed_records),
+            (self._written_counter, ingestion_service.written_records),
+            (self._failed_batches_counter, ingestion_service.failed_batches),
+        )
+        # The evaluator compares these counts, so a rebuilt service restarts
+        # all of them together, even those whose new total is not lower.
+        if ingestion_service is not self._counted_service or any(
+            counter.restarted(total) for counter, total in readings
+        ):
+            for counter, _total in readings:
+                counter.reset()
+            self._counted_service = ingestion_service
+        lines, failed_records, written_records, failed_batches = (
+            counter.sample(at_monotonic, total) for counter, total in readings
+        )
+        return WindowCounts(
+            lines=lines,
+            failed_records=failed_records,
+            written_records=written_records,
+            failed_batches=failed_batches,
         )
 
     async def _merge_recent_starts(self, connection: AsyncConnection) -> list[datetime]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -11,7 +12,7 @@ import structlog
 from litestar import Litestar
 
 from geometrikks.config.settings import AppSettings, Settings
-from geometrikks.domain.instances.heartbeat import STARTUP_GRACE_SECONDS, HeartbeatWriter
+from geometrikks.domain.instances.heartbeat import STARTUP_GRACE_SECONDS, HeartbeatWriter, WindowCounts
 
 pytestmark = pytest.mark.anyio
 
@@ -106,3 +107,54 @@ async def test_start_beats_immediately_and_stop_cancels_the_sleep() -> None:
     async with asyncio.timeout(1):
         await writer.stop()
     assert engine.begin_calls == 1
+
+
+
+def _service_totals(
+    *, parsed_lines: int, failed_records: int, written_records: int, failed_batches: int
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        parsed_lines=parsed_lines,
+        failed_records=failed_records,
+        written_records=written_records,
+        failed_batches=failed_batches,
+    )
+
+
+def test_counters_report_lines_failures_and_writes_over_five_minutes() -> None:
+    writer = _writer(_UnreachableEngine())
+    ingestion_service = _service_totals(parsed_lines=100, failed_records=4, written_records=90, failed_batches=1)
+    writer._app.state.ingestion_service = ingestion_service
+
+    assert writer._sample_counters(1000.0) == WindowCounts()
+    ingestion_service.parsed_lines = 400
+    ingestion_service.failed_records = 34
+    ingestion_service.written_records = 360
+    ingestion_service.failed_batches = 4
+    assert writer._sample_counters(1300.0) == WindowCounts(
+        lines=300, failed_records=30, written_records=270, failed_batches=3
+    )
+
+
+def test_a_rebuilt_ingestion_service_restarts_every_counter() -> None:
+    writer = _writer(_UnreachableEngine())
+    writer._app.state.ingestion_service = _service_totals(
+        parsed_lines=100, failed_records=0, written_records=90, failed_batches=0
+    )
+    writer._sample_counters(1000.0)
+    writer._app.state.ingestion_service = _service_totals(
+        parsed_lines=120, failed_records=5, written_records=0, failed_batches=1
+    )
+
+    assert writer._sample_counters(1300.0) == WindowCounts()
+
+
+def test_one_counter_going_back_restarts_every_counter() -> None:
+    writer = _writer(_UnreachableEngine())
+    ingestion_service = _service_totals(parsed_lines=100, failed_records=0, written_records=90, failed_batches=0)
+    writer._app.state.ingestion_service = ingestion_service
+    writer._sample_counters(1000.0)
+    ingestion_service.written_records = 10
+    ingestion_service.failed_records = 5
+
+    assert writer._sample_counters(1300.0) == WindowCounts()

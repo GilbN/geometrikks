@@ -2822,6 +2822,16 @@
               }
             ]
           },
+          "failedBatches5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "health": {
             "additionalProperties": {},
             "type": "object"
@@ -2885,6 +2895,16 @@
               "$ref": "#/components/schemas/SourceReport"
             },
             "type": "array"
+          },
+          "written5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [],

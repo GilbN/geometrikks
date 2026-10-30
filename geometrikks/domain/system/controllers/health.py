@@ -12,7 +12,7 @@ format this payload has always used on the wire.
 from __future__ import annotations
 
 import msgspec
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from litestar import Litestar, Request, Response, get
@@ -29,6 +29,8 @@ from geometrikks.lib.advisories import (
     Advisory,
     CITY_DATABASE_MISSING,
     INGESTION_STOPPED,
+    INGESTION_WRITE_FAILURES_ID,
+    ONGOING_FAILED_BATCHES,
     legacy_env_advisory,
 )
 from geometrikks.server import runtime
@@ -39,6 +41,8 @@ from geometrikks.domain.system.dependencies import provide_ingestion_service as 
 
 # This license window is independent of the configured refresh schedule.
 MAXMIND_REFRESH_WINDOW_DAYS = 30
+# Matches the 5-minute counters agents report in their heartbeats.
+WRITE_FAILURE_WINDOW = timedelta(minutes=5)
 
 
 class UnavailableSourceHealth(msgspec.Struct, rename="camel"):
@@ -268,6 +272,45 @@ def _stale_geoip_advisories(settings: Settings) -> list[Advisory]:
     return advisories
 
 
+def _write_failures_advisory(service: LogIngestionService, now: datetime) -> Advisory:
+    """Critical while writes keep failing: ONGOING_FAILED_BATCHES failed
+    batches in the last WRITE_FAILURE_WINDOW and nothing written in it. A
+    warning otherwise, so one bad record on a quiet server stays amber.
+
+    /health is public, so the detail never quotes the error itself.
+    """
+    window_start = now - WRITE_FAILURE_WINDOW
+    recent_failed_batches = sum(1 for failed_at in service.last_failed_batch_times if failed_at >= window_start)
+    last_written_at = service.last_written_at
+    writes_keep_failing = recent_failed_batches >= ONGOING_FAILED_BATCHES and (
+        last_written_at is None or last_written_at < window_start
+    )
+    since_startup = f"{service.failed_batches} batches ({service.failed_records} records)"
+    if writes_keep_failing:
+        summary = (
+            f"Every write in the last 5 minutes failed. {since_startup} could not "
+            "be written to the database since startup."
+        )
+    else:
+        summary = f"{since_startup} could not be written to the database since startup."
+    ingestion_state = (
+        "Ingestion continues processing new records."
+        if service.is_running
+        else "Ingestion is not running. Fix the problem, then restart the app."
+    )
+    return Advisory(
+        id=INGESTION_WRITE_FAILURES_ID,
+        severity="critical" if writes_keep_failing else "warning",
+        summary=summary,
+        detail=(
+            "The app dropped the affected records and will not retry them. "
+            f"{ingestion_state} Check the app log for ingestion_batch_failed, or "
+            "the last error under this instance on Settings > Agents. "
+            "Persistent failures usually mean a schema mismatch or a full disk."
+        ),
+    )
+
+
 def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     from geometrikks.server import timescale
 
@@ -285,24 +328,7 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     if service is not None and getattr(service, "unexpected_stop", False):
         advisories.append(INGESTION_STOPPED)
     if service is not None and service.failed_batches > 0:
-        ingestion_state = (
-            "Ingestion continues processing new records."
-            if service.is_running
-            else "Ingestion is not running. Fix the problem, then restart the app."
-        )
-        advisories.append(Advisory(
-            id="ingestion-write-failures",
-            severity="warning",
-            summary=(
-                f"{service.failed_batches} batches ({service.failed_records} records) "
-                "could not be written to the database since startup."
-            ),
-            detail=(
-                "The app dropped the affected records and will not retry them. "
-                f"{ingestion_state} Check the app log for ingestion_batch_failed. "
-                "Persistent failures usually mean a schema mismatch or a full disk."
-            ),
-        ))
+        advisories.append(_write_failures_advisory(service, datetime.now(timezone.utc)))
     pollution = timescale.get_server_name_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
     server_name_pollution_active = bool(

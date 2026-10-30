@@ -2663,6 +2663,16 @@ export const HeartbeatPayloadSchema = {
         },
       ],
     },
+    failedBatches5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     health: {
       additionalProperties: {},
       type: "object",
@@ -2726,6 +2736,16 @@ export const HeartbeatPayloadSchema = {
         $ref: "#/components/schemas/SourceReport",
       },
       type: "array",
+    },
+    written5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
   },
   required: [],

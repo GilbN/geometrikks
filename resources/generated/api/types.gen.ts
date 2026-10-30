@@ -775,6 +775,7 @@ export type HealthResponse = {
  */
 export type HeartbeatPayload = {
   failed5M?: number | null;
+  failedBatches5M?: number | null;
   health?: {
     [key: string]: unknown;
   };
@@ -786,6 +787,7 @@ export type HeartbeatPayload = {
   recentStarts?: Array<string>;
   serverNames?: Array<string>;
   sources?: Array<SourceReport>;
+  written5M?: number | null;
 };
 
 /**

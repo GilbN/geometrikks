@@ -1,6 +1,7 @@
 """/health is liveness (always 200); /health/ready is readiness (503 without DB)."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -13,6 +14,7 @@ from litestar.testing import TestClient
 from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.services.ingestion.service import BatchError
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource
 from tests.support import ambient_settings_dependency
@@ -605,6 +607,88 @@ def test_health_write_failure_advisory_reports_stopped_ingestion(monkeypatch):
     assert "schema mismatch" in advisory["detail"]
     assert "full disk" in advisory["detail"]
     assert "restart the app" in advisory["detail"]
+
+
+WRITE_FAILURES_AT = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+SECRET_ARGUMENT_ERROR = (
+    "(sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: "
+    "invalid input for query argument $4: '/login?token=s3cr3t' (expected str, got int)"
+)
+
+
+def _failing_service(
+    *, failed_batches_ago: list[timedelta], written_ago: timedelta | None
+) -> LogIngestionService:
+    service = _running_service(file_missing=False)
+    service.failed_batches = 3
+    service.failed_records = 300
+    service.last_batch_error = BatchError(message=SECRET_ARGUMENT_ERROR, at=WRITE_FAILURES_AT)
+    service.last_failed_batch_times.extend(WRITE_FAILURES_AT - ago for ago in failed_batches_ago)
+    if written_ago is not None:
+        service.last_written_at = WRITE_FAILURES_AT - written_ago
+    return service
+
+
+def test_write_failures_are_critical_while_batches_keep_failing_and_nothing_lands() -> None:
+    service = _failing_service(
+        failed_batches_ago=[timedelta(minutes=2), timedelta(seconds=20)], written_ago=timedelta(minutes=6)
+    )
+    advisory = health_module._write_failures_advisory(service, WRITE_FAILURES_AT)
+    assert advisory.severity == "critical"
+    assert advisory.summary == (
+        "Every write in the last 5 minutes failed. 3 batches (300 records) could "
+        "not be written to the database since startup."
+    )
+
+
+def test_write_failures_are_critical_when_nothing_was_ever_written() -> None:
+    service = _failing_service(failed_batches_ago=[timedelta(minutes=1), timedelta(seconds=20)], written_ago=None)
+    assert health_module._write_failures_advisory(service, WRITE_FAILURES_AT).severity == "critical"
+
+
+def test_one_failed_batch_on_a_quiet_server_is_a_warning() -> None:
+    service = _failing_service(failed_batches_ago=[timedelta(minutes=40), timedelta(seconds=20)], written_ago=None)
+    advisory = health_module._write_failures_advisory(service, WRITE_FAILURES_AT)
+    assert advisory.severity == "warning"
+    assert advisory.summary == "3 batches (300 records) could not be written to the database since startup."
+
+
+def test_write_failures_stay_a_warning_while_some_writes_land() -> None:
+    service = _failing_service(
+        failed_batches_ago=[timedelta(minutes=2), timedelta(seconds=20)], written_ago=timedelta(minutes=1)
+    )
+    assert health_module._write_failures_advisory(service, WRITE_FAILURES_AT).severity == "warning"
+
+
+def test_write_failures_older_than_five_minutes_are_a_warning() -> None:
+    service = _failing_service(failed_batches_ago=[timedelta(minutes=7), timedelta(minutes=6)], written_ago=None)
+    assert health_module._write_failures_advisory(service, WRITE_FAILURES_AT).severity == "warning"
+
+
+def test_public_health_never_quotes_the_write_error(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    from geometrikks.server import timescale
+
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
+    now = datetime.now(timezone.utc)
+    service = _running_service(file_missing=False)
+    service.failed_batches = 2
+    service.failed_records = 2
+    service.last_batch_error = BatchError(message=SECRET_ARGUMENT_ERROR, at=now)
+    service.last_failed_batch_times.extend([now - timedelta(seconds=40), now])
+    app = make_app()
+    app.state.ingestion_service = service
+    with TestClient(app=app) as client:
+        response = client.get("/health")
+
+    assert "s3cr3t" not in response.text
+    assert "query argument" not in response.text
+    [advisory] = [item for item in response.json()["advisories"] if item["id"] == "ingestion-write-failures"]
+    assert advisory["severity"] == "critical"
+    assert "the last error under this instance on Settings > Agents" in advisory["detail"]
 
 
 def _asn_advisories(app_state_asn: bool, asn_enabled: bool) -> list:

@@ -120,6 +120,32 @@ describe("agentSummary", () => {
     const summary = agentSummary(makeResponse([HEAD, HEALTHY, OUTDATED, VERSION_DRIFT, NOT_CHECKING_IN]))
     expect(summary?.line).toBe("4 agents, 1 not checking in, 2 out of date, 1 unnamed, 1 needs attention")
   })
+  it("counts an agent whose writes fail", () => {
+    const failing = makeInstance({
+      instanceName: "edge-json",
+      status: "critical",
+      problems: [makeProblem("instance-writes-failing", "critical")],
+    })
+    expect(agentSummary(makeResponse([HEAD, HEALTHY, failing]))).toEqual({
+      tone: "red",
+      line: "2 agents, 1 with failing writes",
+    })
+  })
+  it("counts an agent's own critical write failures as failing writes", () => {
+    const failingAtStart = makeInstance({
+      instanceName: "edge-json",
+      status: "critical",
+      problems: [makeProblem("ingestion-write-failures", "critical")],
+    })
+    const failedOnce = makeInstance({
+      instanceName: "edge-old",
+      status: "warning",
+      problems: [makeProblem("ingestion-write-failures", "warning")],
+    })
+    expect(agentSummary(makeResponse([HEAD, failingAtStart, failedOnce]))?.line).toBe(
+      "2 agents, 1 with failing writes, 1 needs attention",
+    )
+  })
   it("counts an agent on a newer migration apart from the out of date ones", () => {
     const newer = makeInstance({
       instanceName: "edge-new",
@@ -368,6 +394,14 @@ describe("problemHeadline", () => {
     const stopped = makeProblem("instance-ingestion-degraded", "warning", "Ingestion on caddy is not running.")
     expect(problemHeadline(stopped, "caddy")).toBe("Ingestion not running")
   })
+  it("says whether all or some writes fail", () => {
+    expect(problemHeadline(makeProblem("instance-writes-failing", "critical"), "nas")).toBe("Writes failing")
+    expect(problemHeadline(makeProblem("instance-writes-failing", "warning"), "nas")).toBe("Some writes failing")
+  })
+  it("shortens the write failures an instance reports about itself", () => {
+    expect(problemHeadline(makeProblem("ingestion-write-failures", "critical"), "head")).toBe("Writes failing")
+    expect(problemHeadline(makeProblem("ingestion-write-failures", "warning"), "head")).toBe("Writes failed since startup")
+  })
   it("keeps a forwarded summary", () => {
     const forwarded = makeProblem("geoip-asn-stale", "warning", "The ASN database is old.")
     expect(problemHeadline(forwarded, "nas")).toBe("The ASN database is old")
@@ -378,6 +412,14 @@ describe("instanceRowLine", () => {
   it("names the worst problem and counts the rest", () => {
     expect(partsText(instanceRowLine(OUTDATED))).toBe("Out of date · 2 more problems")
     expect(partsText(instanceRowLine(NOT_CHECKING_IN))).toBe("Not checking in")
+  })
+  it("says writes are failing instead of Healthy", () => {
+    const failing = makeInstance({
+      status: "warning",
+      problems: [makeProblem("instance-writes-failing", "warning", "edge could not write 14 of 304 records in the last 5 minutes.")],
+      payload: { lines5M: 290, failed5M: 14, written5M: 290, sources: [{ label: "/logs/a.log" }] },
+    })
+    expect(partsText(instanceRowLine(failing))).toBe("Some writes failing")
   })
   it("says a healthy agent's 5-minute line count", () => {
     const healthy = makeInstance({
