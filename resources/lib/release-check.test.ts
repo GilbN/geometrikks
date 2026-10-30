@@ -51,7 +51,24 @@ describe("releaseCheckLine", () => {
       kind: "available",
       text: "v0.23.0 is available",
       url: NOTES_URL,
+      checked: "Checked 3 hours ago",
     })
+  })
+
+  it("leaves out when the check ran if the server didn't say", () => {
+    const releaseCheck: ReleaseCheckResponse = {
+      status: "checked",
+      latest: {
+        version: "0.23.0",
+        displayVersion: "v0.23.0",
+        url: NOTES_URL,
+        publishedAt: "2026-10-24T08:00:00Z",
+        newerReleaseCount: 1,
+        newerReleaseCountExact: true,
+      },
+      checkedAt: null,
+    }
+    expect(releaseCheckLine(releaseCheck, NOW)).toMatchObject({ kind: "available", checked: null })
   })
 
   it("reports when the check ran and found nothing newer", () => {
