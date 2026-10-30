@@ -191,6 +191,9 @@ function AgentDetail({
         if (!active || active === document.body || active === content) title?.focus()
       })
     }
+    // Cleared when it stops again, so the next recovery changes the live
+    // region and gets announced too.
+    if (wasCheckingIn.current && !instance.checkingIn) setAnnouncement("")
     wasCheckingIn.current = instance.checkingIn
   }, [instance.checkingIn, instance.instanceName])
   return (
