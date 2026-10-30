@@ -2,7 +2,7 @@ import type { ReleaseCheckResponse } from "@/generated/api/types.gen"
 import { hasUnseenRelease } from "@/lib/release-seen"
 
 export type ReleaseCheckLine =
-  | { kind: "available"; text: string; url: string }
+  | { kind: "available"; text: string; url: string; checked: string | null }
   | { kind: "up-to-date"; text: string }
 
 const MINUTE_MS = 60_000
@@ -43,6 +43,7 @@ export function releaseCheckLine(
       kind: "available",
       text: `${releaseCheck.latest.displayVersion} is available`,
       url: releaseCheck.latest.url,
+      checked: releaseCheck.checkedAt ? `Checked ${checkedAgo(releaseCheck.checkedAt, nowMs)}` : null,
     }
   }
   if (!releaseCheck.checkedAt) return null

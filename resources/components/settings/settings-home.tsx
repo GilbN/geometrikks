@@ -9,6 +9,7 @@ import {
   Activity,
   CalendarClock,
   ChevronRight,
+  CircleArrowUp,
   FileClock,
   Info,
   Network,
@@ -73,6 +74,8 @@ export function SettingsHome() {
   const problems = statusProblems(advisoryCards(health), instancesError ? [] : agentAdvisoryCards(instances))
   const agents = instancesError ? null : agentSummary(instances)
   const scheduler = schedulerSummary(schedulerData?.jobs, jobsError, Date.now())
+
+  const runningVersion = about ? displayVersion(publicVersion(about.app.version)) : null
 
   const groups: { title: string; links: SectionLink[] }[] = [
     {
@@ -140,7 +143,7 @@ export function SettingsHome() {
           to: "/settings/about",
           label: "About",
           icon: Info,
-          line: about ? displayVersion(publicVersion(about.app.version)) : "Version and links",
+          line: runningVersion ?? "Version and links",
           unseen: unseenRelease ? `${unseenRelease.displayVersion} is available` : undefined,
         },
       ],
@@ -150,6 +153,21 @@ export function SettingsHome() {
   return (
     <div className="space-y-5">
       <h1 className="sr-only">Settings</h1>
+      {unseenRelease && (
+        <Link
+          to="/settings/about"
+          className="flex items-center gap-3 rounded-xl border border-primary/35 bg-glass-card px-3.5 py-3 shadow-[var(--shadow-card)] backdrop-blur-[2px]"
+        >
+          <CircleArrowUp aria-hidden className="size-5 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">{unseenRelease.displayVersion} is available</span>
+            <span className="block text-xs text-muted-foreground">
+              {runningVersion && <>You run {runningVersion}. </>}Release notes on GitHub.
+            </span>
+          </span>
+          <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        </Link>
+      )}
       {groups.map((group, index) => (
         <section key={group.title} aria-labelledby={`${idPrefix}-${index}`} className="space-y-2">
           <h2 id={`${idPrefix}-${index}`} className="px-1 text-xs font-medium text-muted-foreground">
