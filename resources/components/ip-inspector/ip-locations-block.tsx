@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CountryFlag } from "@/components/country-flag"
 import { formatNumber } from "@/lib/api"
 import { flyToSearch } from "@/lib/map-filters"
-import { useIpInspectorOrigin } from "@/lib/ip-inspector"
+import { useInspectOnNavigate, useIpInspectorOrigin } from "@/lib/ip-inspector"
 import { useIpLocations } from "@/lib/queries"
 
 /** Every location this IP resolved to, minus the one the sheet was opened
@@ -13,6 +13,7 @@ import { useIpLocations } from "@/lib/queries"
 export function IpLocationsBlock({ ip }: { ip: string }) {
   const originLocationId = useIpInspectorOrigin()
   const navigate = useNavigate()
+  const inspect = useInspectOnNavigate(ip)
   const { data, isLoading, isError } = useIpLocations(ip)
   const rows = (data?.items ?? []).filter((r) => r.locationId !== originLocationId)
   if (!isLoading && !isError && rows.length === 0) return null
@@ -40,7 +41,7 @@ export function IpLocationsBlock({ ip }: { ip: string }) {
                   onClick={() =>
                     void navigate({
                       to: "/map",
-                      search: { inspect: ip, ...flyToSearch(ip, r.locationId) },
+                      search: { inspect, ...flyToSearch(ip, r.locationId) },
                     })
                   }
                 >
