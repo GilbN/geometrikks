@@ -76,7 +76,7 @@ export function AsnListDialog() {
                     <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
                       AS{entry.asn}
                     </span>
-                    <span className="truncate" title={entry.entity}>
+                    <span className="min-w-0 break-words">
                       {entry.entity || "Unknown"}
                     </span>
                   </div>

@@ -39,7 +39,7 @@ import {
 } from "lucide-react"
 import { flushIpActions } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
-import { displayVersion } from "@/lib/version"
+import { displayVersion, publicVersion } from "@/lib/version"
 import { fetchHealth, logout } from "@/lib/api"
 import { logoutThenNavigate } from "@/lib/auth-redirect"
 import { toast } from "sonner"
@@ -456,6 +456,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
   if (updatePending) return collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />
   if (collapsed || !settings) return null
 
+  const version = displayVersion(publicVersion(settings.version))
   const imageTag = settings.runtime.imageTag
   const runtimeLabel = imageTag
     ? `Container image ${imageTag}`
@@ -468,10 +469,10 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
           <TooltipTrigger asChild>
             <Link
               to="/settings/about"
-              aria-label={`${displayVersion(settings.version)}, ${unseenRelease.displayVersion} is available`}
+              aria-label={`${version}, ${unseenRelease.displayVersion} is available`}
               className="inline-flex items-center gap-1.5 text-[10px] font-mono hover:text-sidebar-foreground/60"
             >
-              {displayVersion(settings.version)}
+              {version}
               <GlowDot />
             </Link>
           </TooltipTrigger>
@@ -480,7 +481,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
           </TooltipContent>
         </Tooltip>
       ) : (
-        <span className="text-[10px] font-mono">{displayVersion(settings.version)}</span>
+        <span className="text-[10px] font-mono">{version}</span>
       )}
       {settings.runtime.container && (
         <Tooltip>
