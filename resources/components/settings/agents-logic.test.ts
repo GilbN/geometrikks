@@ -8,6 +8,7 @@ import {
   agentsNeedingAttention,
   canRemove,
   deepLinkScrollDelta,
+  deepLinkedInstance,
   errorHeadline,
   instanceDetailSections,
   instanceHeaderLine,
@@ -18,6 +19,7 @@ import {
   jobReportState,
   liveTone,
   problemHeadline,
+  removeFailureMessage,
   schemaWaitState,
   sourceReasonLabel,
   shortVersion,
@@ -347,6 +349,15 @@ describe("problemHeadline", () => {
     expect(problemHeadline(makeProblem("instance-version-mismatch", "warning"), "nas")).toBe("Out of date")
     expect(problemHeadline(makeProblem("instance-schema-behind", "critical"), "nas")).toBe("Out of date")
   })
+  it("names a shared name, a default name and an unreadable report", () => {
+    expect(problemHeadline(makeProblem("instance-name-conflict", "critical"), "nas")).toBe(
+      "Name used by more than one process",
+    )
+    expect(problemHeadline(makeProblem("instance-name-not-set", "warning"), "nas")).toBe("Runs under the default name")
+    expect(problemHeadline(makeProblem("instance-payload-unreadable", "warning"), "nas")).toBe(
+      "Health report unreadable",
+    )
+  })
   it("drops the agent's name from its own sentence", () => {
     const restarting = makeProblem("instance-restart-loop", "warning", "traefik started 4 times in the last hour.")
     expect(problemHeadline(restarting, "traefik")).toBe("Started 4 times in the last hour")
@@ -494,7 +505,26 @@ describe("instanceDetailSections", () => {
     expect(partsText(ingestion.summary)).toBe("Running when last seen · 52,310 lines")
     expect(sectionById(stale, "sources")!.tone).toBe("muted")
     expect(sectionById(stale, "geoip")!.tone).toBe("muted")
+    expect(partsText(sectionById(stale, "geoip")!.summary)).toMatch(/^Loaded when last seen · City and ASN built .+, 3d ago$/)
     expect(sectionById(stale, "instance")!.tone).toBe("muted")
+  })
+  it("greys out the last error and job results of a stopped agent", () => {
+    const stale = makeInstance({
+      checkingIn: false,
+      health: makeHealth(),
+      payload: {
+        failed5M: 3,
+        lastError: { message: "connection refused" },
+        jobs: [
+          { id: "geoip-refresh", name: "Refresh GeoLite2", lastStatus: "error" },
+          { id: "locate", name: "Locate", lastStatus: "success" },
+        ],
+      },
+    })
+    expect(sectionById(stale, "last-error")!.tone).toBe("muted")
+    const jobs = sectionById(stale, "jobs")!
+    expect(jobs.tone).toBe("muted")
+    expect(partsText(jobs.summary)).toBe("Refresh GeoLite2 failed · 1 ok when last seen")
   })
   it("marks an unreadable source red with its reason", () => {
     const missing = makeInstance({
@@ -520,7 +550,37 @@ describe("deepLinkScrollDelta", () => {
   it("stops at the card's top so its title and headers stay in view", () => {
     expect(deepLinkScrollDelta({ ...base, detailBottom: 1600 })).toBe(104)
   })
+  it("scrolls up to the card's top for a row above the viewport", () => {
+    expect(deepLinkScrollDelta({ ...base, cardTop: -400, rowTop: -200, rowBottom: -160, detailBottom: 300 })).toBe(-456)
+  })
+  it("scrolls up only to the row when the card's top is too far up", () => {
+    expect(
+      deepLinkScrollDelta({ ...base, cardTop: -3000, rowTop: -200, rowBottom: -160, detailBottom: 300 }),
+    ).toBe(-272)
+  })
   it("scrolls past the card when the row would stay out of view", () => {
     expect(deepLinkScrollDelta({ ...base, rowTop: 1300, rowBottom: 1340, detailBottom: 2200 })).toBe(1228)
+  })
+})
+
+describe("deepLinkedInstance", () => {
+  const response = makeResponse([HEAD, HEALTHY, NOT_CHECKING_IN])
+  it("finds the agent the link names", () => {
+    expect(deepLinkedInstance(response, "nas")?.instanceName).toBe("nas")
+  })
+  it("is null for an agent that is not in the list, so no empty drawer opens", () => {
+    expect(deepLinkedInstance(response, "gone-agent")).toBeNull()
+    expect(deepLinkedInstance(response, undefined)).toBeNull()
+    expect(deepLinkedInstance(undefined, "nas")).toBeNull()
+  })
+})
+
+describe("removeFailureMessage", () => {
+  it("says nothing for a 404, since the agent is already gone", () => {
+    expect(removeFailureMessage({ status_code: 404, detail: "Not found" }, "nas")).toBeNull()
+  })
+  it("asks to try again for any other failure", () => {
+    expect(removeFailureMessage({ status_code: 500 }, "nas")).toBe("Could not remove nas. Try again.")
+    expect(removeFailureMessage(new TypeError("Failed to fetch"), "nas")).toBe("Could not remove nas. Try again.")
   })
 })
