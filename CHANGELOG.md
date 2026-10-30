@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The malformed share on Debug Logs reads "100.0% of total" instead of "+100.0% of total".
 - The Columns menu on Access Logs, Geo Logs and Debug Logs uses the height left on screen instead of stopping at 320px, so it lists more columns before you have to scroll it.
 - A grouped decision on the Security page counts its scenarios, not its decisions. An IP with 28 decisions from 6 scenarios said "28 scenarios". When every decision comes from one scenario, the row shows that scenario.
+- Banned IPs on the Security page get their country and city from the GeoLite2 database when GeoMetrikks has no traffic from them. Bans from mail or SSH scenarios, and IPs last seen in the proxy logs more than 30 days ago, showed "-" in the Country column.
+- Alert details and alert history show the full country name where CrowdSec sends only a code, such as "Netherlands" in place of "NL".
+- The close button on a row's details and on the IP inspector sits in the middle of the header. On phones it sat about 10px below the title.
 
 ### Removed
 
@@ -71,12 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `APP_VERSION`. The version shown in the UI and the API schema always comes from the installed package.
 - `APP_NAME` and `APP_DESCRIPTION`. They only set the API schema's title and description.
 - `VITE_ENABLE_REACT_HELPERS` and `VITE_EXECUTOR`. Dev mode always runs Vite through bun with React refresh on.
-
-### Fixed
-
-- Banned IPs on the Security page get their country and city from the GeoLite2 database when GeoMetrikks has no traffic from them. Bans from mail or SSH scenarios, and IPs last seen in the proxy logs more than 30 days ago, showed "-" in the Country column.
-- Alert details and alert history show the full country name where CrowdSec sends only a code, such as "Netherlands" in place of "NL".
-- The close button on a row's details and on the IP inspector sits in the middle of the header. On phones it sat about 10px below the title.
 
 ## [0.22.1] - 2026-10-25
 
