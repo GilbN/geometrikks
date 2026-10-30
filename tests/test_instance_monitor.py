@@ -223,3 +223,47 @@ def test_failing_writes_at_the_first_observation_log_nothing() -> None:
         monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
         monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
     assert logs == []
+
+
+def own_write_failures(severity: str, **counts: Any) -> HeartbeatRow:
+    """An agent whose own health report flags failed writes."""
+    return writes_row(
+        health={"advisories": [{"id": "ingestion-write-failures", "severity": severity, "summary": "x"}]},
+        **counts,
+    )
+
+
+def test_own_critical_write_failures_before_the_counts_exist_log_failing_writes() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(make_row()), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(own_write_failures("critical")), HEAD)
+        monitor.observe(evaluate(own_write_failures("critical", **ALL_FAILING)), HEAD)
+    assert writes_events(logs) == [("agent_writes_failing", "warning", "critical", None, None)]
+
+
+def test_own_warning_before_the_counts_exist_logs_nothing() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(make_row()), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(own_write_failures("warning")), HEAD)
+    assert writes_events(logs) == []
+
+
+def test_rebuilt_ingestion_service_does_not_log_recovered_writes() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(own_write_failures("warning")), HEAD)
+        monitor.observe(evaluate(own_write_failures("critical")), HEAD)
+        monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    assert writes_events(logs) == []
+
+
+def test_writes_recover_once_the_counts_return_after_a_rebuild() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(writes_row(**ALL_FAILING)), HEAD)
+    with capture_logs() as logs:
+        monitor.observe(evaluate(writes_row()), HEAD)
+        monitor.observe(evaluate(writes_row(**RECOVERED)), HEAD)
+    assert writes_events(logs) == [("agent_writes_recovered", "info", "critical", 0, 310)]

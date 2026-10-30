@@ -1,5 +1,6 @@
 """Log agent state changes seen by the head's scheduled check."""
 from geometrikks.domain.instances.evaluation import WRITES_FAILING_ID, HeadIdentity, InstanceEvaluation
+from geometrikks.lib.advisories import INGESTION_WRITE_FAILURES_ID
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -36,13 +37,14 @@ class InstanceMonitor:
         previous = self._problem_ids_by_name
         self._problem_ids_by_name = current
         previous_writes_severity = self._writes_severity_by_name
-        self._writes_severity_by_name = {
-            evaluation.row.instance_name: problem.severity
-            for evaluation in evaluations
-            if not evaluation.is_self
-            for problem in evaluation.problems
-            if problem.id == WRITES_FAILING_ID
-        }
+        self._writes_severity_by_name = {}
+        for evaluation in evaluations:
+            if evaluation.is_self:
+                continue
+            name = evaluation.row.instance_name
+            severity = _writes_failing_severity(evaluation, previous_writes_severity.get(name))
+            if severity is not None:
+                self._writes_severity_by_name[name] = severity
         if previous is None:
             return
 
@@ -75,6 +77,26 @@ class InstanceMonitor:
                 self._writes_severity_by_name.get(name),
                 context,
             )
+
+
+def _writes_failing_severity(evaluation: InstanceEvaluation, previous_severity: str | None) -> str | None:
+    """How badly writes are failing now, for logging; None when they are not.
+
+    The agent's own critical write-failure advisory counts too: it is the only
+    sign while the 5-minute counts are unknown, in an agent's first minutes
+    and after its ingestion service is rebuilt. Unknown counts never mean
+    recovery, so the previous state carries over until they are known again.
+    """
+    for problem in evaluation.problems:
+        if problem.id == WRITES_FAILING_ID:
+            return problem.severity
+    for problem in evaluation.problems:
+        if problem.id == INGESTION_WRITE_FAILURES_ID and problem.severity == "critical":
+            return "critical"
+    payload = evaluation.payload
+    if evaluation.checking_in and (payload is None or payload.failed_5m is None):
+        return previous_severity
+    return None
 
 
 def _log_writes_change(
