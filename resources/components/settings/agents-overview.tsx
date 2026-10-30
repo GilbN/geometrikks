@@ -1,13 +1,8 @@
 import { Link } from "@tanstack/react-router"
 import { ChevronRight, Network, Trash2 } from "lucide-react"
-import { Fragment, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import type {
-  Advisory,
-  HeadIdentityView,
-  InstanceView,
-  SourceReport,
-} from "@/generated/api/types.gen"
+import type { HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { useDeleteInstance, useInstances } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { displayVersion } from "@/lib/version"
@@ -35,125 +30,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type LedTone, MonoChip, StatusLed } from "@/components/settings/status-led"
-import { formatUptime, relativeTime } from "@/components/settings/status-logic"
+import { MonoChip, StatusLed } from "@/components/settings/status-led"
+import { relativeTime } from "@/components/settings/status-logic"
 import { SectionIcon } from "@/components/settings/status-overview"
 import {
-  agentIngestionState,
   agentInstances,
   canRemove,
+  deepLinkScrollDelta,
   instanceStatusLabel,
   instanceTone,
   instancesErrorState,
-  jobReportState,
-  schemaWaitState,
-  sourceReasonLabel,
+  shortVersion,
+  versionDriftText,
   versionTone,
 } from "@/components/settings/agents-logic"
+import {
+  GeoipFacts,
+  IngestionFacts,
+  InstanceFacts,
+  JobsList,
+  LastErrorBlock,
+  ProblemCard,
+  ServerLocationsList,
+  SourcesList,
+} from "@/components/settings/agents-detail"
+import { AgentDrawer, AgentList } from "@/components/settings/agents-phone"
+import { NARROW_TABLE_WIDTH, useNarrowLayout } from "@/components/data/narrow-layout"
 
 const AGENT_DOCS_URL = "https://github.com/GilbN/geometrikks/blob/main/README.md#multi-source-setup"
 
 const COLUMN_COUNT = 7
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-}
-
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-medium text-muted-foreground">{children}</p>
 }
 
-function Facts({ children }: { children: React.ReactNode }) {
-  return <dl className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">{children}</dl>
-}
-
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="flex min-w-0 items-center gap-2 tabular-nums">{children}</dd>
-    </>
-  )
-}
-
-function LedValue({ tone, children }: { tone: LedTone; children: React.ReactNode }) {
-  return (
-    <>
-      <StatusLed tone={tone} />
-      <span className="truncate">{children}</span>
-    </>
-  )
-}
-
-function ProblemLine({ problem }: { problem: Advisory }) {
-  const tone = problem.severity === "critical" ? "red" : "amber"
-  return (
-    <div
-      className={cn(
-        "space-y-1 rounded-md border-l-2 bg-muted/40 px-3 py-2",
-        tone === "red" ? "border-l-red-500" : "border-l-amber-500",
-      )}
-    >
-      <div className="flex items-center gap-2 text-sm font-medium">
-        <StatusLed tone={tone} />
-        {problem.summary}
-      </div>
-      {problem.detail && <p className="text-xs text-muted-foreground">{problem.detail}</p>}
-      {problem.remedy && (
-        <code className="block w-fit whitespace-pre-line rounded bg-muted px-2 py-1 text-xs">{problem.remedy}</code>
-      )}
-      {problem.docsUrl && (
-        <a
-          href={problem.docsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-primary underline underline-offset-2"
-        >
-          Setup guide
-        </a>
-      )}
-    </div>
-  )
-}
-
-function SourceLine({ source }: { source: SourceReport }) {
-  const details = [source.logFormat || "format pending", source.serverName && `server ${source.serverName}`]
-    .filter(Boolean)
-    .join(" · ")
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <StatusLed tone={source.available ? "emerald" : "red"} />
-      <MonoChip className="truncate">{source.label || "unnamed source"}</MonoChip>
-      {source.kind === "loki" && <Badge variant="outline">Loki</Badge>}
-      <span className="text-muted-foreground">{details}</span>
-      <span className="ml-auto shrink-0 text-muted-foreground tabular-nums">
-        {(source.parsedLines ?? 0).toLocaleString()} lines
-        {!source.available && <span className="ml-2 text-red-500">{sourceReasonLabel(source.reason)}</span>}
-      </span>
-    </div>
-  )
-}
-
-function InstanceDetail({ instance, now, checkedAt }: { instance: InstanceView; now: number; checkedAt: number }) {
-  const health = instance.health
-  const payload = instance.payload
-  const schemaWait = schemaWaitState(health?.schemaWait)
-  const ingestion = agentIngestionState(health?.ingestion, payload?.failed5M)
-  const uptime = instance.checkingIn ? formatUptime(instance.startedAt, now) : null
-  const jobs = payload?.jobs ?? []
-  const sources = payload?.sources ?? []
-  const lastError = payload?.lastError
-  const nameSource = payload?.instanceNameSource
-
+function InstanceDetail({
+  instance,
+  head,
+  now,
+  checkedAt,
+}: {
+  instance: InstanceView
+  head: HeadIdentityView
+  now: number
+  checkedAt: number
+}) {
   return (
     <div className="space-y-4 py-2 whitespace-normal">
       {!instance.checkingIn && (
@@ -167,169 +89,45 @@ function InstanceDetail({ instance, now, checkedAt }: { instance: InstanceView; 
         {instance.problems.length === 0 ? (
           <p className="text-xs text-muted-foreground">No problems.</p>
         ) : (
-          instance.problems.map((problem) => <ProblemLine key={problem.id} problem={problem} />)
+          instance.problems.map((problem) => <ProblemCard key={problem.id} problem={problem} />)
         )}
       </div>
 
       <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
         <div className="space-y-2">
           <SectionHeading>Instance</SectionHeading>
-          <Facts>
-            <Fact label="Mode">{instance.mode}</Fact>
-            <Fact label="Started">
-              {formatDateTime(instance.startedAt)}
-              {uptime && <span className="text-muted-foreground">{uptime}</span>}
-            </Fact>
-            <Fact label="Migration">
-              <MonoChip>{instance.schemaRevision}</MonoChip>
-            </Fact>
-            {nameSource === "fallback" && <Fact label="Name">default name, APP_INSTANCE_NAME not set</Fact>}
-            {schemaWait && (
-              <Fact label="Schema check">
-                <LedValue tone={schemaWait.tone}>{schemaWait.label}</LedValue>
-              </Fact>
-            )}
-            {health && (
-              <Fact label="Database">
-                <LedValue tone={health.database.reachable ? "emerald" : "red"}>
-                  {health.database.reachable ? "reachable" : "unreachable"}
-                </LedValue>
-              </Fact>
-            )}
-          </Facts>
+          <InstanceFacts instance={instance} head={head} now={now} />
         </div>
 
         <div className="space-y-2">
           <SectionHeading>Ingestion</SectionHeading>
-          {health ? (
-            <Facts>
-              <Fact label="Status">
-                <LedValue tone={ingestion.tone}>{ingestion.label}</LedValue>
-              </Fact>
-              <Fact label="Parsed lines">{health.ingestion.parsedLines.toLocaleString()}</Fact>
-              <Fact label="Pending">{health.ingestion.pendingRecords.toLocaleString()}</Fact>
-              <Fact label="Failed">
-                <span className={cn((health.ingestion.failedBatches ?? 0) > 0 && "text-red-500")}>
-                  {(health.ingestion.failedBatches ?? 0).toLocaleString()} batches,{" "}
-                  {(health.ingestion.failedRecords ?? 0).toLocaleString()} records
-                </span>
-              </Fact>
-              <Fact label="Live feed drops">{(health.ingestion.publishDropped ?? 0).toLocaleString()}</Fact>
-              <Fact label="Last record">{relativeTime(health.ingestion.lastRecordAt, now)}</Fact>
-            </Facts>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              The head can't read this agent's health report. Run the same version on both.
-            </p>
-          )}
+          <IngestionFacts instance={instance} now={now} />
         </div>
 
         <div className="space-y-2">
           <SectionHeading>GeoIP</SectionHeading>
-          {health ? (
-            <Facts>
-              <Fact label="City">
-                <LedValue tone={health.geoip.available ? "emerald" : "red"}>
-                  {health.geoip.available
-                    ? health.geoip.dbBuildDate
-                      ? `built ${formatDate(health.geoip.dbBuildDate)}, ${relativeTime(health.geoip.dbBuildDate, now)}`
-                      : "loaded"
-                    : "not loaded"}
-                </LedValue>
-              </Fact>
-              <Fact label="ASN">
-                <LedValue tone={health.geoip.asnAvailable ? "emerald" : "muted"}>
-                  {health.geoip.asnAvailable
-                    ? health.geoip.asnDbBuildDate
-                      ? `built ${formatDate(health.geoip.asnDbBuildDate)}, ${relativeTime(health.geoip.asnDbBuildDate, now)}`
-                      : "loaded"
-                    : "not loaded"}
-                </LedValue>
-              </Fact>
-            </Facts>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              The head can't read this agent's health report. Run the same version on both.
-            </p>
-          )}
+          <GeoipFacts instance={instance} now={now} />
         </div>
 
         <div className="space-y-2">
           <SectionHeading>Scheduled jobs</SectionHeading>
-          {jobs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No scheduled jobs reported.</p>
-          ) : (
-            <Facts>
-              {jobs.map((job, jobIndex) => {
-                const state = jobReportState(job)
-                const lastRun = job.lastStart ? `${state.label} ${relativeTime(job.lastStart, now)}` : state.label
-                const nextRun = job.nextRunTime ? `, next ${relativeTime(job.nextRunTime, now)}` : ""
-                return (
-                  <Fragment key={job.id || jobIndex}>
-                    <Fact label={job.name || job.id || "unnamed job"}>
-                      <LedValue tone={state.tone}>
-                        {lastRun}
-                        {nextRun}
-                      </LedValue>
-                    </Fact>
-                    {job.lastError && (
-                      <dd className="col-start-2 truncate text-muted-foreground" title={job.lastError}>
-                        {job.lastError}
-                      </dd>
-                    )}
-                  </Fragment>
-                )
-              })}
-            </Facts>
-          )}
+          <JobsList instance={instance} now={now} />
         </div>
       </div>
 
       <div className="space-y-2">
         <SectionHeading>Sources</SectionHeading>
-        {sources.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No log sources reported.</p>
-        ) : (
-          sources.map((source, sourceIndex) => (
-            <SourceLine key={`${source.kind}:${source.label}:${sourceIndex}`} source={source} />
-          ))
-        )}
+        <SourcesList instance={instance} />
       </div>
 
       <div className="space-y-2">
         <SectionHeading>Server locations</SectionHeading>
-        {instance.serverLocations.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No location recorded for its servers yet.</p>
-        ) : (
-          instance.serverLocations.map((serverLocation) => (
-            <div key={serverLocation.server} className="flex items-center gap-2 text-xs">
-              <MonoChip>{serverLocation.server}</MonoChip>
-              <span className="text-muted-foreground tabular-nums">
-                {serverLocation.latitude.toFixed(2)}, {serverLocation.longitude.toFixed(2)}
-              </span>
-              <span className="ml-auto text-muted-foreground">
-                {serverLocation.source}
-                {serverLocation.detectedAt && `, detected ${relativeTime(serverLocation.detectedAt, now)}`}
-              </span>
-            </div>
-          ))
-        )}
+        <ServerLocationsList instance={instance} now={now} />
       </div>
 
       <div className="space-y-2">
         <SectionHeading>Last error</SectionHeading>
-        {lastError?.message ? (
-          <div className="space-y-1">
-            <pre className="whitespace-pre-wrap break-words rounded bg-red-500/10 px-2 py-1.5 font-mono text-[11px] text-red-600 dark:text-red-300">
-              {lastError.message}
-            </pre>
-            {lastError.at && (
-              <p className="text-xs text-muted-foreground">{formatDateTime(lastError.at)}</p>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">No failed writes since it started.</p>
-        )}
+        <LastErrorBlock instance={instance} />
       </div>
     </div>
   )
@@ -357,7 +155,9 @@ function RemoveInstanceButton({
             variant="ghost"
             size="icon-xs"
             aria-label={`Remove ${instanceName}`}
-            className="text-muted-foreground hover:text-destructive"
+            // The touch target grows to 40px; the margin keeps it from making
+            // this row taller than rows without the button.
+            className="text-muted-foreground hover:text-destructive pointer-coarse:-my-2.5"
           >
             <Trash2 />
           </Button>
@@ -442,12 +242,7 @@ function InstanceRows({
   onRemoved: () => void
 }) {
   const drift = versionTone(instance, head)
-  const driftText =
-    drift === "red"
-      ? "built for a different migration than the head"
-      : drift === "amber"
-        ? "a different version than the head"
-        : null
+  const driftText = versionDriftText(drift)
   const serverNames = instance.payload?.serverNames ?? []
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} asChild>
@@ -513,7 +308,11 @@ function InstanceRows({
           <TableRow className="bg-muted/20 hover:bg-muted/20">
             <TableCell />
             <TableCell colSpan={COLUMN_COUNT - 1} className="pr-4">
-              <InstanceDetail instance={instance} now={now} checkedAt={checkedAt} />
+              {/* Zero width, so the details wrap to the columns' width
+                  instead of widening the table past its card. */}
+              <div className="w-0 min-w-full">
+                <InstanceDetail instance={instance} head={head} now={now} checkedAt={checkedAt} />
+              </div>
             </TableCell>
           </TableRow>
         </CollapsibleContent>
@@ -528,20 +327,63 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(focusInstance ? [focusInstance] : []),
   )
+  const [drawer, setDrawer] = useState<{ instanceName: string | null; open: boolean }>({
+    instanceName: null,
+    open: false,
+  })
+  // The row that opened the drawer gets focus back when it closes.
+  const openerRef = useRef<HTMLElement | null>(null)
   const focusRowRef = useRef<HTMLTableRowElement>(null)
-  const scrolledToFocus = useRef(false)
+  const handledFocusFor = useRef<string | undefined>(undefined)
   const headingRef = useRef<HTMLDivElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const layoutElementRef = useRef<HTMLDivElement | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const setLayoutElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      layoutElementRef.current = element
+      layoutRef(element)
+    },
+    [layoutRef],
+  )
+  const setDrawerOpen = useCallback(
+    (open: boolean) => setDrawer((previous) => (previous.open === open ? previous : { ...previous, open })),
+    [],
+  )
 
   useEffect(() => {
     if (!focusInstance) return
     setExpanded((previous) => (previous.has(focusInstance) ? previous : new Set(previous).add(focusInstance)))
-    scrolledToFocus.current = false
   }, [focusInstance])
 
-  useEffect(() => {
-    if (state !== "ready" || scrolledToFocus.current || !focusRowRef.current) return
-    scrolledToFocus.current = true
-    focusRowRef.current.scrollIntoView({ block: "start" })
+  // Measured here rather than read from `narrow`, which settles only after
+  // this first render. A deep link opens the drawer on a narrow card and
+  // scrolls to the expanded row on a wide one.
+  useLayoutEffect(() => {
+    if (state !== "ready" || !focusInstance || handledFocusFor.current === focusInstance) return
+    const layoutElement = layoutElementRef.current
+    if (!layoutElement) return
+    handledFocusFor.current = focusInstance
+    if (layoutElement.clientWidth < NARROW_TABLE_WIDTH) {
+      openerRef.current = null
+      setDrawer({ instanceName: focusInstance, open: true })
+      return
+    }
+    const row = focusRowRef.current
+    const card = cardRef.current
+    if (!row || !card) return
+    const scroller = row.closest("main")
+    const viewport = scroller?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
+    const rowRect = row.getBoundingClientRect()
+    const scrollDelta = deepLinkScrollDelta({
+      viewportTop: viewport.top,
+      viewportBottom: viewport.bottom,
+      cardTop: card.getBoundingClientRect().top,
+      rowTop: rowRect.top,
+      rowBottom: rowRect.bottom,
+      detailBottom: (row.parentElement ?? row).getBoundingClientRect().bottom,
+    })
+    if (scrollDelta > 0) (scroller ?? window).scrollBy({ top: scrollDelta })
   }, [state, focusInstance])
 
   if (state === "loading") {
@@ -584,58 +426,109 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
       else next.delete(instanceName)
       return next
     })
+  const drawerInstance = data.instances.find((instance) => instance.instanceName === drawer.instanceName) ?? null
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
+      <Card ref={cardRef} className={cn(narrow && "gap-0 py-0")}>
+        <CardHeader className={cn(narrow ? "px-4 pt-3.5 pb-2.5" : "pb-3")}>
           <div className="flex items-center gap-3">
             <SectionIcon icon={Network} />
-            <div>
-              <CardTitle ref={headingRef} tabIndex={-1} className="text-base outline-none">
+            <div className="min-w-0">
+              <CardTitle
+                ref={headingRef}
+                tabIndex={-1}
+                className={cn("outline-none", narrow ? "text-[15px] font-semibold" : "text-base")}
+              >
                 Instances
               </CardTitle>
-              <CardDescription>
-                The head runs <MonoChip>{displayVersion(data.head.appVersion)}</MonoChip> on migration{" "}
-                <MonoChip>{data.head.schemaRevision}</MonoChip>. Checked{" "}
-                {new Date(data.checkedAt).toLocaleTimeString()}, refreshed every 30 seconds.
-              </CardDescription>
+              {narrow ? (
+                <CardDescription className="text-xs">
+                  Head <MonoChip className="whitespace-nowrap">{shortVersion(data.head.appVersion)}</MonoChip> ·
+                  checked{" "}
+                  {new Date(data.checkedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                </CardDescription>
+              ) : (
+                <CardDescription>
+                  The head runs <MonoChip className="whitespace-nowrap">{displayVersion(data.head.appVersion)}</MonoChip>{" "}
+                  on migration <MonoChip>{data.head.schemaRevision}</MonoChip>. Checked{" "}
+                  {new Date(data.checkedAt).toLocaleTimeString()}, refreshed every 30 seconds.
+                </CardDescription>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-6">
-                  <span className="sr-only">Status</span>
-                </TableHead>
-                <TableHead>Instance</TableHead>
-                <TableHead>Version</TableHead>
-                <TableHead className="hidden md:table-cell">Servers</TableHead>
-                <TableHead className="hidden md:table-cell">Lines, last 5 min</TableHead>
-                <TableHead>Last seen</TableHead>
-                <TableHead className="w-8">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            {data.instances.map((instance) => (
-              <InstanceRows
-                key={instance.instanceName}
-                instance={instance}
-                head={data.head}
-                open={expanded.has(instance.instanceName)}
-                onOpenChange={(open) => setInstanceOpen(instance.instanceName, open)}
-                now={now}
-                checkedAt={checkedAt}
-                rowRef={instance.instanceName === focusInstance ? focusRowRef : undefined}
-                onRemoved={() => headingRef.current?.focus()}
-              />
-            ))}
-          </Table>
+          {/* Switches on the card's width, not the viewport's, at the same 50rem
+              as the scheduler: from md up the sidebar and settings nav leave
+              the card narrower than the table. */}
+          <div ref={setLayoutElement}>
+            {narrow ? (
+              <div className="-mx-6">
+                <AgentList
+                  instances={data.instances}
+                  head={data.head}
+                  checkedAt={checkedAt}
+                  onOpen={(instanceName, opener) => {
+                    openerRef.current = opener
+                    setDrawer({ instanceName, open: true })
+                  }}
+                />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-6">
+                      <span className="sr-only">Status</span>
+                    </TableHead>
+                    <TableHead>Instance</TableHead>
+                    <TableHead>Version</TableHead>
+                    <TableHead className="hidden md:table-cell">Servers</TableHead>
+                    <TableHead className="hidden md:table-cell">Lines, last 5 min</TableHead>
+                    <TableHead>Last seen</TableHead>
+                    <TableHead className="w-8">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                {data.instances.map((instance) => (
+                  <InstanceRows
+                    key={instance.instanceName}
+                    instance={instance}
+                    head={data.head}
+                    open={expanded.has(instance.instanceName)}
+                    onOpenChange={(open) => setInstanceOpen(instance.instanceName, open)}
+                    now={now}
+                    checkedAt={checkedAt}
+                    rowRef={instance.instanceName === focusInstance ? focusRowRef : undefined}
+                    onRemoved={() => headingRef.current?.focus()}
+                  />
+                ))}
+              </Table>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {narrow && (
+        <AgentDrawer
+          instance={drawerInstance}
+          open={drawer.open}
+          onOpenChange={setDrawerOpen}
+          head={data.head}
+          checkedAt={checkedAt}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            // A deep link has no opener, and a removed agent takes its row along.
+            const row = layoutElementRef.current?.querySelector<HTMLElement>(
+              `[data-instance-row="${CSS.escape(drawer.instanceName ?? "")}"]`,
+            )
+            const target = openerRef.current?.isConnected ? openerRef.current : (row ?? headingRef.current)
+            target?.focus()
+          }}
+        />
+      )}
 
       {agentCount === 0 && (
         <Card>

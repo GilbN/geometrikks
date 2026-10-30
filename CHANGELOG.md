@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dev images and source checkouts report the version they were built from, such as v0.22.0-dev.4, instead of the last stable release. A build without a version, such as a plain `docker build`, shows "local build". The agents page no longer warns about version differences when either side is a local build.
 - The OpenAPI schema at `/schema` reports the API version, 1, instead of the app version.
 - Settings > Agents shows the Name row in an instance's details only when `APP_INSTANCE_NAME` isn't set. An instance with a configured name no longer shows "set by APP_INSTANCE_NAME".
+- On a phone or in a narrow window, Settings > Agents lists each instance on two lines. The top line has its name and when it was last seen. The second says what is wrong, or for a healthy agent how many lines it read in the last 5 minutes. A version shows only when it differs from the head's. Tapping an agent opens a drawer with its problems, then one line per section, such as Ingestion, Scheduled jobs or GeoIP, that opens to the full details. Every fix has a copy button. An agent that stopped checking in has a Remove from the list button in its problem, and the link from Settings > Status opens that agent's drawer.
 - `docs/configuration.md` lists the settings for working on GeoMetrikks itself in a Developer settings section at the end: `APP_DEBUG`, `APP_ENVIRONMENT`, the SQL echo and pool switches, `DB_DROP_ON_STARTUP`, `LOGPARSER_SKIP_VALIDATION`, `SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES` and the Vite settings.
 
 ### Fixed
@@ -65,6 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The malformed share on Debug Logs reads "100.0% of total" instead of "+100.0% of total".
 - The Columns menu on Access Logs, Geo Logs and Debug Logs uses the height left on screen instead of stopping at 320px, so it lists more columns before you have to scroll it.
 - A grouped decision on the Security page counts its scenarios, not its decisions. An IP with 28 decisions from 6 scenarios said "28 scenarios". When every decision comes from one scenario, the row shows that scenario.
+- Settings > Agents no longer cuts off an agent's details at the right edge of the table. A failed job's error, why a version is marked, "needs 5 minutes of heartbeats" and a source's full path show as text instead of only in a tooltip, which a touch screen can't open.
+- An agent that stopped checking in no longer shows green lights for running, reachable or a loaded GeoLite2 database. They come from its last heartbeat, so they turn grey and say "when last seen".
+- On desktop, a link from Settings > Status to an agent keeps the Instances title and column headers in view. On touch screens, agents with a remove button are no longer taller than the other rows.
 - Banned IPs on the Security page get their country and city from the GeoLite2 database when GeoMetrikks has no traffic from them. Bans from mail or SSH scenarios, and IPs last seen in the proxy logs more than 30 days ago, showed "-" in the Country column.
 - Alert details and alert history show the full country name where CrowdSec sends only a code, such as "Netherlands" in place of "NL".
 - The close button on a row's details and on the IP inspector sits in the middle of the header. On phones it sat about 10px below the title.
