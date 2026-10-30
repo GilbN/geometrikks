@@ -3,7 +3,7 @@
  * instance that says what is wrong in words, and a bottom drawer with the
  * problems and each detail section for the row that was tapped.
  */
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { ChevronDown, ChevronRight, Trash2, X } from "lucide-react"
 import type { HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { useDeleteInstance } from "@/lib/queries"
@@ -30,7 +30,9 @@ import {
   instanceRowLine,
   instanceStatusLabel,
   instanceTone,
+  removeFailureMessage,
   shortVersion,
+  versionDriftText,
   versionTone,
 } from "@/components/settings/agents-logic"
 import {
@@ -87,6 +89,7 @@ export function AgentList({
                   {drift && (
                     <Badge variant="outline" className={cn(rowBadgeClasses, driftBadgeClasses[drift])}>
                       {shortVersion(instance.appVersion)}
+                      <span className="sr-only">, {versionDriftText(drift)}</span>
                     </Badge>
                   )}
                   <span
@@ -99,7 +102,10 @@ export function AgentList({
                   </span>
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  <span className="sr-only">{instanceStatusLabel(instance.status)}: </span>
+                  {/* A healthy row's line already starts with "Healthy". */}
+                  {instance.status !== "ok" && (
+                    <span className="sr-only">{instanceStatusLabel(instance.status)}: </span>
+                  )}
                   <PartsLine parts={instanceRowLine(instance)} />
                 </span>
               </span>
@@ -169,11 +175,32 @@ function AgentDetail({
   const sections = instanceDetailSections(instance, checkedAt)
   const headerGroups = instanceHeaderLine(instance, head, checkedAt)
   const problemCount = instance.problems.length
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const [announcement, setAnnouncement] = useState("")
+  // An agent that checks in again loses its Remove button, and with it the
+  // focus if that is where it was; the drawer's focus trap would leave it on
+  // the drawer itself.
+  const wasCheckingIn = useRef(instance.checkingIn)
+  useEffect(() => {
+    if (!wasCheckingIn.current && instance.checkingIn) {
+      setAnnouncement(`${instance.instanceName} is checking in again.`)
+      requestAnimationFrame(() => {
+        const title = titleRef.current
+        const active = document.activeElement
+        const content = title?.closest("[data-slot='drawer-content']")
+        if (!active || active === document.body || active === content) title?.focus()
+      })
+    }
+    wasCheckingIn.current = instance.checkingIn
+  }, [instance.checkingIn, instance.instanceName])
   return (
     <>
+      <p role="status" className="sr-only">
+        {announcement}
+      </p>
       <DrawerHeader className="flex-row items-start gap-2 pb-3 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
         <div className="min-w-0 flex-1 space-y-1">
-          <DrawerTitle tabIndex={-1} className="flex items-center gap-2 outline-none">
+          <DrawerTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-2 outline-none">
             <StatusLed tone={instanceTone(instance)} />
             <MonoChip className="min-w-0 truncate text-[13px] text-foreground">{instance.instanceName}</MonoChip>
             <span className="sr-only">, {instanceStatusLabel(instance.status)}</span>
@@ -303,6 +330,7 @@ function RemoveFromList({ instanceName }: { instanceName: string }) {
   const pending = deleteInstanceMutation.isPending
   const keepRef = useRef<HTMLButtonElement>(null)
   const removeRef = useRef<HTMLButtonElement>(null)
+  const descriptionId = useId()
   // Focus goes back to Remove from the list when the confirmation closes;
   // otherwise the drawer's focus trap drops it at the top of the drawer.
   const wasConfirming = useRef(false)
@@ -312,15 +340,14 @@ function RemoveFromList({ instanceName }: { instanceName: string }) {
   }, [confirming])
 
   const remove = () => {
+    if (pending) return
     setRemoveError(null)
     deleteInstanceMutation.mutate(instanceName, {
       onError: (error) => {
-        // The generated client throws the parsed error body. A 404 means it
-        // is already gone, and the refetch closes the drawer.
-        const status =
-          typeof error === "object" && error !== null && "status_code" in error ? error.status_code : undefined
-        if (status === 404) return
-        setRemoveError(`Could not remove ${instanceName}. Try again.`)
+        // A 404 needs no message, since the refetch closes the drawer.
+        const message = removeFailureMessage(error, instanceName)
+        if (!message) return
+        setRemoveError(message)
         requestAnimationFrame(() => keepRef.current?.focus())
       },
     })
@@ -349,13 +376,16 @@ function RemoveFromList({ instanceName }: { instanceName: string }) {
     )
   }
 
+  // aria-disabled rather than disabled while the request runs, since a
+  // disabled button drops focus out of the drawer to the page.
   return (
     <div
       role="group"
       aria-label={`Remove ${instanceName} from the list?`}
+      aria-describedby={descriptionId}
       className="space-y-2 rounded-md border border-border/60 p-2 text-xs"
     >
-      <p className="text-muted-foreground">
+      <p id={descriptionId} className="text-muted-foreground">
         Remove {instanceName} from the list? This deletes its heartbeat row. If {instanceName} is still
         running somewhere, it writes the row again within 30 seconds and comes back here.
       </p>
@@ -372,12 +402,22 @@ function RemoveFromList({ instanceName }: { instanceName: string }) {
           variant="outline"
           autoFocus
           // Closing mid-request would hide whether the removal worked.
-          disabled={pending}
-          onClick={() => setConfirming(false)}
+          aria-disabled={pending}
+          className="aria-disabled:opacity-50"
+          onClick={() => {
+            if (!pending) setConfirming(false)
+          }}
         >
           Keep
         </Button>
-        <Button type="button" size="sm" variant="destructive" disabled={pending} onClick={remove}>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
+          aria-disabled={pending}
+          className="aria-disabled:opacity-50"
+          onClick={remove}
+        >
           {pending ? "Removing" : "Remove"}
         </Button>
       </div>

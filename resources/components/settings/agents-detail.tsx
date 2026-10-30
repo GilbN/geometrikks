@@ -8,7 +8,6 @@ import { toast } from "sonner"
 import type { Advisory, HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
-import { displayVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { type LedTone, MonoChip, StatusLed } from "@/components/settings/status-led"
@@ -19,6 +18,7 @@ import {
   liveTone,
   schemaWaitState,
   sourceReasonLabel,
+  shortVersion,
   type TextPart,
   versionDriftText,
   versionTone,
@@ -102,25 +102,30 @@ function CopyFixButton({ text }: { text: string }) {
     resetTimerRef.current = setTimeout(() => setCopyState("idle"), copied ? 1500 : 4000)
   }
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={copyState === "copied" ? "Copied" : "Copy the fix"}
-      className="-my-1.5 -mr-1.5 shrink-0 text-muted-foreground"
-      onClick={(event) => {
-        event.stopPropagation()
-        void copyFix(event.currentTarget)
-      }}
-    >
-      {copyState === "copied" ? (
-        <Check />
-      ) : copyState === "failed" ? (
-        <AlertTriangle className="text-amber-600 dark:text-amber-400" />
-      ) : (
-        <Copy />
-      )}
-    </Button>
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Copy fix: ${text}`}
+        className="-my-1.5 -mr-1.5 shrink-0 text-muted-foreground"
+        onClick={(event) => {
+          event.stopPropagation()
+          void copyFix(event.currentTarget)
+        }}
+      >
+        {copyState === "copied" ? (
+          <Check />
+        ) : copyState === "failed" ? (
+          <AlertTriangle className="text-amber-600 dark:text-amber-400" />
+        ) : (
+          <Copy />
+        )}
+      </Button>
+      <span role="status" className="sr-only">
+        {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : ""}
+      </span>
+    </>
   )
 }
 
@@ -176,6 +181,8 @@ export function InstanceFacts({
   const nameSource = instance.payload?.instanceNameSource
   const drift = versionTone(instance, head)
   const driftText = versionDriftText(drift)
+  const buildSuffixStart = instance.appVersion.indexOf("+")
+  const buildSuffix = buildSuffixStart === -1 ? null : instance.appVersion.slice(buildSuffixStart + 1)
   const serverNames = instance.payload?.serverNames ?? []
   const whenLastSeen = instance.checkingIn ? "" : " when last seen"
   return (
@@ -183,10 +190,13 @@ export function InstanceFacts({
       <Fact label="Mode">{instance.mode}</Fact>
       <Fact label="Version">
         <span className="min-w-0 break-words">
-          <span className={cn(drift === "red" && "text-red-500", drift === "amber" && "text-amber-500")}>
-            {displayVersion(instance.appVersion)}
+          <span
+            className={cn("whitespace-nowrap", drift === "red" && "text-red-500", drift === "amber" && "text-amber-500")}
+          >
+            {shortVersion(instance.appVersion)}
           </span>
           {driftText && <span className="text-muted-foreground">, {driftText}</span>}
+          {buildSuffix && <span className="block break-all text-muted-foreground">build {buildSuffix}</span>}
         </span>
       </Fact>
       <Fact label="Started">
@@ -299,7 +309,7 @@ export function JobsList({ instance, now }: { instance: InstanceView; now: numbe
         const nextRun = job.nextRunTime ? `, next ${relativeTime(job.nextRunTime, now)}` : ""
         return (
           <li key={job.id || jobIndex} className="flex items-start gap-2">
-            <StatusLed tone={state.tone} className="mt-1" />
+            <StatusLed tone={liveTone(state.tone, instance.checkingIn)} className="mt-1" />
             <div className="min-w-0 flex-1">
               <p className="break-words">{job.name || job.id || "unnamed job"}</p>
               <p className="text-muted-foreground tabular-nums">

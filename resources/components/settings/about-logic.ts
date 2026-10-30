@@ -39,11 +39,12 @@ export function splitPath(path: string): { fileName: string; folder: string | nu
   return { fileName: path.slice(lastSlash + 1), folder: path.slice(0, lastSlash) || path.slice(0, 1) }
 }
 
-export type MigrationStatus = "at-head" | "behind" | "unavailable"
+/** "differs" rather than "behind": after a rollback the database can be ahead of the build. */
+export type MigrationStatus = "at-head" | "differs" | "unavailable"
 
 export function migrationStatus(database: AboutResponse["database"]): MigrationStatus {
   if (!database.migrationRevision) return "unavailable"
-  return database.migrationRevision === database.migrationHead ? "at-head" : "behind"
+  return database.migrationRevision === database.migrationHead ? "at-head" : "differs"
 }
 
 const TONE_RANK: Record<LedTone, number> = { red: 3, amber: 2, accent: 1, emerald: 1, muted: 0 }
@@ -64,8 +65,9 @@ export function runtimeSummary(runtime: AboutResponse["runtime"]): SectionSummar
 export function databaseSummary(database: AboutResponse["database"]): SectionSummary {
   if (database.postgresVersion === null) return { tone: "red", text: "Unreachable" }
   const status = migrationStatus(database)
-  if (status === "behind") return { tone: "amber", text: "Connected, migration behind" }
-  return { tone: "emerald", text: status === "at-head" ? "Connected, migration at head" : "Connected, migration unavailable" }
+  if (status === "differs") return { tone: "amber", text: "Connected, migration differs" }
+  if (status === "unavailable") return { tone: "muted", text: "Connected, migration unavailable" }
+  return { tone: "emerald", text: "Connected, migration at head" }
 }
 
 function geoipPart(name: string, info: GeoIpInfoView): string {
@@ -87,6 +89,13 @@ export function startsOpen(summary: SectionSummary): boolean {
   return summary.tone === "red" || summary.tone === "amber"
 }
 
+/** A GeoLite2 build date in the reader's date format, read in UTC like the copied text. */
+export function buildDateLabel(buildDate: string | null | undefined, locale?: string): string {
+  if (!buildDate) return "unknown"
+  const date = new Date(buildDate)
+  return Number.isNaN(date.getTime()) ? buildDate : date.toLocaleDateString(locale, { timeZone: "UTC" })
+}
+
 function buildDay(info: GeoIpInfoView): string {
   if (!info.available) return "missing"
   if (!info.buildDate) return "unknown"
@@ -104,7 +113,7 @@ export function aboutDetailsText(about: AboutResponse): string {
       ? "Migration unavailable"
       : status === "at-head"
         ? `Migration ${database.migrationRevision} (at head)`
-        : `Migration ${database.migrationRevision} (behind, build ships ${database.migrationHead})`
+        : `Migration ${database.migrationRevision} (differs from this build, build ships ${database.migrationHead})`
   const asn = about.geoipAsnEnabled && about.geoipAsn ? `ASN ${buildDay(about.geoipAsn)}` : "ASN disabled"
   return [
     `GeoMetrikks ${displayVersion(app.version)}${commit}, ${runtimeLabel(app, displayVersion(publicVersion(app.version)))}`,

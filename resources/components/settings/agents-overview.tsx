@@ -36,6 +36,7 @@ import { SectionIcon } from "@/components/settings/status-overview"
 import {
   agentInstances,
   canRemove,
+  deepLinkedInstance,
   deepLinkScrollDelta,
   instanceStatusLabel,
   instanceTone,
@@ -351,10 +352,28 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
     [],
   )
 
+  // Expanded during render rather than in an effect, so the layout effect
+  // below measures a deep-linked row with its details already open.
+  const [expandedFor, setExpandedFor] = useState(focusInstance)
+  if (expandedFor !== focusInstance) {
+    setExpandedFor(focusInstance)
+    if (focusInstance) {
+      setExpanded((previous) => (previous.has(focusInstance) ? previous : new Set(previous).add(focusInstance)))
+    }
+  }
+
   useEffect(() => {
-    if (!focusInstance) return
-    setExpanded((previous) => (previous.has(focusInstance) ? previous : new Set(previous).add(focusInstance)))
+    if (!focusInstance) handledFocusFor.current = undefined
   }, [focusInstance])
+
+  // A drawer left open while the list was gone, behind an error or a card
+  // grown past the breakpoint, would otherwise pop back up on its own.
+  const wasShowingList = useRef(false)
+  const showingList = state === "ready" && narrow
+  useEffect(() => {
+    if (wasShowingList.current && !showingList) setDrawer({ instanceName: null, open: false })
+    wasShowingList.current = showingList
+  }, [showingList])
 
   // Measured here rather than read from `narrow`, which settles only after
   // this first render. A deep link opens the drawer on a narrow card and
@@ -365,6 +384,7 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
     if (!layoutElement) return
     handledFocusFor.current = focusInstance
     if (layoutElement.clientWidth < NARROW_TABLE_WIDTH) {
+      if (!deepLinkedInstance(data, focusInstance)) return
       openerRef.current = null
       setDrawer({ instanceName: focusInstance, open: true })
       return
@@ -383,8 +403,8 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
       rowBottom: rowRect.bottom,
       detailBottom: (row.parentElement ?? row).getBoundingClientRect().bottom,
     })
-    if (scrollDelta > 0) (scroller ?? window).scrollBy({ top: scrollDelta })
-  }, [state, focusInstance])
+    if (scrollDelta !== 0) (scroller ?? window).scrollBy({ top: scrollDelta })
+  }, [state, focusInstance, data])
 
   if (state === "loading") {
     return (

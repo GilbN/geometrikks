@@ -394,7 +394,8 @@ function lastErrorSection(instance: InstanceView): DetailSection | null {
   // The last error is kept since startup; only a failure in the last 5
   // minutes means writes are still failing.
   const failingNow = (instance.payload?.failed5M ?? 0) > 0
-  return { id: "last-error", title: "Last error", tone: failingNow ? "red" : "amber", summary: [{ text: errorHeadline(message) }] }
+  const tone = liveTone(failingNow ? "red" : "amber", instance.checkingIn)
+  return { id: "last-error", title: "Last error", tone, summary: [{ text: errorHeadline(message) }] }
 }
 
 function sourcesSection(instance: InstanceView, ingestionShowsLines: boolean): DetailSection {
@@ -451,7 +452,11 @@ function jobsSection(instance: InstanceView, nowMs: number): DetailSection {
   if (failedJobs.length > 0) tone = "red"
   else if (jobs.some((job) => job.lastStatus === "missed")) tone = "amber"
   else if (jobs.some((job) => job.lastStatus === "success")) tone = "emerald"
-  return { id: "jobs", title, tone, summary }
+  if (!instance.checkingIn) {
+    const lastPart = summary[summary.length - 1]
+    summary[summary.length - 1] = { text: `${lastPart.text} when last seen` }
+  }
+  return { id: "jobs", title, tone: liveTone(tone, instance.checkingIn), summary }
 }
 
 function geoipSection(instance: InstanceView, nowMs: number): DetailSection {
@@ -459,13 +464,15 @@ function geoipSection(instance: InstanceView, nowMs: number): DetailSection {
   const title = "GeoIP"
   if (!geoip) return { id: "geoip", title, tone: "muted", summary: [{ text: "Unknown" }] }
   if (!geoip.available) {
-    return { id: "geoip", title, tone: liveTone("red", instance.checkingIn), summary: [{ text: "City not loaded", tone: instance.checkingIn ? "red" : undefined }] }
+    if (!instance.checkingIn) return { id: "geoip", title, tone: "muted", summary: [{ text: "City not loaded when last seen" }] }
+    return { id: "geoip", title, tone: "red", summary: [{ text: "City not loaded", tone: "red" }] }
   }
   const built = geoip.dbBuildDate ? ` built ${formatShortDate(geoip.dbBuildDate)}, ${relativeTime(geoip.dbBuildDate, nowMs)}` : " loaded"
   const summary: TextPart[] = geoip.asnAvailable
     ? [{ text: `City and ASN${built}` }]
     : [{ text: `City${built}` }, { text: "ASN not loaded" }]
-  return { id: "geoip", title, tone: liveTone("emerald", instance.checkingIn), summary }
+  if (!instance.checkingIn) return { id: "geoip", title, tone: "muted", summary: [{ text: "Loaded when last seen" }, ...summary] }
+  return { id: "geoip", title, tone: "emerald", summary }
 }
 
 function instanceSection(instance: InstanceView): DetailSection {
@@ -535,9 +542,10 @@ export function instanceDetailSections(instance: InstanceView, nowMs: number): D
   return [...sections.filter(needsAttention), ...sections.filter((section) => !needsAttention(section))]
 }
 
-/** How far to scroll so a deep-linked row and its details show, without
- *  pushing the card's title and column headers off the top unless the row
- *  would stay out of view. Rects are relative to the viewport. */
+/** How far to scroll, up when negative, so a deep-linked row and its
+ *  details show, without pushing the card's title and column headers off
+ *  the top unless the row would stay out of view. Rects are relative to the
+ *  viewport. */
 export function deepLinkScrollDelta({
   viewportTop,
   viewportBottom,
@@ -554,9 +562,36 @@ export function deepLinkScrollDelta({
   detailBottom: number
 }): number {
   const margin = 16
+  if (rowTop < viewportTop) {
+    // Above the viewport: up to the card's top when the row still shows
+    // from there, otherwise just far enough to show the row.
+    const toCardTop = Math.min(0, cardTop - viewportTop)
+    if (rowBottom - toCardTop <= viewportBottom) return toCardTop
+    return rowTop - viewportTop - margin
+  }
   const needed = detailBottom + margin - viewportBottom
   if (needed <= 0) return 0
   const keepCard = Math.max(0, Math.min(needed, cardTop - viewportTop))
   if (rowBottom - keepCard <= viewportBottom) return keepCard
   return Math.max(0, Math.min(needed, rowTop - viewportTop - margin))
+}
+
+/** The agent a deep link names, or null when it is not in the list, so a
+ *  stale link doesn't open an empty drawer. */
+export function deepLinkedInstance(
+  response: InstancesResponse | undefined,
+  instanceName: string | undefined,
+): InstanceView | null {
+  if (!instanceName) return null
+  return response?.instances.find((instance) => instance.instanceName === instanceName) ?? null
+}
+
+/** What to say when removing an agent failed, or null for a 404, which
+ *  means someone else already removed it. The generated client throws the
+ *  parsed error body. */
+export function removeFailureMessage(error: unknown, instanceName: string): string | null {
+  const status =
+    typeof error === "object" && error !== null && "status_code" in error ? error.status_code : undefined
+  if (status === 404) return null
+  return `Could not remove ${instanceName}. Try again.`
 }

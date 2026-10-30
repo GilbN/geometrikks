@@ -20,6 +20,7 @@ import { Wordmark } from "@/components/brand/wordmark"
 import { AsnListDialog } from "@/components/settings/asn-list-dialog"
 import {
   aboutDetailsText,
+  buildDateLabel,
   databaseSummary,
   geoipFreshness,
   geoipSummary,
@@ -406,12 +407,11 @@ function SummarySection({
 
 function PhoneDatabaseValues({ database }: { database: AboutResponse["database"] }) {
   const status = migrationStatus(database)
+  const shortPostgres = database.postgresVersion && shortPostgresVersion(database.postgresVersion)
   return (
     <>
-      <PhoneRow
-        label="PostgreSQL"
-        value={<VersionValue version={database.postgresVersion && shortPostgresVersion(database.postgresVersion)} />}
-      />
+      <PhoneRow label="PostgreSQL" value={<VersionValue version={shortPostgres} />} />
+      {shortPostgres !== database.postgresVersion && <PhoneRowDetail>{database.postgresVersion}</PhoneRowDetail>}
       <PhoneRow label="TimescaleDB" value={<VersionValue version={database.timescaledbVersion} />} />
       <PhoneRow label="PostGIS" value={<VersionValue version={database.postgisVersion} />} />
       <PhoneRow
@@ -422,7 +422,7 @@ function PhoneDatabaseValues({ database }: { database: AboutResponse["database"]
           ) : (
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <StatusLed tone={status === "at-head" ? "emerald" : "amber"} />
-              {status === "at-head" ? "at head" : "behind"}
+              {status === "at-head" ? "at head" : "differs from this build"}
             </span>
           )
         }
@@ -433,7 +433,7 @@ function PhoneDatabaseValues({ database }: { database: AboutResponse["database"]
           <MonoChip>{database.migrationRevision}</MonoChip>
         </PhoneRowDetail>
       )}
-      {status === "behind" && (
+      {status === "differs" && (
         <PhoneRowDetail>
           build ships <MonoChip>{database.migrationHead}</MonoChip>
         </PhoneRowDetail>
@@ -461,7 +461,7 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
       />
       <PhoneRow
         label="Build date"
-        value={about.geoip.buildDate ? new Date(about.geoip.buildDate).toLocaleDateString() : "unknown"}
+        value={buildDateLabel(about.geoip.buildDate)}
       />
       <PhoneRow label="File" value={<MonoChip>{cityPath.fileName}</MonoChip>} />
       {cityPath.folder && <PhoneRowDetail>in {cityPath.folder}</PhoneRowDetail>}
@@ -673,11 +673,7 @@ export function AboutPage() {
               </div>
               <Row
                 label="Build date"
-                value={
-                  data.geoip.buildDate
-                    ? new Date(data.geoip.buildDate).toLocaleDateString()
-                    : "unknown"
-                }
+                value={buildDateLabel(data.geoip.buildDate)}
               />
               <Row
                 label="Age"
@@ -707,11 +703,7 @@ export function AboutPage() {
                 <>
                   <Row
                     label="Build date"
-                    value={
-                      data.geoipAsn.buildDate
-                        ? new Date(data.geoipAsn.buildDate).toLocaleDateString()
-                        : "unknown"
-                    }
+                    value={buildDateLabel(data.geoipAsn.buildDate)}
                   />
                   <Row
                     label="Age"

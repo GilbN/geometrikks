@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { AboutResponse } from "@/generated/api/types.gen"
 import {
   aboutDetailsText,
+  buildDateLabel,
   databaseSummary,
   geoipSummary,
   migrationStatus,
@@ -75,6 +76,17 @@ describe("splitPath", () => {
   })
 })
 
+describe("buildDateLabel", () => {
+  it("reads the build date in UTC so it matches the copied text", () => {
+    expect(buildDateLabel("2026-10-23T00:00:00Z", "en-US")).toBe("10/23/2026")
+    expect(aboutDetailsText(makeAbout())).toContain("City 2026-10-23")
+  })
+
+  it("says unknown without a date", () => {
+    expect(buildDateLabel(null)).toBe("unknown")
+  })
+})
+
 describe("runtimeLabel", () => {
   const app = makeAbout().app
 
@@ -97,8 +109,8 @@ describe("migrationStatus", () => {
     expect(migrationStatus(database)).toBe("at-head")
   })
 
-  it("is behind when the revisions differ", () => {
-    expect(migrationStatus({ ...database, migrationRevision: "9f1c2ab4d7e0" })).toBe("behind")
+  it("differs when the revisions differ, whichever side is newer", () => {
+    expect(migrationStatus({ ...database, migrationRevision: "9f1c2ab4d7e0" })).toBe("differs")
   })
 
   it("is unavailable without a revision", () => {
@@ -119,11 +131,17 @@ describe("section summaries", () => {
     expect(databaseSummary(database)).toEqual({ tone: "emerald", text: "Connected, migration at head" })
   })
 
-  it("reports a migration behind in amber", () => {
+  it("reports a migration that differs from the build in amber", () => {
     expect(databaseSummary({ ...database, migrationRevision: "9f1c2ab4d7e0" })).toEqual({
       tone: "amber",
-      text: "Connected, migration behind",
+      text: "Connected, migration differs",
     })
+  })
+
+  it("gives a missing migration revision a muted light and keeps the row closed", () => {
+    const summary = databaseSummary({ ...database, migrationRevision: null, migrationName: null })
+    expect(summary).toEqual({ tone: "muted", text: "Connected, migration unavailable" })
+    expect(startsOpen(summary)).toBe(false)
   })
 
   it("reports an unreachable database in red", () => {
@@ -206,9 +224,9 @@ describe("aboutDetailsText", () => {
     ])
   })
 
-  it("names the build's revision when the migration is behind", () => {
+  it("names the build's revision when the migration differs", () => {
     const about = makeAbout()
     const text = aboutDetailsText({ ...about, database: { ...about.database, migrationRevision: "9f1c2ab4d7e0" } })
-    expect(text.split("\n")[4]).toBe("Migration 9f1c2ab4d7e0 (behind, build ships a41d7e6c2b95)")
+    expect(text.split("\n")[4]).toBe("Migration 9f1c2ab4d7e0 (differs from this build, build ships a41d7e6c2b95)")
   })
 })
