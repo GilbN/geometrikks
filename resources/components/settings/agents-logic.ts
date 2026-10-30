@@ -41,6 +41,7 @@ const OUT_OF_DATE_IDS = new Set(["instance-schema-behind", "instance-version-mis
 // advisories forwarded from the agent's own /health and anything newer.
 const PROBLEM_KINDS: ProblemKind[] = [
   { matches: (problemId) => problemId === "instance-not-checking-in", label: "not checking in" },
+  { matches: (problemId) => problemId === "instance-writes-failing", label: "with failing writes" },
   { matches: (problemId) => OUT_OF_DATE_IDS.has(problemId), label: "out of date" },
   { matches: (problemId) => problemId === "instance-schema-ahead", label: "newer than the head" },
   { matches: (problemId) => problemId === "instance-name-conflict", label: "with a name conflict" },
@@ -232,10 +233,14 @@ export function shortVersion(version: string): string {
 /** A few words for a problem, for a list row that has no room for the
  *  sentence. Problems the head computes get fixed wording; forwarded ones
  *  keep their own summary. */
-export function problemHeadline(problem: Pick<Advisory, "id" | "summary">, instanceName: string): string {
+export function problemHeadline(problem: Pick<Advisory, "id" | "summary" | "severity">, instanceName: string): string {
   switch (problem.id) {
     case "instance-not-checking-in":
       return "Not checking in"
+    case "instance-writes-failing":
+      return problem.severity === "critical" ? "Writes failing" : "Some writes failing"
+    case "ingestion-write-failures":
+      return problem.severity === "critical" ? "Writes failing" : "Writes failed since startup"
     case "instance-schema-behind":
     case "instance-version-mismatch":
       return "Out of date"

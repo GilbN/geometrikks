@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Settings > Agents and Settings > Status flag an agent whose database writes failed in the last 5 minutes. It turns red when none of its writes landed and amber while some still do. Its row says "Writes failing" or "Some writes failing", and the problem quotes the database's last error. The head's own failed-writes notice on Settings > Status turns red the same way and quotes the last error too.
 - The sidebar version leaves out the local build suffix, such as +g05b43030f, as Settings > About and the Settings list already did.
 - The version card on Settings > About has less empty space above the logo and below the badges.
 - With a newer release out, the version card on Settings > About still says when the check ran.
