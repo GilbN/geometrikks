@@ -14,7 +14,7 @@ import type { CustomTimeRange, TimeRangeValue } from "@/lib/api"
 import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } from "@/lib/crowdsec"
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
-import { useIpInspector } from "@/lib/ip-inspector"
+import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
 import { useCrowdsecStatus, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
@@ -209,28 +209,27 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
 // Reads the profile through the body's query key, so it adds no request.
 function IpInspectorFooter({ ip }: { ip: string }) {
   const profile = useIpProfile(ip).data
+  const inspect = useInspectOnNavigate(ip)
   return (
     <footer className="flex flex-wrap gap-2">
       <FooterLink icon={BarChart3} label="Analytics">
-        <Link to="/analytics" search={{ ip: [ip], inspect: ip }} />
+        <Link to="/analytics" search={{ ip: [ip], inspect }} />
       </FooterLink>
       <FooterLink icon={FileText} label="Access logs">
-        <Link to="/access-logs" search={{ ip: [ip], inspect: ip }} />
+        <Link to="/access-logs" search={{ ip: [ip], inspect }} />
       </FooterLink>
       {profile && profile.malformedRequests > 0 && (
         <FooterLink icon={Bug} label="Debug logs">
-          <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect: ip }} />
+          <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect }} />
         </FooterLink>
       )}
-      <span className="ml-auto">
-        <AbuseReportButton subject={{ kind: "ip", ip, asn: profile?.asn, organization: profile?.asnOrganization }} />
-      </span>
+      <AbuseReportButton subject={{ kind: "ip", ip, asn: profile?.asn, organization: profile?.asnOrganization }} />
     </footer>
   )
 }
 
-/** A footer link: the label on wider screens, the sidebar's icon for the page
- *  on a phone, where the full-width sheet has no room for labeled buttons. */
+/** A footer link, sized like a record sheet's footer buttons. The minimum
+ *  width wraps Debug logs onto a second row on a phone. */
 function FooterLink({
   icon: Icon,
   label,
@@ -238,14 +237,14 @@ function FooterLink({
 }: {
   icon: LucideIcon
   label: string
-  children: ReactElement<{ children?: ReactNode; "aria-label"?: string }>
+  children: ReactElement<{ children?: ReactNode }>
 }) {
   return (
-    <Button asChild size="sm" variant="outline" className="max-sm:w-8 max-sm:px-0" title={label}>
-      {cloneElement(children, { "aria-label": label }, (
+    <Button asChild variant="outline" size="lg" className="min-w-32 flex-1" title={label}>
+      {cloneElement(children, undefined, (
         <>
-          <Icon className="sm:hidden" />
-          <span className="max-sm:hidden">{label} →</span>
+          <Icon data-icon="inline-start" />
+          <span className="truncate">{label}</span>
         </>
       ))}
     </Button>

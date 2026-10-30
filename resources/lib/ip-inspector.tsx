@@ -5,6 +5,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
+import { useMediaQuery } from "@/hooks/use-media-query"
 
 interface ActionsState {
   open: (ip: string, fromLocationId?: number) => void
@@ -56,6 +57,14 @@ export function useIpInspectorOrigin() {
     throw new Error("useIpInspectorOrigin must be used within an IpInspectorProvider")
   }
   return originLocationId
+}
+
+/** The `inspect` value for a link out of the sheet. Below `sm` the sheet fills
+ *  the screen and would hide the page the link opens, so there the link
+ *  closes it. Back reopens it. */
+export function useInspectOnNavigate(ip: string): string | undefined {
+  const sheetFillsScreen = useMediaQuery("(width < 40rem)")
+  return sheetFillsScreen ? undefined : ip
 }
 
 export function useIpInspector() {

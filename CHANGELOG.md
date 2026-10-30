@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On a phone, Analytics and Geo Logs have a row of section buttons pinned under the top bar. Tap one to jump to that chart or list. The button for the section you're looking at lights up. Chart legends show two entries per line.
 - On a phone, the stat cards on the Overview, Security, Geo Logs and Debug Logs pages sit two to a row and take less height, so the Overview is about half as long. The top bar already names the page, so the page title and description are hidden, as are the descriptions on table and chart cards. Access Logs puts its Filters button next to the History and Live tail tabs, and the Overview's date range leaves out the times when it spans more than a day.
 - The Overview page heading says Overview, matching the menu, instead of Summary.
+- The IP inspector's footer buttons look like the ones in a request's details. Analytics, Access logs and Debug logs are full-size buttons with labels, and Abuse report is a square icon button at the end. On a phone they used to be small icons. When an IP has Debug logs, that button and Abuse report take a second row on a phone.
 - Stat card titles and values line up across a row when one card's title wraps onto more lines.
 - Settings > Logs draws only the lines on screen, so a full 2,000-line buffer scrolls smoothly. On a phone or in a narrow window each line takes two rows, with the level, component and time on top and up to two lines of the message below, and the list scrolls with the page. While you're scrolled down the list, new lines wait until you're back at the top, and a button over the list says how many and takes you there. Closing a line's details puts keyboard focus back on that line.
 - When a top list on Analytics or Geo Logs is too narrow for its columns, as on a phone, the top IPs, URLs, user agents and networks show each entry on two lines. The name and its count sit on top, with the supporting numbers below. URLs and user agents wrap onto two lines instead of being cut off at one.
@@ -52,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On a phone, the IP inspector's Analytics, Access logs and Debug logs buttons and its fly-to-map button close the inspector. It used to stay open over the page they opened, so the tap looked like it did nothing. Back reopens the inspector.
 - Auto refresh waits while an IP's actions menu or its ban dialog is open. On a busy server a refresh pushed the row off the first page of Access Logs and closed the menu you were using.
 - Fit to data bounds frames the traffic on a phone instead of the open ocean between the locations, and on desktop it keeps the locations clear of the map controls panel.
 - Pages on a phone no longer show the desktop filter bar for a moment while they load.
