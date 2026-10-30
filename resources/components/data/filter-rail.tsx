@@ -109,26 +109,36 @@ export function FilterField({
 /**
  * Include and exclude controls for one dimension, drawn as a single joined
  * control so the eye reads one dimension instead of two boxes. `stacked`
- * (the mobile drawer) splits it into two full-width fields instead.
+ * (the mobile drawer) splits it into two full-width fields instead, each
+ * followed by its own chips. Unstacked, the chip props are ignored and the
+ * page shows one chip row for the whole rail.
  */
 export function FilterPair({
   label,
   excludeLabel,
   include,
   exclude,
+  includeChips,
+  excludeChips,
   stacked = false,
 }: {
   label: string
   excludeLabel: string
   include: React.ReactNode
   exclude: React.ReactNode
+  includeChips?: React.ReactNode
+  excludeChips?: React.ReactNode
   stacked?: boolean
 }) {
   if (stacked) {
     return (
       <>
-        <FilterField label={label}>{include}</FilterField>
-        <FilterField label={excludeLabel}>{exclude}</FilterField>
+        <StackedField label={label} chips={includeChips}>
+          {include}
+        </StackedField>
+        <StackedField label={excludeLabel} chips={excludeChips}>
+          {exclude}
+        </StackedField>
       </>
     )
   }
@@ -150,6 +160,26 @@ export function FilterPair({
           {exclude}
         </div>
       </div>
+    </div>
+  )
+}
+
+// The chips stay outside FilterField: inside its <label>, their remove
+// buttons would become part of the input's accessible name.
+function StackedField({
+  label,
+  chips,
+  children,
+}: {
+  label: string
+  chips?: React.ReactNode
+  children: React.ReactNode
+}) {
+  if (!chips) return <FilterField label={label}>{children}</FilterField>
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <FilterField label={label}>{children}</FilterField>
+      {chips}
     </div>
   )
 }

@@ -34,11 +34,28 @@ export function AnalyticsFilterBar() {
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
 
+  const chips = [
+    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
+    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
+  ]
+  const chipRow = (keys: IpKey[]) => {
+    const shown = chips.filter((c) => keys.includes(c.key))
+    return shown.length > 0 && (
+      <FilterRow>
+        {shown.map((c) => (
+          <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => removeIp(c.key, c.v)} />
+        ))}
+      </FilterRow>
+    )
+  }
+
   const ipPair = (inDrawer: boolean) => (
     <FilterPair
       label="IP address"
       excludeLabel="Exclude IP"
       stacked={inDrawer}
+      includeChips={chipRow(["ips"])}
+      excludeChips={chipRow(["ipsExclude"])}
       include={
         <TagInput
           onAdd={addIp("ips")}
@@ -92,18 +109,6 @@ export function AnalyticsFilterBar() {
     </FilterField>
   )
 
-  const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
-  ]
-  const chipRow = chips.length > 0 && (
-    <FilterRow>
-      {chips.map((c) => (
-        <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => removeIp(c.key, c.v)} />
-      ))}
-    </FilterRow>
-  )
-
   const activeCount = countActiveAnalyticsFilters(filters)
   const clear = () => setFilters(() => EMPTY_FILTERS)
 
@@ -114,7 +119,6 @@ export function AnalyticsFilterBar() {
           {ipPair(true)}
           {country(true)}
           {city(true)}
-          {chipRow}
         </FiltersDrawer>
       </div>
     )
@@ -127,7 +131,7 @@ export function AnalyticsFilterBar() {
         {country(false)}
         {city(false)}
       </FilterRow>
-      {chipRow}
+      {chipRow(["ips", "ipsExclude"])}
     </FilterRail>
   )
 }

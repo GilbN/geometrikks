@@ -54,11 +54,30 @@ export function GeoLogsFilterBar() {
   const removeAsn = (key: AsnKey, asn: number) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== asn) }))
 
+  const chips = [
+    ...filters.ips.map((v) => ({ key: "ips" as const, label: v, exclude: false, remove: () => removeIp("ips", v) })),
+    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, label: v, exclude: true, remove: () => removeIp("ipsExclude", v) })),
+    ...filters.asns.map((v) => ({ key: "asns" as const, label: asnLabel(v), exclude: false, remove: () => removeAsn("asns", v) })),
+    ...filters.asnsExclude.map((v) => ({ key: "asnsExclude" as const, label: asnLabel(v), exclude: true, remove: () => removeAsn("asnsExclude", v) })),
+  ]
+  const chipRow = (keys: (IpKey | AsnKey)[]) => {
+    const shown = chips.filter((c) => keys.includes(c.key))
+    return shown.length > 0 && (
+      <FilterRow>
+        {shown.map((c) => (
+          <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
+        ))}
+      </FilterRow>
+    )
+  }
+
   const ipPair = (inDrawer: boolean) => (
     <FilterPair
       label="IP address"
       excludeLabel="Exclude IP"
       stacked={inDrawer}
+      includeChips={chipRow(["ips"])}
+      excludeChips={chipRow(["ipsExclude"])}
       include={
         <TagInput
           onAdd={addIp("ips")}
@@ -131,6 +150,8 @@ export function GeoLogsFilterBar() {
       label="ASN"
       excludeLabel="Exclude ASN"
       stacked={inDrawer}
+      includeChips={chipRow(["asns"])}
+      excludeChips={chipRow(["asnsExclude"])}
       include={
         <FilterCombobox<number>
           label="ASN"
@@ -160,20 +181,6 @@ export function GeoLogsFilterBar() {
     />
   )
 
-  const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, label: v, exclude: false, remove: () => removeIp("ips", v) })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, label: v, exclude: true, remove: () => removeIp("ipsExclude", v) })),
-    ...filters.asns.map((v) => ({ key: "asns" as const, label: asnLabel(v), exclude: false, remove: () => removeAsn("asns", v) })),
-    ...filters.asnsExclude.map((v) => ({ key: "asnsExclude" as const, label: asnLabel(v), exclude: true, remove: () => removeAsn("asnsExclude", v) })),
-  ]
-  const chipRow = chips.length > 0 && (
-    <FilterRow>
-      {chips.map((c) => (
-        <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
-      ))}
-    </FilterRow>
-  )
-
   const activeCount = countActiveGeoLogFilters(filters)
   const clear = () => setFilters(() => EMPTY_GEO_LOG_FILTERS)
 
@@ -186,7 +193,6 @@ export function GeoLogsFilterBar() {
           {city(true)}
           {server(true)}
           {asnPair(true)}
-          {chipRow}
         </FiltersDrawer>
       </div>
     )
@@ -201,7 +207,7 @@ export function GeoLogsFilterBar() {
         {server(false)}
         {asnPair(false)}
       </FilterRow>
-      {chipRow}
+      {chipRow(["ips", "ipsExclude", "asns", "asnsExclude"])}
     </FilterRail>
   )
 }
