@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Literal
 
 import msgspec
@@ -12,6 +13,11 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import LegacyEnvName
 
 logger = get_logger(__name__)
+
+INGESTION_WRITE_FAILURES_ID = "ingestion-write-failures"
+
+_EXCEPTION_PREFIX = re.compile(r"^\([^)]*\)\s*")
+_CLASS_PREFIX = re.compile(r"^<class '[^']*'>:\s*")
 
 
 class Advisory(msgspec.Struct, rename="camel"):
@@ -134,3 +140,22 @@ def legacy_env_advisory(names: list["LegacyEnvName"]) -> Advisory:
         ),
         remedy=renames,
     )
+
+
+
+def error_headline(message: str) -> str:
+    """The first line of a write error without its exception class prefixes.
+
+    SQLAlchemy wraps the driver's sentence as "(module.Error) <class '...'>:
+    sentence" and appends the SQL and its parameters on later lines.
+    """
+    first_line = message.strip().split("\n", 1)[0]
+    return _CLASS_PREFIX.sub("", _EXCEPTION_PREFIX.sub("", first_line)).strip()
+
+
+def last_write_error_sentence(message: str | None) -> str | None:
+    """'The last error was: ...' for an advisory detail; None without a message."""
+    headline = error_headline(message or "")
+    if not headline:
+        return None
+    return f"The last error was: {headline if headline.endswith('.') else headline + '.'}"

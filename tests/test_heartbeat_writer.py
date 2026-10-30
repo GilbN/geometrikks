@@ -106,3 +106,15 @@ async def test_start_beats_immediately_and_stop_cancels_the_sleep() -> None:
     async with asyncio.timeout(1):
         await writer.stop()
     assert engine.begin_calls == 1
+
+
+async def test_counters_report_lines_failures_and_writes_over_five_minutes() -> None:
+    from types import SimpleNamespace
+
+    writer = _writer(_UnreachableEngine())
+    ingestion_service = SimpleNamespace(parsed_lines=100, failed_records=4, written_records=90)
+    writer._app.state.ingestion_service = ingestion_service
+
+    assert writer._sample_counters(1000.0) == (None, None, None)
+    ingestion_service.parsed_lines, ingestion_service.failed_records, ingestion_service.written_records = 400, 34, 360
+    assert writer._sample_counters(1300.0) == (300, 30, 270)

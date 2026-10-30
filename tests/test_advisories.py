@@ -5,7 +5,12 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from geometrikks.config.settings import LegacyEnvName
-from geometrikks.lib.advisories import Advisory, AdvisoryRegistry, legacy_env_advisory
+from geometrikks.lib.advisories import (
+    Advisory,
+    AdvisoryRegistry,
+    last_write_error_sentence,
+    legacy_env_advisory,
+)
 from geometrikks.server import runtime
 
 
@@ -62,3 +67,22 @@ def test_legacy_env_advisory_puts_one_rename_per_line() -> None:
         "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME",
         "MAP_HOME_LATITUDE → MAP_SERVER_LATITUDE",
     ]
+
+
+def test_last_write_error_sentence_leads_with_the_database_message() -> None:
+    message = (
+        "(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) "
+        "<class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "
+        '"country_code" violates not-null constraint\n[SQL: INSERT INTO geo_events ...]'
+    )
+    assert last_write_error_sentence(message) == (
+        'The last error was: null value in column "country_code" violates not-null constraint.'
+    )
+
+
+def test_last_write_error_sentence_keeps_a_final_period() -> None:
+    assert last_write_error_sentence("disk full.") == "The last error was: disk full."
+
+
+def test_last_write_error_sentence_is_none_without_a_message() -> None:
+    assert (last_write_error_sentence(None), last_write_error_sentence("  ")) == (None, None)

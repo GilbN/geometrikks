@@ -34,8 +34,8 @@ def make_row(
     app_version: str = "0.20.0",
     schema_revision: str = "7c1e9a",
     last_seen: datetime = NOW - timedelta(seconds=10),
+    payload: dict[str, Any] | None = None,
 ) -> HeartbeatRow:
-    payload: dict[str, Any] = {"instanceNameSource": "env"}
     return HeartbeatRow(
         instance_name=name,
         boot_id=boot_id or uuid4(),
@@ -44,7 +44,7 @@ def make_row(
         schema_revision=schema_revision,
         started_at=NOW - timedelta(hours=2),
         last_seen=last_seen,
-        payload=payload,
+        payload={"instanceNameSource": "env"} if payload is None else payload,
     )
 
 
@@ -150,3 +150,12 @@ def test_problem_logs_again_after_it_clears() -> None:
         monitor.observe(evaluate(make_row()), HEAD)
         monitor.observe(evaluate(make_row(app_version="0.19.0")), HEAD)
     assert events_of(logs) == ["agent_version_mismatch", "agent_version_mismatch"]
+
+
+def test_failing_writes_log_a_warning() -> None:
+    monitor = InstanceMonitor()
+    monitor.observe(evaluate(make_row()), HEAD)
+    failing = make_row(payload={"instanceNameSource": "env", "failed5M": 14, "written5M": 0})
+    with capture_logs() as logs:
+        monitor.observe(evaluate(failing), HEAD)
+    assert [(log["event"], log["log_level"]) for log in logs] == [("agent_writes_failing", "warning")]

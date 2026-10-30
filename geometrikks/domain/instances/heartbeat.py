@@ -68,6 +68,7 @@ class HeartbeatWriter:
         self._task: asyncio.Task[None] | None = None
         self._lines_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
         self._failed_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
+        self._written_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
         # None until the first successful write has merged the previous row's starts.
         self._recent_starts: list[datetime] | None = None
         self._foreign_sightings: deque[float] = deque()
@@ -135,7 +136,7 @@ class HeartbeatWriter:
             self._schema_revision = bundled_head_revision()
         schema_revision = self._schema_revision
         at_monotonic = self._clock()
-        lines_5m, failed_5m = self._sample_counters(at_monotonic)
+        lines_5m, failed_5m, written_5m = self._sample_counters(at_monotonic)
 
         async with self._engine.begin() as connection:
             first_write = self._recent_starts is None
@@ -148,6 +149,7 @@ class HeartbeatWriter:
                 self._settings,
                 lines_5m=lines_5m,
                 failed_5m=failed_5m,
+                written_5m=written_5m,
                 recent_starts=recent_starts,
                 name_conflict_at=self._name_conflict_at,
             )
@@ -163,13 +165,14 @@ class HeartbeatWriter:
                 await upsert_heartbeat(connection, self._heartbeat_write(payload, schema_revision))
         self._recent_starts = recent_starts
 
-    def _sample_counters(self, at_monotonic: float) -> tuple[int | None, int | None]:
+    def _sample_counters(self, at_monotonic: float) -> tuple[int | None, int | None, int | None]:
         ingestion_service = runtime.get_ingestion_service(self._app)
         if ingestion_service is None:
-            return None, None
+            return None, None, None
         return (
             self._lines_counter.sample(at_monotonic, ingestion_service.parsed_lines),
             self._failed_counter.sample(at_monotonic, ingestion_service.failed_records),
+            self._written_counter.sample(at_monotonic, ingestion_service.written_records),
         )
 
     async def _merge_recent_starts(self, connection: AsyncConnection) -> list[datetime]:

@@ -201,6 +201,8 @@ class LogIngestionService:
         self.failed_batches: int = 0
         self.failed_records: int = 0
         self.last_batch_error: BatchError | None = None
+        self.written_records: int = 0
+        self.last_written_at: datetime | None = None
 
         # In-memory cache: geohash -> committed (or pending-commit) GeoLocation id.
         # Ids cached since the last successful commit are tracked so a rollback
@@ -892,6 +894,9 @@ class LogIngestionService:
                         self._evict_batch_locations(batch)
                 else:
                     self._uncommitted_geohashes.clear()
+                    if committed_candidates:
+                        self.written_records += len(committed_candidates)
+                        self.last_written_at = datetime.now(timezone.utc)
                     self._publish(committed_candidates)
         finally:
             if batch_failed:

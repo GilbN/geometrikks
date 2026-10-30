@@ -1,6 +1,7 @@
 """/health is liveness (always 200); /health/ready is readiness (503 without DB)."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -13,6 +14,7 @@ from litestar.testing import TestClient
 from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.services.ingestion.service import BatchError
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource
 from tests.support import ambient_settings_dependency
@@ -606,6 +608,66 @@ def test_health_write_failure_advisory_reports_stopped_ingestion(monkeypatch):
     assert "full disk" in advisory["detail"]
     assert "restart the app" in advisory["detail"]
 
+
+
+WRITE_FAILURES_AT = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+
+
+def _failing_service(
+    *, failed_ago: timedelta | None, written_ago: timedelta | None, message: str = "boom"
+) -> LogIngestionService:
+    service = _running_service(file_missing=False)
+    service.failed_batches = 3
+    service.failed_records = 300
+    if failed_ago is not None:
+        service.last_batch_error = BatchError(message=message, at=WRITE_FAILURES_AT - failed_ago)
+    if written_ago is not None:
+        service.last_written_at = WRITE_FAILURES_AT - written_ago
+    return service
+
+
+def test_write_failures_are_critical_when_nothing_landed_in_five_minutes() -> None:
+    service = _failing_service(failed_ago=timedelta(seconds=20), written_ago=timedelta(minutes=6))
+    advisory = health_module._write_failures_advisory(service, WRITE_FAILURES_AT)
+    assert advisory.severity == "critical"
+    assert advisory.summary == (
+        "Every write in the last 5 minutes failed. 3 batches (300 records) could "
+        "not be written to the database since startup."
+    )
+
+
+def test_write_failures_are_critical_when_nothing_was_ever_written() -> None:
+    service = _failing_service(failed_ago=timedelta(seconds=20), written_ago=None)
+    assert health_module._write_failures_advisory(service, WRITE_FAILURES_AT).severity == "critical"
+
+
+def test_write_failures_stay_a_warning_while_some_writes_land() -> None:
+    service = _failing_service(failed_ago=timedelta(seconds=20), written_ago=timedelta(minutes=1))
+    advisory = health_module._write_failures_advisory(service, WRITE_FAILURES_AT)
+    assert advisory.severity == "warning"
+    assert advisory.summary == "3 batches (300 records) could not be written to the database since startup."
+
+
+def test_write_failures_older_than_five_minutes_are_a_warning() -> None:
+    service = _failing_service(failed_ago=timedelta(minutes=6), written_ago=None)
+    assert health_module._write_failures_advisory(service, WRITE_FAILURES_AT).severity == "warning"
+
+
+def test_write_failure_advisory_quotes_the_last_error() -> None:
+    service = _failing_service(
+        failed_ago=timedelta(seconds=20),
+        written_ago=None,
+        message=(
+            "(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) "
+            "<class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "
+            '"country_code" violates not-null constraint\n[SQL: INSERT INTO geo_events ...]'
+        ),
+    )
+    advisory = health_module._write_failures_advisory(service, WRITE_FAILURES_AT)
+    assert (advisory.detail or "").startswith(
+        'The last error was: null value in column "country_code" violates not-null constraint. '
+        "The app dropped the affected records"
+    )
 
 def _asn_advisories(app_state_asn: bool, asn_enabled: bool) -> list:
     from geometrikks.config.settings import Settings

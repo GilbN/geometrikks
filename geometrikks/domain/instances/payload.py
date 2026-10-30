@@ -53,6 +53,7 @@ def build_payload(
     *,
     lines_5m: int | None,
     failed_5m: int | None,
+    written_5m: int | None,
     recent_starts: list[datetime],
     name_conflict_at: datetime | None,
 ) -> HeartbeatPayload:
@@ -111,6 +112,7 @@ def build_payload(
         last_error=last_error,
         lines_5m=lines_5m,
         failed_5m=failed_5m,
+        written_5m=written_5m,
         recent_starts=recent_starts,
         name_conflict_at=name_conflict_at,
         server_names=settings.ingest_server_names(),

@@ -643,3 +643,109 @@ def test_unreadable_payload_remedy_names_the_check() -> None:
     row = make_row(payload={"jobs": "not a list"})
     problem = evaluate_instance(row, HEAD, NOW).problems[0]
     assert problem.remedy == "Check that edge-traefik runs the same GeoMetrikks version as the head."
+
+
+COUNTRY_CODE_ERROR = (
+    "(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) "
+    "<class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "
+    '"country_code" of relation "geo_events" violates not-null constraint\n'
+    "[SQL: INSERT INTO geo_events ...]"
+)
+
+
+def writes_payload(**payload_fields: Any) -> dict[str, Any]:
+    return {"instanceNameSource": "env", **payload_fields}
+
+
+def test_some_failed_writes_are_a_warning() -> None:
+    evaluation = evaluate_instance(make_row(payload=writes_payload(failed5M=14, written5M=290)), HEAD, NOW)
+    [problem] = evaluation.problems
+    assert (problem.id, problem.severity) == ("instance-writes-failing", "warning")
+    assert problem.summary == "edge-traefik could not write 14 of 304 records in the last 5 minutes."
+    assert problem.remedy == "Check the log of edge-traefik for ingestion_batch_failed."
+    assert evaluation.status == "warning"
+
+
+def test_every_write_failing_is_critical() -> None:
+    evaluation = evaluate_instance(make_row(payload=writes_payload(failed5M=1200, written5M=0)), HEAD, NOW)
+    [problem] = evaluation.problems
+    assert (problem.id, problem.severity) == ("instance-writes-failing", "critical")
+    assert problem.summary == "Every write from edge-traefik failed in the last 5 minutes."
+    assert problem.detail == (
+        "It lost 1,200 records and does not retry them. "
+        "Nothing it reads reaches the database until you fix the cause."
+    )
+    assert evaluation.status == "critical"
+
+
+def test_failed_writes_from_an_agent_without_a_written_count_are_a_warning() -> None:
+    [problem] = evaluate_instance(make_row(payload=writes_payload(failed5M=1)), HEAD, NOW).problems
+    assert problem.severity == "warning"
+    assert problem.summary == "edge-traefik could not write 1 record in the last 5 minutes."
+
+
+def test_failed_writes_quote_the_last_error_without_its_exception_prefixes() -> None:
+    payload = writes_payload(failed5M=14, written5M=0, lastError={"message": COUNTRY_CODE_ERROR})
+    [problem] = evaluate_instance(make_row(payload=payload), HEAD, NOW).problems
+    assert problem.detail == (
+        'The last error was: null value in column "country_code" of relation "geo_events" '
+        "violates not-null constraint. It lost 14 records and does not retry them. "
+        "Nothing it reads reaches the database until you fix the cause."
+    )
+
+
+def test_failed_writes_without_a_last_error_skip_that_sentence() -> None:
+    [problem] = evaluate_instance(make_row(payload=writes_payload(failed5M=14, written5M=3)), HEAD, NOW).problems
+    assert problem.detail == "edge-traefik drops the records it cannot write and does not retry them."
+
+
+@pytest.mark.parametrize("failed_count", [None, 0])
+def test_no_recent_failed_writes_is_not_a_problem(failed_count: int | None) -> None:
+    payload = writes_payload(failed5M=failed_count, written5M=0, lastError={"message": "old failure"})
+    assert problem_ids(make_row(payload=payload)) == []
+
+
+def test_stale_agent_reports_only_not_checking_in_despite_failed_writes() -> None:
+    row = make_row(
+        last_seen=NOW - NOT_CHECKING_IN_AFTER - timedelta(seconds=1),
+        payload=writes_payload(failed5M=14, written5M=0, lastError={"message": COUNTRY_CODE_ERROR}),
+    )
+    assert problem_ids(row) == ["instance-not-checking-in"]
+
+
+def test_failed_writes_replace_the_forwarded_since_startup_advisory() -> None:
+    payload = writes_payload(failed5M=14, written5M=290)
+    payload["health"] = {
+        "advisories": [
+            {"id": "ingestion-write-failures", "severity": "warning", "summary": "9 batches since startup"}
+        ]
+    }
+    assert problem_ids(make_row(payload=payload)) == ["instance-writes-failing"]
+
+
+def test_forwarded_since_startup_advisory_stays_once_writes_recover() -> None:
+    payload = writes_payload(failed5M=0, written5M=290)
+    payload["health"] = {
+        "advisories": [
+            {"id": "ingestion-write-failures", "severity": "warning", "summary": "9 batches since startup"}
+        ]
+    }
+    assert problem_ids(make_row(payload=payload)) == ["ingestion-write-failures"]
+
+
+def test_critical_failed_writes_sit_with_the_computed_criticals() -> None:
+    payload = writes_payload(failed5M=14, written5M=0)
+    payload["health"] = {"advisories": [{"id": "ingestion-stopped", "severity": "critical", "summary": "x"}]}
+    row = make_row(schema_revision="4b02d1", payload=payload)
+    assert problem_ids(row) == ["instance-schema-behind", "instance-writes-failing", "ingestion-stopped"]
+
+
+def test_partial_failed_writes_sit_after_the_ingestion_warning() -> None:
+    row = make_row(
+        payload=ingestion_payload(
+            {"status": "running", "unavailableSources": [{"label": "/logs/a.log"}]},
+            failed5M=2,
+            written5M=10,
+        )
+    )
+    assert problem_ids(row) == ["instance-ingestion-degraded", "instance-writes-failing"]

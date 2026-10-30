@@ -2727,6 +2727,16 @@ export const HeartbeatPayloadSchema = {
       },
       type: "array",
     },
+    written5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
   },
   required: [],
   title: "HeartbeatPayload",

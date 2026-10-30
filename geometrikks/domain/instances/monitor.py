@@ -13,6 +13,7 @@ _PROBLEM_EVENTS: dict[str, tuple[str, str]] = {
     "instance-version-mismatch": ("agent_version_mismatch", "info"),
     "instance-name-conflict": ("agent_name_conflict", "info"),
     "instance-restart-loop": ("agent_restart_loop", "info"),
+    "instance-writes-failing": ("agent_writes_failing", "warning"),
 }
 
 

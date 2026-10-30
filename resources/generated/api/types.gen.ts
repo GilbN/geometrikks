@@ -786,6 +786,7 @@ export type HeartbeatPayload = {
   recentStarts?: Array<string>;
   serverNames?: Array<string>;
   sources?: Array<SourceReport>;
+  written5M?: number | null;
 };
 
 /**
