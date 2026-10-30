@@ -37,6 +37,7 @@ import { CountryFlag } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePollingHold } from "@/lib/time-range-context"
 import { copyText } from "@/lib/clipboard"
 import { BAN_DURATIONS, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
@@ -201,6 +202,13 @@ export function IpActionsMenu({
   const ipActions = useIpActions()
   const pendingAction = usePendingIpAction(ip)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
+  // Auto refresh waits while this row's menu or ban dialog is open, so new
+  // rows can't push the row, and the open menu with it, off the page.
+  const [menuOpen, setMenuOpen] = useState(false)
+  usePollingHold(menuOpen || banDialogOpen)
+  // Crossing the breakpoint swaps the drawer for the dropdown or back
+  // without an onOpenChange(false), which would leave the hold on.
+  useEffect(() => setMenuOpen(false), [isMobile])
   // An action that opens a sheet or dialog runs once the menu or drawer has
   // closed and focus is back on the trigger. The sheet takes the focused
   // element as the one to return to, and a dialog opened during the drawer's
@@ -292,6 +300,7 @@ export function IpActionsMenu({
       {!footer && <CopyIpButton ip={ip} />}
       {isMobile && !footer ? (
         <Drawer
+          onOpenChange={setMenuOpen}
           onAnimationEnd={(open) => {
             if (!open) runAfterClose()
           }}
@@ -391,7 +400,7 @@ export function IpActionsMenu({
           </DrawerContent>
         </Drawer>
       ) : (
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           <DropdownMenuContent
             align={footer ? "end" : "start"}

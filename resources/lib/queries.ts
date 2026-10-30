@@ -626,7 +626,7 @@ export interface UseSummaryOptions {
  */
 export function useSummary(options: UseSummaryOptions = {}) {
   const { comparePrevious = true, enabled = true } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   // Use statsRange (hourly minimum) for summary stats queries
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
@@ -642,7 +642,7 @@ export function useSummary(options: UseSummaryOptions = {}) {
     queryFn: () => fetchSummary(params),
     enabled,
     staleTime: 15 * 1000, // 15 seconds
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -652,7 +652,7 @@ export function useSummary(options: UseSummaryOptions = {}) {
  */
 export function useLiveSummary(options: UseSummaryOptions = {}) {
   const { comparePrevious = true, enabled = true } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   // Use range (can be more granular) for live summary stats queries
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
@@ -668,7 +668,7 @@ export function useLiveSummary(options: UseSummaryOptions = {}) {
     queryFn: () => fetchLiveSummary(params),
     enabled,
     staleTime: 15 * 1000, // 15 seconds
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -697,7 +697,7 @@ export interface UseGeoJSONOptions {
  */
 export function useGeoJSON(options: UseGeoJSONOptions = {}) {
   const { enabled = true, countryCodes, cities, servers } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery({
     // Query key uses lastRefresh for cache invalidation on manual refresh
@@ -718,7 +718,7 @@ export function useGeoJSON(options: UseGeoJSONOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000, // Geo data changes less frequently
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -735,7 +735,7 @@ export interface UseGlobalTopIPsOptions {
  */
 export function useGlobalTopIPs(options: UseGlobalTopIPsOptions = {}) {
   const { enabled = true, limit = 5 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery<GlobalTopIPsResponse>({
     queryKey: queryKeys.geo.globalTopIPs({ range, customRange, limit }, lastRefresh),
@@ -749,7 +749,7 @@ export function useGlobalTopIPs(options: UseGlobalTopIPsOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -801,7 +801,7 @@ export interface UseTopCountriesOptions {
  */
 export function useTopCountries(options: UseTopCountriesOptions = {}) {
   const { enabled = true, limit = 10 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery<TopCountriesResponse>({
     queryKey: queryKeys.geo.topCountries({ range, customRange, limit }, lastRefresh),
@@ -815,7 +815,7 @@ export function useTopCountries(options: UseTopCountriesOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -830,7 +830,7 @@ export interface UseCumulativeTimeSeriesOptions {
  */
 export function useCumulativeTimeSeries(options: UseCumulativeTimeSeriesOptions = {}) {
   const { enabled = true } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery<CumulativeTimeSeriesResponse>({
     queryKey: queryKeys.analytics.cumulativeTimeSeries({ range, customRange }, lastRefresh),
@@ -843,7 +843,7 @@ export function useCumulativeTimeSeries(options: UseCumulativeTimeSeriesOptions 
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -868,7 +868,7 @@ export interface UseTopListOptions extends UseAnalyticsQueryOptions {
  */
 export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, granularity, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
@@ -888,7 +888,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -898,7 +898,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  */
 export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, granularity, refetchInterval, lastRefresh } = useTimeRange()
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
@@ -909,7 +909,7 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -919,7 +919,7 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  */
 export function useTopUrls(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
@@ -938,7 +938,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -948,7 +948,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
  */
 export function useTopUserAgents(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
@@ -967,7 +967,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -977,7 +977,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
  */
 export function useTopAsns(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
@@ -996,7 +996,7 @@ export function useTopAsns(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1006,7 +1006,7 @@ export function useTopAsns(options: UseTopListOptions = {}) {
  */
 export function useTopIpStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
@@ -1025,7 +1025,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1035,7 +1035,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
  */
 export function useTopCountryStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
@@ -1054,7 +1054,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1064,7 +1064,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
  */
 export function useTopCityStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
@@ -1083,7 +1083,7 @@ export function useTopCityStats(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1135,7 +1135,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     sortField,
     sortOrder,
   } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
@@ -1168,7 +1168,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     enabled,
     placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
     staleTime: 15 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1220,7 +1220,7 @@ export function useAccessLogDebug(options: UseAccessLogDebugOptions = {}) {
     sortField,
     sortOrder,
   } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery<AccessLogDebugPage>({
     queryKey: queryKeys.accessLogDebug.list(
@@ -1246,13 +1246,13 @@ export function useAccessLogDebug(options: UseAccessLogDebugOptions = {}) {
     enabled,
     placeholderData: (prev) => prev,
     staleTime: 15 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Aggregate debug-line stats for the stat cards, within the global time range. */
 export function useAccessLogDebugStats() {
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
   return useQuery<AccessLogDebugStats>({
     queryKey: queryKeys.accessLogDebug.stats({ range, customRange }, lastRefresh),
@@ -1261,7 +1261,7 @@ export function useAccessLogDebugStats() {
       return fetchAccessLogDebugStats({ fromTimestamp: startDate, toTimestamp: endDate })
     },
     staleTime: 15 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1284,7 +1284,7 @@ export interface UseGeoLogsOptions {
  */
 export function useGeoLogs(options: UseGeoLogsOptions = {}) {
   const { currentPage = 1, pageSize = 50, sortField = "eventCount", sortOrder = "desc", enabled = true } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1307,14 +1307,14 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
     enabled,
     placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
     staleTime: 15 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Aggregate totals/uniques for the geo-logs stat cards. */
 export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?: boolean } = {}) {
   const { comparePrevious = true, enabled = true } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1330,14 +1330,14 @@ export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?:
     },
     enabled,
     staleTime: 15 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Bucketed geo-event totals + unique IPs for the geo-logs chart. */
 export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, customRange, granularity, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, granularity, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
@@ -1354,14 +1354,14 @@ export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Top IPs by geo-event count (across all locations). */
 export function useGeoLogTopIps(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1372,14 +1372,14 @@ export function useGeoLogTopIps(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Top countries by geo-event count with exact unique-IP counts. */
 export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1390,14 +1390,14 @@ export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Top cities by geo-event count (NULL cities excluded). */
 export function useGeoLogTopCities(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1408,14 +1408,14 @@ export function useGeoLogTopCities(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
 /** Top ASNs by geo-event count with exact unique-IP counts (rows without ASN data excluded). */
 export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1426,7 +1426,7 @@ export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
@@ -1435,7 +1435,7 @@ export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
  * threaded through the full geo-logs filter set (incl. IP exclude/server).
  */
 export function useGeoLogsGeoJSON({ enabled = true }: { enabled?: boolean } = {}) {
-  const { range, customRange, pollInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
   return useQuery({
@@ -1450,7 +1450,7 @@ export function useGeoLogsGeoJSON({ enabled = true }: { enabled?: boolean } = {}
     },
     enabled,
     staleTime: 60 * 1000,
-    refetchInterval: pollInterval || false,
+    refetchInterval,
   })
 }
 
