@@ -1591,7 +1591,9 @@ truth.
 `.env.example` covers the short list most installs touch (admin
 credentials, MaxMind key, log paths, DB password). For every environment
 variable and its default, see
-[`docs/configuration.md`](docs/configuration.md).
+[`docs/configuration.md`](docs/configuration.md). It puts the settings most
+installs need first, then one section per optional feature, and leaves pool
+sizes, poll intervals, timeouts and log rotation for the end.
 
 Every 12 hours GeoMetrikks asks api.github.com whether a newer release
 exists, in a request that carries no information about your instance. Set

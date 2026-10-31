@@ -52,6 +52,11 @@ LEGACY_FIELD_MARKER = "replaced_by"
 DEVELOPER_FIELD_MARKER = "developer"
 DEVELOPER_FIELD: JsonDict = {DEVELOPER_FIELD_MARKER: True}
 
+# json_schema_extra for tuning knobs that almost no deployment changes. The
+# configuration reference lists them in an Advanced tuning section near the end.
+ADVANCED_FIELD_MARKER = "advanced"
+ADVANCED_FIELD: JsonDict = {ADVANCED_FIELD_MARKER: True}
+
 
 class LegacyEnvName(msgspec.Struct, frozen=True):
     """An old env var name in use, with the name that replaced it."""
@@ -82,6 +87,11 @@ def is_legacy_field(json_schema_extra: object) -> bool:
 def is_developer_field(json_schema_extra: object) -> bool:
     """True for a field tagged with DEVELOPER_FIELD."""
     return isinstance(json_schema_extra, dict) and json_schema_extra.get(DEVELOPER_FIELD_MARKER) is True
+
+
+def is_advanced_field(json_schema_extra: object) -> bool:
+    """True for a field tagged with ADVANCED_FIELD."""
+    return isinstance(json_schema_extra, dict) and json_schema_extra.get(ADVANCED_FIELD_MARKER) is True
 
 
 class LegacyEnvNamesSettings(BaseSettings):
@@ -164,16 +174,36 @@ class DatabaseSettings(BaseSettings):
         description="Log connection pool checkouts and returns",
         json_schema_extra=DEVELOPER_FIELD,
     )
-    max_overflow: int = Field(default=10, description="Max connections above pool_size")
-    pool_size: int = Field(default=5, description="Database connection pool size")
-    pool_timeout: int = Field(default=30, description="Connection pool timeout in seconds")
-    pool_recycle: int = Field(default=3600, description="Connection recycle time in seconds")
+    max_overflow: int = Field(
+        default=10,
+        description="Max connections above pool_size",
+        json_schema_extra=ADVANCED_FIELD,
+    )
+    pool_size: int = Field(
+        default=5,
+        description="Database connection pool size",
+        json_schema_extra=ADVANCED_FIELD,
+    )
+    pool_timeout: int = Field(
+        default=30,
+        description="Connection pool timeout in seconds",
+        json_schema_extra=ADVANCED_FIELD,
+    )
+    pool_recycle: int = Field(
+        default=3600,
+        description="Connection recycle time in seconds",
+        json_schema_extra=ADVANCED_FIELD,
+    )
     pool_disabled: bool = Field(
         default=False,
         description="Open a new connection for every session instead of pooling",
         json_schema_extra=DEVELOPER_FIELD,
     )
-    pool_pre_ping: bool = Field(default=True, description="Enable pool pre-ping to check connections")
+    pool_pre_ping: bool = Field(
+        default=True,
+        description="Enable pool pre-ping to check connections",
+        json_schema_extra=ADVANCED_FIELD,
+    )
     user: str = Field(default="geouser", description="Database user")
     password: SecretStr = Field(default=SecretStr("geopass"), description="Database password")
     host: str = Field(default="localhost", description="Database host")
@@ -195,6 +225,7 @@ class DatabaseSettings(BaseSettings):
             "upgrade`); the app then expects the schema to already be at head "
             "and fails startup if it is not usable"
         ),
+        json_schema_extra=ADVANCED_FIELD,
     )
     startup_wait_seconds: int = Field(
         default=30,
@@ -204,6 +235,7 @@ class DatabaseSettings(BaseSettings):
             "mode. 0 probes once. The app keeps re-probing in the background after "
             "this window and recovers on its own when the database answers."
         ),
+        json_schema_extra=ADVANCED_FIELD,
     )
     
     @property
@@ -267,7 +299,9 @@ class GeoIPSettings(BaseSettings):
         description="MaxMind license key for GeoLite2 auto-download",
     )
     refresh_days: int = Field(
-        default=7, description="Re-download the GeoLite2 database when older than this many days"
+        default=7,
+        description="Re-download the GeoLite2 database when older than this many days",
+        json_schema_extra=ADVANCED_FIELD,
     )
     asn_db_path: Path = Field(
         default=Path("data/geoip/GeoLite2-ASN.mmdb"),
@@ -311,7 +345,11 @@ class LogSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LOG_", env_file=_env_file(), extra="ignore")
 
-    dir: Path = Field(default=Path("logs"), description="Directory for application log files")
+    dir: Path = Field(
+        default=Path("logs"),
+        description="Directory for application log files",
+        json_schema_extra=ADVANCED_FIELD,
+    )
     level: Literal["DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"] = Field(
         default="INFO",
         description="Root log level",
@@ -319,16 +357,22 @@ class LogSettings(BaseSettings):
     main_max_bytes: int = Field(
         default=10 * 1024 * 1024,
         description="Rotate the main JSONL log when it exceeds this size (bytes)",
+        json_schema_extra=ADVANCED_FIELD,
     )
     main_backup_count: int = Field(
-        default=5, description="Number of gzipped main-log archives to keep"
+        default=5,
+        description="Number of gzipped main-log archives to keep",
+        json_schema_extra=ADVANCED_FIELD,
     )
     login_max_bytes: int = Field(
         default=10 * 1024 * 1024,
         description="Rotate the login log when it exceeds this size (bytes)",
+        json_schema_extra=ADVANCED_FIELD,
     )
     login_backup_count: int = Field(
-        default=5, description="Number of gzipped login-log archives to keep"
+        default=5,
+        description="Number of gzipped login-log archives to keep",
+        json_schema_extra=ADVANCED_FIELD,
     )
 
 
@@ -339,7 +383,8 @@ class LogParserSettings(LegacyEnvNamesSettings):
 
     enabled: bool = Field(
         default=True,
-        description="Enable log parser ingestion service"
+        description="Enable log parser ingestion service",
+        json_schema_extra=ADVANCED_FIELD,
     )
     log_paths: Annotated[list[Path], NoDecode] = Field(
         default_factory=lambda: [Path("/var/log/access/access.log")],
@@ -361,8 +406,13 @@ class LogParserSettings(LegacyEnvNamesSettings):
     poll_interval: float = Field(
         default=1.0,
         description="Interval in seconds to poll the log file for new entries",
+        json_schema_extra=ADVANCED_FIELD,
     )
-    send_logs: bool = Field(default=True, description="Send parsed logs to the database")
+    send_logs: bool = Field(
+        default=True,
+        description="Send parsed logs to the database",
+        json_schema_extra=ADVANCED_FIELD,
+    )
     server_name: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [socket.gethostname()],
         min_length=1,
@@ -377,10 +427,12 @@ class LogParserSettings(LegacyEnvNamesSettings):
     batch_size: int = Field(
         default=100,
         description="Max records before forced commit.",
+        json_schema_extra=ADVANCED_FIELD,
     )
     commit_interval: float = Field(
         default=5.0,
         description="Maximum time interval in seconds between database commits. This will commit even if batch_size is not reached.",
+        json_schema_extra=ADVANCED_FIELD,
     )
     skip_validation: bool = Field(
         default=False,
@@ -593,6 +645,7 @@ class LokiSettings(BaseSettings):
         default=5.0,
         gt=0,
         description="Seconds between reads of each query. LOGPARSER_POLL_INTERVAL paces the file tail separately.",
+        json_schema_extra=ADVANCED_FIELD,
     )
     lookback: float = Field(
         default=60.0,
@@ -602,6 +655,7 @@ class LokiSettings(BaseSettings):
             "Every poll re-reads this whole window. The window never reaches back "
             "more than an hour, so values above 3600 behave as 3600."
         ),
+        json_schema_extra=ADVANCED_FIELD,
     )
     @field_validator("queries", "formats", "server_names", mode="before")
     @classmethod
@@ -745,12 +799,14 @@ class AnalyticsSettings(BaseSettings):
     cagg_refresh_interval_minutes: int = Field(
         default=5,
         description="Minutes between continuous aggregate refreshes",
+        json_schema_extra=ADVANCED_FIELD,
     )
 
     # Compression settings
     compression_after_days: int = Field(
         default=7,
         description="Days after which to compress hypertable chunks",
+        json_schema_extra=ADVANCED_FIELD,
     )
 
 
@@ -763,6 +819,7 @@ class SchedulerSettings(BaseSettings):
     enabled: bool = Field(
         default=True,
         description="Enable scheduled background tasks",
+        json_schema_extra=ADVANCED_FIELD,
     )
     location_refresh_interval_minutes: int = Field(
         default=10,
@@ -814,12 +871,14 @@ class MapSettings(LegacyEnvNamesSettings):
             "JSON endpoint used for public-IP discovery; the response must "
             "contain an 'ip' field."
         ),
+        json_schema_extra=ADVANCED_FIELD,
     )
     public_ip_timeout: float = Field(
         default=3.0,
         gt=0,
         le=30,
         description="Timeout in seconds for public-IP discovery.",
+        json_schema_extra=ADVANCED_FIELD,
     )
     server_locations: dict[str, tuple[float, float]] = Field(
         default_factory=dict,
@@ -843,6 +902,7 @@ class MapSettings(LegacyEnvNamesSettings):
             "updating its stored server locations. Formerly "
             "`MAP_HOME_REFRESH_HOURS`, which still works until 1.0."
         ),
+        json_schema_extra=ADVANCED_FIELD,
     )
     default_view: Annotated[tuple[float, float, float] | None, NoDecode] = Field(
         default=None,
@@ -986,12 +1046,17 @@ class CrowdSecSettings(BaseSettings):
         default="4h",
         description="Default duration for manual bans (Go duration string)",
     )
-    request_timeout: float = Field(default=10.0, description="LAPI request timeout in seconds")
+    request_timeout: float = Field(
+        default=10.0,
+        description="LAPI request timeout in seconds",
+        json_schema_extra=ADVANCED_FIELD,
+    )
     verify_tls: bool = Field(default=True, description="Verify TLS when LAPI uses https")
     stream_poll_interval: float = Field(
         default=15.0,
         gt=0,
         description="Seconds between decision-stream polls feeding live ban/unban updates",
+        json_schema_extra=ADVANCED_FIELD,
     )
 
     @property
