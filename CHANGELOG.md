@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-10-31
+
 ### Added
 
 - Active decisions on the Security page has a search field. An IP or a range such as 45.148.0.0/16 searches every origin, crowd bans included, and a single match opens to list its decisions. Other text narrows the current tab to targets that start with it or scenarios that contain it. A line under the field says which search ran and how many targets match.
@@ -1239,7 +1241,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.22.1...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.23.0...develop
+[0.23.0]: https://github.com/GilbN/geometrikks/compare/v0.22.1...v0.23.0
 [0.22.1]: https://github.com/GilbN/geometrikks/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/GilbN/geometrikks/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/GilbN/geometrikks/compare/v0.20.0...v0.21.0
