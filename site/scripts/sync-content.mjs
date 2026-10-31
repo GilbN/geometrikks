@@ -51,7 +51,7 @@ export const fileMap = {
     path: "reference/configuration",
     order: 1,
     title: "Configuration reference",
-    tableOfContents: { maxHeadingLevel: 2 },
+    tableOfContents: { maxHeadingLevel: 3 },
   },
   "docs/proxy-setup.md": { path: "sources/proxy-setup", order: 6, title: "Real client IP behind a proxy" },
   "docs/deployment.md": { path: "operate/deployment", order: 4, title: "Deployment" },
