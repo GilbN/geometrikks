@@ -14,7 +14,7 @@ import { Network, Server } from "lucide-react"
 
 import { ErrorBanner } from "@/components/error-banner"
 import { SectionHeader } from "@/components/section-header"
-import { StatCard, StatCardSkeleton } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
 import { useTopAsns } from "@/lib/queries"
@@ -52,10 +52,10 @@ export function TrafficOriginStats() {
     return (
       <>
         <SectionHeader>Traffic Origin</SectionHeader>
-        <div className="grid gap-4 md:grid-cols-2">
+        <StatGrid>
           <StatCardSkeleton />
           <StatCardSkeleton />
-        </div>
+        </StatGrid>
       </>
     )
   }
@@ -70,7 +70,7 @@ export function TrafficOriginStats() {
   return (
     <>
       <SectionHeader>Traffic Origin</SectionHeader>
-      <div className="grid gap-4 md:grid-cols-2">
+      <StatGrid>
         <StatCard
           title="Hosting Traffic"
           value={`${hostingShare.toFixed(1)}%`}
@@ -84,11 +84,11 @@ export function TrafficOriginStats() {
         <StatCard
           title="Top Network"
           value={top?.organization ?? `AS${top?.asn ?? "-"}`}
-          valueClassName="truncate text-xl"
+          valueClassName="text-xl max-md:line-clamp-2 max-md:text-base max-md:break-words md:truncate"
           subtitle={top ? `AS${top.asn} - ${formatNumber(top.hits)} requests` : "No ASN data"}
           icon={Network}
         />
-      </div>
+      </StatGrid>
     </>
   )
 }

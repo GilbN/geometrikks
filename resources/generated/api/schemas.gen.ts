@@ -2663,6 +2663,16 @@ export const HeartbeatPayloadSchema = {
         },
       ],
     },
+    failedBatches5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     health: {
       additionalProperties: {},
       type: "object",
@@ -2726,6 +2736,16 @@ export const HeartbeatPayloadSchema = {
         $ref: "#/components/schemas/SourceReport",
       },
       type: "array",
+    },
+    written5M: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
   },
   required: [],
@@ -3381,6 +3401,40 @@ export const LastErrorReportSchema = {
   },
   required: [],
   title: "LastErrorReport",
+  type: "object",
+} as const;
+
+export const LatestReleaseViewSchema = {
+  properties: {
+    displayVersion: {
+      type: "string",
+    },
+    newerReleaseCount: {
+      type: "integer",
+    },
+    newerReleaseCountExact: {
+      type: "boolean",
+    },
+    publishedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    url: {
+      type: "string",
+    },
+    version: {
+      type: "string",
+    },
+  },
+  required: [
+    "displayVersion",
+    "newerReleaseCount",
+    "newerReleaseCountExact",
+    "publishedAt",
+    "url",
+    "version",
+  ],
+  title: "LatestReleaseView",
   type: "object",
 } as const;
 
@@ -4369,6 +4423,39 @@ export const ReadinessResponseSchema = {
   },
   required: ["ready"],
   title: "ReadinessResponse",
+  type: "object",
+} as const;
+
+export const ReleaseCheckResponseSchema = {
+  properties: {
+    checkedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    latest: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/LatestReleaseView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status: {
+      enum: ["off", "pending", "checked"],
+      type: "string",
+    },
+  },
+  required: ["checkedAt", "latest", "status"],
+  title: "ReleaseCheckResponse",
   type: "object",
 } as const;
 

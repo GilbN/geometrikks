@@ -10,10 +10,7 @@ def test_server_imports_without_geoip_db() -> None:
     Settings construction (which validates the mmdb path) must happen inside
     create_app()/lifespan startup, never at import time. Runs in a subprocess so this
     test is immune to modules already imported by the test session."""
-    env = os.environ | {
-        "GEOIP_DB_PATH": "/nonexistent/GeoLite2-City.mmdb",
-        "GEOIP_VALIDATE_DB_PATH": "true",
-    }
+    env = os.environ | {"GEOIP_DB_PATH": "/nonexistent/GeoLite2-City.mmdb"}
     result = subprocess.run(
         [sys.executable, "-c", "import geometrikks.server.core, geometrikks.server.migrations"],
         env=env,

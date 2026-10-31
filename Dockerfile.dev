@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1
 
-FROM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS bun
+FROM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS bun
 
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 ARG APP_IMAGE_TAG=local
+ARG GEOMETRIKKS_VERSION=0.0.0+local
 
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
@@ -27,8 +28,17 @@ COPY package.json bun.lock ./
 # source mount used for hot reload replaces this copy at runtime.
 COPY geometrikks/ ./geometrikks/
 
+# Dependencies install first, without the pretend version, so a dependency
+# built from an sdist with setuptools-scm doesn't pick it up.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen
+    uv sync --frozen --no-install-project
+
+# The wheel metadata keeps the pretend version verbatim, so a tag like
+# v0.22.0-dev.4 has to be written in PEP 440 form here. Without .git uv's
+# build cache is keyed on pyproject.toml alone, so --refresh-package stops a
+# cached build from an earlier version being reused.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    SETUPTOOLS_SCM_PRETEND_VERSION="$(printf '%s' "${GEOMETRIKKS_VERSION}" | sed -e 's/^v//' -e 's/-dev\./.dev/')" uv sync --frozen --refresh-package geometrikks
 
 RUN --mount=type=cache,target=/root/.bun \
     bun install --frozen-lockfile

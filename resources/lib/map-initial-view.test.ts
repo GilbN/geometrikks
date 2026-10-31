@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, type MapView } from "@/lib/map-initial-view"
+import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, trafficView, trafficWindow, type MapView } from "@/lib/map-initial-view"
 import type { ServerLocationsData } from "@/lib/server-locations"
 
 const SIZE = { width: 1200, height: 800 }
@@ -190,5 +190,87 @@ describe("initialMapView", () => {
       expect(Math.abs(dx)).toBeLessThanOrEqual(SIZE.width / 2 - FIT_PADDING + 0.5)
       expect(Math.abs(dy)).toBeLessThanOrEqual(SIZE.height / 2 - FIT_PADDING + 0.5)
     }
+  })
+})
+
+describe("trafficView", () => {
+  const PHONE = { width: 390, height: 700 }
+  const NEW_YORK = { latitude: 40.71, longitude: -74.0 }
+  const TOKYO = { latitude: 35.68, longitude: 139.69 }
+  const SINGAPORE = { latitude: 1.35, longitude: 103.82 }
+  const point = (c: { latitude: number; longitude: number }, weight: number) => ({
+    coordinate: [c.longitude, c.latitude] as [number, number],
+    weight,
+  })
+  const inView = (view: MapView, c: { latitude: number; longitude: number }, size: { width: number; height: number }) => {
+    const [dx, dy] = offsetPx(view, c)
+    return Math.abs(dx) <= size.width / 2 && Math.abs(dy) <= size.height / 2
+  }
+
+  it("is null without traffic", () => {
+    expect(trafficView([], PHONE)).toBeNull()
+  })
+
+  it("fits all the traffic when it fits across the container", () => {
+    const view = trafficView([point(OSLO, 5), point(BERGEN, 3)], SIZE)!
+    expect(inView(view, OSLO, SIZE)).toBe(true)
+    expect(inView(view, BERGEN, SIZE)).toBe(true)
+  })
+
+  it("on a phone that can't show it all, frames the stretch with the most traffic", () => {
+    const points = [point(NEW_YORK, 30), point(TOKYO, 17), point(SINGAPORE, 27), point(SYDNEY, 12)]
+    const view = trafficView(points, PHONE)!
+    // Asia and Australia hold 56 events; New York with Sydney across the Pacific holds 42.
+    expect(inView(view, TOKYO, PHONE)).toBe(true)
+    expect(inView(view, SINGAPORE, PHONE)).toBe(true)
+    expect(inView(view, SYDNEY, PHONE)).toBe(true)
+    expect(inView(view, NEW_YORK, PHONE)).toBe(false)
+  })
+
+  it("counts a window across the Pacific like any other", () => {
+    // New York and Sydney fit in one phone-wide stretch of longitude, and
+    // together they outweigh Asia.
+    const view = trafficView([point(NEW_YORK, 46), point(TOKYO, 17), point(SINGAPORE, 27), point(SYDNEY, 12)], PHONE)!
+    expect(inView(view, NEW_YORK, PHONE)).toBe(true)
+    expect(inView(view, SYDNEY, PHONE)).toBe(true)
+  })
+
+  it("takes the heavier side when one location outweighs the rest", () => {
+    const view = trafficView([point(NEW_YORK, 500), point(TOKYO, 17), point(SINGAPORE, 27)], PHONE)!
+    expect(inView(view, NEW_YORK, PHONE)).toBe(true)
+  })
+
+  it("can span the antimeridian", () => {
+    const AUCKLAND = { latitude: -36.85, longitude: 174.76 }
+    const HONOLULU = { latitude: 21.31, longitude: -157.86 }
+    const view = trafficView([point(AUCKLAND, 10), point(HONOLULU, 10)], PHONE)!
+    expect(inView(view, AUCKLAND, PHONE)).toBe(true)
+    expect(inView(view, HONOLULU, PHONE)).toBe(true)
+  })
+
+  it("gives a window across the antimeridian an east edge past 180", () => {
+    const AUCKLAND = { latitude: -36.85, longitude: 174.76 }
+    const HONOLULU = { latitude: 21.31, longitude: -157.86 }
+    const window = trafficWindow([point(AUCKLAND, 10), point(HONOLULU, 10)], PHONE)!
+    expect(window.west).toBeCloseTo(174.76)
+    expect(window.east).toBeCloseTo(-157.86 + 360)
+  })
+
+  it("frames traffic across the Pacific the short way when it all fits", () => {
+    const SAN_FRANCISCO = { latitude: 37.77, longitude: -122.42 }
+    const window = trafficWindow([point(TOKYO, 10), point(SAN_FRANCISCO, 10)], SIZE)!
+    expect(window.east - window.west).toBeLessThan(180)
+    expect(window.west).toBeCloseTo(139.69)
+  })
+
+  it("ignores the padding of a container that hasn't been laid out", () => {
+    // A 1px span would pick one location; the unpadded width still shows a region.
+    const window = trafficWindow([point(OSLO, 5), point(BERGEN, 3)], { width: 100, height: 100 })!
+    expect(window.coordinates).toHaveLength(2)
+  })
+
+  it("lets the caller raise the zoom cap for a single location", () => {
+    expect(trafficView([point(OSLO, 1)], SIZE)!.zoom).toBe(FIT_MAX_ZOOM)
+    expect(trafficView([point(OSLO, 1)], SIZE, undefined, 12)!.zoom).toBe(12)
   })
 })

@@ -76,6 +76,23 @@ export function AccessLogsFilterBar() {
   const remove = (key: ListKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
 
+  const chips = [
+    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
+    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
+    ...filters.hostsExclude.map((v) => ({ key: "hostsExclude" as const, v, exclude: true })),
+    ...filters.serversExclude.map((v) => ({ key: "serversExclude" as const, v, exclude: true })),
+  ]
+  const chipRow = (keys: ListKey[]) => {
+    const shown = chips.filter((c) => keys.includes(c.key))
+    return shown.length > 0 && (
+      <FilterRow>
+        {shown.map((c) => (
+          <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => remove(c.key, c.v)} />
+        ))}
+      </FilterRow>
+    )
+  }
+
   const search = (inDrawer: boolean) => (
     <FilterField label="Search">
       <div className="relative">
@@ -94,6 +111,8 @@ export function AccessLogsFilterBar() {
       label="IP address"
       excludeLabel="Exclude IP"
       stacked={inDrawer}
+      includeChips={chipRow(["ips"])}
+      excludeChips={chipRow(["ipsExclude"])}
       include={
         <TagInput
           onAdd={add("ips")}
@@ -118,6 +137,7 @@ export function AccessLogsFilterBar() {
       label="Host"
       excludeLabel="Exclude host"
       stacked={inDrawer}
+      excludeChips={chipRow(["hostsExclude"])}
       include={
         <FilterCombobox
           label="Host"
@@ -145,6 +165,7 @@ export function AccessLogsFilterBar() {
       label="Server"
       excludeLabel="Exclude server"
       stacked={inDrawer}
+      excludeChips={chipRow(["serversExclude"])}
       include={
         <FilterCombobox
           label="Server"
@@ -237,20 +258,6 @@ export function AccessLogsFilterBar() {
     </FilterField>
   )
 
-  const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
-    ...filters.hostsExclude.map((v) => ({ key: "hostsExclude" as const, v, exclude: true })),
-    ...filters.serversExclude.map((v) => ({ key: "serversExclude" as const, v, exclude: true })),
-  ]
-  const chipRow = chips.length > 0 && (
-    <FilterRow>
-      {chips.map((c) => (
-        <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => remove(c.key, c.v)} />
-      ))}
-    </FilterRow>
-  )
-
   const activeCount = countActiveAccessLogFilters(filters)
   const clear = () => {
     setSearchInput("")
@@ -270,7 +277,6 @@ export function AccessLogsFilterBar() {
           {logFormat(true)}
           {country(true)}
           {city(true)}
-          {chipRow}
         </FiltersDrawer>
       </div>
     )
@@ -291,7 +297,7 @@ export function AccessLogsFilterBar() {
         {country(false)}
         {city(false)}
       </FilterRow>
-      {chipRow}
+      {chipRow(["ips", "ipsExclude", "hostsExclude", "serversExclude"])}
     </FilterRail>
   )
 }

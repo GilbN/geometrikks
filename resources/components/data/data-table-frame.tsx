@@ -1,4 +1,4 @@
-import { useId } from "react"
+import { useId, useLayoutEffect, useState } from "react"
 
 import { ErrorBanner } from "@/components/error-banner"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,6 +25,11 @@ function TableSkeleton() {
  * One card around a table: title, help text, result count and tools in the
  * header, the table (or its loading/error/empty stand-in) in the body, and
  * pagination in the footer. The header and footer stay put across states.
+ * A sticky header is one compact row that stays at the top of the scrolling
+ * <main>, below anything that sets --sticky-top there, and only screen
+ * readers get its description. While mounted it publishes its height as
+ * --table-header-height on <main>, so focus and scroll resets keep the rows
+ * clear of both.
  */
 export function DataTableFrame({
   title,
@@ -35,6 +40,7 @@ export function DataTableFrame({
   error = "The data could not be loaded.",
   empty = "No data to display.",
   footer,
+  stickyHeader = false,
   children,
   className,
   ...props
@@ -47,18 +53,49 @@ export function DataTableFrame({
   error?: string
   empty?: React.ReactNode
   footer?: React.ReactNode
+  stickyHeader?: boolean
 }) {
   const titleId = useId()
+  const [header, setHeader] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const main = stickyHeader ? header?.closest("main") : null
+    if (!header || !main) return
+    const publish = () => main.style.setProperty("--table-header-height", `${header.getBoundingClientRect().height}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(header)
+    return () => {
+      observer.disconnect()
+      main.style.removeProperty("--table-header-height")
+    }
+  }, [stickyHeader, header])
+  // overflow-hidden would make the section a scroll container and pin the
+  // sticky header to it instead of the page. The scroll margin lets focus
+  // bring a row's controls out from under the header. Scroll padding on
+  // <main> would also cover the sticky bars, and tapping one would scroll.
+  const surface = cn(
+    FRAME_SURFACE,
+    stickyHeader && "overflow-clip [&_tbody_*]:scroll-mt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]",
+    className,
+  )
   return (
     <section
       data-slot="data-table-frame"
       data-state={state}
       aria-labelledby={titleId}
       aria-busy={state === "loading"}
-      className={cn(FRAME_SURFACE, className)}
+      className={surface}
       {...props}
     >
-      <header className="flex min-w-0 flex-col gap-3 border-b border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <header
+        ref={setHeader}
+        className={cn(
+          "flex min-w-0 border-b border-border/50 px-4",
+          stickyHeader
+            ? "sticky top-[var(--sticky-top,0px)] z-20 flex-row items-center justify-between gap-2 bg-card py-2.5"
+            : "flex-wrap items-center justify-between gap-3 py-3 sm:flex-nowrap",
+        )}
+      >
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-2">
             <h2 id={titleId} className={FRAME_LABEL}>
@@ -68,9 +105,15 @@ export function DataTableFrame({
               <span className="text-xs tabular-nums text-muted-foreground">{count.toLocaleString()}</span>
             )}
           </div>
-          {description && <p className="mt-0.5 text-[13px] text-muted-foreground">{description}</p>}
+          {description && (
+            <p className={stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground max-md:sr-only"}>
+              {description}
+            </p>
+          )}
         </div>
-        {tools && <div className="flex min-w-0 flex-wrap items-center gap-2">{tools}</div>}
+        {tools && (
+          <div className={cn("flex min-w-0 flex-wrap items-center gap-2", stickyHeader && "shrink-0")}>{tools}</div>
+        )}
       </header>
 
       {state === "loading" && <TableSkeleton />}

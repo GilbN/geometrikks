@@ -3,7 +3,7 @@
  *  every throw: a redirect thrown from inside a try block would be swallowed
  *  by that block's own catch. */
 import axios from "axios"
-import type { AuthOptions, MeResponse } from "@/lib/api"
+import type { AuthOptions, HealthResponse, LogoutResponse, MeResponse } from "@/lib/api"
 
 export type MeResult =
   | { ok: true; me: MeResponse }
@@ -90,4 +90,52 @@ export function planLoginForm(options: AuthOptions, errorCode: string | null): L
   const message =
     errorCode && Object.hasOwn(LOGIN_ERROR_MESSAGES, errorCode) ? LOGIN_ERROR_MESSAGES[errorCode] : null
   return { oidc, password, message, description }
+}
+
+/** What the login form says when POST /auth/login fails. A 503 is the session
+ *  store being down, not a wrong password, so it must not read like one. */
+export function loginErrorMessage(error: unknown): string {
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined
+  if (status === 401) return "Invalid username or password"
+  if (status === 503) {
+    return "The database is unavailable, so nobody can sign in right now. Try again in a minute."
+  }
+  return "Sign-in failed. Try again."
+}
+
+/** Navigates only once the server has ended the session. Navigating on a
+ *  failed logout would look signed out while the session cookie stays live. */
+export async function logoutThenNavigate(
+  doLogout: () => Promise<LogoutResponse>,
+  go: (url: string) => void,
+): Promise<void> {
+  const { redirectTo } = await doLogout()
+  go(redirectTo ?? "/login")
+}
+
+/** What the login page says while the database is down. The login routes
+ *  answer 503 then, so nobody can reach the Status page that would explain
+ *  why. Only the database advisory triggers it. Other advisories stay behind
+ *  the login. */
+export function databaseDownNotice(health: HealthResponse | null): string | null {
+  const isDown = health?.advisories?.some((advisory) => advisory.id === "database-unavailable")
+  return isDown ? "The database is unavailable, so signing in won't work until it's back." : null
+}
+
+/** How long the login page waits for /health. A hung process or a proxy that
+ *  never answers must not hold the form behind the skeleton. That is when the
+ *  database notice matters most. */
+export const LOGIN_HEALTH_TIMEOUT_MS = 3000
+
+/** Fetches what the login page needs, both at once. A failed or timed-out
+ *  /health counts as no health, so the form renders without the notice. */
+export async function loadLoginContext(
+  loadOptions: () => Promise<AuthOptions>,
+  loadHealthWithin: (timeoutMs: number) => Promise<HealthResponse>,
+): Promise<{ options: AuthOptions; health: HealthResponse | null }> {
+  const [options, health] = await Promise.all([
+    loadOptions(),
+    loadHealthWithin(LOGIN_HEALTH_TIMEOUT_MS).catch(() => null),
+  ])
+  return { options, health }
 }

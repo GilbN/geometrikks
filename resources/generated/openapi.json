@@ -2822,6 +2822,16 @@
               }
             ]
           },
+          "failedBatches5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "health": {
             "additionalProperties": {},
             "type": "object"
@@ -2885,6 +2895,16 @@
               "$ref": "#/components/schemas/SourceReport"
             },
             "type": "array"
+          },
+          "written5M": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [],
@@ -3573,6 +3593,39 @@
         },
         "required": [],
         "title": "LastErrorReport",
+        "type": "object"
+      },
+      "LatestReleaseView": {
+        "properties": {
+          "displayVersion": {
+            "type": "string"
+          },
+          "newerReleaseCount": {
+            "type": "integer"
+          },
+          "newerReleaseCountExact": {
+            "type": "boolean"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayVersion",
+          "newerReleaseCount",
+          "newerReleaseCountExact",
+          "publishedAt",
+          "url",
+          "version"
+        ],
+        "title": "LatestReleaseView",
         "type": "object"
       },
       "ListAccessLogsAccessLogResponseBody": {
@@ -4598,6 +4651,46 @@
           "ready"
         ],
         "title": "ReadinessResponse",
+        "type": "object"
+      },
+      "ReleaseCheckResponse": {
+        "properties": {
+          "checkedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LatestReleaseView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "off",
+              "pending",
+              "checked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "checkedAt",
+          "latest",
+          "status"
+        ],
+        "title": "ReleaseCheckResponse",
         "type": "object"
       },
       "ReportAlertDTO": {
@@ -6430,7 +6523,7 @@
   "info": {
     "description": "Real-time GeoIP lookups and traffic analytics API",
     "title": "GeoMetrikks API",
-    "version": "0.22.1"
+    "version": "1"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -10394,6 +10487,27 @@
             "name": "origins",
             "required": false,
             "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "description": "Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.",
+              "maxLength": 200,
               "oneOf": [
                 {
                   "type": "string"
@@ -14751,6 +14865,29 @@
           }
         },
         "summary": "GetDatabaseInfo",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/release-check": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1SystemReleaseCheckGetReleaseCheck",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseCheckResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "GetReleaseCheck",
         "tags": [
           "System"
         ]

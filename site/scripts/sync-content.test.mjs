@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anchorMap, buildPages, rewriteLinks, slugify, splitReadme } from "./sync-content.mjs";
+import { anchorMap, buildPages, latestReleasedVersion, rewriteLinks, slugify, splitReadme } from "./sync-content.mjs";
+
+test("latestReleasedVersion skips Unreleased", () => {
+  const md = "# Changelog\n\n## [Unreleased]\n\n### Added\n\n- x\n\n## [0.22.0] - 2026-10-25\n\n## [0.21.0] - 2026-10-18\n";
+  assert.equal(latestReleasedVersion(md), "0.22.0");
+});
+
+test("latestReleasedVersion throws without a release", () => {
+  assert.throws(() => latestReleasedVersion("## [Unreleased]\n"), /CHANGELOG\.md/);
+});
 
 test("splits on H2 outside code fences only", () => {
   const md = "# T\nintro\n## A\na\n```nginx\n## Version 2025/07/18\n```\n## B\nb\n";

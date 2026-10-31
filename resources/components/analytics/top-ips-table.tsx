@@ -1,4 +1,7 @@
-import { CountryLabel } from "@/components/country-flag"
+import { useMemo } from "react"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
+import { useFitLayout } from "@/components/data/narrow-layout"
+import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -11,19 +14,23 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useCrowdsecLiveUpdates, useTopIpStats } from "@/lib/queries"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { analyticsFilterTargets } from "@/lib/ip-filter-targets"
+import { useAnalyticsFilters } from "@/lib/analytics-filters-context"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
 export function TopIpsTable() {
   const { data, isLoading } = useTopIpStats({ limit: 25 })
+  const { filters, setFilters } = useAnalyticsFilters()
+  const filterTargetsFor = useMemo(() => analyticsFilterTargets(filters, setFilters), [filters, setFilters])
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   // Keep banned badges in sync with external cscli/console decisions.
   useCrowdsecLiveUpdates()
+  const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => row.ipAddress).join())
 
   return (
-    <Card>
+    <Card ref={layoutRef}>
       <CardHeader>
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top IPs</CardTitle>
       </CardHeader>
@@ -32,35 +39,62 @@ export function TopIpsTable() {
           <Skeleton className="h-48 w-full" />
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>City</TableHead>
-                  <TableHead className="text-right">Hits</TableHead>
-                  <TableHead className="text-right">Errors</TableHead>
-                  <TableHead className="text-right">Bytes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageItems.map((row) => (
-                  <TableRow key={row.ipAddress}>
-                    <TableCell className="font-mono text-xs">
-                      {row.ipAddress}
-                      <IpBanControls ip={row.ipAddress}>
-                        <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                        <FlyToIpButton ip={row.ipAddress} />
-                      </IpBanControls>
-                    </TableCell>
-                    <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
-                    <TableCell>{row.city ?? "-"}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
+            <Table className={narrow ? "table-fixed" : undefined}>
+              {narrow ? (
+                <RankedNarrowHeader label="IP" valueLabel="Hits" />
+              ) : (
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead>City</TableHead>
+                    <TableHead className="text-right">Hits</TableHead>
+                    <TableHead className="text-right">Errors</TableHead>
+                    <TableHead className="text-right">Bytes</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
+                </TableHeader>
+              )}
+              <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+                <TableBody>
+                  {pageItems.map((row) => narrow ? (
+                    <TableRow key={row.ipAddress}>
+                      <RankedNarrowCell
+                        primary={
+                          <>
+                            <IpLabel ip={row.ipAddress} className="truncate font-mono text-xs" />
+                            <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} city={row.city} />
+                          </>
+                        }
+                        value={formatNumber(row.hits)}
+                        secondary={
+                          <>
+                            {(row.countryCode || row.city) && (
+                              <span className="flex items-center gap-1">
+                                <CountryFlag code={row.countryCode} standalone />
+                                {[row.countryCode, row.city].filter(Boolean).join(", ")}
+                              </span>
+                            )}
+                            <span>{formatNumber(row.errorHits)} {row.errorHits === 1 ? "error" : "errors"}</span>
+                            <span>{formatBytes(row.totalBytes)}</span>
+                          </>
+                        }
+                      />
+                    </TableRow>
+                  ) : (
+                    <TableRow key={row.ipAddress}>
+                      <TableCell className="font-mono text-xs">
+                        <IpLabel ip={row.ipAddress} />
+                        <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} city={row.city} />
+                      </TableCell>
+                      <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
+                      <TableCell>{row.city ?? "-"}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatNumber(row.errorHits)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </IpFilterTargetsProvider>
             </Table>
             <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />
           </>

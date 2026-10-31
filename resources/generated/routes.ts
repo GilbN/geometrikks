@@ -47,6 +47,7 @@ export type RouteName =
   | 'get_ip_profile'
   | 'get_live_summary'
   | 'get_location_top_ips'
+  | 'get_release_check'
   | 'get_scheduler_jobs'
   | 'get_stats'
   | 'get_status'
@@ -135,6 +136,7 @@ export interface RoutePathParams {
   'get_location_top_ips': {
     location_id: number;
   };
+  'get_release_check': Record<string, never>;
   'get_scheduler_jobs': Record<string, never>;
   'get_stats': Record<string, never>;
   'get_status': Record<string, never>;
@@ -344,6 +346,7 @@ export interface RouteQueryParams {
     limit?: number;
     toTimestamp: DateTime;
   };
+  'get_release_check': Record<string, never>;
   'get_scheduler_jobs': Record<string, never>;
   'get_stats': Record<string, never>;
   'get_status': Record<string, never>;
@@ -484,6 +487,7 @@ export interface RouteQueryParams {
     currentPage?: number;
     origins?: string;
     pageSize?: number;
+    q?: string;
   };
   'list_files': Record<string, never>;
   'list_geo_events': {
@@ -742,6 +746,13 @@ export const routeDefinitions = {
     pathParams: ['location_id'] as const,
     queryParams: ['fromTimestamp', 'limit', 'toTimestamp'] as const,
   },
+  'get_release_check': {
+    path: '/api/v1/system/release-check',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'get_scheduler_jobs': {
     path: '/api/v1/system/scheduler/jobs',
     methods: ['GET'] as const,
@@ -894,7 +905,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['currentPage', 'origins', 'pageSize'] as const,
+    queryParams: ['currentPage', 'origins', 'pageSize', 'q'] as const,
   },
   'list_files': {
     path: '/api/v1/logs/files',

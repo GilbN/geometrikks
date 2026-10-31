@@ -109,7 +109,7 @@ function FilterComboboxBody<T extends string | number>({
                 aria-pressed={isSel}
                 disabled={atMax && !isSel}
                 className={cn(
-                  "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm disabled:opacity-50",
+                  "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm disabled:opacity-50 pointer-coarse:min-h-10",
                   isSel ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
                 )}
               >

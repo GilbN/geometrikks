@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
-import { fetchAuthOptions, fetchMe, login } from "@/lib/api"
-import { planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
+import { fetchAuthOptions, fetchHealthWithin, fetchMe, login } from "@/lib/api"
+import { databaseDownNotice, loadLoginContext, loginErrorMessage, planLoginForm, planLoginRoute, toMeResult, type MeResult } from "@/lib/auth-redirect"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,14 +29,15 @@ export const Route = createFileRoute("/login")({
     if (plan.action === "rethrow") throw plan.error
     // "render": auth is on and nobody is logged in yet. Which methods exist
     // decides what the page shows.
-    return { options: await fetchAuthOptions() }
+    return loadLoginContext(fetchAuthOptions, fetchHealthWithin)
   },
   component: LoginPage,
   pendingComponent: LoginPagePending,
 })
 
-// beforeLoad awaits two round trips before anything paints, so without this
-// the anonymous cold load shows a blank page until they return.
+// beforeLoad waits for the session check, then for the options and health
+// requests, before anything paints. Without this, an anonymous cold load
+// shows a blank page until they return.
 function LoginPagePending() {
   return (
     <BrandScreen backdrop="map" title="Sign in" description="Sign in to continue.">
@@ -58,7 +59,8 @@ function LoginPagePending() {
 
 function LoginPage() {
   const navigate = useNavigate()
-  const { options } = Route.useRouteContext()
+  const { options, health } = Route.useRouteContext()
+  const databaseNotice = databaseDownNotice(health)
   const { error: errorCode } = Route.useSearch()
   // Read once, then dropped from the URL so a reload does not repeat it.
   const [plan] = useState(() => planLoginForm(options, errorCode ?? null))
@@ -78,8 +80,8 @@ function LoginPage() {
     try {
       await login(username, password)
       navigate({ to: "/" })
-    } catch {
-      setError("Invalid username or password")
+    } catch (failure) {
+      setError(loginErrorMessage(failure))
     } finally {
       setSubmitting(false)
     }
@@ -132,6 +134,7 @@ function LoginPage() {
             </Button>
           </form>
         )}
+        {databaseNotice && <p className="text-sm text-muted-foreground">{databaseNotice}</p>}
       </div>
     </BrandScreen>
   )

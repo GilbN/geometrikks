@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import { useSummary } from "@/lib/queries"
@@ -30,11 +31,15 @@ export function Summary() {
     <TooltipProvider>
       <div className="p-4 md:p-6 space-y-6">
         <PageHeader
-          title="Summary"
-          subtitle="Overview of live analytics data for your application."
+          title="Overview"
+          subtitle="Traffic, status codes and response times for the selected range."
           meta={
-            summary && (
+            summary ? (
               <DateTimeRange start={summary.startDate} end={summary.endDate} />
+            ) : (
+              // Holds the band's place while loading. Below md it is all the
+              // header shows, and without it the page jumps on every refresh.
+              !isError && <Skeleton className="h-6 w-72 max-w-full rounded-md" />
             )
           }
         />

@@ -29,6 +29,7 @@ from litestar.status_codes import (
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
     provide_crowdsec_service,
+    provide_geoip_locator,
     provide_limit_offset_pagination,
     provide_security_enrichment_repo,
 )
@@ -41,7 +42,7 @@ from geometrikks.domain.security.alert_history import (
     decode_cursor,
     fetch_alert_page,
 )
-from geometrikks.domain.security.grouping import DecisionGroup, group_decisions
+from geometrikks.domain.security.grouping import DecisionGroup, group_decisions, search_groups, search_network
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
@@ -52,6 +53,7 @@ from geometrikks.services.crowdsec import (
     Alert, CrowdSecService, Decision, DecisionScope, DecisionType, manual_reason,
 )
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
+from geometrikks.services.geoip.locator import GeoIpLocator
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
 # decisions table shows local origins by default and CAPI/lists opt in via
@@ -229,6 +231,29 @@ class UnbanResponse(msgspec.Struct, rename="camel"):
     deleted: int
 
 
+def _fill_from_geoip(
+    enriched: dict[str, IpEnrichment], ips: list[str], geoip: GeoIpLocator | None
+) -> dict[str, IpEnrichment]:
+    """Add GeoLite2 places for IPs whose stored traffic has no country.
+
+    Bans from mail or SSH scenarios target IPs that never reached the proxy,
+    so access_logs holds no rows for them.
+    """
+    missing = [ip for ip in ips if (known := enriched.get(ip)) is None or known.country_code is None]
+    if geoip is None or not missing:
+        return enriched
+    merged = dict(enriched)
+    for ip, place in geoip.locate(missing).items():
+        known = enriched.get(ip)
+        merged[ip] = IpEnrichment(
+            country_code=place.country_code,
+            country_name=place.country_name,
+            city=place.city,
+            request_count_24h=known.request_count_24h if known else 0,
+        )
+    return merged
+
+
 def _to_view(decision: Decision, enrichment: IpEnrichment | None) -> DecisionView:
     is_ip_scope = decision.scope == "Ip"
     return DecisionView(
@@ -280,7 +305,10 @@ def _enrichment_key(alert: Alert) -> str:
 
 def _alert_country(alert: Alert, enrichment: IpEnrichment | None) -> tuple[str | None, str | None]:
     if alert.source.cn is not None:
-        return alert.source.cn, None
+        # The LAPI sends only a code. The name comes from our lookup, and only
+        # when its code matches.
+        same_country = enrichment is not None and enrichment.country_code == alert.source.cn
+        return alert.source.cn, enrichment.country_name if same_country else None
     if enrichment is None:
         return None, None
     return enrichment.country_code, enrichment.country_name
@@ -308,12 +336,14 @@ def _alert_summary(alert: Alert, enrichment: IpEnrichment | None) -> dict:
 
 
 async def _alert_detail(
-    alert: Alert, enrichment_repo: SecurityEnrichmentRepository
+    alert: Alert, enrichment_repo: SecurityEnrichmentRepository, geoip: GeoIpLocator | None
 ) -> AlertDetailView:
     source = alert.source
     needs_geo = source.scope == "Ip" and source.cn is None
     key = _enrichment_key(alert)
     enriched = await enrichment_repo.enrich([key]) if needs_geo else {}
+    if source.scope == "Ip":
+        enriched = _fill_from_geoip(enriched, [key], geoip)
     return AlertDetailView(
         **_alert_summary(alert, enriched.get(key)),
         simulated=bool(alert.simulated),
@@ -420,6 +450,7 @@ class CrowdSecController(Controller):
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
         "crowdsec_poller": Provide(provide_crowdsec_poller, sync_to_thread=False),
         "enrichment_repo": Provide(provide_security_enrichment_repo),
+        "geoip": Provide(provide_geoip_locator, sync_to_thread=False),
         # Controller-scoped: /decisions paginates an in-memory LAPI result,
         # not an ORM query, so it keeps the hand-written provider.
         "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
@@ -457,8 +488,21 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         limit_offset: NamedDependency[filters.LimitOffset],
         origins: Annotated[str | None, QueryParameter(required=False)] = None,
+        q: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                max_length=200,
+                description=(
+                    "Search. An IP or CIDR matches decisions on addresses inside it and "
+                    "ranges that hold it, across every origin. Other text matches the "
+                    "start of the target or any part of a scenario name."
+                ),
+            ),
+        ] = None,
     ) -> OffsetPagination[DecisionGroupView]:
         """Active decisions, one item per target, geo-enriched per displayed page.
 
@@ -468,14 +512,25 @@ class CrowdSecController(Controller):
         Pagination slices locally: the LAPI has no pagination of its own.
         Only the sliced page is enriched, so an opted-in CAPI blocklist
         (tens of thousands of decisions) never hits the database join.
+        GeoLite2 fills in IPs that stored traffic has no country for.
         """
         service = _require_service(crowdsec)
-        decisions = await service.get_decisions(origins=origins or DEFAULT_ORIGINS)
+        query = (q or "").strip()
+        if query and search_network(query) is not None:
+            # "Is this IP banned" has the same answer on every tab, so an IP or
+            # range search reads every origin; the LAPI sends them all when
+            # none are named, console and cscli-import included.
+            decisions = await service.get_decisions()
+        else:
+            decisions = await service.get_decisions(origins=origins or DEFAULT_ORIGINS)
         groups = group_decisions(decisions)
+        if query:
+            groups = search_groups(groups, query)
         page = groups[limit_offset.offset : limit_offset.offset + limit_offset.limit]
 
         page_ips = [group.value for group in page if group.scope == "Ip"]
         enriched = await enrichment_repo.enrich(page_ips) if page_ips else {}
+        enriched = _fill_from_geoip(enriched, page_ips, geoip)
         return OffsetPagination(
             items=[_to_group_view(group, enriched.get(group.value)) for group in page],
             limit=limit_offset.limit,
@@ -562,6 +617,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         settings: NamedDependency[SkipValidation[Settings]],
         limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
         ip: Annotated[str | None, QueryParameter(required=False)] = None,
@@ -606,8 +662,9 @@ class CrowdSecController(Controller):
         cursor answers 400.
 
         The LAPI only geo-enriches alerts from log-parsing scenarios; manual
-        bans carry a bare IP. Ip-scope sources missing LAPI geo are filled
-        from GeoMetrikks' own stored traffic instead.
+        bans carry a bare IP. Ip-scope sources without LAPI geo take it from
+        GeoMetrikks' own stored traffic, then from GeoLite2. GeoLite2 also
+        supplies the country name where the LAPI sends only a code.
 
         ``kind`` needs CrowdSec 1.7 or newer; an older LAPI answers 400.
         ``kind=bot`` merges the bot-detection rejections with the bans the
@@ -639,6 +696,8 @@ class CrowdSecController(Controller):
             _enrichment_key(a) for a in page.alerts if a.source.scope == "Ip" and a.source.cn is None
         ]
         enriched = await enrichment_repo.enrich(bare_ips) if bare_ips else {}
+        ip_sources = [_enrichment_key(a) for a in page.alerts if a.source.scope == "Ip"]
+        enriched = _fill_from_geoip(enriched, ip_sources, geoip)
 
         return AlertPageView(
             alerts=[
@@ -693,6 +752,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         settings: NamedDependency[SkipValidation[Settings]],
         alert_id: FromPath[int],
     ) -> AlertDetailView:
@@ -702,7 +762,7 @@ class CrowdSecController(Controller):
         if alert is None:
             raise NotFoundException(detail=f"No CrowdSec alert with id {alert_id}")
 
-        return await _alert_detail(alert, enrichment_repo)
+        return await _alert_detail(alert, enrichment_repo, geoip)
 
     @get(
         "/decisions/{decision_id:int}/alert",
@@ -717,6 +777,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
+        geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         settings: NamedDependency[SkipValidation[Settings]],
         decision_id: FromPath[int],
         ip: Annotated[str, QueryParameter(description="The decision's IP address")],
@@ -739,7 +800,7 @@ class CrowdSecController(Controller):
             )
             for alert in alerts:
                 if any(decision.id == decision_id for decision in alert.decisions):
-                    return await _alert_detail(alert, enrichment_repo)
+                    return await _alert_detail(alert, enrichment_repo, geoip)
         raise NotFoundException(detail=f"No CrowdSec alert holds decision {decision_id}")
 
     @post("/ban", status_code=HTTP_204_NO_CONTENT)

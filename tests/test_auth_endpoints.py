@@ -8,15 +8,19 @@ import pytest
 from litestar import Litestar, get
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.memory import MemoryChannelsBackend
+from litestar.logging.config import BaseLoggingConfig
+from litestar.stores.base import Store
+from litestar.stores.memory import MemoryStore
 from litestar.testing import TestClient
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
-from geometrikks.server.auth import build_auth_state, create_session_auth
+from geometrikks.server.auth import AuthState, build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
+from geometrikks.server.session_store import install_session_store
 
 
 @get("/api/v1/protected")
@@ -33,6 +37,8 @@ def make_app(
     *,
     extra_handlers: Sequence[Any] = (),
     session_max_age: int | None = None,
+    inner_store: Store | None = None,
+    logging_config: BaseLoggingConfig | None = None,
     **settings_kwargs,
 ) -> Litestar:
     kwargs: dict[str, Any] = {"admin_user": "admin", "admin_password": "bestpasswordintheworldnojoke"}
@@ -52,8 +58,9 @@ def make_app(
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
         plugins=[channels],
-        logging_config=None,
+        logging_config=logging_config,
     )
+    install_session_store(app, inner_store if inner_store is not None else MemoryStore())
     app.state.auth_state = build_auth_state(settings)
     # DB "available" so the authenticated branch streams rather than taking
     # the 1013-close (degraded) path.
@@ -401,3 +408,81 @@ def test_create_app_in_agent_mode_ignores_oidc(monkeypatch):
     from geometrikks.server.core import create_app
 
     assert create_app().state.oidc_client is None
+
+
+def test_login_answers_503_before_checking_the_password_while_the_database_is_down(monkeypatch):
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("the password was checked while the database is down")
+
+    monkeypatch.setattr(AuthState, "verify", fail_if_called)
+    app = make_app()
+    app.state.session_store_ready = False
+    with TestClient(app=app) as client:
+        response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "wrong"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "The database is unavailable, so nobody can sign in right now."
+
+
+def test_login_works_when_recovery_left_db_bound_services_down():
+    app = make_app()
+    app.state.db_available = False
+    app.state.session_store_ready = True
+    with TestClient(app=app) as client:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"username": "admin", "password": "bestpasswordintheworldnojoke"},
+        )
+        assert response.status_code == 200
+        assert client.get("/api/v1/auth/me").status_code == 200
+
+
+def test_oidc_start_answers_503_while_the_database_is_down():
+    from tests.oidc_fake import make_fake_idp
+    from tests.test_oidc_flow import make_oidc_app
+
+    fake = make_fake_idp()
+    app = make_oidc_app(fake)
+    app.state.session_store_ready = False
+    with TestClient(app=app) as client:
+        response = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+    assert response.status_code == 503
+    assert fake.config.discovery_fetches == 0
+    assert fake.config.authorize_requests == []
+
+
+def test_oidc_callback_answers_503_without_contacting_the_provider_while_the_database_is_down():
+    from tests.oidc_fake import make_fake_idp
+    from tests.test_oidc_flow import make_oidc_app
+
+    fake = make_fake_idp()
+    app = make_oidc_app(fake)
+    with TestClient(app=app) as client:
+        start = client.get("/api/v1/auth/oidc/start", follow_redirects=False)
+        assert start.status_code == 302
+        callback_url = fake.issue_code(start.headers["location"])
+        # The session store would answer 503 for the cookie on its own, so
+        # keep it reachable and leave the handler's guard as the only barrier.
+        app.stores.get("sessions").is_available = lambda: True  # ty: ignore[unresolved-attribute]
+        app.state.session_store_ready = False
+        response = client.get(callback_url, follow_redirects=False)
+    assert response.status_code == 503
+    assert fake.config.token_requests == []
+
+
+@pytest.mark.parametrize("path", ["/api/v1/auth/oidc/start", "/api/v1/auth/oidc/callback?code=x&state=y"])
+@pytest.mark.parametrize("build_app", [make_app, make_disabled_app])
+def test_oidc_routes_answer_404_without_oidc_even_while_the_database_is_down(build_app, path):
+    app = build_app()
+    app.state.session_store_ready = False
+    with TestClient(app=app) as client:
+        response = client.get(path, follow_redirects=False)
+    assert response.status_code == 404
+
+
+def test_disabled_mode_login_ignores_the_database():
+    app = make_disabled_app()
+    app.state.session_store_ready = False
+    with TestClient(app=app) as client:
+        response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "x"})
+    assert response.status_code == 200
+    assert response.json() == {"mode": "disabled"}

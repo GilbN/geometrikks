@@ -31,6 +31,7 @@ def _patch_startup_collaborators(
     monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
     monkeypatch.setattr(lc, "migrate_database", AsyncMock())
     monkeypatch.setattr(lc, "setup_timescaledb", AsyncMock())
+    monkeypatch.setattr(lc, "revoke_sessions_if_auth_changed", AsyncMock(return_value=False))
     monkeypatch.setattr(lc, "ensure_geoip_database", ensure)
     monkeypatch.setattr(lc, "ensure_asn_database", ensure_asn or AsyncMock(return_value=False))
     resolve_self_location = AsyncMock(return_value=None)

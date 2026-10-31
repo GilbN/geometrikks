@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Literal
 
 import msgspec
@@ -12,6 +13,18 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import LegacyEnvName
 
 logger = get_logger(__name__)
+
+INGESTION_WRITE_FAILURES_ID = "ingestion-write-failures"
+# A bad record fails one batch; a write path that is broken fails every batch.
+# This many failed batches inside the 5-minute window, with nothing written,
+# make failing writes critical.
+ONGOING_FAILED_BATCHES = 2
+
+_EXCEPTION_PREFIX = re.compile(r"^\(\w+(?:\.\w+)+\)\s*")
+_CLASS_PREFIX = re.compile(r"^<class '[\w.]+'>:\s*")
+_QUERY_ARGUMENT_VALUE = re.compile(r"(query argument \$\d+).*$")
+_SINGLE_QUOTED = re.compile(r"'[^']*(?:'|$)")
+_VALUE_AFTER_COLON = re.compile(r':\s*"[^"]*(?:"|$)')
 
 
 class Advisory(msgspec.Struct, rename="camel"):
@@ -134,3 +147,37 @@ def legacy_env_advisory(names: list["LegacyEnvName"]) -> Advisory:
         ),
         remedy=renames,
     )
+
+
+def error_headline(message: str) -> str:
+    """The first line of a write error without its exception class prefixes
+    or the values it quotes.
+
+    SQLAlchemy wraps the driver's sentence as "(module.Error) <class '...'>:
+    sentence" and appends the SQL and its parameters on later lines. asyncpg
+    quotes the bound value on the first line ("invalid input for query
+    argument $4: '/login?token=...'"), and Postgres quotes rejected input
+    after a colon, so this cuts the value after a query argument and hides
+    quoted literals. Double-quoted column and relation names stay.
+    """
+    headline = message.strip().split("\n", 1)[0]
+    while True:
+        stripped = _CLASS_PREFIX.sub("", _EXCEPTION_PREFIX.sub("", headline)).strip()
+        if stripped == headline:
+            break
+        headline = stripped
+    headline = _QUERY_ARGUMENT_VALUE.sub(r"\1", headline)
+    headline = _SINGLE_QUOTED.sub("'…'", headline)
+    return _VALUE_AFTER_COLON.sub(': "…"', headline)
+
+
+def last_write_error_sentence(message: str | None) -> str | None:
+    """'The last error was: ...' for an advisory detail; None without a message.
+
+    Only for views behind a login: even redacted, an error can name users or
+    internal hosts, and /health is public.
+    """
+    headline = error_headline(message or "")
+    if not headline:
+        return None
+    return f"The last error was: {headline if headline.endswith('.') else headline + '.'}"

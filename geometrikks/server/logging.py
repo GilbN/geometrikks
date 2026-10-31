@@ -390,12 +390,16 @@ def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandl
         if not debug and status_code in QUIET_STATUS_CODES | UNAVAILABLE_STATUS_CODES:
             # warning(), not exception(): the latter implies exc_info=True,
             # which _capture_exc_info turns into a rendered traceback.
+            fields: dict[str, Any] = {}
+            if exc is not None and exc.__cause__ is not None:
+                fields["cause"] = type(exc.__cause__).__name__
             logger.warning(
                 "client_error" if status_code in QUIET_STATUS_CODES else "service_unavailable",
                 status_code=status_code,
                 connection_type=scope["type"],
                 path=scope["path"],
                 detail=getattr(exc, "detail", None),
+                **fields,
             )
             return
         # Mirrors Litestar's own struct-logger default.
@@ -507,13 +511,13 @@ def create_logging_config(settings: "Settings") -> StructLoggingConfig:
         handlers=handlers,
         loggers={
             "litestar": {
-                "level": settings.log.level or "INFO",
+                "level": settings.log.level,
                 "handlers": ["queue_listener"],
                 "propagate": False,
             },
             LOGIN_LOGGER_NAME: {"level": "INFO"},
         },
-        root={"level": settings.log.level or "INFO", "handlers": ["queue_listener"]},
+        root={"level": settings.log.level, "handlers": ["queue_listener"]},
         log_exceptions="always",
     )
 

@@ -61,7 +61,7 @@ def test_env_var_names_honor_prefix_and_alias():
 def test_descriptions_defaults_and_sections_present():
     overview = build_settings_overview(Settings())
     names = [s.name for s in overview.sections]
-    for expected in ("app", "api", "database", "geoip", "logparser", "analytics", "scheduler", "map", "vite"):
+    for expected in ("app", "database", "geoip", "logparser", "analytics", "scheduler", "map", "vite"):
         assert expected in names
 
     host = _field(_section(overview, "database"), "host")
@@ -69,16 +69,26 @@ def test_descriptions_defaults_and_sections_present():
     assert host.default == "localhost"
 
     # default_factory fields report a None default (dynamic)
-    version = _field(_section(overview, "app"), "version")
-    assert version.default is None
-    assert version.value  # current value still present
+    server_name = _field(_section(overview, "logparser"), "server_name")
+    assert server_name.default is None
+    assert server_name.value  # current value still present
+
+
+def test_app_section_holds_root_and_app_settings_fields_once():
+    overview = build_settings_overview(Settings())
+    names = [s.name for s in overview.sections]
+    assert names.count("app") == 1
+    app_keys = [f.key for f in _section(overview, "app").fields]
+    assert {"debug", "admin_user", "mode", "instance_name"} <= set(app_keys)
+    assert len(app_keys) == len(set(app_keys))
 
 
 def test_app_section_excludes_sub_models():
     overview = build_settings_overview(Settings())
     app_keys = {f.key for f in _section(overview, "app").fields}
     assert "database" not in app_keys
-    assert "name" in app_keys
+    assert "admin_user" in app_keys
+    assert "name" not in app_keys
 
 
 def test_computed_overlay_attaches_to_existing_field():

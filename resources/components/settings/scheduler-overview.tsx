@@ -17,14 +17,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { MonoChip, StatusLed } from "@/components/settings/status-led"
+import { describeTrigger } from "@/components/settings/scheduler-logic"
+import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
 import type { SchedulerJobView } from "@/generated/api/types.gen"
 
 // Pinned to "en": the rest of the UI is English, so browser-locale words
 // ("om 2 timer") would read as a glitch here.
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+// "in 50s" rather than "in 50 seconds", so three timings fit a phone row.
+const narrowRtf = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "narrow" })
 
-function relativeTime(iso: string | null | undefined): string {
+function relativeTime(iso: string | null | undefined, format = rtf): string {
   if (!iso) return "never"
   const diffMs = new Date(iso).getTime() - Date.now()
   const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
@@ -35,7 +38,7 @@ function relativeTime(iso: string | null | undefined): string {
   ]
   for (const [unit, ms] of units) {
     if (Math.abs(diffMs) >= ms || unit === "second") {
-      return rtf.format(Math.round(diffMs / ms), unit)
+      return format.format(Math.round(diffMs / ms), unit)
     }
   }
   return "now"
@@ -136,6 +139,109 @@ function LastRunCell({ job }: { job: SchedulerJobView }) {
   )
 }
 
+function jobState(job: SchedulerJobView): { tone: LedTone; label: string } {
+  if (job.running) return { tone: "accent", label: "running" }
+  if (!job.nextRunTime) return { tone: "amber", label: "paused" }
+  return { tone: "muted", label: "idle" }
+}
+
+function JobFact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 truncate text-sm tabular-nums">{children}</dd>
+    </div>
+  )
+}
+
+/** Narrow-card layout for one job. Touch screens can't open tooltips, so a
+ * failed run's error goes under the timings, clamped until tapped. */
+function JobItem({
+  job,
+  runDisabled,
+  onRun,
+}: {
+  job: SchedulerJobView
+  runDisabled: boolean
+  onRun: () => void
+}) {
+  const state = jobState(job)
+  const [errorExpanded, setErrorExpanded] = useState(false)
+  const elapsed =
+    job.running && job.lastRunTime
+      ? Math.max(0, (Date.now() - new Date(job.lastRunTime).getTime()) / 1000)
+      : null
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-start gap-3">
+        <StatusLed tone={state.tone} pulse={job.running} className="mt-1.5" />
+        <div className="min-w-0 flex-1">
+          <div className="font-medium leading-snug">
+            {job.name}
+            <span className="sr-only">, {state.label}</span>
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span title={job.trigger}>{describeTrigger(job.trigger)}</span>
+            {job.lastStatus && job.lastStatus !== "success" && (
+              <Badge variant="outline" className={statusBadgeClasses[job.lastStatus]}>
+                {job.lastStatus === "error" ? "last run failed" : "last run missed"}
+              </Badge>
+            )}
+          </div>
+        </div>
+        <Button
+          size="icon-lg"
+          variant="outline"
+          className="-mt-0.5 shrink-0"
+          aria-label={`Run ${job.name} now`}
+          disabled={runDisabled}
+          onClick={onRun}
+        >
+          <Play className="h-4 w-4" />
+        </Button>
+      </div>
+      <dl className="mt-2 grid max-w-md grid-cols-3 gap-3 pl-5">
+        <JobFact label="Last run">
+          {job.lastRunTime ? (
+            relativeTime(job.lastRunTime, narrowRtf)
+          ) : (
+            <span className="text-muted-foreground">not yet</span>
+          )}
+        </JobFact>
+        <JobFact label={elapsed === null ? "Took" : "Running for"}>
+          {elapsed !== null ? (
+            <span className="text-primary">{formatDuration(elapsed)}</span>
+          ) : job.lastDurationSeconds === null ? (
+            <span className="text-muted-foreground">-</span>
+          ) : (
+            formatDuration(job.lastDurationSeconds)
+          )}
+        </JobFact>
+        <JobFact label="Next run">
+          {job.nextRunTime ? (
+            relativeTime(job.nextRunTime, narrowRtf)
+          ) : (
+            <span className="text-amber-600 dark:text-amber-400">paused</span>
+          )}
+        </JobFact>
+      </dl>
+      {job.lastStatus === "error" && (
+        <button
+          type="button"
+          aria-expanded={errorExpanded}
+          onClick={() => setErrorExpanded((expanded) => !expanded)}
+          className={cn(
+            "mt-2 ml-5 block w-[calc(100%-1.25rem)] break-all rounded-sm border-l-2 border-red-500/50 pl-2 text-left font-mono text-[11px] text-red-600 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:text-red-400",
+            !errorExpanded && "line-clamp-3",
+          )}
+        >
+          {job.lastError ?? "unknown error"}
+        </button>
+      )}
+    </li>
+  )
+}
+
 export function SchedulerOverview() {
   const { data, isLoading } = useSchedulerJobs()
   const queryClient = useQueryClient()
@@ -205,8 +311,20 @@ export function SchedulerOverview() {
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <Table>
+      {/* Switches on the card's width, not the viewport's. From md up, the
+          sidebar and settings nav leave the card narrower than the table's 800px. */}
+      <CardContent className="@container">
+        <ul className="divide-y @[50rem]:hidden">
+          {data.jobs.map((job) => (
+            <JobItem
+              key={job.id}
+              job={job}
+              runDisabled={job.running || runJob.isPending}
+              onRun={() => runJob.mutate(job.id)}
+            />
+          ))}
+        </ul>
+        <Table containerClassName="@max-[50rem]:hidden">
           <TableHeader>
             <TableRow>
               <TableHead>Task</TableHead>
@@ -248,7 +366,6 @@ export function SchedulerOverview() {
                 <TableCell className="align-top">
                   <Button
                     size="sm"
-                    className="pointer-coarse:h-10"
                     variant="outline"
                     disabled={job.running || runJob.isPending}
                     onClick={() => runJob.mutate(job.id)}

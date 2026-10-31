@@ -10,6 +10,7 @@ import structlog
 from litestar import Litestar
 from litestar.channels import ChannelsPlugin
 from litestar.channels.backends.memory import MemoryChannelsBackend
+from litestar.stores.memory import MemoryStore
 from litestar.testing import TestClient
 
 from geometrikks.config.settings import OidcSettings, Settings
@@ -19,6 +20,7 @@ from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
 from geometrikks.server.auth import build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
+from geometrikks.server.session_store import install_session_store
 from geometrikks.services.oidc import OidcClient
 from geometrikks.services.oidc import client as client_module
 from tests.oidc_fake import CLIENT_ID, CLIENT_SECRET, ISSUER, REDIRECT_URI, FakeIdp, make_fake_idp
@@ -63,6 +65,7 @@ def make_oidc_app(
         plugins=[channels],
         logging_config=None,
     )
+    install_session_store(app, MemoryStore())
     app.state.auth_state = build_auth_state(settings)
     app.state.db_available = True
     app.state.oidc_client = OidcClient(settings.oidc, fake.http_client())

@@ -391,6 +391,13 @@
       },
       "uri": "/api/v1/geo-locations/{location_id}/top-ips"
     },
+    "get_release_check": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/release-check"
+    },
     "get_scheduler_jobs": {
       "method": "get",
       "methods": [
@@ -675,7 +682,8 @@
       "queryParameters": {
         "currentPage": "number | undefined",
         "origins": "string | undefined",
-        "pageSize": "number | undefined"
+        "pageSize": "number | undefined",
+        "q": "string | undefined"
       },
       "uri": "/api/v1/crowdsec/decisions"
     },

@@ -129,6 +129,8 @@ for (const fixture of [
   { path: "geo-logs", endpoint: "/api/v1/geo-events/logs", rows: geoRows, size: 500 },
   { path: "debug-logs", endpoint: "/api/v1/access-log-debug", rows: debugRows, size: 1_000 },
   { path: "access-logs", endpoint: "/api/v1/access-logs", rows: accessRows, size: 1_000, mobile: true },
+  { path: "geo-logs", endpoint: "/api/v1/geo-events/logs", rows: geoRows, size: 500, mobile: true },
+  { path: "debug-logs", endpoint: "/api/v1/access-log-debug", rows: debugRows, size: 1_000, mobile: true },
 ]) {
   test(`${fixture.path}${"mobile" in fixture ? " mobile, reduced motion" : ""}: bounded rows, deep scrolling, keyboard and modal focus`, async ({ page }, testInfo) => {
     if ("mobile" in fixture) {
@@ -149,9 +151,13 @@ for (const fixture of [
       await page.getByRole("combobox", { name: "Rows per page" }).click()
       await page.getByRole("option", { name: String(fixture.size), exact: true }).click()
     }
+    // A phone gets the narrow layout: two-line rows, no header row, and the
+    // page scrolls instead of a box inside it.
+    const mobile = "mobile" in fixture
+    const headerRows = mobile ? 0 : 1
     const table = page.locator("table[aria-rowcount]")
     const rows = table.locator("tr[data-index]")
-    await expect(table).toHaveAttribute("aria-rowcount", String(fixture.size + 1))
+    await expect(table).toHaveAttribute("aria-rowcount", String(fixture.size + headerRows))
     await expect(rows.first()).toHaveAttribute("data-index", "0")
     await page.evaluate(() => document.fonts.ready)
     expect(await rows.count()).toBeLessThan(80)
@@ -161,9 +167,9 @@ for (const fixture of [
       overflow: element.parentElement!.scrollWidth - element.parentElement!.clientWidth,
     }))
     if ("mobile" in fixture) {
-      // Compact fields may need horizontal scrolling on a phone, but the
-      // five mobile columns must not keep the old 965px minimum width.
+      // The two-line rows fit the phone, so nothing scrolls sideways.
       expect(layout.table).toBeLessThan(700)
+      expect(layout.overflow).toBeLessThanOrEqual(1)
     } else {
       expect(layout.overflow).toBeLessThanOrEqual(1)
       await page.setViewportSize({ width: 1440, height: 900 })
@@ -221,12 +227,79 @@ for (const fixture of [
       document.activeElement?.closest("tr")?.getAttribute("data-index"),
     ))).toBeGreaterThan(edge)
 
-    await table.evaluate((element) => {
-      element.parentElement!.scrollTop = element.parentElement!.scrollHeight
-    })
     const lastRow = table.locator(`tr[data-index="${fixture.size - 1}"]`)
+    if (mobile) {
+      // Measured rows can grow the page after each jump, so keep going until the last one mounts.
+      await expect.poll(async () => {
+        await table.evaluate((element) => {
+          const main = element.closest("main")!
+          main.scrollTop = main.scrollHeight
+        })
+        return lastRow.count()
+      }).toBe(1)
+    } else {
+      await table.evaluate((element) => {
+        element.parentElement!.scrollTop = element.parentElement!.scrollHeight
+      })
+    }
     await expect(lastRow).toBeVisible()
     expect(await rows.count()).toBeLessThan(80)
+    // The card header sticks under the app bar, or under the jump bar where a
+    // page has one, so rows pass beneath it.
+    const stickyGap = (element: HTMLElement, index: number) => {
+      const main = element.closest("main")!
+      const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+      const row = element.querySelector(`tr[data-index="${index}"]`)
+      const stickyTop = parseFloat(getComputedStyle(main).getPropertyValue("--sticky-top")) || 0
+      return {
+        header: header.getBoundingClientRect().top - main.getBoundingClientRect().top - stickyTop,
+        row: row ? row.getBoundingClientRect().top - header.getBoundingClientRect().bottom : null,
+      }
+    }
+    if (mobile) {
+      expect(Math.abs((await table.evaluate(stickyGap, 0)).header)).toBeLessThanOrEqual(1)
+      // Shift+Tab onto a row's controls under the header scrolls them back out.
+      const covered = await table.evaluate((element) => {
+        const main = element.closest("main")!
+        const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        main.scrollTop -= 600
+        const row = [...element.querySelectorAll<HTMLElement>("tr[data-index]")]
+          .find((tr) => tr.getBoundingClientRect().top > header.getBoundingClientRect().bottom)!
+        main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top
+        return Number(row.dataset.index)
+      })
+      await table.locator(`tr[data-index="${covered + 1}"]`).focus()
+      await page.keyboard.press("Shift+Tab")
+      const focused = await page.evaluate(() => {
+        const control = document.activeElement!
+        const header = control.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        return {
+          row: control.closest("tr")?.dataset.index,
+          gap: control.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
+        }
+      })
+      expect(focused.row).toBe(String(covered))
+      expect(focused.gap).toBeGreaterThanOrEqual(-1)
+
+      // Opening and closing the Sort drawer leaves the page where it is.
+      const main = table.locator("xpath=ancestor::main[1]")
+      const settledScrollTop = () => main.evaluate((element) => new Promise<number>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve(element.scrollTop)))))
+      const scrolled = await settledScrollTop()
+      expect(scrolled).toBeGreaterThan(0)
+      for (const close of ["Escape", "overlay"]) {
+        await page.getByRole("button", { name: /^Sort by/ }).click()
+        await expect(page.getByRole("radiogroup", { name: "Sort by" })).toBeVisible()
+        expect(await settledScrollTop()).toBe(scrolled)
+        if (close === "Escape") await page.keyboard.press("Escape")
+        else await page.locator('[data-slot="drawer-overlay"]').click({ position: { x: 5, y: 5 } })
+        await expect(page.getByRole("radiogroup", { name: "Sort by" })).toHaveCount(0)
+        expect(await settledScrollTop()).toBe(scrolled)
+      }
+      // Only <main> scrolls, so the app bar never slides away.
+      expect(await page.evaluate(() =>
+        document.scrollingElement!.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0)
+    }
     expect(await table.locator("th").evaluateAll((cells) =>
       cells.map((cell) => cell.getBoundingClientRect().width))).toEqual(widths)
 
@@ -235,23 +308,30 @@ for (const fixture of [
     const dialog = page.getByRole("dialog")
     await expect(dialog).toBeVisible()
     await expect(dialog).toHaveAttribute("aria-modal", "true")
-    await page.getByRole("button", { name: "Columns", exact: true, includeHidden: true }).evaluate((button: HTMLElement) => button.focus())
+    const behindDialog = mobile
+      ? page.getByRole("button", { name: /^Sort by/, includeHidden: true })
+      : page.getByRole("button", { name: "Columns", exact: true, includeHidden: true })
+    await behindDialog.evaluate((button: HTMLElement) => button.focus())
     await expect.poll(() => dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true)
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
     await expect(lastRow).toBeFocused()
 
-    const inspect = lastRow.getByRole("button", { name: "Inspect 192.0.2.1", exact: true })
-    await inspect.click()
-    await expect(dialog).toBeVisible()
+    // Inspect sits in the row's actions menu, a bottom drawer on phones. The
+    // inspector opens once the menu has closed and returns focus to its button.
+    const actions = lastRow.getByRole("button", { name: "Actions for 192.0.2.1", exact: true })
+    await actions.click()
+    await page.getByRole("mobile" in fixture ? "button" : "menuitem", { name: "Inspect IP", exact: true }).click()
+    await expect(page.locator('[data-slot="sheet-content"]')).toBeVisible()
+    await expect(dialog).toHaveCount(1)
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
-    await expect(inspect).toBeFocused()
+    await expect(actions).toBeFocused()
 
     // Replacing a record sheet with the inspector still returns to its row.
     await lastRow.focus()
     await page.keyboard.press("Enter")
-    await dialog.getByRole("button", { name: "Inspect 192.0.2.1", exact: true }).click()
+    await dialog.getByRole("button", { name: "Inspect IP", exact: true }).click()
     await expect(dialog).toHaveCount(1)
     await expect(dialog.getByRole("heading", { level: 2 })).toContainText("192.0.2.1")
     await page.keyboard.press("Escape")
@@ -266,14 +346,29 @@ for (const fixture of [
       await expect(lastRow).toBeFocused()
     }
 
-    await table.locator("th button").first().click()
-    await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
+    if (mobile) {
+      await page.getByRole("button", { name: /^Sort by/ }).click()
+      const sortChoice = page.getByRole("radiogroup", { name: "Sort by" }).getByRole("radio").nth(1)
+      const sortLabel = (await sortChoice.locator("..").innerText()).trim()
+      await sortChoice.click()
+      await page.keyboard.press("Escape")
+      await expect(page.getByRole("button", { name: new RegExp(`^Sort by ${sortLabel}`) })).toBeVisible()
+      // Back at the first row, which sits just below the stuck header.
+      await expect.poll(async () => Math.abs((await table.evaluate(stickyGap, 0)).row ?? 99)).toBeLessThanOrEqual(1)
+    } else {
+      await table.locator("th button").first().click()
+      await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
+    }
     await expect(rows.first()).toHaveAttribute("data-index", "0")
 
     await page.getByRole("combobox", { name: "Rows per page" }).click()
     await page.getByRole("option", { name: "20", exact: true }).click()
-    await expect(table).toHaveAttribute("aria-rowcount", "21")
+    await expect(table).toHaveAttribute("aria-rowcount", String(20 + headerRows))
     await expect(rows.first()).toHaveAttribute("data-index", "0")
+    if (mobile) {
+      expect(errors).toEqual([])
+      return
+    }
     await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
 
     const columnCount = await table.locator("th").count()
@@ -288,3 +383,27 @@ for (const fixture of [
     expect(errors).toEqual([])
   })
 }
+
+test("access-logs mobile: rows that arrive late leave a scrolled page where it is", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 560 })
+  let release = () => {}
+  const held = new Promise<void>((resolve) => { release = resolve })
+  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", async (route) => {
+    await held
+    await route.fulfill({ json: { items: accessRows.slice(0, 20), total: accessRows.length, limit: 20, offset: 0 } })
+  })
+  await page.goto("/access-logs")
+  await expect(page.locator('[data-state="loading"]').first()).toBeVisible()
+  const scrolledTo = await page.evaluate(() => {
+    const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
+    main.scrollTop = 150
+    return main.scrollTop
+  })
+  expect(scrolledTo).toBeGreaterThan(0)
+  release()
+  await expect(page.locator("table[aria-rowcount] tr[data-index]").first()).toBeVisible()
+  expect(await page.evaluate(() => {
+    const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
+    return main.scrollTop
+  })).toBe(scrolledTo)
+})

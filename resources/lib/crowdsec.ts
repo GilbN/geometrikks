@@ -21,9 +21,11 @@ const IPV4_RE =
 
 /** The WHATWG URL parser implements the full IPv6 grammar (compressed and
  * IPv4-embedded forms), matching the backend's INET validation far more
- * faithfully than a hand-rolled regex. */
+ * faithfully than a hand-rolled regex. The character check comes first,
+ * because the parser also accepts "::1]#" or a pasted tab around a valid
+ * address. */
 function isValidIpv6(value: string): boolean {
-  if (!value.includes(":")) return false
+  if (!value.includes(":") || !/^[0-9A-Fa-f:.]+$/.test(value)) return false
   try {
     new URL(`http://[${value}]/`)
     return true
@@ -37,13 +39,20 @@ export function isValidIp(value: string): boolean {
 }
 
 /** Prefix length of a CIDR whose address part is a full IP, or null. Null
- *  for /0 too, which would ban every address, the operator's own included. */
+ *  for /0 too, which would ban every address, the operator's own included,
+ *  and for an IPv4-mapped /96 or wider, which is /0 for IPv4. */
 function cidrPrefix(value: string): { prefix: number; bits: number } | null {
   const match = /^([^/]+)\/(\d{1,3})$/.exec(value)
   if (!match || !isValidIp(match[1]) || (match[2].length > 1 && match[2].startsWith("0"))) return null
   const bits = match[1].includes(":") ? 128 : 32
   const prefix = Number(match[2])
+  if (bits === 128 && prefix <= 96 && isIpv4Mapped(match[1])) return null
   return prefix >= 1 && prefix <= bits ? { prefix, bits } : null
+}
+
+/** ::ffff:a.b.c.d in any spelling; the URL parser compresses it to ::ffff:. */
+function isIpv4Mapped(ipv6: string): boolean {
+  return new URL(`http://[${ipv6}]/`).hostname.startsWith("[::ffff:")
 }
 
 /** An IP, or a range in CIDR form. The server bans a range on its network
@@ -160,6 +169,11 @@ export function resolveDecision(
 ): string | null {
   if (bannedIps === undefined) return initial
   return bannedIps.get(ip) ?? null
+}
+
+/** One IP often carries several decisions from the same scenario. */
+export function distinctScenarioCount(decisions: readonly { scenario: string }[]): number {
+  return new Set(decisions.map((decision) => decision.scenario)).size
 }
 
 /** Badge text for a decision type; bouncer-defined names show as sent. */

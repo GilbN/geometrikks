@@ -95,7 +95,6 @@ services:
       GEOIP_DB_PATH: /app/data/geoip/GeoLite2-City.mmdb
       LOGPARSER_LOG_PATHS: /var/log/access/access.log
       VITE_DEV_MODE: "true"
-      VITE_EXECUTOR: "bun"
     ports:
       # Single dev origin: the Vite sidecar runs on an ephemeral localhost
       # port inside the container; assets and the HMR websocket are proxied

@@ -1,6 +1,9 @@
 import { useRef } from "react"
+import { XIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -38,6 +41,7 @@ export function DetailSheet({
         side="right"
         size="full-mobile"
         aria-modal="true"
+        showCloseButton={false}
         className={cn("gap-0", className)}
         onOpenAutoFocus={(event) => {
           const opener = document.activeElement
@@ -55,8 +59,20 @@ export function DetailSheet({
           openerRef.current.find((element) => element.isConnected)?.focus({ preventScroll: true })
         }}
       >
-        <SheetHeader className="shrink-0 border-b border-border/50 pr-16">
+        <SheetHeader className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-border/50">
           <SheetTitle>{title}</SheetTitle>
+          {/* Spans the description row too, so it centres on the whole header. The negative margins
+              stop it from making a title-only header taller. */}
+          <SheetClose asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn("-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11", description && "row-span-2")}
+            >
+              <XIcon />
+              <span className="sr-only">Close</span>
+            </Button>
+          </SheetClose>
           <SheetDescription className={cn(!description && "sr-only")}>
             {description ?? "Record details"}
           </SheetDescription>

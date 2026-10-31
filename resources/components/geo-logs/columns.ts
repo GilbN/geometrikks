@@ -5,6 +5,7 @@
  * rendering is an exhaustive switch in geo-logs-table.tsx.
  */
 import type { GeoLogSortField } from "@/lib/api"
+import type { SortKind } from "@/components/data/sort-options"
 import type { RenamedColumnKeys, VisibilityColumn } from "@/lib/column-visibility"
 
 export type GeoLogColumnKey =
@@ -28,6 +29,7 @@ export interface GeoLogColumn extends VisibilityColumn {
   grow?: boolean
   /** Present when the backend can sort by the column; absent for servers. */
   sortField?: GeoLogSortField
+  sortKind?: SortKind
   align?: "right"
 }
 
@@ -38,12 +40,12 @@ export const GEO_LOG_COLUMNS = [
   { key: "countryCode", label: "Country Code", sortField: "countryCode", defaultVisible: true, mobileHidden: true },
   { key: "countryName", grow: true, label: "Country", sortField: "countryName", defaultVisible: true },
   { key: "ipAddress", label: "IP", sortField: "ipAddress", defaultVisible: true },
-  { key: "latitude", label: "Lat", sortField: "latitude", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "longitude", label: "Long", sortField: "longitude", defaultVisible: true, align: "right", mobileHidden: true },
-  { key: "eventCount", label: "Count", sortField: "eventCount", defaultVisible: true, align: "right" },
-  { key: "lastSeen", label: "Last seen", sortField: "lastSeen", defaultVisible: true, mobileHidden: true },
+  { key: "latitude", label: "Lat", sortField: "latitude", sortKind: "number", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "longitude", label: "Long", sortField: "longitude", sortKind: "number", defaultVisible: true, align: "right", mobileHidden: true },
+  { key: "eventCount", label: "Count", sortField: "eventCount", sortKind: "number", defaultVisible: true, align: "right" },
+  { key: "lastSeen", label: "Last seen", sortField: "lastSeen", sortKind: "time", defaultVisible: true, mobileHidden: true },
   { key: "servers", grow: true, label: "Servers", defaultVisible: false },
-  { key: "asn", label: "ASN", sortField: "asn", defaultVisible: false, mobileHidden: true },
+  { key: "asn", label: "ASN", sortField: "asn", sortKind: "number", defaultVisible: false, mobileHidden: true },
   { key: "asOrganization", label: "Organization", defaultVisible: false, mobileHidden: true },
 ] satisfies readonly GeoLogColumn[] as readonly GeoLogColumn[]
 

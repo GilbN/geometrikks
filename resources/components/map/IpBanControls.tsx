@@ -11,7 +11,6 @@
  */
 import { useState } from "react"
 import { Loader2, ShieldBan, ShieldOff } from "lucide-react"
-import { toast } from "sonner"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,8 +20,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
-import { useBanIp, useBannedIps, useCrowdsecStatus, useUnbanIp } from "@/lib/queries"
-import { BAN_DURATIONS, crowdsecErrorMessage, resolveDecision } from "@/lib/crowdsec"
+import { useBannedIps, useCrowdsecStatus } from "@/lib/queries"
+import { BAN_DURATIONS, resolveDecision } from "@/lib/crowdsec"
+import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 
 export function IpBanControls({
@@ -47,12 +47,15 @@ export function IpBanControls({
 }) {
   const { data: status } = useCrowdsecStatus()
   const { data: bannedIps } = useBannedIps()
-  const ban = useBanIp()
-  const unban = useUnbanIp()
+  const { ban, unban } = useIpActions()
   const [dialogOpen, setDialogOpen] = useState(false)
   const decision = resolveDecision(bannedIps, ip, initialDecision)
   const banned = decision !== null
-  const isPending = ban.isPending || unban.isPending
+  const pending = usePendingIpAction(ip)
+  const isPending = pending !== null
+  // Waiting, not sent yet: the menu offers Undo instead of ban and unban.
+  const waiting = pending !== null && !pending.sending
+  const sending = isPending && !waiting
 
   if (!banned && !status?.writeEnabled) return <>{children}</>
 
@@ -80,7 +83,7 @@ export function IpBanControls({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              disabled={isPending}
+              disabled={sending}
               title={isFooter ? undefined : banned ? `Unban ${ip}` : `Ban ${ip}`}
               aria-label={banned ? `Unban ${ip}` : `Ban ${ip}`}
               style={
@@ -95,7 +98,7 @@ export function IpBanControls({
                       borderRadius: "4px",
                       padding: "2px 8px",
                       fontSize: "10px",
-                      cursor: isPending ? "wait" : "pointer",
+                      cursor: sending ? "wait" : "pointer",
                       color: "var(--popup-muted)",
                     }
                   : {
@@ -104,12 +107,12 @@ export function IpBanControls({
                       background: "transparent",
                       border: "none",
                       padding: "2px",
-                      cursor: isPending ? "wait" : "pointer",
+                      cursor: sending ? "wait" : "pointer",
                       color: isPending ? "var(--primary)" : "var(--popup-muted)",
                     }
               }
             >
-              {isPending ? (
+              {sending ? (
                 <Loader2 style={{ width: 12, height: 12, animation: "spin 1s linear infinite" }} />
               ) : banned ? (
                 <ShieldOff style={{ width: 12, height: 12 }} />
@@ -120,37 +123,19 @@ export function IpBanControls({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            {banned ? (
-              <DropdownMenuItem
-                onClick={() =>
-                  unban.mutate(ip, {
-                    onError: (err) =>
-                      toast.error(
-                        crowdsecErrorMessage(err, `Unban failed for ${ip}; the LAPI may be unreachable.`),
-                      ),
-                  })
-                }
-              >
+            {waiting ? (
+              <DropdownMenuItem onClick={() => undoIpAction(ip)}>
+                {pending.action.kind === "ban" ? "Undo ban" : "Undo unban"}
+              </DropdownMenuItem>
+            ) : banned ? (
+              <DropdownMenuItem disabled={isPending} onClick={() => unban(ip)}>
                 Unban {ip}
               </DropdownMenuItem>
             ) : (
               <>
                 <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
                 {BAN_DURATIONS.map((d) => (
-                  <DropdownMenuItem
-                    key={d.value}
-                    onClick={() =>
-                      ban.mutate(
-                        { ip, duration: d.value },
-                        {
-                          onError: (err) =>
-                            toast.error(
-                              crowdsecErrorMessage(err, `Ban failed for ${ip}; the LAPI may be unreachable.`),
-                            ),
-                        },
-                      )
-                    }
-                  >
+                  <DropdownMenuItem key={d.value} disabled={isPending} onClick={() => ban(ip, d.value, d.label)}>
                     {d.label}
                   </DropdownMenuItem>
                 ))}

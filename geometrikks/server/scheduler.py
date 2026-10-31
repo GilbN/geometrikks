@@ -11,7 +11,7 @@ CAGG Refresh Strategy:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Callable
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
     from geometrikks.config.settings import Settings
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
+    from geometrikks.services.release_check import ReleaseChecker
 
 logger = get_logger(__name__)
 
@@ -197,6 +198,11 @@ async def proxy_scan_job(
     await run_proxy_scan(session_factory, exclude)
 
 
+async def release_check_job(release_checker: "ReleaseChecker") -> None:
+    """Refresh the newest-release answer. run() logs its own failures."""
+    await release_checker.run()
+
+
 async def agent_health_check_job(
     session_factory: "async_sessionmaker[AsyncSession]", app: "Litestar"
 ) -> None:
@@ -267,6 +273,7 @@ async def create_scheduler(
     - GeoLite2 refresh: weekly by default
     - Proxy peer scan: every 5 minutes, when APP_PROXY_ADVISORY is on
     - Agent health check: every minute, logs agent state changes
+    - Release check: every 12 hours, when APP_UPDATE_CHECK is on
     - CrowdSec decision-stream poll, when the integration is on
 
     An agent instance (mode="agent") only tails logs into a schema the
@@ -289,6 +296,8 @@ async def create_scheduler(
     Returns:
         Configured AsyncIOScheduler (not yet started).
     """
+    from geometrikks.services.release_check import release_check_enabled
+
     scheduler = AsyncIOScheduler(timezone=timezone.utc)
 
     if not settings.scheduler.enabled:
@@ -385,6 +394,31 @@ async def create_scheduler(
             replace_existing=True,
         )
         logger.info("Scheduled agent health check every minute")
+
+    # The checker lives on app.state so a scheduler rebuilt after DB recovery
+    # keeps the answer and the ETag instead of starting from nothing.
+    if mode != "agent" and app is not None and release_check_enabled(settings):
+        from geometrikks.server import runtime
+        from geometrikks.services.release_check import ReleaseChecker
+
+        release_checker = runtime.get_release_checker(app)
+        if release_checker is None:
+            release_checker = ReleaseChecker(settings.version)
+            app.state.release_checker = release_checker
+        scheduler.add_job(
+            release_check_job,
+            IntervalTrigger(hours=12),
+            id="release-check",
+            name="Check GitHub for a newer release",
+            args=[release_checker],
+            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            # the default 1 s grace would skip a first run delayed by a busy
+            # loop until the next interval, 12 hours away
+            misfire_grace_time=3600,
+            max_instances=1,
+            replace_existing=True,
+        )
+        logger.info("Scheduled release check every 12 hours")
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;

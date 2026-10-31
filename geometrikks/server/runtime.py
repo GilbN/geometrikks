@@ -29,11 +29,17 @@ if TYPE_CHECKING:
     from geometrikks.services.geoip.self_location import SelfLocation
     from geometrikks.services.ingestion import LogIngestionService
     from geometrikks.services.oidc import OidcClient
+    from geometrikks.services.release_check import ReleaseChecker
 
 
 def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
     """None when ingestion never started (DB- or geo-degraded mode)."""
     return getattr(app.state, "ingestion_service", None)
+
+
+def get_release_checker(app: Litestar) -> ReleaseChecker | None:
+    """None when the release check is off or the scheduler never registered it."""
+    return getattr(app.state, "release_checker", None)
 
 
 def get_advisories(app: Litestar) -> AdvisoryRegistry:
@@ -119,6 +125,15 @@ def is_asn_available(app: Litestar, *, default: bool = False) -> bool:
 def is_db_available(app: Litestar, *, default: bool = True) -> bool:
     """Whether database-bound services were wired during startup."""
     return bool(getattr(app.state, "db_available", default))
+
+
+def is_session_store_ready(app: Litestar, *, default: bool = True) -> bool:
+    """Whether startup has migrated and set up the database, so session reads and writes can run.
+
+    A recovery that brings the database up but fails to start the scheduler
+    or ingestion leaves this True and ``db_available`` False.
+    """
+    return bool(getattr(app.state, "session_store_ready", default))
 
 
 def get_channels_backend(app: Litestar) -> DegradedTolerantAsyncPgBackend | None:

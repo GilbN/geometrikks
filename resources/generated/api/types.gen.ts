@@ -775,6 +775,7 @@ export type HealthResponse = {
  */
 export type HeartbeatPayload = {
   failed5M?: number | null;
+  failedBatches5M?: number | null;
   health?: {
     [key: string]: unknown;
   };
@@ -786,6 +787,7 @@ export type HeartbeatPayload = {
   recentStarts?: Array<string>;
   serverNames?: Array<string>;
   sources?: Array<SourceReport>;
+  written5M?: number | null;
 };
 
 /**
@@ -962,6 +964,18 @@ export type JobReport = {
 export type LastErrorReport = {
   at?: string | null;
   message?: string;
+};
+
+/**
+ * LatestReleaseView
+ */
+export type LatestReleaseView = {
+  displayVersion: string;
+  newerReleaseCount: number;
+  newerReleaseCountExact: boolean;
+  publishedAt: string;
+  url: string;
+  version: string;
 };
 
 /**
@@ -1223,6 +1237,15 @@ export type PeriodSummary = {
  */
 export type ReadinessResponse = {
   ready: boolean;
+};
+
+/**
+ * ReleaseCheckResponse
+ */
+export type ReleaseCheckResponse = {
+  checkedAt: string | null;
+  latest: LatestReleaseView | null;
+  status: "off" | "pending" | "checked";
 };
 
 /**
@@ -3047,6 +3070,10 @@ export type ApiV1CrowdsecDecisionsListDecisionsData = {
     currentPage?: number;
     pageSize?: number;
     origins?: string | null;
+    /**
+     * Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.
+     */
+    q?: string | null;
   };
   url: "/api/v1/crowdsec/decisions";
 };
@@ -4601,6 +4628,23 @@ export type ApiV1SystemDatabaseGetDatabaseInfoResponses = {
 
 export type ApiV1SystemDatabaseGetDatabaseInfoResponse =
   ApiV1SystemDatabaseGetDatabaseInfoResponses[keyof ApiV1SystemDatabaseGetDatabaseInfoResponses];
+
+export type ApiV1SystemReleaseCheckGetReleaseCheckData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/release-check";
+};
+
+export type ApiV1SystemReleaseCheckGetReleaseCheckResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ReleaseCheckResponse;
+};
+
+export type ApiV1SystemReleaseCheckGetReleaseCheckResponse =
+  ApiV1SystemReleaseCheckGetReleaseCheckResponses[keyof ApiV1SystemReleaseCheckGetReleaseCheckResponses];
 
 export type ApiV1SystemSchedulerJobsGetSchedulerJobsData = {
   body?: never;

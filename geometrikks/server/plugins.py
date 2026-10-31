@@ -105,9 +105,9 @@ def create_vite_config(settings: Settings) -> ViteConfig:
             http2=settings.vite.http2,
             host=settings.vite.host,
             port=settings.vite.port,
-            executor=settings.vite.executor,
+            executor="bun",
             start_dev_server=settings.vite.use_server_lifespan,
-            is_react=settings.vite.enable_react_helpers,
+            is_react=True,
             # litestar-vite 0.25 executor bug on Windows: it compares run_command[0]
             # against shutil.which("bun") case-sensitively ("bun" vs "bun.EXE"), fails,
             # and prepends the binary — running `bun.EXE bun run dev` (bun's legacy

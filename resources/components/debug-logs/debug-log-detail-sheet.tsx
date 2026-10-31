@@ -9,10 +9,15 @@ import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { copyText } from "@/lib/clipboard"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
 import type { AccessLogDebugEntry } from "@/lib/api"
+import type { IpRowValues } from "@/lib/ip-filter-targets"
+
+/** The linked access log's IP, or null for a line that never parsed. */
+function ipValues(entry: AccessLogDebugEntry | null): IpRowValues | null {
+  if (!entry?.ipAddress) return null
+  return { ip: entry.ipAddress, countryCode: entry.countryCode, countryName: entry.countryName, city: entry.city }
+}
 
 export function DebugLogDetailSheet({
   entry,
@@ -42,15 +47,18 @@ export function DebugLogDetailSheet({
     resetTimerRef.current = setTimeout(() => setCopyState("idle"), copied ? 1500 : 4000)
   }
 
+  const ip = ipValues(entry)
   return (
     <DetailSheet
       open={entry !== null}
       onOpenChange={onOpenChange}
       title={entry ? `Debug line #${entry.id}` : "Debug line details"}
       description={entry ? `Captured ${new Date(entry.createdAt).toLocaleString()}` : undefined}
+      footer={ip && <DetailIpActions values={ip} onNavigate={() => onOpenChange(false)} />}
     >
       {entry && (
         <div ref={contentRef} className="space-y-6">
+          {ip && <DetailIpBlock values={ip} />}
           <section className="space-y-2" aria-labelledby="raw-line-heading">
             <div className="flex items-center justify-between gap-3">
               <h3 id="raw-line-heading" className="text-xs font-medium text-muted-foreground">
@@ -110,20 +118,6 @@ export function DebugLogDetailSheet({
               </h3>
               <dl>
                 <DetailField label="Time" value={entry.timestamp ? new Date(entry.timestamp).toLocaleString() : null} />
-                <DetailField
-                  label="IP address"
-                  value={
-                    entry.ipAddress ? (
-                      <span className="inline-flex flex-wrap items-center gap-2 font-mono text-xs">
-                        {entry.ipAddress}
-                        <IpBanControls ip={entry.ipAddress}>
-                          <InspectIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
-                          <FlyToIpButton ip={entry.ipAddress} onOpen={() => onOpenChange(false)} />
-                        </IpBanControls>
-                      </span>
-                    ) : null
-                  }
-                />
                 <DetailField label="Method" value={entry.method} mono />
                 <DetailField label="URL" value={entry.url} mono />
                 <DetailField label="Host" value={entry.host} mono />

@@ -12,6 +12,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { z } from "zod"
 import { PageHeader } from "@/components/page-header"
 import { SectionHeader } from "@/components/section-header"
+import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
 import { RequestsChart } from "@/components/analytics/requests-chart"
 import { StatusChart } from "@/components/analytics/status-chart"
 import { BytesChart } from "@/components/analytics/bytes-chart"
@@ -44,6 +45,7 @@ type AnalyticsSearch = z.infer<typeof analyticsSearchSchema>
 export const Route = createFileRoute("/analytics")({
   validateSearch: (search: Record<string, unknown>): AnalyticsSearch =>
     analyticsSearchSchema.parse(search),
+  staticData: { timeRange: true, chartBuckets: true },
   component: AnalyticsPage,
 })
 
@@ -66,6 +68,19 @@ function encode(filters: AnalyticsFilterState): Partial<AnalyticsSearch> {
   }
 }
 
+const SECTIONS: readonly JumpSection[] = [
+  { id: "requests", label: "Requests" },
+  { id: "status", label: "Status" },
+  { id: "bandwidth", label: "Bandwidth" },
+  { id: "latency", label: "Latency" },
+  { id: "top-ips", label: "Top IPs" },
+  { id: "locations", label: "Locations" },
+  { id: "urls", label: "URLs" },
+  { id: "user-agents", label: "User agents" },
+  { id: "origin", label: "Origin" },
+  { id: "asns", label: "ASNs" },
+]
+
 function AnalyticsPage() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -79,26 +94,31 @@ function AnalyticsPage() {
           title="Analytics"
           subtitle="Inspect request volume, delivery health, and the clients driving traffic."
         />
+        <JumpBar sections={SECTIONS} />
         <AnalyticsFilterBar />
         <SectionHeader>Traffic</SectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
-          <RequestsChart />
-          <StatusChart />
-          <BytesChart />
-          <LatencyChart />
+          <JumpTarget id="requests"><RequestsChart /></JumpTarget>
+          <JumpTarget id="status"><StatusChart /></JumpTarget>
+          <JumpTarget id="bandwidth"><BytesChart /></JumpTarget>
+          <JumpTarget id="latency"><LatencyChart /></JumpTarget>
         </div>
         <SectionHeader>Top Lists</SectionHeader>
         <div className="grid gap-4 lg:grid-cols-2">
-          <TopIpsTable />
-          <TopCountriesCities />
+          <JumpTarget id="top-ips"><TopIpsTable /></JumpTarget>
+          <JumpTarget id="locations"><TopCountriesCities /></JumpTarget>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <TopUrlsTable />
-          <TopUserAgentsTable />
+          <JumpTarget id="urls"><TopUrlsTable /></JumpTarget>
+          <JumpTarget id="user-agents"><TopUserAgentsTable /></JumpTarget>
         </div>
         <SectionHeader>Traffic Origin</SectionHeader>
-        <TrafficOriginCard />
-        <TopAsnsTable />
+        {/* A grid gap, because space-y margins don't apply to JumpTarget's
+            display: contents wrapper. */}
+        <div className="grid gap-4">
+          <JumpTarget id="origin"><TrafficOriginCard /></JumpTarget>
+          <JumpTarget id="asns"><TopAsnsTable /></JumpTarget>
+        </div>
       </div>
     </AnalyticsFiltersProvider>
   )

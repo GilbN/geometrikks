@@ -37,6 +37,7 @@ const DEFAULT_ORDER: SortOrder = "desc"
 export const Route = createFileRoute("/access-logs")({
   validateSearch: (search: Record<string, unknown>): AccessLogsSearch =>
     accessLogsSearchSchema.parse(search),
+  staticData: { timeRange: true },
   component: AccessLogsPage,
 })
 
@@ -89,19 +90,23 @@ function AccessLogsPage() {
           title="Access Logs"
           subtitle="Explore request history or follow new traffic as it arrives."
         />
-        <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
-          <TabsList className="pointer-coarse:h-10">
-            <TabsTrigger value="history">
-              <History className="h-4 w-4" /> History
-            </TabsTrigger>
-            <TabsTrigger value="live">
-              <Radio className="h-4 w-4" /> Live tail
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Below md the filter bar is a single Filters button, so it shares
+            the row with the tabs. */}
+        <div className="space-y-4 max-md:flex max-md:flex-wrap max-md:items-center max-md:justify-between max-md:gap-3 max-md:space-y-0">
+          <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
+            <TabsList>
+              <TabsTrigger value="history">
+                <History className="h-4 w-4" /> History
+              </TabsTrigger>
+              <TabsTrigger value="live">
+                <Radio className="h-4 w-4" /> Live tail
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {mode === "history" && <AccessLogsFilterBar />}
+        </div>
         {mode === "history" ? (
           <>
-            <AccessLogsFilterBar />
             <AccessLogsTable
               page={page}
               pageSize={pageSize}

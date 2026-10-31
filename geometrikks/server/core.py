@@ -13,7 +13,7 @@ from litestar.config.compression import CompressionConfig
 from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
+from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.logging import get_logger
 
@@ -59,6 +59,7 @@ def create_app(
     db_config = plugins.create_sqlalchemy_config(settings)
 
     on_app_init = []
+    session_auth_enabled = False
     auth_state = None
     oidc_client = None
     openapi_config = None
@@ -80,6 +81,7 @@ def create_app(
         else:
             auth_state = build_auth_state(settings)
             on_app_init.append(create_session_auth(settings).on_app_init)
+            session_auth_enabled = True
             if settings.oidc.enabled:
                 from geometrikks.services.oidc import OidcClient, create_oidc_http_client
 
@@ -97,7 +99,7 @@ def create_app(
         route_handlers = get_route_handlers()
         openapi_config = OpenAPIConfig(
             title=settings.name,
-            version=settings.version,
+            version=API_VERSION,
             description=settings.description,
             create_examples=False,
             render_plugins=[ScalarRenderPlugin()],
@@ -131,6 +133,13 @@ def create_app(
         exception_handlers=EXCEPTION_HANDLERS,
         on_app_init=on_app_init,
     )
+    if session_auth_enabled:
+        from geometrikks.server.session_store import (
+            create_session_table_store,
+            install_session_store,
+        )
+
+        install_session_store(app, create_session_table_store(db_config))
     app.state.auth_state = auth_state
     app.state.oidc_client = oidc_client
     # Lifecycle hooks and other non-request code read the composed settings

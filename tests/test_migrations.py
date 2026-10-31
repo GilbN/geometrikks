@@ -40,6 +40,7 @@ IMPORT_CUTOFF_REVISION = "5c2e9a71d3f4"
 LOKI_IMPORTS_REVISION = "a4d1f0c2b7e9"
 SERVER_NAMING_REVISION = "18be2778bd7c"
 INSTANCE_HEARTBEATS_REVISION = "3f8a6c1d9b72"
+AUTH_SESSIONS_REVISION = "a41d7e6c2b95"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -131,6 +132,18 @@ def test_instance_heartbeats_revision_is_rerun_safe() -> None:
     source = _revision_source(INSTANCE_HEARTBEATS_REVISION)
     assert "CREATE TABLE IF NOT EXISTS instance_heartbeats" in source
     assert "DROP TABLE IF EXISTS instance_heartbeats" in source
+
+
+def test_auth_sessions_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(AUTH_SESSIONS_REVISION)
+    assert revision.down_revision == INSTANCE_HEARTBEATS_REVISION
+
+
+def test_auth_sessions_revision_is_rerun_safe() -> None:
+    source = _revision_source(AUTH_SESSIONS_REVISION)
+    assert "CREATE TABLE IF NOT EXISTS auth_sessions" in source
+    assert "CREATE INDEX IF NOT EXISTS ix_auth_sessions_expires_at" in source
+    assert "DROP TABLE IF EXISTS auth_sessions" in source
 
 
 def test_revisions_parse_and_chain() -> None:
@@ -315,6 +328,7 @@ async def test_lifespan_migrates_before_timescale(monkeypatch) -> None:
     monkeypatch.setattr(lc, "get_app_db_config", lambda app: sqlalchemy_config)
     monkeypatch.setattr(lc, "migrate_database", fake_migrate)
     monkeypatch.setattr(lc, "setup_timescaledb", fake_timescale)
+    monkeypatch.setattr(lc, "revoke_sessions_if_auth_changed", AsyncMock(return_value=False))
     monkeypatch.setattr(lc, "create_scheduler", fake_create_scheduler)
     monkeypatch.setattr(lc, "LogParser", MagicMock())
     monkeypatch.setattr(lc, "LogIngestionService", MagicMock(return_value=ingestion))

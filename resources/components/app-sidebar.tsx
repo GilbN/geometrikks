@@ -37,8 +37,12 @@ import {
   PowerOff,
   ShieldBan,
 } from "lucide-react"
+import { flushIpActions } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
+import { displayVersion, publicVersion } from "@/lib/version"
 import { fetchHealth, logout } from "@/lib/api"
+import { logoutThenNavigate } from "@/lib/auth-redirect"
+import { toast } from "sonner"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import {
@@ -47,8 +51,10 @@ import {
   type SidebarIngestionVariant,
 } from "@/components/settings/status-logic"
 import { agentsNeedingAttention } from "@/components/settings/agents-logic"
-import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings } from "@/lib/queries"
+import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
+import { useReloadNotice } from "@/lib/reload-notice"
+import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
 
 const navigationItems = [
   {
@@ -330,14 +336,17 @@ function LogoutButton() {
   if (me?.mode !== "session") return null
 
   async function onLogout() {
-    let redirectTo: string | null = null
     try {
-      redirectTo = (await logout()).redirectTo
-    } finally {
+      // A ban or unban still in its undo window goes out while the session lives.
+      await flushIpActions()
       // Hard navigation is deliberate, not a leftover: it discards the
       // TanStack Query cache holding the previous session's data, which a
       // client-side redirect would not. The /logout route does the same.
-      window.location.href = redirectTo ?? "/login"
+      await logoutThenNavigate(logout, (url) => {
+        window.location.href = url
+      })
+    } catch {
+      toast.error("Logout failed. Try again.")
     }
   }
 
@@ -441,9 +450,13 @@ function CollapseToggle() {
 
 function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
   const { data: settings } = useRuntimeSettings()
+  const { pending: updatePending } = useReloadNotice()
+  const unseenRelease = useUnseenRelease()
 
+  if (updatePending) return collapsed ? <ReloadNoticeCollapsedButton /> : <ReloadNoticeCard />
   if (collapsed || !settings) return null
 
+  const version = displayVersion(publicVersion(settings.version))
   const imageTag = settings.runtime.imageTag
   const runtimeLabel = imageTag
     ? `Container image ${imageTag}`
@@ -451,7 +464,25 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
-      <span className="text-[10px] font-mono">v{settings.version}</span>
+      {unseenRelease ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Link
+              to="/settings/about"
+              aria-label={`${version}, ${unseenRelease.displayVersion} is available`}
+              className="inline-flex items-center gap-1.5 text-[10px] font-mono hover:text-sidebar-foreground/60"
+            >
+              {version}
+              <GlowDot />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <span>{unseenRelease.displayVersion} is available</span>
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <span className="text-[10px] font-mono">{version}</span>
+      )}
       {settings.runtime.container && (
         <Tooltip>
           <TooltipTrigger asChild>

@@ -12,7 +12,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   useCrowdsecStats,
   useCrowdsecStatus,
@@ -45,8 +45,10 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { MonoChip, StatusLed } from "@/components/settings/status-led"
-import { agentAdvisoryCards, agentSummary } from "@/components/settings/agents-logic"
+import { MonoChip, StateLine, StatusLed } from "@/components/settings/status-led"
+import { StatusPhone, type StatusTile } from "@/components/settings/status-phone"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
 import {
   accessLogFiles,
   accessLogUnavailableLabel,
@@ -71,6 +73,9 @@ import {
   recentErrorsFillsRow,
   relativeTime,
   schedulerJobState,
+  schedulerSummary,
+  statusProblems,
+  verdictTitle,
   type ServerLocationRow,
   serverLocationRows,
 } from "@/components/settings/status-logic"
@@ -79,18 +84,6 @@ export function SectionIcon({ icon: Icon }: { icon: React.ComponentType<{ classN
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
       <Icon className="h-4 w-4 text-primary" />
-    </div>
-  )
-}
-
-function StateLine({ state }: { state: CardState }) {
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <StatusLed tone={state.tone} pulse={state.tone === "emerald"} />
-        <span className="text-sm font-medium">{state.label}</span>
-      </div>
-      {state.detail && <p className="text-xs text-muted-foreground">{state.detail}</p>}
     </div>
   )
 }
@@ -114,8 +107,46 @@ function Counter({ label, value }: { label: string; value: number | undefined })
 function ServerLocationLine({ row }: { row: ServerLocationRow }) {
   const [confirming, setConfirming] = useState(false)
   const remove = useDeleteServerLocation()
+  // On a phone this line sits in a vaul drawer, whose bundled Radix copy
+  // keeps focus out of a nested AlertDialog, so the confirmation is inline.
+  const isMobile = useIsMobile()
+  const removeLocation = () => remove.mutate(row.server, { onSettled: () => setConfirming(false) })
+  // The inline confirmation stays open on a failed removal, so it can say so,
+  // and puts focus on Keep, since disabling Remove while it ran dropped it.
+  // A 404 means the location is already gone, which is what was asked for.
+  const keepRef = useRef<HTMLButtonElement>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const removeLocationInline = () => {
+    setRemoveError(null)
+    remove.mutate(row.server, {
+      onSuccess: () => setConfirming(false),
+      onError: (error) => {
+        // The generated client throws the parsed error body.
+        const status =
+          typeof error === "object" && error !== null && "status_code" in error ? error.status_code : undefined
+        if (status === 404) {
+          setConfirming(false)
+          return
+        }
+        setRemoveError(
+          status === 409
+            ? `${row.server}'s location is now pinned by MAP_SERVER_LOCATIONS. Edit it there.`
+            : "The location could not be removed. Try again.",
+        )
+        requestAnimationFrame(() => keepRef.current?.focus())
+      },
+    })
+  }
+  // Focus goes back to the trash button when the inline confirmation closes;
+  // otherwise the drawer's focus trap drops it at the top of the drawer.
+  const trashRef = useRef<HTMLButtonElement>(null)
+  const wasConfirming = useRef(false)
+  useEffect(() => {
+    if (wasConfirming.current && !confirming && isMobile) trashRef.current?.focus()
+    wasConfirming.current = confirming
+  }, [confirming, isMobile])
   return (
-    <div className="flex items-center gap-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2 text-xs">
       <MonoChip>{row.server}</MonoChip>
       <span className="text-muted-foreground tabular-nums">{row.coords}</span>
       <span className={cn("tabular-nums", row.stale ? "text-amber-500" : "text-muted-foreground")}>
@@ -134,16 +165,22 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
         <>
           <span className="ml-auto text-muted-foreground">auto</span>
           <Button
+            ref={trashRef}
             type="button"
             variant="ghost"
             size="icon-xs"
             aria-label={`Remove location for ${row.server}`}
             className="text-muted-foreground hover:text-destructive"
-            onClick={() => setConfirming(true)}
+            // Reopening mid-request would reset the mutation and lose its outcome.
+            disabled={remove.isPending}
+            onClick={() => {
+              setRemoveError(null)
+              setConfirming(true)
+            }}
           >
             <Trash2 />
           </Button>
-          <AlertDialog open={confirming} onOpenChange={setConfirming}>
+          <AlertDialog open={!isMobile && confirming} onOpenChange={setConfirming}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove the location for {row.server}?</AlertDialogTitle>
@@ -157,7 +194,7 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
                 <AlertDialogAction
                   variant="destructive"
                   disabled={remove.isPending}
-                  onClick={() => remove.mutate(row.server, { onSettled: () => setConfirming(false) })}
+                  onClick={removeLocation}
                 >
                   Remove
                 </AlertDialogAction>
@@ -165,6 +202,51 @@ function ServerLocationLine({ row }: { row: ServerLocationRow }) {
             </AlertDialogContent>
           </AlertDialog>
         </>
+      )}
+      {/* Outside the auto/override branch: a 409 refetch turns the row into an
+          override, and the explanation has to stay on screen. */}
+      {isMobile && confirming && (
+        <div
+          role="group"
+          aria-label={`Remove the location for ${row.server}?`}
+          className="basis-full space-y-2 rounded-md border border-border/60 p-2"
+        >
+          <p className="text-muted-foreground">
+            Remove the location for {row.server}? Its beacon leaves the map and live routes stop
+            flying to it. If an agent still ingests as {row.server}, the location comes back at that
+            agent's next refresh.
+          </p>
+          {removeError && (
+            <p role="alert" className="text-destructive">
+              {removeError}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button
+              ref={keepRef}
+              type="button"
+              size="sm"
+              variant="outline"
+              autoFocus
+              // Closing mid-request would hide whether the removal worked.
+              disabled={remove.isPending}
+              onClick={() => setConfirming(false)}
+            >
+              Keep
+            </Button>
+            {row.source !== "override" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={remove.isPending}
+                onClick={removeLocationInline}
+              >
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
@@ -185,13 +267,13 @@ export function StatusOverview() {
   const { data: serverLocations } = useServerLocations()
   const { data: instances, isError: instancesError } = useInstances()
   const feedStatus = useLiveFeedStatus()
+  const isMobile = useIsMobile()
   // Probe the live WebSocket while this page is open: the client is
   // per-tab and lazy, so without our own subscription the card could
   // never read anything but disconnected. Last unsubscriber closes it.
   useLiveEvents(() => {}, true)
 
   const now = Date.now()
-  const overall = overallState(health, healthError)
   const access = accessLogFiles(files)
   const lokiSources = stats?.lokiSources ?? []
   const uptime = formatUptime(health?.startedAt, now)
@@ -203,7 +285,266 @@ export function StatusOverview() {
   // failed refetch; the advisory cards do not, since that answer may be stale.
   const agentOverview = agentSummary(instances)
   const agentCards = instancesError ? [] : agentAdvisoryCards(instances)
+  const overall = overallState(health, healthError, instancesError ? 0 : agentsNeedingAttention(instances).length)
   const bottomCardsBefore = (agentOverview ? 1 : 0) + (locationRows.length > 0 ? 1 : 0)
+
+  // Card bodies, shared by the desktop cards and the phone tiles' drawers.
+  const authBody = (
+    <>
+      <StateLine state={authState(me, meError)} />
+      {me?.mode === "session" && (
+        <p className="text-xs text-muted-foreground">
+          User <MonoChip>{me.username}</MonoChip>
+        </p>
+      )}
+      {oidcLine && <StateLine state={oidcLine} />}
+      {oidc?.configured && (
+        <p className="text-xs text-muted-foreground">
+          {oidc.providerName} <MonoChip>{oidc.issuer}</MonoChip>
+        </p>
+      )}
+      {oidc?.configured && (
+        <div className="flex items-center gap-2">
+          {loginMethodBadges(oidc).map((label) => (
+            <Badge key={label} variant="outline">
+              {label}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </>
+  )
+  const ingestionBody = (
+    <>
+      <StateLine state={ingestionState(health, healthError)} />
+      {statsError ? (
+        <p className="text-xs text-muted-foreground">Statistics unavailable.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+          <Counter label="Parsed lines" value={stats?.totalParsedLines} />
+          <Counter label="Processed" value={stats?.totalProcessed} />
+          <Counter label="Skipped lines" value={stats?.totalSkippedLines} />
+          <Counter label="Ignored lines" value={stats?.totalIgnoredLines} />
+          <Counter label="Pending records" value={stats?.totalPendingRecords} />
+          {(health?.ingestion.failedBatches ?? 0) > 0 && (
+            <Counter label="Failed batches" value={health?.ingestion.failedBatches} />
+          )}
+          {(health?.ingestion.failedRecords ?? 0) > 0 && (
+            <Counter label="Dropped records" value={health?.ingestion.failedRecords} />
+          )}
+        </div>
+      )}
+      {health && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Last event</span>
+          {(() => {
+            const state = lastEventState(
+              health.ingestion.lastRecordAt,
+              health.ingestion.running,
+              now,
+            )
+            return (
+              <>
+                <StatusLed tone={state.tone} />
+                <span className="font-medium">{state.label}</span>
+                {state.detail && (
+                  <span className="text-muted-foreground">{state.detail}</span>
+                )}
+              </>
+            )
+          })()}
+        </div>
+      )}
+      {/* A disabled parser tails nothing by design, so the file list
+          (which would only say "No access logs configured.") is noise. */}
+      {health?.ingestion.status !== "disabled" && (
+      <div className="space-y-2 border-t pt-3">
+        <p className="text-xs font-medium text-muted-foreground">Access log sources</p>
+        {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
+        {!filesError && stats !== undefined && !statsError && access.length === 0 && lokiSources.length === 0 && (
+          <p className="text-xs text-muted-foreground">No access logs configured.</p>
+        )}
+        {access.map((f) => (
+          <div key={f.name} className="flex items-center gap-2 text-xs">
+            <StatusLed tone={f.available ? "emerald" : "red"} />
+            <MonoChip>{f.name}</MonoChip>
+            {f.available ? (
+              <span className="ml-auto text-muted-foreground tabular-nums">
+                {formatSize(f.sizeBytes)}
+                {f.modifiedAt && ` · ${new Date(f.modifiedAt).toLocaleString()}`}
+              </span>
+            ) : (
+              <span className="ml-auto text-red-500">{accessLogUnavailableLabel(f, health)}</span>
+            )}
+          </div>
+        ))}
+        {lokiSources.map((source) => (
+          <div key={source.label} className="flex items-center gap-2 text-xs">
+            <StatusLed tone={source.available ? "emerald" : "red"} />
+            <MonoChip>{source.query}</MonoChip>
+            <span className="text-muted-foreground">{source.server}</span>
+            <span className="ml-auto text-muted-foreground tabular-nums">
+              {source.logFormat ?? "format pending"} · {source.parsedLines.toLocaleString()} lines
+              {!source.available && (
+                <span className="ml-2 text-red-500">
+                  {source.reason === "rejected" ? "rejected" : "unreachable"}
+                </span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+      )}
+    </>
+  )
+  const databaseBody = (
+    <>
+      <StateLine state={databaseState(health)} />
+      {dbInfo?.reachable && (
+        <>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              {dbInfo.sizeBytes !== null && (
+                <span className="font-medium text-foreground">
+                  {formatSize(dbInfo.sizeBytes)}
+                </span>
+              )}{" "}
+              total · PostgreSQL {dbInfo.postgresVersion?.split(" ")[0]} · TimescaleDB{" "}
+              {dbInfo.timescaledbVersion}
+            </p>
+            <p>
+              Raw events kept {dbInfo.retentionDays} days, debug lines{" "}
+              {dbInfo.debugRetentionDays} days
+            </p>
+            {compressionSummary(dbInfo.hypertables) && (
+              <p>Compression {compressionSummary(dbInfo.hypertables)}</p>
+            )}
+          </div>
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-xs font-medium text-muted-foreground">Hypertables</p>
+            {dbInfo.hypertables.map((t) => (
+              <div key={t.name} className="flex items-center gap-2 text-xs">
+                <MonoChip>{t.name}</MonoChip>
+                <span className="ml-auto text-muted-foreground tabular-nums">
+                  ~{formatApproxRows(t.approxRows)} rows
+                  {t.totalBytes !== null && ` · ${formatSize(t.totalBytes)}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  )
+  const geoipBody = (
+    <>
+      <StateLine state={geoipState(health)} />
+      <div className="space-y-1 text-xs text-muted-foreground">
+        {health?.geoip.dbBuildDate && (
+          <p>City database built {relativeTime(health.geoip.dbBuildDate, now)}</p>
+        )}
+        {health?.geoip.asnAvailable && health.geoip.asnDbBuildDate && (
+          <p>ASN database built {relativeTime(health.geoip.asnDbBuildDate, now)}</p>
+        )}
+        {geoipRefreshJob?.nextRunTime && (
+          <p>Next refresh {relativeTime(geoipRefreshJob.nextRunTime, now)}</p>
+        )}
+      </div>
+    </>
+  )
+  const crowdsecBody = (
+    <>
+      <StateLine state={crowdsecState(crowdsec, crowdsecError)} />
+      {crowdsec?.enabled && !crowdsec.liveUpdates && (
+        <p className="text-xs text-muted-foreground">Live updates paused</p>
+      )}
+      <div className="flex items-center gap-2">
+        {crowdsec?.enabled && (
+          <Badge variant="outline">
+            {crowdsec.writeEnabled ? "write enabled" : "read only"}
+          </Badge>
+        )}
+        {crowdsecStats && (
+          <Link
+            to="/security"
+            className="tap-area text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            {crowdsecStats.total.toLocaleString()} active decisions
+          </Link>
+        )}
+      </div>
+    </>
+  )
+  const schedulerBody = (
+    <>
+      {jobsError && <p className="text-xs text-muted-foreground">Job list unavailable.</p>}
+      {jobs?.map((job) => {
+        const state = schedulerJobState(job)
+        return (
+          <div key={job.id} className="flex items-center gap-2 text-xs">
+            <StatusLed tone={state.tone} pulse={job.running} />
+            <span className="font-medium">{job.name}</span>
+            <span className="ml-auto text-muted-foreground">
+              {job.running
+                ? "running"
+                : job.nextRunTime
+                  ? `next ${relativeTime(job.nextRunTime, now)}`
+                  : state.label}
+            </span>
+          </div>
+        )
+      })}
+    </>
+  )
+  const liveFeedBody = (
+    <>
+      <StateLine state={liveFeedState(feedStatus)} />
+    </>
+  )
+  const agentsBody = agentOverview && (
+    <>
+      {instancesError ? (
+        <div className="flex items-center gap-2">
+          <StatusLed tone="muted" />
+          <span className="text-sm font-medium">Agent list unavailable</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <StatusLed tone={agentOverview.tone} pulse={agentOverview.tone === "emerald"} />
+          <Link
+            to="/settings/agents"
+            className="tap-area text-sm font-medium underline underline-offset-2"
+          >
+            {agentOverview.line}
+          </Link>
+        </div>
+      )}
+    </>
+  )
+  const locationsBody = (
+    <>
+      {locationRows.map((row) => (
+        <ServerLocationLine key={row.server} row={row} />
+      ))}
+    </>
+  )
+  const recentErrorsBody = (
+    <>
+      {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
+      {!logsError && recentErrors.length === 0 && (
+        <p className="text-xs text-muted-foreground">No recent errors.</p>
+      )}
+      {recentErrors.map((r, i) => (
+        <div key={i} className="flex items-baseline gap-2 text-xs">
+          <span className="shrink-0 text-muted-foreground tabular-nums">
+            {r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}
+          </span>
+          {r.logger && <MonoChip>{r.logger}</MonoChip>}
+          <span className="truncate">{r.event}</span>
+        </div>
+      ))}
+    </>
+  )
 
   if (healthLoading) {
     return (
@@ -215,6 +556,134 @@ export function StatusOverview() {
           ))}
         </div>
       </div>
+    )
+  }
+
+  if (isMobile) {
+    const problems = statusProblems(advisoryCards(health), agentCards)
+    const errorsState: CardState = logsError
+      ? { tone: "muted", label: "Unavailable" }
+      : recentErrors.length > 0
+        ? { tone: "amber", label: `${recentErrors.length} recent` }
+        : { tone: "emerald", label: "None" }
+    const tiles: StatusTile[] = [
+      {
+        id: "auth",
+        icon: ShieldUser,
+        title: "Authentication",
+        state: authState(me, meError),
+        sub: me?.mode === "session" ? `User ${me.username}` : undefined,
+        body: authBody,
+      },
+      {
+        id: "ingestion",
+        icon: Activity,
+        title: "Ingestion",
+        description: "Access log tailing and parsing pipeline",
+        state: ingestionState(health, healthError),
+        sub: stats && !statsError ? `${stats.totalParsedLines.toLocaleString()} lines parsed` : undefined,
+        body: ingestionBody,
+      },
+      {
+        id: "database",
+        icon: Database,
+        title: "Database",
+        description: "TimescaleDB connection",
+        state: databaseState(health),
+        sub: dbInfo?.sizeBytes != null ? formatSize(dbInfo.sizeBytes) : undefined,
+        body: databaseBody,
+      },
+      {
+        id: "geoip",
+        icon: Globe,
+        title: "GeoIP",
+        description: "MaxMind GeoLite2 databases",
+        state: geoipState(health),
+        sub: health?.geoip.dbBuildDate ? `City built ${relativeTime(health.geoip.dbBuildDate, now)}` : undefined,
+        body: geoipBody,
+      },
+      {
+        id: "crowdsec",
+        icon: ShieldCheck,
+        title: "CrowdSec",
+        description: "LAPI integration for viewing and managing bans",
+        state: crowdsecState(crowdsec, crowdsecError),
+        sub: crowdsecStats ? `${crowdsecStats.total.toLocaleString()} decisions` : undefined,
+        body: crowdsecBody,
+      },
+      (() => {
+        const state = schedulerSummary(jobs, jobsError, now)
+        return {
+          id: "scheduler",
+          icon: CalendarClock,
+          title: "Scheduler",
+          description: "Background jobs",
+          state: { tone: state.tone, label: state.label },
+          sub: state.detail,
+          body: schedulerBody,
+          link: { to: "/settings/scheduler", label: "Open Scheduler" },
+        }
+      })(),
+      {
+        id: "live-feed",
+        icon: Radio,
+        title: "Live feed",
+        description: "WebSocket stream for the map and live views, probed while this page is open",
+        state: liveFeedState(feedStatus),
+        body: liveFeedBody,
+      },
+      ...(agentOverview
+        ? [
+            {
+              id: "agents",
+              icon: Network,
+              title: "Agents",
+              description: "Other instances writing to this database",
+              state: instancesError
+                ? ({ tone: "muted", label: "Unavailable" } as const)
+                : { tone: agentOverview.tone, label: agentOverview.line },
+              body: agentsBody,
+            },
+          ]
+        : []),
+      ...(locationRows.length > 0
+        ? [
+            {
+              id: "locations",
+              icon: MapPin,
+              title: "Server locations",
+              description: "Where each server sits on the map and where its live routes land",
+              state: {
+                tone: "emerald",
+                label: locationRows.length === 1 ? "1 server" : `${locationRows.length} servers`,
+              } as const,
+              body: locationsBody,
+            },
+          ]
+        : []),
+      {
+        id: "recent-errors",
+        icon: TriangleAlert,
+        title: "Recent errors",
+        description: "Latest error-level events from the application log",
+        state: errorsState,
+        body: recentErrorsBody,
+        link: { to: "/settings/logs", label: "Open Logs" },
+      },
+    ]
+    return (
+      <StatusPhone
+        verdict={{
+          tone: overall.tone,
+          title: verdictTitle(overall, problems.length),
+          detail: overall.detail,
+          meta: health
+            ? [uptime, `Updated ${new Date(health.timestamp).toLocaleTimeString()}`].filter(Boolean).join(" · ")
+            : undefined,
+        }}
+        problems={problems}
+        tiles={tiles}
+      />
     )
   }
 
@@ -236,7 +705,7 @@ export function StatusOverview() {
                 href={card.docsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-primary underline underline-offset-2"
+                className="tap-area text-xs text-primary underline underline-offset-2"
               >
                 Setup guide
               </a>
@@ -262,7 +731,7 @@ export function StatusOverview() {
                 <Link
                   to="/settings/agents"
                   search={{ instance: card.instanceName }}
-                  className="text-primary underline underline-offset-2"
+                  className="tap-area text-primary underline underline-offset-2"
                 >
                   Open {card.instanceName} on the Agents page
                 </Link>
@@ -302,27 +771,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            <StateLine state={authState(me, meError)} />
-            {me?.mode === "session" && (
-              <p className="text-xs text-muted-foreground">
-                User <MonoChip>{me.username}</MonoChip>
-              </p>
-            )}
-            {oidcLine && <StateLine state={oidcLine} />}
-            {oidc?.configured && (
-              <p className="text-xs text-muted-foreground">
-                {oidc.providerName} <MonoChip>{oidc.issuer}</MonoChip>
-              </p>
-            )}
-            {oidc?.configured && (
-              <div className="flex items-center gap-2">
-                {loginMethodBadges(oidc).map((label) => (
-                  <Badge key={label} variant="outline">
-                    {label}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            {authBody}
           </CardContent>
         </Card>
       </div>
@@ -339,85 +788,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <StateLine state={ingestionState(health, healthError)} />
-            {statsError ? (
-              <p className="text-xs text-muted-foreground">Statistics unavailable.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                <Counter label="Parsed lines" value={stats?.totalParsedLines} />
-                <Counter label="Processed" value={stats?.totalProcessed} />
-                <Counter label="Skipped lines" value={stats?.totalSkippedLines} />
-                <Counter label="Ignored lines" value={stats?.totalIgnoredLines} />
-                <Counter label="Pending records" value={stats?.totalPendingRecords} />
-                {(health?.ingestion.failedBatches ?? 0) > 0 && (
-                  <Counter label="Failed batches" value={health?.ingestion.failedBatches} />
-                )}
-                {(health?.ingestion.failedRecords ?? 0) > 0 && (
-                  <Counter label="Dropped records" value={health?.ingestion.failedRecords} />
-                )}
-              </div>
-            )}
-            {health && (
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground">Last event</span>
-                {(() => {
-                  const state = lastEventState(
-                    health.ingestion.lastRecordAt,
-                    health.ingestion.running,
-                    now,
-                  )
-                  return (
-                    <>
-                      <StatusLed tone={state.tone} />
-                      <span className="font-medium">{state.label}</span>
-                      {state.detail && (
-                        <span className="text-muted-foreground">{state.detail}</span>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-            )}
-            {/* A disabled parser tails nothing by design, so the file list
-                (which would only say "No access logs configured.") is noise. */}
-            {health?.ingestion.status !== "disabled" && (
-            <div className="space-y-2 border-t pt-3">
-              <p className="text-xs font-medium text-muted-foreground">Access log sources</p>
-              {filesError && <p className="text-xs text-muted-foreground">File list unavailable.</p>}
-              {!filesError && stats !== undefined && !statsError && access.length === 0 && lokiSources.length === 0 && (
-                <p className="text-xs text-muted-foreground">No access logs configured.</p>
-              )}
-              {access.map((f) => (
-                <div key={f.name} className="flex items-center gap-2 text-xs">
-                  <StatusLed tone={f.available ? "emerald" : "red"} />
-                  <MonoChip>{f.name}</MonoChip>
-                  {f.available ? (
-                    <span className="ml-auto text-muted-foreground tabular-nums">
-                      {formatSize(f.sizeBytes)}
-                      {f.modifiedAt && ` · ${new Date(f.modifiedAt).toLocaleString()}`}
-                    </span>
-                  ) : (
-                    <span className="ml-auto text-red-500">{accessLogUnavailableLabel(f, health)}</span>
-                  )}
-                </div>
-              ))}
-              {lokiSources.map((source) => (
-                <div key={source.label} className="flex items-center gap-2 text-xs">
-                  <StatusLed tone={source.available ? "emerald" : "red"} />
-                  <MonoChip>{source.query}</MonoChip>
-                  <span className="text-muted-foreground">{source.server}</span>
-                  <span className="ml-auto text-muted-foreground tabular-nums">
-                    {source.logFormat ?? "format pending"} · {source.parsedLines.toLocaleString()} lines
-                    {!source.available && (
-                      <span className="ml-2 text-red-500">
-                        {source.reason === "rejected" ? "rejected" : "unreachable"}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-            )}
+            {ingestionBody}
           </CardContent>
         </Card>
 
@@ -432,41 +803,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <StateLine state={databaseState(health)} />
-            {dbInfo?.reachable && (
-              <>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p>
-                    {dbInfo.sizeBytes !== null && (
-                      <span className="font-medium text-foreground">
-                        {formatSize(dbInfo.sizeBytes)}
-                      </span>
-                    )}{" "}
-                    total · PostgreSQL {dbInfo.postgresVersion?.split(" ")[0]} · TimescaleDB{" "}
-                    {dbInfo.timescaledbVersion}
-                  </p>
-                  <p>
-                    Raw events kept {dbInfo.retentionDays} days, debug lines{" "}
-                    {dbInfo.debugRetentionDays} days
-                  </p>
-                  {compressionSummary(dbInfo.hypertables) && (
-                    <p>Compression {compressionSummary(dbInfo.hypertables)}</p>
-                  )}
-                </div>
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-xs font-medium text-muted-foreground">Hypertables</p>
-                  {dbInfo.hypertables.map((t) => (
-                    <div key={t.name} className="flex items-center gap-2 text-xs">
-                      <MonoChip>{t.name}</MonoChip>
-                      <span className="ml-auto text-muted-foreground tabular-nums">
-                        ~{formatApproxRows(t.approxRows)} rows
-                        {t.totalBytes !== null && ` · ${formatSize(t.totalBytes)}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            {databaseBody}
           </CardContent>
         </Card>
 
@@ -481,18 +818,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            <StateLine state={geoipState(health)} />
-            <div className="space-y-1 text-xs text-muted-foreground">
-              {health?.geoip.dbBuildDate && (
-                <p>City database built {relativeTime(health.geoip.dbBuildDate, now)}</p>
-              )}
-              {health?.geoip.asnAvailable && health.geoip.asnDbBuildDate && (
-                <p>ASN database built {relativeTime(health.geoip.asnDbBuildDate, now)}</p>
-              )}
-              {geoipRefreshJob?.nextRunTime && (
-                <p>Next refresh {relativeTime(geoipRefreshJob.nextRunTime, now)}</p>
-              )}
-            </div>
+            {geoipBody}
           </CardContent>
         </Card>
 
@@ -507,25 +833,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            <StateLine state={crowdsecState(crowdsec, crowdsecError)} />
-            {crowdsec?.enabled && !crowdsec.liveUpdates && (
-              <p className="text-xs text-muted-foreground">Live updates paused</p>
-            )}
-            <div className="flex items-center gap-2">
-              {crowdsec?.enabled && (
-                <Badge variant="outline">
-                  {crowdsec.writeEnabled ? "write enabled" : "read only"}
-                </Badge>
-              )}
-              {crowdsecStats && (
-                <Link
-                  to="/security"
-                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                >
-                  {crowdsecStats.total.toLocaleString()} active decisions
-                </Link>
-              )}
-            </div>
+            {crowdsecBody}
           </CardContent>
         </Card>
 
@@ -537,7 +845,7 @@ export function StatusOverview() {
                 <CardTitle className="text-base">Scheduler</CardTitle>
                 <CardDescription>
                   Background jobs ·{" "}
-                  <Link to="/settings/scheduler" className="underline underline-offset-2">
+                  <Link to="/settings/scheduler" className="tap-area underline underline-offset-2">
                     details
                   </Link>
                 </CardDescription>
@@ -545,23 +853,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {jobsError && <p className="text-xs text-muted-foreground">Job list unavailable.</p>}
-            {jobs?.map((job) => {
-              const state = schedulerJobState(job)
-              return (
-                <div key={job.id} className="flex items-center gap-2 text-xs">
-                  <StatusLed tone={state.tone} pulse={job.running} />
-                  <span className="font-medium">{job.name}</span>
-                  <span className="ml-auto text-muted-foreground">
-                    {job.running
-                      ? "running"
-                      : job.nextRunTime
-                        ? `next ${relativeTime(job.nextRunTime, now)}`
-                        : state.label}
-                  </span>
-                </div>
-              )
-            })}
+            {schedulerBody}
           </CardContent>
         </Card>
 
@@ -578,7 +870,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent>
-            <StateLine state={liveFeedState(feedStatus)} />
+            {liveFeedBody}
           </CardContent>
         </Card>
       </div>
@@ -596,22 +888,7 @@ export function StatusOverview() {
               </div>
             </CardHeader>
             <CardContent>
-              {instancesError ? (
-                <div className="flex items-center gap-2">
-                  <StatusLed tone="muted" />
-                  <span className="text-sm font-medium">Agent list unavailable</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <StatusLed tone={agentOverview.tone} pulse={agentOverview.tone === "emerald"} />
-                  <Link
-                    to="/settings/agents"
-                    className="text-sm font-medium underline underline-offset-2"
-                  >
-                    {agentOverview.line}
-                  </Link>
-                </div>
-              )}
+              {agentsBody}
             </CardContent>
           </Card>
         )}
@@ -628,9 +905,7 @@ export function StatusOverview() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {locationRows.map((row) => (
-                <ServerLocationLine key={row.server} row={row} />
-              ))}
+              {locationsBody}
             </CardContent>
           </Card>
         )}
@@ -643,7 +918,7 @@ export function StatusOverview() {
                 <CardTitle className="text-base">Recent errors</CardTitle>
                 <CardDescription>
                   Latest error-level events from the application log ·{" "}
-                  <Link to="/settings/logs" className="underline underline-offset-2">
+                  <Link to="/settings/logs" className="tap-area underline underline-offset-2">
                     open Logs
                   </Link>
                 </CardDescription>
@@ -651,19 +926,7 @@ export function StatusOverview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {logsError && <p className="text-xs text-muted-foreground">Log tail unavailable.</p>}
-            {!logsError && recentErrors.length === 0 && (
-              <p className="text-xs text-muted-foreground">No recent errors.</p>
-            )}
-            {recentErrors.map((r, i) => (
-              <div key={i} className="flex items-baseline gap-2 text-xs">
-                <span className="shrink-0 text-muted-foreground tabular-nums">
-                  {r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}
-                </span>
-                {r.logger && <MonoChip>{r.logger}</MonoChip>}
-                <span className="truncate">{r.event}</span>
-              </div>
-            ))}
+            {recentErrorsBody}
           </CardContent>
         </Card>
       </div>

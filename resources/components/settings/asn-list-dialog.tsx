@@ -38,7 +38,7 @@ export function AsnListDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="pointer-coarse:h-10">
+        <Button variant="outline" size="sm">
           Browse list
         </Button>
       </DialogTrigger>
@@ -76,7 +76,7 @@ export function AsnListDialog() {
                     <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
                       AS{entry.asn}
                     </span>
-                    <span className="truncate" title={entry.entity}>
+                    <span className="min-w-0 break-words">
                       {entry.entity || "Unknown"}
                     </span>
                   </div>

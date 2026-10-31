@@ -39,6 +39,7 @@ import type {
   AboutResponse,
   AsnClassificationListResponse,
   ChangelogResponse,
+  ReleaseCheckResponse,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
@@ -71,6 +72,7 @@ export type {
   BannedMapCollection,
   AuthOptions,
   OidcStatus,
+  LogoutResponse,
 }
 
 // Create axios instance with base configuration
@@ -282,6 +284,14 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return data
 }
 
+/** fetchHealth that gives up after timeoutMs. Separate from fetchHealth because
+ *  that one is a TanStack queryFn, and the query context it receives must not
+ *  reach axios as request config. */
+export async function fetchHealthWithin(timeoutMs: number): Promise<HealthResponse> {
+  const { data } = await axios.get<HealthResponse>("/health", { timeout: timeoutMs })
+  return data
+}
+
 /** Ingestion counters from /api/v1/stats; mirrors the backend's typed
  *  IngestionStatsResponse (geometrikks/domain/system/controllers/stats.py). */
 export interface StatsResponse {
@@ -330,6 +340,11 @@ export async function fetchAbout(): Promise<AboutResponse> {
   return data
 }
 
+export async function fetchReleaseCheck(): Promise<ReleaseCheckResponse> {
+  const { data } = await api.get<ReleaseCheckResponse>("/system/release-check")
+  return data
+}
+
 export async function fetchChangelog(): Promise<ChangelogResponse> {
   const { data } = await api.get<ChangelogResponse>("/system/changelog")
   return data
@@ -358,15 +373,18 @@ export async function fetchCrowdsecStatus(): Promise<CrowdSecStatusResponse> {
 }
 
 /** One page of active decisions. Server defaults to local origins
- *  (crowdsec,cscli,geometrikks); pass `origins` to widen to CAPI/lists. */
+ *  (crowdsec,cscli,geometrikks); pass `origins` to widen to CAPI/lists.
+ *  `q` searches; an IP or CIDR searches every origin. */
 export async function fetchCrowdsecDecisions(params?: {
   origins?: string
+  q?: string
   currentPage?: number
   pageSize?: number
 }): Promise<CrowdSecDecisionsPage> {
   const { data } = await api.get<CrowdSecDecisionsPage>("/crowdsec/decisions", {
     params: {
       origins: params?.origins || undefined,
+      q: params?.q || undefined,
       currentPage: params?.currentPage ?? 1,
       pageSize: params?.pageSize ?? 50,
     },
@@ -1434,6 +1452,12 @@ export interface PollIntervalOption {
   label: string
   value: number // milliseconds, 0 = off
 }
+
+export const CHART_GRANULARITY_OPTIONS: { label: string; value: ChartGranularity }[] = [
+  { label: "Auto", value: "auto" },
+  { label: "Hourly", value: "hourly" },
+  { label: "Daily", value: "daily" },
+]
 
 export const POLL_INTERVAL_OPTIONS: PollIntervalOption[] = [
   { label: "Off", value: 0 },

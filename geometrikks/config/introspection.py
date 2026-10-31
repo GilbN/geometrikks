@@ -7,7 +7,7 @@ secrets must be typed SecretStr, which also protects reprs and logs.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import msgspec
@@ -39,7 +39,6 @@ class ComputedField:
 # Display titles that plain str.title() gets wrong.
 _SECTION_TITLES = {
     "app": "Application",
-    "api": "API",
     "geoip": "GeoIP",
     "logparser": "Log Parser",
     "oidc": "OpenID Connect",
@@ -87,15 +86,13 @@ def _default_value(info: FieldInfo, secret: bool) -> Any:
     return to_jsonable_python(info.default, fallback=str)
 
 
-def _section(
-    name: str,
+def _model_fields(
     model: BaseSettings,
-    computed: Mapping[str, ComputedField] | None = None,
-) -> SettingsSectionView:
-    overlay = computed or {}
+    overlay: Mapping[str, ComputedField],
+    real_keys: set[str],
+) -> list[SettingFieldView]:
     dumped = model.model_dump(mode="json")
     fields: list[SettingFieldView] = []
-    real_keys: set[str] = set()
     for field_name, info in type(model).model_fields.items():
         if isinstance(getattr(model, field_name), BaseSettings):
             continue  # sub-configurations become their own sections
@@ -122,6 +119,19 @@ def _section(
                 computed_source=override.source if override else None,
             )
         )
+    return fields
+
+
+def _section(
+    name: str,
+    models: Sequence[BaseSettings],
+    computed: Mapping[str, ComputedField] | None = None,
+) -> SettingsSectionView:
+    overlay = computed or {}
+    fields: list[SettingFieldView] = []
+    real_keys: set[str] = set()
+    for model in models:
+        fields.extend(_model_fields(model, overlay, real_keys))
     for key, cf in overlay.items():
         if key in real_keys:
             continue  # derived value with no backing field: synthesize a row
@@ -137,7 +147,7 @@ def _section(
                 computed_source=cf.source,
             )
         )
-    doc = (type(model).__doc__ or "").strip().splitlines()
+    doc = (type(models[0]).__doc__ or "").strip().splitlines()
     return SettingsSectionView(
         name=name,
         title=_SECTION_TITLES.get(name, name.replace("_", " ").title()),
@@ -161,9 +171,11 @@ def build_settings_overview(
     def _for(section_name: str) -> dict[str, ComputedField]:
         return {key: cf for (sec, key), cf in overlay.items() if sec == section_name}
 
-    sections = [_section("app", settings, _for("app"))]
+    # The root fields and AppSettings both read APP_* variables, so they form
+    # one section.
+    sections = [_section("app", [settings, settings.app], _for("app"))]
     for field_name in Settings.model_fields:
         value = getattr(settings, field_name)
-        if isinstance(value, BaseSettings):
-            sections.append(_section(field_name, value, _for(field_name)))
+        if field_name != "app" and isinstance(value, BaseSettings):
+            sections.append(_section(field_name, [value], _for(field_name)))
     return SystemSettingsResponse(sections=sections)

@@ -12,6 +12,7 @@ from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
 from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.services.geoip.locator import GeoIpLocator, GeoIpPlace
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
@@ -61,17 +62,35 @@ class FakeEnrichment(SecurityEnrichmentRepository):
         return {ip: self._data[ip] for ip in ips if ip in self._data}
 
 
+class SpyGeoIp(GeoIpLocator):
+    def __init__(self) -> None:
+        super().__init__(TEST_CITY_DB, ["en"])
+        self.calls: list[list[str]] = []
+
+    def locate(self, ips) -> dict[str, GeoIpPlace]:
+        self.calls.append(list(ips))
+        return super().locate(ips)
+
+
+TEST_CITY_DB = "tests/GeoLite2-City-Test.mmdb"
+# The test database places this IP in London.
+LONDON_IP = "81.2.69.142"
+
+
 def make_app(
     service: FakeCrowdSec | None,
     enrichment: FakeEnrichment | None = None,
+    geoip: GeoIpLocator | None = None,
+    *,
+    real_geoip: bool = False,
 ) -> Litestar:
     enrichment = enrichment if enrichment is not None else FakeEnrichment({})
+    overrides = {"enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False)}
+    if not real_geoip:
+        overrides["geoip"] = Provide(lambda: geoip, sync_to_thread=False)
 
     class _TestController(CrowdSecController):
-        dependencies = {
-            **(CrowdSecController.dependencies or {}),
-            "enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False),
-        }
+        dependencies = {**(CrowdSecController.dependencies or {}), **overrides}
 
     app = Litestar(
         route_handlers=[create_api_v1_router([_TestController])],
@@ -168,6 +187,55 @@ async def test_decisions_enriches_ip_scope_only():
     assert enrichment.calls == [["1.2.3.4"]]
 
 
+async def test_decisions_without_stored_traffic_fall_back_to_geoip():
+    decisions = [
+        make_decision(id=1, value="1.2.3.4"),
+        make_decision(id=2, value=LONDON_IP, origin="crowdsec", scenario="crowdsecurity/postfix-spam"),
+        make_decision(id=3, value="10.0.0.0/24", scope="Range", origin="crowdsec"),
+    ]
+    geoip = SpyGeoIp()
+    app = make_app(FakeCrowdSec(decisions), FakeEnrichment({"1.2.3.4": OSLO}), geoip)
+    async with AsyncTestClient(app=app) as client:
+        stored, looked_up, cidr = (await client.get("/api/v1/crowdsec/decisions")).json()["items"]
+
+    assert (stored["countryName"], stored["city"], stored["requestCount24h"]) == ("Norway", "Oslo", 7)
+    assert (looked_up["countryCode"], looked_up["countryName"], looked_up["city"]) == (
+        "GB", "United Kingdom", "London",
+    )
+    assert looked_up["requestCount24h"] == 0
+    assert cidr["countryCode"] is None
+    # GeoLite2 sees only the IP that stored traffic had no country for.
+    assert geoip.calls == [[LONDON_IP]]
+
+
+async def test_decisions_geoip_fills_stored_traffic_without_a_country():
+    no_country = IpEnrichment(country_code=None, country_name=None, city=None, request_count_24h=3)
+    app = make_app(
+        FakeCrowdSec([make_decision(value=LONDON_IP)]), FakeEnrichment({LONDON_IP: no_country}), SpyGeoIp()
+    )
+    async with AsyncTestClient(app=app) as client:
+        (item,) = (await client.get("/api/v1/crowdsec/decisions")).json()["items"]
+    assert (item["countryCode"], item["requestCount24h"]) == ("GB", 3)
+
+
+async def test_decisions_geoip_lookup_uses_the_configured_database(monkeypatch):
+    monkeypatch.setenv("GEOIP_DB_PATH", TEST_CITY_DB)
+    app = make_app(FakeCrowdSec([make_decision(value=LONDON_IP)]), real_geoip=True)
+    app.state.geoip_available = True
+    async with AsyncTestClient(app=app) as client:
+        (item,) = (await client.get("/api/v1/crowdsec/decisions")).json()["items"]
+    assert item["countryCode"] == "GB"
+
+
+async def test_decisions_skip_geoip_in_geo_degraded_mode(monkeypatch):
+    monkeypatch.setenv("GEOIP_DB_PATH", TEST_CITY_DB)
+    app = make_app(FakeCrowdSec([make_decision(value=LONDON_IP)]), real_geoip=True)
+    app.state.geoip_available = False
+    async with AsyncTestClient(app=app) as client:
+        (item,) = (await client.get("/api/v1/crowdsec/decisions")).json()["items"]
+    assert item["countryCode"] is None
+
+
 async def test_decisions_default_origins_excludes_capi():
     service = FakeCrowdSec([])
     async with AsyncTestClient(app=make_app(service)) as client:
@@ -180,6 +248,42 @@ async def test_decisions_origins_override():
     async with AsyncTestClient(app=make_app(service)) as client:
         await client.get("/api/v1/crowdsec/decisions", params={"origins": "CAPI"})
     assert service.calls == [{"origins": "CAPI"}]
+
+
+async def test_decisions_ip_search_reads_every_origin():
+    decisions = [
+        make_decision(id=1, value="45.148.10.80", origin="CAPI", scenario="crowdsecurity/http-probing"),
+        make_decision(id=2, value="5.6.7.8"),
+    ]
+    service = FakeCrowdSec(decisions)
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (await client.get("/api/v1/crowdsec/decisions", params={"q": "45.148.10.80"})).json()
+    assert service.calls == [{}]
+    assert body["total"] == 1
+    assert [item["ip"] for item in body["items"]] == ["45.148.10.80"]
+
+
+async def test_decisions_text_search_keeps_the_origin_tab_and_pages_the_matches():
+    decisions = [
+        make_decision(id=i, value=f"10.0.0.{i}", scenario="crowdsecurity/ssh-bf" if i % 2 else "crowdsecurity/http-probing")
+        for i in range(6)
+    ]
+    service = FakeCrowdSec(decisions)
+    async with AsyncTestClient(app=make_app(service)) as client:
+        body = (
+            await client.get(
+                "/api/v1/crowdsec/decisions", params={"q": "ssh", "origins": "CAPI", "currentPage": 2, "pageSize": 2}
+            )
+        ).json()
+    assert service.calls == [{"origins": "CAPI"}]
+    assert body["total"] == 3
+    assert [item["ip"] for item in body["items"]] == ["10.0.0.5"]
+
+
+async def test_decisions_search_is_length_limited():
+    async with AsyncTestClient(app=make_app(FakeCrowdSec([]))) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions", params={"q": "x" * 201})
+    assert resp.status_code == 400
 
 
 async def test_decisions_pagination_slices_after_fetch():
@@ -606,6 +710,36 @@ async def test_alerts_without_lapi_geo_fall_back_to_own_enrichment(monkeypatch):
     assert enrichment.calls == [["1.2.3.4"]]
 
 
+def make_london_alert(cn: str):
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    alert = make_alert()
+    alert.source = AlertSource(scope="Ip", value=LONDON_IP, ip=LONDON_IP, cn=cn)
+    return alert
+
+
+async def test_alerts_name_the_lapi_country_code_from_geoip(monkeypatch):
+    enable_write(monkeypatch)
+    enrichment = FakeEnrichment({})
+    service = AlertFakeCrowdSec([make_london_alert(cn="GB")])
+    async with AsyncTestClient(app=make_app(service, enrichment, SpyGeoIp())) as client:
+        (alert,) = (await client.get("/api/v1/crowdsec/alerts")).json()["alerts"]
+    assert (alert["countryCode"], alert["countryName"]) == ("GB", "United Kingdom")
+    # The LAPI already sent a code, so the endpoint skips the stored-traffic query.
+    assert enrichment.calls == []
+
+
+async def test_alerts_without_lapi_geo_or_stored_traffic_fall_back_to_geoip(monkeypatch):
+    from geometrikks.services.crowdsec.schemas import AlertSource
+
+    enable_write(monkeypatch)
+    bare = make_alert()
+    bare.source = AlertSource(scope="Ip", value=LONDON_IP, ip=LONDON_IP)
+    async with AsyncTestClient(app=make_app(AlertFakeCrowdSec([bare]), geoip=SpyGeoIp())) as client:
+        (alert,) = (await client.get("/api/v1/crowdsec/alerts")).json()["alerts"]
+    assert (alert["countryCode"], alert["countryName"]) == ("GB", "United Kingdom")
+
+
 async def test_alerts_count_active_decisions_apart_from_expired(monkeypatch):
     enable_write(monkeypatch)
     alert = make_alert()
@@ -886,6 +1020,26 @@ async def test_alert_detail_without_lapi_geo_falls_back_to_own_enrichment(monkey
     async with AsyncTestClient(app=make_app(service, FakeEnrichment({"1.2.3.4": OSLO}))) as client:
         detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
     assert (detail["countryCode"], detail["countryName"]) == ("NO", "Norway")
+
+
+async def test_alert_detail_names_the_lapi_country_code_from_geoip(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([make_london_alert(cn="GB")])
+    async with AsyncTestClient(app=make_app(service, geoip=SpyGeoIp())) as client:
+        detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
+        via_decision = (
+            await client.get("/api/v1/crowdsec/decisions/9/alert", params={"ip": LONDON_IP})
+        ).json()
+    assert (detail["countryCode"], detail["countryName"]) == ("GB", "United Kingdom")
+    assert via_decision["countryName"] == "United Kingdom"
+
+
+async def test_alert_detail_keeps_the_lapi_code_when_geoip_disagrees(monkeypatch):
+    enable_write(monkeypatch)
+    service = AlertFakeCrowdSec([make_london_alert(cn="NO")])
+    async with AsyncTestClient(app=make_app(service, geoip=SpyGeoIp())) as client:
+        detail = (await client.get("/api/v1/crowdsec/alerts/7")).json()
+    assert (detail["countryCode"], detail["countryName"]) == ("NO", None)
 
 
 # -- the alert behind a decision -------------------------------------------

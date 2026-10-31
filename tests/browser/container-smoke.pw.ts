@@ -154,7 +154,7 @@ test("production image serves the authenticated dashboard without browser errors
   // Wait for the dashboard to render before reloading: reloading straight
   // after the URL change races the router's post-login navigation and the
   // reload gets aborted (net::ERR_ABORTED).
-  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible()
 
   const healthResponse = await page.request.get("/health")
   expect(healthResponse.ok()).toBe(true)
@@ -177,7 +177,7 @@ test("production image serves the authenticated dashboard without browser errors
   // dashboard's live polling.
   await page.reload()
 
-  await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Overview", exact: true })).toBeVisible()
   await expect(serviceStatus).toContainText(expectedSidebarStatus)
   await expect(page.getByRole("heading", { name: "Traffic Overview" })).toBeVisible()
   await expect(page.getByText("Access Log Records", { exact: true })).toBeVisible()
@@ -187,12 +187,12 @@ test("production image serves the authenticated dashboard without browser errors
     fullPage: true,
   })
 
-  // Settings navigation collapses to a route-aware select on phones instead
-  // of making the tab row or page shell horizontally scrollable.
+  // On phones /settings lists the sections instead of showing the side nav,
+  // and a section's top bar links back to the list.
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto("/settings/status")
-  const settingsSelect = page.getByRole("combobox", { name: "Settings section" })
-  await expect(settingsSelect).toBeVisible()
+  await page.goto("/settings")
+  const environmentLink = page.getByRole("link", { name: /^Environment/ })
+  await expect(environmentLink).toBeVisible()
   await expect(page.getByRole("navigation", { name: "Settings" })).toBeHidden()
 
   const pageWidths = await page.evaluate(() => {
@@ -210,10 +210,9 @@ test("production image serves the authenticated dashboard without browser errors
   expect(pageWidths.body[1]).toBe(pageWidths.body[0])
   expect(pageWidths.content[1]).toBe(pageWidths.content[0])
 
-  await settingsSelect.click()
-  await page.getByRole("option", { name: "Environment" }).click()
+  await environmentLink.click()
   await expect(page).toHaveURL(/\/settings\/environment$/)
-  await expect(settingsSelect).toHaveText("Environment")
+  await expect(page.getByRole("link", { name: "Settings", exact: true })).toBeVisible()
 
   // Long breadcrumb labels must shrink beside the mobile toolbar rather than
   // making the document wider on very narrow phones.
@@ -242,7 +241,6 @@ test("production image serves the authenticated dashboard without browser errors
   // shrink into the viewport instead of retaining the toolbar's min width.
   await page.setViewportSize({ width: 768, height: 812 })
   await expect(page.getByRole("navigation", { name: "Settings" })).toBeVisible()
-  await expect(page.getByRole("combobox", { name: "Settings section" })).toBeHidden()
   const breakpointWidths = await page.evaluate(() => {
     const content = document.querySelector<HTMLElement>("main.overflow-auto")
     if (!content) {

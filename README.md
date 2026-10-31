@@ -153,13 +153,13 @@ Images are published as `ghcr.io/gilbn/geometrikks`.
 | `latest` | `latest` | The newest stable release. |
 | Exact stable version | `X.Y.Z` | A specific stable release; use this for reproducible deployments. |
 | Major/minor stable version | `X.Y` | The newest stable patch release in a major/minor series. |
-| Exact development version | `0.22.1-dev.1` | A specific prerelease build for testing upcoming changes. |
+| Exact development version | `0.23.0-dev.1` | A specific prerelease build for testing upcoming changes. |
 | `develop` | `develop` | The newest development release; a moving tag. |
 
 Use `latest` to follow stable releases, or pin an exact version:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.22.1
+image: ghcr.io/gilbn/geometrikks:0.23.0
 ```
 
 ## Nginx setup
@@ -730,9 +730,11 @@ APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (se
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
 under `/api/` and `/ws/` requires a session; the web app's static files
 (you need them to reach the login page), `/health`, `/health/ready` and
-`/schema` stay open. **Sessions are held in memory**, so restarting the app
-container logs everyone out, and every session ends 7 days after login
-regardless of use.
+`/schema` stay open. GeoMetrikks keeps sessions in the database, so restarts
+and updates don't log anyone out. A login lasts `APP_SESSION_MAX_AGE_DAYS`
+days, 7 by default. The clock starts when you sign in and using the app
+doesn't reset it. Changing the admin user or password, or who may sign in
+with OIDC, ends every session on the next start.
 
 If something else already controls who reaches the app (an authenticating
 proxy such as Authelia or Tailscale, or a network only you can reach), you
@@ -1152,7 +1154,7 @@ instance, GeoIP credentials, and its own log mount:
 ```yaml
 services:
   agent:
-    image: ghcr.io/gilbn/geometrikks:0.22.1   # same tag as the full instance
+    image: ghcr.io/gilbn/geometrikks:0.23.0   # same tag as the full instance
     restart: unless-stopped
     stop_grace_period: 20s
     environment:
@@ -1591,6 +1593,10 @@ credentials, MaxMind key, log paths, DB password). For every environment
 variable and its default, see
 [`docs/configuration.md`](docs/configuration.md).
 
+Every 12 hours GeoMetrikks asks api.github.com whether a newer release
+exists, in a request that carries no information about your instance. Set
+`APP_UPDATE_CHECK=false` to turn it off.
+
 Set `GEOMETRIKKS_ENV_FILE` to load a different `.env` path, or to an empty
 value to disable dotenv loading and configure through real environment
 variables only.
@@ -1743,4 +1749,5 @@ The integration suite creates a scratch database `geometrikks_it` on the
 compose server (migrated to alembic head plus timescale objects) and drops
 it at session end; it never touches the `geometrikks` dev database.
 Connection overrides: `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER`,
-`IT_DB_PASSWORD`.
+`IT_DB_PASSWORD`. Set `IT_DB_NAME` to give each worktree its own scratch
+database, since two runs on one name drop each other's.

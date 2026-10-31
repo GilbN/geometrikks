@@ -49,12 +49,9 @@ def baseline_settings_env():
     """
     os.environ.update({
         # App
-        "APP_NAME": "GeoMetrikks API",
         "APP_DEBUG": "false",
         "APP_ENVIRONMENT": "production",
         # API
-        "API_HOST": "0.0.0.0",
-        "API_PORT": "8000",
         "LOG_LEVEL": "INFO",
         # Database
         "DB_ECHO": "false",
@@ -69,6 +66,8 @@ def baseline_settings_env():
         "GEOIP_DB_PATH": "tests/GeoLite2-City-Test.mmdb",
         # Map (tests must never depend on an external public-IP service)
         "MAP_AUTO_DETECT_SERVER_LOCATION": "false",
+        # Release check (tests must never reach api.github.com)
+        "APP_UPDATE_CHECK": "false",
         # Log parser
         "LOGPARSER_LOG_PATHS": "/var/log/access/access.log",
     })

@@ -410,10 +410,8 @@ export function AbuseReportButton({ subject }: { subject: AbuseReportSubject }) 
   const [open, setOpen] = useState(false)
   return (
     <>
-      {/* Icon only on a phone, like the other inspector footer buttons. */}
-      <Button size="sm" variant="outline" className="max-sm:w-8 max-sm:px-0" onClick={() => setOpen(true)} aria-label="Abuse report" title="Abuse report">
+      <Button size="icon-lg" variant="outline" onClick={() => setOpen(true)} aria-label="Abuse report" title="Abuse report">
         <MailWarning />
-        <span className="max-sm:hidden">Abuse report</span>
       </Button>
       <AbuseReportDialog subject={subject} open={open} onOpenChange={setOpen} />
     </>

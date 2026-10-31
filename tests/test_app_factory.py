@@ -40,21 +40,20 @@ def _hermetic_settings(**overrides) -> Settings:
 
 
 def test_create_app_prefers_explicit_settings_over_env(monkeypatch):
-    monkeypatch.setenv("APP_NAME", "Ambient Name")
-    settings = _hermetic_settings(name="Explicit Name")
+    monkeypatch.setenv("APP_DEBUG", "true")
+    settings = _hermetic_settings(debug=False)
     app = create_app(settings=settings)
     assert app.state.settings is settings
-    assert app.openapi_config is not None
-    assert app.openapi_config.title == "Explicit Name"
+    assert app.debug is False
 
 
 async def test_request_handlers_receive_explicit_settings(monkeypatch):
-    monkeypatch.setenv("APP_NAME", "Ambient Name")
-    app = create_app(settings=_hermetic_settings(name="Explicit Name"))
+    monkeypatch.setenv("APP_ENVIRONMENT", "staging")
+    app = create_app(settings=_hermetic_settings(environment="development"))
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/settings")
     assert resp.status_code == 200
-    assert resp.json()["name"] == "Explicit Name"
+    assert resp.json()["environment"] == "development"
 
 
 def test_settings_dependency_is_reserved():
@@ -203,3 +202,24 @@ async def test_lifecycle_managers_nest_inside_channels_plugin(monkeypatch) -> No
         "lifecycle:exit",
         "channels:exit",
     ]
+
+
+def test_session_auth_uses_the_table_backed_session_store() -> None:
+    from geometrikks.server.session_store import SessionStore, SessionTableStore
+
+    settings = Settings(
+        admin_password="bestpasswordintheworldnojoke",
+        database=DatabaseSettings(host="127.0.0.1", port=59999),
+    )
+    store = create_app(settings=settings).stores.get("sessions")
+    assert isinstance(store, SessionStore)
+    assert isinstance(store.inner, SessionTableStore)
+
+
+def test_no_session_store_without_session_auth(monkeypatch) -> None:
+    # app.stores.get() would create a default store on a miss, so read the
+    # registry's own mapping.
+    assert "sessions" not in create_app(settings=_hermetic_settings()).stores._stores
+    monkeypatch.setenv("APP_MODE", "agent")
+    agent_app = create_app(settings=Settings(database=DatabaseSettings(host="127.0.0.1", port=59999)))
+    assert "sessions" not in agent_app.stores._stores

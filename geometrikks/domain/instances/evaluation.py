@@ -20,8 +20,12 @@ from geometrikks.lib.advisories import (
     CITY_DATABASE_MISSING,
     DATABASE_UNAVAILABLE,
     INGESTION_STOPPED,
+    INGESTION_WRITE_FAILURES_ID,
+    ONGOING_FAILED_BATCHES,
     Advisory,
+    last_write_error_sentence,
 )
+from geometrikks.lib.versioning import display_version, is_local_build, same_release
 
 NOT_CHECKING_IN_AFTER = timedelta(seconds=180)
 NAME_CONFLICT_SHOWN_FOR = timedelta(minutes=5)
@@ -31,6 +35,7 @@ RESTART_LOOP_WINDOW = timedelta(hours=1)
 # agent running a few minutes ahead must still count.
 SKEW_ALLOWANCE = timedelta(minutes=10)
 UNAVAILABLE_SOURCES_NAMED = 3
+WRITES_FAILING_ID = "instance-writes-failing"
 
 DROPPED_FORWARDED_IDS = frozenset({"proxy-peer-cdn"})
 INGESTION_STOP_CAUSES = frozenset({CITY_DATABASE_MISSING.id, INGESTION_STOPPED.id, DATABASE_UNAVAILABLE.id})
@@ -97,11 +102,6 @@ def _age_text(age: timedelta) -> str:
     return _ago(hours // 24, "day")
 
 
-def _version_text(version: str) -> str:
-    """Prefix a "v" to real versions; get_installed_version() can return "unknown"."""
-    return f"v{version}" if version[:1].isdigit() else version
-
-
 def _within(now: datetime, timestamp: datetime, window: timedelta) -> bool:
     """True when timestamp is at most window old, or at most SKEW_ALLOWANCE in
     the future. A naive timestamp is read as UTC."""
@@ -140,16 +140,17 @@ def _not_checking_in(row: HeartbeatRow, now: datetime) -> Advisory:
 
 def _schema_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
     versions = (
-        f"Agent {row.instance_name} runs {_version_text(row.app_version)} on migration {row.schema_revision}; "
-        f"the head runs {_version_text(head.app_version)} on migration {head.schema_revision}."
+        f"Agent {row.instance_name} runs {display_version(row.app_version)} on migration {row.schema_revision}; "
+        f"the head runs {display_version(head.app_version)} on migration {head.schema_revision}."
     )
     if row.schema_revision in head.known_revisions:
+        target = "the head's version" if is_local_build(head.app_version) else display_version(head.app_version)
         return Advisory(
             id="instance-schema-behind",
             severity="critical",
             summary=f"{row.instance_name} runs an older database migration than the head.",
             detail=f"{versions} Its writes may fail until it catches up.",
-            remedy=f"Upgrade {row.instance_name} to {_version_text(head.app_version)}.",
+            remedy=f"Upgrade {row.instance_name} to {target}.",
         )
     return Advisory(
         id="instance-schema-ahead",
@@ -175,8 +176,8 @@ def _version_mismatch(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         id="instance-version-mismatch",
         severity="warning",
         summary=(
-            f"Agent {row.instance_name} runs {_version_text(row.app_version)}; the head runs "
-            f"{_version_text(head.app_version)}. Both are on migration {head.schema_revision}."
+            f"Agent {row.instance_name} runs {display_version(row.app_version)}; the head runs "
+            f"{display_version(head.app_version)}. Both are on migration {head.schema_revision}."
         ),
         detail="The database schema matches, but the code differs, so behavior can drift.",
         remedy=f"Run the same GeoMetrikks version on the head and {row.instance_name}.",
@@ -276,6 +277,62 @@ def _ingestion_degraded(row: HeartbeatRow, payload: HeartbeatPayload, head: Head
     )
 
 
+def _record_count(count: int) -> str:
+    return "1 record" if count == 1 else f"{count:,} records"
+
+
+def _writes_failing(row: HeartbeatRow, payload: HeartbeatPayload) -> Advisory | None:
+    """Critical while writes keep failing: ONGOING_FAILED_BATCHES failed
+    batches in the last 5 minutes and nothing written. A warning otherwise,
+    so one bad record on a quiet agent, or an agent too old to send the
+    counts, stays amber.
+
+    Only /api/v1/instances serves this, behind the login, so it may quote
+    the redacted last error.
+    """
+    failed_count = payload.failed_5m
+    if failed_count is None or failed_count <= 0:
+        return None
+    written_count = payload.written_5m
+    failed_batch_count = payload.failed_batches_5m
+    error_sentence = last_write_error_sentence(payload.last_error.message if payload.last_error else None)
+    remedy = f"Check the log of {row.instance_name} for ingestion_batch_failed."
+    if written_count == 0 and failed_batch_count is not None and failed_batch_count >= ONGOING_FAILED_BATCHES:
+        return Advisory(
+            id=WRITES_FAILING_ID,
+            severity="critical",
+            summary=f"Every write from {row.instance_name} failed in the last 5 minutes.",
+            detail=" ".join(
+                sentence
+                for sentence in (
+                    error_sentence,
+                    f"It lost {_record_count(failed_count)} in {failed_batch_count:,} batches and does not retry them.",
+                )
+                if sentence
+            ),
+            remedy=remedy,
+        )
+    attempted = (
+        _record_count(failed_count)
+        if written_count is None
+        else f"{failed_count:,} of {_record_count(failed_count + written_count)}"
+    )
+    return Advisory(
+        id=WRITES_FAILING_ID,
+        severity="warning",
+        summary=f"{row.instance_name} could not write {attempted} in the last 5 minutes.",
+        detail=" ".join(
+            sentence
+            for sentence in (
+                error_sentence,
+                f"{row.instance_name} drops the records it cannot write and does not retry them.",
+            )
+            if sentence
+        ),
+        remedy=remedy,
+    )
+
+
 def _payload_unreadable(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
     return Advisory(
         id="instance-payload-unreadable",
@@ -283,8 +340,8 @@ def _payload_unreadable(row: HeartbeatRow, head: HeadIdentity) -> Advisory:
         summary=f"The health report from {row.instance_name} could not be read.",
         detail=(
             "The version, migration and last seen time are still shown. "
-            f"{row.instance_name} runs {_version_text(row.app_version)}; "
-            f"the head runs {_version_text(head.app_version)}."
+            f"{row.instance_name} runs {display_version(row.app_version)}; "
+            f"the head runs {display_version(head.app_version)}."
         ),
         remedy=f"Check that {row.instance_name} runs the same GeoMetrikks version as the head.",
     )
@@ -311,8 +368,11 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
         critical.append(_schema_mismatch(row, head))
     if _has_name_conflict(payload, now):
         critical.append(_name_conflict(row))
+    writes_failing = _writes_failing(row, payload) if payload is not None else None
+    if writes_failing is not None and writes_failing.severity == "critical":
+        critical.append(writes_failing)
 
-    if row.schema_revision == head.schema_revision and row.app_version != head.app_version:
+    if row.schema_revision == head.schema_revision and not same_release(row.app_version, head.app_version):
         warning.append(_version_mismatch(row, head))
     if payload is not None:
         if row.mode == "agent" and payload.instance_name_source == "fallback":
@@ -325,13 +385,19 @@ def evaluate_instance(row: HeartbeatRow, head: HeadIdentity, now: datetime) -> I
         ingestion_degraded = _ingestion_degraded(row, payload, head)
         if ingestion_degraded is not None:
             warning.append(ingestion_degraded)
+    if writes_failing is not None and writes_failing.severity == "warning":
+        warning.append(writes_failing)
     if payload is None:
         warning.append(_payload_unreadable(row, head))
 
-    computed_ids = {problem.id for problem in critical + warning}
+    hidden_forwarded_ids = {problem.id for problem in critical + warning}
+    if writes_failing is not None:
+        # The agent's own advisory counts failures since it started; the
+        # 5-minute counts already say whether they continue.
+        hidden_forwarded_ids.add(INGESTION_WRITE_FAILURES_ID)
     forwarded_critical, forwarded_warning = _split_forwarded(payload)
-    forwarded_critical = [advisory for advisory in forwarded_critical if advisory.id not in computed_ids]
-    forwarded_warning = [advisory for advisory in forwarded_warning if advisory.id not in computed_ids]
+    forwarded_critical = [advisory for advisory in forwarded_critical if advisory.id not in hidden_forwarded_ids]
+    forwarded_warning = [advisory for advisory in forwarded_warning if advisory.id not in hidden_forwarded_ids]
     return _evaluation(
         row,
         payload,

@@ -1,9 +1,11 @@
 """System API: scheduler job listing, manual runs, redacted settings overview."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import httpx2
 import pytest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -16,6 +18,7 @@ from geometrikks.domain.analytics.asn_classification import hosting_asn_count
 from geometrikks.domain.system import commit
 from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.services.release_check import ReleaseChecker
 from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
@@ -379,3 +382,148 @@ def test_bundled_revision_doc_is_the_migration_message():
     assert head_doc is not None
     assert head_doc.strip()
     assert bundled_revision_doc("ffffffffffff") is None
+
+
+RELEASE_PUBLISHED_AT = "2026-10-01T08:00:00Z"
+RELEASE_CHECKED_AT = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+
+
+def release_transport(
+    *tags: str, prerelease: bool = False, status_code: int = 200
+) -> httpx2.MockTransport:
+    body = [
+        {
+            "tag_name": tag,
+            "draft": False,
+            "prerelease": prerelease,
+            "html_url": f"https://github.com/GilbN/geometrikks/releases/tag/{tag}",
+            "published_at": RELEASE_PUBLISHED_AT,
+        }
+        for tag in tags
+    ]
+    return httpx2.MockTransport(
+        lambda request: httpx2.Response(status_code, content=json.dumps(body).encode())
+    )
+
+
+async def seeded_release_checker(
+    running_version: str, transport: httpx2.AsyncBaseTransport
+) -> ReleaseChecker:
+    release_checker = ReleaseChecker(
+        running_version, transport=transport, clock=lambda: RELEASE_CHECKED_AT
+    )
+    await release_checker.run()
+    return release_checker
+
+
+def enable_release_check(monkeypatch: pytest.MonkeyPatch, version: str = "0.22.0") -> None:
+    monkeypatch.setenv("APP_UPDATE_CHECK", "true")
+    monkeypatch.setattr("geometrikks.config.settings.get_installed_version", lambda: version)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("APP_UPDATE_CHECK", "false"),
+        ("SCHEDULER_ENABLED", "false"),
+        ("version", "0.0.0+local"),
+        ("version", "custom"),
+    ],
+)
+async def test_release_check_off_when_disabled(monkeypatch, name, value):
+    if name == "version":
+        enable_release_check(monkeypatch, version=value)
+    else:
+        enable_release_check(monkeypatch)
+        monkeypatch.setenv(name, value)
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.0", release_transport("v0.23.0")
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "off", "latest": None, "checkedAt": None}
+
+
+async def test_release_check_pending_before_the_first_success(monkeypatch):
+    enable_release_check(monkeypatch)
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "pending", "latest": None, "checkedAt": None}
+
+    def time_out(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectTimeout("timed out", request=request)
+
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.0", httpx2.MockTransport(time_out)
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    assert resp.json() == {"status": "pending", "latest": None, "checkedAt": None}
+
+
+async def test_release_check_checked_with_nothing_newer(monkeypatch):
+    enable_release_check(monkeypatch)
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.0", release_transport("v0.22.0")
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    body = resp.json()
+    assert body["status"] == "checked"
+    assert body["latest"] is None
+    assert datetime.fromisoformat(body["checkedAt"]) == RELEASE_CHECKED_AT
+
+
+async def test_release_check_checked_with_a_newer_release(monkeypatch):
+    enable_release_check(monkeypatch)
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.0", release_transport("v0.23.0")
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    body = resp.json()
+    assert body["status"] == "checked"
+    latest = body["latest"]
+    assert datetime.fromisoformat(latest.pop("publishedAt")) == datetime.fromisoformat(
+        RELEASE_PUBLISHED_AT
+    )
+    assert latest == {
+        "version": "0.23.0",
+        "displayVersion": "v0.23.0",
+        "url": "https://github.com/GilbN/geometrikks/releases/tag/v0.23.0",
+        "newerReleaseCount": 1,
+        "newerReleaseCountExact": True,
+    }
+
+
+async def test_release_check_counts_every_release_above_the_running_one(monkeypatch):
+    enable_release_check(monkeypatch)
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.0", release_transport("v0.21.0", "v0.22.1", "v0.23.0", "v0.23.1")
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    latest = resp.json()["latest"]
+    assert latest["version"] == "0.23.1"
+    assert latest["newerReleaseCount"] == 3
+    assert latest["newerReleaseCountExact"] is True
+
+
+async def test_release_check_dev_release_uses_tag_style(monkeypatch):
+    enable_release_check(monkeypatch, "0.22.1.dev1")
+    app = make_app()
+    app.state.release_checker = await seeded_release_checker(
+        "0.22.1.dev1", release_transport("v0.22.1-dev.2", prerelease=True)
+    )
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/system/release-check")
+    latest = resp.json()["latest"]
+    assert latest["version"] == "0.22.1.dev2"
+    assert latest["displayVersion"] == "v0.22.1-dev.2"

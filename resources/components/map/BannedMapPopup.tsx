@@ -18,7 +18,9 @@ import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { ExternalLinkButton } from "@/components/crowdsec/external-link"
 import type { DecisionRef } from "@/components/security/alert-detail-sheet"
-import { POPUP_OFFSET, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
+import { POPUP_OFFSET, usePopupPadding, POPUP_CODE_STYLE, POPUP_LINK_BUTTON_STYLE, POPUP_ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
+import { timeLeftText } from "@/lib/crowdsec-alerts"
+import { scenarioText } from "@/lib/scenario-name"
 
 const PAGE_SIZE = 20
 
@@ -34,7 +36,7 @@ function noAlertReason(decision: DecisionView, writeEnabled: boolean): string {
 /** With `onOpen` the scenario is a button that opens the decision's alert.
  *  Without it, `note` says why not. */
 function DecisionLine({ decision, onOpen, note }: { decision: DecisionView; onOpen?: () => void; note?: string }) {
-  const scenario = decision.scenario || "No scenario given"
+  const scenario = decision.scenario ? scenarioText(decision.scenario) : "No scenario given"
   const scenarioStyle = { fontWeight: 500, overflowWrap: "anywhere" } as const
   return (
     <div style={{ fontSize: "11px", marginBottom: "4px" }}>
@@ -53,7 +55,7 @@ function DecisionLine({ decision, onOpen, note }: { decision: DecisionView; onOp
           <span title={note} style={scenarioStyle}>{scenario}</span>
         )}
       </div>
-      <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>{decision.origin} · {decision.duration} left</div>
+      <div style={{ fontSize: "10px", color: "var(--popup-muted)" }}>{decision.origin} · {timeLeftText(decision.duration)}</div>
     </div>
   )
 }
@@ -226,12 +228,14 @@ export function BannedMapPopup({
   const selected = selectedIp === null ? null : ips.find((ip) => ip.ip === selectedIp) ?? null
   const hasIpv6 = ips.some((ip) => ip.ip.includes(":"))
   const title = selected ? "Banned IP" : `${ips.length.toLocaleString()} banned IP${ips.length === 1 ? "" : "s"}`
+  const popupPadding = usePopupPadding()
 
   return (
     <Popup
       longitude={longitude}
       latitude={latitude}
       offset={POPUP_OFFSET}
+      padding={popupPadding}
       onClose={onClose}
       closeButton={false}
       closeOnClick={false}

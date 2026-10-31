@@ -6,21 +6,26 @@
  * (search, IP, host, server, source format, status, method, country and
  * city live in access-logs-filter-bar.tsx). Pairs with GET /api/v1/access-logs/.
  */
-import { memo, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronsUpDown, Columns3 } from "lucide-react"
-import { CountryLabel } from "@/components/country-flag"
+import { memo, useMemo, useState } from "react"
+import { Columns3 } from "lucide-react"
+import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import {
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { sortOptions } from "@/components/data/sort-options"
+import { SortableHead } from "@/components/data/sortable-head"
+import { TableSortDrawer } from "@/components/data/table-sort-drawer"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 import { useTimeRange } from "@/lib/time-range-context"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DataTableFrame } from "@/components/data/data-table-frame"
-import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
+import { rowActivation } from "@/components/data/row-activation"
 import { dataState } from "@/components/data/types"
 import { AccessLogDetailSheet } from "@/components/access-logs/access-log-detail-sheet"
 import {
@@ -39,9 +44,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { useAccessLogs, useCrowdsecLiveUpdates } from "@/lib/queries"
-import { IpBanControls } from "@/components/crowdsec/ip-ban-controls"
-import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
-import { FlyToIpButton } from "@/components/map/FlyToIpButton"
+import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/ip-actions-menu"
+import { IpLabel } from "@/components/ip-actions/ip-label"
+import { accessLogFilterTargets } from "@/lib/ip-filter-targets"
 import {
   formatBytes,
   formatDuration,
@@ -54,6 +59,7 @@ import { useColumnVisibility } from "@/lib/column-visibility"
 import { useAccessLogFilters } from "@/lib/access-log-filters-context"
 import { statusBadgeClass } from "@/lib/status-badge"
 import { formatDurationOrNa } from "@/lib/timing"
+import { formatRowTime } from "@/lib/row-time"
 
 export const ACCESS_LOGS_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
@@ -86,7 +92,7 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
         </span>
       )
     case "ipAddress":
-      return <span className="font-mono">{r.ipAddress}</span>
+      return <IpLabel ip={r.ipAddress} />
     case "bytesSent":
       return <span className="tabular-nums">{formatBytes(r.bytesSent)}</span>
     case "requestTime":
@@ -142,36 +148,77 @@ function renderCell(column: AccessLogColumn, r: AccessLog): React.ReactNode {
 
 const getRowKey = (row: AccessLog) => row.id
 
+const SORT_OPTIONS = sortOptions(ACCESS_LOG_COLUMNS)
+
+function AccessLogIpActions({ row }: { row: AccessLog }) {
+  return (
+    <IpActionsMenu
+      ip={row.ipAddress}
+      host={row.host}
+      server={row.server}
+      countryCode={row.countryCode}
+      countryName={row.countryName}
+      city={row.city}
+      asn={row.autonomousSystemNumber}
+      asOrganization={row.autonomousSystemOrganization}
+    />
+  )
+}
+
+/** A narrow row: what was asked and the answer on top, when and who below. */
+function AccessLogNarrowCell({ row }: { row: AccessLog }) {
+  return (
+    <TableCell className="py-2.5">
+      <div className="flex min-w-0 items-center gap-2">
+        <Badge className={cn("shrink-0 tabular-nums border-transparent", statusBadgeClass(row.statusCode))}>
+          {row.statusCode}
+        </Badge>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">{row.method ?? "-"}</span>
+        <span className="min-w-0 flex-1 truncate font-mono" title={row.url ?? undefined}>
+          {row.url ?? "-"}
+        </span>
+      </div>
+      <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+        <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatRowTime(row.timestamp)}</span>
+        <span className="ml-auto flex min-w-0 items-center gap-1.5">
+          <CountryFlag code={row.countryCode} name={row.countryName} standalone />
+          <IpLabel ip={row.ipAddress} className="truncate" />
+          <AccessLogIpActions row={row} />
+        </span>
+      </div>
+    </TableCell>
+  )
+}
+
 const AccessLogTableBody = memo(function AccessLogTableBody({
   rows,
   shownColumns,
+  narrow,
   onSelect,
 }: {
   rows: AccessLog[]
   shownColumns: AccessLogColumn[]
+  narrow: boolean
   onSelect: (row: AccessLog) => void
 }) {
   return (
-    <VirtualTableBody rows={rows} columnCount={shownColumns.length} getRowKey={getRowKey}>
+    <VirtualTableBody rows={rows} columnCount={narrow ? 1 : shownColumns.length} getRowKey={getRowKey}>
       {(row) => (
         <TableRow
           key={row.id}
           aria-label={`Request ${row.id}, ${row.method ?? ""} ${row.url ?? ""}, HTTP ${row.statusCode}`}
           {...rowActivation<HTMLTableRowElement>(() => onSelect(row))}
         >
-          {shownColumns.map((c) => (
-            <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
-              {renderCell(c, row)}
-              {c.key === "ipAddress" && (
-                <span {...stopRowActivation}>
-                  <IpBanControls ip={row.ipAddress}>
-                    <InspectIpButton ip={row.ipAddress} className="ml-1" />
-                    <FlyToIpButton ip={row.ipAddress} />
-                  </IpBanControls>
-                </span>
-              )}
-            </TableCell>
-          ))}
+          {narrow ? (
+            <AccessLogNarrowCell row={row} />
+          ) : (
+            shownColumns.map((c) => (
+              <TableCell key={c.key} className={cn(c.grow && "max-w-0 truncate", c.align === "right" && "text-right")}>
+                {renderCell(c, row)}
+                {c.key === "ipAddress" && <AccessLogIpActions row={row} />}
+              </TableCell>
+            ))
+          )}
         </TableRow>
       )}
     </VirtualTableBody>
@@ -197,10 +244,13 @@ export function AccessLogsTable({
   onPageSizeChange,
   onSortChange,
 }: AccessLogsTableProps) {
-  const { filters } = useAccessLogFilters()
+  const { filters, setFilters } = useAccessLogFilters()
+  const filterTargetsFor = useMemo(() => accessLogFilterTargets(filters, setFilters), [filters, setFilters])
   const { range, customRange } = useTimeRange()
   useCrowdsecLiveUpdates()
   const [selected, setSelected] = useState<AccessLog | null>(null)
+  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const isMobile = useIsMobile()
 
   const { visible, shownColumns, toggleColumn, resetColumns, hasOverrides } =
     useColumnVisibility("geometrikks-columns-access-logs", ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS)
@@ -240,11 +290,11 @@ export function AccessLogsTable({
   const columnsMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-10">
+        <Button variant="outline" size="sm" className="h-8">
           <Columns3 className="mr-1 h-3.5 w-3.5" /> Columns
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="max-h-80 w-auto min-w-44 overflow-y-auto">
+      <DropdownMenuContent align="end" collisionPadding={8} className="w-auto min-w-44">
         <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {ACCESS_LOG_COLUMNS.map((c) => (
@@ -267,69 +317,70 @@ export function AccessLogsTable({
   )
 
   return (
-    <>
-      <DataTableFrame
-        title="Request history"
-        description="Requests captured in the selected time range. Select a row for the complete record."
-        count={data ? total : undefined}
-        tools={columnsMenu}
-        state={state}
-        error="Failed to load access logs."
-        empty="No access logs match these filters."
-        footer={
-          <PaginationFooter
-            page={page}
-            pageCount={pageCount}
-            total={total}
-            onPageChange={onPageChange}
-            disabled={isPlaceholderData}
-            pageSize={pageSize}
-            pageSizes={ACCESS_LOGS_PAGE_SIZES}
-            onPageSizeChange={onPageSizeChange}
-          />
-        }
-      >
-        <VirtualTable columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
-          <TableHeader>
-            <TableRow>
-              {shownColumns.map((c) => {
-                const active = c.sortField && sortField === c.sortField
-                return (
-                  <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
-                    {c.sortField ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(c.sortField!)}
-                        className={cn(
-                          "inline-flex items-center gap-1 hover:text-foreground",
-                          c.align === "right" && "flex-row-reverse",
-                          active ? "text-foreground" : "text-muted-foreground",
-                        )}
-                      >
-                        {c.label}
-                        {active ? (
-                          sortOrder === "asc" ? (
-                            <ArrowUp className="h-3 w-3" />
-                          ) : (
-                            <ArrowDown className="h-3 w-3" />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </button>
-                    ) : (
-                      c.label
-                    )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          </TableHeader>
-          <AccessLogTableBody rows={rows} shownColumns={shownColumns} onSelect={setSelected} />
-        </VirtualTable>
-      </DataTableFrame>
+    <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
+      {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
+      <div ref={layoutRef}>
+        <DataTableFrame
+          title="Request history"
+          description="Requests captured in the selected time range. Select a row for the complete record."
+          count={data ? total : undefined}
+          stickyHeader={narrow && isMobile}
+          tools={
+            narrow ? (
+              <TableSortDrawer options={SORT_OPTIONS} sortField={sortField} sortOrder={sortOrder} onSortChange={onSortChange} />
+            ) : (
+              columnsMenu
+            )
+          }
+          state={state}
+          error="Failed to load access logs."
+          empty="No access logs match these filters."
+          footer={
+            <PaginationFooter
+              page={page}
+              pageCount={pageCount}
+              total={total}
+              onPageChange={onPageChange}
+              disabled={isPlaceholderData}
+              pageSize={pageSize}
+              pageSizes={ACCESS_LOGS_PAGE_SIZES}
+              onPageSizeChange={onPageSizeChange}
+            />
+          }
+        >
+          <VirtualTable narrow={narrow} columns={shownColumns} rowCount={rows.length} resetKey={JSON.stringify([page, pageSize, sortField, sortOrder, filters, range, customRange])}>
+            {!narrow && (
+              <TableHeader>
+                <TableRow>
+                  {shownColumns.map((c) => {
+                    if (!c.sortField) {
+                      return (
+                        <TableHead key={c.key} className={cn(c.align === "right" && "text-right")}>
+                          {c.label}
+                        </TableHead>
+                      )
+                    }
+                    const columnSortField = c.sortField
+                    return (
+                      <SortableHead
+                        key={c.key}
+                        label={c.label}
+                        active={sortField === columnSortField}
+                        sortOrder={sortOrder}
+                        alignRight={c.align === "right"}
+                        onToggle={() => toggleSort(columnSortField)}
+                      />
+                    )
+                  })}
+                </TableRow>
+              </TableHeader>
+            )}
+            <AccessLogTableBody key={narrow ? "narrow" : "wide"} rows={rows} shownColumns={shownColumns} narrow={narrow} onSelect={setSelected} />
+          </VirtualTable>
+        </DataTableFrame>
+      </div>
 
       <AccessLogDetailSheet entry={selected} onOpenChange={(open) => !open && setSelected(null)} />
-    </>
+    </IpFilterTargetsProvider>
   )
 }

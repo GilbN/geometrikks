@@ -27,14 +27,26 @@ export interface AdvisoryCard {
   docsUrl?: string
 }
 
-export function overallState(health: HealthResponse | undefined, isError: boolean): CardState {
+export function overallState(
+  health: HealthResponse | undefined,
+  isError: boolean,
+  agentAttentionCount = 0,
+): CardState {
   if (isError) {
     return { tone: "red", label: "Unreachable", detail: "The API did not answer the health probe." }
   }
   if (!health) return { tone: "muted", label: "Loading" }
-  return health.status === "healthy"
-    ? { tone: "emerald", label: "Healthy", detail: "All components operational." }
-    : { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
+  if (health.status !== "healthy") {
+    return { tone: "amber", label: "Degraded", detail: "One or more components are not operational." }
+  }
+  const advisoryCount = (health.advisories ?? []).length
+  if (advisoryCount > 0 || agentAttentionCount > 0) {
+    const counts: string[] = []
+    if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
+    if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
+    return { tone: "amber", label: "Attention", detail: counts.join(" ") }
+  }
+  return { tone: "emerald", label: "Healthy", detail: "All components operational." }
 }
 
 /** Generic operator advisories from health; one status-page card each. */
@@ -461,4 +473,94 @@ export function loginMethodBadges(status: OidcStatus | undefined): string[] {
     status.passwordLogin ? "password login on" : "password login off",
     status.idpLogout ? "IdP logout on" : "IdP logout off",
   ]
+}
+
+/** One row in the phone Status page's problem list: an operator advisory or
+ *  an agent that needs attention. */
+export interface StatusProblem {
+  id: string
+  tone: "red" | "amber"
+  label: string
+  detail?: string
+  remedy?: string
+  docsUrl?: string
+  /** Set for agent problems: the agent to open on the Agents page. */
+  agentName?: string
+}
+
+/** Advisories and agent problems in one list, critical ones first. */
+export function statusProblems(
+  advisories: readonly AdvisoryCard[],
+  agents: readonly {
+    instanceName: string
+    tone: "red" | "amber"
+    summary: string
+    moreCount: number
+    lastSeenAgo: string
+  }[],
+): StatusProblem[] {
+  const rows: StatusProblem[] = [
+    ...advisories.map((card) => ({
+      id: card.id,
+      tone: card.tone === "red" ? ("red" as const) : ("amber" as const),
+      label: card.label,
+      detail: card.detail,
+      remedy: card.remedy,
+      docsUrl: card.docsUrl,
+    })),
+    ...agents.map((card) => ({
+      id: `agent-${card.instanceName}`,
+      tone: card.tone,
+      label: card.summary,
+      detail: agentProblemDetail(card.lastSeenAgo, card.moreCount),
+      agentName: card.instanceName,
+    })),
+  ]
+  return rows.sort((a, b) => Number(b.tone === "red") - Number(a.tone === "red"))
+}
+
+function agentProblemDetail(lastSeenAgo: string, moreCount: number): string {
+  const lastSeen = `Last seen ${lastSeenAgo}`
+  if (moreCount <= 0) return lastSeen
+  return `${lastSeen}, and ${moreCount} more ${moreCount === 1 ? "problem" : "problems"}`
+}
+
+/** The phone verdict: how many things need attention, or the overall state. */
+export function verdictTitle(overall: CardState, problemCount: number): string {
+  if (overall.label === "Attention" && problemCount > 0) {
+    return problemCount === 1 ? "1 thing needs attention" : `${problemCount} things need attention`
+  }
+  return overall.label
+}
+
+const TONE_RANK: Record<LedTone, number> = { red: 4, amber: 3, accent: 2, emerald: 1, muted: 0 }
+
+/** The Scheduler tile: the worst job state as its light, and the next run. */
+export function schedulerSummary(
+  jobs: readonly SchedulerJobView[] | undefined,
+  isError: boolean,
+  now: number,
+): CardState {
+  if (isError) return { tone: "muted", label: "Unavailable" }
+  if (!jobs) return { tone: "muted", label: "Loading" }
+  const tone = jobs
+    .map((job) => schedulerJobState(job).tone)
+    .reduce<LedTone>((worst, next) => (TONE_RANK[next] > TONE_RANK[worst] ? next : worst), "muted")
+  const nextRun = jobs
+    .map((job) => job.nextRunTime)
+    .filter((time): time is string => !!time)
+    .sort((a, b) => Date.parse(a) - Date.parse(b))[0]
+  // The light alone doesn't reach a screen reader, so problems go in the text.
+  const failed = jobs.filter((job) => !job.running && job.lastStatus === "error").length
+  const missed = jobs.filter((job) => !job.running && job.lastStatus === "missed").length
+  const parts = [
+    jobs.length === 1 ? "1 job" : `${jobs.length} jobs`,
+    failed > 0 ? `${failed} failed` : null,
+    missed > 0 ? `${missed} missed` : null,
+  ]
+  return {
+    tone,
+    label: parts.filter(Boolean).join(", "),
+    detail: nextRun ? `Next ${relativeTime(nextRun, now)}` : undefined,
+  }
 }

@@ -6,7 +6,7 @@
 # --platform=$BUILDPLATFORM: the vite/tsc output is architecture-independent,
 # so always build it natively instead of under QEMU emulation (bun is slow and
 # flaky when emulated during multi-arch release builds).
-FROM --platform=$BUILDPLATFORM oven/bun:1.4.3-slim@sha256:14a223fa35747ec728bce300ef85888bc5f7958164d15bbba6a54b22b52a3288 AS frontend-builder
+FROM --platform=$BUILDPLATFORM oven/bun:1.4.4-slim@sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4 AS frontend-builder
 
 WORKDIR /app
 
@@ -42,8 +42,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # runtime image then only needs the venv, and site-packages carries the
 # package with proper dist-info instead of a path reference to /app source.
 COPY geometrikks/ ./geometrikks/
+ARG GEOMETRIKKS_VERSION=0.0.0+local
+# The wheel metadata keeps the pretend version verbatim, so a tag like
+# v0.22.0-dev.4 has to be written in PEP 440 form here.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv build --wheel \
+    SETUPTOOLS_SCM_PRETEND_VERSION="$(printf '%s' "${GEOMETRIKKS_VERSION}" | sed -e 's/^v//' -e 's/-dev\./.dev/')" uv build --wheel \
     && uv pip install --no-deps dist/*.whl
 
 # ------------------------------------------------------------------------------
@@ -81,8 +84,6 @@ RUN printf '%s' "${GIT_SHA}" > COMMIT \
     && chown geometrikks:geometrikks /app /app/COMMIT /app/logs /app/data /app/data/geoip
 
 # Set environment
-# GEOIP_VALIDATE_DB_PATH=false: settings construction must not fail while the
-# geoip volume is empty; the downloader/degraded-mode path owns that now.
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -92,7 +93,6 @@ ENV PATH="/app/.venv/bin:$PATH" \
     VITE_DEV_MODE=false \
     GEOIP_DB_PATH=/app/data/geoip/GeoLite2-City.mmdb \
     GEOIP_ASN_DB_PATH=/app/data/geoip/GeoLite2-ASN.mmdb \
-    GEOIP_VALIDATE_DB_PATH=false \
     LITESTAR_APP=geometrikks.server.core:create_app
 
 VOLUME ["/app/data/geoip"]

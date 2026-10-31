@@ -108,3 +108,9 @@ def test_instances_routes_absent_in_agent_mode(monkeypatch):
     from geometrikks.server.core import create_app
     paths = _route_paths(create_app())
     assert not any("/instances" in path for path in paths)
+
+
+def test_openapi_version_is_the_api_version(monkeypatch):
+    monkeypatch.setenv("APP_AUTH_DISABLED", "true")
+    from geometrikks.server.core import create_app
+    assert create_app().openapi_schema.info.version == "1"
