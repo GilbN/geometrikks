@@ -236,7 +236,7 @@ export type AnalyticsSettingsView = {
  * AsnCategoryTotalsDTO
  */
 export type AsnCategoryTotalsDto = {
-  category: "hosting" | "other";
+  category: "drop" | "hosting" | "other";
   hits: number;
   totalBytes: number;
 };
@@ -913,7 +913,7 @@ export type IpProfilePathDto = {
  */
 export type IpProfileResponse = {
   asn: number | null;
-  asnCategory: "hosting" | "other" | null;
+  asnCategory: "drop" | "hosting" | "other" | null;
   asnOrganization: string | null;
   avgRequestTime: number | null;
   distinctPaths: number;
@@ -1568,7 +1568,7 @@ export type TimeSeriesResponse = {
  */
 export type TopAsnDto = {
   asn: number;
-  category: "hosting" | "other";
+  category: "drop" | "hosting" | "other";
   hits: number;
   organization: string | null;
   totalBytes: number;
@@ -1645,7 +1645,7 @@ export type TopCountryStatsDto = {
  */
 export type TopGeoAsn = {
   asn: number;
-  category: "hosting" | "other";
+  category: "drop" | "hosting" | "other";
   eventCount: number;
   organization: string | null;
   uniqueIps: number;

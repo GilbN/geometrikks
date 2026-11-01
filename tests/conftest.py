@@ -87,6 +87,16 @@ def disable_heartbeat_writer(request: pytest.FixtureRequest, monkeypatch: pytest
 
 
 @pytest.fixture(autouse=True)
+def reset_drop_snapshot_between_tests():
+    """The DROP snapshot is process-global; keep one test's data out of the next."""
+    from geometrikks.domain.drop.snapshot import reset_drop_snapshot
+
+    reset_drop_snapshot()
+    yield
+    reset_drop_snapshot()
+
+
+@pytest.fixture(autouse=True)
 def refresh_settings_cache():
     """Clear settings cache so env changes take effect per test.
 

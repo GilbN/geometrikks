@@ -1001,7 +1001,7 @@ export const AnalyticsSettingsViewSchema = {
 export const AsnCategoryTotalsDTOSchema = {
   properties: {
     category: {
-      enum: ["hosting", "other"],
+      enum: ["drop", "hosting", "other"],
       type: "string",
     },
     hits: {
@@ -3166,7 +3166,7 @@ export const IpProfileResponseSchema = {
       ],
     },
     asnCategory: {
-      enum: ["hosting", "other", null],
+      enum: ["drop", "hosting", "other", null],
       type: ["null", "string"],
     },
     asnOrganization: {
@@ -5577,7 +5577,7 @@ export const TopAsnDTOSchema = {
       type: "integer",
     },
     category: {
-      enum: ["hosting", "other"],
+      enum: ["drop", "hosting", "other"],
       type: "string",
     },
     hits: {
@@ -5779,7 +5779,7 @@ export const TopGeoAsnSchema = {
       type: "integer",
     },
     category: {
-      enum: ["hosting", "other"],
+      enum: ["drop", "hosting", "other"],
       type: "string",
     },
     eventCount: {

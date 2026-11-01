@@ -17,7 +17,14 @@ import { useFitLayout } from "@/components/data/narrow-layout"
 import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
-export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
+export function CategoryBadge({ category }: { category: "drop" | "hosting" | "other" }) {
+  if (category === "drop") {
+    return (
+      <Badge variant="outline" className="border-destructive/50 text-destructive">
+        DROP
+      </Badge>
+    )
+  }
   return category === "hosting" ? (
     <Badge variant="secondary" className="gap-1.5">
       <span className="size-1.5 rounded-full bg-primary" />

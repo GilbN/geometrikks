@@ -26,6 +26,13 @@ describe("asnCoverage", () => {
     expect(c.hostingShare).toBeCloseTo(63)
   })
 
+  it("counts DROP-listed traffic as classified", () => {
+    const c = asnCoverage([...cats(60, 20), { category: "drop" as const, hits: 20 }], 100)
+    expect(c.classified).toBe(100)
+    expect(c.unenriched).toBe(0)
+    expect(c.hostingShare).toBeCloseTo(60)
+  })
+
   it("has no data when nothing in the range is classified", () => {
     const c = asnCoverage(cats(0, 0), 5000)
     expect(c.hasData).toBe(false)

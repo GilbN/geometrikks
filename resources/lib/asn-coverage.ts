@@ -10,12 +10,12 @@
  */
 
 export interface AsnCategoryTotal {
-  category: "hosting" | "other"
+  category: "drop" | "hosting" | "other"
   hits: number
 }
 
 export interface AsnCoverage {
-  /** Requests carrying ASN data (hosting + other). */
+  /** Requests carrying ASN data (hosting + other + drop). */
   classified: number
   /** Requests in range with no ASN data at all. */
   unenriched: number
@@ -33,7 +33,8 @@ export function asnCoverage(
 ): AsnCoverage {
   const hosting = categories?.find((c) => c.category === "hosting")?.hits ?? 0
   const other = categories?.find((c) => c.category === "other")?.hits ?? 0
-  const classified = hosting + other
+  const drop = categories?.find((c) => c.category === "drop")?.hits ?? 0
+  const classified = hosting + other + drop
   // The totals and the ASN aggregates are two separate reads, so live
   // ingestion between them can leave classified slightly ahead of the range
   // total. Both figures are clamped so no caller renders "-12 unenriched"

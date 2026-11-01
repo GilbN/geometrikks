@@ -10,6 +10,7 @@ from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
 from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.drop.snapshot import EMPTY_DROP_SNAPSHOT
 from geometrikks.domain.analytics.controllers import AnalyticsController, _to_ip_profile_response
 from geometrikks.domain.analytics.ip_profile import (
     IpProfile,
@@ -162,6 +163,7 @@ def _app(repo: _FakeIpProfileRepo) -> Litestar:
         dependencies = {
             **(AnalyticsController.dependencies or {}),
             "ip_profile_repo": Provide(lambda: repo, sync_to_thread=False),
+            "drop_snapshot": Provide(lambda: EMPTY_DROP_SNAPSHOT, sync_to_thread=False),
         }
 
     return Litestar(

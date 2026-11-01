@@ -16,6 +16,8 @@ from advanced_alchemy.filters import (
 )
 from advanced_alchemy.service import OffsetPagination
 
+from geometrikks.domain.drop.dependencies import provide_drop_snapshot
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.geo.models import GeoEvent
 from geometrikks.domain.geo.dtos import GeoEventDTO
 from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
@@ -168,6 +170,7 @@ class GeoEventController(Controller):
         "time_window": Provide(provide_geo_event_time_window, sync_to_thread=False),
         "in_filters": Provide(provide_geo_event_in_filters, sync_to_thread=False),
         "geo_filters": Provide(provide_geo_event_filters, sync_to_thread=False),
+        "drop_snapshot": Provide(provide_drop_snapshot),
     }
 
     @get("/")
@@ -358,6 +361,7 @@ class GeoEventController(Controller):
     async def get_geo_log_top_asns(
         self,
         geo_event_service: NamedDependency[GeoEventService],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         geo_filters: NamedDependency[SkipValidation[GeoEventFilters]],
         from_timestamp: FromTimestamp,
         to_timestamp: ToTimestamp,
