@@ -51,6 +51,8 @@ import {
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
   fetchCrowdsecBannedRanges,
+  fetchDropNetworks,
+  banDropNetworks,
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
@@ -139,6 +141,7 @@ export const queryKeys = {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
     bannedRanges: ["crowdsec", "banned-ranges"] as const,
+    dropNetworks: (params: Record<string, unknown>) => ["crowdsec", "drop-networks", params] as const,
     stats: ["crowdsec", "stats"] as const,
     bannedLocations: (params: Record<string, unknown>, refreshKey?: number) =>
       ["crowdsec", "banned-locations", params, refreshKey] as const,
@@ -494,6 +497,28 @@ export function useBannedRanges(active = true) {
     enabled: active && status?.enabled === true,
     refetchInterval: 60_000,
     select: selectBannedRanges,
+  })
+}
+
+/** Per-network DROP traffic for the Security card. It sits in the crowdsec group, so a
+ *  ban anywhere refreshes the statuses. With `active` false it never asks. */
+export function useDropNetworks(params: { days: 7 | 30 | 90; page: number; pageSize: number }, active = true) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.dropNetworks(params),
+    queryFn: () => fetchDropNetworks(params),
+    enabled: active && status?.enabled === true,
+    placeholderData: keepPreviousData,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Bans DROP networks in bulk, then refreshes every CrowdSec query. */
+export function useBanDropNetworks() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: banDropNetworks,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }
 

@@ -51,6 +51,9 @@ import type {
   BannedIp,
   BannedRangeView,
   BannedMapCollection,
+  BanNetworksRequest,
+  BanNetworksResponse,
+  DropNetworksResponse,
   SessionUser,
   AuthDisabled,
   AuthOptions,
@@ -410,6 +413,22 @@ export async function fetchCrowdsecBannedIps(): Promise<BannedIp[]> {
 /** Every CIDR under a current Range decision, which /crowdsec/banned-ips leaves out. */
 export async function fetchCrowdsecBannedRanges(): Promise<BannedRangeView[]> {
   const { data } = await api.get<BannedRangeView[]>("/crowdsec/banned-ranges")
+  return data
+}
+
+/** Traffic from DROP-listed networks in the last `days`, busiest first, with each network's Range decision. */
+export async function fetchDropNetworks(params: {
+  days: 7 | 30 | 90
+  page: number
+  pageSize: number
+}): Promise<DropNetworksResponse> {
+  const { data } = await api.get<DropNetworksResponse>("/crowdsec/drop-networks", { params })
+  return data
+}
+
+/** Bans DROP networks as Range decisions and reports each one; one failure never stops the rest. */
+export async function banDropNetworks(body: BanNetworksRequest): Promise<BanNetworksResponse> {
+  const { data } = await api.post<BanNetworksResponse>("/crowdsec/ban-networks", body)
   return data
 }
 
