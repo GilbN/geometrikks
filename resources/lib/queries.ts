@@ -268,6 +268,7 @@ export function useAbout() {
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
     staleTime: ABOUT_STALE_MS,
+    refetchInterval: ABOUT_STALE_MS,
     refetchOnWindowFocus: true,
   })
 }
