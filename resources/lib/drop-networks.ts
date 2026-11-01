@@ -1,3 +1,4 @@
+import { BanNetworksRequestSchema } from "@/generated/api/schemas.gen"
 import type { BannedRangeView, BanNetworkResult, DropListsAboutView, DropNetworksResponse } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import { decisionLabel, forDuration } from "@/lib/crowdsec"
@@ -6,8 +7,12 @@ import { timeLeftText } from "@/lib/crowdsec-alerts"
 export const DROP_NETWORK_RANGES = [7, 30, 90] as const
 export type DropNetworkRange = (typeof DROP_NETWORK_RANGES)[number]
 
-/** The most networks one "Ban all unbanned" run bans; MAX_BULK_BAN_NETWORKS on the server. */
-export const BULK_BAN_LIMIT = 1000
+/**
+ * The most networks one "Ban all unbanned" run bans. This is
+ * MAX_BULK_BAN_NETWORKS in geometrikks/domain/security/schemas.py, read from
+ * the networks maxItems in the generated request schema.
+ */
+export const MAX_BULK_BAN_NETWORKS: number = BanNetworksRequestSchema.properties.networks.maxItems
 
 export const DROP_NETWORKS_STALE_NOTE = "The DROP network lists are out of date. No download has worked for 7 days."
 
@@ -46,13 +51,12 @@ export function bulkBanConfirmText(
   let description =
     `This bans every DROP network with traffic in the last ${days} days that has no ban yet, on every page, not only this one. ` +
     "Each ban names its DROP entry as the reason."
-  if (unbannedCount > BULK_BAN_LIMIT) {
-    description += ` One run bans the busiest ${formatNumber(BULK_BAN_LIMIT)}. Run it again for the other ${formatNumber(unbannedCount - BULK_BAN_LIMIT)}.`
+  let networks = counted(unbannedCount, "DROP network", "DROP networks")
+  if (unbannedCount > MAX_BULK_BAN_NETWORKS) {
+    networks = `${formatNumber(MAX_BULK_BAN_NETWORKS)} of ${networks}`
+    description += ` One run bans the busiest ${formatNumber(MAX_BULK_BAN_NETWORKS)}. Run it again for the other ${formatNumber(unbannedCount - MAX_BULK_BAN_NETWORKS)}.`
   }
-  return {
-    title: `Ban ${counted(unbannedCount, "DROP network", "DROP networks")} ${forDuration(durationLabel)}?`,
-    description,
-  }
+  return { title: `Ban ${networks} ${forDuration(durationLabel)}?`, description }
 }
 
 export type BulkBanResultCounts = { banned: number; alreadyBanned: number; failed: number }
@@ -86,7 +90,7 @@ export function sortedBanResults(banResults: readonly BanNetworkResult[]): BanNe
 export function bulkBanLeftOutText(leftOut: number): string | null {
   if (leftOut <= 0) return null
   return (
-    `${counted(leftOut, "network was", "networks were")} left out, since one run bans at most ${formatNumber(BULK_BAN_LIMIT)}. ` +
+    `${counted(leftOut, "network was", "networks were")} left out, since one run bans at most ${formatNumber(MAX_BULK_BAN_NETWORKS)}. ` +
     "Run it again to ban the next batch."
   )
 }
@@ -135,4 +139,11 @@ export function dropNetworkFreshness(
     if (updatedAt === null || Date.parse(feedView.fetchedAt) > Date.parse(updatedAt)) updatedAt = feedView.fetchedAt
   }
   return { updatedAt, stale: updatedAt !== null && now - Date.parse(updatedAt) > DROP_STALE_AFTER_MS }
+}
+
+type Focusable = { readonly isConnected: boolean; readonly disabled?: boolean; focus: () => void }
+
+/** The first element still on the page that can take focus, for returning focus after a dialog. */
+export function focusTarget<T extends Focusable>(candidates: readonly (T | null | undefined)[]): T | null {
+  return candidates.find((candidate) => candidate?.isConnected && !candidate.disabled) ?? null
 }

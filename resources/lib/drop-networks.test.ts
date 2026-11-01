@@ -9,6 +9,8 @@ import {
   dropLastSeenText,
   dropNetworkFreshness,
   dropNetworksSummary,
+  focusTarget,
+  MAX_BULK_BAN_NETWORKS,
   rangeDecisionText,
   sortedBanResults,
   unbannedNetworkCount,
@@ -67,6 +69,33 @@ describe("bulkBanConfirmText", () => {
     expect(bulkBanConfirmText(1250, "1 hour", 90).description).toBe(
       "This bans every DROP network with traffic in the last 90 days that has no ban yet, on every page, not only this one. Each ban names its DROP entry as the reason. One run bans the busiest 1,000. Run it again for the other 250.",
     )
+  })
+
+  it("promises only the capped count in the title past the cap", () => {
+    expect(bulkBanConfirmText(1250, "1 hour", 90).title).toBe("Ban 1,000 of 1,250 DROP networks for 1 hour?")
+    expect(bulkBanConfirmText(1000, "1 hour", 90).title).toBe("Ban 1,000 DROP networks for 1 hour?")
+  })
+
+  it("takes the cap from the server's request schema", () => {
+    expect(MAX_BULK_BAN_NETWORKS).toBe(1000)
+  })
+})
+
+describe("focusTarget", () => {
+  const element = (isConnected: boolean, disabled?: boolean) => ({ isConnected, disabled, focus: () => {} })
+
+  it("skips missing, detached and disabled elements", () => {
+    const fallback = element(true)
+    expect(focusTarget([null, element(false), element(true, true), fallback])).toBe(fallback)
+  })
+
+  it("prefers the first element that can take focus", () => {
+    const bulkBanButton = element(true, false)
+    expect(focusTarget([bulkBanButton, element(true)])).toBe(bulkBanButton)
+  })
+
+  it("finds nothing when no element can take focus", () => {
+    expect(focusTarget([undefined, element(false)])).toBeNull()
   })
 })
 

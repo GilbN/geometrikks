@@ -3,7 +3,7 @@
  * network that sent requests in the range, busiest first, with its Range
  * decision, a per-row ban and a bulk ban of every unbanned network.
  */
-import { useCallback, useEffect, useRef, useState } from "react"
+import { type Ref, useCallback, useEffect, useRef, useState } from "react"
 import { useLocation } from "@tanstack/react-router"
 import { ChevronDown, Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -47,6 +47,7 @@ import {
   dropLastSeenText,
   dropNetworkFreshness,
   dropNetworksSummary,
+  focusTarget,
   rangeDecisionText,
   sortedBanResults,
   unbannedNetworkCount,
@@ -76,6 +77,8 @@ function DropNetworksCardBody() {
   const [page, setPage] = useState(1)
   const { data, isError, isPlaceholderData } = useDropNetworks({ days, page, pageSize: TABLE_PAGE_SIZE })
   const cardRef = useScrollToCardOnArrival(data !== undefined)
+  const bulkBanButtonRef = useRef<HTMLButtonElement>(null)
+  const [bulkBanDuration, setBulkBanDuration] = useState<BanDuration | null>(null)
 
   const rowsKey = `${days}:${page}:${data?.items.map((dropNetwork) => dropNetwork.cidr).join(",") ?? ""}`
   const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(rowsKey)
@@ -103,7 +106,8 @@ function DropNetworksCardBody() {
     <Card
       id={DROP_NETWORKS_CARD_ID}
       ref={setCardElement}
-      className="scroll-mt-4 py-4"
+      tabIndex={-1}
+      className="scroll-mt-4 py-4 outline-none"
     >
       <CardHeader className="flex flex-row flex-wrap items-center gap-x-3 gap-y-2 pb-1">
         <CardTitle className="mr-auto text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -139,9 +143,22 @@ function DropNetworksCardBody() {
             <Skeleton className="mr-auto h-7 w-72 max-w-full" />
           )}
           {banControls && data && (
-            <BulkBanControl days={days} unbannedCount={unbannedCount} disabled={isPlaceholderData} />
+            <BulkBanMenu
+              ref={bulkBanButtonRef}
+              disabled={isPlaceholderData || unbannedCount === 0}
+              onChoose={setBulkBanDuration}
+            />
           )}
         </div>
+        {/* The refresh after a bulk ban can find the LAPI down and drop the menu,
+            so the dialog with the results sits outside the banControls gate. */}
+        <BulkBanDialog
+          days={days}
+          unbannedCount={unbannedCount}
+          duration={bulkBanDuration}
+          onClose={() => setBulkBanDuration(null)}
+          focusOnClose={() => focusTarget([bulkBanButtonRef.current, cardRef.current])}
+        />
         {data && !decisionsAvailable && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
             CrowdSec could not be reached, so ban status is unknown.
@@ -246,22 +263,22 @@ function DropNetworkRow({
             <span className="ml-auto flex shrink-0 items-center">{status}</span>
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <span
-              className="min-w-0 flex-1 truncate"
-              title={[dropNetwork.sblId, asnText, dropNetwork.asOrg].filter(Boolean).join(" ")}
-            >
-              <span className="font-mono">{dropNetwork.sblId}</span>
-              {asnText && (
-                <>
-                  {" · "}
-                  <span className="font-mono">{asnText}</span> {dropNetwork.asOrg}
-                </>
-              )}
+            <span className="flex min-w-0 flex-1">
+              <span
+                className="min-w-0 truncate"
+                title={[dropNetwork.sblId, asnText, dropNetwork.asOrg].filter(Boolean).join(" ")}
+              >
+                <span className="font-mono">{dropNetwork.sblId}</span>
+                {asnText && (
+                  <>
+                    {" · "}
+                    <span className="font-mono">{asnText}</span> {dropNetwork.asOrg}
+                  </>
+                )}
+              </span>
+              <span className="shrink-0 whitespace-pre tabular-nums">{` · ${counted(dropNetwork.ips, "IP", "IPs")}`}</span>
             </span>
-            <span
-              className="shrink-0 whitespace-nowrap tabular-nums"
-              title={`${counted(dropNetwork.ips, "IP", "IPs")} sent these requests`}
-            >
+            <span className="shrink-0 whitespace-nowrap tabular-nums">
               {counted(dropNetwork.hits, "hit", "hits")} · {lastSeen}
             </span>
           </div>
@@ -361,71 +378,90 @@ function RowBanMenu({ dropNetwork }: { dropNetwork: DropNetworkTrafficView }) {
 
 type BulkBanOutcome = { response: BanNetworksResponse; durationLabel: string }
 
-function BulkBanControl({
+function BulkBanMenu({
+  ref,
+  disabled,
+  onChoose,
+}: {
+  ref: Ref<HTMLButtonElement>
+  disabled: boolean
+  onChoose: (duration: BanDuration) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button ref={ref} variant="outline" size="sm" className={BAN_BUTTON_CLASS} disabled={disabled}>
+          Ban all unbanned for…
+          <ChevronDown />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {BAN_DURATIONS.map((duration) => (
+          <DropdownMenuItem key={duration.value} onSelect={() => onChoose(duration)}>
+            {duration.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function BulkBanDialog({
   days,
   unbannedCount,
-  disabled,
+  duration,
+  onClose,
+  focusOnClose,
 }: {
   days: DropNetworkRange
   unbannedCount: number
-  disabled: boolean
+  duration: BanDuration | null
+  onClose: () => void
+  focusOnClose: () => HTMLElement | null
 }) {
   const banNetworks = useBanDropNetworks()
-  const [chosenDuration, setChosenDuration] = useState<BanDuration | null>(null)
   const [outcome, setOutcome] = useState<BulkBanOutcome | null>(null)
-  const dialogOpen = chosenDuration !== null
 
   const close = () => {
     if (banNetworks.isPending) return
-    setChosenDuration(null)
+    onClose()
     setOutcome(null)
   }
 
   const confirm = () => {
-    if (!chosenDuration) return
-    const duration = chosenDuration
+    if (!duration) return
     banNetworks.mutateAsync({ allUnbannedDays: days, duration: duration.value }).then(
       (response) => setOutcome({ response, durationLabel: duration.label }),
       (error: unknown) => {
         toast.error(crowdsecErrorMessage(error, "The bulk ban failed; the LAPI may be unreachable."))
-        setChosenDuration(null)
+        onClose()
       },
     )
   }
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={BAN_BUTTON_CLASS} disabled={disabled || unbannedCount === 0}>
-            Ban all unbanned for…
-            <ChevronDown />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {BAN_DURATIONS.map((duration) => (
-            <DropdownMenuItem key={duration.value} onSelect={() => setChosenDuration(duration)}>
-              {duration.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <AlertDialog open={dialogOpen} onOpenChange={(open) => !open && close()}>
-        <AlertDialogContent>
-          {outcome ? (
-            <BulkBanOutcomeView outcome={outcome} onDone={close} />
-          ) : (
-            chosenDuration && (
-              <BulkBanConfirm
-                text={bulkBanConfirmText(unbannedCount, chosenDuration.label, days)}
-                pending={banNetworks.isPending}
-                onConfirm={confirm}
-              />
-            )
-          )}
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    <AlertDialog open={duration !== null} onOpenChange={(open) => !open && close()}>
+      <AlertDialogContent
+        onCloseAutoFocus={(event) => {
+          const target = focusOnClose()
+          if (!target) return
+          event.preventDefault()
+          target.focus()
+        }}
+      >
+        {outcome ? (
+          <BulkBanOutcomeView outcome={outcome} onDone={close} />
+        ) : (
+          duration && (
+            <BulkBanConfirm
+              text={bulkBanConfirmText(unbannedCount, duration.label, days)}
+              pending={banNetworks.isPending}
+              onConfirm={confirm}
+            />
+          )
+        )}
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

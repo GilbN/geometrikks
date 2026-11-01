@@ -513,12 +513,17 @@ export function useDropNetworks(params: { days: 7 | 30 | 90; page: number; pageS
   })
 }
 
-/** Bans DROP networks in bulk, then refreshes every CrowdSec query. */
+/** Bans DROP networks in bulk, then refreshes every CrowdSec query, after a
+ *  failure too, since a 500 can follow bans that went through. */
 export function useBanDropNetworks() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: banDropNetworks,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+    // The promise is not returned, or mutateAsync would wait for the refetch,
+    // which takes the LAPI timeout when CrowdSec flakes.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["crowdsec"] })
+    },
   })
 }
 
