@@ -160,6 +160,7 @@ export function DebugLogDetailSheet({
                 }
               />
               <DetailField label="Parse error" value={entry.parseError} mono />
+              <DetailField label="Source format" value={entry.logFormat} mono />
             </dl>
           </section>
 

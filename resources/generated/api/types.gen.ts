@@ -88,6 +88,7 @@ export type AccessLogDebugEntry = {
   id: number;
   ipAddress?: string | null;
   isMalformed: boolean;
+  logFormat?: string | null;
   method?: string | null;
   parseError?: string | null;
   rawFields?: RawLineFields | null;

@@ -155,12 +155,28 @@ async def test_list_tags_stored_keys_with_the_recorded_format(pg_session_maker, 
         service = AccessLogDebugService(session=session)
         rows, _ = await service.list_entries(_window(), LimitOffset(50, 0))
 
+    assert rows[0].log_format == "traefik-json"
     raw_fields = rows[0].raw_fields
     assert raw_fields is not None
     assert raw_fields.format == "traefik-json"
     fields = {raw_field.key: raw_field for raw_field in raw_fields.fields}
     assert fields["DownstreamStatus"].stored_as == "Status"
     assert fields["client_ip"].stored_as is None
+
+
+async def test_list_sorts_by_log_format(pg_session_maker, clean_tables) -> None:
+    ts = NOW - timedelta(hours=1)
+    await _insert_debug(pg_session_maker, ts, "caddy line", log_format="caddy-json")
+    await _insert_debug(pg_session_maker, ts, "traefik line", log_format="traefik-json")
+    await _insert_debug(pg_session_maker, ts, "old line")
+
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        rows, _ = await service.list_entries(
+            _window(), LimitOffset(50, 0), order_by="log_format", sort_order="asc"
+        )
+
+    assert [row.log_format for row in rows] == ["caddy-json", "traefik-json", None]
 
 
 async def test_time_window_on_created_at_excludes_rows(pg_session_maker, clean_tables) -> None:

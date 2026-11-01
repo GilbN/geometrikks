@@ -70,6 +70,8 @@ class AccessLogDebugEntry(msgspec.Struct, rename="camel"):
     is_malformed: bool
     access_log_id: int | None = None
     parse_error: str | None = None
+    log_format: str | None = None
+    """The format that parsed the line. None on rows from before it was recorded."""
     timestamp: datetime | None = None
     ip_address: str | None = None
     method: str | None = None

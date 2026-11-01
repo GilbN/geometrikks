@@ -1227,6 +1227,8 @@ export interface AccessLogDebugEntry {
   isMalformed: boolean
   accessLogId: number | null
   parseError: string | null
+  /** The format that parsed the line. Null on rows from before it was recorded. */
+  logFormat: string | null
   /** Denormalized access-log fields; null when the line never parsed into a log. */
   timestamp: string | null
   ipAddress: string | null
@@ -1251,7 +1253,7 @@ export interface AccessLogDebugPage {
 
 /** Columns the debug table can sort by (must match the backend allowlist). */
 export type AccessLogDebugSortField =
-  | "createdAt" | "isMalformed" | "parseError"
+  | "createdAt" | "isMalformed" | "parseError" | "logFormat"
   | "timestamp" | "statusCode" | "ipAddress" | "host" | "countryCode" | "city"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */
@@ -1259,6 +1261,7 @@ const DEBUG_SORT_FIELD_TO_COLUMN: Record<AccessLogDebugSortField, string> = {
   createdAt: "created_at",
   isMalformed: "is_malformed",
   parseError: "parse_error",
+  logFormat: "log_format",
   timestamp: "timestamp",
   statusCode: "status_code",
   ipAddress: "ip_address",
