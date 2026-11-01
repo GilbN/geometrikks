@@ -1083,6 +1083,30 @@ class CrowdSecSettings(BaseSettings):
         return self
 
 
+class DropSettings(BaseSettings):
+    """Spamhaus DROP lists: networks and ASNs that only carry abuse."""
+
+    model_config = SettingsConfigDict(env_prefix="DROP_", env_file=_env_file(), extra="ignore")
+
+    enabled: bool = Field(
+        default=True,
+        description=(
+            "Download the Spamhaus DROP lists from www.spamhaus.org and mark "
+            "listed IPs and ASNs in the UI. Needs the scheduler. Set to false "
+            "to stop the downloads and hide every DROP element."
+        ),
+    )
+    refresh_hours: int = Field(
+        default=24,
+        ge=1,
+        description=(
+            "Hours between DROP list downloads. A list is never fetched "
+            "again within an hour of its last attempt, whatever this is set to."
+        ),
+        json_schema_extra=ADVANCED_FIELD,
+    )
+
+
 class OidcSettings(BaseSettings):
     """OpenID Connect login against one identity provider.
 
@@ -1470,6 +1494,7 @@ class Settings(BaseSettings):
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     map: MapSettings = Field(default_factory=MapSettings)
     crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
+    drop: DropSettings = Field(default_factory=DropSettings)
     oidc: OidcSettings = Field(default_factory=OidcSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
 

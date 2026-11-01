@@ -102,6 +102,12 @@ Set these only for a feature you use, or to change a default.
 | `CROWDSEC_DEFAULT_BAN_DURATION` | `4h` | Default duration for manual bans (Go duration string) |
 | `CROWDSEC_VERIFY_TLS` | `true` | Verify TLS when LAPI uses https |
 
+### DROP lists
+
+| Variable | Default | Description |
+|---|---|---|
+| `DROP_ENABLED` | `true` | Download the Spamhaus DROP lists from www.spamhaus.org and mark listed IPs and ASNs in the UI. Needs the scheduler. Set to false to stop the downloads and hide every DROP element. |
+
 ### OpenID Connect
 
 | Variable | Default | Description |
@@ -168,6 +174,7 @@ connection pool that runs dry or a log that rotates too often.
 | `MAP_SERVER_LOCATION_REFRESH_HOURS` | `24` | Hours between re-detecting this server's public-IP location and updating its stored server locations. Formerly `MAP_HOME_REFRESH_HOURS`, which still works until 1.0. |
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
+| `DROP_REFRESH_HOURS` | `24` | Hours between DROP list downloads. A list is never fetched again within an hour of its last attempt, whatever this is set to. |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |
 | `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Days after which to compress hypertable chunks |
 | `LOG_DIR` | `logs` | Directory for application log files |
