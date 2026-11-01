@@ -272,8 +272,12 @@ class TestOddInput:
         line = '{"leaf":0,"a":' * 2000 + "0" + "}" * 2000
         assert raw_line_fields(line, linked=False) is None
 
-    def test_too_many_keys_keep_the_raw_view_only(self) -> None:
-        line = json.dumps({f"key{index}": index for index in range(1000)})
+    def test_two_hundred_keys_still_get_fields(self) -> None:
+        line = json.dumps({f"key{index}": index for index in range(200)})
+        assert raw_line_fields(line, linked=False) is not None
+
+    def test_more_than_two_hundred_keys_keep_the_raw_view_only(self) -> None:
+        line = json.dumps({f"key{index}": index for index in range(201)})
         assert raw_line_fields(line, linked=False) is None
 
     def test_a_normal_nested_caddy_line_gets_fields(self) -> None:

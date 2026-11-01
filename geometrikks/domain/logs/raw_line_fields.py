@@ -17,10 +17,10 @@ from geometrikks.services.logparser.json_fields import (
 )
 
 # Proxy access lines nest three levels at most, as in Caddy's request.headers.X,
-# and carry well under 500 keys. No proxy writes a line past either limit, so
-# such a line shows in the Raw view only.
+# and carry about 100 keys at most. Both limits are twice that. No proxy writes
+# a line past either one, so such a line shows in the Raw view only.
 _MAX_DEPTH = 6
-_MAX_FIELDS = 500
+_MAX_FIELDS = 200
 
 _HEADER_GROUPS: dict[HeaderKind, RawLineFieldGroup] = {
     "request": "request_header",
