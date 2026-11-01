@@ -6,10 +6,12 @@ block page or a truncated download never replaces good rows.
 """
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Annotated, Literal
+from urllib.parse import urljoin, urlsplit
 
 import httpx2
 import msgspec
@@ -28,6 +30,9 @@ FEED_URLS: dict[DropFeed, str] = {
 }
 
 REQUEST_TIMEOUT_SECONDS = 30.0
+FETCH_DEADLINE_SECONDS = 60.0
+MAX_REDIRECTS = 3
+REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_ASN = 2**32 - 1
 
@@ -87,12 +92,17 @@ def _parse_feed[RecordT, LineT: msgspec.Struct](
     body: bytes,
     line_type: type[LineT],
     build_record: Callable[[LineT], RecordT],
-    record_key: Callable[[RecordT], object],
+    primary_key_of: Callable[[RecordT], object],
 ) -> tuple[list[RecordT], FeedMetadata]:
+    # msgspec skips UTF-8 validation inside fields the structs ignore
+    try:
+        body.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise DropFeedError("invalid encoding") from error
     if not body.strip():
         raise DropFeedError("empty feed")
     records: list[RecordT] = []
-    seen_keys: set[object] = set()
+    seen_primary_keys: set[object] = set()
     metadata_line: MetadataLine | None = None
     line_count = 0
 
@@ -111,14 +121,15 @@ def _parse_feed[RecordT, LineT: msgspec.Struct](
                 datetime.fromtimestamp(metadata_line.timestamp, UTC)
                 continue
             else:
-                raise ValueError("unknown line type")
-        except (msgspec.DecodeError, ValueError, OverflowError, OSError) as error:
+                raise DropFeedError(f"invalid line {line_number}")
+        # RecursionError: msgspec recurses into deeply nested fields it ignores
+        except (msgspec.DecodeError, ValueError, OverflowError, OSError, RecursionError) as error:
             raise DropFeedError(f"invalid line {line_number}") from error
         line_count += 1
-        key = record_key(record)
+        primary_key = primary_key_of(record)
         # normalising can fold two lines onto one primary key
-        if key not in seen_keys:
-            seen_keys.add(key)
+        if primary_key not in seen_primary_keys:
+            seen_primary_keys.add(primary_key)
             records.append(record)
 
     if metadata_line is None:
@@ -141,6 +152,9 @@ def parse_network_feed(
     wrong_family_reason = f"IPv{6 if feed == 'v4' else 4} network in the {feed} feed"
 
     def build_record(network_line: NetworkLine) -> NetworkRecord:
+        # ip_network accepts an IPv6 scope id such as fe80::%eth0/64
+        if "%" in network_line.cidr:
+            raise ValueError("scope id in cidr")
         network = ipaddress.ip_network(network_line.cidr, strict=False)
         if network.version != expected_version:
             raise DropFeedError(wrong_family_reason)
@@ -166,25 +180,44 @@ async def fetch_feed(
     feed: DropFeed, *, transport: httpx2.AsyncBaseTransport | None = None
 ) -> bytes:
     """GET one feed, refusing anything but a 200 and anything over the size cap."""
-    body = bytearray()
     try:
-        async with (
-            httpx2.AsyncClient(
-                timeout=REQUEST_TIMEOUT_SECONDS,
-                follow_redirects=True,
-                headers={"User-Agent": USER_AGENT},
-                transport=transport,
-            ) as client,
-            client.stream("GET", FEED_URLS[feed]) as response,
-        ):
-            if response.status_code != 200:
-                raise DropFeedError(f"HTTP {response.status_code}")
-            async for chunk in response.aiter_bytes():
-                body += chunk
-                if len(body) > MAX_RESPONSE_BYTES:
-                    raise DropFeedError("response too large")
+        async with asyncio.timeout(FETCH_DEADLINE_SECONDS):
+            return await _fetch_following_redirects(FEED_URLS[feed], transport)
+    except TimeoutError as error:
+        raise DropFeedError("timed out") from error
     except httpx2.TimeoutException as error:
         raise DropFeedError("timeout") from error
     except httpx2.HTTPError as error:
         raise DropFeedError(type(error).__name__) from error
-    return bytes(body)
+
+
+async def _fetch_following_redirects(
+    url: str, transport: httpx2.AsyncBaseTransport | None
+) -> bytes:
+    # Redirects are followed here because httpx2 reads a redirect response's
+    # whole body before handing it back, which would skip the size cap.
+    async with httpx2.AsyncClient(
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        follow_redirects=False,
+        headers={"User-Agent": USER_AGENT},
+        transport=transport,
+    ) as client:
+        for _ in range(MAX_REDIRECTS + 1):
+            async with client.stream("GET", url) as response:
+                if response.status_code in REDIRECT_STATUS_CODES:
+                    location = response.headers.get("location")
+                    if not location:
+                        raise DropFeedError(f"HTTP {response.status_code}")
+                    url = urljoin(url, location)
+                    if urlsplit(url).scheme != "https":
+                        raise DropFeedError("redirect to a non-https URL")
+                    continue
+                if response.status_code != 200:
+                    raise DropFeedError(f"HTTP {response.status_code}")
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body += chunk
+                    if len(body) > MAX_RESPONSE_BYTES:
+                        raise DropFeedError("response too large")
+                return bytes(body)
+    raise DropFeedError("too many redirects")

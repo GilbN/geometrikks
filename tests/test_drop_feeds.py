@@ -1,4 +1,5 @@
 """DROP feed parsing and download: strict, so a bad body never reaches the tables."""
+import asyncio
 from datetime import UTC, datetime
 
 import httpx2
@@ -127,8 +128,9 @@ def test_duplicate_asns_keep_the_first_line() -> None:
         (feed_body(V4_LINE, '{"type":"other"}', metadata_line(1)), "invalid line 2"),
         (b"<html><body>Blocked</body></html>", "invalid line 1"),
         (feed_body(V4_LINE, "not json", metadata_line(2)), "invalid line 2"),
-        (b"\xff\xfe" + feed_body(V4_LINE, metadata_line(1)), "invalid line 1"),
+        (b"\xff\xfe" + feed_body(V4_LINE, metadata_line(1)), "invalid encoding"),
         (feed_body('{"cidr":"1.10.16.0/33","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
+        (feed_body('{"cidr":"2001:678:254::%eth0/48","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
         (feed_body('{"cidr":"not-a-cidr","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
         (feed_body('{"cidr":"1.10.16.0/20"}', metadata_line(1)), "invalid line 1"),
         (feed_body('{"cidr":"1.10.16.0/20","sblid":""}', metadata_line(1)), "invalid line 1"),
@@ -140,15 +142,15 @@ def test_duplicate_asns_keep_the_first_line() -> None:
     ],
 )
 def test_bad_v4_bodies_are_rejected(body: bytes, reason: str) -> None:
-    with pytest.raises(DropFeedError) as error:
+    with pytest.raises(DropFeedError) as raised_error:
         parse_network_feed(body, "v4")
-    assert str(error.value) == reason
+    assert str(raised_error.value) == reason
 
 
 def test_ipv4_network_in_the_v6_feed_is_rejected() -> None:
-    with pytest.raises(DropFeedError) as error:
+    with pytest.raises(DropFeedError) as raised_error:
         parse_network_feed(feed_body(V4_LINE, metadata_line(1)), "v6")
-    assert str(error.value) == "IPv4 network in the v6 feed"
+    assert str(raised_error.value) == "IPv4 network in the v6 feed"
 
 
 @pytest.mark.parametrize(
@@ -208,18 +210,18 @@ async def test_fetch_feed_rejects_a_non_200_status() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(503)
 
-    with pytest.raises(DropFeedError) as error:
+    with pytest.raises(DropFeedError) as raised_error:
         await fetch_feed("v4", transport=feed_transport(handler))
-    assert str(error.value) == "HTTP 503"
+    assert str(raised_error.value) == "HTTP 503"
 
 
 async def test_fetch_feed_rejects_a_body_over_the_cap() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(200, content=b"x" * (MAX_RESPONSE_BYTES + 1))
 
-    with pytest.raises(DropFeedError) as error:
+    with pytest.raises(DropFeedError) as raised_error:
         await fetch_feed("v4", transport=feed_transport(handler))
-    assert str(error.value) == "response too large"
+    assert str(raised_error.value) == "response too large"
 
 
 async def test_fetch_feed_accepts_a_body_at_the_cap() -> None:
@@ -233,15 +235,99 @@ async def test_fetch_feed_names_a_timeout() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         raise httpx2.ReadTimeout("slow", request=request)
 
-    with pytest.raises(DropFeedError) as error:
+    with pytest.raises(DropFeedError) as raised_error:
         await fetch_feed("v4", transport=feed_transport(handler))
-    assert str(error.value) == "timeout"
+    assert str(raised_error.value) == "timeout"
 
 
 async def test_fetch_feed_names_a_connection_failure() -> None:
     def handler(request: httpx2.Request) -> httpx2.Response:
         raise httpx2.ConnectError("refused", request=request)
 
-    with pytest.raises(DropFeedError) as error:
+    with pytest.raises(DropFeedError) as raised_error:
         await fetch_feed("v4", transport=feed_transport(handler))
-    assert str(error.value) == "ConnectError"
+    assert str(raised_error.value) == "ConnectError"
+
+
+def test_deeply_nested_unknown_field_is_rejected_not_a_recursion_error() -> None:
+    nested = "[" * 20_000 + "]" * 20_000
+    line = f'{{"cidr":"1.10.16.0/20","sblid":"SBL1","extra":{nested}}}'
+    with pytest.raises(DropFeedError) as raised_error:
+        parse_network_feed(feed_body(line, metadata_line(1)), "v4")
+    assert str(raised_error.value) == "invalid line 1"
+    asn_line = f'{{"asn":1,"extra":{nested}}}'
+    with pytest.raises(DropFeedError):
+        parse_asn_feed(feed_body(asn_line, metadata_line(1)))
+
+
+def test_invalid_utf8_in_an_ignored_field_is_rejected() -> None:
+    line = b'{"cidr":"1.10.16.0/20","sblid":"SBL1","note":"\xff"}'
+    with pytest.raises(DropFeedError) as raised_error:
+        parse_network_feed(line + b"\n" + metadata_line(1).encode(), "v4")
+    assert str(raised_error.value) == "invalid encoding"
+
+
+async def test_fetch_feed_follows_a_redirect_without_reading_its_body() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/drop/drop_v4.json":
+            return httpx2.Response(
+                302,
+                headers={"Location": "/moved.json"},
+                content=b"x" * (MAX_RESPONSE_BYTES + 1),
+            )
+        return httpx2.Response(200, content=b"moved body")
+
+    assert await fetch_feed("v4", transport=feed_transport(handler)) == b"moved body"
+
+
+async def test_fetch_feed_rejects_a_redirect_to_a_non_https_url() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(302, headers={"Location": "http://www.spamhaus.org/moved.json"})
+
+    with pytest.raises(DropFeedError) as raised_error:
+        await fetch_feed("v4", transport=feed_transport(handler))
+    assert str(raised_error.value) == "redirect to a non-https URL"
+
+
+async def test_fetch_feed_allows_three_redirects_and_rejects_a_fourth() -> None:
+    requested_paths: list[str] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        requested_paths.append(request.url.path)
+        hop_count = len(requested_paths)
+        if hop_count <= redirect_count:
+            return httpx2.Response(302, headers={"Location": f"/hop{hop_count}"})
+        return httpx2.Response(200, content=b"final")
+
+    redirect_count = 3
+    assert await fetch_feed("v4", transport=feed_transport(handler)) == b"final"
+
+    requested_paths.clear()
+    redirect_count = 4
+    with pytest.raises(DropFeedError) as raised_error:
+        await fetch_feed("v4", transport=feed_transport(handler))
+    assert str(raised_error.value) == "too many redirects"
+    assert len(requested_paths) == 4
+
+
+async def test_fetch_feed_rejects_a_redirect_without_a_location() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(302)
+
+    with pytest.raises(DropFeedError) as raised_error:
+        await fetch_feed("v4", transport=feed_transport(handler))
+    assert str(raised_error.value) == "HTTP 302"
+
+
+async def test_fetch_feed_gives_up_after_the_overall_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("geometrikks.domain.drop.feeds.FETCH_DEADLINE_SECONDS", 0.05)
+
+    async def handler(request: httpx2.Request) -> httpx2.Response:
+        await asyncio.sleep(5)
+        return httpx2.Response(200, content=b"late")
+
+    with pytest.raises(DropFeedError) as raised_error:
+        await fetch_feed("v4", transport=feed_transport(handler))
+    assert str(raised_error.value) == "timed out"
