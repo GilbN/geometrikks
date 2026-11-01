@@ -78,7 +78,7 @@ export function TrafficOriginStats() {
             title="DROP Traffic"
             value={`${dropShare.toFixed(1)}%`}
             valueClassName="text-destructive"
-            subtitle={dropTrafficSubtitle(dropHits, dropAsnCount)}
+            subtitle={dropTrafficSubtitle(dropHits, dropAsnCount, classified, coverage)}
             icon={OctagonX}
             iconClassName="text-destructive"
           />

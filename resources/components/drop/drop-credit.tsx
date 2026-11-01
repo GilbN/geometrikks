@@ -1,7 +1,7 @@
-import { DROP_STALE_NOTE, dropCreditText } from "@/lib/drop-lists"
+import { DROP_ASN_STALE_NOTE, dropCreditText } from "@/lib/drop-lists"
 import { cn } from "@/lib/utils"
 
-/** The attribution line under every DROP figure, with an out-of-date note when no download has worked for a week. */
+/** The attribution line under every DROP figure, with an out-of-date note when the ASN list has not downloaded for a week. */
 export function DropCredit({
   updatedAt,
   stale,
@@ -16,7 +16,7 @@ export function DropCredit({
       {dropCreditText(updatedAt)}
       {stale && (
         <>
-          . <span className="text-amber-600 dark:text-amber-400">{DROP_STALE_NOTE}</span>
+          . <span className="text-amber-600 dark:text-amber-400">{DROP_ASN_STALE_NOTE}</span>
         </>
       )}
     </p>

@@ -6,7 +6,22 @@ export type { DropFeedView, DropListsAboutView }
 
 export const DROP_CREDIT = "DROP data: The Spamhaus Project"
 
-export const DROP_STALE_NOTE = "The lists are out of date. No download has worked for 7 days."
+export const DROP_ASN_STALE_NOTE = "ASN-DROP is out of date. No download has worked for 7 days."
+
+const DROP_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * What the DROP traffic figures say about their data: the ASN list's last
+ * successful download and whether it is a week old. The figures match
+ * traffic against ASN-DROP alone, so the other feeds do not count here.
+ */
+export function dropAsnFreshness(
+  dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined,
+  now: number = Date.now(),
+): { updatedAt: string | null; stale: boolean } {
+  const updatedAt = dropLists?.feeds.find((feedView) => feedView.feed === "asn")?.fetchedAt ?? null
+  return { updatedAt, stale: updatedAt !== null && now - Date.parse(updatedAt) > DROP_STALE_AFTER_MS }
+}
 
 /** The credit line, with the last successful download in the reader's local time. */
 export function dropCreditText(updatedAt: string | null | undefined): string {
@@ -14,10 +29,22 @@ export function dropCreditText(updatedAt: string | null | undefined): string {
   return `${DROP_CREDIT}, updated ${formatTs(updatedAt, "hourly")}`
 }
 
-/** The dashboard DROP card's subtitle; the count is of listed ASNs with traffic, not CIDR networks. */
-export function dropTrafficSubtitle(dropHits: number, dropAsnCount: number | null): string {
-  if (dropAsnCount === null) return `${formatNumber(dropHits)} requests from DROP ASNs`
-  return `${formatNumber(dropHits)} requests from ${formatNumber(dropAsnCount)} DROP ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
+/**
+ * The dashboard DROP card's subtitle; the count is of listed ASNs with traffic, not CIDR networks.
+ * The share is of classified requests, so an incomplete range names the denominator like the Hosting card.
+ */
+export function dropTrafficSubtitle(
+  dropHits: number,
+  dropAsnCount: number | null,
+  classified: number,
+  coverage: number,
+): string {
+  const source =
+    dropAsnCount === null ? "DROP ASNs" : `${formatNumber(dropAsnCount)} DROP ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
+  if (coverage < 99.5) {
+    return `${formatNumber(dropHits)} of ${formatNumber(classified)} classified requests (${coverage.toFixed(0)}% of range), from ${source}`
+  }
+  return `${formatNumber(dropHits)} requests from ${source}`
 }
 
 const FEED_NOUNS: Record<string, [singular: string, plural: string]> = {

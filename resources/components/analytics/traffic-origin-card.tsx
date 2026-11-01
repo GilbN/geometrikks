@@ -12,6 +12,7 @@ import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { DropCredit } from "@/components/drop/drop-credit"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
+import { dropAsnFreshness } from "@/lib/drop-lists"
 import { useAbout, useTopAsns } from "@/lib/queries"
 import { CategoryBadge } from "./top-asns-table"
 
@@ -25,6 +26,7 @@ export function TrafficOriginCard() {
   const totalRequests = data?.totalRequests ?? 0
   // See asn-coverage.ts for why the share and the coverage use different
   // denominators.
+  const dropFreshness = dropAsnFreshness(about?.dropLists)
   const { classified, unenriched, hostingShare: share, dropShare, coverage } = asnCoverage(
     data?.categories,
     totalRequests,
@@ -118,7 +120,7 @@ export function TrafficOriginCard() {
               </TableBody>
             </Table>
             {drop && (
-              <DropCredit updatedAt={about?.dropLists?.updatedAt} stale={about?.dropLists?.stale ?? false} />
+              <DropCredit updatedAt={dropFreshness.updatedAt} stale={dropFreshness.stale} />
             )}
           </div>
         )}

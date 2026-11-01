@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { DropFeedView } from "@/generated/api/types.gen"
 import { formatTs } from "./datetime"
 import {
+  dropAsnFreshness,
   dropAsnsLoaded,
   dropCreditText,
   dropFeedCounts,
@@ -35,9 +36,45 @@ describe("dropCreditText", () => {
 
 describe("dropTrafficSubtitle", () => {
   it("counts DROP ASNs, singular for one", () => {
-    expect(dropTrafficSubtitle(1234, 3)).toBe("1,234 requests from 3 DROP ASNs")
-    expect(dropTrafficSubtitle(5, 1)).toBe("5 requests from 1 DROP ASN")
-    expect(dropTrafficSubtitle(5, null)).toBe("5 requests from DROP ASNs")
+    expect(dropTrafficSubtitle(1234, 3, 5000, 100)).toBe("1,234 requests from 3 DROP ASNs")
+    expect(dropTrafficSubtitle(5, 1, 5000, 99.5)).toBe("5 requests from 1 DROP ASN")
+    expect(dropTrafficSubtitle(5, null, 5000, 100)).toBe("5 requests from DROP ASNs")
+  })
+
+  it("names the classified denominator when the range is not fully covered", () => {
+    expect(dropTrafficSubtitle(1234, 3, 5000, 80.2)).toBe(
+      "1,234 of 5,000 classified requests (80% of range), from 3 DROP ASNs",
+    )
+    expect(dropTrafficSubtitle(5, 1, 100, 99.4)).toBe("5 of 100 classified requests (99% of range), from 1 DROP ASN")
+    expect(dropTrafficSubtitle(5, null, 100, 50)).toBe("5 of 100 classified requests (50% of range), from DROP ASNs")
+  })
+})
+
+describe("dropAsnFreshness", () => {
+  const now = Date.parse("2026-11-01T12:00:00Z")
+
+  it("dates the figures by the ASN feed, not the newest feed", () => {
+    const feeds = [
+      feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" }),
+      feedView({ feed: "asn", fetchedAt: "2026-10-30T06:00:00Z" }),
+    ]
+    expect(dropAsnFreshness({ feeds }, now)).toEqual({ updatedAt: "2026-10-30T06:00:00Z", stale: false })
+  })
+
+  it("is stale when only the ASN download is a week old", () => {
+    const feeds = [
+      feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" }),
+      feedView({ feed: "asn", fetchedAt: "2026-10-24T11:59:00Z" }),
+    ]
+    expect(dropAsnFreshness({ feeds }, now)).toEqual({ updatedAt: "2026-10-24T11:59:00Z", stale: true })
+  })
+
+  it("has no date and is not stale before the ASN list downloads", () => {
+    expect(dropAsnFreshness({ feeds: [feedView({ feed: "v4", fetchedAt: "2026-11-01T11:00:00Z" })] }, now)).toEqual({
+      updatedAt: null,
+      stale: false,
+    })
+    expect(dropAsnFreshness(undefined, now)).toEqual({ updatedAt: null, stale: false })
   })
 })
 
