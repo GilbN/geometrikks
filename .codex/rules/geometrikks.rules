@@ -1,0 +1,3 @@
+# Commands Codex may run in geometrikks without asking.
+prefix_rule(pattern=["uv", "run", "litestar"], decision="allow")
+prefix_rule(pattern=["/bin/bash", "-lc", "PYTHONWARNINGS=default uv run litestar --app geometrikks.server.core:create_app routes"], decision="allow")
