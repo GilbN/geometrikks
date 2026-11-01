@@ -14,12 +14,12 @@ from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import TYPE_CHECKING, Literal
 
 from litestar import Controller, Litestar, Request, get, post
-from litestar.di import NamedDependency, Provide
+from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
 from litestar.params import FromPath, SkipValidation
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 from geometrikks.config.introspection import (
     ComputedField,
@@ -35,9 +35,8 @@ from geometrikks.domain.analytics.asn_classification import (
     hosting_asn_count,
     hosting_asn_entries,
 )
-from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.schemas import DropListsAboutView, build_drop_lists_about
-from geometrikks.domain.drop.snapshot import DropSnapshot
+from geometrikks.domain.drop.snapshot import ensure_drop_snapshot
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
@@ -179,6 +178,20 @@ def _dist_version(name: str) -> str | None:
         return dist_version(name)
     except PackageNotFoundError:
         return None
+
+
+async def _drop_lists_about(engine: AsyncEngine, *, enabled: bool) -> DropListsAboutView | None:
+    """DROP state for About; None when disabled or the database cannot answer."""
+    if not enabled:
+        return None
+    try:
+        async with AsyncSession(engine) as session:
+            drop_snapshot = await ensure_drop_snapshot(session, enabled=True)
+    except Exception:
+        # About must render in DB-degraded mode
+        logger.warning("drop_lists_about_unavailable", exc_info=True)
+        return None
+    return build_drop_lists_about(drop_snapshot, enabled=True)
 
 
 async def _database_versions(engine: AsyncEngine) -> DatabaseVersionsView:
@@ -354,8 +367,6 @@ class SystemController(Controller):
     path = "/system"
     tags = ["System"]
 
-    dependencies = {"drop_snapshot": Provide(provide_drop_snapshot)}
-
     @get("/settings")
     async def get_system_settings(
         self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
@@ -374,7 +385,6 @@ class SystemController(Controller):
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
         db_engine: NamedDependency[SkipValidation[AsyncEngine]],
-        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
     ) -> AboutResponse:
         """App, runtime, database, and GeoIP metadata for the About page."""
         s = settings
@@ -405,7 +415,7 @@ class SystemController(Controller):
                 license=DATASET_LICENSE,
                 source_url=DATASET_URL,
             ),
-            drop_lists=build_drop_lists_about(drop_snapshot, enabled=s.drop.enabled),
+            drop_lists=await _drop_lists_about(db_engine, enabled=s.drop.enabled),
         )
 
     @get("/asn-classification")

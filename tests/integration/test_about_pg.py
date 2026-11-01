@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 import pytest
 from litestar.testing import AsyncTestClient
+from structlog.testing import capture_logs
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from geometrikks.domain.drop.refresh import refresh_drop_lists
@@ -12,7 +13,11 @@ from geometrikks.domain.system.controllers.system import _database_versions
 from geometrikks.server.core import create_app
 from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from tests.integration.test_drop_refresh_pg import default_server
-from tests.integration.test_drop_snapshot_pg import build_settings, import_fixture_lists
+from tests.integration.test_drop_snapshot_pg import (  # noqa: F401  (autouse structlog reset)
+    _reset_structlog_config,
+    build_settings,
+    import_fixture_lists,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -78,3 +83,31 @@ async def test_about_has_no_drop_lists_when_disabled(migrated_database_url, pg_s
     about = await fetch_about(build_settings(migrated_database_url, drop_enabled=False))
 
     assert about["dropLists"] is None
+
+
+async def test_about_lists_no_feeds_on_a_fresh_install(migrated_database_url, pg_session_maker, clean_tables):
+    about = await fetch_about(build_settings(migrated_database_url))
+
+    drop_lists = about["dropLists"]
+    assert drop_lists["enabled"] is True
+    assert drop_lists["loaded"] is False
+    assert drop_lists["feeds"] == []
+
+
+async def test_about_drops_the_drop_card_when_the_snapshot_cannot_load(
+    migrated_database_url, pg_session_maker, clean_tables, monkeypatch
+):
+    async def fail_to_load(session, *, enabled):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("geometrikks.domain.system.controllers.system.ensure_drop_snapshot", fail_to_load)
+
+    async with AsyncTestClient(app=create_app(settings=build_settings(migrated_database_url))) as client:
+        with capture_logs() as captured_logs:
+            response = await client.get("/api/v1/system/about")
+
+    assert response.status_code == 200
+    about = response.json()
+    assert about["dropLists"] is None
+    assert about["database"]["postgresVersion"] is not None
+    assert "drop_lists_about_unavailable" in [log["event"] for log in captured_logs]
