@@ -1,5 +1,6 @@
 """Tests for splitting a JSON debug line into header, stored and other fields."""
 import json
+from typing import Any
 
 from geometrikks.domain.logs.raw_line_fields import raw_line_fields
 from geometrikks.domain.logs.schemas import RawLineField
@@ -31,7 +32,7 @@ TRAEFIK_RECORD = {
 }
 TRAEFIK_LINE = json.dumps(TRAEFIK_RECORD)
 
-CADDY_RECORD = {
+CADDY_RECORD: dict[str, Any] = {
     "level": "info",
     "ts": 1761704718.637,
     "logger": "http.log.access",
