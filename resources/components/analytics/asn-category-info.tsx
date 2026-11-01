@@ -29,9 +29,10 @@ export function AsnCategoryInfo() {
         {dropLoaded ? (
           <>
             <p>
-              Networks on the DROP list are badged DROP. The list names
-              networks hijacked or run by spam and cybercrime operations, and
-              it is checked first, so a DROP network never counts as Hosting.
+              An ASN on the ASN-DROP list gets the DROP badge. The list names
+              networks hijacked or run by spam and cybercrime operations.
+              GeoMetrikks checks it first, so an ASN on it never counts as
+              Hosting.
             </p>
             <p>
               Networks on a bundled community list of hosting and datacenter
