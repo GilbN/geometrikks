@@ -416,8 +416,8 @@ export function IpActionsMenu({
             {/* In a sheet the IP block above already says all this. */}
             {!footer && (
               <DropdownMenuLabel className="flex flex-col items-start justify-start gap-0.5">
-                <span className="flex items-center gap-2 font-mono">
-                  {ip}
+                <span className="flex max-w-80 flex-wrap items-center gap-x-2 gap-y-1 font-mono">
+                  <span className="[overflow-wrap:anywhere]">{ip}</span>
                   {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
                   {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
                 </span>

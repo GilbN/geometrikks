@@ -7,7 +7,7 @@ import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
 import type { LatestReleaseView } from "@/generated/api/types.gen"
-import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, type InfiniteData, type Query, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -282,9 +282,36 @@ export function useAbout() {
 export const DROP_LISTS_STALE_MS = 30 * 60_000
 export const DROP_LISTS_REFETCH_MS = 60 * 60_000
 
-// Module scope keeps select's identity stable, so TanStack Query builds the index once per response.
-function selectDropIndex(dropLists: DropListsResponse): DropIndex | null {
-  return dropLists.enabled && dropLists.loaded ? buildDropIndex(dropLists.networks) : null
+// TanStack Query runs select once per observer, and every IP on screen is an
+// observer, so this caches the index per response.
+const dropIndexByNetworks = new WeakMap<DropListsResponse["networks"], DropIndex>()
+
+export function selectDropIndex(dropLists: DropListsResponse): DropIndex | null {
+  if (!dropLists.enabled || !dropLists.loaded) return null
+  let dropIndex = dropIndexByNetworks.get(dropLists.networks)
+  if (dropIndex === undefined) {
+    dropIndex = buildDropIndex(dropLists.networks)
+    dropIndexByNetworks.set(dropLists.networks, dropIndex)
+  }
+  return dropIndex
+}
+
+/**
+ * Query options for the DROP lists of one download. About's `updatedAt` is
+ * in the key, so a first download or a refresh fetches the new lists at once
+ * instead of waiting for the hourly poll.
+ */
+export function dropListsQueryOptions(updatedAt: string | null, enabled: boolean) {
+  return {
+    queryKey: [...queryKeys.drop.lists, updatedAt] as const,
+    queryFn: fetchDropLists,
+    enabled,
+    // A cached answer from while DROP was off or not downloaded is stale at once, so re-enabling refetches.
+    staleTime: (query: Query<DropListsResponse>) =>
+      query.state.data?.enabled && query.state.data.loaded ? DROP_LISTS_STALE_MS : 0,
+    refetchInterval: DROP_LISTS_REFETCH_MS,
+    select: selectDropIndex,
+  }
 }
 
 /**
@@ -294,14 +321,7 @@ function selectDropIndex(dropLists: DropListsResponse): DropIndex | null {
 export function useDropLists(): { data?: DropIndex; loaded: boolean } {
   const { data: about } = useAbout()
   const active = about?.dropLists?.enabled === true && about.dropLists.loaded
-  const { data: dropIndex } = useQuery({
-    queryKey: queryKeys.drop.lists,
-    queryFn: fetchDropLists,
-    enabled: active,
-    staleTime: DROP_LISTS_STALE_MS,
-    refetchInterval: DROP_LISTS_REFETCH_MS,
-    select: selectDropIndex,
-  })
+  const { data: dropIndex } = useQuery(dropListsQueryOptions(about?.dropLists?.updatedAt ?? null, active))
   if (!active || !dropIndex) return { loaded: false }
   return { data: dropIndex, loaded: true }
 }

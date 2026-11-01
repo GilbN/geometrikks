@@ -197,6 +197,50 @@ describe("matchDropNetwork", () => {
     expect(matchDropNetwork(overlapping, "203.0.113.200")?.sblId).toBe("SBL000010")
   })
 
+  it("returns the narrowest of two networks that start at the same address, in either input order", () => {
+    const narrowLast = buildDropIndex([
+      { cidr: "192.0.2.0/24", sblId: "SBL000030" },
+      { cidr: "192.0.2.0/25", sblId: "SBL000031" },
+    ])
+    const narrowFirst = buildDropIndex([
+      { cidr: "192.0.2.0/25", sblId: "SBL000031" },
+      { cidr: "192.0.2.0/24", sblId: "SBL000030" },
+    ])
+    for (const sameStart of [narrowLast, narrowFirst]) {
+      expect(matchDropNetwork(sameStart, "192.0.2.5")?.sblId).toBe("SBL000031")
+      expect(matchDropNetwork(sameStart, "192.0.2.200")?.sblId).toBe("SBL000030")
+    }
+  })
+
+  it("returns the narrowest IPv6 network that shares a start, in either input order", () => {
+    const narrowFirst = buildDropIndex([
+      { cidr: "2001:db8:254::/48", sblId: "SBL000041" },
+      { cidr: "2001:db8::/32", sblId: "SBL000040" },
+    ])
+    const narrowLast = buildDropIndex([
+      { cidr: "2001:db8::/32", sblId: "SBL000040" },
+      { cidr: "2001:db8:0::/48", sblId: "SBL000042" },
+    ])
+    expect(matchDropNetwork(narrowFirst, "2001:db8:254::9")?.sblId).toBe("SBL000041")
+    expect(matchDropNetwork(narrowFirst, "2001:db8:9::9")?.sblId).toBe("SBL000040")
+    const sharedStartReversed = buildDropIndex([
+      { cidr: "2001:db8::/48", sblId: "SBL000042" },
+      { cidr: "2001:db8::/32", sblId: "SBL000040" },
+    ])
+    for (const sameStart of [narrowLast, sharedStartReversed]) {
+      expect(matchDropNetwork(sameStart, "2001:db8::1")?.sblId).toBe("SBL000042")
+      expect(matchDropNetwork(sameStart, "2001:db8:1::1")?.sblId).toBe("SBL000040")
+    }
+  })
+
+  it("ignores an IPv6 zone id", () => {
+    const documentationV6 = buildDropIndex([{ cidr: "2001:db8::/32", sblId: "SBL000050" }])
+    expect(matchDropNetwork(documentationV6, "2001:db8::1%eth0")?.sblId).toBe("SBL000050")
+    expect(matchDropNetwork(dropIndex, "2001:db8:254::1%eth0")?.sblId).toBe("SBL000003")
+    expect(matchDropNetwork(dropIndex, "::ffff:192.0.2.1%eth0")?.sblId).toBe("SBL000001")
+    expect(matchDropNetwork(dropIndex, "192.0.2.1%eth0")).toBeNull()
+  })
+
   it.each(["", "not an ip", "192.0.2", "192.0.2.256", "192.0.2.1.1", "2001:db8::1::1", "2001:db8:g::1", "1:2:3:4:5:6:7:8:9"])(
     "returns null for %j",
     (garbage) => {

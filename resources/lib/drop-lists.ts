@@ -203,7 +203,10 @@ function parseIpv6(text: string): bigint | null {
 type RangeEntry<Address extends number | bigint> = { start: Address; end: Address; dropNetwork: DropNetworkMatch }
 
 function buildRanges<Address extends number | bigint>(entries: RangeEntry<Address>[], below: Address): DropRanges<Address> {
-  entries.sort((left, right) => (left.start < right.start ? -1 : left.start > right.start ? 1 : 0))
+  // Wider networks first on a shared start, so the rightmost candidate is the narrowest.
+  entries.sort((left, right) =>
+    left.start < right.start ? -1 : left.start > right.start ? 1 : left.end > right.end ? -1 : left.end < right.end ? 1 : 0,
+  )
   const reachEnds: Address[] = []
   let reach = below
   for (const entry of entries) {
@@ -267,14 +270,15 @@ function findRange<Address extends number | bigint>(ranges: DropRanges<Address>,
 /**
  * The listed network that holds `ip`, the narrowest when several do. Returns
  * null for a miss or an unparseable IP. An IPv4-mapped IPv6 address matches
- * as IPv4.
+ * as IPv4, and an IPv6 zone id such as `%eth0` is ignored.
  */
 export function matchDropNetwork(dropIndex: DropIndex, ip: string): DropNetworkMatch | null {
   if (!ip.includes(":")) {
     const value = parseIpv4Number(ip)
     return value === null ? null : findRange(dropIndex.v4, value)
   }
-  const groups = parseIpv6Groups(ip)
+  const zoneStart = ip.indexOf("%")
+  const groups = parseIpv6Groups(zoneStart === -1 ? ip : ip.slice(0, zoneStart))
   if (groups === null) return null
   if (groups[5] === 0xffff && groups[0] === 0 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0 && groups[4] === 0) {
     return findRange(dropIndex.v4, groups[6] * 0x10000 + groups[7])

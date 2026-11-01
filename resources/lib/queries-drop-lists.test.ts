@@ -3,7 +3,7 @@ import type { DropListsResponse } from "@/generated/api/types.gen"
 type QueryOptions = {
   queryKey: readonly unknown[]
   enabled?: boolean
-  staleTime?: number
+  staleTime?: (query: { state: { data?: DropListsResponse } }) => number
   refetchInterval?: number
   select?: (dropLists: DropListsResponse) => unknown
 }
@@ -44,7 +44,7 @@ function dropListsResponse(overrides: Partial<DropListsResponse> = {}): DropList
 }
 
 function aboutWith(dropLists: { enabled: boolean; loaded: boolean } | null) {
-  return { dropLists }
+  return { dropLists: dropLists && { ...dropLists, updatedAt: dropLists.loaded ? "2026-11-01T06:00:00Z" : null } }
 }
 
 const dropListsOptions = () => mocks.options.filter((options) => options.queryKey[0] === "drop").at(-1)!
@@ -55,13 +55,20 @@ beforeEach(() => {
   mocks.dropLists = dropListsResponse()
 })
 
-it("keeps the lists for 30 minutes and refetches hourly", () => {
+it("keys the lists on About's download time, keeps them 30 minutes and refetches hourly", () => {
   useDropLists()
-  expect(dropListsOptions().queryKey).toEqual(["drop", "lists"])
-  expect(dropListsOptions().staleTime).toBe(DROP_LISTS_STALE_MS)
+  expect(dropListsOptions().queryKey).toEqual(["drop", "lists", "2026-11-01T06:00:00Z"])
+  expect(dropListsOptions().staleTime!({ state: { data: dropListsResponse() } })).toBe(DROP_LISTS_STALE_MS)
   expect(DROP_LISTS_STALE_MS).toBe(30 * 60_000)
   expect(dropListsOptions().refetchInterval).toBe(DROP_LISTS_REFETCH_MS)
   expect(DROP_LISTS_REFETCH_MS).toBe(60 * 60_000)
+})
+
+it("treats a cached answer from while DROP was off or not downloaded as stale", () => {
+  useDropLists()
+  const staleTime = dropListsOptions().staleTime!
+  expect(staleTime({ state: { data: dropListsResponse({ enabled: false }) } })).toBe(0)
+  expect(staleTime({ state: { data: dropListsResponse({ loaded: false }) } })).toBe(0)
 })
 
 it("does not fetch while About is loading, DROP is off, or the lists never downloaded", () => {
