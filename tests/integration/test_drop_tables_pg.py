@@ -6,15 +6,6 @@ from sqlalchemy.exc import IntegrityError
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture()
-async def clean_drop_tables(pg_engine):
-    async with pg_engine.begin() as connection:
-        await connection.execute(text("DELETE FROM drop_networks"))
-        await connection.execute(text("DELETE FROM drop_asns"))
-        await connection.execute(text("DELETE FROM drop_list_state"))
-    yield
-
-
 async def test_tables_and_gist_index_exist(pg_engine):
     async with pg_engine.connect() as connection:
         table_names = (
@@ -35,7 +26,7 @@ async def test_tables_and_gist_index_exist(pg_engine):
     assert "inet_ops" in index_definition
 
 
-async def test_containment_matches_an_address_inside_a_listed_network(pg_engine, clean_drop_tables):
+async def test_containment_matches_an_address_inside_a_listed_network(pg_engine, clean_tables):
     async with pg_engine.begin() as connection:
         await connection.execute(
             text("INSERT INTO drop_networks (cidr, sbl_id, rir) VALUES ('45.148.10.0/24', 'SBL678435', 'ripencc')")
@@ -56,13 +47,13 @@ async def test_containment_matches_an_address_inside_a_listed_network(pg_engine,
     assert unlisted_count == 0
 
 
-async def test_list_state_rejects_an_unknown_feed(pg_engine, clean_drop_tables):
+async def test_list_state_rejects_an_unknown_feed(pg_engine, clean_tables):
     with pytest.raises(IntegrityError):
         async with pg_engine.begin() as connection:
             await connection.execute(text("INSERT INTO drop_list_state (feed) VALUES ('v5')"))
 
 
-async def test_asn_and_list_state_round_trip(pg_engine, clean_drop_tables):
+async def test_asn_and_list_state_round_trip(pg_engine, clean_tables):
     async with pg_engine.begin() as connection:
         await connection.execute(
             text(
