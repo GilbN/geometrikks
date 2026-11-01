@@ -501,7 +501,7 @@ export interface RouteQueryParams {
     q?: string;
   };
   'list_drop_networks': {
-    days?: number;
+    days?: 7 | 30 | 90;
     page?: number;
     pageSize?: number;
   };

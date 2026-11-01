@@ -1152,6 +1152,9 @@
       },
       "BanNetworkResult": {
         "properties": {
+          "alreadyBanned": {
+            "type": "boolean"
+          },
           "error": {
             "oneOf": [
               {
@@ -1170,6 +1173,7 @@
           }
         },
         "required": [
+          "alreadyBanned",
           "error",
           "network",
           "ok"
@@ -1217,6 +1221,9 @@
       },
       "BanNetworksResponse": {
         "properties": {
+          "leftOut": {
+            "type": "integer"
+          },
           "results": {
             "items": {
               "$ref": "#/components/schemas/BanNetworkResult"
@@ -1225,6 +1232,7 @@
           }
         },
         "required": [
+          "leftOut",
           "results"
         ],
         "title": "BanNetworksResponse",
@@ -2350,6 +2358,9 @@
           "days": {
             "type": "integer"
           },
+          "decisionsAvailable": {
+            "type": "boolean"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/DropNetworkTrafficView"
@@ -2372,6 +2383,7 @@
         "required": [
           "bannedNetworks",
           "days",
+          "decisionsAvailable",
           "items",
           "loaded",
           "totalHits",
@@ -11426,13 +11438,18 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Look-back window: 7, 30 or 90 days",
+            "description": "Look-back window in days",
             "in": "query",
             "name": "days",
             "required": false,
             "schema": {
               "default": 30,
-              "description": "Look-back window: 7, 30 or 90 days",
+              "description": "Look-back window in days",
+              "enum": [
+                7,
+                30,
+                90
+              ],
               "type": "integer"
             }
           },

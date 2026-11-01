@@ -84,6 +84,7 @@ class DropNetworkHits:
     sbl_id: str
     hits: int
     ips: int
+    last_seen: datetime | None
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,8 @@ class DropNetworkTrafficView(msgspec.Struct, rename="camel"):
     as_org: str | None
     hits: int
     ips: int
+    # The newest raw request; the start of the newest CAGG bucket with traffic
+    # once the raw rows have aged out; null only when neither holds any.
     last_seen: datetime | None
     decision: BannedRangeView | None
 
@@ -121,7 +124,12 @@ class DropNetworksResponse(msgspec.Struct, rename="camel"):
     total_ips: int
     total_hits: int
     banned_networks: int
+    # False when the LAPI could not be asked; every decision is null then.
+    decisions_available: bool
     items: list[DropNetworkTrafficView]
+
+
+MAX_BULK_BAN_NETWORKS = 1000
 
 
 class BanNetworksRequest(msgspec.Struct, rename="camel"):
@@ -131,7 +139,7 @@ class BanNetworksRequest(msgspec.Struct, rename="camel"):
     """
 
     duration: str
-    networks: Annotated[list[str], msgspec.Meta(max_length=1000)] | None = None
+    networks: Annotated[list[str], msgspec.Meta(max_length=MAX_BULK_BAN_NETWORKS)] | None = None
     all_unbanned_days: Literal[7, 30, 90] | None = None
 
 
@@ -139,7 +147,11 @@ class BanNetworkResult(msgspec.Struct, rename="camel"):
     network: str
     ok: bool
     error: str | None
+    # True when the network already held a Range decision and was left alone.
+    already_banned: bool
 
 
 class BanNetworksResponse(msgspec.Struct, rename="camel"):
     results: list[BanNetworkResult]
+    # allUnbannedDays networks past the MAX_BULK_BAN_NETWORKS cap, not attempted.
+    left_out: int

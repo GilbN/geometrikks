@@ -714,7 +714,7 @@
         "GET"
       ],
       "queryParameters": {
-        "days": "number | undefined",
+        "days": "7 | 30 | 90 | undefined",
         "page": "number | undefined",
         "pageSize": "number | undefined"
       },

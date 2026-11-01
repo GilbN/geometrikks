@@ -1104,6 +1104,9 @@ export const AuthOptionsSchema = {
 
 export const BanNetworkResultSchema = {
   properties: {
+    alreadyBanned: {
+      type: "boolean",
+    },
     error: {
       oneOf: [
         {
@@ -1121,7 +1124,7 @@ export const BanNetworkResultSchema = {
       type: "boolean",
     },
   },
-  required: ["error", "network", "ok"],
+  required: ["alreadyBanned", "error", "network", "ok"],
   title: "BanNetworkResult",
   type: "object",
 } as const;
@@ -1157,6 +1160,9 @@ export const BanNetworksRequestSchema = {
 
 export const BanNetworksResponseSchema = {
   properties: {
+    leftOut: {
+      type: "integer",
+    },
     results: {
       items: {
         $ref: "#/components/schemas/BanNetworkResult",
@@ -1164,7 +1170,7 @@ export const BanNetworksResponseSchema = {
       type: "array",
     },
   },
-  required: ["results"],
+  required: ["leftOut", "results"],
   title: "BanNetworksResponse",
   type: "object",
 } as const;
@@ -2236,6 +2242,9 @@ export const DropNetworksResponseSchema = {
     days: {
       type: "integer",
     },
+    decisionsAvailable: {
+      type: "boolean",
+    },
     items: {
       items: {
         $ref: "#/components/schemas/DropNetworkTrafficView",
@@ -2258,6 +2267,7 @@ export const DropNetworksResponseSchema = {
   required: [
     "bannedNetworks",
     "days",
+    "decisionsAvailable",
     "items",
     "loaded",
     "totalHits",

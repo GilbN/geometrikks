@@ -13,7 +13,7 @@ import re
 import msgspec
 from datetime import datetime, timedelta, timezone
 from collections import Counter
-from typing import Annotated
+from typing import Annotated, Literal
 
 from advanced_alchemy.extensions.litestar import filters
 from advanced_alchemy.service import OffsetPagination
@@ -63,6 +63,7 @@ from geometrikks.domain.security.schemas import (
     DropNetworksResponse,
     DropNetworkTrafficView,
     IpEnrichment,
+    MAX_BULK_BAN_NETWORKS,
 )
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, ServerIn
@@ -454,14 +455,6 @@ def _decision_target(value: str) -> tuple[DecisionScope, str]:
     return "Range", str(network)
 
 
-DROP_WINDOW_DAYS = (7, 30, 90)
-
-
-def _validate_drop_days(days: int) -> None:
-    if days not in DROP_WINDOW_DAYS:
-        raise DomainValidationError(f"Invalid days: {days} (expected 7, 30 or 90)")
-
-
 def _canonical_cidr(value: str) -> str | None:
     try:
         return str(ipaddress.ip_network(value, strict=False))
@@ -498,6 +491,15 @@ def _banned_ranges(decisions: list[Decision], now: datetime) -> dict[str, Banned
 
 async def _active_banned_ranges(service: CrowdSecService) -> dict[str, BannedRangeView]:
     return _banned_ranges(await service.get_decisions(scopes="Range"), datetime.now(timezone.utc))
+
+
+async def _banned_ranges_if_reachable(service: CrowdSecService) -> dict[str, BannedRangeView] | None:
+    """Like ``_active_banned_ranges``, but None when the LAPI cannot be asked."""
+    try:
+        return await _active_banned_ranges(service)
+    except CrowdSecError as exc:
+        logger.warning("crowdsec_range_decisions_unavailable", error=str(exc))
+        return None
 
 
 def _actor(request: Request) -> str:
@@ -657,48 +659,56 @@ class CrowdSecController(Controller):
         crowdsec: NamedDependency[CrowdSecService | None],
         drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         drop_traffic_repo: NamedDependency[SkipValidation[DropTrafficRepository]],
-        days: Annotated[int, QueryParameter(description="Look-back window: 7, 30 or 90 days")] = 30,
+        days: Annotated[Literal[7, 30, 90], QueryParameter(description="Look-back window in days")] = 30,
         page: Annotated[int, QueryParameter(ge=1)] = 1,
         page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=100)] = 25,
     ) -> DropNetworksResponse:
         """Traffic from DROP-listed networks, busiest first, with each network's Range decision.
 
         The totals cover every network with traffic in the window, not only the
-        page. ASN, organization and last-seen come from the raw access log.
+        page. ASN, organization and last-seen come from the raw access log;
+        last-seen falls back to the newest CAGG bucket start when the raw rows
+        have aged out. When the LAPI cannot be asked the endpoint still returns
+        the traffic, with every decision null and decisionsAvailable false.
         """
-        _validate_drop_days(days)
         service = _require_service(crowdsec)
         if not drop_snapshot.loaded:
             return DropNetworksResponse(
-                loaded=False, days=days, total_networks=0, total_ips=0,
-                total_hits=0, banned_networks=0, items=[],
+                loaded=False, days=days, total_networks=0, total_ips=0, total_hits=0,
+                banned_networks=0, decisions_available=True, items=[],
             )
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
-        network_hits = await drop_traffic_repo.network_hits(start, end)
-        banned_ranges = await _active_banned_ranges(service)
-        page_hits = network_hits[(page - 1) * page_size : page * page_size]
-        origins = await drop_traffic_repo.network_origins([hits.cidr for hits in page_hits], start, end)
+        all_drop_network_hits = await drop_traffic_repo.network_hits(start, end)
+        reachable_banned_ranges = await _banned_ranges_if_reachable(service)
+        banned_ranges = reachable_banned_ranges or {}
+        page_drop_network_hits = all_drop_network_hits[(page - 1) * page_size : page * page_size]
+        origins = await drop_traffic_repo.network_origins(
+            [drop_network_hits.cidr for drop_network_hits in page_drop_network_hits], start, end
+        )
         items = []
-        for hits in page_hits:
-            origin = origins.get(hits.cidr)
+        for drop_network_hits in page_drop_network_hits:
+            origin = origins.get(drop_network_hits.cidr)
             items.append(DropNetworkTrafficView(
-                cidr=hits.cidr,
-                sbl_id=hits.sbl_id,
+                cidr=drop_network_hits.cidr,
+                sbl_id=drop_network_hits.sbl_id,
                 asn=origin.asn if origin else None,
                 as_org=origin.as_org if origin else None,
-                hits=hits.hits,
-                ips=hits.ips,
-                last_seen=origin.last_seen if origin else None,
-                decision=banned_ranges.get(hits.cidr),
+                hits=drop_network_hits.hits,
+                ips=drop_network_hits.ips,
+                last_seen=origin.last_seen if origin else drop_network_hits.last_seen,
+                decision=banned_ranges.get(drop_network_hits.cidr),
             ))
         return DropNetworksResponse(
             loaded=True,
             days=days,
-            total_networks=len(network_hits),
-            total_ips=sum(hits.ips for hits in network_hits),
-            total_hits=sum(hits.hits for hits in network_hits),
-            banned_networks=sum(1 for hits in network_hits if hits.cidr in banned_ranges),
+            total_networks=len(all_drop_network_hits),
+            total_ips=sum(drop_network_hits.ips for drop_network_hits in all_drop_network_hits),
+            total_hits=sum(drop_network_hits.hits for drop_network_hits in all_drop_network_hits),
+            banned_networks=sum(
+                1 for drop_network_hits in all_drop_network_hits if drop_network_hits.cidr in banned_ranges
+            ),
+            decisions_available=reachable_banned_ranges is not None,
             items=items,
         )
 
@@ -971,62 +981,89 @@ class CrowdSecController(Controller):
         """Ban DROP networks as Range decisions, reporting every network's outcome.
 
         Name the networks, or set allUnbannedDays to ban every DROP network
-        with traffic in that window that has no active Range decision. A
+        with traffic in that window and no active Range decision. That form
+        bans the busiest MAX_BULK_BAN_NETWORKS and leftOut counts the rest. A
         network that is not on the DROP list or whose ban fails gets an error
-        result and the rest are still banned.
+        result and the loop goes on. A named network that already holds a
+        Range decision is not banned again. It comes back ok with
+        alreadyBanned set, so a retry is safe.
         """
         service = _require_write(crowdsec, settings)
         if (data.networks is None) == (data.all_unbanned_days is None):
             raise DomainValidationError("Send either networks or allUnbannedDays, not both and not neither")
         duration = _ban_duration(data.duration)
-        if data.networks is not None:
-            requested_networks = data.networks
-        else:
-            requested_networks = []
-            if drop_snapshot.loaded:
-                end = datetime.now(timezone.utc)
-                start = end - timedelta(days=data.all_unbanned_days or 0)
-                banned_ranges = await _active_banned_ranges(service)
-                requested_networks = [
-                    hits.cidr
-                    for hits in await drop_traffic_repo.network_hits(start, end)
-                    if hits.cidr not in banned_ranges
-                ]
-
-        sbl_ids_by_cidr = {network.cidr: network.sbl_id for network in drop_snapshot.networks}
-        results: list[BanNetworkResult] = []
-        seen_networks: set[str] = set()
-        for requested_network in requested_networks:
-            cidr = _canonical_cidr(requested_network)
-            if cidr is None:
-                results.append(BanNetworkResult(network=requested_network, ok=False, error="Not a valid network"))
-                continue
-            if cidr in seen_networks:
-                continue
-            seen_networks.add(cidr)
-            sbl_id = sbl_ids_by_cidr.get(cidr)
-            if sbl_id is None:
-                results.append(BanNetworkResult(network=cidr, ok=False, error="Not on the DROP list"))
-                continue
-            try:
-                await service.ban(
-                    cidr, scope="Range", decision_type="ban", duration=duration,
-                    reason=f"Spamhaus DROP {sbl_id}",
-                )
-            except CrowdSecError as exc:
-                results.append(BanNetworkResult(network=cidr, ok=False, error=str(exc)))
+        mode = "networks" if data.networks is not None else "allUnbannedDays"
+        ban_results: list[BanNetworkResult] = []
+        left_out = 0
+        completed = False
+        try:
+            if data.networks is not None:
+                requested_networks = data.networks
+                # An unreachable LAPI is reported by the bans themselves.
+                banned_ranges = await _banned_ranges_if_reachable(service) or {}
             else:
-                results.append(BanNetworkResult(network=cidr, ok=True, error=None))
-        banned_count = sum(1 for result in results if result.ok)
-        logger.info(
-            "crowdsec_bulk_ban",
-            actor=_actor(request),
-            duration=duration,
-            requested=len(results),
-            ok=banned_count,
-            failed=len(results) - banned_count,
-        )
-        return BanNetworksResponse(results=results)
+                requested_networks = []
+                banned_ranges = {}
+                if drop_snapshot.loaded:
+                    end = datetime.now(timezone.utc)
+                    start = end - timedelta(days=data.all_unbanned_days or 0)
+                    banned_ranges = await _active_banned_ranges(service)
+                    unbanned_networks = [
+                        drop_network_hits.cidr
+                        for drop_network_hits in await drop_traffic_repo.network_hits(start, end)
+                        if drop_network_hits.cidr not in banned_ranges
+                    ]
+                    requested_networks = unbanned_networks[:MAX_BULK_BAN_NETWORKS]
+                    left_out = len(unbanned_networks) - len(requested_networks)
+
+            sbl_ids_by_cidr = {network.cidr: network.sbl_id for network in drop_snapshot.networks}
+            seen_networks: set[str] = set()
+            for requested_network in requested_networks:
+                cidr = _canonical_cidr(requested_network)
+                if cidr is None:
+                    ban_results.append(BanNetworkResult(
+                        network=requested_network, ok=False, error="Not a valid network", already_banned=False
+                    ))
+                    continue
+                if cidr in seen_networks:
+                    continue
+                seen_networks.add(cidr)
+                sbl_id = sbl_ids_by_cidr.get(cidr)
+                if sbl_id is None:
+                    ban_results.append(BanNetworkResult(
+                        network=cidr, ok=False, error="Not on the DROP list", already_banned=False
+                    ))
+                    continue
+                if cidr in banned_ranges:
+                    ban_results.append(BanNetworkResult(network=cidr, ok=True, error=None, already_banned=True))
+                    continue
+                try:
+                    await service.ban(
+                        cidr, scope="Range", decision_type="ban", duration=duration,
+                        reason=f"Spamhaus DROP {sbl_id}",
+                    )
+                except CrowdSecError as exc:
+                    ban_results.append(BanNetworkResult(
+                        network=cidr, ok=False, error=str(exc), already_banned=False
+                    ))
+                else:
+                    ban_results.append(BanNetworkResult(network=cidr, ok=True, error=None, already_banned=False))
+            completed = True
+        finally:
+            already_banned_count = sum(1 for ban_result in ban_results if ban_result.already_banned)
+            logger.info(
+                "crowdsec_bulk_ban",
+                actor=_actor(request),
+                mode=mode,
+                duration=duration,
+                completed=completed,
+                requested=len(ban_results),
+                ok=sum(1 for ban_result in ban_results if ban_result.ok) - already_banned_count,
+                already_banned=already_banned_count,
+                failed=sum(1 for ban_result in ban_results if not ban_result.ok),
+                left_out=left_out,
+            )
+        return BanNetworksResponse(results=ban_results, left_out=left_out)
 
     @post("/unban", status_code=HTTP_200_OK)
     async def unban(

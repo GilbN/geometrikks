@@ -281,6 +281,7 @@ export type AuthOptions = {
  * BanNetworkResult
  */
 export type BanNetworkResult = {
+  alreadyBanned: boolean;
   error: string | null;
   network: string;
   ok: boolean;
@@ -299,6 +300,7 @@ export type BanNetworksRequest = {
  * BanNetworksResponse
  */
 export type BanNetworksResponse = {
+  leftOut: number;
   results: Array<BanNetworkResult>;
 };
 
@@ -627,6 +629,7 @@ export type DropNetworkView = {
 export type DropNetworksResponse = {
   bannedNetworks: number;
   days: number;
+  decisionsAvailable: boolean;
   items: Array<DropNetworkTrafficView>;
   loaded: boolean;
   totalHits: number;
@@ -3405,9 +3408,9 @@ export type ApiV1CrowdsecDropNetworksListDropNetworksData = {
   path?: never;
   query?: {
     /**
-     * Look-back window: 7, 30 or 90 days
+     * Look-back window in days
      */
-    days?: number;
+    days?: 7 | 30 | 90;
     page?: number;
     pageSize?: number;
   };

@@ -168,8 +168,22 @@ class SecurityEnrichmentRepository:
         ]
 
 
-DROP_ORIGINS_STMT = text(
+def _client_ip_sql(column: str) -> str:
+    """SQL for ``column`` with an IPv4-mapped address (::ffff:192.0.2.10) in its IPv4 form.
+
+    PostgreSQL never matches a mapped address against an IPv4 network, and
+    ingest stores client addresses as logged. Matching the unwrapped form
+    against ``drop_networks.cidr`` keeps the join on its GiST index, and
+    counting it makes the two forms of one client a single IP.
     """
+    return (
+        f"CASE WHEN {column} <<= '::ffff:0:0/96'::inet "
+        f"THEN '0.0.0.0'::inet + ({column} - '::ffff:0:0'::inet) ELSE {column} END"
+    )
+
+
+DROP_ORIGINS_STMT = text(
+    f"""
     SELECT
         dn.cidr::text AS cidr,
         al.autonomous_system_number AS asn,
@@ -177,7 +191,7 @@ DROP_ORIGINS_STMT = text(
         COUNT(*) AS row_count,
         MAX(al.timestamp) AS last_seen
     FROM drop_networks dn
-    JOIN access_logs al ON al.ip_address <<= dn.cidr
+    JOIN access_logs al ON dn.cidr >>= {_client_ip_sql("al.ip_address")}
     WHERE dn.cidr = ANY(:cidrs) AND al.timestamp >= :start AND al.timestamp < :end
     GROUP BY dn.cidr, al.autonomous_system_number, al.autonomous_system_organization
     """
@@ -196,6 +210,9 @@ class DropTrafficRepository:
         Rows come busiest first. Windows over 24h read the per-IP CAGG and
         stitch raw access_logs for the edges the whole buckets do not cover,
         the way ``/analytics/top-ips`` does, so the result equals a raw scan.
+        An IPv4-mapped client and its plain IPv4 form count as one IP.
+        ``last_seen`` is exact when the newest request is in a raw edge and
+        the start of its bucket otherwise.
         """
         start_ts, end_ts = ensure_utc(start), ensure_utc(end)
         granularity = get_stats_granularity(start_ts, end_ts)
@@ -205,38 +222,51 @@ class DropTrafficRepository:
         else:
             params = stitch_params(start_ts, end_ts, granularity)
             cagg_leg = f"""
-                SELECT dn.cidr, dn.sbl_id, s.ip_address, s.hits
-                FROM log_ip_{granularity.value}_stats s
-                JOIN drop_networks dn ON s.ip_address <<= dn.cidr
-                WHERE s.bucket >= :a_start AND s.bucket < :a_end
+                SELECT dn.cidr, dn.sbl_id, s.client_ip, s.hits, s.bucket AS seen_at
+                FROM (
+                    SELECT {_client_ip_sql("ip_address")} AS client_ip, hits, bucket
+                    FROM log_ip_{granularity.value}_stats
+                    WHERE bucket >= :a_start AND bucket < :a_end
+                ) s
+                JOIN drop_networks dn ON dn.cidr >>= s.client_ip
                 UNION ALL
             """
+        raw_leg = f"""
+                SELECT dn.cidr, dn.sbl_id, al.client_ip, CAST(1 AS BIGINT) AS hits, al.timestamp AS seen_at
+                FROM (
+                    SELECT {_client_ip_sql("ip_address")} AS client_ip, timestamp
+                    FROM access_logs
+                    WHERE timestamp >= :{{leg_start}} AND timestamp < :{{leg_end}}
+                ) al
+                JOIN drop_networks dn ON dn.cidr >>= al.client_ip
+        """
         stmt = text(f"""
             WITH combined AS (
                 {cagg_leg}
-                SELECT dn.cidr, dn.sbl_id, al.ip_address, CAST(1 AS BIGINT) AS hits
-                FROM access_logs al
-                JOIN drop_networks dn ON al.ip_address <<= dn.cidr
-                WHERE al.timestamp >= :start AND al.timestamp < :a_start
+                {raw_leg.format(leg_start="start", leg_end="a_start")}
                 UNION ALL
-                SELECT dn.cidr, dn.sbl_id, al.ip_address, CAST(1 AS BIGINT) AS hits
-                FROM access_logs al
-                JOIN drop_networks dn ON al.ip_address <<= dn.cidr
-                WHERE al.timestamp >= :a_end AND al.timestamp < :end
+                {raw_leg.format(leg_start="a_end", leg_end="end")}
             )
             SELECT
                 cidr::text AS cidr,
                 sbl_id,
                 CAST(SUM(hits) AS BIGINT) AS hits,
-                CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS ips
+                CAST(COUNT(DISTINCT client_ip) AS BIGINT) AS ips,
+                MAX(seen_at) AS last_seen
             FROM combined
             GROUP BY cidr, sbl_id
             ORDER BY hits DESC, cidr
         """)
         result = await self.session.execute(stmt, params)
         return [
-            DropNetworkHits(cidr=row.cidr, sbl_id=row.sbl_id, hits=row.hits, ips=row.ips)
-            for row in result
+            DropNetworkHits(
+                cidr=network_row.cidr,
+                sbl_id=network_row.sbl_id,
+                hits=network_row.hits,
+                ips=network_row.ips,
+                last_seen=network_row.last_seen,
+            )
+            for network_row in result
         ]
 
     async def network_origins(
@@ -244,28 +274,42 @@ class DropTrafficRepository:
     ) -> dict[str, DropNetworkOrigin]:
         """Most common ASN and the newest request per network, from raw access_logs.
 
-        Takes the page's networks only. The ASN and its organization come from
-        the same rows, so the pair is always one real ASN. A network whose raw
-        rows have aged out of retention is absent from the result.
+        Takes the page's networks only. The ASN with the most rows wins and
+        its organization is the commonest label among those rows, so an ASN
+        logged under two organization names still counts once. A network whose
+        raw rows have aged out of retention is absent from the result.
         """
         if not cidrs:
             return {}
         result = await self.session.execute(
             DROP_ORIGINS_STMT, {"cidrs": cidrs, "start": ensure_utc(start), "end": ensure_utc(end)}
         )
-        row_counts_by_asn: dict[str, dict[tuple[int | None, str | None], int]] = {}
+        row_counts_by_cidr: dict[str, dict[tuple[int | None, str | None], int]] = {}
         newest_by_cidr: dict[str, datetime] = {}
-        for row in result:
-            asn_counts = row_counts_by_asn.setdefault(row.cidr, {})
-            asn_counts[(row.asn, row.as_org)] = row.row_count
-            newest_by_cidr[row.cidr] = max(row.last_seen, newest_by_cidr.get(row.cidr, row.last_seen))
-        origins: dict[str, DropNetworkOrigin] = {}
-        for cidr, asn_counts in row_counts_by_asn.items():
-            known_asns = {key: count for key, count in asn_counts.items() if key[0] is not None}
-            asn, as_org = (
-                min(known_asns, key=lambda key: (-known_asns[key], key[0] or 0)) if known_asns else (None, None)
+        for origin_row in result:
+            row_counts = row_counts_by_cidr.setdefault(origin_row.cidr, {})
+            row_counts[(origin_row.asn, origin_row.as_org)] = origin_row.row_count
+            newest_by_cidr[origin_row.cidr] = max(
+                origin_row.last_seen, newest_by_cidr.get(origin_row.cidr, origin_row.last_seen)
             )
-            origins[cidr] = DropNetworkOrigin(asn=asn, as_org=as_org, last_seen=newest_by_cidr[cidr])
+        origins: dict[str, DropNetworkOrigin] = {}
+        for cidr, row_counts in row_counts_by_cidr.items():
+            rows_per_asn: dict[int, int] = {}
+            for (row_asn, _), row_count in row_counts.items():
+                if row_asn is not None:
+                    rows_per_asn[row_asn] = rows_per_asn.get(row_asn, 0) + row_count
+            top_asn: int | None = None
+            top_org: str | None = None
+            if rows_per_asn:
+                top_asn = min(rows_per_asn, key=lambda asn: (-rows_per_asn[asn], asn))
+                rows_per_org = {
+                    row_org: row_count
+                    for (row_asn, row_org), row_count in row_counts.items()
+                    if row_asn == top_asn and row_org is not None
+                }
+                if rows_per_org:
+                    top_org = min(rows_per_org, key=lambda org: (-rows_per_org[org], org))
+            origins[cidr] = DropNetworkOrigin(asn=top_asn, as_org=top_org, last_seen=newest_by_cidr[cidr])
         return origins
 
 
