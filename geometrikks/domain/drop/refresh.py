@@ -123,7 +123,7 @@ async def _refresh_feed(
             await session.execute(
                 update(DropListState)
                 .where(DropListState.feed == feed)
-                .values(checked_at=now, last_error=None)
+                .values(fetched_at=now, checked_at=now, last_error=None)
             )
         logger.info(
             "drop_lists_refreshed",
@@ -190,7 +190,7 @@ async def _record_failure(
         reason = str(error)
         logger.warning("drop_list_refresh_failed", feed=feed, reason=reason)
     else:
-        reason = type(error).__name__
+        reason = f"unexpected error: {type(error).__name__}"
         logger.warning("drop_list_refresh_failed", feed=feed, reason=reason, exc_info=error)
     try:
         async with session_factory() as session, session.begin():

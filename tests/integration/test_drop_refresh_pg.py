@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 import httpx2
 import pytest
 from sqlalchemy import text
+from structlog.testing import capture_logs
 
 from geometrikks.domain.drop.refresh import refresh_drop_lists
 
@@ -98,8 +99,10 @@ async def test_a_run_within_the_hour_fetches_nothing(pg_session_maker, clean_tab
     }
 
 
-async def test_the_same_upstream_timestamp_only_updates_checked_at(pg_session_maker, clean_tables):
+async def test_the_same_upstream_timestamp_counts_as_a_fresh_fetch(pg_session_maker, clean_tables):
     await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("UPDATE drop_list_state SET last_error = 'HTTP 503' WHERE feed = 'v4'"))
     server = default_server()
     later = NOW + timedelta(hours=2)
 
@@ -110,7 +113,8 @@ async def test_the_same_upstream_timestamp_only_updates_checked_at(pg_session_ma
     assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2001:678:254::/48"}
     v4_state = await fetch_state(pg_session_maker, "v4")
     assert v4_state.checked_at == later
-    assert v4_state.fetched_at == NOW
+    assert v4_state.fetched_at == later
+    assert v4_state.last_error is None
 
 
 async def test_a_new_v4_body_replaces_the_v4_rows_and_leaves_the_v6_rows(pg_session_maker, clean_tables):
@@ -174,10 +178,10 @@ async def test_an_unexpected_error_fails_only_its_own_feed(pg_session_maker, cle
 
     assert [(outcome.status, outcome.reason) for outcome in feed_outcomes] == [
         ("imported", None),
-        ("failed", "ValueError"),
+        ("failed", "unexpected error: ValueError"),
         ("imported", None),
     ]
-    assert (await fetch_state(pg_session_maker, "v6")).last_error == "ValueError"
+    assert (await fetch_state(pg_session_maker, "v6")).last_error == "unexpected error: ValueError"
 
 
 async def test_startup_skips_a_feed_fetched_within_the_refresh_interval(pg_session_maker, clean_tables):
@@ -190,3 +194,68 @@ async def test_startup_skips_a_feed_fetched_within_the_refresh_interval(pg_sessi
 
     assert server.requested_paths == []
     assert {(outcome.status, outcome.reason) for outcome in feed_outcomes} == {("skipped", "fresh")}
+
+
+async def test_startup_fetches_a_feed_last_fetched_before_the_refresh_interval(pg_session_maker, clean_tables):
+    await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
+    server = default_server()
+
+    feed_outcomes = await refresh_drop_lists(
+        pg_session_maker, now=NOW + timedelta(hours=25), startup=True, transport=server.transport
+    )
+
+    assert len(server.requested_paths) == 3
+    assert [outcome.status for outcome in feed_outcomes] == ["unchanged"] * 3
+
+
+async def test_a_failure_inside_the_replace_transaction_keeps_the_old_rows(
+    pg_session_maker, clean_tables, monkeypatch
+):
+    await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
+    new_v4_body = feed_body(('{"cidr":"5.188.0.0/16","sblid":"SBL111111","rir":"ripencc"}',), timestamp=1793600000)
+
+    async def fail_after_the_rows_changed(*args, **kwargs):
+        raise RuntimeError("state write failed")
+
+    monkeypatch.setattr("geometrikks.domain.drop.refresh._upsert_state", fail_after_the_rows_changed)
+    later = NOW + timedelta(hours=2)
+
+    feed_outcomes = await refresh_drop_lists(
+        pg_session_maker, now=later, transport=default_server(**{"/drop/drop_v4.json": new_v4_body}).transport
+    )
+
+    assert feed_outcomes[0].status == "failed"
+    assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2001:678:254::/48"}
+    v4_state = await fetch_state(pg_session_maker, "v4")
+    assert v4_state.last_error == "unexpected error: RuntimeError"
+    assert v4_state.checked_at == later
+    assert v4_state.record_count == 2
+
+
+async def test_each_outcome_is_logged_with_its_feed(pg_session_maker, clean_tables):
+    with capture_logs() as imported_logs:
+        await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
+    with capture_logs() as skipped_logs:
+        await refresh_drop_lists(
+            pg_session_maker, now=NOW + timedelta(minutes=30), transport=default_server().transport
+        )
+    with capture_logs() as failed_logs:
+        await refresh_drop_lists(
+            pg_session_maker,
+            now=NOW + timedelta(hours=2),
+            transport=default_server(**{"/drop/asndrop.json": b"not a feed"}).transport,
+        )
+
+    assert [(log["event"], log["feed"]) for log in imported_logs] == [
+        ("drop_lists_refreshed", "v4"),
+        ("drop_lists_refreshed", "v6"),
+        ("drop_lists_refreshed", "asn"),
+    ]
+    assert [(log["event"], log["feed"]) for log in skipped_logs] == [
+        ("drop_list_refresh_skipped", "v4"),
+        ("drop_list_refresh_skipped", "v6"),
+        ("drop_list_refresh_skipped", "asn"),
+    ]
+    failed_log = next(log for log in failed_logs if log["event"] == "drop_list_refresh_failed")
+    assert failed_log["feed"] == "asn"
+    assert failed_log["reason"] == "invalid line 1"
