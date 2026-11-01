@@ -200,6 +200,10 @@ def added_access_logs(repos: FakeRepos) -> list[AccessLog]:
     return [cast(AccessLog, access_log) for access_log in repos.access_log.added]
 
 
+def added_debug_rows(repos: FakeRepos) -> list[AccessLogDebug]:
+    return [cast(AccessLogDebug, debug_row) for debug_row in repos.access_log_debug.added]
+
+
 async def wait_until(predicate, timeout: float = 30.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -1782,4 +1786,4 @@ async def test_debug_rows_record_the_format_that_parsed_the_line() -> None:
     finally:
         await service.stop(timeout=5.0)
 
-    assert {debug_row.log_format for debug_row in repos.access_log_debug.added} == {"nginx"}
+    assert {debug_row.log_format for debug_row in added_debug_rows(repos)} == {"nginx"}
