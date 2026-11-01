@@ -110,6 +110,36 @@ async def test_list_returns_denormalized_context_and_nulls_when_unlinked(
     assert unlinked.parse_error == "regex mismatch"
 
 
+async def test_list_splits_json_lines_into_fields(pg_session_maker, clean_tables) -> None:
+    """JSON lines carry their fields; stored marks need a linked access log."""
+    ts = NOW - timedelta(hours=1)
+    traefik_line = (
+        '{"ClientHost":"10.0.0.1","DownstreamStatus":404,"RequestMethod":"GET",'
+        '"StartUTC":"2026-10-29T02:25:18Z","TLSVersion":"1.3",'
+        '"request_X-Tenant-Id":"acme"}'
+    )
+    await _insert_debug(pg_session_maker, ts, traefik_line, access_log_id=7)
+    await _insert_debug(pg_session_maker, ts, '{"event":"startup"}')
+    await _insert_debug(pg_session_maker, ts, "not json")
+
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        rows, _ = await service.list_entries(_window(), LimitOffset(50, 0))
+
+    by_line = {r.raw_line: r for r in rows}
+    traefik = by_line[traefik_line].raw_fields
+    assert traefik is not None
+    assert traefik.format == "traefik-json"
+    fields = {raw_field.key: raw_field for raw_field in traefik.fields}
+    assert fields["DownstreamStatus"].stored_as == "Status"
+    assert fields["TLSVersion"].stored_as is None
+    assert fields["X-Tenant-Id"].group == "request_header"
+    unlinked = by_line['{"event":"startup"}'].raw_fields
+    assert unlinked is not None
+    assert unlinked.format is None
+    assert by_line["not json"].raw_fields is None
+
+
 async def test_time_window_on_created_at_excludes_rows(pg_session_maker, clean_tables) -> None:
     await _insert_debug(pg_session_maker, NOW - timedelta(days=2), "old line")
     await _insert_debug(pg_session_maker, NOW - timedelta(hours=1), "recent line")

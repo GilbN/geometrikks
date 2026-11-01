@@ -58,6 +58,7 @@ import type {
   ServerLocationsResponse,
   LokiSourceStats,
   InstancesResponse,
+  RawLineFields,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -1217,6 +1218,8 @@ export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
 // Access log debug (raw/malformed lines)
 // ============================================================================
 
+export type { RawLineField, RawLineFields } from "@/generated/api/types.gen"
+
 export interface AccessLogDebugEntry {
   id: number
   createdAt: string
@@ -1235,6 +1238,8 @@ export interface AccessLogDebugEntry {
   countryName: string | null
   city: string | null
   userAgent: string | null
+  /** The raw line as fields when it is a JSON object, else null. */
+  rawFields: RawLineFields | null
 }
 
 export interface AccessLogDebugPage {

@@ -11,9 +11,10 @@ the single place where that gets corrected.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import NamedTuple, Protocol, runtime_checkable
 
 
 @dataclass
@@ -54,6 +55,34 @@ class LogLineFormat(Protocol):
     def detect_malformed(self, norm: NormalizedLine) -> tuple[bool, str | None]:
         """(is_malformed, reason) for probe/garbage detection; format-specific."""
         ...
+
+
+def has_text_value(value: object) -> bool:
+    """Whether ``convert_dash_to_none`` keeps the value, or the first item of a
+    header value list."""
+    if isinstance(value, list) and value:
+        value = value[0]
+    return isinstance(value, str) and convert_dash_to_none(value) is not None
+
+
+class StoredColumn(NamedTuple):
+    """An access-log column and the JSON key paths that can fill it.
+
+    ``paths`` follows the parser's fallback order, and ``accepts`` repeats the
+    parser's own check on a value. The first path whose value passes is the
+    one the parser read. Keep both in step with ``parse``.
+    """
+
+    label: str
+    paths: tuple[tuple[str, ...], ...]
+    accepts: Callable[[object], bool] = has_text_value
+
+
+@runtime_checkable
+class JsonLogLineFormat(LogLineFormat, Protocol):
+    """A JSON format that can say which keys end up in access-log columns."""
+
+    stored_columns: tuple[StoredColumn, ...]
 
 
 # https://www.iana.org/assignments/http-methods/http-methods.xhtml

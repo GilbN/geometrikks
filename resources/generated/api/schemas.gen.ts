@@ -386,6 +386,16 @@ export const AccessLogDebugEntrySchema = {
         },
       ],
     },
+    rawFields: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/RawLineFields",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     rawLine: {
       type: "string",
     },
@@ -4412,6 +4422,58 @@ export const PeriodSummarySchema = {
     "uniqueIps",
   ],
   title: "PeriodSummary",
+  type: "object",
+} as const;
+
+export const RawLineFieldSchema = {
+  properties: {
+    group: {
+      enum: ["request_header", "response_header", "origin_header", "field"],
+      type: "string",
+    },
+    key: {
+      type: "string",
+    },
+    storedAs: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    value: {
+      type: "string",
+    },
+  },
+  required: ["group", "key", "value"],
+  title: "RawLineField",
+  type: "object",
+} as const;
+
+export const RawLineFieldsSchema = {
+  properties: {
+    fields: {
+      items: {
+        $ref: "#/components/schemas/RawLineField",
+      },
+      type: "array",
+    },
+    format: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["fields", "format"],
+  title: "RawLineFields",
   type: "object",
 } as const;
 

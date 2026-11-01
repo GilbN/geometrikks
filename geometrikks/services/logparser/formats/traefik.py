@@ -17,25 +17,72 @@ import json
 from datetime import datetime
 from typing import Any
 
-from .base import NormalizedLine, classify_method, convert_dash_to_none, host_from_addr
+from .base import (
+    NormalizedLine,
+    StoredColumn,
+    classify_method,
+    convert_dash_to_none,
+    host_from_addr,
+)
+
+
+def _iso_timestamp(raw: object) -> datetime | None:
+    if isinstance(raw, str) and raw:
+        try:
+            # fromisoformat handles 'Z' and long fractions on 3.11+
+            return datetime.fromisoformat(raw)
+        except ValueError:
+            return None
+    return None
 
 
 def _parse_timestamp(data: dict[str, Any]) -> datetime | None:
     for key in ("StartUTC", "StartLocal", "time"):
-        raw = data.get(key)
-        if isinstance(raw, str) and raw:
-            try:
-                # fromisoformat handles 'Z' and long fractions on 3.11+
-                return datetime.fromisoformat(raw)
-            except ValueError:
-                continue
+        ts = _iso_timestamp(data.get(key))
+        if ts is not None:
+            return ts
     return None
+
+
+def _has_client_ip(value: object) -> bool:
+    return isinstance(value, str) and bool(value.rsplit(",", 1)[-1].strip())
+
+
+def _has_timestamp(value: object) -> bool:
+    return _iso_timestamp(value) is not None
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int)
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float))
+
+
+def _is_positive_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and value > 0
 
 
 class TraefikJsonFormat:
     """Parses one Traefik JSON access-log object per line."""
 
     name = "traefik-json"
+    stored_columns = (
+        StoredColumn("IP address", (("ClientHost",), ("ClientAddr",)), _has_client_ip),
+        StoredColumn("Time", (("StartUTC",), ("StartLocal",), ("time",)), _has_timestamp),
+        StoredColumn("Remote user", (("ClientUsername",),)),
+        StoredColumn("Method", (("RequestMethod",),)),
+        StoredColumn("URL", (("RequestPath",),)),
+        StoredColumn("HTTP version", (("RequestProtocol",),)),
+        StoredColumn("Status", (("DownstreamStatus",),), _is_int),
+        StoredColumn("Bytes sent", (("DownstreamContentSize",),), _is_int),
+        StoredColumn("Referrer", (("request_Referer",),)),
+        StoredColumn("User agent", (("request_User-Agent",),)),
+        StoredColumn("Request time", (("Duration",),), _is_number),
+        StoredColumn("Upstream response", (("OriginDuration",),), _is_positive_number),
+        StoredColumn("Host", (("RequestHost",), ("RequestAddr",))),
+    )
 
     def parse(self, line: str, *, geo_only: bool = False) -> NormalizedLine | None:
         """Parse one Traefik JSON access-log line into a NormalizedLine.

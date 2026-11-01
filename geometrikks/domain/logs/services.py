@@ -11,6 +11,7 @@ from sqlalchemy import func, select, text
 from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
+from geometrikks.domain.logs.raw_line_fields import raw_line_fields
 from geometrikks.domain.logs.schemas import (
     AccessLogDebugEntry,
     AccessLogDebugStats,
@@ -222,6 +223,9 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 country_name=row.country_name,
                 city=row.city,
                 user_agent=row.user_agent,
+                raw_fields=raw_line_fields(
+                    row.raw_line, linked=row.access_log_id is not None
+                ),
             )
             for row in rows
         ], total
