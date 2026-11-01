@@ -84,6 +84,11 @@ import type {
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
   ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecBannedRangesListBannedRangesData,
+  ApiV1CrowdsecBannedRangesListBannedRangesResponses,
+  ApiV1CrowdsecBanNetworksBanNetworksData,
+  ApiV1CrowdsecBanNetworksBanNetworksErrors,
+  ApiV1CrowdsecBanNetworksBanNetworksResponses,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
@@ -93,6 +98,9 @@ import type {
   ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
   ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
   ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+  ApiV1CrowdsecDropNetworksListDropNetworksData,
+  ApiV1CrowdsecDropNetworksListDropNetworksErrors,
+  ApiV1CrowdsecDropNetworksListDropNetworksResponses,
   ApiV1CrowdsecStatsGetStatsData,
   ApiV1CrowdsecStatsGetStatsResponses,
   ApiV1CrowdsecStatusGetStatusData,
@@ -944,6 +952,38 @@ export const apiV1CrowdsecBanBan = <ThrowOnError extends boolean = false>(
   });
 
 /**
+ * BanNetworks
+ */
+export const apiV1CrowdsecBanNetworksBanNetworks = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1CrowdsecBanNetworksBanNetworksData, ThrowOnError>,
+): RequestResult<
+  ApiV1CrowdsecBanNetworksBanNetworksResponses,
+  ApiV1CrowdsecBanNetworksBanNetworksErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    ApiV1CrowdsecBanNetworksBanNetworksResponses,
+    ApiV1CrowdsecBanNetworksBanNetworksErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/ban-networks",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
  * ListBannedIps
  */
 export const apiV1CrowdsecBannedIpsListBannedIps = <
@@ -999,6 +1039,37 @@ export const apiV1CrowdsecBannedLocationsListBannedLocations = <
       },
     ],
     url: "/api/v1/crowdsec/banned-locations",
+    ...options,
+  });
+
+/**
+ * ListBannedRanges
+ */
+export const apiV1CrowdsecBannedRangesListBannedRanges = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1CrowdsecBannedRangesListBannedRangesData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1CrowdsecBannedRangesListBannedRangesResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecBannedRangesListBannedRangesResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/banned-ranges",
     ...options,
   });
 
@@ -1089,6 +1160,37 @@ export const apiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert = <
       },
     ],
     url: "/api/v1/crowdsec/decisions/{decision_id}/alert",
+    ...options,
+  });
+
+/**
+ * ListDropNetworks
+ */
+export const apiV1CrowdsecDropNetworksListDropNetworks = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1CrowdsecDropNetworksListDropNetworksData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1CrowdsecDropNetworksListDropNetworksResponses,
+  ApiV1CrowdsecDropNetworksListDropNetworksErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1CrowdsecDropNetworksListDropNetworksResponses,
+    ApiV1CrowdsecDropNetworksListDropNetworksErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/crowdsec/drop-networks",
     ...options,
   });
 

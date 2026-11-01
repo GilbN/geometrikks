@@ -278,6 +278,31 @@ export type AuthOptions = {
 };
 
 /**
+ * BanNetworkResult
+ */
+export type BanNetworkResult = {
+  error: string | null;
+  network: string;
+  ok: boolean;
+};
+
+/**
+ * BanNetworksRequest
+ */
+export type BanNetworksRequest = {
+  allUnbannedDays?: 7 | 30 | 90 | null;
+  duration: string;
+  networks?: Array<string> | null;
+};
+
+/**
+ * BanNetworksResponse
+ */
+export type BanNetworksResponse = {
+  results: Array<BanNetworkResult>;
+};
+
+/**
  * BanRequest
  */
 export type BanRequest = {
@@ -343,6 +368,15 @@ export type BannedMapStats = {
   events: number;
   ips: number;
   locations: number;
+};
+
+/**
+ * BannedRangeView
+ */
+export type BannedRangeView = {
+  expiresAt: string | null;
+  type: string;
+  value: string;
 };
 
 /**
@@ -566,11 +600,38 @@ export type DropListsResponse = {
 };
 
 /**
+ * DropNetworkTrafficView
+ */
+export type DropNetworkTrafficView = {
+  asOrg: string | null;
+  asn: number | null;
+  cidr: string;
+  decision: BannedRangeView | null;
+  hits: number;
+  ips: number;
+  lastSeen: string | null;
+  sblId: string;
+};
+
+/**
  * DropNetworkView
  */
 export type DropNetworkView = {
   cidr: string;
   sblId: string;
+};
+
+/**
+ * DropNetworksResponse
+ */
+export type DropNetworksResponse = {
+  bannedNetworks: number;
+  days: number;
+  items: Array<DropNetworkTrafficView>;
+  loaded: boolean;
+  totalHits: number;
+  totalIps: number;
+  totalNetworks: number;
 };
 
 /**
@@ -3072,6 +3133,42 @@ export type ApiV1CrowdsecBanBanResponses = {
 export type ApiV1CrowdsecBanBanResponse =
   ApiV1CrowdsecBanBanResponses[keyof ApiV1CrowdsecBanBanResponses];
 
+export type ApiV1CrowdsecBanNetworksBanNetworksData = {
+  body: BanNetworksRequest;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/ban-networks";
+};
+
+export type ApiV1CrowdsecBanNetworksBanNetworksErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecBanNetworksBanNetworksError =
+  ApiV1CrowdsecBanNetworksBanNetworksErrors[keyof ApiV1CrowdsecBanNetworksBanNetworksErrors];
+
+export type ApiV1CrowdsecBanNetworksBanNetworksResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: BanNetworksResponse;
+};
+
+export type ApiV1CrowdsecBanNetworksBanNetworksResponse =
+  ApiV1CrowdsecBanNetworksBanNetworksResponses[keyof ApiV1CrowdsecBanNetworksBanNetworksResponses];
+
 export type ApiV1CrowdsecBannedIpsListBannedIpsData = {
   body?: never;
   path?: never;
@@ -3139,6 +3236,23 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponses = {
 
 export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponse =
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses[keyof ApiV1CrowdsecBannedLocationsListBannedLocationsResponses];
+
+export type ApiV1CrowdsecBannedRangesListBannedRangesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/banned-ranges";
+};
+
+export type ApiV1CrowdsecBannedRangesListBannedRangesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<BannedRangeView>;
+};
+
+export type ApiV1CrowdsecBannedRangesListBannedRangesResponse =
+  ApiV1CrowdsecBannedRangesListBannedRangesResponses[keyof ApiV1CrowdsecBannedRangesListBannedRangesResponses];
 
 export type ApiV1CrowdsecDecisionsListDecisionsData = {
   body?: never;
@@ -3285,6 +3399,49 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses = {
 
 export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponse =
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses[keyof ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses];
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Look-back window: 7, 30 or 90 days
+     */
+    days?: number;
+    page?: number;
+    pageSize?: number;
+  };
+  url: "/api/v1/crowdsec/drop-networks";
+};
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksError =
+  ApiV1CrowdsecDropNetworksListDropNetworksErrors[keyof ApiV1CrowdsecDropNetworksListDropNetworksErrors];
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: DropNetworksResponse;
+};
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksResponse =
+  ApiV1CrowdsecDropNetworksListDropNetworksResponses[keyof ApiV1CrowdsecDropNetworksListDropNetworksResponses];
 
 export type ApiV1CrowdsecStatsGetStatsData = {
   body?: never;

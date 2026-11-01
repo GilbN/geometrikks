@@ -1,6 +1,7 @@
 """CrowdSec API: status, decisions (paginated + enriched), lookup, stats."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from litestar import Litestar
@@ -11,12 +12,16 @@ from geometrikks.domain.security.controllers import CrowdSecController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
-from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.domain.drop.snapshot import EMPTY_DROP_SNAPSHOT, DropNetworkMatch, DropSnapshot, FeedState
+from geometrikks.domain.security.repositories import DropTrafficRepository
+from geometrikks.domain.security.schemas import DropNetworkHits, DropNetworkOrigin
+from geometrikks.services.crowdsec import CrowdSecService, CrowdSecUnavailableError, Decision
 from geometrikks.services.geoip.locator import GeoIpLocator, GeoIpPlace
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
 import pytest
+from structlog.testing import capture_logs
 
 pytestmark = pytest.mark.anyio
 
@@ -83,9 +88,15 @@ def make_app(
     geoip: GeoIpLocator | None = None,
     *,
     real_geoip: bool = False,
+    drop_snapshot: DropSnapshot = EMPTY_DROP_SNAPSHOT,
+    drop_traffic: DropTrafficRepository | None = None,
 ) -> Litestar:
     enrichment = enrichment if enrichment is not None else FakeEnrichment({})
-    overrides = {"enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False)}
+    overrides = {
+        "enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False),
+        "drop_snapshot": Provide(lambda: drop_snapshot, sync_to_thread=False),
+        "drop_traffic_repo": Provide(lambda: drop_traffic, sync_to_thread=False),
+    }
     if not real_geoip:
         overrides["geoip"] = Provide(lambda: geoip, sync_to_thread=False)
 
@@ -1316,3 +1327,257 @@ async def test_banned_map_keeps_every_ip_decision_normalizes_ips_and_forwards_fi
         "country_codes": ["NO", "SE"], "cities": ["Oslo"], "servers": ["a.test", "b.test"],
     }
     assert response.json()["stats"] == {"ips": 0, "locations": 0, "events": 0, "countries": 0, "cities": 0}
+
+
+# -- DROP networks: banned ranges, per-network traffic, bulk ban ------------
+
+DROP_FETCHED_AT = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+DROP_SNAPSHOT = DropSnapshot(
+    networks=(
+        DropNetworkMatch("192.0.2.0/24", "SBL000002"),
+        DropNetworkMatch("198.51.100.0/24", "SBL000001"),
+        DropNetworkMatch("2001:db8::/32", "SBL000003"),
+    ),
+    feeds=(FeedState("v4", None, 2, None, DROP_FETCHED_AT, DROP_FETCHED_AT, None),),
+)
+
+
+class FakeDropTraffic(DropTrafficRepository):
+    def __init__(self, hits: list[DropNetworkHits], origins: dict[str, DropNetworkOrigin] | None = None) -> None:
+        self._hits = hits
+        self._origins = origins or {}
+        self.windows: list[timedelta] = []
+        self.origin_requests: list[list[str]] = []
+
+    async def network_hits(self, start, end):
+        self.windows.append(end - start)
+        return self._hits
+
+    async def network_origins(self, cidrs, start, end):
+        self.origin_requests.append(cidrs)
+        return {cidr: self._origins[cidr] for cidr in cidrs if cidr in self._origins}
+
+
+class FailingSecondBanCrowdSec(WritableFakeCrowdSec):
+    """Raises on the second ban, the way a LAPI that drops mid-run would."""
+
+    async def ban(self, value, **kwargs):
+        if len(self.bans) == 1 and not getattr(self, "_failed", False):
+            self._failed = True
+            raise CrowdSecUnavailableError("LAPI unreachable: boom")
+        await super().ban(value, **kwargs)
+
+
+def range_decision(value: str, *, type: str = "ban", duration: str = "167h", **overrides: Any) -> Decision:
+    return make_decision(scope="Range", value=value, type=type, duration=duration, **overrides)
+
+
+async def test_banned_ranges_lists_only_range_decisions():
+    service = FakeCrowdSec([
+        make_decision(id=1, scope="Ip", value="192.0.2.5"),
+        range_decision("192.0.2.0/24", id=2),
+        make_decision(id=3, scope="Country", value="NO"),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [(entry["value"], entry["type"]) for entry in body] == [("192.0.2.0/24", "ban")]
+    expires_at = datetime.fromisoformat(body[0]["expiresAt"])
+    assert abs(expires_at - (datetime.now(UTC) + timedelta(hours=167))) < timedelta(minutes=1)
+
+
+async def test_banned_ranges_keeps_the_strongest_type_and_canonical_cidr():
+    service = FakeCrowdSec([
+        range_decision("2001:DB8::/32", type="captcha", id=1),
+        range_decision("2001:db8:0::/32", type="ban", id=2),
+        range_decision("10.0.0.5/24", type="captcha", id=3),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert {entry["value"]: entry["type"] for entry in resp.json()} == {
+        "2001:db8::/32": "ban",
+        "10.0.0.0/24": "captcha",
+    }
+
+
+async def test_banned_ranges_404_when_crowdsec_is_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/banned-ranges")).status_code == 404
+
+
+DROP_HITS = [
+    DropNetworkHits(cidr="198.51.100.0/24", sbl_id="SBL000001", hits=50, ips=3),
+    DropNetworkHits(cidr="192.0.2.0/24", sbl_id="SBL000002", hits=20, ips=1),
+    DropNetworkHits(cidr="2001:db8::/32", sbl_id="SBL000003", hits=5, ips=2),
+]
+
+
+async def get_drop_networks(query: str = "", *, service=None, hits=DROP_HITS, snapshot=DROP_SNAPSHOT):
+    origins = {
+        "198.51.100.0/24": DropNetworkOrigin(asn=64496, as_org="EXAMPLE-AS", last_seen=DROP_FETCHED_AT),
+    }
+    traffic = FakeDropTraffic(hits, origins)
+    app = make_app(service or FakeCrowdSec([]), drop_snapshot=snapshot, drop_traffic=traffic)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get(f"/api/v1/crowdsec/drop-networks{query}")
+    return resp, traffic
+
+
+async def test_drop_networks_returns_traffic_totals_and_decisions():
+    service = FakeCrowdSec([range_decision("192.0.2.0/24")])
+    resp, traffic = await get_drop_networks("?days=7", service=service)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert traffic.windows == [timedelta(days=7)]
+    assert {key: body[key] for key in ("loaded", "days", "totalNetworks", "totalIps", "totalHits", "bannedNetworks")} == {
+        "loaded": True, "days": 7, "totalNetworks": 3, "totalIps": 6, "totalHits": 75, "bannedNetworks": 1,
+    }
+    assert [item["cidr"] for item in body["items"]] == ["198.51.100.0/24", "192.0.2.0/24", "2001:db8::/32"]
+    first, second = body["items"][:2]
+    assert (first["sblId"], first["asn"], first["asOrg"], first["hits"], first["ips"]) == (
+        "SBL000001", 64496, "EXAMPLE-AS", 50, 3
+    )
+    assert first["lastSeen"] == "2026-11-01T12:00:00Z"
+    assert first["decision"] is None
+    assert second["decision"]["value"] == "192.0.2.0/24"
+    assert (second["asn"], second["asOrg"], second["lastSeen"]) == (None, None, None)
+
+
+async def test_drop_networks_looks_up_origins_for_the_page_only():
+    resp, traffic = await get_drop_networks("?page=2&pageSize=2")
+    assert [item["cidr"] for item in resp.json()["items"]] == ["2001:db8::/32"]
+    assert resp.json()["totalNetworks"] == 3
+    assert traffic.origin_requests == [["2001:db8::/32"]]
+
+
+async def test_drop_networks_rejects_other_windows():
+    resp, _ = await get_drop_networks("?days=14")
+    assert resp.status_code == 400
+
+
+async def test_drop_networks_is_empty_when_no_list_is_loaded():
+    resp, traffic = await get_drop_networks(snapshot=EMPTY_DROP_SNAPSHOT)
+    assert resp.status_code == 200
+    assert resp.json()["loaded"] is False
+    assert resp.json()["items"] == []
+    assert traffic.windows == []
+
+
+async def test_drop_networks_404_when_crowdsec_is_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/drop-networks")).status_code == 404
+
+
+async def post_ban_networks(
+    monkeypatch, body: dict, *, service=None, hits=DROP_HITS
+) -> tuple[Any, WritableFakeCrowdSec, FakeDropTraffic]:
+    enable_write(monkeypatch)
+    service = service or WritableFakeCrowdSec()
+    traffic = FakeDropTraffic(hits)
+    app = make_app(service, drop_snapshot=DROP_SNAPSHOT, drop_traffic=traffic)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.post("/api/v1/crowdsec/ban-networks", json=body)
+    return resp, service, traffic
+
+
+async def test_ban_networks_bans_each_network_with_its_sbl_reason(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["192.0.2.0/24", "2001:db8::/32"], "duration": "7d"}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"results": [
+        {"network": "192.0.2.0/24", "ok": True, "error": None},
+        {"network": "2001:db8::/32", "ok": True, "error": None},
+    ]}
+    assert service.bans == [
+        {"value": "192.0.2.0/24", "scope": "Range", "type": "ban", "duration": "168h", "reason": "Spamhaus DROP SBL000002"},
+        {"value": "2001:db8::/32", "scope": "Range", "type": "ban", "duration": "168h", "reason": "Spamhaus DROP SBL000003"},
+    ]
+
+
+async def test_ban_networks_reports_a_failure_in_the_middle_and_keeps_going(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch,
+        {"networks": ["192.0.2.0/24", "198.51.100.0/24", "2001:db8::/32"], "duration": "24h"},
+        service=FailingSecondBanCrowdSec(),
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert [result["ok"] for result in results] == [True, False, True]
+    assert "boom" in results[1]["error"]
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24", "2001:db8::/32"]
+
+
+async def test_ban_networks_rejects_a_network_that_is_not_on_the_list_and_bans_the_rest(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["203.0.113.0/24", "192.0.2.0/24", "nonsense"], "duration": "24h"}
+    )
+    results = resp.json()["results"]
+    assert [(result["network"], result["ok"]) for result in results] == [
+        ("203.0.113.0/24", False), ("192.0.2.0/24", True), ("nonsense", False),
+    ]
+    assert results[0]["error"] == "Not on the DROP list"
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24"]
+
+
+async def test_ban_networks_with_all_unbanned_days_skips_ranges_that_hold_a_decision(monkeypatch):
+    service = WritableFakeCrowdSec([range_decision("198.51.100.0/24")])
+    resp, service, traffic = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 90, "duration": "24h"}, service=service
+    )
+    assert resp.status_code == 200
+    assert [result["network"] for result in resp.json()["results"]] == ["192.0.2.0/24", "2001:db8::/32"]
+    assert [ban["reason"] for ban in service.bans] == ["Spamhaus DROP SBL000002", "Spamhaus DROP SBL000003"]
+    assert traffic.windows == [timedelta(days=90)]
+
+
+async def test_ban_networks_with_all_unbanned_days_reports_a_failure_and_keeps_going(monkeypatch):
+    service = FailingSecondBanCrowdSec()
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 30, "duration": "24h"}, service=service
+    )
+    assert [result["ok"] for result in resp.json()["results"]] == [True, False, True]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"duration": "24h"},
+        {"networks": ["192.0.2.0/24"], "allUnbannedDays": 7, "duration": "24h"},
+        {"networks": ["192.0.2.0/24"], "duration": "soon"},
+        {"allUnbannedDays": 14, "duration": "24h"},
+        {"networks": [f"10.{index // 256}.{index % 256}.0/24" for index in range(1001)], "duration": "24h"},
+    ],
+)
+async def test_ban_networks_rejects_a_bad_request(monkeypatch, body):
+    resp, service, _ = await post_ban_networks(monkeypatch, body)
+    assert resp.status_code == 400
+    assert service.bans == []
+
+
+async def test_ban_networks_requires_write_enabled(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.delenv("CROWDSEC_MACHINE_ID", raising=False)
+    monkeypatch.delenv("CROWDSEC_MACHINE_PASSWORD", raising=False)
+    service = WritableFakeCrowdSec()
+    app = make_app(service, drop_snapshot=DROP_SNAPSHOT, drop_traffic=FakeDropTraffic([]))
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.post(
+            "/api/v1/crowdsec/ban-networks", json={"networks": ["192.0.2.0/24"], "duration": "24h"}
+        )
+    assert resp.status_code == 403
+    assert service.bans == []
+
+
+async def test_ban_networks_logs_who_banned_how_many(monkeypatch):
+    with capture_logs() as logged_events:
+        await post_ban_networks(
+            monkeypatch,
+            {"networks": ["192.0.2.0/24", "198.51.100.0/24", "2001:db8::/32"], "duration": "24h"},
+            service=FailingSecondBanCrowdSec(),
+        )
+    audit_event = next(event for event in logged_events if event["event"] == "crowdsec_bulk_ban")
+    assert (audit_event["actor"], audit_event["ok"], audit_event["failed"]) == ("unknown", 2, 1)

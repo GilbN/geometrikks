@@ -1150,6 +1150,86 @@
         "title": "AuthOptions",
         "type": "object"
       },
+      "BanNetworkResult": {
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "network": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "error",
+          "network",
+          "ok"
+        ],
+        "title": "BanNetworkResult",
+        "type": "object"
+      },
+      "BanNetworksRequest": {
+        "properties": {
+          "allUnbannedDays": {
+            "enum": [
+              7,
+              30,
+              90,
+              null
+            ],
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "duration": {
+            "type": "string"
+          },
+          "networks": {
+            "maxItems": 1000,
+            "oneOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "duration"
+        ],
+        "title": "BanNetworksRequest",
+        "type": "object"
+      },
+      "BanNetworksResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/BanNetworkResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "BanNetworksResponse",
+        "type": "object"
+      },
       "BanRequest": {
         "properties": {
           "duration": {
@@ -1346,6 +1426,34 @@
           "locations"
         ],
         "title": "BannedMapStats",
+        "type": "object"
+      },
+      "BannedRangeView": {
+        "properties": {
+          "expiresAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expiresAt",
+          "type",
+          "value"
+        ],
+        "title": "BannedRangeView",
         "type": "object"
       },
       "ChangelogEntry": {
@@ -2149,6 +2257,75 @@
         "title": "DropListsResponse",
         "type": "object"
       },
+      "DropNetworkTrafficView": {
+        "properties": {
+          "asOrg": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asn": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cidr": {
+            "type": "string"
+          },
+          "decision": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BannedRangeView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "ips": {
+            "type": "integer"
+          },
+          "lastSeen": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sblId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asOrg",
+          "asn",
+          "cidr",
+          "decision",
+          "hits",
+          "ips",
+          "lastSeen",
+          "sblId"
+        ],
+        "title": "DropNetworkTrafficView",
+        "type": "object"
+      },
       "DropNetworkView": {
         "properties": {
           "cidr": {
@@ -2163,6 +2340,45 @@
           "sblId"
         ],
         "title": "DropNetworkView",
+        "type": "object"
+      },
+      "DropNetworksResponse": {
+        "properties": {
+          "bannedNetworks": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DropNetworkTrafficView"
+            },
+            "type": "array"
+          },
+          "loaded": {
+            "type": "boolean"
+          },
+          "totalHits": {
+            "type": "integer"
+          },
+          "totalIps": {
+            "type": "integer"
+          },
+          "totalNetworks": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bannedNetworks",
+          "days",
+          "items",
+          "loaded",
+          "totalHits",
+          "totalIps",
+          "totalNetworks"
+        ],
+        "title": "DropNetworksResponse",
         "type": "object"
       },
       "EmbeddedLocationDTO": {
@@ -10586,6 +10802,77 @@
         ]
       }
     },
+    "/api/v1/crowdsec/ban-networks": {
+      "post": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecBanNetworksBanNetworks",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BanNetworksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanNetworksResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "BanNetworks",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
     "/api/v1/crowdsec/banned-ips": {
       "get": {
         "deprecated": false,
@@ -10777,6 +11064,32 @@
           }
         },
         "summary": "ListBannedLocations",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/banned-ranges": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecBannedRangesListBannedRanges",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BannedRangeView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "ListBannedRanges",
         "tags": [
           "CrowdSec"
         ]
@@ -11099,6 +11412,110 @@
           }
         },
         "summary": "GetDecisionAlert",
+        "tags": [
+          "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/crowdsec/drop-networks": {
+      "get": {
+        "deprecated": false,
+        "operationId": "ApiV1CrowdsecDropNetworksListDropNetworks",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Look-back window: 7, 30 or 90 days",
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "description": "Look-back window: 7, 30 or 90 days",
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DropNetworksResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "ListDropNetworks",
         "tags": [
           "CrowdSec"
         ]

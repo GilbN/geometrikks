@@ -1102,6 +1102,73 @@ export const AuthOptionsSchema = {
   type: "object",
 } as const;
 
+export const BanNetworkResultSchema = {
+  properties: {
+    error: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    network: {
+      type: "string",
+    },
+    ok: {
+      type: "boolean",
+    },
+  },
+  required: ["error", "network", "ok"],
+  title: "BanNetworkResult",
+  type: "object",
+} as const;
+
+export const BanNetworksRequestSchema = {
+  properties: {
+    allUnbannedDays: {
+      enum: [7, 30, 90, null],
+      type: ["integer", "null"],
+    },
+    duration: {
+      type: "string",
+    },
+    networks: {
+      maxItems: 1000,
+      oneOf: [
+        {
+          items: {
+            type: "string",
+          },
+          type: "array",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["duration"],
+  title: "BanNetworksRequest",
+  type: "object",
+} as const;
+
+export const BanNetworksResponseSchema = {
+  properties: {
+    results: {
+      items: {
+        $ref: "#/components/schemas/BanNetworkResult",
+      },
+      type: "array",
+    },
+  },
+  required: ["results"],
+  title: "BanNetworksResponse",
+  type: "object",
+} as const;
+
 export const BanRequestSchema = {
   properties: {
     duration: {
@@ -1271,6 +1338,31 @@ export const BannedMapStatsSchema = {
   },
   required: ["cities", "countries", "events", "ips", "locations"],
   title: "BannedMapStats",
+  type: "object",
+} as const;
+
+export const BannedRangeViewSchema = {
+  properties: {
+    expiresAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    type: {
+      type: "string",
+    },
+    value: {
+      type: "string",
+    },
+  },
+  required: ["expiresAt", "type", "value"],
+  title: "BannedRangeView",
   type: "object",
 } as const;
 
@@ -2052,6 +2144,76 @@ export const DropListsResponseSchema = {
   type: "object",
 } as const;
 
+export const DropNetworkTrafficViewSchema = {
+  properties: {
+    asOrg: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asn: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    cidr: {
+      type: "string",
+    },
+    decision: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/BannedRangeView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    hits: {
+      type: "integer",
+    },
+    ips: {
+      type: "integer",
+    },
+    lastSeen: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    sblId: {
+      type: "string",
+    },
+  },
+  required: [
+    "asOrg",
+    "asn",
+    "cidr",
+    "decision",
+    "hits",
+    "ips",
+    "lastSeen",
+    "sblId",
+  ],
+  title: "DropNetworkTrafficView",
+  type: "object",
+} as const;
+
 export const DropNetworkViewSchema = {
   properties: {
     cidr: {
@@ -2063,6 +2225,46 @@ export const DropNetworkViewSchema = {
   },
   required: ["cidr", "sblId"],
   title: "DropNetworkView",
+  type: "object",
+} as const;
+
+export const DropNetworksResponseSchema = {
+  properties: {
+    bannedNetworks: {
+      type: "integer",
+    },
+    days: {
+      type: "integer",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/DropNetworkTrafficView",
+      },
+      type: "array",
+    },
+    loaded: {
+      type: "boolean",
+    },
+    totalHits: {
+      type: "integer",
+    },
+    totalIps: {
+      type: "integer",
+    },
+    totalNetworks: {
+      type: "integer",
+    },
+  },
+  required: [
+    "bannedNetworks",
+    "days",
+    "items",
+    "loaded",
+    "totalHits",
+    "totalIps",
+    "totalNetworks",
+  ],
+  title: "DropNetworksResponse",
   type: "object",
 } as const;
 

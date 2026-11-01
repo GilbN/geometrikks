@@ -11,7 +11,7 @@ import ipaddress
 import re
 
 import msgspec
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from collections import Counter
 from typing import Annotated
 
@@ -26,9 +26,12 @@ from litestar.status_codes import (
     HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
 )
 
+from geometrikks.domain.drop.dependencies import provide_drop_snapshot
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
     provide_crowdsec_service,
+    provide_drop_traffic_repo,
     provide_geoip_locator,
     provide_limit_offset_pagination,
     provide_security_enrichment_repo,
@@ -42,15 +45,31 @@ from geometrikks.domain.security.alert_history import (
     decode_cursor,
     fetch_alert_page,
 )
-from geometrikks.domain.security.grouping import DecisionGroup, group_decisions, search_groups, search_network
-from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
-from geometrikks.domain.security.schemas import IpEnrichment, BannedMapCollection, BannedIp
+from geometrikks.domain.security.grouping import (
+    DecisionGroup,
+    go_duration_seconds,
+    group_decisions,
+    search_groups,
+    search_network,
+)
+from geometrikks.domain.security.repositories import DropTrafficRepository, SecurityEnrichmentRepository
+from geometrikks.domain.security.schemas import (
+    BanNetworkResult,
+    BanNetworksRequest,
+    BanNetworksResponse,
+    BannedIp,
+    BannedMapCollection,
+    BannedRangeView,
+    DropNetworksResponse,
+    DropNetworkTrafficView,
+    IpEnrichment,
+)
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, ServerIn
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import (
-    Alert, CrowdSecService, Decision, DecisionScope, DecisionType, manual_reason,
+    Alert, CrowdSecError, CrowdSecService, Decision, DecisionScope, DecisionType, manual_reason,
 )
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.locator import GeoIpLocator
@@ -435,6 +454,52 @@ def _decision_target(value: str) -> tuple[DecisionScope, str]:
     return "Range", str(network)
 
 
+DROP_WINDOW_DAYS = (7, 30, 90)
+
+
+def _validate_drop_days(days: int) -> None:
+    if days not in DROP_WINDOW_DAYS:
+        raise DomainValidationError(f"Invalid days: {days} (expected 7, 30 or 90)")
+
+
+def _canonical_cidr(value: str) -> str | None:
+    try:
+        return str(ipaddress.ip_network(value, strict=False))
+    except ValueError:
+        return None
+
+
+def _banned_ranges(decisions: list[Decision], now: datetime) -> dict[str, BannedRangeView]:
+    """Active Range decisions by canonical CIDR, keeping the strongest type on each.
+
+    Between two decisions of the same type the later expiry wins.
+    """
+    banned_ranges: dict[str, BannedRangeView] = {}
+    for decision in decisions:
+        if decision.scope != "Range" or decision.expired:
+            continue
+        cidr = _canonical_cidr(decision.value)
+        if cidr is None:
+            continue
+        seconds_left = go_duration_seconds(decision.duration)
+        expires_at = now + timedelta(seconds=seconds_left) if seconds_left > 0 else None
+        current = banned_ranges.get(cidr)
+        if current is not None:
+            winning_type = decision_winner(current.type, decision.type)
+            if winning_type != decision.type:
+                continue
+            if winning_type == current.type and (
+                expires_at is None or (current.expires_at is not None and expires_at <= current.expires_at)
+            ):
+                continue
+        banned_ranges[cidr] = BannedRangeView(value=cidr, type=decision.type, expires_at=expires_at)
+    return banned_ranges
+
+
+async def _active_banned_ranges(service: CrowdSecService) -> dict[str, BannedRangeView]:
+    return _banned_ranges(await service.get_decisions(scopes="Range"), datetime.now(timezone.utc))
+
+
 def _actor(request: Request) -> str:
     """Session username for the audit log; 'unknown' in auth-disabled mode."""
     user = request.scope.get("user")
@@ -454,6 +519,8 @@ class CrowdSecController(Controller):
         # Controller-scoped: /decisions paginates an in-memory LAPI result,
         # not an ORM query, so it keeps the hand-written provider.
         "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
+        "drop_snapshot": Provide(provide_drop_snapshot),
+        "drop_traffic_repo": Provide(provide_drop_traffic_repo),
     }
 
     @get("/status")
@@ -575,6 +642,65 @@ class CrowdSecController(Controller):
                 continue
             winners[ip] = decision_winner(winners.get(ip), decision.type)
         return [BannedIp(ip=ip, type=kind) for ip, kind in winners.items()]
+
+    @get("/banned-ranges")
+    async def list_banned_ranges(
+        self, crowdsec: NamedDependency[CrowdSecService | None]
+    ) -> list[BannedRangeView]:
+        """Every CIDR under an active Range decision, with the type to show it as."""
+        service = _require_service(crowdsec)
+        return list((await _active_banned_ranges(service)).values())
+
+    @get("/drop-networks")
+    async def list_drop_networks(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
+        drop_traffic_repo: NamedDependency[SkipValidation[DropTrafficRepository]],
+        days: Annotated[int, QueryParameter(description="Look-back window: 7, 30 or 90 days")] = 30,
+        page: Annotated[int, QueryParameter(ge=1)] = 1,
+        page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=100)] = 25,
+    ) -> DropNetworksResponse:
+        """Traffic from DROP-listed networks, busiest first, with each network's Range decision.
+
+        The totals cover every network with traffic in the window, not only the
+        page. ASN, organization and last-seen come from the raw access log.
+        """
+        _validate_drop_days(days)
+        service = _require_service(crowdsec)
+        if not drop_snapshot.loaded:
+            return DropNetworksResponse(
+                loaded=False, days=days, total_networks=0, total_ips=0,
+                total_hits=0, banned_networks=0, items=[],
+            )
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=days)
+        network_hits = await drop_traffic_repo.network_hits(start, end)
+        banned_ranges = await _active_banned_ranges(service)
+        page_hits = network_hits[(page - 1) * page_size : page * page_size]
+        origins = await drop_traffic_repo.network_origins([hits.cidr for hits in page_hits], start, end)
+        items = []
+        for hits in page_hits:
+            origin = origins.get(hits.cidr)
+            items.append(DropNetworkTrafficView(
+                cidr=hits.cidr,
+                sbl_id=hits.sbl_id,
+                asn=origin.asn if origin else None,
+                as_org=origin.as_org if origin else None,
+                hits=hits.hits,
+                ips=hits.ips,
+                last_seen=origin.last_seen if origin else None,
+                decision=banned_ranges.get(hits.cidr),
+            ))
+        return DropNetworksResponse(
+            loaded=True,
+            days=days,
+            total_networks=len(network_hits),
+            total_ips=sum(hits.ips for hits in network_hits),
+            total_hits=sum(hits.hits for hits in network_hits),
+            banned_networks=sum(1 for hits in network_hits if hits.cidr in banned_ranges),
+            items=items,
+        )
 
     @get("/banned-locations")
     async def list_banned_locations(
@@ -831,6 +957,76 @@ class CrowdSecController(Controller):
             duration or settings.crowdsec.default_ban_duration,
             reason,
         )
+
+    @post("/ban-networks", status_code=HTTP_200_OK)
+    async def ban_networks(
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
+        drop_traffic_repo: NamedDependency[SkipValidation[DropTrafficRepository]],
+        data: JSONBody[BanNetworksRequest],
+        request: Request,
+        settings: NamedDependency[SkipValidation[Settings]],
+    ) -> BanNetworksResponse:
+        """Ban DROP networks as Range decisions, reporting every network's outcome.
+
+        Name the networks, or set allUnbannedDays to ban every DROP network
+        with traffic in that window that has no active Range decision. A
+        network that is not on the DROP list or whose ban fails gets an error
+        result and the rest are still banned.
+        """
+        service = _require_write(crowdsec, settings)
+        if (data.networks is None) == (data.all_unbanned_days is None):
+            raise DomainValidationError("Send either networks or allUnbannedDays, not both and not neither")
+        duration = _ban_duration(data.duration)
+        if data.networks is not None:
+            requested_networks = data.networks
+        else:
+            requested_networks = []
+            if drop_snapshot.loaded:
+                end = datetime.now(timezone.utc)
+                start = end - timedelta(days=data.all_unbanned_days or 0)
+                banned_ranges = await _active_banned_ranges(service)
+                requested_networks = [
+                    hits.cidr
+                    for hits in await drop_traffic_repo.network_hits(start, end)
+                    if hits.cidr not in banned_ranges
+                ]
+
+        sbl_ids_by_cidr = {network.cidr: network.sbl_id for network in drop_snapshot.networks}
+        results: list[BanNetworkResult] = []
+        seen_networks: set[str] = set()
+        for requested_network in requested_networks:
+            cidr = _canonical_cidr(requested_network)
+            if cidr is None:
+                results.append(BanNetworkResult(network=requested_network, ok=False, error="Not a valid network"))
+                continue
+            if cidr in seen_networks:
+                continue
+            seen_networks.add(cidr)
+            sbl_id = sbl_ids_by_cidr.get(cidr)
+            if sbl_id is None:
+                results.append(BanNetworkResult(network=cidr, ok=False, error="Not on the DROP list"))
+                continue
+            try:
+                await service.ban(
+                    cidr, scope="Range", decision_type="ban", duration=duration,
+                    reason=f"Spamhaus DROP {sbl_id}",
+                )
+            except CrowdSecError as exc:
+                results.append(BanNetworkResult(network=cidr, ok=False, error=str(exc)))
+            else:
+                results.append(BanNetworkResult(network=cidr, ok=True, error=None))
+        banned_count = sum(1 for result in results if result.ok)
+        logger.info(
+            "crowdsec_bulk_ban",
+            actor=_actor(request),
+            duration=duration,
+            requested=len(results),
+            ok=banned_count,
+            failed=len(results) - banned_count,
+        )
+        return BanNetworksResponse(results=results)
 
     @post("/unban", status_code=HTTP_200_OK)
     async def unban(

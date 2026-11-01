@@ -15,7 +15,7 @@ from geometrikks.server import runtime
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.locator import GeoIpLocator
-from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
+from geometrikks.domain.security.repositories import DropTrafficRepository, SecurityEnrichmentRepository
 
 
 def provide_crowdsec_service(request: Request) -> CrowdSecService | None:
@@ -39,6 +39,13 @@ async def provide_security_enrichment_repo(
 ) -> SecurityEnrichmentRepository:
     """Provide SecurityEnrichmentRepository for decision enrichment."""
     return SecurityEnrichmentRepository(session=db_session)
+
+
+async def provide_drop_traffic_repo(
+    db_session: NamedDependency[AsyncSession],
+) -> DropTrafficRepository:
+    """Provide DropTrafficRepository for the DROP network traffic views."""
+    return DropTrafficRepository(session=db_session)
 
 
 def provide_geoip_locator(

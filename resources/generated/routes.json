@@ -8,6 +8,13 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "ban_networks": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/crowdsec/ban-networks"
+    },
     "delete_instance": {
       "method": "delete",
       "methods": [
@@ -681,6 +688,13 @@
       },
       "uri": "/api/v1/crowdsec/banned-locations"
     },
+    "list_banned_ranges": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/banned-ranges"
+    },
     "list_decisions": {
       "method": "get",
       "methods": [
@@ -693,6 +707,18 @@
         "q": "string | undefined"
       },
       "uri": "/api/v1/crowdsec/decisions"
+    },
+    "list_drop_networks": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "days": "number | undefined",
+        "page": "number | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/crowdsec/drop-networks"
     },
     "list_files": {
       "method": "get",

@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from datetime import datetime
+from typing import Annotated, Literal
 
 import msgspec
 
@@ -73,3 +74,72 @@ class BannedMapCollection(msgspec.Struct, rename="camel", kw_only=True):
     type: Literal["FeatureCollection"]
     features: list[BannedMapFeature]
     stats: BannedMapStats
+
+
+@dataclass(frozen=True)
+class DropNetworkHits:
+    """Traffic one DROP network sent in a window."""
+
+    cidr: str
+    sbl_id: str
+    hits: int
+    ips: int
+
+
+@dataclass(frozen=True)
+class DropNetworkOrigin:
+    """Where a DROP network's traffic came from, read off its raw access_logs rows."""
+
+    asn: int | None
+    as_org: str | None
+    last_seen: datetime
+
+
+class BannedRangeView(msgspec.Struct, rename="camel"):
+    """A CIDR under an active Range decision and the strongest type on it."""
+
+    value: str
+    type: str
+    expires_at: datetime | None
+
+
+class DropNetworkTrafficView(msgspec.Struct, rename="camel"):
+    cidr: str
+    sbl_id: str
+    asn: int | None
+    as_org: str | None
+    hits: int
+    ips: int
+    last_seen: datetime | None
+    decision: BannedRangeView | None
+
+
+class DropNetworksResponse(msgspec.Struct, rename="camel"):
+    loaded: bool
+    days: int
+    total_networks: int
+    total_ips: int
+    total_hits: int
+    banned_networks: int
+    items: list[DropNetworkTrafficView]
+
+
+class BanNetworksRequest(msgspec.Struct, rename="camel"):
+    """Ban DROP networks: name them, or ask for every unbanned one with traffic.
+
+    Exactly one of ``networks`` and ``all_unbanned_days`` must be set.
+    """
+
+    duration: str
+    networks: Annotated[list[str], msgspec.Meta(max_length=1000)] | None = None
+    all_unbanned_days: Literal[7, 30, 90] | None = None
+
+
+class BanNetworkResult(msgspec.Struct, rename="camel"):
+    network: str
+    ok: bool
+    error: str | None
+
+
+class BanNetworksResponse(msgspec.Struct, rename="camel"):
+    results: list[BanNetworkResult]
