@@ -9,5 +9,19 @@
     "github@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
     "crowdsec@crowdsecurity": true
+  },
+  "extraKnownMarketplaces": {
+    "litestar": {
+      "source": {
+        "source": "github",
+        "repo": "litestar-org/litestar-skills"
+      }
+    },
+    "crowdsecurity": {
+      "source": {
+        "source": "github",
+        "repo": "crowdsecurity/crowdsec-skill"
+      }
+    }
   }
 }
