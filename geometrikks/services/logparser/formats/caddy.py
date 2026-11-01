@@ -18,7 +18,13 @@ from datetime import datetime, timezone
 
 import msgspec
 
-from .base import NormalizedLine, classify_method, convert_dash_to_none, host_from_addr
+from .base import (
+    NormalizedLine,
+    StoredColumn,
+    classify_method,
+    convert_dash_to_none,
+    host_from_addr,
+)
 
 
 class CaddyRequest(msgspec.Struct, kw_only=True):
@@ -97,10 +103,37 @@ def _header(headers: dict[str, list[str]] | None, name: str) -> str | None:
     return convert_dash_to_none(values[0])
 
 
+def _has_timestamp(value: object) -> bool:
+    return isinstance(value, (int, float, str)) and _parse_timestamp(value) is not None
+
+
+def _has_duration(value: object) -> bool:
+    return isinstance(value, (int, float)) and _parse_duration(value) is not None
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int)
+
+
 class CaddyJsonFormat:
     """Parses one Caddy JSON access-log object per line."""
 
     name = "caddy-json"
+    stored_columns = (
+        StoredColumn("IP address", (("request", "client_ip"), ("request", "remote_ip"))),
+        StoredColumn("Time", (("ts",),), _has_timestamp),
+        StoredColumn("Remote user", (("user_id",),)),
+        StoredColumn("Method", (("request", "method"),)),
+        StoredColumn("URL", (("request", "uri"),)),
+        StoredColumn("HTTP version", (("request", "proto"),)),
+        StoredColumn("Status", (("status",),), _is_int),
+        StoredColumn("Bytes sent", (("size",),), _is_int),
+        StoredColumn("Referrer", (("request", "headers", "Referer"),)),
+        StoredColumn("User agent", (("request", "headers", "User-Agent"),)),
+        StoredColumn("Request time", (("duration",),), _has_duration),
+        StoredColumn("Upstream response", (("upstream_duration_ms",),), _has_duration),
+        StoredColumn("Host", (("request", "host"),)),
+    )
 
     def parse(self, line: str, *, geo_only: bool = False) -> NormalizedLine | None:
         """Parse one Caddy JSON access-log line into a NormalizedLine.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 import msgspec
 
@@ -30,6 +31,30 @@ class AccessLogFacets(msgspec.Struct, rename="camel"):
     """Distinct source log formats ('nginx', 'traefik-json'). NULLs excluded."""
 
 
+RawLineFieldGroup = Literal["request_header", "response_header", "origin_header", "field"]
+
+
+class RawLineField(msgspec.Struct, rename="camel", kw_only=True):
+    """One key from a JSON raw line, flattened for display."""
+
+    key: str
+    """Dotted path for nested keys; header name without its prefix for headers."""
+    value: str
+    """Strings as-is, string lists comma-joined, everything else as compact JSON."""
+    group: RawLineFieldGroup
+    stored_as: str | None = None
+    """Access-log column this key fills, or None when GeoMetrikks drops it."""
+
+
+class RawLineFields(msgspec.Struct, rename="camel", kw_only=True):
+    """A JSON raw line split into fields, in the order they appear in the line."""
+
+    format: str | None
+    """Parser that read the line into its linked access log. None for an
+    unlinked line or JSON no parser accepts, and then no field has ``stored_as``."""
+    fields: list[RawLineField]
+
+
 class AccessLogDebugEntry(msgspec.Struct, rename="camel"):
     """One debug row with its access-log context, flattened for the table.
 
@@ -55,6 +80,8 @@ class AccessLogDebugEntry(msgspec.Struct, rename="camel"):
     country_name: str | None = None
     city: str | None = None
     user_agent: str | None = None
+    raw_fields: RawLineFields | None = None
+    """The raw line as fields when it is a JSON object, else None."""
 
 
 class ParseErrorCount(msgspec.Struct, rename="camel"):

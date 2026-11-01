@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The details of a JSON debug line open on a Fields view with one row per key. Request and response headers come first, without Traefik's `request_` and `downstream_` prefixes, so a custom header your app sends sits at the top instead of somewhere in one long line. The keys GeoMetrikks drops follow, then the ones it stores, each tagged with the access-log column it fills. Nested keys show as dotted paths such as `request.tls.version`. The Raw tab shows the line as logged, and Copy still copies it.
+
 ### Changed
 
 - `docs/configuration.md` puts the settings most installs need first: login, database, the logs to read and GeoIP. Each optional feature follows with its own section. The 28 settings for pool sizes, poll intervals, timeouts and log rotation sit in an Advanced tuning section near the end. Almost every install can leave them at their defaults.

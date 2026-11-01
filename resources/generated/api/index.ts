@@ -481,6 +481,8 @@ export type {
   ParseErrorCount,
   PercentChange,
   PeriodSummary,
+  RawLineField,
+  RawLineFields,
   ReadinessResponse,
   ReleaseCheckResponse,
   ReportAlertDecisionDto,

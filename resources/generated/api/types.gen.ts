@@ -90,6 +90,7 @@ export type AccessLogDebugEntry = {
   isMalformed: boolean;
   method?: string | null;
   parseError?: string | null;
+  rawFields?: RawLineFields | null;
   rawLine: string;
   statusCode?: number | null;
   timestamp?: string | null;
@@ -1230,6 +1231,24 @@ export type PeriodSummary = {
   totalRequests: number;
   uniqueCountries: number;
   uniqueIps: number;
+};
+
+/**
+ * RawLineField
+ */
+export type RawLineField = {
+  group: "request_header" | "response_header" | "origin_header" | "field";
+  key: string;
+  storedAs?: string | null;
+  value: string;
+};
+
+/**
+ * RawLineFields
+ */
+export type RawLineFields = {
+  fields: Array<RawLineField>;
+  format: string | null;
 };
 
 /**

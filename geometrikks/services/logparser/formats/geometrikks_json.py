@@ -13,7 +13,13 @@ from datetime import datetime
 
 import msgspec
 
-from .base import NormalizedLine, convert_dash_to_none, detect_probe, parse_seconds
+from .base import (
+    NormalizedLine,
+    StoredColumn,
+    convert_dash_to_none,
+    detect_probe,
+    parse_seconds,
+)
 
 
 class GeometrikksJsonLine(msgspec.Struct):
@@ -79,10 +85,37 @@ def _sum_upstream(raw: str | None) -> float | None:
     return total if seen else None
 
 
+def _has_timestamp(value: object) -> bool:
+    return isinstance(value, str) and _parse_timestamp(value) is not None
+
+
+def _has_seconds(value: object) -> bool:
+    return isinstance(value, str) and parse_seconds(value) is not None
+
+
+def _has_upstream_time(value: object) -> bool:
+    return isinstance(value, str) and _sum_upstream(value) is not None
+
+
 class GeometrikksJsonFormat:
     """Parses one keyed JSON object per line against a fixed schema."""
 
     name = "geometrikks-json"
+    stored_columns = (
+        StoredColumn("IP address", (("client_ip",),)),
+        StoredColumn("Time", (("timestamp",),), _has_timestamp),
+        StoredColumn("Remote user", (("remote_user",),)),
+        StoredColumn("Method", (("method",),)),
+        StoredColumn("URL", (("path",),)),
+        StoredColumn("HTTP version", (("protocol",),)),
+        StoredColumn("Status", (("status",),)),
+        StoredColumn("Bytes sent", (("bytes",),)),
+        StoredColumn("Referrer", (("referrer",),)),
+        StoredColumn("User agent", (("user_agent",),)),
+        StoredColumn("Request time", (("request_time",),), _has_seconds),
+        StoredColumn("Upstream response", (("upstream_time",),), _has_upstream_time),
+        StoredColumn("Host", (("host",),)),
+    )
 
     def parse(self, line: str, *, geo_only: bool = False) -> NormalizedLine | None:
         """Decode one line into a NormalizedLine.
