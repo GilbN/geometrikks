@@ -11,6 +11,7 @@ import { useLocationTopIPs } from "@/lib/queries"
 import { IpBanControls } from "./IpBanControls"
 import { CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { DropPopupIp } from "@/components/drop/drop-mark"
 import { POPUP_OFFSET, usePopupPadding, POPUP_CODE_STYLE as IP_CODE_STYLE, POPUP_ROW_ICON_STYLE as ROW_ICON_STYLE, PopupBadge, PopupCard, PopupRow } from "./PopupCard"
 
 import {
@@ -152,7 +153,7 @@ export function MapPopup({
                   <code
                     style={IP_CODE_STYLE}
                   >
-                    1.&nbsp;{top_ips[0].ipAddress}
+                    1.&nbsp;<DropPopupIp ip={top_ips[0].ipAddress} />
                   </code>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                     <IpBanControls ip={top_ips[0].ipAddress}>
@@ -186,7 +187,7 @@ export function MapPopup({
                             <code
                               style={IP_CODE_STYLE}
                             >
-                              {index + 2}.&nbsp;{ip.ipAddress}
+                              {index + 2}.&nbsp;<DropPopupIp ip={ip.ipAddress} />
                             </code>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                               <IpBanControls ip={ip.ipAddress}>

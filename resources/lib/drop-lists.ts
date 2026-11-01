@@ -95,3 +95,201 @@ export function dropListsState(dropLists: Pick<DropListsAboutView, "loaded" | "s
   if (dropLists.stale) return "stale"
   return dropLists.feeds.some(dropFeedFailing) ? "failing" : "current"
 }
+
+export type DropNetworkMatch = { cidr: string; sblId: string }
+
+/** Ranges sorted by start. IPv4 fits a double exactly, so only IPv6 pays for BigInt comparisons. */
+type DropRanges<Address extends number | bigint> = {
+  starts: Address[]
+  ends: Address[]
+  /** The largest end among ranges 0..i, so a lookup can stop walking back once nothing earlier reaches the IP. */
+  reachEnds: Address[]
+  dropNetworks: DropNetworkMatch[]
+}
+
+export type DropIndex = { v4: DropRanges<number>; v6: DropRanges<bigint> }
+
+/** Parses a dotted quad and rejects leading zeros. It scans characters because split and a regex per octet took most of a lookup's time. */
+function parseIpv4Number(text: string): number | null {
+  let value = 0
+  let octet = 0
+  let digits = 0
+  let dots = 0
+  for (let position = 0; position < text.length; position++) {
+    const code = text.charCodeAt(position)
+    if (code === 46) {
+      if (digits === 0 || ++dots > 3) return null
+      value = value * 256 + octet
+      octet = 0
+      digits = 0
+    } else if (code >= 48 && code <= 57) {
+      if (digits > 0 && octet === 0) return null
+      octet = octet * 10 + code - 48
+      if (++digits > 3 || octet > 255) return null
+    } else {
+      return null
+    }
+  }
+  if (dots !== 3 || digits === 0) return null
+  return value * 256 + octet
+}
+
+/** The eight 16-bit groups of an IPv6 address, with `::` expanded and a dotted-quad tail split in two. */
+function parseIpv6Groups(text: string): number[] | null {
+  const head: number[] = []
+  const tail: number[] = []
+  let groups = head
+  let compressed = false
+  let group = 0
+  let digits = 0
+  let position = 0
+  if (text.startsWith("::")) {
+    compressed = true
+    groups = tail
+    position = 2
+    if (text.length === 2) return Array<number>(8).fill(0)
+  }
+  for (; position < text.length; position++) {
+    const code = text.charCodeAt(position)
+    if (code === 58) {
+      if (digits === 0) return null
+      groups.push(group)
+      group = 0
+      digits = 0
+      if (text.charCodeAt(position + 1) === 58) {
+        if (compressed) return null
+        compressed = true
+        groups = tail
+        position++
+        if (position === text.length - 1) break
+      }
+      continue
+    }
+    if (code === 46) {
+      const embedded = parseIpv4Number(text.slice(position - digits))
+      if (embedded === null) return null
+      groups.push(Math.floor(embedded / 0x10000), embedded % 0x10000)
+      digits = -1
+      break
+    }
+    let nibble: number
+    if (code >= 48 && code <= 57) nibble = code - 48
+    else if (code >= 97 && code <= 102) nibble = code - 87
+    else if (code >= 65 && code <= 70) nibble = code - 55
+    else return null
+    if (++digits > 4) return null
+    group = group * 16 + nibble
+  }
+  if (digits > 0) groups.push(group)
+  else if (digits === 0 && !(compressed && text.endsWith("::"))) return null
+  const missing = 8 - head.length - tail.length
+  if (compressed ? missing < 1 : missing !== 0) return null
+  for (let filled = 0; filled < missing; filled++) head.push(0)
+  for (const tailGroup of tail) head.push(tailGroup)
+  return head
+}
+
+function ipv6Value(groups: readonly number[]): bigint {
+  let hex = ""
+  for (const group of groups) hex += group.toString(16).padStart(4, "0")
+  return BigInt(`0x${hex}`)
+}
+
+function parseIpv6(text: string): bigint | null {
+  const groups = parseIpv6Groups(text)
+  return groups === null ? null : ipv6Value(groups)
+}
+
+type RangeEntry<Address extends number | bigint> = { start: Address; end: Address; dropNetwork: DropNetworkMatch }
+
+function buildRanges<Address extends number | bigint>(entries: RangeEntry<Address>[], below: Address): DropRanges<Address> {
+  entries.sort((left, right) => (left.start < right.start ? -1 : left.start > right.start ? 1 : 0))
+  const reachEnds: Address[] = []
+  let reach = below
+  for (const entry of entries) {
+    if (entry.end > reach) reach = entry.end
+    reachEnds.push(reach)
+  }
+  return {
+    starts: entries.map((entry) => entry.start),
+    ends: entries.map((entry) => entry.end),
+    reachEnds,
+    dropNetworks: entries.map((entry) => entry.dropNetwork),
+  }
+}
+
+/** Sorted address ranges for every listed network. A CIDR that does not parse is skipped. */
+export function buildDropIndex(dropNetworks: readonly DropNetworkMatch[]): DropIndex {
+  const v4Entries: RangeEntry<number>[] = []
+  const v6Entries: RangeEntry<bigint>[] = []
+  for (const dropNetwork of dropNetworks) {
+    const [address, prefixText, extra] = dropNetwork.cidr.split("/")
+    if (extra !== undefined || (prefixText !== undefined && !/^\d{1,3}$/.test(prefixText))) continue
+    const match = { cidr: dropNetwork.cidr, sblId: dropNetwork.sblId }
+    if (address.includes(":")) {
+      const value = parseIpv6(address)
+      const prefix = prefixText === undefined ? 128 : Number(prefixText)
+      if (value === null || prefix > 128) continue
+      const hostBits = BigInt(128 - prefix)
+      const start = (value >> hostBits) << hostBits
+      v6Entries.push({ start, end: start | ((1n << hostBits) - 1n), dropNetwork: match })
+    } else {
+      const value = parseIpv4Number(address)
+      const prefix = prefixText === undefined ? 32 : Number(prefixText)
+      if (value === null || prefix > 32) continue
+      const size = 2 ** (32 - prefix)
+      const start = Math.floor(value / size) * size
+      v4Entries.push({ start, end: start + size - 1, dropNetwork: match })
+    }
+  }
+  return { v4: buildRanges(v4Entries, -1), v6: buildRanges(v6Entries, -1n) }
+}
+
+function findRange<Address extends number | bigint>(ranges: DropRanges<Address>, value: Address): DropNetworkMatch | null {
+  let low = 0
+  let high = ranges.starts.length - 1
+  let candidate = -1
+  while (low <= high) {
+    const middle = (low + high) >> 1
+    if (ranges.starts[middle] <= value) {
+      candidate = middle
+      low = middle + 1
+    } else {
+      high = middle - 1
+    }
+  }
+  for (let index = candidate; index >= 0 && ranges.reachEnds[index] >= value; index--) {
+    if (ranges.ends[index] >= value) return ranges.dropNetworks[index]
+  }
+  return null
+}
+
+/**
+ * The listed network that holds `ip`, the narrowest when several do. Returns
+ * null for a miss or an unparseable IP. An IPv4-mapped IPv6 address matches
+ * as IPv4.
+ */
+export function matchDropNetwork(dropIndex: DropIndex, ip: string): DropNetworkMatch | null {
+  if (!ip.includes(":")) {
+    const value = parseIpv4Number(ip)
+    return value === null ? null : findRange(dropIndex.v4, value)
+  }
+  const groups = parseIpv6Groups(ip)
+  if (groups === null) return null
+  if (groups[5] === 0xffff && groups[0] === 0 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0 && groups[4] === 0) {
+    return findRange(dropIndex.v4, groups[6] * 0x10000 + groups[7])
+  }
+  return findRange(dropIndex.v6, ipv6Value(groups))
+}
+
+const DROP_MARK_TEXT = "On the DROP list"
+
+/** The tooltip on a marked IP, after the decision's own tooltip when it has one. */
+export function dropMarkTitle(sblId: string, decisionTitle?: string): string {
+  const dropText = sblId ? `${DROP_MARK_TEXT} (${sblId})` : DROP_MARK_TEXT
+  if (!decisionTitle) return dropText
+  return `${decisionTitle.replace(/\.$/, "")}. ${dropText}`
+}
+
+/** The screen-reader suffix after a marked IP. */
+export const DROP_MARK_SR_TEXT = ` (on the DROP list)`

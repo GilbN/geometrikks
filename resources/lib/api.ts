@@ -59,6 +59,7 @@ import type {
   LokiSourceStats,
   InstancesResponse,
   RawLineFields,
+  DropListsResponse,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -338,6 +339,11 @@ export async function runSchedulerJob(jobId: string): Promise<SchedulerJobView> 
 
 export async function fetchAbout(): Promise<AboutResponse> {
   const { data } = await api.get<AboutResponse>("/system/about")
+  return data
+}
+
+export async function fetchDropLists(): Promise<DropListsResponse> {
+  const { data } = await api.get<DropListsResponse>("/drop/lists")
   return data
 }
 

@@ -10,6 +10,9 @@ import {
   dropListsErrorLines,
   dropListsState,
   dropTrafficSubtitle,
+  dropMarkTitle,
+  buildDropIndex,
+  matchDropNetwork,
 } from "./drop-lists"
 
 function feedView(overrides: Partial<DropFeedView> & Pick<DropFeedView, "feed">): DropFeedView {
@@ -148,5 +151,112 @@ describe("dropListsState", () => {
     expect(dropListsState({ loaded: true, stale: false, feeds: [failingFeed] })).toBe("failing")
     expect(dropListsState({ loaded: true, stale: true, feeds: [failingFeed] })).toBe("stale")
     expect(dropListsState({ loaded: false, stale: true, feeds: [] })).toBe("not-downloaded")
+  })
+})
+
+describe("matchDropNetwork", () => {
+  const dropIndex = buildDropIndex([
+    { cidr: "192.0.2.0/24", sblId: "SBL000001" },
+    { cidr: "198.51.100.128/25", sblId: "SBL000002" },
+    { cidr: "2001:db8:254::/48", sblId: "SBL000003" },
+  ])
+
+  it("matches the first and last address of an IPv4 network", () => {
+    expect(matchDropNetwork(dropIndex, "192.0.2.0")).toEqual({ cidr: "192.0.2.0/24", sblId: "SBL000001" })
+    expect(matchDropNetwork(dropIndex, "192.0.2.255")).toEqual({ cidr: "192.0.2.0/24", sblId: "SBL000001" })
+  })
+
+  it("misses the addresses either side of a network", () => {
+    expect(matchDropNetwork(dropIndex, "192.0.3.0")).toBeNull()
+    expect(matchDropNetwork(dropIndex, "192.0.1.255")).toBeNull()
+    expect(matchDropNetwork(dropIndex, "198.51.100.127")).toBeNull()
+    expect(matchDropNetwork(dropIndex, "198.51.100.128")?.sblId).toBe("SBL000002")
+  })
+
+  it("unwraps IPv4-mapped IPv6 addresses", () => {
+    expect(matchDropNetwork(dropIndex, "::ffff:192.0.2.183")?.sblId).toBe("SBL000001")
+    expect(matchDropNetwork(dropIndex, "::FFFF:c000:02b7")?.sblId).toBe("SBL000001")
+  })
+
+  it("matches an IPv6 address inside its /48", () => {
+    expect(matchDropNetwork(dropIndex, "2001:db8:254::1")).toEqual({ cidr: "2001:db8:254::/48", sblId: "SBL000003" })
+    expect(matchDropNetwork(dropIndex, "2001:db8:254:ffff:ffff:ffff:ffff:ffff")?.sblId).toBe("SBL000003")
+    expect(matchDropNetwork(dropIndex, "2001:db8:255::")).toBeNull()
+  })
+
+  it("keeps IPv4 and IPv6 apart", () => {
+    expect(matchDropNetwork(dropIndex, "::c000:0201")).toBeNull()
+  })
+
+  it("returns the most specific network when lists overlap", () => {
+    const overlapping = buildDropIndex([
+      { cidr: "203.0.113.0/24", sblId: "SBL000010" },
+      { cidr: "203.0.113.64/26", sblId: "SBL000011" },
+    ])
+    expect(matchDropNetwork(overlapping, "203.0.113.70")?.sblId).toBe("SBL000011")
+    expect(matchDropNetwork(overlapping, "203.0.113.200")?.sblId).toBe("SBL000010")
+  })
+
+  it.each(["", "not an ip", "192.0.2", "192.0.2.256", "192.0.2.1.1", "2001:db8::1::1", "2001:db8:g::1", "1:2:3:4:5:6:7:8:9"])(
+    "returns null for %j",
+    (garbage) => {
+      expect(matchDropNetwork(dropIndex, garbage)).toBeNull()
+    },
+  )
+
+  it("skips CIDRs it cannot parse", () => {
+    const withGarbage = buildDropIndex([
+      { cidr: "nonsense", sblId: "SBL000020" },
+      { cidr: "192.0.2.0/33", sblId: "SBL000021" },
+      { cidr: "192.0.2.0/24", sblId: "SBL000022" },
+    ])
+    expect(matchDropNetwork(withGarbage, "192.0.2.9")?.sblId).toBe("SBL000022")
+  })
+
+  it("builds 1,843 networks and runs 10,000 lookups in under 50 ms", () => {
+    const dropNetworks = [
+      ...Array.from({ length: 1754 }, (_, index) => ({
+        cidr: `10.${index >> 8}.${index & 255}.0/24`,
+        sblId: `SBL${String(index).padStart(6, "0")}`,
+      })),
+      ...Array.from({ length: 89 }, (_, index) => ({
+        cidr: `2001:db8:${index.toString(16)}::/48`,
+        sblId: `SBL${String(2000 + index).padStart(6, "0")}`,
+      })),
+    ]
+    const lookupIps = Array.from({ length: 10_000 }, (_, index) =>
+      index % 5 === 0 ? `2001:db8:${(index % 120).toString(16)}::${index.toString(16)}` : `10.${index % 9}.${index % 256}.${index % 251}`,
+    )
+    // Best of three fresh builds. One cold run in a loaded parallel suite times JIT warm-up more than the index.
+    let elapsedMs = Number.POSITIVE_INFINITY
+    let matched = 0
+    for (let run = 0; run < 3; run++) {
+      const startedAt = performance.now()
+      const benchIndex = buildDropIndex(dropNetworks)
+      matched = 0
+      for (const lookupIp of lookupIps) if (matchDropNetwork(benchIndex, lookupIp)) matched++
+      elapsedMs = Math.min(elapsedMs, performance.now() - startedAt)
+    }
+    expect(matched).toBeGreaterThan(0)
+    expect(elapsedMs).toBeLessThan(50)
+  })
+})
+
+describe("dropMarkTitle", () => {
+  it("names the SBL record", () => {
+    expect(dropMarkTitle("SBL000001")).toBe("On the DROP list (SBL000001)")
+  })
+
+  it("leaves out empty parentheses without an SBL id", () => {
+    expect(dropMarkTitle("")).toBe("On the DROP list")
+  })
+
+  it("follows a decision title", () => {
+    expect(dropMarkTitle("SBL000001", "Active CrowdSec ban decision")).toBe(
+      "Active CrowdSec ban decision. On the DROP list (SBL000001)",
+    )
+    expect(dropMarkTitle("SBL000001", "It may come from a different alert.")).toBe(
+      "It may come from a different alert. On the DROP list (SBL000001)",
+    )
   })
 })

@@ -15,6 +15,7 @@ import { formatDurationOrNa } from "@/lib/timing"
 import { IpBanControls } from "./IpBanControls"
 import { CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { DropPopupIp } from "@/components/drop/drop-mark"
 import { POPUP_OFFSET, usePopupPadding, PopupCard, PopupRow as Row } from "./PopupCard"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
@@ -59,7 +60,7 @@ function LiveRequestDetail({
         label="IP"
         value={
           <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-            {request.ip}
+            <DropPopupIp ip={request.ip} />
             <InspectIpButton ip={request.ip} />
           </span>
         }

@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator"
 import { stopRowActivation } from "@/components/data/row-activation"
 import { CountryFlag } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { DropBadge } from "@/components/drop/drop-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePollingHold } from "@/lib/time-range-context"
@@ -45,7 +46,7 @@ import { scenarioText } from "@/lib/scenario-name"
 import { countryLabel, type FilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
-import { useBannedIps, useCrowdsecStatus, useIpDecisions } from "@/lib/queries"
+import { useBannedIps, useCrowdsecStatus, useDropNetwork, useIpDecisions } from "@/lib/queries"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 
@@ -199,6 +200,7 @@ export function IpActionsMenu({
   const targetsFor = useContext(FilterTargetsContext)
   const { data: status } = useCrowdsecStatus()
   const { data: bannedIps } = useBannedIps()
+  const dropNetwork = useDropNetwork(ip)
   const ipActions = useIpActions()
   const pendingAction = usePendingIpAction(ip)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
@@ -308,9 +310,10 @@ export function IpActionsMenu({
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
           <DrawerContent>
             <DrawerHeader>
-              <DrawerTitle className="flex items-center justify-center gap-2 font-mono">
+              <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
                 {ip}
                 {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
               </DrawerTitle>
               <DrawerDescription className="flex flex-col items-center justify-center gap-0.5">
                 <IpContext values={values} decision={decision} />
@@ -416,6 +419,7 @@ export function IpActionsMenu({
                 <span className="flex items-center gap-2 font-mono">
                   {ip}
                   {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                  {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
                 </span>
                 <IpContext values={values} decision={decision} />
               </DropdownMenuLabel>

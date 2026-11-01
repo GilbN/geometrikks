@@ -7,21 +7,31 @@ import { useNavigate } from "@tanstack/react-router"
 import { LocateFixed, ScanSearch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { DROP_UNDERLINE_CLASS, DropMarkSrText } from "@/components/drop/drop-mark"
 import { CopyIpButton, IpActionsMenu, IpContext } from "@/components/ip-actions/ip-actions-menu"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
-import { useBannedIps } from "@/lib/queries"
+import { dropMarkTitle } from "@/lib/drop-lists"
+import { useBannedIps, useDropNetwork } from "@/lib/queries"
+import { cn } from "@/lib/utils"
 
 /** Sits first in a DetailSheet body; the negative margins take it to the
  *  body's edges so its rule meets the sheet's sides. */
 export function DetailIpBlock({ values, children }: { values: IpRowValues; children?: React.ReactNode }) {
   const { data: bannedIps } = useBannedIps()
+  const dropNetwork = useDropNetwork(values.ip)
   const decision = bannedIps?.get(values.ip) ?? null
   return (
     <div className="-mx-4 -mt-4 mb-2 border-b border-border/50 px-4 py-3">
       <div className="flex items-center gap-2">
-        <span className="min-w-0 break-all font-mono text-xl">{values.ip}</span>
+        <span
+          className={cn("min-w-0 break-all font-mono text-xl", dropNetwork && DROP_UNDERLINE_CLASS)}
+          title={dropNetwork ? dropMarkTitle(dropNetwork.sblId) : undefined}
+        >
+          {values.ip}
+          {dropNetwork && <DropMarkSrText />}
+        </span>
         {decision !== null && <DecisionBadge type={decision} />}
         <span className="ml-auto flex shrink-0 items-center">
           {children}

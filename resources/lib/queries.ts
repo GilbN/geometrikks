@@ -2,7 +2,7 @@
  * TanStack Query hooks for GeoMetrikks API.
  */
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
@@ -85,7 +85,10 @@ import {
   type AccessLogDebugStats,
   type AlertPageView,
   fetchReleaseCheck,
+  fetchDropLists,
 } from "./api"
+import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
+import type { DropListsResponse } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -125,6 +128,9 @@ export const queryKeys = {
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
     instances: ["system", "instances"] as const,
+  },
+  drop: {
+    lists: ["drop", "lists"] as const,
   },
   crowdsec: {
     status: ["crowdsec", "status"] as const,
@@ -271,6 +277,39 @@ export function useAbout() {
     refetchInterval: ABOUT_STALE_MS,
     refetchOnWindowFocus: true,
   })
+}
+
+export const DROP_LISTS_STALE_MS = 30 * 60_000
+export const DROP_LISTS_REFETCH_MS = 60 * 60_000
+
+// Module scope keeps select's identity stable, so TanStack Query builds the index once per response.
+function selectDropIndex(dropLists: DropListsResponse): DropIndex | null {
+  return dropLists.enabled && dropLists.loaded ? buildDropIndex(dropLists.networks) : null
+}
+
+/**
+ * The DROP networks as a lookup index. It fetches only after About reports
+ * the lists enabled and downloaded, so a disabled install never asks for them.
+ */
+export function useDropLists(): { data?: DropIndex; loaded: boolean } {
+  const { data: about } = useAbout()
+  const active = about?.dropLists?.enabled === true && about.dropLists.loaded
+  const { data: dropIndex } = useQuery({
+    queryKey: queryKeys.drop.lists,
+    queryFn: fetchDropLists,
+    enabled: active,
+    staleTime: DROP_LISTS_STALE_MS,
+    refetchInterval: DROP_LISTS_REFETCH_MS,
+    select: selectDropIndex,
+  })
+  if (!active || !dropIndex) return { loaded: false }
+  return { data: dropIndex, loaded: true }
+}
+
+/** The DROP network holding `ip`, or null while the lists are off, loading, or miss it. */
+export function useDropNetwork(ip: string): DropNetworkMatch | null {
+  const { data: dropIndex } = useDropLists()
+  return useMemo(() => (dropIndex ? matchDropNetwork(dropIndex, ip) : null), [dropIndex, ip])
 }
 
 export function useReleaseCheck() {
