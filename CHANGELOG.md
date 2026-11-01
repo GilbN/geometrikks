@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `docs/configuration.md` puts the settings most installs need first: login, database, the logs to read and GeoIP. Each optional feature follows with its own section. The 28 settings for pool sizes, poll intervals, timeouts and log rotation sit in an Advanced tuning section near the end. Almost every install can leave them at their defaults.
 
+### Fixed
+
+- On a phone, a long IPv6 address in the abuse report's title wraps onto a second line. It used to make the dialog scroll sideways.
+
 ## [0.23.0] - 2026-10-31
 
 ### Added

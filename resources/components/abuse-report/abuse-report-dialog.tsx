@@ -161,9 +161,9 @@ function AbuseReportBody({
   return (
     <div ref={container} className={cn("flex min-w-0 flex-col gap-4", expanded && "min-h-0 flex-1")}>
       <DialogHeader>
-        <DialogTitle className="flex items-center gap-2">
-          <MailWarning className="size-4 text-muted-foreground" />
-          Abuse report: <span className="font-mono">{title}</span>
+        <DialogTitle className="flex items-center gap-2 pr-6">
+          <MailWarning className="size-4 shrink-0 text-muted-foreground" />
+          Abuse report: <span className="min-w-0 font-mono wrap-anywhere">{title}</span>
         </DialogTitle>
         <DialogDescription>{period}, times in UTC.</DialogDescription>
       </DialogHeader>
