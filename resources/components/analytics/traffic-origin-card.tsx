@@ -12,13 +12,12 @@ import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { DropCredit } from "@/components/drop/drop-credit"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
-import { useAbout, useCrowdsecStatus, useTopAsns } from "@/lib/queries"
+import { useAbout, useTopAsns } from "@/lib/queries"
 import { CategoryBadge } from "./top-asns-table"
 
 export function TrafficOriginCard() {
   const { data, isError, error } = useTopAsns({ limit: 25 })
   const { data: about } = useAbout()
-  const { data: crowdsecStatus } = useCrowdsecStatus()
 
   const drop = data?.categories.find((c) => c.category === "drop")
   const hosting = data?.categories.find((c) => c.category === "hosting")
@@ -119,11 +118,7 @@ export function TrafficOriginCard() {
               </TableBody>
             </Table>
             {drop && (
-              <DropCredit
-                updatedAt={about?.dropLists?.updatedAt}
-                stale={about?.dropLists?.stale ?? false}
-                securityLink={crowdsecStatus?.enabled === true}
-              />
+              <DropCredit updatedAt={about?.dropLists?.updatedAt} stale={about?.dropLists?.stale ?? false} />
             )}
           </div>
         )}

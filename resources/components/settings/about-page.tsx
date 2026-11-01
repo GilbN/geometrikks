@@ -4,7 +4,7 @@ import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2 
 import { toast } from "sonner"
 import type { AboutResponse, DropListsAboutView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
-import { dropFeedCounts, dropListsLastError } from "@/lib/drop-lists"
+import { dropFeedCounts, dropListsErrorLines } from "@/lib/drop-lists"
 import { useAbout, useReleaseCheck } from "@/lib/queries"
 import { releaseCheckLine, skippedReleasesText } from "@/lib/release-check"
 import { saveSeenRelease } from "@/lib/release-seen"
@@ -315,13 +315,17 @@ function DropTermsLink({ dropLists }: { dropLists: DropListsAboutView }) {
   )
 }
 
-/** The DROP lists under the hosting list: state, record counts, and why nothing downloaded. */
+/** The DROP lists under the hosting list: state, each feed's last error, and record counts. */
 function DropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
-  const lastError = dropListsLastError(dropLists.feeds)
   return (
     <div className="mt-3">
       <Row label="DROP lists" value={<DropListsState dropLists={dropLists} />} />
-      {dropLists.loaded ? (
+      {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
+        <p key={errorLine} className="pt-1.5 text-xs break-words text-muted-foreground">
+          {errorLine}
+        </p>
+      ))}
+      {dropLists.loaded && (
         <>
           <Row label="Records" value={<span className="break-normal">{dropFeedCounts(dropLists.feeds)}</span>} />
           <p className="pt-2 text-xs text-muted-foreground">
@@ -333,21 +337,19 @@ function DropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
             <DropTermsLink dropLists={dropLists} />
           </p>
         </>
-      ) : (
-        lastError && (
-          <p className="pt-1.5 text-xs break-words text-muted-foreground">Last error: {lastError}</p>
-        )
       )}
     </div>
   )
 }
 
 function PhoneDropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
-  const lastError = dropListsLastError(dropLists.feeds)
   return (
     <div className="mt-2.5">
       <PhoneRow label="DROP lists" value={<DropListsState dropLists={dropLists} />} />
-      {dropLists.loaded ? (
+      {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
+        <PhoneRowDetail key={errorLine}>{errorLine}</PhoneRowDetail>
+      ))}
+      {dropLists.loaded && (
         <>
           <PhoneRowDetail>{dropFeedCounts(dropLists.feeds)}</PhoneRowDetail>
           <PhoneRowDetail>
@@ -355,8 +357,6 @@ function PhoneDropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
             <DropTermsLink dropLists={dropLists} />
           </PhoneRowDetail>
         </>
-      ) : (
-        lastError && <PhoneRowDetail>Last error: {lastError}</PhoneRowDetail>
       )}
     </div>
   )

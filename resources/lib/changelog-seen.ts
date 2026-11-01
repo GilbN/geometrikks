@@ -16,6 +16,22 @@ export function currentBuildKey(app: { version: string; changelogDigest: string 
   return app.changelogDigest ?? app.version
 }
 
+let pageBuild: string | null = null
+
+/**
+ * The build key from the first About response this page saw. About refetches,
+ * so after a server upgrade it names a build whose changelog this page never
+ * loaded; the dot and "seen" stay with the page's own build until a reload.
+ */
+export function pageBuildKey(app: { version: string; changelogDigest: string | null }): string {
+  pageBuild ??= currentBuildKey(app)
+  return pageBuild
+}
+
+export function resetPageBuildKey(): void {
+  pageBuild = null
+}
+
 export function loadSeenBuild(): string | null {
   try {
     return localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY)

@@ -194,6 +194,26 @@ describe("section summaries", () => {
     expect(geoipSummary({ ...about, dropLists: { ...failed, feeds: [] } }).tone).toBe("emerald")
   })
 
+  it("names a DROP download that failed after the lists loaded", () => {
+    const about = makeAbout()
+    const failing = {
+      enabled: true,
+      loaded: true,
+      stale: false,
+      updatedAt: "2026-10-30T06:00:00Z",
+      copyright: null,
+      termsUrl: "https://www.spamhaus.org/drop/terms/",
+      feeds: [
+        { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-10-30T06:00:00Z", lastError: null },
+        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" },
+      ],
+    }
+    expect(geoipSummary({ ...about, dropLists: failing })).toEqual({
+      tone: "amber",
+      text: "City 7 days old, ASN 6 days old, DROP download failed",
+    })
+  })
+
   it("uses the singular for one day", () => {
     const about = makeAbout()
     expect(geoipSummary({ ...about, geoip: { ...about.geoip, ageDays: 1 } }).text).toBe("City 1 day old, ASN 6 days old")
@@ -237,6 +257,22 @@ describe("dropListsStatus", () => {
       feeds: [{ feed: "v4", recordCount: null, upstreamTimestamp: null, fetchedAt: null, checkedAt: null, lastError: "HTTP 403" }],
     }
     expect(dropListsStatus(failed)).toEqual({ tone: "amber", label: "Not downloaded yet" })
+  })
+
+  it("turns amber when a feed's latest download failed after the lists loaded", () => {
+    const failing = {
+      ...dropLists,
+      feeds: [
+        { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-11-01T06:14:00Z", checkedAt: "2026-11-01T06:14:00Z", lastError: null },
+        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-31T06:14:00Z", checkedAt: "2026-11-01T06:14:00Z", lastError: "HTTP 403" },
+      ],
+    }
+    expect(dropListsStatus(failing)).toEqual({
+      tone: "amber",
+      label: `Updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
+    })
+    const healthy = { ...failing, feeds: failing.feeds.map((feedView) => ({ ...feedView, checkedAt: feedView.fetchedAt, lastError: null })) }
+    expect(dropListsStatus(healthy).tone).toBe("emerald")
   })
 })
 

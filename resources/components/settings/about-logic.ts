@@ -1,7 +1,7 @@
 import type { AboutResponse, DropListsAboutView, GeoIpInfoView } from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
 import { formatTs } from "@/lib/datetime"
-import { dropListsLastError, dropListsState } from "@/lib/drop-lists"
+import { type DropListsState, dropListsState } from "@/lib/drop-lists"
 import { displayVersion, publicVersion } from "@/lib/version"
 
 export interface SectionSummary {
@@ -81,17 +81,25 @@ function geoipPart(name: string, info: GeoIpInfoView): string {
 /**
  * The DROP lists' light and state. Before the first download the light is
  * grey, and amber once a download has failed, so a blocked host shows up.
+ * After that it turns amber again whenever a feed's latest download failed.
  */
 export function dropListsStatus(dropLists: DropListsAboutView): { tone: LedTone; label: string } {
   const state = dropListsState(dropLists)
   if (state === "not-downloaded") {
-    return { tone: dropListsLastError(dropLists.feeds) ? "amber" : "muted", label: "Not downloaded yet" }
+    const anyError = dropLists.feeds.some((feedView) => feedView.lastError)
+    return { tone: anyError ? "amber" : "muted", label: "Not downloaded yet" }
   }
   const updatedAt = dropLists.updatedAt ? formatTs(dropLists.updatedAt, "hourly") : null
   if (state === "stale") {
     return { tone: "amber", label: updatedAt ? `Out of date, updated ${updatedAt}` : "Out of date" }
   }
-  return { tone: "emerald", label: updatedAt ? `Updated ${updatedAt}` : "Downloaded" }
+  return { tone: state === "failing" ? "amber" : "emerald", label: updatedAt ? `Updated ${updatedAt}` : "Downloaded" }
+}
+
+const DROP_SUMMARY_PARTS: Record<Exclude<DropListsState, "current">, string> = {
+  failing: "DROP download failed",
+  stale: "DROP out of date",
+  "not-downloaded": "DROP not downloaded",
 }
 
 export function geoipSummary(
@@ -102,8 +110,9 @@ export function geoipSummary(
   if (asn) tones.push(geoipFreshness(asn.available, asn.ageDays).tone)
   const parts = [geoipPart("City", about.geoip), asn ? geoipPart("ASN", asn) : "ASN disabled"]
   if (about.dropLists && dropListsStatus(about.dropLists).tone === "amber") {
+    const state = dropListsState(about.dropLists)
     tones.push("amber")
-    parts.push(dropListsState(about.dropLists) === "stale" ? "DROP out of date" : "DROP not downloaded")
+    if (state !== "current") parts.push(DROP_SUMMARY_PARTS[state])
   }
   return { tone: worstTone(tones), text: parts.join(", ") }
 }

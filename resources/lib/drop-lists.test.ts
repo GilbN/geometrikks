@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest"
 import type { DropFeedView } from "@/generated/api/types.gen"
 import { formatTs } from "./datetime"
-import { dropCreditText, dropFeedCounts, dropListsLastError, dropListsState } from "./drop-lists"
+import {
+  dropAsnsLoaded,
+  dropCreditText,
+  dropFeedCounts,
+  dropFeedFailing,
+  dropListsErrorLines,
+  dropListsState,
+  dropTrafficSubtitle,
+} from "./drop-lists"
 
 function feedView(overrides: Partial<DropFeedView> & Pick<DropFeedView, "feed">): DropFeedView {
   return {
@@ -25,6 +33,14 @@ describe("dropCreditText", () => {
   })
 })
 
+describe("dropTrafficSubtitle", () => {
+  it("counts DROP ASNs, singular for one", () => {
+    expect(dropTrafficSubtitle(1234, 3)).toBe("1,234 requests from 3 DROP ASNs")
+    expect(dropTrafficSubtitle(5, 1)).toBe("5 requests from 1 DROP ASN")
+    expect(dropTrafficSubtitle(5, null)).toBe("5 requests from DROP ASNs")
+  })
+})
+
 describe("dropFeedCounts", () => {
   it("names each downloaded feed with its record count", () => {
     const feeds = [
@@ -40,18 +56,54 @@ describe("dropFeedCounts", () => {
   })
 })
 
-describe("dropListsLastError", () => {
-  it("returns the first feed error", () => {
-    const feeds = [feedView({ feed: "v4" }), feedView({ feed: "v6", lastError: "HTTP 403" })]
-    expect(dropListsLastError(feeds)).toBe("HTTP 403")
-    expect(dropListsLastError([feedView({ feed: "v4" })])).toBeNull()
+describe("dropListsErrorLines", () => {
+  it("names every failing feed and folds feeds that failed the same way", () => {
+    const feeds = [
+      feedView({ feed: "v4", lastError: "ConnectError: [Errno -3] Temporary failure in name resolution" }),
+      feedView({ feed: "v6", fetchedAt: "2026-10-30T06:00:00Z", lastError: "HTTP 403" }),
+      feedView({ feed: "asn", lastError: "ConnectError: [Errno -3] Temporary failure in name resolution" }),
+    ]
+    expect(dropListsErrorLines(feeds)).toEqual([
+      "Last error (IPv4, ASN): ConnectError: [Errno -3] Temporary failure in name resolution",
+      "Last error (IPv6): HTTP 403",
+    ])
+    expect(dropListsErrorLines([feedView({ feed: "v4", fetchedAt: "2026-10-30T06:00:00Z" })])).toEqual([])
+  })
+})
+
+describe("dropAsnsLoaded", () => {
+  it("follows the ASN feed alone", () => {
+    expect(dropAsnsLoaded({ feeds: [feedView({ feed: "v4", fetchedAt: "2026-11-01T06:00:00Z" }), feedView({ feed: "asn" })] })).toBe(false)
+    expect(dropAsnsLoaded({ feeds: [feedView({ feed: "asn", fetchedAt: "2026-11-01T06:00:00Z" })] })).toBe(true)
+    expect(dropAsnsLoaded(null)).toBe(false)
+  })
+})
+
+describe("dropFeedFailing", () => {
+  it("is true when the latest attempt failed, with or without an earlier download", () => {
+    expect(dropFeedFailing(feedView({ feed: "asn", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" }))).toBe(true)
+    expect(
+      dropFeedFailing(
+        feedView({ feed: "asn", fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" }),
+      ),
+    ).toBe(true)
+    expect(
+      dropFeedFailing(feedView({ feed: "asn", fetchedAt: "2026-11-01T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z" })),
+    ).toBe(false)
   })
 })
 
 describe("dropListsState", () => {
-  it("tells current, out-of-date and missing lists apart", () => {
-    expect(dropListsState({ loaded: true, stale: false })).toBe("current")
-    expect(dropListsState({ loaded: true, stale: true })).toBe("stale")
-    expect(dropListsState({ loaded: false, stale: true })).toBe("not-downloaded")
+  it("tells current, failing, out-of-date and missing lists apart", () => {
+    const failingFeed = feedView({
+      feed: "asn",
+      fetchedAt: "2026-10-30T06:00:00Z",
+      checkedAt: "2026-11-01T06:00:00Z",
+      lastError: "HTTP 403",
+    })
+    expect(dropListsState({ loaded: true, stale: false, feeds: [] })).toBe("current")
+    expect(dropListsState({ loaded: true, stale: false, feeds: [failingFeed] })).toBe("failing")
+    expect(dropListsState({ loaded: true, stale: true, feeds: [failingFeed] })).toBe("stale")
+    expect(dropListsState({ loaded: false, stale: true, feeds: [] })).toBe("not-downloaded")
   })
 })

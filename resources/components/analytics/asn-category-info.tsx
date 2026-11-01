@@ -7,11 +7,12 @@ import { Info } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { dropAsnsLoaded } from "@/lib/drop-lists"
 import { useAbout } from "@/lib/queries"
 
 export function AsnCategoryInfo() {
   const { data: about } = useAbout()
-  const dropLoaded = about?.dropLists?.loaded === true
+  const dropLoaded = dropAsnsLoaded(about?.dropLists)
   return (
     <Popover>
       <PopoverTrigger asChild>

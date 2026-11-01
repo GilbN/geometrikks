@@ -14,6 +14,12 @@ export function dropCreditText(updatedAt: string | null | undefined): string {
   return `${DROP_CREDIT}, updated ${formatTs(updatedAt, "hourly")}`
 }
 
+/** The dashboard DROP card's subtitle; the count is of listed ASNs with traffic, not CIDR networks. */
+export function dropTrafficSubtitle(dropHits: number, dropAsnCount: number | null): string {
+  if (dropAsnCount === null) return `${formatNumber(dropHits)} requests from DROP ASNs`
+  return `${formatNumber(dropHits)} requests from ${formatNumber(dropAsnCount)} DROP ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
+}
+
 const FEED_NOUNS: Record<string, [singular: string, plural: string]> = {
   v4: ["IPv4 network", "IPv4 networks"],
   v6: ["IPv6 network", "IPv6 networks"],
@@ -32,14 +38,39 @@ export function dropFeedCounts(feeds: readonly DropFeedView[]): string {
     .join(", ")
 }
 
-/** The first feed error, which says why nothing has downloaded. */
-export function dropListsLastError(feeds: readonly DropFeedView[]): string | null {
-  return feeds.find((feedView) => feedView.lastError)?.lastError ?? null
+const FEED_LABELS: Record<string, string> = { v4: "IPv4", v6: "IPv6", asn: "ASN" }
+
+/**
+ * One "Last error" line per distinct error, naming the feeds it hit, so three
+ * feeds failing the same way read as one line.
+ */
+export function dropListsErrorLines(feeds: readonly DropFeedView[]): string[] {
+  const feedLabelsByError = new Map<string, string[]>()
+  for (const feedView of feeds) {
+    if (!feedView.lastError) continue
+    const feedLabels = feedLabelsByError.get(feedView.lastError) ?? []
+    feedLabels.push(FEED_LABELS[feedView.feed] ?? feedView.feed)
+    feedLabelsByError.set(feedView.lastError, feedLabels)
+  }
+  return [...feedLabelsByError].map(([lastError, feedLabels]) => `Last error (${feedLabels.join(", ")}): ${lastError}`)
 }
 
-export type DropListsState = "current" | "stale" | "not-downloaded"
+/** True once the ASN list has downloaded, which is what the DROP ASN badge reads. */
+export function dropAsnsLoaded(dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined): boolean {
+  return dropLists?.feeds.some((feedView) => feedView.feed === "asn" && feedView.fetchedAt !== null) ?? false
+}
 
-export function dropListsState(dropLists: Pick<DropListsAboutView, "loaded" | "stale">): DropListsState {
+/** True when the feed's latest download attempt failed after, or without, a good one. */
+export function dropFeedFailing(feedView: DropFeedView): boolean {
+  if (!feedView.lastError) return false
+  if (!feedView.fetchedAt || !feedView.checkedAt) return true
+  return Date.parse(feedView.checkedAt) > Date.parse(feedView.fetchedAt)
+}
+
+export type DropListsState = "current" | "failing" | "stale" | "not-downloaded"
+
+export function dropListsState(dropLists: Pick<DropListsAboutView, "loaded" | "stale" | "feeds">): DropListsState {
   if (!dropLists.loaded) return "not-downloaded"
-  return dropLists.stale ? "stale" : "current"
+  if (dropLists.stale) return "stale"
+  return dropLists.feeds.some(dropFeedFailing) ? "failing" : "current"
 }

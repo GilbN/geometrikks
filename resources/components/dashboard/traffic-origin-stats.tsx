@@ -17,6 +17,7 @@ import { SectionHeader } from "@/components/section-header"
 import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
+import { dropTrafficSubtitle } from "@/lib/drop-lists"
 import { useTopAsns } from "@/lib/queries"
 
 export function TrafficOriginStats() {
@@ -66,7 +67,7 @@ export function TrafficOriginStats() {
   if (!data || !hasData) return null
 
   const top = data.items[0]
-  const dropNetworkCount = data.dropAsnCount
+  const dropAsnCount = data.dropAsnCount
 
   return (
     <>
@@ -77,11 +78,7 @@ export function TrafficOriginStats() {
             title="DROP Traffic"
             value={`${dropShare.toFixed(1)}%`}
             valueClassName="text-destructive"
-            subtitle={
-              dropNetworkCount === null
-                ? `${formatNumber(dropHits)} requests from DROP networks`
-                : `${formatNumber(dropHits)} requests from ${formatNumber(dropNetworkCount)} DROP ${dropNetworkCount === 1 ? "network" : "networks"}`
-            }
+            subtitle={dropTrafficSubtitle(dropHits, dropAsnCount)}
             icon={OctagonX}
             iconClassName="text-destructive"
           />
