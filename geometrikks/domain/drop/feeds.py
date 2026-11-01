@@ -35,6 +35,7 @@ MAX_REDIRECTS = 3
 REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 MAX_ASN = 2**32 - 1
+TRANSPORT_ERROR_MAX_LENGTH = 200
 
 
 class DropFeedError(Exception):
@@ -188,7 +189,13 @@ async def fetch_feed(
     except httpx2.TimeoutException as error:
         raise DropFeedError("timeout") from error
     except httpx2.HTTPError as error:
-        raise DropFeedError(type(error).__name__) from error
+        raise DropFeedError(_transport_error_reason(error)) from error
+
+
+def _transport_error_reason(error: httpx2.HTTPError) -> str:
+    message = str(error)
+    reason = f"{type(error).__name__}: {message}" if message else type(error).__name__
+    return reason[:TRANSPORT_ERROR_MAX_LENGTH]
 
 
 async def _fetch_following_redirects(

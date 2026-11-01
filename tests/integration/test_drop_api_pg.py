@@ -52,9 +52,9 @@ async def test_lists_carry_the_imported_rows_in_camel_case(app_settings, pg_sess
     assert body["loaded"] is True
     assert body["stale"] is False
     assert body["copyright"] == "(c) 2026 The Spamhaus Project SLU"
-    assert {"cidr": "45.148.10.0/24", "sblId": "SBL678435"} in body["networks"]
-    assert {"cidr": "2001:678:254::/48", "sblId": "SBL697648"} in body["networks"]
-    assert body["asns"] == [{"asn": 48090, "name": "TECHOFF"}]
+    assert {"cidr": "198.51.100.64/26", "sblId": "SBL000001"} in body["networks"]
+    assert {"cidr": "2001:db8:254::/48", "sblId": "SBL000003"} in body["networks"]
+    assert body["asns"] == [{"asn": 64496, "name": "EXAMPLE-AS"}]
     assert [feed["feed"] for feed in body["feeds"]] == ["v4", "v6", "asn"]
     v4_feed = body["feeds"][0]
     assert set(v4_feed) == {"feed", "recordCount", "upstreamTimestamp", "fetchedAt", "checkedAt", "lastError"}

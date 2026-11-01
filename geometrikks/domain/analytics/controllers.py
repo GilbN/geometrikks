@@ -699,7 +699,7 @@ class AnalyticsController(Controller):
                             total_bytes=totals["drop"][1],
                         )
                     ]
-                    if drop_snapshot.loaded
+                    if drop_snapshot.asns_loaded
                     else []
                 ),
                 AsnCategoryTotalsDTO(
@@ -713,7 +713,7 @@ class AnalyticsController(Controller):
                     total_bytes=totals["other"][1],
                 ),
             ],
-            drop_asn_count=drop_asn_count if drop_snapshot.loaded else None,
+            drop_asn_count=drop_asn_count if drop_snapshot.asns_loaded else None,
         )
 
     @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")

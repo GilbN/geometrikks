@@ -29,21 +29,21 @@ async def test_tables_and_gist_index_exist(pg_engine):
 async def test_containment_matches_an_address_inside_a_listed_network(pg_engine, clean_tables):
     async with pg_engine.begin() as connection:
         await connection.execute(
-            text("INSERT INTO drop_networks (cidr, sbl_id, rir) VALUES ('45.148.10.0/24', 'SBL678435', 'ripencc')")
+            text("INSERT INTO drop_networks (cidr, sbl_id, rir) VALUES ('198.51.100.64/26', 'SBL000001', 'ripencc')")
         )
         listed_sbl_id = (
             await connection.execute(
                 text("SELECT sbl_id FROM drop_networks WHERE CAST(:ip AS inet) <<= cidr"),
-                {"ip": "45.148.10.183"},
+                {"ip": "198.51.100.100"},
             )
         ).scalar_one()
         unlisted_count = (
             await connection.execute(
                 text("SELECT count(*) FROM drop_networks WHERE CAST(:ip AS inet) <<= cidr"),
-                {"ip": "45.148.11.1"},
+                {"ip": "198.51.100.129"},
             )
         ).scalar_one()
-    assert listed_sbl_id == "SBL678435"
+    assert listed_sbl_id == "SBL000001"
     assert unlisted_count == 0
 
 

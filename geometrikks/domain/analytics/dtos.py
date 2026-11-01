@@ -269,7 +269,7 @@ class TopAsnsResponse(msgspec.Struct, rename="camel"):
     so coverage is measured against these totals. Lists have no defaults
     (see TopUrlsResponse). ``drop_asn_count`` counts the DROP-listed ASNs
     with traffic in the range, beyond the top N too, and is None while the
-    DROP lists are not loaded.
+    ASN DROP list has never downloaded.
     """
 
     start_date: str

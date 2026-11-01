@@ -8,6 +8,8 @@ import structlog
 from litestar.testing import AsyncTestClient
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import OperationalError
+from structlog.testing import capture_logs
 
 from geometrikks.config.settings import (
     DatabaseSettings,
@@ -94,10 +96,10 @@ async def test_ensure_loads_the_imported_rows(pg_session_maker, clean_tables, fa
     assert drop_snapshot.loaded
     assert drop_snapshot.updated_at == IMPORTED_AT
     assert current_drop_snapshot() is drop_snapshot
-    assert drop_snapshot.network_for("45.148.10.183") == DropNetworkMatch("45.148.10.0/24", "SBL678435")
-    assert drop_snapshot.network_for("::ffff:45.148.10.183") == DropNetworkMatch("45.148.10.0/24", "SBL678435")
-    assert drop_snapshot.network_for("2001:678:254::1") == DropNetworkMatch("2001:678:254::/48", "SBL697648")
-    assert drop_snapshot.asn_entry(48090) == DropAsnEntry(asn=48090, name="TECHOFF", country_code="NL")
+    assert drop_snapshot.network_for("198.51.100.100") == DropNetworkMatch("198.51.100.64/26", "SBL000001")
+    assert drop_snapshot.network_for("::ffff:198.51.100.100") == DropNetworkMatch("198.51.100.64/26", "SBL000001")
+    assert drop_snapshot.network_for("2001:db8:254::1") == DropNetworkMatch("2001:db8:254::/48", "SBL000003")
+    assert drop_snapshot.asn_entry(64496) == DropAsnEntry(asn=64496, name="EXAMPLE-AS", country_code="NL")
     assert {feed.feed for feed in drop_snapshot.feeds} == {"v4", "v6", "asn"}
     assert len(drop_snapshot.networks) == 3
 
@@ -130,7 +132,7 @@ async def test_reloads_after_the_clock_advances_and_fetched_at_changes(pg_sessio
         first = await ensure_drop_snapshot(session, enabled=True)
     later = IMPORTED_AT + timedelta(hours=3)
     async with pg_session_maker() as session, session.begin():
-        await session.execute(text("DELETE FROM drop_networks WHERE sbl_id = 'SBL678435'"))
+        await session.execute(text("DELETE FROM drop_networks WHERE sbl_id = 'SBL000001'"))
         await session.execute(text("UPDATE drop_list_state SET fetched_at = :later"), {"later": later})
 
     fake_clock.seconds += 61
@@ -139,7 +141,7 @@ async def test_reloads_after_the_clock_advances_and_fetched_at_changes(pg_sessio
 
     assert second is not first
     assert second.updated_at == later
-    assert second.network_for("45.148.10.183") is None
+    assert second.network_for("198.51.100.100") is None
 
 
 async def test_unchanged_timestamps_keep_the_loaded_snapshot(pg_session_maker, clean_tables, fake_clock):
@@ -169,6 +171,45 @@ async def test_a_new_check_alone_reloads_the_feed_states(pg_session_maker, clean
     assert {feed.last_error for feed in second.feeds} == {"HTTP 503"}
 
 
+class UnreachableSession:
+    """Stands in for a session whose database has gone away."""
+
+    def __init__(self) -> None:
+        self.execute_calls = 0
+        self.rollback_calls = 0
+
+    async def execute(self, *args, **kwargs):
+        self.execute_calls += 1
+        raise OperationalError("SELECT feed FROM drop_list_state", {}, ConnectionRefusedError("connection refused"))
+
+    async def rollback(self) -> None:
+        self.rollback_calls += 1
+
+
+async def test_a_database_error_keeps_the_loaded_snapshot(pg_session_maker, clean_tables, fake_clock):
+    await import_fixture_lists(pg_session_maker)
+    async with pg_session_maker() as session:
+        loaded = await ensure_drop_snapshot(session, enabled=True)
+    unreachable_session = UnreachableSession()
+
+    fake_clock.seconds += 61
+    with capture_logs() as reload_logs:
+        during_outage = await ensure_drop_snapshot(unreachable_session, enabled=True)  # ty: ignore[invalid-argument-type]
+    fake_clock.seconds += 59
+    still_cached = await ensure_drop_snapshot(unreachable_session, enabled=True)  # ty: ignore[invalid-argument-type]
+
+    assert during_outage is loaded
+    assert still_cached is loaded
+    assert unreachable_session.execute_calls == 1
+    assert unreachable_session.rollback_calls == 1
+    assert [(log["event"], log["log_level"]) for log in reload_logs] == [("drop_snapshot_reload_failed", "warning")]
+
+
+async def test_a_database_error_before_the_first_load_propagates(clean_tables, fake_clock):
+    with pytest.raises(OperationalError):
+        await ensure_drop_snapshot(UnreachableSession(), enabled=True)  # ty: ignore[invalid-argument-type]
+
+
 async def test_disabled_returns_an_empty_snapshot_even_with_rows(pg_session_maker, clean_tables, fake_clock):
     await import_fixture_lists(pg_session_maker)
     async with pg_session_maker() as session:
@@ -179,7 +220,7 @@ async def test_disabled_returns_an_empty_snapshot_even_with_rows(pg_session_make
         disabled = await ensure_drop_snapshot(session, enabled=False)
 
     assert not disabled.loaded
-    assert disabled.network_for("45.148.10.183") is None
+    assert disabled.network_for("198.51.100.100") is None
     assert current_drop_snapshot() is loaded
     assert snapshot_module._reload_lock is reload_lock
 
@@ -196,7 +237,7 @@ async def test_reload_between_feed_commits_still_picks_up_the_later_feed(pg_sess
         await ensure_drop_snapshot(session, enabled=True)
 
     async with pg_session_maker() as session, session.begin():
-        await session.execute(text("DELETE FROM drop_networks WHERE sbl_id = 'SBL678435'"))
+        await session.execute(text("DELETE FROM drop_networks WHERE sbl_id = 'SBL000001'"))
         await session.execute(
             text("UPDATE drop_list_state SET fetched_at = :at, checked_at = :at WHERE feed = 'v4'"),
             {"at": refreshed_at},
@@ -204,12 +245,12 @@ async def test_reload_between_feed_commits_still_picks_up_the_later_feed(pg_sess
     fake_clock.seconds += 61
     async with pg_session_maker() as session:
         after_v4 = await ensure_drop_snapshot(session, enabled=True)
-    assert after_v4.network_for("45.148.10.183") is None
-    assert after_v4.is_drop_asn(48090)
+    assert after_v4.network_for("198.51.100.100") is None
+    assert after_v4.is_drop_asn(64496)
 
     async with pg_session_maker() as session, session.begin():
         await session.execute(text("DELETE FROM drop_asns"))
-        await session.execute(text("INSERT INTO drop_asns (asn, name, country_code) VALUES (64496, 'NEWASN', 'NO')"))
+        await session.execute(text("INSERT INTO drop_asns (asn, name, country_code) VALUES (64499, 'NEWASN', 'NO')"))
         await session.execute(
             text("UPDATE drop_list_state SET fetched_at = :at, checked_at = :at WHERE feed = 'asn'"),
             {"at": refreshed_at},
@@ -218,15 +259,15 @@ async def test_reload_between_feed_commits_still_picks_up_the_later_feed(pg_sess
     async with pg_session_maker() as session:
         after_asn = await ensure_drop_snapshot(session, enabled=True)
 
-    assert after_asn.is_drop_asn(64496)
-    assert not after_asn.is_drop_asn(48090)
+    assert after_asn.is_drop_asn(64499)
+    assert not after_asn.is_drop_asn(64496)
 
 
 async def seed_drop_asn_traffic(pg_session_maker) -> None:
     ts = NOW - timedelta(hours=1)
     async with pg_session_maker() as session:
         for _ in range(3):
-            await _insert_asn_log(session, ts=ts, asn=48090, asn_org="TECHOFF", bytes_sent=200)
+            await _insert_asn_log(session, ts=ts, asn=64496, asn_org="EXAMPLE-AS", bytes_sent=200)
         await _insert_asn_log(session, ts=ts, asn=24940, asn_org="Hetzner Online GmbH")
         await session.commit()
 
@@ -240,7 +281,7 @@ async def test_top_asns_has_no_drop_category_before_an_import(app_settings, pg_s
     assert response.status_code == 200
     body = response.json()
     assert [category["category"] for category in body["categories"]] == ["hosting", "other"]
-    assert {item["asn"]: item["category"] for item in body["items"]} == {48090: "other", 24940: "hosting"}
+    assert {item["asn"]: item["category"] for item in body["items"]} == {64496: "other", 24940: "hosting"}
     assert body["dropAsnCount"] is None
 
 
@@ -258,7 +299,7 @@ async def test_top_asns_lists_drop_first_after_an_import(app_settings, pg_sessio
         ("hosting", 1, 100),
         ("other", 0, 0),
     ]
-    assert {item["asn"]: item["category"] for item in body["items"]} == {48090: "drop", 24940: "hosting"}
+    assert {item["asn"]: item["category"] for item in body["items"]} == {64496: "drop", 24940: "hosting"}
     assert body["dropAsnCount"] == 1
 
 
@@ -290,8 +331,30 @@ async def test_top_asns_ignores_imported_rows_when_disabled(migrated_database_ur
     assert response.status_code == 200
     body = response.json()
     assert [category["category"] for category in body["categories"]] == ["hosting", "other"]
-    assert {item["asn"]: item["category"] for item in body["items"]}[48090] == "other"
+    assert {item["asn"]: item["category"] for item in body["items"]}[64496] == "other"
     assert body["dropAsnCount"] is None
+
+
+async def test_top_asns_has_no_drop_category_until_the_asn_feed_downloads(
+    app_settings, pg_session_maker, clean_tables
+):
+    await seed_drop_asn_traffic(pg_session_maker)
+    await refresh_drop_lists(
+        pg_session_maker,
+        now=IMPORTED_AT,
+        transport=default_server(**{"/drop/asndrop.json": b"<html>blocked</html>"}).transport,
+    )
+
+    async with AsyncTestClient(app=create_app(settings=app_settings)) as client:
+        top_asns_response = await client.get("/api/v1/analytics/top-asns", params=WINDOW)
+        lists_response = await client.get("/api/v1/drop/lists")
+
+    assert top_asns_response.status_code == 200
+    top_asns = top_asns_response.json()
+    assert [category["category"] for category in top_asns["categories"]] == ["hosting", "other"]
+    assert top_asns["dropAsnCount"] is None
+    assert lists_response.json()["loaded"] is True
+    assert len(lists_response.json()["networks"]) == 3
 
 
 async def test_ip_profile_reports_the_drop_category(app_settings, pg_session_maker, clean_tables):

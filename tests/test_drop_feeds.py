@@ -20,9 +20,9 @@ from geometrikks.lib.outbound import USER_AGENT
 
 pytestmark = pytest.mark.anyio
 
-V4_LINE = '{"cidr":"1.10.16.0/20","sblid":"SBL256894","rir":"apnic"}'
-V6_LINE = '{"cidr":"2001:678:254::/48","sblid":"SBL697648","rir":"ripencc"}'
-ASN_LINE = '{"asn":48090,"rir":"ripencc","domain":"techoff.example","cc":"NL","asname":"TECHOFF"}'
+V4_LINE = '{"cidr":"192.0.2.0/24","sblid":"SBL000002","rir":"apnic"}'
+V6_LINE = '{"cidr":"2001:db8:254::/48","sblid":"SBL000003","rir":"ripencc"}'
+ASN_LINE = '{"asn":64496,"rir":"ripencc","domain":"example.net","cc":"NL","asname":"EXAMPLE-AS"}'
 COPYRIGHT = "(c) 2026 The Spamhaus Project SLU"
 
 
@@ -39,13 +39,13 @@ def feed_body(*lines: str) -> bytes:
 
 def test_network_feed_parses_the_v4_sample_line() -> None:
     network_records, _ = parse_network_feed(feed_body(V4_LINE, metadata_line(1)), "v4")
-    assert network_records == [NetworkRecord(cidr="1.10.16.0/20", sbl_id="SBL256894", rir="apnic")]
+    assert network_records == [NetworkRecord(cidr="192.0.2.0/24", sbl_id="SBL000002", rir="apnic")]
 
 
 def test_network_feed_parses_the_v6_sample_line() -> None:
     network_records, _ = parse_network_feed(feed_body(V6_LINE, metadata_line(1)), "v6")
     assert network_records == [
-        NetworkRecord(cidr="2001:678:254::/48", sbl_id="SBL697648", rir="ripencc")
+        NetworkRecord(cidr="2001:db8:254::/48", sbl_id="SBL000003", rir="ripencc")
     ]
 
 
@@ -53,7 +53,7 @@ def test_asn_feed_parses_the_sample_line() -> None:
     asn_records, _ = parse_asn_feed(feed_body(ASN_LINE, metadata_line(1)))
     assert asn_records == [
         AsnRecord(
-            asn=48090, name="TECHOFF", country_code="NL", rir="ripencc", domain="techoff.example"
+            asn=64496, name="EXAMPLE-AS", country_code="NL", rir="ripencc", domain="example.net"
         )
     ]
 
@@ -75,11 +75,11 @@ def test_metadata_becomes_an_aware_utc_datetime() -> None:
 
 def test_metadata_line_may_come_first() -> None:
     network_records, feed_metadata = parse_network_feed(
-        feed_body(metadata_line(2), V4_LINE, '{"cidr":"5.8.10.0/24","sblid":"SBL1"}'), "v4"
+        feed_body(metadata_line(2), V4_LINE, '{"cidr":"203.0.113.0/25","sblid":"SBL1"}'), "v4"
     )
     assert [network_record.cidr for network_record in network_records] == [
-        "1.10.16.0/20",
-        "5.8.10.0/24",
+        "192.0.2.0/24",
+        "203.0.113.0/25",
     ]
     assert feed_metadata.records == 2
 
@@ -93,21 +93,21 @@ def test_blank_lines_are_skipped() -> None:
 
 def test_non_canonical_cidr_is_normalised_to_its_network() -> None:
     network_records, _ = parse_network_feed(
-        feed_body('{"cidr":"1.10.16.5/20","sblid":"SBL256894"}', metadata_line(1)), "v4"
+        feed_body('{"cidr":"192.0.2.5/24","sblid":"SBL000002"}', metadata_line(1)), "v4"
     )
-    assert network_records[0].cidr == "1.10.16.0/20"
+    assert network_records[0].cidr == "192.0.2.0/24"
 
 
 def test_duplicate_networks_keep_the_first_line() -> None:
     network_records, _ = parse_network_feed(
         feed_body(
-            '{"cidr":"1.10.16.0/20","sblid":"SBL1"}',
-            '{"cidr":"1.10.16.5/20","sblid":"SBL2"}',
+            '{"cidr":"192.0.2.0/24","sblid":"SBL1"}',
+            '{"cidr":"192.0.2.5/24","sblid":"SBL2"}',
             metadata_line(2),
         ),
         "v4",
     )
-    assert network_records == [NetworkRecord(cidr="1.10.16.0/20", sbl_id="SBL1", rir=None)]
+    assert network_records == [NetworkRecord(cidr="192.0.2.0/24", sbl_id="SBL1", rir=None)]
 
 
 def test_duplicate_asns_keep_the_first_line() -> None:
@@ -129,11 +129,11 @@ def test_duplicate_asns_keep_the_first_line() -> None:
         (b"<html><body>Blocked</body></html>", "invalid line 1"),
         (feed_body(V4_LINE, "not json", metadata_line(2)), "invalid line 2"),
         (b"\xff\xfe" + feed_body(V4_LINE, metadata_line(1)), "invalid encoding"),
-        (feed_body('{"cidr":"1.10.16.0/33","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
-        (feed_body('{"cidr":"2001:678:254::%eth0/48","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
+        (feed_body('{"cidr":"192.0.2.0/33","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
+        (feed_body('{"cidr":"2001:db8:254::%eth0/48","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
         (feed_body('{"cidr":"not-a-cidr","sblid":"SBL1"}', metadata_line(1)), "invalid line 1"),
-        (feed_body('{"cidr":"1.10.16.0/20"}', metadata_line(1)), "invalid line 1"),
-        (feed_body('{"cidr":"1.10.16.0/20","sblid":""}', metadata_line(1)), "invalid line 1"),
+        (feed_body('{"cidr":"192.0.2.0/24"}', metadata_line(1)), "invalid line 1"),
+        (feed_body('{"cidr":"192.0.2.0/24","sblid":""}', metadata_line(1)), "invalid line 1"),
         (feed_body(V6_LINE, metadata_line(1)), "IPv6 network in the v4 feed"),
         (
             feed_body(V4_LINE, metadata_line(1, timestamp=10**15)),
@@ -162,7 +162,7 @@ def test_ipv4_network_in_the_v6_feed_is_rejected() -> None:
         b"<html></html>",
         feed_body('{"asn":0}', metadata_line(1)),
         feed_body('{"asn":4294967296}', metadata_line(1)),
-        feed_body('{"asn":"48090"}', metadata_line(1)),
+        feed_body('{"asn":"64496"}', metadata_line(1)),
         feed_body(V4_LINE, metadata_line(1)),
     ],
 )
@@ -246,12 +246,30 @@ async def test_fetch_feed_names_a_connection_failure() -> None:
 
     with pytest.raises(DropFeedError) as raised_error:
         await fetch_feed("v4", transport=feed_transport(handler))
+    assert str(raised_error.value) == "ConnectError: refused"
+
+
+async def test_fetch_feed_names_a_bare_transport_error_by_class() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("", request=request)
+
+    with pytest.raises(DropFeedError) as raised_error:
+        await fetch_feed("v4", transport=feed_transport(handler))
     assert str(raised_error.value) == "ConnectError"
+
+
+async def test_fetch_feed_caps_a_long_transport_error_message() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("x" * 500, request=request)
+
+    with pytest.raises(DropFeedError) as raised_error:
+        await fetch_feed("v4", transport=feed_transport(handler))
+    assert str(raised_error.value) == ("ConnectError: " + "x" * 500)[:200]
 
 
 def test_deeply_nested_unknown_field_is_rejected_not_a_recursion_error() -> None:
     nested = "[" * 20_000 + "]" * 20_000
-    line = f'{{"cidr":"1.10.16.0/20","sblid":"SBL1","extra":{nested}}}'
+    line = f'{{"cidr":"192.0.2.0/24","sblid":"SBL1","extra":{nested}}}'
     with pytest.raises(DropFeedError) as raised_error:
         parse_network_feed(feed_body(line, metadata_line(1)), "v4")
     assert str(raised_error.value) == "invalid line 1"
@@ -261,7 +279,7 @@ def test_deeply_nested_unknown_field_is_rejected_not_a_recursion_error() -> None
 
 
 def test_invalid_utf8_in_an_ignored_field_is_rejected() -> None:
-    line = b'{"cidr":"1.10.16.0/20","sblid":"SBL1","note":"\xff"}'
+    line = b'{"cidr":"192.0.2.0/24","sblid":"SBL1","note":"\xff"}'
     with pytest.raises(DropFeedError) as raised_error:
         parse_network_feed(line + b"\n" + metadata_line(1).encode(), "v4")
     assert str(raised_error.value) == "invalid encoding"

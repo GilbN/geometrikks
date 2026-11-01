@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from bisect import bisect_right
 from dataclasses import dataclass
@@ -10,13 +11,17 @@ from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from geometrikks.domain.drop.models import DropAsn, DropListState, DropNetwork
+from geometrikks.server.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = get_logger(__name__)
 
 STATE_CHECK_INTERVAL_SECONDS = 60.0
 STALE_AFTER = timedelta(days=7)
@@ -110,6 +115,7 @@ class DropSnapshot:
         self._asn_entries = {asn_entry.asn: asn_entry for asn_entry in asns}
         fetched_times = [feed.fetched_at for feed in feeds if feed.fetched_at is not None]
         self.updated_at: datetime | None = max(fetched_times) if fetched_times else None
+        self.asns_loaded = any(feed.feed == "asn" and feed.fetched_at is not None for feed in feeds)
 
     @property
     def loaded(self) -> bool:
@@ -167,7 +173,8 @@ async def ensure_drop_snapshot(session: AsyncSession, *, enabled: bool) -> DropS
     on a change. The comparison is per feed because a refresh commits the feeds
     one at a time under one timestamp, so a reload between two commits must not
     hide the later one. With the feature disabled the snapshot is empty
-    whatever the tables hold.
+    whatever the tables hold. Once a snapshot has loaded, a failed check keeps
+    serving it until the next check is due.
     """
     global _snapshot, _loaded_state, _last_state_check  # noqa: PLW0603
     if not enabled:
@@ -177,17 +184,24 @@ async def ensure_drop_snapshot(session: AsyncSession, *, enabled: bool) -> DropS
     async with _reload_lock:
         if _state_check_is_fresh():
             return _snapshot
-        state_rows = (
-            await session.execute(
-                select(DropListState.feed, DropListState.fetched_at, DropListState.checked_at).order_by(
-                    DropListState.feed
+        try:
+            state_rows = (
+                await session.execute(
+                    select(DropListState.feed, DropListState.fetched_at, DropListState.checked_at).order_by(
+                        DropListState.feed
+                    )
                 )
-            )
-        ).all()
-        state = tuple((row.feed, row.fetched_at, row.checked_at) for row in state_rows)
-        if state != _loaded_state:
-            _snapshot = await _load_snapshot(session)
-            _loaded_state = state
+            ).all()
+            state = tuple((row.feed, row.fetched_at, row.checked_at) for row in state_rows)
+            if state != _loaded_state:
+                _snapshot = await _load_snapshot(session)
+                _loaded_state = state
+        except (SQLAlchemyError, OSError):
+            if _loaded_state is None:
+                raise
+            logger.warning("drop_snapshot_reload_failed", exc_info=True)
+            with contextlib.suppress(SQLAlchemyError, OSError):
+                await session.rollback()
         _last_state_check = _clock()
     return _snapshot
 

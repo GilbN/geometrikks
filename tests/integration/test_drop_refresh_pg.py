@@ -12,11 +12,11 @@ pytestmark = pytest.mark.anyio
 
 NOW = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
 V4_LINES = (
-    '{"cidr":"1.10.16.0/20","sblid":"SBL256894","rir":"apnic"}',
-    '{"cidr":"45.148.10.0/24","sblid":"SBL678435","rir":"ripencc"}',
+    '{"cidr":"192.0.2.0/24","sblid":"SBL000002","rir":"apnic"}',
+    '{"cidr":"198.51.100.64/26","sblid":"SBL000001","rir":"ripencc"}',
 )
-V6_LINES = ('{"cidr":"2001:678:254::/48","sblid":"SBL697648","rir":"ripencc"}',)
-ASN_LINES = ('{"asn":48090,"rir":"ripencc","domain":"techoff.example","cc":"NL","asname":"TECHOFF"}',)
+V6_LINES = ('{"cidr":"2001:db8:254::/48","sblid":"SBL000003","rir":"ripencc"}',)
+ASN_LINES = ('{"asn":64496,"rir":"ripencc","domain":"example.net","cc":"NL","asname":"EXAMPLE-AS"}',)
 
 
 def feed_body(lines: tuple[str, ...], *, timestamp: int = 1793535242) -> bytes:
@@ -72,10 +72,10 @@ async def test_first_import_inserts_every_row_and_the_state_rows(pg_session_make
         ("v6", "imported", 1),
         ("asn", "imported", 1),
     ]
-    assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2001:678:254::/48"}
+    assert await fetch_cidrs(pg_session_maker) == {"192.0.2.0/24", "198.51.100.64/26", "2001:db8:254::/48"}
     async with pg_session_maker() as session:
         asn_rows = (await session.execute(text("SELECT asn, name, country_code FROM drop_asns"))).all()
-    assert [tuple(asn_row) for asn_row in asn_rows] == [(48090, "TECHOFF", "NL")]
+    assert [tuple(asn_row) for asn_row in asn_rows] == [(64496, "EXAMPLE-AS", "NL")]
     v4_state = await fetch_state(pg_session_maker, "v4")
     assert v4_state.upstream_timestamp == datetime.fromtimestamp(1793535242, UTC)
     assert v4_state.record_count == 2
@@ -110,7 +110,7 @@ async def test_the_same_upstream_timestamp_counts_as_a_fresh_fetch(pg_session_ma
 
     assert [outcome.status for outcome in feed_outcomes] == ["unchanged"] * 3
     assert len(server.requested_paths) == 3
-    assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2001:678:254::/48"}
+    assert await fetch_cidrs(pg_session_maker) == {"192.0.2.0/24", "198.51.100.64/26", "2001:db8:254::/48"}
     v4_state = await fetch_state(pg_session_maker, "v4")
     assert v4_state.checked_at == later
     assert v4_state.fetched_at == later
@@ -119,24 +119,24 @@ async def test_the_same_upstream_timestamp_counts_as_a_fresh_fetch(pg_session_ma
 
 async def test_a_new_v4_body_replaces_the_v4_rows_and_leaves_the_v6_rows(pg_session_maker, clean_tables):
     await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
-    new_v4_body = feed_body(('{"cidr":"5.188.0.0/16","sblid":"SBL111111","rir":"ripencc"}',), timestamp=1793600000)
+    new_v4_body = feed_body(('{"cidr":"203.0.113.128/25","sblid":"SBL000005","rir":"ripencc"}',), timestamp=1793600000)
     server = default_server(**{"/drop/drop_v4.json": new_v4_body})
 
     feed_outcomes = await refresh_drop_lists(pg_session_maker, now=NOW + timedelta(hours=2), transport=server.transport)
 
     assert feed_outcomes[0].status == "imported"
-    assert await fetch_cidrs(pg_session_maker) == {"5.188.0.0/16", "2001:678:254::/48"}
+    assert await fetch_cidrs(pg_session_maker) == {"203.0.113.128/25", "2001:db8:254::/48"}
     assert (await fetch_state(pg_session_maker, "v4")).record_count == 1
 
 
 async def test_a_new_v6_body_leaves_the_v4_rows(pg_session_maker, clean_tables):
     await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
-    new_v6_body = feed_body(('{"cidr":"2a00:1::/32","sblid":"SBL222222","rir":"ripencc"}',), timestamp=1793600000)
+    new_v6_body = feed_body(('{"cidr":"2001:db8:ff00::/40","sblid":"SBL000006","rir":"ripencc"}',), timestamp=1793600000)
     server = default_server(**{"/drop/drop_v6.json": new_v6_body})
 
     await refresh_drop_lists(pg_session_maker, now=NOW + timedelta(hours=2), transport=server.transport)
 
-    assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2a00:1::/32"}
+    assert await fetch_cidrs(pg_session_maker) == {"192.0.2.0/24", "198.51.100.64/26", "2001:db8:ff00::/40"}
 
 
 async def test_an_html_body_fails_the_feed_and_keeps_the_old_rows(pg_session_maker, clean_tables):
@@ -148,7 +148,7 @@ async def test_an_html_body_fails_the_feed_and_keeps_the_old_rows(pg_session_mak
 
     assert [outcome.status for outcome in feed_outcomes] == ["failed", "unchanged", "unchanged"]
     assert feed_outcomes[0].reason == "invalid line 1"
-    assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2001:678:254::/48"}
+    assert await fetch_cidrs(pg_session_maker) == {"192.0.2.0/24", "198.51.100.64/26", "2001:db8:254::/48"}
     v4_state = await fetch_state(pg_session_maker, "v4")
     assert v4_state.last_error == "invalid line 1"
     assert v4_state.checked_at == later
@@ -212,7 +212,7 @@ async def test_a_failure_inside_the_replace_transaction_keeps_the_old_rows(
     pg_session_maker, clean_tables, monkeypatch
 ):
     await refresh_drop_lists(pg_session_maker, now=NOW, transport=default_server().transport)
-    new_v4_body = feed_body(('{"cidr":"5.188.0.0/16","sblid":"SBL111111","rir":"ripencc"}',), timestamp=1793600000)
+    new_v4_body = feed_body(('{"cidr":"203.0.113.128/25","sblid":"SBL000005","rir":"ripencc"}',), timestamp=1793600000)
 
     async def fail_after_the_rows_changed(*args, **kwargs):
         raise RuntimeError("state write failed")
@@ -225,7 +225,7 @@ async def test_a_failure_inside_the_replace_transaction_keeps_the_old_rows(
     )
 
     assert feed_outcomes[0].status == "failed"
-    assert await fetch_cidrs(pg_session_maker) == {"1.10.16.0/20", "45.148.10.0/24", "2001:678:254::/48"}
+    assert await fetch_cidrs(pg_session_maker) == {"192.0.2.0/24", "198.51.100.64/26", "2001:db8:254::/48"}
     v4_state = await fetch_state(pg_session_maker, "v4")
     assert v4_state.last_error == "unexpected error: RuntimeError"
     assert v4_state.checked_at == later

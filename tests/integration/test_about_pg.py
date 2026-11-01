@@ -77,7 +77,6 @@ async def test_about_lists_the_feeds_before_anything_downloaded(migrated_databas
 
 
 async def test_about_has_no_drop_lists_when_disabled(migrated_database_url, pg_session_maker, clean_tables):
-
     await import_fixture_lists(pg_session_maker)
 
     about = await fetch_about(build_settings(migrated_database_url, drop_enabled=False))
