@@ -46,20 +46,23 @@ def decode_json_object(line: str) -> dict[str, Any] | None:
 
 def flatten(record: dict[str, Any]) -> Iterator[tuple[KeyPath, Any]]:
     """Leaves in line order. Walks a stack because lines from imports and
-    Loki can nest deeper than Python's recursion limit."""
-    stack: list[tuple[KeyPath, Iterator[tuple[str, Any]]]] = [((), iter(record.items()))]
+    Loki can nest deeper than Python's recursion limit. One path list serves
+    every level, because a path per level costs memory quadratic in depth."""
+    stack: list[Iterator[tuple[str, Any]]] = [iter(record.items())]
+    path: list[str] = []
     while stack:
-        prefix, items = stack[-1]
-        entry = next(items, None)
+        entry = next(stack[-1], None)
         if entry is None:
             stack.pop()
+            if path:
+                path.pop()
             continue
         key, child = entry
-        key_path = (*prefix, key)
         if isinstance(child, dict) and child:
-            stack.append((key_path, iter(child.items())))
+            path.append(key)
+            stack.append(iter(child.items()))
         else:
-            yield key_path, child
+            yield (*path, key), child
 
 
 def header_name(key_path: KeyPath) -> tuple[HeaderKind, str] | None:

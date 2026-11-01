@@ -1,9 +1,11 @@
 """Tests for splitting a JSON debug line into header, stored and other fields."""
 import json
+import tracemalloc
 from typing import Any
 
 from geometrikks.domain.logs.raw_line_fields import raw_line_fields
 from geometrikks.domain.logs.schemas import RawLineField
+from geometrikks.services.logparser.json_fields import decode_json_object, flatten
 
 TRAEFIK_RECORD = {
     "ClientAddr": "207.175.194.80:49150",
@@ -184,6 +186,14 @@ class TestGeometrikksJson:
         assert fields["request_raw"].stored_as is None
         assert fields["x_trace"].stored_as is None
 
+    def test_numbers_that_do_not_parse_are_not_stored(self) -> None:
+        line = json.dumps({**GEOMETRIKKS_RECORD, "status": "unknown", "bytes": "abc"})
+        result = raw_line_fields(line, linked=True)
+        assert result is not None
+        fields = by_key(result.fields)
+        assert fields["status"].stored_as is None
+        assert fields["bytes"].stored_as is None
+
 
 class TestUnknownJson:
     def test_json_no_parser_accepts_lists_every_key(self) -> None:
@@ -248,6 +258,17 @@ class TestOddInput:
         assert result is not None
         assert len(result.fields) == 1
         assert result.fields[0].key.count(".") == 4999
+
+    def test_deep_nesting_keeps_memory_linear(self) -> None:
+        record = decode_json_object('{"a":' * 5000 + "0" + "}" * 5000)
+        assert record is not None
+        tracemalloc.start()
+        try:
+            list(flatten(record))
+            peak = tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+        assert peak < 2 * 2**20
 
     def test_lone_surrogate_escape_keeps_the_raw_view_only(self) -> None:
         assert raw_line_fields('{"message":"\\ud800"}', linked=False) is None

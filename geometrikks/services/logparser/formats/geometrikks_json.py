@@ -93,6 +93,17 @@ def _has_seconds(value: object) -> bool:
     return isinstance(value, str) and parse_seconds(value) is not None
 
 
+def _has_int(value: object) -> bool:
+    """Whether ``_to_int`` reads the value rather than falling back to 0."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        int(value)
+    except ValueError:
+        return False
+    return True
+
+
 def _has_upstream_time(value: object) -> bool:
     return isinstance(value, str) and _sum_upstream(value) is not None
 
@@ -108,8 +119,8 @@ class GeometrikksJsonFormat:
         StoredColumn("Method", (("method",),)),
         StoredColumn("URL", (("path",),)),
         StoredColumn("HTTP version", (("protocol",),)),
-        StoredColumn("Status", (("status",),)),
-        StoredColumn("Bytes sent", (("bytes",),)),
+        StoredColumn("Status", (("status",),), _has_int),
+        StoredColumn("Bytes sent", (("bytes",),), _has_int),
         StoredColumn("Referrer", (("referrer",),)),
         StoredColumn("User agent", (("user_agent",),)),
         StoredColumn("Request time", (("request_time",),), _has_seconds),
