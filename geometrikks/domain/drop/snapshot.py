@@ -145,7 +145,7 @@ class DropSnapshot:
 EMPTY_DROP_SNAPSHOT = DropSnapshot()
 
 _snapshot: DropSnapshot = EMPTY_DROP_SNAPSHOT
-_loaded_state: tuple[tuple[str, datetime | None, datetime | None], ...] | None = None
+_loaded_state: tuple[tuple[str, datetime | None, datetime | None, str | None], ...] | None = None
 _last_state_check: float | None = None
 _reload_lock = asyncio.Lock()
 _clock: Callable[[], float] = time.monotonic
@@ -169,10 +169,12 @@ async def ensure_drop_snapshot(session: AsyncSession, *, enabled: bool) -> DropS
     """Refresh the process snapshot when another process changed the tables.
 
     A refresh job in one worker reaches the others through the feed
-    timestamps: each process compares them at most once per minute and reloads
-    on a change. The comparison is per feed because a refresh commits the feeds
-    one at a time under one timestamp, so a reload between two commits must not
-    hide the later one. With the feature disabled the snapshot is empty
+    state: each process compares it at most once per minute and reloads on a
+    change of fetch time, check time or last error. The error is part of the
+    key because a download attempt commits its check time before the request,
+    so a failure recorded later carries the same check time. The comparison is
+    per feed because a refresh commits the feeds one at a time under one
+    timestamp, so a reload between two commits must not hide the later one. With the feature disabled the snapshot is empty
     whatever the tables hold. Once a snapshot has loaded, a failed check keeps
     serving it until the next check is due.
     """
@@ -187,12 +189,15 @@ async def ensure_drop_snapshot(session: AsyncSession, *, enabled: bool) -> DropS
         try:
             state_rows = (
                 await session.execute(
-                    select(DropListState.feed, DropListState.fetched_at, DropListState.checked_at).order_by(
-                        DropListState.feed
-                    )
+                    select(
+                        DropListState.feed,
+                        DropListState.fetched_at,
+                        DropListState.checked_at,
+                        DropListState.last_error,
+                    ).order_by(DropListState.feed)
                 )
             ).all()
-            state = tuple((row.feed, row.fetched_at, row.checked_at) for row in state_rows)
+            state = tuple((row.feed, row.fetched_at, row.checked_at, row.last_error) for row in state_rows)
             if state != _loaded_state:
                 _snapshot = await _load_snapshot(session)
                 _loaded_state = state

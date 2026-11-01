@@ -1,6 +1,8 @@
 """DROP refresh against the real tables: import, skip rules, unchanged feeds and failed downloads."""
 from datetime import UTC, datetime, timedelta
 
+import asyncio
+
 import httpx2
 import pytest
 from sqlalchemy import text
@@ -230,6 +232,29 @@ async def test_a_failure_inside_the_replace_transaction_keeps_the_old_rows(
     assert v4_state.last_error == "unexpected error: RuntimeError"
     assert v4_state.checked_at == later
     assert v4_state.record_count == 2
+
+
+async def test_a_cancelled_download_still_counts_as_a_check(pg_session_maker, clean_tables):
+    bodies_by_path = default_server().bodies_by_path
+
+    def cancel_the_asn_download(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/drop/asndrop.json":
+            raise asyncio.CancelledError
+        return httpx2.Response(200, content=bodies_by_path[request.url.path])
+
+    with pytest.raises(asyncio.CancelledError):
+        await refresh_drop_lists(pg_session_maker, now=NOW, transport=httpx2.MockTransport(cancel_the_asn_download))
+    server = default_server()
+
+    feed_outcomes = await refresh_drop_lists(
+        pg_session_maker, now=NOW + timedelta(minutes=30), startup=True, transport=server.transport
+    )
+
+    asn_state = await fetch_state(pg_session_maker, "asn")
+    assert asn_state.checked_at == NOW
+    assert asn_state.fetched_at is None
+    assert server.requested_paths == []
+    assert {outcome.status for outcome in feed_outcomes} == {"skipped"}
 
 
 async def test_each_outcome_is_logged_with_its_feed(pg_session_maker, clean_tables):

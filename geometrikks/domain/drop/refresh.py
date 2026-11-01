@@ -97,6 +97,7 @@ async def _refresh_feed(
         logger.info("drop_list_refresh_skipped", feed=feed, reason=skip_reason)
         return FeedOutcome(feed, "skipped", None, skip_reason)
 
+    await _record_attempt(session_factory, feed, now=now)
     body = await fetch_feed(feed, transport=transport)
     row_dicts: list[dict[str, object]]
     if feed == "asn":
@@ -181,6 +182,13 @@ async def _upsert_state(session: AsyncSession, feed: DropFeed, *, metadata: Feed
     }
     statement = postgres_insert(DropListState).values(feed=feed, **state_values)
     await session.execute(statement.on_conflict_do_update(index_elements=["feed"], set_=state_values))
+
+
+async def _record_attempt(session_factory: Callable[[], AsyncSession], feed: DropFeed, *, now: datetime) -> None:
+    """Commit the attempt before the request, so a shutdown that cancels the download still counts as a check."""
+    async with session_factory() as session, session.begin():
+        statement = postgres_insert(DropListState).values(feed=feed, checked_at=now)
+        await session.execute(statement.on_conflict_do_update(index_elements=["feed"], set_={"checked_at": now}))
 
 
 async def _record_failure(

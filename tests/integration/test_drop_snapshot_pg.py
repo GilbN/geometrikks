@@ -171,6 +171,23 @@ async def test_a_new_check_alone_reloads_the_feed_states(pg_session_maker, clean
     assert {feed.last_error for feed in second.feeds} == {"HTTP 503"}
 
 
+async def test_a_last_error_with_an_unchanged_check_reloads_the_feed_states(
+    pg_session_maker, clean_tables, fake_clock
+):
+    await import_fixture_lists(pg_session_maker)
+    async with pg_session_maker() as session:
+        first = await ensure_drop_snapshot(session, enabled=True)
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("UPDATE drop_list_state SET last_error = 'HTTP 503' WHERE feed = 'asn'"))
+
+    fake_clock.seconds += 61
+    async with pg_session_maker() as session:
+        second = await ensure_drop_snapshot(session, enabled=True)
+
+    assert second is not first
+    assert {feed.feed: feed.last_error for feed in second.feeds} == {"v4": None, "v6": None, "asn": "HTTP 503"}
+
+
 class UnreachableSession:
     """Stands in for a session whose database has gone away."""
 
