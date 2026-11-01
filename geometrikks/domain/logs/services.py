@@ -162,6 +162,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             AccessLogDebug.raw_line,
             AccessLogDebug.is_malformed,
             AccessLogDebug.parse_error,
+            AccessLogDebug.log_format,
             AccessLogDebug.log_timestamp,
             AccessLogDebug.ip_address,
             AccessLogDebug.method,
@@ -224,7 +225,9 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 city=row.city,
                 user_agent=row.user_agent,
                 raw_fields=raw_line_fields(
-                    row.raw_line, linked=row.access_log_id is not None
+                    row.raw_line,
+                    linked=row.access_log_id is not None,
+                    log_format=row.log_format,
                 ),
             )
             for row in rows

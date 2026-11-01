@@ -306,3 +306,35 @@ class TestOddInput:
         result = raw_line_fields(traefik_line(**{"request_3gpp-Sbi-Target-Apiroot": "x"}), linked=True)
         assert result is not None
         assert by_key(result.fields)["3gpp-Sbi-Target-Apiroot"].group == "request_header"
+
+
+class TestRecordedFormat:
+    # A Traefik line carrying the two keys the GeoMetrikks JSON parser needs.
+    # Detection tries that parser first and would read the line as its own.
+    TRAEFIK_WITH_GEOMETRIKKS_KEYS = json.dumps(
+        {**TRAEFIK_RECORD, "client_ip": "207.175.194.80", "timestamp": "2026-10-29T02:25:18+00:00"}
+    )
+
+    def test_detection_alone_picks_the_first_parser_that_accepts(self) -> None:
+        result = raw_line_fields(self.TRAEFIK_WITH_GEOMETRIKKS_KEYS, linked=True)
+        assert result is not None
+        assert result.format == "geometrikks-json"
+
+    def test_the_recorded_format_wins_over_detection(self) -> None:
+        result = raw_line_fields(self.TRAEFIK_WITH_GEOMETRIKKS_KEYS, linked=True, log_format="traefik-json")
+        assert result is not None
+        assert result.format == "traefik-json"
+        fields = by_key(result.fields)
+        assert fields["DownstreamStatus"].stored_as == "Status"
+        assert fields["client_ip"].stored_as is None
+
+    def test_a_recorded_format_without_json_columns_marks_nothing_stored(self) -> None:
+        result = raw_line_fields(TRAEFIK_LINE, linked=True, log_format="nginx")
+        assert result is not None
+        assert result.format is None
+        assert all(raw_field.stored_as is None for raw_field in result.fields)
+
+    def test_an_unlinked_line_ignores_the_recorded_format(self) -> None:
+        result = raw_line_fields(TRAEFIK_LINE, linked=False, log_format="traefik-json")
+        assert result is not None
+        assert result.format is None

@@ -812,6 +812,7 @@ class LogIngestionService:
             raw_line=sanitized_line,
             is_malformed=record.is_malformed,
             parse_error=sanitized_error,
+            log_format=record.log_format,
             # Denormalized so the debug list never joins the access_logs
             # hypertable. Every value is already on the object we were handed.
             log_timestamp=access_log.timestamp if access_log else None,

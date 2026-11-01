@@ -78,6 +78,12 @@ def header_name(key_path: KeyPath) -> tuple[HeaderKind, str] | None:
     return None
 
 
+def json_format(name: str) -> JsonLogLineFormat | None:
+    """The JSON format registered under this name, or None for any other format."""
+    line_format = FORMATS.get(name)
+    return line_format if isinstance(line_format, JsonLogLineFormat) else None
+
+
 def accepting_json_format(line: str) -> JsonLogLineFormat | None:
     """The first JSON format whose parser reads the line in full."""
     for line_format in FORMATS.values():

@@ -1770,3 +1770,16 @@ class TestAsnWiring:
         assert service._lookups is not None and service._lookups.asn_reader is not None
         await service.stop(timeout=1.0)
         assert service._lookups is None
+
+
+async def test_debug_rows_record_the_format_that_parsed_the_line() -> None:
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])])
+    service, repos, _sessions = make_service([log_input], store_debug_lines=True)
+
+    await service.start()
+    try:
+        await wait_until(lambda: len(repos.access_log_debug.added) >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert {debug_row.log_format for debug_row in repos.access_log_debug.added} == {"nginx"}
