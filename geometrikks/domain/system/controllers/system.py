@@ -14,7 +14,7 @@ from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import TYPE_CHECKING, Literal
 
 from litestar import Controller, Litestar, Request, get, post
-from litestar.di import NamedDependency
+from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException
 from litestar.params import FromPath, SkipValidation
 from litestar.status_codes import HTTP_202_ACCEPTED
@@ -35,6 +35,9 @@ from geometrikks.domain.analytics.asn_classification import (
     hosting_asn_count,
     hosting_asn_entries,
 )
+from geometrikks.domain.drop.dependencies import provide_drop_snapshot
+from geometrikks.domain.drop.schemas import DropListsAboutView, build_drop_lists_about
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
@@ -145,6 +148,8 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     geoip_asn: GeoIPInfoView | None = None
     geoip_asn_enabled: bool = False
     asn_classification: AsnClassificationView | None = None
+    # None when DROP_ENABLED is off.
+    drop_lists: DropListsAboutView | None = None
 
 
 ReleaseCheckStatus = Literal["off", "pending", "checked"]
@@ -349,6 +354,8 @@ class SystemController(Controller):
     path = "/system"
     tags = ["System"]
 
+    dependencies = {"drop_snapshot": Provide(provide_drop_snapshot)}
+
     @get("/settings")
     async def get_system_settings(
         self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
@@ -367,6 +374,7 @@ class SystemController(Controller):
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
         db_engine: NamedDependency[SkipValidation[AsyncEngine]],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
     ) -> AboutResponse:
         """App, runtime, database, and GeoIP metadata for the About page."""
         s = settings
@@ -397,6 +405,7 @@ class SystemController(Controller):
                 license=DATASET_LICENSE,
                 source_url=DATASET_URL,
             ),
+            drop_lists=build_drop_lists_about(drop_snapshot, enabled=s.drop.enabled),
         )
 
     @get("/asn-classification")

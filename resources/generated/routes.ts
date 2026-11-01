@@ -33,6 +33,7 @@ export type RouteName =
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_decision_alert'
+  | 'get_drop_lists'
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
@@ -120,6 +121,7 @@ export interface RoutePathParams {
   'get_decision_alert': {
     decision_id: number;
   };
+  'get_drop_lists': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': Record<string, never>;
   'get_geo_log_time_series': Record<string, never>;
@@ -219,6 +221,7 @@ export interface RouteQueryParams {
   'get_decision_alert': {
     ip: string;
   };
+  'get_drop_lists': Record<string, never>;
   'get_geo_log_facets': Record<string, never>;
   'get_geo_log_summary': {
     asnIn?: number[];
@@ -647,6 +650,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: ['decision_id'] as const,
     queryParams: ['ip'] as const,
+  },
+  'get_drop_lists': {
+    path: '/api/v1/drop/lists',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'get_geo_log_facets': {
     path: '/api/v1/geo-events/facets',
