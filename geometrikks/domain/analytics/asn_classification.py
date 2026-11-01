@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from geometrikks.domain.drop.snapshot import current_drop_snapshot
+from geometrikks.domain.drop.snapshot import DropSnapshot, current_drop_snapshot
 
 AsnCategory = Literal["drop", "hosting", "other"]
 
@@ -52,13 +52,15 @@ def _hosting_asns() -> frozenset[int]:
     return frozenset(asn for asn, _ in hosting_asn_entries())
 
 
-def classify_asn(asn: int) -> AsnCategory:
+def classify_asn(asn: int, snapshot: DropSnapshot | None = None) -> AsnCategory:
     """Category for one autonomous system number.
 
-    ``drop`` reads the process-wide DROP snapshot, which a request handler
-    brings up to date through the ``drop_snapshot`` dependency first.
+    ``drop`` reads the given DROP snapshot, or the process-wide one when none is
+    given. Handlers pass the snapshot injected through the ``drop_snapshot``
+    dependency so one response never mixes two snapshots.
     """
-    if current_drop_snapshot().is_drop_asn(asn):
+    drop_snapshot = current_drop_snapshot() if snapshot is None else snapshot
+    if drop_snapshot.is_drop_asn(asn):
         return "drop"
     return "hosting" if asn in _hosting_asns() else "other"
 

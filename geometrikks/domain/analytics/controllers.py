@@ -110,7 +110,11 @@ def _optional_bucket_dto(bucket: IpProfileBucket | None) -> IpProfileBucketDTO |
 
 
 def _to_ip_profile_response(
-    ip_address: str, start: datetime, end: datetime, profile: IpProfile
+    ip_address: str,
+    start: datetime,
+    end: datetime,
+    profile: IpProfile,
+    drop_snapshot: DropSnapshot | None = None,
 ) -> IpProfileResponse:
     """Wire shape for one profile; pure so the mapping is unit-testable."""
     errors = profile.status_4xx + profile.status_5xx
@@ -134,7 +138,7 @@ def _to_ip_profile_response(
         malformed_requests=profile.malformed_requests,
         asn=profile.asn,
         asn_organization=profile.asn_organization,
-        asn_category=classify_asn(profile.asn) if profile.asn is not None else None,
+        asn_category=classify_asn(profile.asn, drop_snapshot) if profile.asn is not None else None,
         granularity=profile.granularity,
         series=[_bucket_dto(b) for b in profile.series],
         peak=_optional_bucket_dto(profile.peak),
@@ -666,7 +670,7 @@ class AnalyticsController(Controller):
         totals: dict[str, list[int]] = {"drop": [0, 0], "hosting": [0, 0], "other": [0, 0]}
         items: list[TopAsnDTO] = []
         for row in rows:
-            category = classify_asn(row.asn)
+            category = classify_asn(row.asn, drop_snapshot)
             totals[category][0] += row.hits
             totals[category][1] += row.total_bytes
             if len(items) < limit:
@@ -804,5 +808,5 @@ class AnalyticsController(Controller):
         if tz is not None:
             validate_timezone(tz)
         profile = await ip_profile_repo.get_profile(ip_address, start_date, end_date, tz=tz)
-        return _to_ip_profile_response(ip_address, start_date, end_date, profile)
+        return _to_ip_profile_response(ip_address, start_date, end_date, profile, drop_snapshot)
 

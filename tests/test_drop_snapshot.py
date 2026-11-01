@@ -141,3 +141,10 @@ def test_drop_wins_over_hosting_for_an_asn_on_both_lists(monkeypatch):
     on_both_lists = DropAsnEntry(asn=16509, name="AMAZON-02", country_code="US")
     monkeypatch.setattr(snapshot_module, "_snapshot", _snapshot(asns=[on_both_lists]))
     assert asn_classification.classify_asn(16509) == "drop"
+
+
+def test_classify_asn_uses_the_given_snapshot_over_the_global_one(monkeypatch):
+    monkeypatch.setattr(snapshot_module, "_snapshot", _snapshot())
+    assert classify_asn(48090, EMPTY_DROP_SNAPSHOT) == "other"
+    monkeypatch.setattr(snapshot_module, "_snapshot", EMPTY_DROP_SNAPSHOT)
+    assert classify_asn(48090, _snapshot()) == "drop"

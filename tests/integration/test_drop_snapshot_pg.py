@@ -172,18 +172,54 @@ async def test_a_new_check_alone_reloads_the_feed_states(pg_session_maker, clean
 async def test_disabled_returns_an_empty_snapshot_even_with_rows(pg_session_maker, clean_tables, fake_clock):
     await import_fixture_lists(pg_session_maker)
     async with pg_session_maker() as session:
-        await ensure_drop_snapshot(session, enabled=True)
+        loaded = await ensure_drop_snapshot(session, enabled=True)
+    reload_lock = snapshot_module._reload_lock
 
     async with pg_session_maker() as session:
         disabled = await ensure_drop_snapshot(session, enabled=False)
 
     assert not disabled.loaded
     assert disabled.network_for("45.148.10.183") is None
-    assert not current_drop_snapshot().loaded
+    assert current_drop_snapshot() is loaded
+    assert snapshot_module._reload_lock is reload_lock
 
     async with pg_session_maker() as session:
         enabled_again = await ensure_drop_snapshot(session, enabled=True)
     assert enabled_again.loaded
+
+
+async def test_reload_between_feed_commits_still_picks_up_the_later_feed(pg_session_maker, clean_tables, fake_clock):
+    """A refresh stamps every feed with one timestamp and commits them one at a time, ASN last."""
+    await import_fixture_lists(pg_session_maker)
+    refreshed_at = IMPORTED_AT + timedelta(hours=24)
+    async with pg_session_maker() as session:
+        await ensure_drop_snapshot(session, enabled=True)
+
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("DELETE FROM drop_networks WHERE sbl_id = 'SBL678435'"))
+        await session.execute(
+            text("UPDATE drop_list_state SET fetched_at = :at, checked_at = :at WHERE feed = 'v4'"),
+            {"at": refreshed_at},
+        )
+    fake_clock.seconds += 61
+    async with pg_session_maker() as session:
+        after_v4 = await ensure_drop_snapshot(session, enabled=True)
+    assert after_v4.network_for("45.148.10.183") is None
+    assert after_v4.is_drop_asn(48090)
+
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("DELETE FROM drop_asns"))
+        await session.execute(text("INSERT INTO drop_asns (asn, name, country_code) VALUES (64496, 'NEWASN', 'NO')"))
+        await session.execute(
+            text("UPDATE drop_list_state SET fetched_at = :at, checked_at = :at WHERE feed = 'asn'"),
+            {"at": refreshed_at},
+        )
+    fake_clock.seconds += 61
+    async with pg_session_maker() as session:
+        after_asn = await ensure_drop_snapshot(session, enabled=True)
+
+    assert after_asn.is_drop_asn(64496)
+    assert not after_asn.is_drop_asn(48090)
 
 
 async def seed_drop_asn_traffic(pg_session_maker) -> None:

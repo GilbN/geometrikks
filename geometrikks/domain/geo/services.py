@@ -20,6 +20,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
 
 from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
@@ -606,7 +607,13 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         ]
 
     async def get_top_asns(
-        self, start: datetime, end: datetime, filters: GeoEventFilters, *, limit: int = 10
+        self,
+        start: datetime,
+        end: datetime,
+        filters: GeoEventFilters,
+        *,
+        limit: int = 10,
+        drop_snapshot: DropSnapshot | None = None,
     ) -> list[TopGeoAsn]:
         """Top autonomous systems by event count; rows without ASN data excluded."""
         granularity = get_stats_granularity(start, end)
@@ -656,7 +663,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             TopGeoAsn(
                 asn=int(row.asn),
                 organization=row.organization,
-                category=classify_asn(int(row.asn)),
+                category=classify_asn(int(row.asn), drop_snapshot),
                 event_count=row.event_count,
                 unique_ips=row.unique_ips,
             )

@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from geometrikks.domain.drop.models import DropAsn, DropListState, DropNetwork
 
@@ -139,7 +139,7 @@ class DropSnapshot:
 EMPTY_DROP_SNAPSHOT = DropSnapshot()
 
 _snapshot: DropSnapshot = EMPTY_DROP_SNAPSHOT
-_loaded_state: tuple[datetime | None, datetime | None] | None = None
+_loaded_state: tuple[tuple[str, datetime | None, datetime | None], ...] | None = None
 _last_state_check: float | None = None
 _reload_lock = asyncio.Lock()
 _clock: Callable[[], float] = time.monotonic
@@ -164,24 +164,27 @@ async def ensure_drop_snapshot(session: AsyncSession, *, enabled: bool) -> DropS
 
     A refresh job in one worker reaches the others through the feed
     timestamps: each process compares them at most once per minute and reloads
-    on a change. With the feature disabled the snapshot is empty whatever the
-    tables hold.
+    on a change. The comparison is per feed because a refresh commits the feeds
+    one at a time under one timestamp, so a reload between two commits must not
+    hide the later one. With the feature disabled the snapshot is empty
+    whatever the tables hold.
     """
     global _snapshot, _loaded_state, _last_state_check  # noqa: PLW0603
     if not enabled:
-        reset_drop_snapshot()
-        return _snapshot
+        return EMPTY_DROP_SNAPSHOT
     if _state_check_is_fresh():
         return _snapshot
     async with _reload_lock:
         if _state_check_is_fresh():
             return _snapshot
-        state_row = (
+        state_rows = (
             await session.execute(
-                select(func.max(DropListState.fetched_at), func.max(DropListState.checked_at))
+                select(DropListState.feed, DropListState.fetched_at, DropListState.checked_at).order_by(
+                    DropListState.feed
+                )
             )
-        ).one()
-        state = (state_row[0], state_row[1])
+        ).all()
+        state = tuple((row.feed, row.fetched_at, row.checked_at) for row in state_rows)
         if state != _loaded_state:
             _snapshot = await _load_snapshot(session)
             _loaded_state = state

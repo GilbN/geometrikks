@@ -369,7 +369,8 @@ class GeoEventController(Controller):
     ) -> TopGeoAsnsResponse:
         """Top ASNs with exact unique-IP counts; rows without ASN data are excluded."""
         rows = await geo_event_service.get_top_asns(
-            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit
+            ensure_utc(from_timestamp), ensure_utc(to_timestamp), geo_filters, limit=limit,
+            drop_snapshot=drop_snapshot,
         )
         return TopGeoAsnsResponse(items=rows)
 
