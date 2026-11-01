@@ -121,6 +121,14 @@ const COLUMNS: ColumnDef[] = [
     ),
   },
   {
+    key: "logFormat",
+    label: "Source format",
+    sortField: "logFormat",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => <span className="whitespace-nowrap font-mono">{r.logFormat ?? "-"}</span>,
+  },
+  {
     key: "rawLine",
     grow: true,
     label: "Raw line",

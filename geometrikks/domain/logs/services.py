@@ -107,6 +107,7 @@ DEBUG_SORT_COLUMNS = {
     "created_at": AccessLogDebug.created_at,
     "is_malformed": AccessLogDebug.is_malformed,
     "parse_error": AccessLogDebug.parse_error,
+    "log_format": AccessLogDebug.log_format,
     "timestamp": AccessLogDebug.log_timestamp,
     "status_code": AccessLogDebug.status_code,
     "ip_address": AccessLogDebug.ip_address,
@@ -162,6 +163,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             AccessLogDebug.raw_line,
             AccessLogDebug.is_malformed,
             AccessLogDebug.parse_error,
+            AccessLogDebug.log_format,
             AccessLogDebug.log_timestamp,
             AccessLogDebug.ip_address,
             AccessLogDebug.method,
@@ -212,6 +214,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 raw_line=row.raw_line,
                 is_malformed=row.is_malformed,
                 parse_error=row.parse_error,
+                log_format=row.log_format,
                 timestamp=row.log_timestamp,
                 # INET comes back as an ipaddress object, not str
                 ip_address=str(row.ip_address) if row.ip_address is not None else None,
@@ -224,7 +227,9 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 city=row.city,
                 user_agent=row.user_agent,
                 raw_fields=raw_line_fields(
-                    row.raw_line, linked=row.access_log_id is not None
+                    row.raw_line,
+                    linked=row.access_log_id is not None,
+                    log_format=row.log_format,
                 ),
             )
             for row in rows

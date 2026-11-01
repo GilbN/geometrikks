@@ -366,6 +366,16 @@ export const AccessLogDebugEntrySchema = {
     isMalformed: {
       type: "boolean",
     },
+    logFormat: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     method: {
       oneOf: [
         {

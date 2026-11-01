@@ -126,6 +126,9 @@ class AccessLogDebug(base.BigIntBase):
 
     is_malformed: Mapped[bool] = mapped_column(default=False, index=True)
     parse_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The parser that read the line. NULL when no format was locked yet, and
+    # on rows written before this column existed.
+    log_format: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Denormalized access-log context, copied from the linked access_logs row
     # at ingestion time. The debug list filters, sorts and displays entirely
