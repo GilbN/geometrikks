@@ -316,6 +316,7 @@ class TestRecordedFormat:
     )
 
     def test_detection_alone_picks_the_first_parser_that_accepts(self) -> None:
+        """Shows why the recorded format matters, not the order anyone wants."""
         result = raw_line_fields(self.TRAEFIK_WITH_GEOMETRIKKS_KEYS, linked=True)
         assert result is not None
         assert result.format == "geometrikks-json"
@@ -333,6 +334,20 @@ class TestRecordedFormat:
         assert result is not None
         assert result.format is None
         assert all(raw_field.stored_as is None for raw_field in result.fields)
+
+    def test_a_recorded_caddy_format_keeps_caddy_columns(self) -> None:
+        line = json.dumps({**CADDY_RECORD, "client_ip": "203.0.113.7", "timestamp": "2026-10-29T02:25:18+00:00"})
+        result = raw_line_fields(line, linked=True, log_format="caddy-json")
+        assert result is not None
+        assert result.format == "caddy-json"
+        fields = by_key(result.fields)
+        assert fields["request.method"].stored_as == "Method"
+        assert fields["client_ip"].stored_as is None
+
+    def test_a_name_no_longer_registered_falls_back_to_detection(self) -> None:
+        result = raw_line_fields(TRAEFIK_LINE, linked=True, log_format="traefik-json-v0")
+        assert result is not None
+        assert result.format == "traefik-json"
 
     def test_an_unlinked_line_ignores_the_recorded_format(self) -> None:
         result = raw_line_fields(TRAEFIK_LINE, linked=False, log_format="traefik-json")

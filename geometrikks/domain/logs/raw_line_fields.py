@@ -6,6 +6,7 @@ from typing import Any
 import msgspec
 
 from geometrikks.domain.logs.schemas import RawLineField, RawLineFieldGroup, RawLineFields
+from geometrikks.services.logparser.formats import IMPORT_FORMATS
 from geometrikks.services.logparser.json_fields import (
     HeaderKind,
     KeyPath,
@@ -39,8 +40,9 @@ def raw_line_fields(
         raw_line: The stored raw line.
         linked: Whether the line produced an access-log row. Only then does a
             key count as stored.
-        log_format: The format ingestion parsed the line with. Rows from before
-            it was recorded have None, and fall back to detecting the format.
+        log_format: The format ingestion parsed the line with. Rows written
+            before it was recorded have None. None and a name that is no
+            longer registered both fall back to detecting the format.
 
     Returns:
         The fields in line order, or None when the line is not a JSON object.
@@ -53,7 +55,7 @@ def raw_line_fields(
         return None
     if not linked:
         line_format = None
-    elif log_format is not None:
+    elif log_format in IMPORT_FORMATS:
         line_format = json_format(log_format)
     else:
         line_format = accepting_json_format(raw_line)
