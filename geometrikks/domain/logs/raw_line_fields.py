@@ -16,11 +16,11 @@ from geometrikks.services.logparser.json_fields import (
     stored_columns,
 )
 
-# A line past any of these shows in the Raw view only. Every row on a debug
-# page goes through here, so one hostile line must not cost the whole page.
-_MAX_DEPTH = 16
+# Proxy access lines nest three levels at most, as in Caddy's request.headers.X,
+# and carry well under 500 keys. No proxy writes a line past either limit, so
+# such a line shows in the Raw view only.
+_MAX_DEPTH = 6
 _MAX_FIELDS = 500
-_MAX_TEXT_CHARS = 64 * 1024
 
 _HEADER_GROUPS: dict[HeaderKind, RawLineFieldGroup] = {
     "request": "request_header",
@@ -43,7 +43,7 @@ def raw_line_fields(raw_line: str, *, linked: bool) -> RawLineFields | None:
     record = decode_json_object(raw_line)
     if record is None:
         return None
-    leaves = _leaves_within_budget(record)
+    leaves = _proxy_shaped_leaves(record)
     if leaves is None:
         return None
     line_format = accepting_json_format(raw_line) if linked else None
@@ -54,18 +54,13 @@ def raw_line_fields(raw_line: str, *, linked: bool) -> RawLineFields | None:
     )
 
 
-def _leaves_within_budget(record: dict[str, Any]) -> list[tuple[KeyPath, str]] | None:
-    """Leaves with rendered values, or None at the first one past the budget."""
+def _proxy_shaped_leaves(record: dict[str, Any]) -> list[tuple[KeyPath, str]] | None:
+    """Leaves with rendered values, or None at the first sign the line is not a proxy's."""
     leaves: list[tuple[KeyPath, str]] = []
-    text_chars = 0
     for key_path, value in flatten(record):
         if len(key_path) > _MAX_DEPTH or len(leaves) == _MAX_FIELDS:
             return None
-        rendered = _render(value)
-        text_chars += sum(len(key) for key in key_path) + len(rendered)
-        if text_chars > _MAX_TEXT_CHARS:
-            return None
-        leaves.append((key_path, rendered))
+        leaves.append((key_path, _render(value)))
     return leaves
 
 

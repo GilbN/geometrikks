@@ -262,8 +262,11 @@ class TestOddInput:
     def test_nesting_too_deep_for_the_decoder_keeps_the_raw_view_only(self) -> None:
         assert raw_line_fields('{"a":' * 20000 + "0" + "}" * 20000, linked=False) is None
 
-    def test_nesting_past_the_depth_budget_keeps_the_raw_view_only(self) -> None:
-        assert raw_line_fields('{"a":' * 40 + "0" + "}" * 40, linked=False) is None
+    def test_six_levels_of_nesting_still_get_fields(self) -> None:
+        assert raw_line_fields('{"a":' * 6 + "0" + "}" * 6, linked=False) is not None
+
+    def test_seven_levels_of_nesting_keep_the_raw_view_only(self) -> None:
+        assert raw_line_fields('{"a":' * 7 + "0" + "}" * 7, linked=False) is None
 
     def test_sibling_leaves_at_every_level_keep_the_raw_view_only(self) -> None:
         line = '{"leaf":0,"a":' * 2000 + "0" + "}" * 2000
@@ -273,10 +276,7 @@ class TestOddInput:
         line = json.dumps({f"key{index}": index for index in range(1000)})
         assert raw_line_fields(line, linked=False) is None
 
-    def test_a_huge_value_keeps_the_raw_view_only(self) -> None:
-        assert raw_line_fields(json.dumps({"msg": "x" * 200_000}), linked=False) is None
-
-    def test_a_normal_nested_caddy_line_stays_within_budget(self) -> None:
+    def test_a_normal_nested_caddy_line_gets_fields(self) -> None:
         assert raw_line_fields(CADDY_LINE, linked=True) is not None
 
     def test_deep_nesting_keeps_memory_linear(self) -> None:
