@@ -40,13 +40,14 @@ import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePollingHold } from "@/lib/time-range-context"
 import { copyText } from "@/lib/clipboard"
-import { BAN_DURATIONS, winningDecision } from "@/lib/crowdsec"
+import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { scenarioText } from "@/lib/scenario-name"
 import { countryLabel, type FilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
-import { useBannedIps, useCrowdsecStatus, useDropNetwork, useIpDecisions } from "@/lib/queries"
+import { dropBanReason, dropNetworkBannedText, dropNetworkUnbannedText, type DropNetworkMatch } from "@/lib/drop-lists"
+import { useBanIp, useBannedIps, useBannedRanges, useCrowdsecStatus, useDropNetwork, useIpDecisions, useUnbanIp } from "@/lib/queries"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 
@@ -101,6 +102,39 @@ function filterActions(ip: string, target: FilterTarget): IpAction[] {
 function ActionDetail({ value }: { value?: string }) {
   if (value === undefined) return null
   return <span className="ml-auto max-w-48 truncate pl-4 font-mono text-xs text-muted-foreground">{value}</span>
+}
+
+type BanDuration = (typeof BAN_DURATIONS)[number]
+
+/** Bans and unbans the IP's DROP network, sent at once with a toast. */
+function useDropNetworkBan(dropNetwork: DropNetworkMatch | null, active: boolean) {
+  const bannedRanges = useBannedRanges(active)
+  const banNetwork = useBanIp()
+  const unbanNetwork = useUnbanIp()
+  const cidr = dropNetwork?.cidr ?? ""
+  return {
+    banned: bannedRanges.data?.has(cidr) ?? false,
+    busy: bannedRanges.isLoading || banNetwork.isPending || unbanNetwork.isPending,
+    // mutate's own callbacks never run once a table refresh unmounts the
+    // row, so the toasts hang off mutateAsync.
+    ban: (duration: BanDuration) => {
+      if (dropNetwork === null) return
+      banNetwork
+        .mutateAsync({ ip: cidr, duration: duration.value, reason: dropBanReason(dropNetwork.sblId) })
+        .then(
+          () => toast.success(dropNetworkBannedText(cidr, duration.label)),
+          (error: unknown) =>
+            toast.error(crowdsecErrorMessage(error, `Ban failed for ${cidr}; the LAPI may be unreachable.`)),
+        )
+    },
+    unban: () => {
+      unbanNetwork.mutateAsync(cidr).then(
+        () => toast.success(dropNetworkUnbannedText(cidr)),
+        (error: unknown) =>
+          toast.error(crowdsecErrorMessage(error, `Unban failed for ${cidr}; the LAPI may be unreachable.`)),
+      )
+    },
+  }
 }
 
 /** Copies the IP in one click; the icon turns into a check for a moment. */
@@ -204,6 +238,7 @@ export function IpActionsMenu({
   const ipActions = useIpActions()
   const pendingAction = usePendingIpAction(ip)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
+  const [banDialogTarget, setBanDialogTarget] = useState<{ ip: string; reason: string }>({ ip, reason: "" })
   // Auto refresh waits while this row's menu or ban dialog is open, so new
   // rows can't push the row, and the open menu with it, off the page.
   const [menuOpen, setMenuOpen] = useState(false)
@@ -220,6 +255,7 @@ export function IpActionsMenu({
   const afterClose = useRef<(() => void) | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const banLabelId = useId()
+  const dropBanLabelId = useId()
   const runAfterClose = () => {
     const run = afterClose.current
     afterClose.current = null
@@ -248,8 +284,19 @@ export function IpActionsMenu({
     else toast.error("The browser blocked the copy.")
   }
 
-  const banFor = (duration: (typeof BAN_DURATIONS)[number]) => ipActions.ban(ip, duration.value, duration.label)
+  const banFor = (duration: BanDuration) => ipActions.ban(ip, duration.value, duration.label)
   const unbanIp = () => ipActions.unban(ip)
+  const dropBanShown = status?.writeEnabled === true && dropNetwork !== null
+  const dropNetworkBan = useDropNetworkBan(dropNetwork, dropBanShown)
+  const openBanDialog = (target: { ip: string; reason: string }) => {
+    afterClose.current = () => {
+      setBanDialogTarget(target)
+      setBanDialogOpen(true)
+    }
+  }
+  const openIpBanDialog = () => openBanDialog({ ip, reason: "" })
+  const openDropBanDialog = () =>
+    dropNetwork && openBanDialog({ ip: dropNetwork.cidr, reason: dropBanReason(dropNetwork.sblId) })
 
   const navigation: IpAction[] = footer
     ? []
@@ -384,19 +431,56 @@ export function IpActionsMenu({
                           </DrawerClose>
                         ))}
                         <DrawerClose asChild>
-                          <Button
-                            variant="outline"
-                            className="h-11"
-                            onClick={() => {
-                              afterClose.current = () => setBanDialogOpen(true)
-                            }}
-                          >
+                          <Button variant="outline" className="h-11" onClick={openIpBanDialog}>
                             More options…
                           </Button>
                         </DrawerClose>
                       </div>
                     </div>
                   )}
+                  {dropBanShown &&
+                    (dropNetworkBan.banned ? (
+                      <DrawerClose asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-11 justify-start gap-3 px-3 font-normal"
+                          disabled={dropNetworkBan.busy}
+                          onClick={dropNetworkBan.unban}
+                        >
+                          <ShieldOff />
+                          Unban DROP network
+                          <ActionDetail value={dropNetwork.cidr} />
+                        </Button>
+                      </DrawerClose>
+                    ) : (
+                      <div className="flex flex-col gap-2 px-3 pt-3">
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm">
+                          <ShieldBan className="size-4" />
+                          <span>
+                            Ban DROP network <span className="font-mono [overflow-wrap:anywhere]">{dropNetwork.cidr}</span> for
+                          </span>
+                        </span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {BAN_DURATIONS.map((duration) => (
+                            <DrawerClose key={duration.value} asChild>
+                              <Button
+                                variant="outline"
+                                className="h-11"
+                                disabled={dropNetworkBan.busy}
+                                onClick={() => dropNetworkBan.ban(duration)}
+                              >
+                                {duration.label}
+                              </Button>
+                            </DrawerClose>
+                          ))}
+                          <DrawerClose asChild>
+                            <Button variant="outline" className="h-11" onClick={openDropBanDialog}>
+                              More options…
+                            </Button>
+                          </DrawerClose>
+                        </div>
+                      </div>
+                    ))}
                 </>
               )}
             </div>
@@ -467,13 +551,7 @@ export function IpActionsMenu({
                         {duration.label}
                       </DropdownMenuItem>
                     ))}
-                    <DropdownMenuItem
-                      className="pl-8"
-                      disabled={isPending}
-                      onSelect={() => {
-                        afterClose.current = () => setBanDialogOpen(true)
-                      }}
-                    >
+                    <DropdownMenuItem className="pl-8" disabled={isPending} onSelect={openIpBanDialog}>
                       More options…
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
@@ -490,22 +568,72 @@ export function IpActionsMenu({
                         </DropdownMenuItem>
                       ))}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          afterClose.current = () => setBanDialogOpen(true)
-                        }}
-                      >
-                        More options…
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={openIpBanDialog}>More options…</DropdownMenuItem>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 )}
+                {dropBanShown &&
+                  (dropNetworkBan.banned ? (
+                    <DropdownMenuItem disabled={dropNetworkBan.busy} onSelect={dropNetworkBan.unban}>
+                      <ShieldOff />
+                      Unban DROP network
+                      <ActionDetail value={dropNetwork.cidr} />
+                    </DropdownMenuItem>
+                  ) : footer ? (
+                    <DropdownMenuGroup aria-labelledby={dropBanLabelId}>
+                      <DropdownMenuLabel id={dropBanLabelId} className="flex items-start gap-2 font-normal">
+                        <ShieldBan className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                          Ban DROP network <span className="font-mono [overflow-wrap:anywhere]">{dropNetwork.cidr}</span> for
+                        </span>
+                      </DropdownMenuLabel>
+                      {BAN_DURATIONS.map((duration) => (
+                        <DropdownMenuItem
+                          key={duration.value}
+                          className="pl-8"
+                          disabled={dropNetworkBan.busy}
+                          onSelect={() => dropNetworkBan.ban(duration)}
+                        >
+                          {duration.label}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuItem className="pl-8" onSelect={openDropBanDialog}>
+                        More options…
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  ) : (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger disabled={dropNetworkBan.busy}>
+                        <ShieldBan />
+                        {/* Fills the row so the CIDR sits against the chevron. */}
+                        <span className="flex flex-1 items-center">
+                          Ban DROP network
+                          <ActionDetail value={dropNetwork.cidr} />
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {BAN_DURATIONS.map((duration) => (
+                          <DropdownMenuItem key={duration.value} onSelect={() => dropNetworkBan.ban(duration)}>
+                            {duration.label}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={openDropBanDialog}>More options…</DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ))}
               </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <BanIpDialog open={banDialogOpen} onOpenChange={setBanDialogOpen} initialIp={ip} returnFocusTo={triggerRef} />
+      <BanIpDialog
+        open={banDialogOpen}
+        onOpenChange={setBanDialogOpen}
+        initialIp={banDialogTarget.ip}
+        initialReason={banDialogTarget.reason}
+        returnFocusTo={triggerRef}
+      />
     </span>
   )
 }

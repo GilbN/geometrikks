@@ -1,5 +1,6 @@
 import type { DropFeedView, DropListsAboutView } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
+import { forDuration } from "@/lib/crowdsec"
 import { formatTs } from "@/lib/datetime"
 
 export type { DropFeedView, DropListsAboutView }
@@ -297,3 +298,16 @@ export function dropMarkTitle(sblId: string, decisionTitle?: string): string {
 
 /** The screen-reader suffix after a marked IP. */
 export const DROP_MARK_SR_TEXT = ` (on the DROP list)`
+
+/** The reason on a DROP network ban. The decisions table shows it after the origin. */
+export function dropBanReason(sblId: string): string {
+  return `Spamhaus DROP ${sblId}`
+}
+
+export function dropNetworkBannedText(cidr: string, durationLabel: string): string {
+  return `Banned DROP network ${cidr} ${forDuration(durationLabel)}`
+}
+
+export function dropNetworkUnbannedText(cidr: string): string {
+  return `Unbanned DROP network ${cidr}`
+}

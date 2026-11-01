@@ -11,6 +11,9 @@ import {
   dropListsState,
   dropTrafficSubtitle,
   dropMarkTitle,
+  dropBanReason,
+  dropNetworkBannedText,
+  dropNetworkUnbannedText,
   buildDropIndex,
   matchDropNetwork,
 } from "./drop-lists"
@@ -302,5 +305,19 @@ describe("dropMarkTitle", () => {
     expect(dropMarkTitle("SBL000001", "It may come from a different alert.")).toBe(
       "It may come from a different alert. On the DROP list (SBL000001)",
     )
+  })
+})
+
+describe("dropBanReason", () => {
+  it("names the list and the SBL record", () => {
+    expect(dropBanReason("SBL678435")).toBe("Spamhaus DROP SBL678435")
+  })
+})
+
+describe("DROP network ban toasts", () => {
+  it("name the network and the duration", () => {
+    expect(dropNetworkBannedText("192.0.2.0/24", "4 hours")).toBe("Banned DROP network 192.0.2.0/24 for 4 hours")
+    expect(dropNetworkBannedText("2001:db8::/32", "Forever")).toBe("Banned DROP network 2001:db8::/32 for good")
+    expect(dropNetworkUnbannedText("192.0.2.0/24")).toBe("Unbanned DROP network 192.0.2.0/24")
   })
 })

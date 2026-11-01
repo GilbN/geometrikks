@@ -49,6 +49,7 @@ import type {
   DecisionView,
   DecisionGroupView,
   BannedIp,
+  BannedRangeView,
   BannedMapCollection,
   SessionUser,
   AuthDisabled,
@@ -71,6 +72,7 @@ export type {
   ScenarioCount,
   DecisionView,
   BannedIp,
+  BannedRangeView,
   BannedMapCollection,
   AuthOptions,
   OidcStatus,
@@ -402,6 +404,12 @@ export async function fetchCrowdsecDecisions(params?: {
 /** IPs under a current decision with the type to badge them as. */
 export async function fetchCrowdsecBannedIps(): Promise<BannedIp[]> {
   const { data } = await api.get<BannedIp[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Every CIDR under a current Range decision, which /crowdsec/banned-ips leaves out. */
+export async function fetchCrowdsecBannedRanges(): Promise<BannedRangeView[]> {
+  const { data } = await api.get<BannedRangeView[]>("/crowdsec/banned-ranges")
   return data
 }
 

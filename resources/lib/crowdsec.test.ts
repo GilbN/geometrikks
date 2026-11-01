@@ -9,6 +9,7 @@ import {
   decisionPopupColor,
   decisionWinner,
   distinctScenarioCount,
+  forDuration,
   isClientError,
   isValidBanDuration,
   isValidBanTarget,
@@ -198,5 +199,12 @@ describe("distinctScenarioCount", () => {
   })
   it("is 1 when every decision comes from one scenario", () => {
     expect(distinctScenarioCount([{ scenario: "http:scan" }, { scenario: "http:scan" }])).toBe(1)
+  })
+})
+
+describe("forDuration", () => {
+  it("reads a preset as a phrase", () => {
+    expect(forDuration("4 hours")).toBe("for 4 hours")
+    expect(forDuration("Forever")).toBe("for good")
   })
 })

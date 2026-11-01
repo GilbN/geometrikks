@@ -50,6 +50,7 @@ import {
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
+  fetchCrowdsecBannedRanges,
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
@@ -63,6 +64,7 @@ import {
   fetchAbuseContact,
   type AbuseReportTarget,
   banIp,
+  unbanIp,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortField,
@@ -78,6 +80,7 @@ import {
   type SortOrder,
   type CrowdSecStatusResponse,
   type BannedIp,
+  type BannedRangeView,
   fetchAccessLogDebug,
   fetchAccessLogDebugStats,
   type AccessLogDebugPage,
@@ -135,6 +138,7 @@ export const queryKeys = {
   crowdsec: {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
+    bannedRanges: ["crowdsec", "banned-ranges"] as const,
     stats: ["crowdsec", "stats"] as const,
     bannedLocations: (params: Record<string, unknown>, refreshKey?: number) =>
       ["crowdsec", "banned-locations", params, refreshKey] as const,
@@ -310,6 +314,8 @@ export function dropListsQueryOptions(updatedAt: string | null, enabled: boolean
     staleTime: (query: Query<DropListsResponse>) =>
       query.state.data?.enabled && query.state.data.loaded ? DROP_LISTS_STALE_MS : 0,
     refetchInterval: DROP_LISTS_REFETCH_MS,
+    // A new updatedAt is a new key. The old lists keep the underlines drawn until the new ones arrive.
+    placeholderData: keepPreviousData,
     select: selectDropIndex,
   }
 }
@@ -473,6 +479,24 @@ export function useBannedIps() {
   })
 }
 
+function selectBannedRanges(bannedRanges: BannedRangeView[]): Map<string, BannedRangeView> {
+  return new Map(bannedRanges.map((bannedRange) => [bannedRange.value, bannedRange]))
+}
+
+/** CIDR to its Range decision, for every range under one. /ws/crowdsec
+ *  carries IP decisions only, so this polls. With `active` false it never
+ *  asks the LAPI. */
+export function useBannedRanges(active = true) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.bannedRanges,
+    queryFn: fetchCrowdsecBannedRanges,
+    enabled: active && status?.enabled === true,
+    refetchInterval: 60_000,
+    select: selectBannedRanges,
+  })
+}
+
 /** GeoJSON for the Banned IPs layer, under every map filter. */
 export function useBannedLocations(active: boolean, filters: {
   countryCodes?: string[]; cities?: string[]; servers?: string[]
@@ -594,6 +618,15 @@ export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: banIp,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+  })
+}
+
+/** Unban an IP or range, then refresh badges, decisions, and stats. */
+export function useUnbanIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: unbanIp,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }

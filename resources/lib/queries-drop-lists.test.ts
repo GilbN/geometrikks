@@ -5,12 +5,14 @@ type QueryOptions = {
   enabled?: boolean
   staleTime?: (query: { state: { data?: DropListsResponse } }) => number
   refetchInterval?: number
+  placeholderData?: unknown
   select?: (dropLists: DropListsResponse) => unknown
 }
 const mocks = vi.hoisted(() => ({
   options: [] as QueryOptions[],
   about: undefined as unknown,
   dropLists: undefined as DropListsResponse | undefined,
+  keepPreviousData: () => undefined,
 }))
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: QueryOptions) => {
@@ -22,6 +24,7 @@ vi.mock("@tanstack/react-query", () => ({
   },
   useMutation: vi.fn(),
   useQueryClient: vi.fn(),
+  keepPreviousData: mocks.keepPreviousData,
 }))
 vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react")>()),
@@ -62,6 +65,11 @@ it("keys the lists on About's download time, keeps them 30 minutes and refetches
   expect(DROP_LISTS_STALE_MS).toBe(30 * 60_000)
   expect(dropListsOptions().refetchInterval).toBe(DROP_LISTS_REFETCH_MS)
   expect(DROP_LISTS_REFETCH_MS).toBe(60 * 60_000)
+})
+
+it("keeps the old lists while a new download time fetches the new ones", () => {
+  useDropLists()
+  expect(dropListsOptions().placeholderData).toBe(mocks.keepPreviousData)
 })
 
 it("treats a cached answer from while DROP was off or not downloaded as stale", () => {

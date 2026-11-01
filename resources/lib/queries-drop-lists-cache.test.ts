@@ -87,3 +87,20 @@ it("refetches a cached answer from while DROP was off once it turns back on", as
   await vi.waitFor(() => expect(reenabledObserver.getCurrentResult().data).toBeTruthy())
   expect(getDropLists).toHaveBeenCalledTimes(2)
 })
+
+it("keeps the old index while a new download time fetches", async () => {
+  getDropLists.mockResolvedValue({ data: dropListsResponse() })
+  const observer = observe("2026-11-01T06:00:00Z", true)
+  await vi.waitFor(() => expect(observer.getCurrentResult().data).toBeTruthy())
+  const firstIndex = observer.getCurrentResult().data
+
+  let resolveRefresh: (value: unknown) => void = () => {}
+  getDropLists.mockReturnValue(new Promise((resolve) => (resolveRefresh = resolve)))
+  observer.setOptions(dropListsQueryOptions("2026-11-02T06:00:00Z", true))
+  expect(observer.getCurrentResult().data).toBe(firstIndex)
+  expect(observer.getCurrentResult().isPlaceholderData).toBe(true)
+
+  resolveRefresh({ data: dropListsResponse({ networks: [{ cidr: "198.51.100.0/24", sblId: "SBL000002" }] }) })
+  await vi.waitFor(() => expect(observer.getCurrentResult().isPlaceholderData).toBe(false))
+  expect(observer.getCurrentResult().data).not.toBe(firstIndex)
+})
