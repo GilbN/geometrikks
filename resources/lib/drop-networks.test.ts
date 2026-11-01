@@ -8,6 +8,7 @@ import {
   counted,
   dropLastSeenText,
   dropNetworkFreshness,
+  dropNetworkPhoneText,
   dropNetworksSummary,
   focusTarget,
   MAX_BULK_BAN_NETWORKS,
@@ -204,5 +205,16 @@ describe("counted", () => {
     expect(counted(1, "IP", "IPs")).toBe("1 IP")
     expect(counted(1130, "IP", "IPs")).toBe("1,130 IPs")
     expect(counted(0, "hit", "hits")).toBe("0 hits")
+  })
+})
+
+describe("dropNetworkPhoneText", () => {
+  it("names the ASN number and the IP count, with no SBL id or org", () => {
+    expect(dropNetworkPhoneText({ asn: 48090, ips: 30 })).toBe("AS48090 · 30 IPs")
+    expect(dropNetworkPhoneText({ asn: 214943, ips: 1 })).toBe("AS214943 · 1 IP")
+  })
+
+  it("shows only the IP count without an ASN", () => {
+    expect(dropNetworkPhoneText({ asn: null, ips: 1130 })).toBe("1,130 IPs")
   })
 })

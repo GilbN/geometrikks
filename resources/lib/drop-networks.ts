@@ -1,5 +1,11 @@
 import { BanNetworksRequestSchema } from "@/generated/api/schemas.gen"
-import type { BannedRangeView, BanNetworkResult, DropListsAboutView, DropNetworksResponse } from "@/generated/api/types.gen"
+import type {
+  BannedRangeView,
+  BanNetworkResult,
+  DropListsAboutView,
+  DropNetworksResponse,
+  DropNetworkTrafficView,
+} from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import { decisionLabel, forDuration } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
@@ -21,6 +27,12 @@ const DROP_STALE_AFTER_MS = 7 * 24 * 60 * 60 * 1000
 /** "1 IP", "1,130 IPs". */
 export function counted(count: number, singular: string, plural: string): string {
   return `${formatNumber(count)} ${count === 1 ? singular : plural}`
+}
+
+/** A phone row's second line: "AS48090 · 30 IPs", or "30 IPs" without an ASN. */
+export function dropNetworkPhoneText(dropNetwork: Pick<DropNetworkTrafficView, "asn" | "ips">): string {
+  const ips = counted(dropNetwork.ips, "IP", "IPs")
+  return dropNetwork.asn === null ? ips : `AS${dropNetwork.asn} · ${ips}`
 }
 
 type DropNetworkTotals = Pick<

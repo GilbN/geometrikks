@@ -46,6 +46,7 @@ import {
   bulkBanResultText,
   dropLastSeenText,
   dropNetworkFreshness,
+  dropNetworkPhoneText,
   dropNetworksSummary,
   focusTarget,
   rangeDecisionText,
@@ -255,6 +256,7 @@ function DropNetworkRow({
   const lastSeen = dropLastSeenText(dropNetwork.lastSeen)
 
   if (narrow) {
+    const hitsText = `${counted(dropNetwork.hits, "hit", "hits")} · ${lastSeen}`
     return (
       <TableRow>
         <TableCell className="py-2.5">
@@ -263,23 +265,9 @@ function DropNetworkRow({
             <span className="ml-auto flex shrink-0 items-center">{status}</span>
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <span className="flex min-w-0 flex-1">
-              <span
-                className="min-w-0 truncate"
-                title={[dropNetwork.sblId, asnText, dropNetwork.asOrg].filter(Boolean).join(" ")}
-              >
-                <span className="font-mono">{dropNetwork.sblId}</span>
-                {asnText && (
-                  <>
-                    {" · "}
-                    <span className="font-mono">{asnText}</span> {dropNetwork.asOrg}
-                  </>
-                )}
-              </span>
-              <span className="shrink-0 whitespace-pre tabular-nums">{` · ${counted(dropNetwork.ips, "IP", "IPs")}`}</span>
-            </span>
-            <span className="shrink-0 whitespace-nowrap tabular-nums">
-              {counted(dropNetwork.hits, "hit", "hits")} · {lastSeen}
+            <span className="shrink-0 whitespace-nowrap tabular-nums">{dropNetworkPhoneText(dropNetwork)}</span>
+            <span className="ml-auto min-w-0 truncate tabular-nums" title={hitsText}>
+              {hitsText}
             </span>
           </div>
         </TableCell>
