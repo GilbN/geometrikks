@@ -15,12 +15,15 @@ export interface AsnCategoryTotal {
 }
 
 export interface AsnCoverage {
-  /** Requests carrying ASN data (hosting + other + drop). */
+  /** Requests carrying ASN data (drop + hosting + other). */
   classified: number
   /** Requests in range with no ASN data at all. */
   unenriched: number
-  /** Hosting percentage of classified traffic. */
+  /** Hosting percentage of classified traffic; DROP-listed networks are not in it. */
   hostingShare: number
+  /** DROP percentage of classified traffic, null while the DROP lists are not loaded. */
+  dropShare: number | null
+  dropHits: number
   /** Percentage of the range's requests that carry ASN data. */
   coverage: number
   /** False when nothing in the range is classified: callers show an empty state. */
@@ -33,7 +36,8 @@ export function asnCoverage(
 ): AsnCoverage {
   const hosting = categories?.find((c) => c.category === "hosting")?.hits ?? 0
   const other = categories?.find((c) => c.category === "other")?.hits ?? 0
-  const drop = categories?.find((c) => c.category === "drop")?.hits ?? 0
+  const dropEntry = categories?.find((c) => c.category === "drop")
+  const drop = dropEntry?.hits ?? 0
   const classified = hosting + other + drop
   // The totals and the ASN aggregates are two separate reads, so live
   // ingestion between them can leave classified slightly ahead of the range
@@ -44,6 +48,8 @@ export function asnCoverage(
     classified,
     unenriched,
     hostingShare: classified > 0 ? (hosting / classified) * 100 : 0,
+    dropShare: dropEntry ? (classified > 0 ? (drop / classified) * 100 : 0) : null,
+    dropHits: drop,
     coverage: totalRequests > 0 ? Math.min(100, (classified / totalRequests) * 100) : 0,
     hasData: classified > 0,
   }

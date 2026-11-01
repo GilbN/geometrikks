@@ -1091,9 +1091,10 @@ class DropSettings(BaseSettings):
     enabled: bool = Field(
         default=True,
         description=(
-            "Download the Spamhaus DROP lists from www.spamhaus.org and mark "
-            "listed IPs and ASNs in the UI. Needs the scheduler. Set to false "
-            "to stop the downloads and hide every DROP element."
+            "Download the Spamhaus DROP lists from www.spamhaus.org once a day "
+            "(DROP_REFRESH_HOURS) and mark traffic from listed networks in the UI. "
+            "Needs the scheduler. Set to false to stop the downloads and hide "
+            "every DROP element."
         ),
     )
     refresh_hours: int = Field(

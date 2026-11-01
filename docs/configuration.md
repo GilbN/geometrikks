@@ -106,7 +106,7 @@ Set these only for a feature you use, or to change a default.
 
 | Variable | Default | Description |
 |---|---|---|
-| `DROP_ENABLED` | `true` | Download the Spamhaus DROP lists from www.spamhaus.org and mark listed IPs and ASNs in the UI. Needs the scheduler. Set to false to stop the downloads and hide every DROP element. |
+| `DROP_ENABLED` | `true` | Download the Spamhaus DROP lists from www.spamhaus.org once a day (DROP_REFRESH_HOURS) and mark traffic from listed networks in the UI. Needs the scheduler. Set to false to stop the downloads and hide every DROP element. |
 
 ### OpenID Connect
 

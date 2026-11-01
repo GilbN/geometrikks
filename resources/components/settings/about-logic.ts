@@ -1,5 +1,7 @@
-import type { AboutResponse, GeoIpInfoView } from "@/generated/api/types.gen"
+import type { AboutResponse, DropListsAboutView, GeoIpInfoView } from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
+import { formatTs } from "@/lib/datetime"
+import { dropListsLastError, dropListsState } from "@/lib/drop-lists"
 import { displayVersion, publicVersion } from "@/lib/version"
 
 export interface SectionSummary {
@@ -76,12 +78,34 @@ function geoipPart(name: string, info: GeoIpInfoView): string {
   return `${name} ${info.ageDays} ${info.ageDays === 1 ? "day" : "days"} old`
 }
 
-export function geoipSummary(about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled">): SectionSummary {
+/**
+ * The DROP lists' light and state. Before the first download the light is
+ * grey, and amber once a download has failed, so a blocked host shows up.
+ */
+export function dropListsStatus(dropLists: DropListsAboutView): { tone: LedTone; label: string } {
+  const state = dropListsState(dropLists)
+  if (state === "not-downloaded") {
+    return { tone: dropListsLastError(dropLists.feeds) ? "amber" : "muted", label: "Not downloaded yet" }
+  }
+  const updatedAt = dropLists.updatedAt ? formatTs(dropLists.updatedAt, "hourly") : null
+  if (state === "stale") {
+    return { tone: "amber", label: updatedAt ? `Out of date, updated ${updatedAt}` : "Out of date" }
+  }
+  return { tone: "emerald", label: updatedAt ? `Updated ${updatedAt}` : "Downloaded" }
+}
+
+export function geoipSummary(
+  about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled" | "dropLists">,
+): SectionSummary {
   const asn = about.geoipAsnEnabled && about.geoipAsn ? about.geoipAsn : null
   const tones = [geoipFreshness(about.geoip.available, about.geoip.ageDays).tone]
   if (asn) tones.push(geoipFreshness(asn.available, asn.ageDays).tone)
-  const asnPart = asn ? geoipPart("ASN", asn) : "ASN disabled"
-  return { tone: worstTone(tones), text: `${geoipPart("City", about.geoip)}, ${asnPart}` }
+  const parts = [geoipPart("City", about.geoip), asn ? geoipPart("ASN", asn) : "ASN disabled"]
+  if (about.dropLists && dropListsStatus(about.dropLists).tone === "amber") {
+    tones.push("amber")
+    parts.push(dropListsState(about.dropLists) === "stale" ? "DROP out of date" : "DROP not downloaded")
+  }
+  return { tone: worstTone(tones), text: parts.join(", ") }
 }
 
 /** A row with a red or amber light starts open, so the problem shows without a tap. */

@@ -33,6 +33,25 @@ describe("asnCoverage", () => {
     expect(c.hostingShare).toBeCloseTo(60)
   })
 
+  it("reports the DROP share apart from the hosting share", () => {
+    const c = asnCoverage([{ category: "drop" as const, hits: 74_329 }, ...cats(431_200, 718_544)], 1_224_073)
+    expect(c.hostingShare).toBeCloseTo(35.2, 1)
+    expect(c.dropShare).toBeCloseTo(6.1, 1)
+    expect(c.dropHits).toBe(74_329)
+  })
+
+  it("has a zero DROP share when the lists are loaded but no traffic matched", () => {
+    const c = asnCoverage([{ category: "drop" as const, hits: 0 }, ...cats(50, 50)], 100)
+    expect(c.dropShare).toBe(0)
+    expect(c.dropHits).toBe(0)
+  })
+
+  it("has no DROP share without a drop entry", () => {
+    const c = asnCoverage(cats(60, 40), 100)
+    expect(c.dropShare).toBeNull()
+    expect(c.dropHits).toBe(0)
+  })
+
   it("has no data when nothing in the range is classified", () => {
     const c = asnCoverage(cats(0, 0), 5000)
     expect(c.hasData).toBe(false)

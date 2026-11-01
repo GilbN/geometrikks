@@ -6175,6 +6175,16 @@
             },
             "type": "array"
           },
+          "dropAsnCount": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "endDate": {
             "type": "string"
           },
@@ -6196,6 +6206,7 @@
         },
         "required": [
           "categories",
+          "dropAsnCount",
           "endDate",
           "items",
           "startDate",

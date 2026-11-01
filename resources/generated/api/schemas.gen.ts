@@ -5846,6 +5846,16 @@ export const TopAsnsResponseSchema = {
       },
       type: "array",
     },
+    dropAsnCount: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     endDate: {
       type: "string",
     },
@@ -5867,6 +5877,7 @@ export const TopAsnsResponseSchema = {
   },
   required: [
     "categories",
+    "dropAsnCount",
     "endDate",
     "items",
     "startDate",

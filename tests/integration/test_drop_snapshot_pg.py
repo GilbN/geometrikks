@@ -241,6 +241,7 @@ async def test_top_asns_has_no_drop_category_before_an_import(app_settings, pg_s
     body = response.json()
     assert [category["category"] for category in body["categories"]] == ["hosting", "other"]
     assert {item["asn"]: item["category"] for item in body["items"]} == {48090: "other", 24940: "hosting"}
+    assert body["dropAsnCount"] is None
 
 
 async def test_top_asns_lists_drop_first_after_an_import(app_settings, pg_session_maker, clean_tables):
@@ -258,6 +259,24 @@ async def test_top_asns_lists_drop_first_after_an_import(app_settings, pg_sessio
         ("other", 0, 0),
     ]
     assert {item["asn"]: item["category"] for item in body["items"]} == {48090: "drop", 24940: "hosting"}
+    assert body["dropAsnCount"] == 1
+
+
+async def test_top_asns_counts_drop_asns_beyond_the_returned_items(app_settings, pg_session_maker, clean_tables):
+    await seed_drop_asn_traffic(pg_session_maker)
+    async with pg_session_maker() as session:
+        for _ in range(5):
+            await _insert_asn_log(session, ts=NOW - timedelta(hours=1), asn=24940, asn_org="Hetzner Online GmbH")
+        await session.commit()
+    await import_fixture_lists(pg_session_maker)
+
+    async with AsyncTestClient(app=create_app(settings=app_settings)) as client:
+        response = await client.get("/api/v1/analytics/top-asns", params={**WINDOW, "limit": 1})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["asn"] for item in body["items"]] == [24940]
+    assert body["dropAsnCount"] == 1
 
 
 async def test_top_asns_ignores_imported_rows_when_disabled(migrated_database_url, pg_session_maker, clean_tables):
@@ -272,6 +291,7 @@ async def test_top_asns_ignores_imported_rows_when_disabled(migrated_database_ur
     body = response.json()
     assert [category["category"] for category in body["categories"]] == ["hosting", "other"]
     assert {item["asn"]: item["category"] for item in body["items"]}[48090] == "other"
+    assert body["dropAsnCount"] is None
 
 
 async def test_ip_profile_reports_the_drop_category(app_settings, pg_session_maker, clean_tables):

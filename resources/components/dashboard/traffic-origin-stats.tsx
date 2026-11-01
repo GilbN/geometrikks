@@ -10,7 +10,7 @@
  * The hook depends on AnalyticsFiltersContext, whose default is EMPTY_FILTERS
  * precisely so dashboard-shared hooks work outside the analytics provider.
  */
-import { Network, Server } from "lucide-react"
+import { Network, OctagonX, Server } from "lucide-react"
 
 import { ErrorBanner } from "@/components/error-banner"
 import { SectionHeader } from "@/components/section-header"
@@ -25,7 +25,7 @@ export function TrafficOriginStats() {
   // items[0] is shown; category totals are exact regardless of limit.
   const { data, isLoading, isError, error } = useTopAsns()
 
-  const { classified, hostingShare, coverage, hasData } = asnCoverage(
+  const { classified, hostingShare, dropShare, dropHits, coverage, hasData } = asnCoverage(
     data?.categories,
     data?.totalRequests ?? 0,
   )
@@ -66,11 +66,26 @@ export function TrafficOriginStats() {
   if (!data || !hasData) return null
 
   const top = data.items[0]
+  const dropNetworkCount = data.dropAsnCount
 
   return (
     <>
       <SectionHeader>Traffic Origin</SectionHeader>
-      <StatGrid>
+      <StatGrid className={dropShare !== null ? "md:grid-cols-3" : undefined}>
+        {dropShare !== null && (
+          <StatCard
+            title="DROP Traffic"
+            value={`${dropShare.toFixed(1)}%`}
+            valueClassName="text-destructive"
+            subtitle={
+              dropNetworkCount === null
+                ? `${formatNumber(dropHits)} requests from DROP networks`
+                : `${formatNumber(dropHits)} requests from ${formatNumber(dropNetworkCount)} DROP ${dropNetworkCount === 1 ? "network" : "networks"}`
+            }
+            icon={OctagonX}
+            iconClassName="text-destructive"
+          />
+        )}
         <StatCard
           title="Hosting Traffic"
           value={`${hostingShare.toFixed(1)}%`}

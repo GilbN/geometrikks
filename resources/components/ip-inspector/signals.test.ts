@@ -56,6 +56,11 @@ describe("computeSignals", () => {
     expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: null }))).toEqual(["hosting", "paths", "malformed"])
   })
 
+  it("flags a DROP ASN in red and not as hosting", () => {
+    const signals = computeSignals({ profile: profile({ asnCategory: "drop" }), banned: false, banCreatedAt: null })
+    expect(signals).toEqual([{ key: "drop-asn", label: "DROP ASN", tone: "red" }])
+  })
+
   it("flags a burst when one bucket holds half the traffic", () => {
     const p = profile({
       totalRequests: 100,

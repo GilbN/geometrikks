@@ -4,6 +4,7 @@ import {
   aboutDetailsText,
   buildDateLabel,
   databaseSummary,
+  dropListsStatus,
   geoipSummary,
   migrationStatus,
   runtimeLabel,
@@ -12,6 +13,7 @@ import {
   splitPath,
   startsOpen,
 } from "./about-logic"
+import { formatTs } from "@/lib/datetime"
 
 function makeAbout(overrides: Partial<AboutResponse> = {}): AboutResponse {
   return {
@@ -166,6 +168,32 @@ describe("section summaries", () => {
     })
   })
 
+  it("names DROP lists that are out of date or failed to download", () => {
+    const about = makeAbout()
+    const dropLists = {
+      enabled: true,
+      loaded: true,
+      stale: true,
+      updatedAt: "2026-10-20T06:14:00Z",
+      copyright: null,
+      termsUrl: "https://www.spamhaus.org/drop/terms/",
+      feeds: [],
+    }
+    expect(geoipSummary({ ...about, dropLists })).toEqual({
+      tone: "amber",
+      text: "City 7 days old, ASN 6 days old, DROP out of date",
+    })
+    const failed = {
+      ...dropLists,
+      loaded: false,
+      updatedAt: null,
+      feeds: [{ feed: "v4", recordCount: null, upstreamTimestamp: null, fetchedAt: null, checkedAt: null, lastError: "HTTP 403" }],
+    }
+    expect(geoipSummary({ ...about, dropLists: failed }).text).toBe("City 7 days old, ASN 6 days old, DROP not downloaded")
+    expect(geoipSummary({ ...about, dropLists: { ...dropLists, stale: false } }).text).toBe("City 7 days old, ASN 6 days old")
+    expect(geoipSummary({ ...about, dropLists: { ...failed, feeds: [] } }).tone).toBe("emerald")
+  })
+
   it("uses the singular for one day", () => {
     const about = makeAbout()
     expect(geoipSummary({ ...about, geoip: { ...about.geoip, ageDays: 1 } }).text).toBe("City 1 day old, ASN 6 days old")
@@ -176,6 +204,39 @@ describe("section summaries", () => {
     expect(startsOpen({ tone: "amber", text: "" })).toBe(true)
     expect(startsOpen({ tone: "emerald", text: "" })).toBe(false)
     expect(startsOpen({ tone: null, text: "" })).toBe(false)
+  })
+})
+
+describe("dropListsStatus", () => {
+  const dropLists = {
+    enabled: true,
+    loaded: true,
+    stale: false,
+    updatedAt: "2026-11-01T06:14:00Z",
+    copyright: "(c) 2026 The Spamhaus Project SLU",
+    termsUrl: "https://www.spamhaus.org/drop/terms/",
+    feeds: [],
+  }
+
+  it("shows the update time in local time", () => {
+    expect(dropListsStatus(dropLists)).toEqual({
+      tone: "emerald",
+      label: `Updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
+    })
+    expect(dropListsStatus({ ...dropLists, stale: true })).toEqual({
+      tone: "amber",
+      label: `Out of date, updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
+    })
+  })
+
+  it("is grey before the first download and amber after a failed one", () => {
+    const notLoaded = { ...dropLists, loaded: false, updatedAt: null }
+    expect(dropListsStatus(notLoaded)).toEqual({ tone: "muted", label: "Not downloaded yet" })
+    const failed = {
+      ...notLoaded,
+      feeds: [{ feed: "v4", recordCount: null, upstreamTimestamp: null, fetchedAt: null, checkedAt: null, lastError: "HTTP 403" }],
+    }
+    expect(dropListsStatus(failed)).toEqual({ tone: "amber", label: "Not downloaded yet" })
   })
 })
 

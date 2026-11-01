@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
 import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2 } from "lucide-react"
 import { toast } from "sonner"
-import type { AboutResponse } from "@/generated/api/types.gen"
+import type { AboutResponse, DropListsAboutView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
+import { dropFeedCounts, dropListsLastError } from "@/lib/drop-lists"
 import { useAbout, useReleaseCheck } from "@/lib/queries"
 import { releaseCheckLine, skippedReleasesText } from "@/lib/release-check"
 import { saveSeenRelease } from "@/lib/release-seen"
@@ -22,6 +23,7 @@ import {
   aboutDetailsText,
   buildDateLabel,
   databaseSummary,
+  dropListsStatus,
   geoipFreshness,
   geoipSummary,
   migrationStatus,
@@ -289,6 +291,77 @@ function InstallationCard({
   )
 }
 
+function DropListsState({ dropLists }: { dropLists: DropListsAboutView }) {
+  const status = dropListsStatus(dropLists)
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <StatusLed tone={status.tone} />
+      {status.label}
+    </span>
+  )
+}
+
+function DropTermsLink({ dropLists }: { dropLists: DropListsAboutView }) {
+  return (
+    <a
+      href={dropLists.termsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="tap-area whitespace-nowrap underline underline-offset-2"
+    >
+      Terms of use
+      <ExternalLink className="ml-1 inline size-3 align-[-1px]" />
+    </a>
+  )
+}
+
+/** The DROP lists under the hosting list: state, record counts, and why nothing downloaded. */
+function DropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
+  const lastError = dropListsLastError(dropLists.feeds)
+  return (
+    <div className="mt-3">
+      <Row label="DROP lists" value={<DropListsState dropLists={dropLists} />} />
+      {dropLists.loaded ? (
+        <>
+          <Row label="Records" value={<span className="break-normal">{dropFeedCounts(dropLists.feeds)}</span>} />
+          <p className="pt-2 text-xs text-muted-foreground">
+            Networks hijacked or run by spam and cybercrime operations; listed
+            ASNs are badged DROP.
+          </p>
+          <p className="pt-1 text-xs text-muted-foreground">
+            {dropLists.copyright && <>{dropLists.copyright} · </>}
+            <DropTermsLink dropLists={dropLists} />
+          </p>
+        </>
+      ) : (
+        lastError && (
+          <p className="pt-1.5 text-xs break-words text-muted-foreground">Last error: {lastError}</p>
+        )
+      )}
+    </div>
+  )
+}
+
+function PhoneDropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
+  const lastError = dropListsLastError(dropLists.feeds)
+  return (
+    <div className="mt-2.5">
+      <PhoneRow label="DROP lists" value={<DropListsState dropLists={dropLists} />} />
+      {dropLists.loaded ? (
+        <>
+          <PhoneRowDetail>{dropFeedCounts(dropLists.feeds)}</PhoneRowDetail>
+          <PhoneRowDetail>
+            {dropLists.copyright && <>{dropLists.copyright} · </>}
+            <DropTermsLink dropLists={dropLists} />
+          </PhoneRowDetail>
+        </>
+      ) : (
+        lastError && <PhoneRowDetail>Last error: {lastError}</PhoneRowDetail>
+      )}
+    </div>
+  )
+}
+
 function MaxMindAttribution() {
   return (
     <p className="mt-4 text-xs text-muted-foreground">
@@ -517,6 +590,7 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
           </p>
         )}
       </div>
+      {about.dropLists && <PhoneDropListsRows dropLists={about.dropLists} />}
       <MaxMindAttribution />
     </>
   )
@@ -748,6 +822,7 @@ export function AboutPage() {
                   ASN enrichment is turned off (GEOIP_ASN_ENABLED=false).
                 </p>
               )}
+              {data.dropLists && <DropListsRows dropLists={data.dropLists} />}
             </div>
           </div>
           <MaxMindAttribution />

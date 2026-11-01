@@ -669,8 +669,11 @@ class AnalyticsController(Controller):
 
         totals: dict[str, list[int]] = {"drop": [0, 0], "hosting": [0, 0], "other": [0, 0]}
         items: list[TopAsnDTO] = []
+        drop_asn_count = 0
         for row in rows:
             category = classify_asn(row.asn, drop_snapshot)
+            if category == "drop":
+                drop_asn_count += 1
             totals[category][0] += row.hits
             totals[category][1] += row.total_bytes
             if len(items) < limit:
@@ -710,6 +713,7 @@ class AnalyticsController(Controller):
                     total_bytes=totals["other"][1],
                 ),
             ],
+            drop_asn_count=drop_asn_count if drop_snapshot.loaded else None,
         )
 
     @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")

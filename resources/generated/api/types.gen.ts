@@ -1635,6 +1635,7 @@ export type TopAsnDto = {
  */
 export type TopAsnsResponse = {
   categories: Array<AsnCategoryTotalsDto>;
+  dropAsnCount: number | null;
   endDate: string;
   items: Array<TopAsnDto>;
   startDate: string;
