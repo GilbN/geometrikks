@@ -39,7 +39,7 @@ def decode_json_object(line: str) -> dict[str, Any] | None:
         # json.loads accepts lone surrogate escapes such as \ud800, and a
         # msgspec encoder then fails on the decoded string. msgspec rejects them.
         record = msgspec.json.decode(stripped)
-    except msgspec.DecodeError:
+    except (msgspec.DecodeError, RecursionError):
         return None
     return record if isinstance(record, dict) else None
 

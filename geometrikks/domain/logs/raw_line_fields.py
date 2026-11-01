@@ -16,6 +16,12 @@ from geometrikks.services.logparser.json_fields import (
     stored_columns,
 )
 
+# A line past any of these shows in the Raw view only. Every row on a debug
+# page goes through here, so one hostile line must not cost the whole page.
+_MAX_DEPTH = 16
+_MAX_FIELDS = 500
+_MAX_TEXT_CHARS = 64 * 1024
+
 _HEADER_GROUPS: dict[HeaderKind, RawLineFieldGroup] = {
     "request": "request_header",
     "response": "response_header",
@@ -37,20 +43,38 @@ def raw_line_fields(raw_line: str, *, linked: bool) -> RawLineFields | None:
     record = decode_json_object(raw_line)
     if record is None:
         return None
+    leaves = _leaves_within_budget(record)
+    if leaves is None:
+        return None
     line_format = accepting_json_format(raw_line) if linked else None
     stored = stored_columns(line_format, record) if line_format else {}
     return RawLineFields(
         format=line_format.name if line_format else None,
-        fields=[_field(key_path, value, stored.get(key_path)) for key_path, value in flatten(record)],
+        fields=[_field(key_path, value, stored.get(key_path)) for key_path, value in leaves],
     )
 
 
-def _field(key_path: KeyPath, value: Any, stored_as: str | None) -> RawLineField:
+def _leaves_within_budget(record: dict[str, Any]) -> list[tuple[KeyPath, str]] | None:
+    """Leaves with rendered values, or None at the first one past the budget."""
+    leaves: list[tuple[KeyPath, str]] = []
+    text_chars = 0
+    for key_path, value in flatten(record):
+        if len(key_path) > _MAX_DEPTH or len(leaves) == _MAX_FIELDS:
+            return None
+        rendered = _render(value)
+        text_chars += sum(len(key) for key in key_path) + len(rendered)
+        if text_chars > _MAX_TEXT_CHARS:
+            return None
+        leaves.append((key_path, rendered))
+    return leaves
+
+
+def _field(key_path: KeyPath, value: str, stored_as: str | None) -> RawLineField:
     header = header_name(key_path)
     if header is None:
-        return RawLineField(key=".".join(key_path), value=_render(value), group="field", stored_as=stored_as)
+        return RawLineField(key=".".join(key_path), value=value, group="field", stored_as=stored_as)
     kind, name = header
-    return RawLineField(key=name, value=_render(value), group=_HEADER_GROUPS[kind], stored_as=stored_as)
+    return RawLineField(key=name, value=value, group=_HEADER_GROUPS[kind], stored_as=stored_as)
 
 
 def _render(value: Any) -> str:

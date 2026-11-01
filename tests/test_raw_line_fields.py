@@ -252,12 +252,32 @@ class TestStoredMatchesParser:
 
 
 class TestOddInput:
-    def test_deep_nesting_is_flattened_without_recursion(self) -> None:
-        line = '{"a":' * 5000 + "0" + "}" * 5000
-        result = raw_line_fields(line, linked=False)
-        assert result is not None
-        assert len(result.fields) == 1
-        assert result.fields[0].key.count(".") == 4999
+    def test_flatten_walks_deep_nesting_without_recursion(self) -> None:
+        record = decode_json_object('{"a":' * 5000 + "0" + "}" * 5000)
+        assert record is not None
+        leaves = list(flatten(record))
+        assert len(leaves) == 1
+        assert len(leaves[0][0]) == 5000
+
+    def test_nesting_too_deep_for_the_decoder_keeps_the_raw_view_only(self) -> None:
+        assert raw_line_fields('{"a":' * 20000 + "0" + "}" * 20000, linked=False) is None
+
+    def test_nesting_past_the_depth_budget_keeps_the_raw_view_only(self) -> None:
+        assert raw_line_fields('{"a":' * 40 + "0" + "}" * 40, linked=False) is None
+
+    def test_sibling_leaves_at_every_level_keep_the_raw_view_only(self) -> None:
+        line = '{"leaf":0,"a":' * 2000 + "0" + "}" * 2000
+        assert raw_line_fields(line, linked=False) is None
+
+    def test_too_many_keys_keep_the_raw_view_only(self) -> None:
+        line = json.dumps({f"key{index}": index for index in range(1000)})
+        assert raw_line_fields(line, linked=False) is None
+
+    def test_a_huge_value_keeps_the_raw_view_only(self) -> None:
+        assert raw_line_fields(json.dumps({"msg": "x" * 200_000}), linked=False) is None
+
+    def test_a_normal_nested_caddy_line_stays_within_budget(self) -> None:
+        assert raw_line_fields(CADDY_LINE, linked=True) is not None
 
     def test_deep_nesting_keeps_memory_linear(self) -> None:
         record = decode_json_object('{"a":' * 5000 + "0" + "}" * 5000)
