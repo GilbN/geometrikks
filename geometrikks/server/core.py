@@ -12,6 +12,7 @@ from litestar.config.compression import CompressionConfig
 
 from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
+from geometrikks.server.api_key_auth import api_key_scope_guard
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
@@ -132,14 +133,17 @@ def create_app(
         compression_config=compression_config,
         exception_handlers=EXCEPTION_HANDLERS,
         on_app_init=on_app_init,
+        guards=[api_key_scope_guard],
     )
     if session_auth_enabled:
+        from geometrikks.server.api_key_store import SqlApiKeyRepository, install_api_key_store
         from geometrikks.server.session_store import (
             create_session_table_store,
             install_session_store,
         )
 
         install_session_store(app, create_session_table_store(db_config))
+        install_api_key_store(app, SqlApiKeyRepository(db_config))
     app.state.auth_state = auth_state
     app.state.oidc_client = oidc_client
     # Lifecycle hooks and other non-request code read the composed settings

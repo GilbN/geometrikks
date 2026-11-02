@@ -17,10 +17,13 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
+from geometrikks.server.api_key_auth import api_key_scope_guard
+from geometrikks.server.api_key_store import ApiKeyRepository, install_api_key_store
 from geometrikks.server.auth import AuthState, build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.routes import create_api_v1_router
 from geometrikks.server.session_store import install_session_store
+from tests.api_key_support import MemoryApiKeyRepository
 
 
 @get("/api/v1/protected")
@@ -39,6 +42,7 @@ def make_app(
     session_max_age: int | None = None,
     inner_store: Store | None = None,
     logging_config: BaseLoggingConfig | None = None,
+    api_key_repository: ApiKeyRepository | None = None,
     **settings_kwargs,
 ) -> Litestar:
     kwargs: dict[str, Any] = {"admin_user": "admin", "admin_password": "bestpasswordintheworldnojoke"}
@@ -57,10 +61,14 @@ def make_app(
         ],
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
+        guards=[api_key_scope_guard],
         plugins=[channels],
         logging_config=logging_config,
     )
     install_session_store(app, inner_store if inner_store is not None else MemoryStore())
+    install_api_key_store(
+        app, api_key_repository if api_key_repository is not None else MemoryApiKeyRepository()
+    )
     app.state.auth_state = build_auth_state(settings)
     # DB "available" so the authenticated branch streams rather than taking
     # the 1013-close (degraded) path.
@@ -78,6 +86,7 @@ def make_disabled_app() -> Litestar:
     app = Litestar(
         route_handlers=[create_api_v1_router([AuthController]), protected, fake_health],
         dependencies={"settings": create_settings_provider(settings)},
+        guards=[api_key_scope_guard],
         logging_config=None,
     )
     app.state.auth_state = None

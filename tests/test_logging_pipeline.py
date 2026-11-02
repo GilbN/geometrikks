@@ -427,6 +427,25 @@ class TestCreateLoggingConfig:
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "login_failed" in main.read_text(encoding="utf-8"))
 
+    def test_api_key_rejection_reaches_login_file_with_contract_format(self, configured_logging):
+        from geometrikks.server.api_key_auth import login_logger
+        login_logger.warning(
+            "api_key_rejected", user="gmk_Ve8s", ip="192.168.1.20", key="test-curl", reason="expired"
+        )
+        login = configured_logging / "login.log"
+        assert _wait_for(lambda: "api_key_rejected" in login.read_text(encoding="utf-8"))
+        line = login.read_text(encoding="utf-8").splitlines()[-1]
+        assert re.fullmatch(
+            r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z api_key_rejected user="gmk_Ve8s" ip=192\.168\.1\.20 key="test-curl"',
+            line,
+        ), line
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "api_key_rejected" in main.read_text(encoding="utf-8"))
+        main_line = [
+            logged_line for logged_line in main.read_text(encoding="utf-8").splitlines() if "api_key_rejected" in logged_line
+        ][-1]
+        assert json.loads(main_line)["reason"] == "expired"
+
     def test_other_loggers_do_not_reach_login_file(self, configured_logging):
         import structlog
         structlog.stdlib.get_logger("geometrikks.other").warning("not_a_login_event")
