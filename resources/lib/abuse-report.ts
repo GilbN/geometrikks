@@ -219,6 +219,12 @@ export function reportDropListings(report: AbuseReportResponse): ReportDropListi
   return { dropNetwork, asnDropAsn }
 }
 
+/** Which DROP badge the dialog title carries: the network listing wins, since it names the SBL record. */
+export function titleDropBadgeKind({ dropNetwork, asnDropAsn }: ReportDropListings): "network" | "asn" | null {
+  if (dropNetwork) return "network"
+  return asnDropAsn != null ? "asn" : null
+}
+
 /** Whether the report covers this target, whatever its time range, line count or address cap. */
 export function reportIsFor(report: AbuseReportResponse, target: AbuseReportTarget): boolean {
   if (target.kind === "ip") return report.target.kind === "ip" && report.target.ipAddress === target.ip

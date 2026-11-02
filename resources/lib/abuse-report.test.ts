@@ -13,6 +13,7 @@ import {
   reportFileName,
   reportIsFor,
   summarizeAlerts,
+  titleDropBadgeKind,
   wrap,
 } from "./abuse-report"
 
@@ -314,6 +315,32 @@ describe("reportDropListings and dropNoticeHeadline", () => {
       ips: [ip({ dropNetwork, asnDrop: true })],
     })
     expect(reportDropListings(asnReport)).toEqual({ dropNetwork: null, asnDropAsn: 64500 })
+  })
+})
+
+describe("titleDropBadgeKind", () => {
+  const dropNetwork = { cidr: "198.51.100.0/24", sblId: "SBL000042" }
+
+  it("prefers the network listing when both apply", () => {
+    expect(titleDropBadgeKind({ dropNetwork, asnDropAsn: 64500 })).toBe("network")
+    expect(titleDropBadgeKind({ dropNetwork, asnDropAsn: null })).toBe("network")
+  })
+
+  it("badges an IP whose ASN alone is on ASN-DROP", () => {
+    const listed = report({
+      target: { kind: "ip", ipAddress: "203.0.113.9", asn: 64500, asnOrganization: null, asnDrop: true },
+      ips: [ip({ ipAddress: "203.0.113.9", dropNetwork: null, asnDrop: true })],
+    })
+    expect(titleDropBadgeKind(reportDropListings(listed))).toBe("asn")
+  })
+
+  it("badges a listed ASN report and nothing when unlisted", () => {
+    const asnReport = report({
+      target: { kind: "asn", ipAddress: null, asn: 64500, asnOrganization: null, asnDrop: true },
+      ips: [ip({ dropNetwork, asnDrop: true })],
+    })
+    expect(titleDropBadgeKind(reportDropListings(asnReport))).toBe("asn")
+    expect(titleDropBadgeKind({ dropNetwork: null, asnDropAsn: null })).toBeNull()
   })
 })
 

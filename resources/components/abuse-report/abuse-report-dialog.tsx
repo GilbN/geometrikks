@@ -30,6 +30,7 @@ import {
   reportDropListings,
   reportFileName,
   reportIsFor,
+  titleDropBadgeKind,
   type ReportDropListings,
 } from "@/lib/abuse-report"
 import type { AbuseReportTarget } from "@/lib/api"
@@ -170,7 +171,7 @@ function AbuseReportBody({
   const title = target.kind === "asn" ? asLabel(target.asn, subject.organization) : target.ip
   const loading = report.isLoading || (report.isPlaceholderData && report.isFetching)
   const dropListings = data && (!report.isPlaceholderData || reportIsFor(data, target)) ? reportDropListings(data) : null
-  const titleDropBadge = target.kind === "asn" ? dropListings?.asnDropAsn != null : dropListings?.dropNetwork != null
+  const titleDropBadge = dropListings ? titleDropBadgeKind(dropListings) : null
 
   return (
     <div ref={container} className={cn("flex min-w-0 flex-col gap-4", expanded && "min-h-0 flex-1")}>
@@ -181,8 +182,8 @@ function AbuseReportBody({
           {titleDropBadge && (
             <DropBadge
               variant="short"
-              list={target.kind === "asn" ? "asn-drop" : "drop"}
-              sblId={dropListings?.dropNetwork?.sblId}
+              list={titleDropBadge === "asn" ? "asn-drop" : "drop"}
+              sblId={titleDropBadge === "network" ? dropListings?.dropNetwork?.sblId : undefined}
               className="shrink-0"
             />
           )}
