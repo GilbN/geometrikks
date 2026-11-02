@@ -182,6 +182,21 @@ def _client_ip_sql(column: str) -> str:
     )
 
 
+def _narrowest_network_sql(client_ip: str) -> str:
+    """LATERAL subquery giving the narrowest DROP network that holds ``client_ip``.
+
+    Each client counts under one network, the narrowest, as in the Python
+    snapshot and the browser. ``>>=`` keeps the probe on the GiST index.
+    """
+    return f"""(
+        SELECT cidr, sbl_id
+        FROM drop_networks
+        WHERE cidr >>= {client_ip}
+        ORDER BY masklen(cidr) DESC
+        LIMIT 1
+    )"""
+
+
 DROP_ORIGINS_STMT = text(
     f"""
     SELECT
@@ -191,8 +206,17 @@ DROP_ORIGINS_STMT = text(
         COUNT(*) AS row_count,
         MAX(al.timestamp) AS last_seen
     FROM drop_networks dn
-    JOIN access_logs al ON dn.cidr >>= {_client_ip_sql("al.ip_address")}
-    WHERE dn.cidr = ANY(:cidrs) AND al.timestamp >= :start AND al.timestamp < :end
+    JOIN (
+        SELECT {_client_ip_sql("ip_address")} AS client_ip, timestamp,
+            autonomous_system_number, autonomous_system_organization
+        FROM access_logs
+        WHERE timestamp >= :start AND timestamp < :end
+    ) al ON dn.cidr >>= al.client_ip
+    WHERE dn.cidr = ANY(:cidrs)
+        AND NOT EXISTS (
+            SELECT 1 FROM drop_networks narrower
+            WHERE narrower.cidr >>= al.client_ip AND masklen(narrower.cidr) > masklen(dn.cidr)
+        )
     GROUP BY dn.cidr, al.autonomous_system_number, al.autonomous_system_organization
     """
 ).bindparams(bindparam("cidrs", type_=postgresql.ARRAY(postgresql.CIDR)))
@@ -210,7 +234,8 @@ class DropTrafficRepository:
         Rows come busiest first. Windows over 24h read the per-IP CAGG and
         stitch raw access_logs for the edges the whole buckets do not cover,
         the way ``/analytics/top-ips`` does, so the result equals a raw scan.
-        An IPv4-mapped client and its plain IPv4 form count as one IP.
+        An IPv4-mapped client and its plain IPv4 form count as one IP, and a
+        client inside nested networks counts under the narrowest only.
         ``last_seen`` is exact when the newest request is in a raw edge and
         the start of its bucket otherwise.
         """
@@ -228,7 +253,7 @@ class DropTrafficRepository:
                     FROM log_ip_{granularity.value}_stats
                     WHERE bucket >= :a_start AND bucket < :a_end
                 ) s
-                JOIN drop_networks dn ON dn.cidr >>= s.client_ip
+                CROSS JOIN LATERAL {_narrowest_network_sql("s.client_ip")} dn
                 UNION ALL
             """
         raw_leg = f"""
@@ -238,7 +263,7 @@ class DropTrafficRepository:
                     FROM access_logs
                     WHERE timestamp >= :{{leg_start}} AND timestamp < :{{leg_end}}
                 ) al
-                JOIN drop_networks dn ON dn.cidr >>= al.client_ip
+                CROSS JOIN LATERAL {_narrowest_network_sql("al.client_ip")} dn
         """
         stmt = text(f"""
             WITH combined AS (

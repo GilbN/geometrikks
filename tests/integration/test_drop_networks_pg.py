@@ -318,3 +318,69 @@ async def test_last_seen_falls_back_to_the_newest_bucket_when_raw_rows_are_gone(
     )
     assert datetime.fromisoformat(small_traffic["lastSeen"]) == newest_bucket
     assert (small_traffic["asn"], small_traffic["asOrg"]) == (None, None)
+
+
+NESTED_NETWORK = "192.0.2.0/25"
+
+
+async def seed_nested_network(pg_session_maker, now: datetime) -> None:
+    """A /25 inside the fixture /24, holding every seeded 192.0.2.x client but one in the upper half."""
+    async with pg_session_maker() as session:
+        await session.execute(text(
+            "INSERT INTO drop_networks (cidr, sbl_id) VALUES (:cidr, 'SBL000009')"
+        ), {"cidr": NESTED_NETWORK})
+        await insert_log(session, ip="192.0.2.200", age=timedelta(hours=2), now=now, asn=64501, as_org="UPPER-AS")
+        await insert_log(session, ip="192.0.2.200", age=timedelta(days=2), now=now, asn=64501, as_org="UPPER-AS")
+        await session.commit()
+
+
+EXPECTED_NESTED_30_DAYS = [
+    (NESTED_NETWORK, "SBL000009", 4, 2),
+    (LONG_RANGE_NETWORK, "SBL000002", 2, 1),
+    (SMALL_NETWORK, "SBL000001", 2, 1),
+    (V6_NETWORK, "SBL000003", 1, 1),
+]
+
+
+async def test_a_client_in_nested_networks_counts_under_the_narrowest_only(pg_session_maker, pg_engine, seeded):
+    await seed_nested_network(pg_session_maker, seeded)
+
+    async with pg_session_maker() as session:
+        raw_hits = await DropTrafficRepository(session).network_hits(seeded - timedelta(hours=12), seeded)
+    assert summarize(raw_hits) == [(NESTED_NETWORK, "SBL000009", 2, 1), (LONG_RANGE_NETWORK, "SBL000002", 1, 1)]
+
+    assert summarize(await read_hits(pg_session_maker, seeded, 30)) == EXPECTED_NESTED_30_DAYS
+    await refresh_log_ip_caggs(pg_engine, seeded)
+    assert summarize(await read_hits(pg_session_maker, seeded, 30)) == EXPECTED_NESTED_30_DAYS
+    assert summarize(await read_hits(pg_session_maker, seeded, 90)) == [
+        (NESTED_NETWORK, "SBL000009", 5, 3),
+        (LONG_RANGE_NETWORK, "SBL000002", 2, 1),
+        (SMALL_NETWORK, "SBL000001", 2, 1),
+        (V6_NETWORK, "SBL000003", 1, 1),
+    ]
+
+
+async def test_origins_of_a_wider_network_leave_out_clients_of_a_nested_one(pg_session_maker, seeded):
+    await seed_nested_network(pg_session_maker, seeded)
+
+    async with pg_session_maker() as session:
+        origins = await DropTrafficRepository(session).network_origins(
+            [LONG_RANGE_NETWORK, NESTED_NETWORK], seeded - timedelta(days=30), seeded
+        )
+
+    assert (origins[NESTED_NETWORK].asn, origins[NESTED_NETWORK].as_org) == (64496, "EXAMPLE-AS")
+    assert (origins[LONG_RANGE_NETWORK].asn, origins[LONG_RANGE_NETWORK].as_org) == (64501, "UPPER-AS")
+    assert abs(origins[LONG_RANGE_NETWORK].last_seen - (seeded - timedelta(hours=2))) < timedelta(seconds=1)
+
+
+async def test_the_endpoint_totals_count_a_nested_client_once(
+    migrated_database_url, pg_session_maker, seeded, monkeypatch
+):
+    await seed_nested_network(pg_session_maker, seeded)
+    reset_drop_snapshot()
+    monkeypatch.setattr(runtime, "get_crowdsec_service", lambda app: ClosableFakeCrowdSec([]))
+
+    async with AsyncTestClient(app=create_app(settings=build_settings(migrated_database_url))) as client:
+        body = (await client.get("/api/v1/crowdsec/drop-networks?days=30")).json()
+
+    assert (body["totalNetworks"], body["totalIps"], body["totalHits"]) == (4, 5, 9)
