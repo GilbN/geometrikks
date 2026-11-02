@@ -10,6 +10,7 @@
  * The hook depends on AnalyticsFiltersContext, whose default is EMPTY_FILTERS
  * precisely so dashboard-shared hooks work outside the analytics provider.
  */
+import { Link } from "@tanstack/react-router"
 import { Network, OctagonX, Server } from "lucide-react"
 
 import { ErrorBanner } from "@/components/error-banner"
@@ -19,9 +20,12 @@ import { StatInfo } from "@/components/dashboard/stat-info"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
 import { dropTrafficSubtitle } from "@/lib/drop-lists"
-import { useTopAsns } from "@/lib/queries"
+import { useCrowdsecStatus, useTopAsns } from "@/lib/queries"
 
-function DropTrafficHelp() {
+const HELP_LINK_CLASS =
+  "tap-area underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
+
+function DropTrafficHelp({ securityLink }: { securityLink: boolean }) {
   return (
     <>
       <p>
@@ -32,6 +36,15 @@ function DropTrafficHelp() {
       <p>
         The name is the list's. GeoMetrikks has not dropped or blocked these
         requests.
+        {securityLink && (
+          <>
+            {" "}You can ban the networks under{" "}
+            <Link to="/security" hash="drop-networks" className={HELP_LINK_CLASS}>
+              Security &gt; DROP networks
+            </Link>
+            .
+          </>
+        )}
       </p>
     </>
   )
@@ -56,6 +69,7 @@ export function TrafficOriginStats() {
   // key and the analytics page's cached response could not be reused. Only
   // items[0] is shown; category totals are exact regardless of limit.
   const { data, isLoading, isError, error } = useTopAsns()
+  const { data: crowdsecStatus } = useCrowdsecStatus()
 
   const { classified, hostingShare, dropShare, dropHits, coverage, hasData } = asnCoverage(
     data?.categories,
@@ -109,7 +123,7 @@ export function TrafficOriginStats() {
             title="Spamhaus DROP"
             info={
               <StatInfo label="What Spamhaus DROP traffic is">
-                <DropTrafficHelp />
+                <DropTrafficHelp securityLink={crowdsecStatus?.enabled === true} />
               </StatInfo>
             }
             value={`${dropShare.toFixed(1)}%`}

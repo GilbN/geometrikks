@@ -158,3 +158,23 @@ def test_classify_asn_uses_the_given_snapshot_over_the_global_one(monkeypatch):
     assert classify_asn(64496, EMPTY_DROP_SNAPSHOT) == "other"
     monkeypatch.setattr(snapshot_module, "_snapshot", EMPTY_DROP_SNAPSHOT)
     assert classify_asn(64496, _snapshot()) == "drop"
+
+
+def test_networks_loaded_needs_a_network_feed():
+    fetched_at = datetime.now(UTC)
+    asn_only = DropSnapshot(feeds=(_feed_state("v4", None), _feed_state("v6", None), _feed_state("asn", fetched_at)))
+    v6_only = DropSnapshot(feeds=(_feed_state("v4", None), _feed_state("v6", fetched_at)))
+    assert asn_only.loaded is True
+    assert asn_only.networks_loaded is False
+    assert v6_only.networks_loaded is True
+    assert EMPTY_DROP_SNAPSHOT.networks_loaded is False
+
+
+def test_host_networks_holds_only_the_single_address_networks():
+    drop_snapshot = DropSnapshot(networks=(
+        DropNetworkMatch("192.0.2.7/32", "SBL000007"),
+        DropNetworkMatch("2001:db8::1/128", "SBL000008"),
+        DropNetworkMatch("198.51.100.0/24", "SBL000001"),
+    ))
+    assert drop_snapshot.host_networks == frozenset({"192.0.2.7/32", "2001:db8::1/128"})
+    assert EMPTY_DROP_SNAPSHOT.host_networks == frozenset()

@@ -2,12 +2,12 @@
  * TanStack Query hooks for GeoMetrikks API.
  */
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
 import type { LatestReleaseView } from "@/generated/api/types.gen"
-import { keepPreviousData, type InfiniteData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, type InfiniteData, type Query, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -50,6 +50,9 @@ import {
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
+  fetchCrowdsecBannedRanges,
+  fetchDropNetworks,
+  banDropNetworks,
   fetchCrowdsecStats,
   fetchCrowdsecDecisions,
   fetchCrowdsecAlerts,
@@ -63,6 +66,7 @@ import {
   fetchAbuseContact,
   type AbuseReportTarget,
   banIp,
+  unbanIp,
   parseTimeRange,
   resolveChartGranularity,
   type GeoLogSortField,
@@ -78,6 +82,7 @@ import {
   type SortOrder,
   type CrowdSecStatusResponse,
   type BannedIp,
+  type BannedRangeView,
   fetchAccessLogDebug,
   fetchAccessLogDebugStats,
   type AccessLogDebugPage,
@@ -85,7 +90,10 @@ import {
   type AccessLogDebugStats,
   type AlertPageView,
   fetchReleaseCheck,
+  fetchDropLists,
 } from "./api"
+import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
+import type { DropListsResponse } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -126,9 +134,14 @@ export const queryKeys = {
     database: ["system", "database"] as const,
     instances: ["system", "instances"] as const,
   },
+  drop: {
+    lists: ["drop", "lists"] as const,
+  },
   crowdsec: {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
+    bannedRanges: ["crowdsec", "banned-ranges"] as const,
+    dropNetworks: (params: Record<string, unknown>) => ["crowdsec", "drop-networks", params] as const,
     stats: ["crowdsec", "stats"] as const,
     bannedLocations: (params: Record<string, unknown>, refreshKey?: number) =>
       ["crowdsec", "banned-locations", params, refreshKey] as const,
@@ -273,6 +286,61 @@ export function useAbout() {
   })
 }
 
+export const DROP_LISTS_STALE_MS = 30 * 60_000
+export const DROP_LISTS_REFETCH_MS = 60 * 60_000
+
+// TanStack Query runs select once per observer, and every IP on screen is an
+// observer, so this caches the index per response.
+const dropIndexByNetworks = new WeakMap<DropListsResponse["networks"], DropIndex>()
+
+export function selectDropIndex(dropLists: DropListsResponse): DropIndex | null {
+  if (!dropLists.enabled || !dropLists.loaded) return null
+  let dropIndex = dropIndexByNetworks.get(dropLists.networks)
+  if (dropIndex === undefined) {
+    dropIndex = buildDropIndex(dropLists.networks)
+    dropIndexByNetworks.set(dropLists.networks, dropIndex)
+  }
+  return dropIndex
+}
+
+/**
+ * Query options for the DROP lists of one download. About's `updatedAt` is
+ * in the key, so a first download or a refresh fetches the new lists at once
+ * instead of waiting for the hourly poll.
+ */
+export function dropListsQueryOptions(updatedAt: string | null, enabled: boolean) {
+  return {
+    queryKey: [...queryKeys.drop.lists, updatedAt] as const,
+    queryFn: fetchDropLists,
+    enabled,
+    // A cached answer from while DROP was off or not downloaded is stale at once, so re-enabling refetches.
+    staleTime: (query: Query<DropListsResponse>) =>
+      query.state.data?.enabled && query.state.data.loaded ? DROP_LISTS_STALE_MS : 0,
+    refetchInterval: DROP_LISTS_REFETCH_MS,
+    // A new updatedAt is a new key. The old lists keep the underlines drawn until the new ones arrive.
+    placeholderData: keepPreviousData,
+    select: selectDropIndex,
+  }
+}
+
+/**
+ * The DROP networks as a lookup index. It fetches only after About reports
+ * the lists enabled and downloaded, so a disabled install never asks for them.
+ */
+export function useDropLists(): { data?: DropIndex; loaded: boolean } {
+  const { data: about } = useAbout()
+  const active = about?.dropLists?.enabled === true && about.dropLists.loaded
+  const { data: dropIndex } = useQuery(dropListsQueryOptions(about?.dropLists?.updatedAt ?? null, active))
+  if (!active || !dropIndex) return { loaded: false }
+  return { data: dropIndex, loaded: true }
+}
+
+/** The DROP network holding `ip`, or null while the lists are off, loading, or miss it. */
+export function useDropNetwork(ip: string): DropNetworkMatch | null {
+  const { data: dropIndex } = useDropLists()
+  return useMemo(() => (dropIndex ? matchDropNetwork(dropIndex, ip) : null), [dropIndex, ip])
+}
+
 export function useReleaseCheck() {
   return useQuery({
     queryKey: queryKeys.system.releaseCheck,
@@ -414,6 +482,63 @@ export function useBannedIps() {
   })
 }
 
+// Every IP menu is an observer, so the Map is cached per response like selectDropIndex.
+const bannedRangeMaps = new WeakMap<BannedRangeView[], Map<string, BannedRangeView>>()
+
+function selectBannedRanges(bannedRanges: BannedRangeView[]): Map<string, BannedRangeView> {
+  let bannedRangeMap = bannedRangeMaps.get(bannedRanges)
+  if (bannedRangeMap === undefined) {
+    bannedRangeMap = new Map(bannedRanges.map((bannedRange) => [bannedRange.value, bannedRange]))
+    bannedRangeMaps.set(bannedRanges, bannedRangeMap)
+  }
+  return bannedRangeMap
+}
+
+/** CIDR to its Range decision, for every range under one. /ws/crowdsec
+ *  carries IP decisions only, so this polls. With `active` false it never
+ *  asks the LAPI. */
+export function useBannedRanges(active = true) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.bannedRanges,
+    queryFn: fetchCrowdsecBannedRanges,
+    enabled: active && status?.enabled === true,
+    refetchInterval: 60_000,
+    select: selectBannedRanges,
+  })
+}
+
+export const DROP_NETWORKS_REFETCH_MS = 5 * 60_000
+
+/** Per-network DROP traffic for the Security card. It sits in the crowdsec group, so a
+ *  ban anywhere refreshes the statuses at once. Each answer aggregates the whole
+ *  window, so the poll is slow. With `active` false it never asks. */
+export function useDropNetworks(params: { days: 7 | 30 | 90; page: number; pageSize: number }, active = true) {
+  const { data: status } = useCrowdsecStatus()
+  return useQuery({
+    queryKey: queryKeys.crowdsec.dropNetworks(params),
+    queryFn: () => fetchDropNetworks(params),
+    enabled: active && status?.enabled === true,
+    placeholderData: keepPreviousData,
+    refetchInterval: DROP_NETWORKS_REFETCH_MS,
+    refetchOnWindowFocus: true,
+  })
+}
+
+/** Bans DROP networks in bulk, then refreshes every CrowdSec query, after a
+ *  failure too, since a 500 can follow bans that went through. */
+export function useBanDropNetworks() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: banDropNetworks,
+    // The promise is not returned, or mutateAsync would wait for the refetch,
+    // which takes the LAPI timeout when CrowdSec flakes.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["crowdsec"] })
+    },
+  })
+}
+
 /** GeoJSON for the Banned IPs layer, under every map filter. */
 export function useBannedLocations(active: boolean, filters: {
   countryCodes?: string[]; cities?: string[]; servers?: string[]
@@ -535,6 +660,15 @@ export function useBanIp() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: banIp,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
+  })
+}
+
+/** Unban an IP or range, then refresh badges, decisions, and stats. */
+export function useUnbanIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: unbanIp,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["crowdsec"] }),
   })
 }

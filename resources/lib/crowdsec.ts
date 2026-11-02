@@ -14,6 +14,11 @@ export const BAN_DURATIONS = [
   { label: "Forever", value: "87600h" },
 ] as const
 
+/** "for 4 hours", or "for good" rather than "for Forever". */
+export function forDuration(durationLabel: string): string {
+  return durationLabel === "Forever" ? "for good" : `for ${durationLabel}`
+}
+
 /** Full IPv4/IPv6 check. The backend validates against INET, so a partial
  * value (mid-typing) must never reach a request. */
 const IPV4_RE =

@@ -19,6 +19,7 @@ export type DateTime = string;
 /** All available route names */
 export type RouteName =
   | 'ban'
+  | 'ban_networks'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
@@ -70,7 +71,9 @@ export type RouteName =
   | 'list_alerts'
   | 'list_banned_ips'
   | 'list_banned_locations'
+  | 'list_banned_ranges'
   | 'list_decisions'
+  | 'list_drop_networks'
   | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
@@ -96,6 +99,7 @@ export type RouteName =
 /** Path parameter definitions per route */
 export interface RoutePathParams {
   'ban': Record<string, never>;
+  'ban_networks': Record<string, never>;
   'delete_instance': {
     instance_name: string;
   };
@@ -160,7 +164,9 @@ export interface RoutePathParams {
   'list_alerts': Record<string, never>;
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': Record<string, never>;
+  'list_banned_ranges': Record<string, never>;
   'list_decisions': Record<string, never>;
+  'list_drop_networks': Record<string, never>;
   'list_files': Record<string, never>;
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
@@ -189,6 +195,7 @@ export interface RoutePathParams {
 /** Query parameter definitions per route */
 export interface RouteQueryParams {
   'ban': Record<string, never>;
+  'ban_networks': Record<string, never>;
   'delete_instance': Record<string, never>;
   'delete_server_location': Record<string, never>;
   'download': Record<string, never>;
@@ -486,11 +493,17 @@ export interface RouteQueryParams {
     serverIn?: string[];
     toTimestamp?: DateTime;
   };
+  'list_banned_ranges': Record<string, never>;
   'list_decisions': {
     currentPage?: number;
     origins?: string;
     pageSize?: number;
     q?: string;
+  };
+  'list_drop_networks': {
+    days?: 7 | 30 | 90;
+    page?: number;
+    pageSize?: number;
   };
   'list_files': Record<string, never>;
   'list_geo_events': {
@@ -548,6 +561,13 @@ export type RouteParams<T extends RouteName> = MergeParams<RoutePathParams[T], R
 export const routeDefinitions = {
   'ban': {
     path: '/api/v1/crowdsec/ban',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'ban_networks': {
+    path: '/api/v1/crowdsec/ban-networks',
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
@@ -910,12 +930,26 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['city', 'countryCode', 'fromTimestamp', 'serverIn', 'toTimestamp'] as const,
   },
+  'list_banned_ranges': {
+    path: '/api/v1/crowdsec/banned-ranges',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'list_decisions': {
     path: '/api/v1/crowdsec/decisions',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
     queryParams: ['currentPage', 'origins', 'pageSize', 'q'] as const,
+  },
+  'list_drop_networks': {
+    path: '/api/v1/crowdsec/drop-networks',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['days', 'page', 'pageSize'] as const,
   },
   'list_files': {
     path: '/api/v1/logs/files',

@@ -15,6 +15,8 @@ import type { BannedMapIp, DecisionView } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { DropPopupCode } from "@/components/drop/drop-mark"
+import { DropPopupRow } from "./DropPopupRow"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { ExternalLinkButton } from "@/components/crowdsec/external-link"
 import type { DecisionRef } from "@/components/security/alert-detail-sheet"
@@ -99,6 +101,7 @@ function IpDetails({
           </span>
         }
       />
+      <DropPopupRow ip={member.ip} />
       <PopupRow label="Events" value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>} />
       <PopupRow label="Location" icon={<MapPin style={POPUP_ROW_ICON_STYLE} />} value={member.city ?? "Unknown"} />
       {member.countryCode && (
@@ -174,7 +177,7 @@ function IpList({ ips, onSelect }: { ips: BannedMapIp[]; onSelect: (ip: BannedMa
               textAlign: "left",
             }}
           >
-            <code style={POPUP_CODE_STYLE}>{ip.ip}</code>
+            <DropPopupCode ip={ip.ip} style={POPUP_CODE_STYLE} />
             <span style={{ fontSize: "10px", color: "var(--popup-muted)", flexShrink: 0 }}>
               <span style={{ fontWeight: 500, color: "var(--popup-fg)" }}>{formatNumber(ip.eventCount)}</span>
               {(ip.city ?? ip.countryCode) && (

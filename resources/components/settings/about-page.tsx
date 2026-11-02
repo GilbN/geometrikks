@@ -317,7 +317,7 @@ function DropTermsLink({ dropLists }: { dropLists: DropListsAboutView }) {
 }
 
 const DROP_LISTS_EXPLAINER =
-  "Networks hijacked or run by spam and cybercrime operations. Listed ASNs get a DROP badge."
+  "Networks hijacked or run by spam and cybercrime operations. Their IPs get a dashed red outline, and listed ASNs a DROP badge."
 
 const DROP_LISTS_PENDING = "The scheduler downloads the lists every DROP_REFRESH_HOURS, 24 hours by default."
 

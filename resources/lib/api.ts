@@ -49,7 +49,11 @@ import type {
   DecisionView,
   DecisionGroupView,
   BannedIp,
+  BannedRangeView,
   BannedMapCollection,
+  BanNetworksRequest,
+  BanNetworksResponse,
+  DropNetworksResponse,
   SessionUser,
   AuthDisabled,
   AuthOptions,
@@ -59,6 +63,7 @@ import type {
   LokiSourceStats,
   InstancesResponse,
   RawLineFields,
+  DropListsResponse,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -70,6 +75,7 @@ export type {
   ScenarioCount,
   DecisionView,
   BannedIp,
+  BannedRangeView,
   BannedMapCollection,
   AuthOptions,
   OidcStatus,
@@ -341,6 +347,11 @@ export async function fetchAbout(): Promise<AboutResponse> {
   return data
 }
 
+export async function fetchDropLists(): Promise<DropListsResponse> {
+  const { data } = await api.get<DropListsResponse>("/drop/lists")
+  return data
+}
+
 export async function fetchReleaseCheck(): Promise<ReleaseCheckResponse> {
   const { data } = await api.get<ReleaseCheckResponse>("/system/release-check")
   return data
@@ -396,6 +407,28 @@ export async function fetchCrowdsecDecisions(params?: {
 /** IPs under a current decision with the type to badge them as. */
 export async function fetchCrowdsecBannedIps(): Promise<BannedIp[]> {
   const { data } = await api.get<BannedIp[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Every CIDR under a current Range decision, which /crowdsec/banned-ips leaves out. */
+export async function fetchCrowdsecBannedRanges(): Promise<BannedRangeView[]> {
+  const { data } = await api.get<BannedRangeView[]>("/crowdsec/banned-ranges")
+  return data
+}
+
+/** Traffic from DROP-listed networks in the last `days`, busiest first, with each network's Range decision. */
+export async function fetchDropNetworks(params: {
+  days: 7 | 30 | 90
+  page: number
+  pageSize: number
+}): Promise<DropNetworksResponse> {
+  const { data } = await api.get<DropNetworksResponse>("/crowdsec/drop-networks", { params })
+  return data
+}
+
+/** Bans DROP networks as Range decisions and reports each one; one failure never stops the rest. */
+export async function banDropNetworks(body: BanNetworksRequest): Promise<BanNetworksResponse> {
+  const { data } = await api.post<BanNetworksResponse>("/crowdsec/ban-networks", body)
   return data
 }
 

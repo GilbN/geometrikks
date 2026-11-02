@@ -13,6 +13,7 @@ from geometrikks.services.crowdsec import (
     CrowdSecAuthError,
     CrowdSecService,
     CrowdSecUnavailableError,
+    CrowdSecUnreachableError,
     CrowdSecUnsupportedError,
     Decision,
 )
@@ -798,4 +799,54 @@ async def test_get_alert_parses_a_bot_detection_alert():
     assert event.meta["log_type"] == "appsec-challenge"
     assert event.meta["request_score_reasons"] == "cdp=100"
     assert event.meta["target_host"] == "gflix.app"
+    await service.aclose()
+
+
+@pytest.mark.parametrize(
+    "transport_error", [httpx2.ConnectError("refused"), httpx2.ReadTimeout("slow")], ids=["refused", "timeout"]
+)
+async def test_ban_raises_unreachable_when_the_lapi_does_not_answer(transport_error):
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/watchers/login":
+            return httpx2.Response(200, json={"token": "jwt-1", "expire": "2099-01-01T00:00:00Z"})
+        raise transport_error
+
+    service = make_service(respond, **write_settings())
+    with pytest.raises(CrowdSecUnreachableError):
+        await service.ban("1.2.3.4")
+    await service.aclose()
+
+
+async def test_ban_login_timeout_raises_unreachable():
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectTimeout("slow")
+
+    service = make_service(respond, **write_settings())
+    with pytest.raises(CrowdSecUnreachableError):
+        await service.ban("1.2.3.4")
+    await service.aclose()
+
+
+async def test_a_lapi_error_response_is_not_unreachable():
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/v1/watchers/login":
+            return httpx2.Response(200, json={"token": "jwt-1", "expire": "2099-01-01T00:00:00Z"})
+        return httpx2.Response(500)
+
+    service = make_service(respond, **write_settings())
+    with pytest.raises(CrowdSecUnavailableError) as raised:
+        await service.ban("1.2.3.4")
+    assert not isinstance(raised.value, CrowdSecUnreachableError)
+    await service.aclose()
+
+
+async def test_read_connection_failure_raises_unreachable():
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("boom")
+
+    service = make_service(respond)
+    with pytest.raises(CrowdSecUnreachableError):
+        await service.get_decisions()
+    with pytest.raises(CrowdSecUnreachableError):
+        await service.get_decisions_stream(startup=True)
     await service.aclose()

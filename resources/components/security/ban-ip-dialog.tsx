@@ -38,12 +38,22 @@ import {
 
 const CUSTOM_DURATION = "custom"
 
-function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boolean; onDone: () => void }) {
+function BanIpForm({
+  initialIp,
+  initialReason,
+  open,
+  onDone,
+}: {
+  initialIp: string
+  initialReason: string
+  open: boolean
+  onDone: () => void
+}) {
   const [ip, setIp] = useState(initialIp)
   const [type, setType] = useState<BanDecisionType>("ban")
   const [preset, setPreset] = useState<string>("4h")
   const [customDuration, setCustomDuration] = useState("")
-  const [reason, setReason] = useState("")
+  const [reason, setReason] = useState(initialReason)
   const [error, setError] = useState<string | null>(null)
   const ban = useBanIp()
   const rangeSize = rangeSizeLabel(ip.trim())
@@ -193,11 +203,14 @@ export function BanIpDialog({
   open,
   onOpenChange,
   initialIp = "",
+  initialReason = "",
   returnFocusTo,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** An IP or a CIDR range. */
   initialIp?: string
+  initialReason?: string
   /** Gets focus back on close. Without a trigger of its own the dialog
    *  would otherwise drop focus on the body. */
   returnFocusTo?: RefObject<HTMLElement | null>
@@ -219,7 +232,7 @@ export function BanIpDialog({
             Your bouncer enforces it.
           </DialogDescription>
         </DialogHeader>
-        <BanIpForm initialIp={initialIp} open={open} onDone={() => onOpenChange(false)} />
+        <BanIpForm initialIp={initialIp} initialReason={initialReason} open={open} onDone={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )

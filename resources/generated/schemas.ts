@@ -76,11 +76,16 @@ import type {
   ApiV1CrowdsecBanBanData,
   ApiV1CrowdsecBanBanErrors,
   ApiV1CrowdsecBanBanResponses,
+  ApiV1CrowdsecBanNetworksBanNetworksData,
+  ApiV1CrowdsecBanNetworksBanNetworksErrors,
+  ApiV1CrowdsecBanNetworksBanNetworksResponses,
   ApiV1CrowdsecBannedIpsListBannedIpsData,
   ApiV1CrowdsecBannedIpsListBannedIpsResponses,
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
   ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecBannedRangesListBannedRangesData,
+  ApiV1CrowdsecBannedRangesListBannedRangesResponses,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
@@ -90,6 +95,9 @@ import type {
   ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
   ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
   ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+  ApiV1CrowdsecDropNetworksListDropNetworksData,
+  ApiV1CrowdsecDropNetworksListDropNetworksErrors,
+  ApiV1CrowdsecDropNetworksListDropNetworksResponses,
   ApiV1CrowdsecStatsGetStatsData,
   ApiV1CrowdsecStatsGetStatsResponses,
   ApiV1CrowdsecStatusGetStatusData,
@@ -209,6 +217,7 @@ import type {
  */
 export type OperationName =
   | 'ban'
+  | 'ban_networks'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
@@ -260,7 +269,9 @@ export type OperationName =
   | 'list_alerts'
   | 'list_banned_ips'
   | 'list_banned_locations'
+  | 'list_banned_ranges'
   | 'list_decisions'
+  | 'list_drop_networks'
   | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
@@ -285,6 +296,7 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
+  'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksData
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
@@ -336,7 +348,9 @@ export interface OperationDataTypes {
   'list_alerts': ApiV1CrowdsecAlertsListAlertsData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsData
+  'list_banned_ranges': ApiV1CrowdsecBannedRangesListBannedRangesData
   'list_decisions': ApiV1CrowdsecDecisionsListDecisionsData
+  'list_drop_networks': ApiV1CrowdsecDropNetworksListDropNetworksData
   'list_files': ApiV1LogsFilesListFilesData
   'list_geo_events': ApiV1GeoEventsListGeoEventsData
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
@@ -362,6 +376,7 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
+  'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksResponses
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
@@ -413,7 +428,9 @@ export interface OperationResponseTypes {
   'list_alerts': ApiV1CrowdsecAlertsListAlertsResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsResponses
+  'list_banned_ranges': ApiV1CrowdsecBannedRangesListBannedRangesResponses
   'list_decisions': ApiV1CrowdsecDecisionsListDecisionsResponses
+  'list_drop_networks': ApiV1CrowdsecDropNetworksListDropNetworksResponses
   'list_files': ApiV1LogsFilesListFilesResponses
   'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
@@ -439,6 +456,7 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
+  'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksErrors
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
@@ -490,7 +508,9 @@ export interface OperationErrorTypes {
   'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors
   'list_banned_ips': never
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsErrors
+  'list_banned_ranges': never
   'list_decisions': ApiV1CrowdsecDecisionsListDecisionsErrors
+  'list_drop_networks': ApiV1CrowdsecDropNetworksListDropNetworksErrors
   'list_files': never
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors

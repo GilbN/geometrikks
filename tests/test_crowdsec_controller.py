@@ -1,22 +1,30 @@
 """CrowdSec API: status, decisions (paginated + enriched), lookup, stats."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from unittest.mock import AsyncMock
 
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from geometrikks.domain.security import controllers as security_controllers
 from geometrikks.domain.security.controllers import CrowdSecController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 from geometrikks.domain.security.schemas import IpEnrichment
-from geometrikks.services.crowdsec import CrowdSecService, Decision
+from geometrikks.domain.drop.snapshot import EMPTY_DROP_SNAPSHOT, DropNetworkMatch, DropSnapshot, FeedState
+from geometrikks.domain.security.repositories import DropTrafficRepository
+from geometrikks.domain.security.schemas import DropNetworkHits, DropNetworkOrigin
+from geometrikks.services.crowdsec import CrowdSecService, CrowdSecUnavailableError, CrowdSecUnreachableError, Decision
 from geometrikks.services.geoip.locator import GeoIpLocator, GeoIpPlace
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
 import pytest
+from structlog.testing import capture_logs
 
 pytestmark = pytest.mark.anyio
 
@@ -83,9 +91,18 @@ def make_app(
     geoip: GeoIpLocator | None = None,
     *,
     real_geoip: bool = False,
+    drop_snapshot: DropSnapshot = EMPTY_DROP_SNAPSHOT,
+    drop_traffic: DropTrafficRepository | None = None,
+    db_session: AsyncSession | None = None,
 ) -> Litestar:
     enrichment = enrichment if enrichment is not None else FakeEnrichment({})
-    overrides = {"enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False)}
+    db_session = db_session if db_session is not None else AsyncMock(spec=AsyncSession)
+    overrides = {
+        "db_session": Provide(lambda: db_session, sync_to_thread=False),
+        "enrichment_repo": Provide(lambda: enrichment, sync_to_thread=False),
+        "drop_snapshot": Provide(lambda: drop_snapshot, sync_to_thread=False),
+        "drop_traffic_repo": Provide(lambda: drop_traffic, sync_to_thread=False),
+    }
     if not real_geoip:
         overrides["geoip"] = Provide(lambda: geoip, sync_to_thread=False)
 
@@ -1316,3 +1333,634 @@ async def test_banned_map_keeps_every_ip_decision_normalizes_ips_and_forwards_fi
         "country_codes": ["NO", "SE"], "cities": ["Oslo"], "servers": ["a.test", "b.test"],
     }
     assert response.json()["stats"] == {"ips": 0, "locations": 0, "events": 0, "countries": 0, "cities": 0}
+
+
+# -- DROP networks: banned ranges, per-network traffic, bulk ban ------------
+
+DROP_FETCHED_AT = datetime(2026, 11, 1, 12, 0, tzinfo=UTC)
+DROP_SNAPSHOT = DropSnapshot(
+    networks=(
+        DropNetworkMatch("192.0.2.0/24", "SBL000002"),
+        DropNetworkMatch("198.51.100.0/24", "SBL000001"),
+        DropNetworkMatch("2001:db8::/32", "SBL000003"),
+    ),
+    feeds=(FeedState("v4", None, 2, None, DROP_FETCHED_AT, DROP_FETCHED_AT, None),),
+)
+
+
+class FakeDropTraffic(DropTrafficRepository):
+    def __init__(self, hits: list[DropNetworkHits], origins: dict[str, DropNetworkOrigin] | None = None) -> None:
+        self._hits = hits
+        self._origins = origins or {}
+        self.windows: list[timedelta] = []
+        self.origin_requests: list[list[str]] = []
+
+    async def network_hits(self, start, end):
+        self.windows.append(end - start)
+        return self._hits
+
+    async def network_origins(self, cidrs, start, end):
+        self.origin_requests.append(cidrs)
+        return {cidr: self._origins[cidr] for cidr in cidrs if cidr in self._origins}
+
+
+class UnreachableLapiCrowdSec(WritableFakeCrowdSec):
+    async def get_decisions(self, **filters: Any) -> list[Decision]:
+        raise CrowdSecUnavailableError("LAPI unreachable: boom")
+
+
+class CrashingSecondBanCrowdSec(WritableFakeCrowdSec):
+    """Raises something the bulk ban does not expect, on the second ban."""
+
+    async def ban(self, value, **kwargs):
+        if self.bans:
+            raise RuntimeError("unexpected")
+        await super().ban(value, **kwargs)
+
+
+class FailingSecondBanCrowdSec(WritableFakeCrowdSec):
+    """Raises on the second ban, the way a LAPI that drops mid-run would."""
+
+    async def ban(self, value, **kwargs):
+        if len(self.bans) == 1 and not getattr(self, "_failed", False):
+            self._failed = True
+            raise CrowdSecUnavailableError("LAPI unreachable: boom")
+        await super().ban(value, **kwargs)
+
+
+def range_decision(value: str, *, type: str = "ban", duration: str = "167h", **overrides: Any) -> Decision:
+    return make_decision(scope="Range", value=value, type=type, duration=duration, **overrides)
+
+
+async def test_banned_ranges_lists_only_range_decisions():
+    service = FakeCrowdSec([
+        make_decision(id=1, scope="Ip", value="192.0.2.5"),
+        range_decision("192.0.2.0/24", id=2),
+        make_decision(id=3, scope="Country", value="NO"),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [(banned_range["value"], banned_range["type"]) for banned_range in body] == [("192.0.2.0/24", "ban")]
+    expires_at = datetime.fromisoformat(body[0]["expiresAt"])
+    assert abs(expires_at - (datetime.now(UTC) + timedelta(hours=167))) < timedelta(minutes=1)
+
+
+async def test_banned_ranges_keeps_the_strongest_type_and_canonical_cidr():
+    service = FakeCrowdSec([
+        range_decision("2001:DB8::/32", type="captcha", id=1),
+        range_decision("2001:db8:0::/32", type="ban", id=2),
+        range_decision("10.0.0.5/24", type="captcha", id=3),
+    ])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert {banned_range["value"]: banned_range["type"] for banned_range in resp.json()} == {
+        "2001:db8::/32": "ban",
+        "10.0.0.0/24": "captcha",
+    }
+
+
+async def test_banned_ranges_404_when_crowdsec_is_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/banned-ranges")).status_code == 404
+
+
+DROP_HITS = [
+    DropNetworkHits(cidr="198.51.100.0/24", sbl_id="SBL000001", hits=50, ips=3, last_seen=None),
+    DropNetworkHits(cidr="192.0.2.0/24", sbl_id="SBL000002", hits=20, ips=1, last_seen=None),
+    DropNetworkHits(cidr="2001:db8::/32", sbl_id="SBL000003", hits=5, ips=2, last_seen=None),
+]
+
+
+async def get_drop_networks(query: str = "", *, service=None, hits=DROP_HITS, snapshot=DROP_SNAPSHOT):
+    origins = {
+        "198.51.100.0/24": DropNetworkOrigin(asn=64496, as_org="EXAMPLE-AS", last_seen=DROP_FETCHED_AT),
+    }
+    traffic = FakeDropTraffic(hits, origins)
+    app = make_app(service or FakeCrowdSec([]), drop_snapshot=snapshot, drop_traffic=traffic)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get(f"/api/v1/crowdsec/drop-networks{query}")
+    return resp, traffic
+
+
+async def test_drop_networks_returns_traffic_totals_and_decisions():
+    service = FakeCrowdSec([range_decision("192.0.2.0/24")])
+    resp, traffic = await get_drop_networks("?days=7", service=service)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert traffic.windows == [timedelta(days=7)]
+    assert {key: body[key] for key in ("loaded", "days", "totalNetworks", "totalIps", "totalHits", "bannedNetworks")} == {
+        "loaded": True, "days": 7, "totalNetworks": 3, "totalIps": 6, "totalHits": 75, "bannedNetworks": 1,
+    }
+    assert [network_traffic["cidr"] for network_traffic in body["items"]] == ["198.51.100.0/24", "192.0.2.0/24", "2001:db8::/32"]
+    first, second = body["items"][:2]
+    assert (first["sblId"], first["asn"], first["asOrg"], first["hits"], first["ips"]) == (
+        "SBL000001", 64496, "EXAMPLE-AS", 50, 3
+    )
+    assert first["lastSeen"] == "2026-11-01T12:00:00Z"
+    assert first["decision"] is None
+    assert second["decision"]["value"] == "192.0.2.0/24"
+    assert (second["asn"], second["asOrg"], second["lastSeen"]) == (None, None, None)
+
+
+async def test_drop_networks_looks_up_origins_for_the_page_only():
+    resp, traffic = await get_drop_networks("?page=2&pageSize=2")
+    assert [network_traffic["cidr"] for network_traffic in resp.json()["items"]] == ["2001:db8::/32"]
+    assert resp.json()["totalNetworks"] == 3
+    assert traffic.origin_requests == [["2001:db8::/32"]]
+
+
+async def test_drop_networks_reports_the_window_in_the_schema():
+    app = make_app(FakeCrowdSec([]))
+    parameters = app.openapi_schema.to_schema()["paths"]["/api/v1/crowdsec/drop-networks"]["get"]["parameters"]
+    days_parameter = next(parameter for parameter in parameters if parameter["name"] == "days")
+    assert days_parameter["schema"]["enum"] == [7, 30, 90]
+
+
+async def test_drop_networks_keeps_the_traffic_when_the_lapi_is_unreachable():
+    with capture_logs() as logged_events:
+        resp, _ = await get_drop_networks(service=UnreachableLapiCrowdSec())
+    assert resp.status_code == 200
+    warning_event = next(
+        event for event in logged_events if event["event"] == "crowdsec_range_decisions_unavailable"
+    )
+    assert warning_event["log_level"] == "warning"
+    assert "boom" in warning_event["error"]
+    body = resp.json()
+    assert body["decisionsAvailable"] is False
+    assert body["bannedNetworks"] == 0
+    assert [network_traffic["cidr"] for network_traffic in body["items"]] == ["198.51.100.0/24", "192.0.2.0/24", "2001:db8::/32"]
+    assert all(network_traffic["decision"] is None for network_traffic in body["items"])
+
+
+async def test_drop_networks_reports_decisions_as_available_normally():
+    resp, _ = await get_drop_networks()
+    assert resp.json()["decisionsAvailable"] is True
+
+
+async def test_drop_networks_falls_back_to_the_stitched_last_seen_without_raw_rows():
+    stitched_last_seen = datetime(2026, 10, 20, 8, 0, tzinfo=UTC)
+    stitched_hits = [DropNetworkHits(
+        cidr="192.0.2.0/24", sbl_id="SBL000002", hits=4, ips=1, last_seen=stitched_last_seen
+    )]
+    resp, _ = await get_drop_networks(hits=stitched_hits)
+    network_traffic = resp.json()["items"][0]
+    assert network_traffic["lastSeen"] == "2026-10-20T08:00:00Z"
+    assert network_traffic["asn"] is None
+
+
+async def test_drop_networks_rejects_other_windows():
+    resp, _ = await get_drop_networks("?days=14")
+    assert resp.status_code == 400
+
+
+async def test_drop_networks_is_empty_when_no_list_is_loaded():
+    resp, traffic = await get_drop_networks(snapshot=EMPTY_DROP_SNAPSHOT)
+    assert resp.status_code == 200
+    assert resp.json()["loaded"] is False
+    assert resp.json()["items"] == []
+    assert traffic.windows == []
+
+
+async def test_drop_networks_404_when_crowdsec_is_disabled():
+    async with AsyncTestClient(app=make_app(None)) as client:
+        assert (await client.get("/api/v1/crowdsec/drop-networks")).status_code == 404
+
+
+async def post_ban_networks(
+    monkeypatch, body: dict, *, service=None, hits=DROP_HITS, snapshot=DROP_SNAPSHOT, db_session=None
+) -> tuple[Any, WritableFakeCrowdSec, FakeDropTraffic]:
+    enable_write(monkeypatch)
+    service = service or WritableFakeCrowdSec()
+    traffic = FakeDropTraffic(hits)
+    app = make_app(service, drop_snapshot=snapshot, drop_traffic=traffic, db_session=db_session)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.post("/api/v1/crowdsec/ban-networks", json=body)
+    return resp, service, traffic
+
+
+async def test_ban_networks_bans_each_network_with_its_sbl_reason(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["192.0.2.0/24", "2001:db8::/32"], "duration": "7d"}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"results": [
+        {"network": "192.0.2.0/24", "ok": True, "error": None, "alreadyBanned": False},
+        {"network": "2001:db8::/32", "ok": True, "error": None, "alreadyBanned": False},
+    ], "leftOut": 0}
+    assert service.bans == [
+        {"value": "192.0.2.0/24", "scope": "Range", "type": "ban", "duration": "168h", "reason": "Spamhaus DROP SBL000002"},
+        {"value": "2001:db8::/32", "scope": "Range", "type": "ban", "duration": "168h", "reason": "Spamhaus DROP SBL000003"},
+    ]
+
+
+async def test_ban_networks_reports_a_failure_in_the_middle_and_keeps_going(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch,
+        {"networks": ["192.0.2.0/24", "198.51.100.0/24", "2001:db8::/32"], "duration": "24h"},
+        service=FailingSecondBanCrowdSec(),
+    )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert [result["ok"] for result in results] == [True, False, True]
+    assert "boom" in results[1]["error"]
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24", "2001:db8::/32"]
+
+
+async def test_ban_networks_rejects_a_network_that_is_not_on_the_list_and_bans_the_rest(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["203.0.113.0/24", "192.0.2.0/24", "nonsense"], "duration": "24h"}
+    )
+    results = resp.json()["results"]
+    assert [(result["network"], result["ok"]) for result in results] == [
+        ("203.0.113.0/24", False), ("192.0.2.0/24", True), ("nonsense", False),
+    ]
+    assert results[0]["error"] == "Not on the DROP list"
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24"]
+
+
+async def test_ban_networks_skips_a_listed_network_that_already_has_a_decision(monkeypatch):
+    service = WritableFakeCrowdSec([range_decision("192.0.2.0/24")])
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["192.0.2.0/24", "2001:db8::/32"], "duration": "24h"}, service=service
+    )
+    assert resp.json()["results"] == [
+        {"network": "192.0.2.0/24", "ok": True, "error": None, "alreadyBanned": True},
+        {"network": "2001:db8::/32", "ok": True, "error": None, "alreadyBanned": False},
+    ]
+    assert [ban["value"] for ban in service.bans] == ["2001:db8::/32"]
+
+
+async def test_ban_networks_still_bans_when_the_decision_lookup_fails(monkeypatch):
+    service = UnreachableLapiCrowdSec()
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["192.0.2.0/24"], "duration": "24h"}, service=service
+    )
+    assert resp.status_code == 200
+    assert [result["ok"] for result in resp.json()["results"]] == [True]
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24"]
+
+
+async def test_ban_networks_bans_a_network_whose_range_decision_has_expired(monkeypatch):
+    service = WritableFakeCrowdSec([range_decision("192.0.2.0/24", duration="-1h")])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        assert (await client.get("/api/v1/crowdsec/banned-ranges")).json() == []
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["192.0.2.0/24"], "duration": "24h"}, service=service
+    )
+    assert resp.json()["results"] == [
+        {"network": "192.0.2.0/24", "ok": True, "error": None, "alreadyBanned": False},
+    ]
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24"]
+
+
+HOST_PREFIX_SNAPSHOT = DropSnapshot(
+    networks=(
+        DropNetworkMatch("192.0.2.7/32", "SBL000007"),
+        DropNetworkMatch("2001:db8::1/128", "SBL000008"),
+    ),
+    feeds=(FeedState("v4", None, 2, None, DROP_FETCHED_AT, DROP_FETCHED_AT, None),),
+)
+
+
+async def test_ban_networks_bans_a_single_address_network_as_an_ip_the_way_ban_does(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch,
+        {"networks": ["192.0.2.7/32", "2001:db8::1/128"], "duration": "24h"},
+        snapshot=HOST_PREFIX_SNAPSHOT,
+    )
+    _, single_service = await post_ban(monkeypatch, {"ip": "192.0.2.7/32"})
+
+    assert [(result["network"], result["ok"]) for result in resp.json()["results"]] == [
+        ("192.0.2.7/32", True), ("2001:db8::1/128", True),
+    ]
+    assert [(ban["scope"], ban["value"]) for ban in service.bans] == [("Ip", "192.0.2.7"), ("Ip", "2001:db8::1")]
+    assert (single_service.bans[0]["scope"], single_service.bans[0]["value"]) == ("Ip", "192.0.2.7")
+
+
+class LapiStateCrowdSec(WritableFakeCrowdSec):
+    """Keeps the decisions its bans create, the way the LAPI does, and filters on scopes."""
+
+    async def get_decisions(self, **filters: Any) -> list[Decision]:
+        self.calls.append(filters)
+        scopes = filters.get("scopes")
+        if scopes is None:
+            return self._decisions
+        return [decision for decision in self._decisions if decision.scope in scopes.split(",")]
+
+    async def ban(self, value, *, scope="Ip", decision_type="ban", duration=None, reason=None):
+        await super().ban(value, scope=scope, decision_type=decision_type, duration=duration, reason=reason)
+        self._decisions.append(make_decision(
+            id=len(self._decisions) + 1, scope=scope, value=value, type=decision_type, duration=duration,
+        ))
+
+    async def unban(self, value, *, scope="Ip"):
+        self.unbans.append((value, scope))
+        kept_decisions = [
+            decision for decision in self._decisions if (decision.scope, decision.value) != (scope, value)
+        ]
+        deleted = len(self._decisions) - len(kept_decisions)
+        self._decisions = kept_decisions
+        return deleted
+
+
+@pytest.mark.parametrize(
+    ("host_network", "address"), [("192.0.2.7/32", "192.0.2.7"), ("2001:db8::1/128", "2001:db8::1")]
+)
+async def test_a_banned_single_address_network_reads_as_banned_until_unbanned(monkeypatch, host_network, address):
+    enable_write(monkeypatch)
+    service = LapiStateCrowdSec()
+    traffic = FakeDropTraffic([
+        DropNetworkHits(cidr=host_network, sbl_id="SBL000007", hits=4, ips=1, last_seen=None),
+    ])
+    app = make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT, drop_traffic=traffic)
+    ban_body = {"networks": [host_network], "duration": "24h"}
+    async with AsyncTestClient(app=app) as client:
+        first_run = (await client.post("/api/v1/crowdsec/ban-networks", json=ban_body)).json()
+        banned_ranges = (await client.get("/api/v1/crowdsec/banned-ranges")).json()
+        drop_networks = (await client.get("/api/v1/crowdsec/drop-networks")).json()
+        retry = (await client.post("/api/v1/crowdsec/ban-networks", json=ban_body)).json()
+        unban = await client.post("/api/v1/crowdsec/unban", json={"ip": host_network})
+        banned_ranges_after_unban = (await client.get("/api/v1/crowdsec/banned-ranges")).json()
+
+    assert first_run["results"] == [{"network": host_network, "ok": True, "error": None, "alreadyBanned": False}]
+    assert [(banned_range["value"], banned_range["type"]) for banned_range in banned_ranges] == [(host_network, "ban")]
+    assert drop_networks["bannedNetworks"] == 1
+    assert drop_networks["items"][0]["decision"]["value"] == host_network
+    assert retry["results"] == [{"network": host_network, "ok": True, "error": None, "alreadyBanned": True}]
+    assert [(ban["scope"], ban["value"]) for ban in service.bans] == [("Ip", address)]
+    assert unban.json() == {"deleted": 1}
+    assert service.unbans == [(address, "Ip")]
+    assert banned_ranges_after_unban == []
+
+
+async def test_banned_ranges_lists_an_ip_decision_only_for_a_single_address_drop_network():
+    service = LapiStateCrowdSec([
+        make_decision(id=1, scope="Ip", value="192.0.2.7"),
+        make_decision(id=2, scope="Ip", value="203.0.113.9"),
+        range_decision("198.51.100.0/24", id=3),
+    ])
+    async with AsyncTestClient(app=make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert sorted(banned_range["value"] for banned_range in resp.json()) == ["192.0.2.7/32", "198.51.100.0/24"]
+
+
+async def test_banned_ranges_asks_only_for_range_decisions_without_single_address_networks():
+    service = LapiStateCrowdSec([make_decision(id=1, scope="Ip", value="192.0.2.7")])
+    async with AsyncTestClient(app=make_app(service, drop_snapshot=DROP_SNAPSHOT)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert resp.json() == []
+    assert service.calls == [{"scopes": "Range"}]
+
+
+ASN_ONLY_SNAPSHOT = DropSnapshot(
+    networks=(),
+    feeds=(
+        FeedState("v4", None, None, None, None, DROP_FETCHED_AT, "HTTP 503"),
+        FeedState("v6", None, None, None, None, DROP_FETCHED_AT, "HTTP 503"),
+        FeedState("asn", None, 1, None, DROP_FETCHED_AT, DROP_FETCHED_AT, None),
+    ),
+)
+
+
+async def test_drop_networks_is_not_loaded_when_only_the_asn_feed_has_loaded():
+    resp, traffic = await get_drop_networks(snapshot=ASN_ONLY_SNAPSHOT)
+    assert resp.json()["loaded"] is False
+    assert traffic.windows == []
+
+
+async def test_ban_networks_with_all_unbanned_days_bans_nothing_when_only_the_asn_feed_has_loaded(monkeypatch):
+    resp, service, traffic = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 30, "duration": "24h"}, snapshot=ASN_ONLY_SNAPSHOT
+    )
+    assert resp.json() == {"results": [], "leftOut": 0}
+    assert service.bans == []
+    assert traffic.windows == []
+
+
+async def test_ban_networks_with_all_unbanned_days_skips_ranges_that_hold_a_decision(monkeypatch):
+    service = WritableFakeCrowdSec([range_decision("198.51.100.0/24")])
+    resp, service, traffic = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 90, "duration": "24h"}, service=service
+    )
+    assert resp.status_code == 200
+    assert [result["network"] for result in resp.json()["results"]] == ["192.0.2.0/24", "2001:db8::/32"]
+    assert [ban["reason"] for ban in service.bans] == ["Spamhaus DROP SBL000002", "Spamhaus DROP SBL000003"]
+    assert traffic.windows == [timedelta(days=90)]
+
+
+async def test_ban_networks_with_all_unbanned_days_bans_the_busiest_thousand_and_counts_the_rest(monkeypatch):
+    many_networks = [f"10.{index // 256}.{index % 256}.0/24" for index in range(1003)]
+    many_hits = [
+        DropNetworkHits(cidr=cidr, sbl_id=f"SBL{index:06d}", hits=2000 - index, ips=1, last_seen=None)
+        for index, cidr in enumerate(many_networks)
+    ]
+    many_snapshot = DropSnapshot(
+        networks=tuple(DropNetworkMatch(network_hits.cidr, network_hits.sbl_id) for network_hits in many_hits),
+        feeds=DROP_SNAPSHOT.feeds,
+    )
+    with capture_logs() as logged_events:
+        resp, service, _ = await post_ban_networks(
+            monkeypatch, {"allUnbannedDays": 7, "duration": "24h"},
+            hits=many_hits, snapshot=many_snapshot,
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["results"]) == 1000
+    assert body["leftOut"] == 3
+    assert [ban["value"] for ban in service.bans] == many_networks[:1000]
+    audit_event = next(event for event in logged_events if event["event"] == "crowdsec_bulk_ban")
+    assert (audit_event["ok"], audit_event["left_out"]) == (1000, 3)
+
+
+async def test_ban_networks_with_all_unbanned_days_reports_a_failure_and_keeps_going(monkeypatch):
+    service = FailingSecondBanCrowdSec()
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 30, "duration": "24h"}, service=service
+    )
+    assert [result["ok"] for result in resp.json()["results"]] == [True, False, True]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"duration": "24h"},
+        {"networks": ["192.0.2.0/24"], "allUnbannedDays": 7, "duration": "24h"},
+        {"networks": ["192.0.2.0/24"], "duration": "soon"},
+        {"allUnbannedDays": 14, "duration": "24h"},
+        {"networks": [f"10.{index // 256}.{index % 256}.0/24" for index in range(1001)], "duration": "24h"},
+    ],
+)
+async def test_ban_networks_rejects_a_bad_request(monkeypatch, body):
+    resp, service, _ = await post_ban_networks(monkeypatch, body)
+    assert resp.status_code == 400
+    assert service.bans == []
+
+
+async def test_ban_networks_requires_write_enabled(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://crowdsec:8080")
+    monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "key")
+    monkeypatch.delenv("CROWDSEC_MACHINE_ID", raising=False)
+    monkeypatch.delenv("CROWDSEC_MACHINE_PASSWORD", raising=False)
+    service = WritableFakeCrowdSec()
+    app = make_app(service, drop_snapshot=DROP_SNAPSHOT, drop_traffic=FakeDropTraffic([]))
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.post(
+            "/api/v1/crowdsec/ban-networks", json={"networks": ["192.0.2.0/24"], "duration": "24h"}
+        )
+    assert resp.status_code == 403
+    assert service.bans == []
+
+
+async def test_ban_networks_logs_who_banned_how_many(monkeypatch):
+    with capture_logs() as logged_events:
+        await post_ban_networks(
+            monkeypatch,
+            {"networks": ["192.0.2.0/24", "198.51.100.0/24", "2001:db8::/32"], "duration": "24h"},
+            service=FailingSecondBanCrowdSec(),
+        )
+    audit_event = next(event for event in logged_events if event["event"] == "crowdsec_bulk_ban")
+    assert (audit_event["actor"], audit_event["ok"], audit_event["failed"]) == ("unknown", 2, 1)
+    assert (audit_event["mode"], audit_event["completed"], audit_event["already_banned"]) == ("networks", True, 0)
+    assert (audit_event["stop_reason"], audit_event["not_attempted"]) == (None, 0)
+
+
+async def test_ban_networks_logs_the_audit_event_when_something_unexpected_escapes(monkeypatch):
+    enable_write(monkeypatch)
+    service = CrashingSecondBanCrowdSec()
+    app = make_app(service, drop_snapshot=DROP_SNAPSHOT, drop_traffic=FakeDropTraffic(DROP_HITS))
+    with capture_logs() as logged_events:
+        async with AsyncTestClient(app=app, raise_server_exceptions=False) as client:
+            resp = await client.post(
+                "/api/v1/crowdsec/ban-networks", json={"allUnbannedDays": 7, "duration": "24h"}
+            )
+    assert resp.status_code == 500
+    audit_event = next(event for event in logged_events if event["event"] == "crowdsec_bulk_ban")
+    assert (audit_event["mode"], audit_event["completed"], audit_event["ok"]) == ("allUnbannedDays", False, 1)
+
+
+SIX_NETWORKS = [f"203.0.{index}.0/24" for index in range(6)]
+SIX_NETWORK_SNAPSHOT = DropSnapshot(
+    networks=tuple(DropNetworkMatch(cidr, f"SBL10000{index}") for index, cidr in enumerate(SIX_NETWORKS)),
+    feeds=DROP_SNAPSHOT.feeds,
+)
+
+
+class ScriptedBanCrowdSec(WritableFakeCrowdSec):
+    """Answers each ban with the next scripted outcome: None bans, an exception is raised."""
+
+    def __init__(self, outcomes: list[Exception | None]) -> None:
+        super().__init__()
+        self._outcomes = outcomes
+        self.attempts: list[str] = []
+
+    async def ban(self, value, **kwargs):
+        self.attempts.append(value)
+        outcome = self._outcomes[len(self.attempts) - 1] if len(self.attempts) <= len(self._outcomes) else None
+        if outcome is not None:
+            raise outcome
+        await super().ban(value, **kwargs)
+
+
+class TimesOutFromTheSecondBanCrowdSec(WritableFakeCrowdSec):
+    def __init__(self) -> None:
+        super().__init__()
+        self.attempts: list[str] = []
+
+    async def ban(self, value, **kwargs):
+        self.attempts.append(value)
+        if len(self.attempts) >= 2:
+            raise CrowdSecUnreachableError("LAPI unreachable: timed out")
+        await super().ban(value, **kwargs)
+
+
+async def test_ban_networks_stops_after_three_unreachable_bans_in_a_row(monkeypatch):
+    service = TimesOutFromTheSecondBanCrowdSec()
+    with capture_logs() as logged_events:
+        resp, _, _ = await post_ban_networks(
+            monkeypatch, {"networks": SIX_NETWORKS, "duration": "24h"},
+            service=service, snapshot=SIX_NETWORK_SNAPSHOT,
+        )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert [(result["network"], result["ok"]) for result in results] == [(cidr, index == 0) for index, cidr in enumerate(SIX_NETWORKS)]
+    assert [result["error"] for result in results[1:4]] == ["LAPI unreachable: timed out"] * 3
+    assert [result["error"] for result in results[4:]] == ["not attempted: CrowdSec unreachable"] * 2
+    assert service.attempts == SIX_NETWORKS[:4]
+    audit_event = next(event for event in logged_events if event["event"] == "crowdsec_bulk_ban")
+    assert (audit_event["stop_reason"], audit_event["not_attempted"], audit_event["failed"]) == ("crowdsec_unreachable", 2, 5)
+    assert (audit_event["completed"], audit_event["ok"], audit_event["requested"]) == (True, 1, 6)
+
+
+async def test_ban_networks_keeps_going_when_a_ban_in_between_succeeds(monkeypatch):
+    unreachable = CrowdSecUnreachableError("LAPI unreachable: timed out")
+    service = ScriptedBanCrowdSec([unreachable, unreachable, None, unreachable, unreachable, None])
+    resp, _, _ = await post_ban_networks(
+        monkeypatch, {"networks": SIX_NETWORKS, "duration": "24h"}, service=service, snapshot=SIX_NETWORK_SNAPSHOT,
+    )
+    assert [result["ok"] for result in resp.json()["results"]] == [False, False, True, False, False, True]
+    assert service.attempts == SIX_NETWORKS
+
+
+async def test_ban_networks_does_not_stop_on_lapi_error_responses(monkeypatch):
+    rejected = CrowdSecUnavailableError("LAPI error: HTTP 500")
+    service = ScriptedBanCrowdSec([rejected] * 5)
+    resp, _, _ = await post_ban_networks(
+        monkeypatch, {"networks": SIX_NETWORKS, "duration": "24h"}, service=service, snapshot=SIX_NETWORK_SNAPSHOT,
+    )
+    assert [result["ok"] for result in resp.json()["results"]] == [False] * 5 + [True]
+    assert service.attempts == SIX_NETWORKS
+
+
+async def test_ban_networks_stops_at_the_time_limit(monkeypatch):
+    fake_now = [1000.0]
+    monkeypatch.setattr(security_controllers, "_bulk_ban_clock", lambda: fake_now[0])
+
+    class FiftySecondBanCrowdSec(WritableFakeCrowdSec):
+        async def ban(self, value, **kwargs):
+            fake_now[0] += 50
+            await super().ban(value, **kwargs)
+
+    service = FiftySecondBanCrowdSec()
+    with capture_logs() as logged_events:
+        resp, _, _ = await post_ban_networks(
+            monkeypatch, {"networks": SIX_NETWORKS, "duration": "24h"}, service=service, snapshot=SIX_NETWORK_SNAPSHOT,
+        )
+    assert resp.status_code == 200
+    results = resp.json()["results"]
+    assert [result["ok"] for result in results] == [True, True, True, False, False, False]
+    assert [result["error"] for result in results[3:]] == ["not attempted: time limit"] * 3
+    assert [ban["value"] for ban in service.bans] == SIX_NETWORKS[:3]
+    audit_event = next(event for event in logged_events if event["event"] == "crowdsec_bulk_ban")
+    assert (audit_event["stop_reason"], audit_event["not_attempted"]) == ("time_limit", 3)
+
+
+async def test_ban_networks_keeps_the_other_results_after_it_stops(monkeypatch):
+    service = TimesOutFromTheSecondBanCrowdSec()
+    requested_networks = [*SIX_NETWORKS[:5], "198.51.100.0/24", "nonsense"]
+    resp, _, _ = await post_ban_networks(
+        monkeypatch, {"networks": requested_networks, "duration": "24h"},
+        service=service, snapshot=SIX_NETWORK_SNAPSHOT,
+    )
+    results = resp.json()["results"]
+    assert [result["network"] for result in results] == requested_networks
+    assert results[4]["error"] == "not attempted: CrowdSec unreachable"
+    assert (results[5]["error"], results[6]["error"]) == ("Not on the DROP list", "Not a valid network")
+
+
+async def test_ban_networks_ends_the_read_transaction_before_banning(monkeypatch):
+    db_session = AsyncMock(spec=AsyncSession)
+
+    class SessionCheckingCrowdSec(WritableFakeCrowdSec):
+        async def ban(self, value, **kwargs):
+            assert db_session.rollback.await_count == 1
+            await super().ban(value, **kwargs)
+
+    service = SessionCheckingCrowdSec()
+    resp, _, _ = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 30, "duration": "24h"}, service=service, db_session=db_session,
+    )
+    assert [result["ok"] for result in resp.json()["results"]] == [True, True, True]
+    db_session.rollback.assert_awaited_once()
