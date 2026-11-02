@@ -236,6 +236,8 @@ class DropTrafficRepository:
         the way ``/analytics/top-ips`` does, so the result equals a raw scan.
         An IPv4-mapped client and its plain IPv4 form count as one IP, and a
         client inside nested networks counts under the narrowest only.
+        Each client's rows are summed before the network lookup, because the
+        CAGG holds a row per IP per bucket and a lookup per row took seconds.
         ``last_seen`` is exact when the newest request is in a raw edge and
         the start of its bucket otherwise.
         """
@@ -247,23 +249,15 @@ class DropTrafficRepository:
         else:
             params = stitch_params(start_ts, end_ts, granularity)
             cagg_leg = f"""
-                SELECT dn.cidr, dn.sbl_id, s.client_ip, s.hits, s.bucket AS seen_at
-                FROM (
-                    SELECT {_client_ip_sql("ip_address")} AS client_ip, hits, bucket
-                    FROM log_ip_{granularity.value}_stats
-                    WHERE bucket >= :a_start AND bucket < :a_end
-                ) s
-                CROSS JOIN LATERAL {_narrowest_network_sql("s.client_ip")} dn
+                SELECT {_client_ip_sql("ip_address")} AS client_ip, hits, bucket AS seen_at
+                FROM log_ip_{granularity.value}_stats
+                WHERE bucket >= :a_start AND bucket < :a_end
                 UNION ALL
             """
         raw_leg = f"""
-                SELECT dn.cidr, dn.sbl_id, al.client_ip, CAST(1 AS BIGINT) AS hits, al.timestamp AS seen_at
-                FROM (
-                    SELECT {_client_ip_sql("ip_address")} AS client_ip, timestamp
-                    FROM access_logs
-                    WHERE timestamp >= :{{leg_start}} AND timestamp < :{{leg_end}}
-                ) al
-                CROSS JOIN LATERAL {_narrowest_network_sql("al.client_ip")} dn
+                SELECT {_client_ip_sql("ip_address")} AS client_ip, CAST(1 AS BIGINT) AS hits, timestamp AS seen_at
+                FROM access_logs
+                WHERE timestamp >= :{{leg_start}} AND timestamp < :{{leg_end}}
         """
         stmt = text(f"""
             WITH combined AS (
@@ -271,15 +265,21 @@ class DropTrafficRepository:
                 {raw_leg.format(leg_start="start", leg_end="a_start")}
                 UNION ALL
                 {raw_leg.format(leg_start="a_end", leg_end="end")}
+            ),
+            per_client AS (
+                SELECT client_ip, SUM(hits) AS client_hits, MAX(seen_at) AS client_seen_at
+                FROM combined
+                GROUP BY client_ip
             )
             SELECT
-                cidr::text AS cidr,
-                sbl_id,
-                CAST(SUM(hits) AS BIGINT) AS hits,
-                CAST(COUNT(DISTINCT client_ip) AS BIGINT) AS ips,
-                MAX(seen_at) AS last_seen
-            FROM combined
-            GROUP BY cidr, sbl_id
+                dn.cidr::text AS cidr,
+                dn.sbl_id,
+                CAST(SUM(per_client.client_hits) AS BIGINT) AS hits,
+                CAST(COUNT(*) AS BIGINT) AS ips,
+                MAX(per_client.client_seen_at) AS last_seen
+            FROM per_client
+            CROSS JOIN LATERAL {_narrowest_network_sql("per_client.client_ip")} dn
+            GROUP BY dn.cidr, dn.sbl_id
             ORDER BY hits DESC, cidr
         """)
         result = await self.session.execute(stmt, params)
