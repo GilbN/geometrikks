@@ -1,7 +1,7 @@
-import { useId, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { CalendarDays, Check, Copy } from "lucide-react"
-import { toast } from "sonner"
 import type { CreatedApiKey } from "@/lib/api"
+import { copyText } from "@/lib/clipboard"
 import { useCreateApiKey } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
@@ -99,7 +99,10 @@ export function ApiKeyCreateForm({
     createApiKeyMutation.mutate(
       { name: name.trim(), scope, expiresAt: expiresAtFor(expiryChoice, pickedDate, new Date()) },
       {
-        onSuccess: onCreated,
+        onSuccess: (created) => {
+          createApiKeyMutation.reset()
+          onCreated(created)
+        },
         onError: (error) => setServerError(apiErrorMessage(error, "Could not create the key. Try again.")),
       },
     )
@@ -228,20 +231,26 @@ export function ApiKeyCreateForm({
   )
 }
 
-function canUseClipboard(): boolean {
-  return typeof window !== "undefined" && window.isSecureContext && Boolean(navigator.clipboard)
-}
-
 /**
- * The one-time reveal. Without the Clipboard API, as on plain http over a
- * LAN, the key sits in a read-only field that selects itself.
+ * The one-time reveal. Copy goes through copyText, which falls back to
+ * execCommand on plain http. Only if that fails too does the key move into a
+ * read-only field that selects itself for a manual copy.
  */
 export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDone: () => void }) {
   const [layoutRef, compact] = useNarrowLayout<HTMLDivElement>(COMPACT_WIDTH)
-  const [clipboardAvailable, setClipboardAvailable] = useState(canUseClipboard)
+  const [manualCopy, setManualCopy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const revealRef = useRef<HTMLDivElement | null>(null)
+  const copyButtonRef = useRef<HTMLButtonElement>(null)
   const keyFieldRef = useRef<HTMLTextAreaElement>(null)
   const copiedTimerRef = useRef<number | undefined>(undefined)
+  const setRevealElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      revealRef.current = element
+      layoutRef(element)
+    },
+    [layoutRef],
+  )
 
   const selectKey = () => {
     const keyField = keyFieldRef.current
@@ -250,12 +259,23 @@ export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDo
     keyField.setSelectionRange(0, keyField.value.length)
   }
 
+  // The form that had focus is gone; the copy control takes it, and moves
+  // with the layout when the host is narrow.
+  useEffect(() => {
+    if (!manualCopy) copyButtonRef.current?.focus()
+  }, [compact, manualCopy])
+
+  useEffect(() => {
+    if (manualCopy) selectKey()
+  }, [manualCopy])
+
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), [])
+
   const copyKey = async () => {
-    try {
-      await navigator.clipboard.writeText(created.key)
-    } catch {
-      setClipboardAvailable(false)
-      toast.error("The browser blocked the copy. Select the key and copy it.")
+    // Inside the reveal, or the host's focus trap steals the fallback's selection.
+    const copiedToClipboard = await copyText(created.key, { container: revealRef.current })
+    if (!copiedToClipboard) {
+      setManualCopy(true)
       return
     }
     setCopied(true)
@@ -264,22 +284,11 @@ export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDo
   }
 
   const example = curlExample(window.location.origin, created.apiKey.displayPrefix)
+  const copyIcon = copied ? <Check /> : <Copy />
 
   return (
-    <div ref={layoutRef} className="space-y-3">
-      {clipboardAvailable ? (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/[0.07] px-3 py-2.5">
-          <code aria-label="API key" className="min-w-0 flex-1 font-mono text-[12.5px] leading-relaxed break-all select-all">
-            {created.key}
-          </code>
-          {!compact && (
-            <Button type="button" size="sm" onClick={() => void copyKey()}>
-              {copied ? <Check /> : <Copy />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          )}
-        </div>
-      ) : (
+    <div ref={setRevealElement} className="space-y-3">
+      {manualCopy ? (
         <div className="space-y-2">
           <Textarea
             ref={keyFieldRef}
@@ -295,6 +304,18 @@ export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDo
             Select the key, then copy it
           </Button>
         </div>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/[0.07] px-3 py-2.5">
+          <code aria-label="API key" className="min-w-0 flex-1 font-mono text-[12.5px] leading-relaxed break-all select-all">
+            {created.key}
+          </code>
+          {!compact && (
+            <Button ref={copyButtonRef} type="button" size="sm" onClick={() => void copyKey()}>
+              {copyIcon}
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          )}
+        </div>
       )}
 
       <p className="rounded-r-lg border-l-[3px] border-amber-500 bg-amber-500/[0.07] px-3 py-2 text-[12.5px]">
@@ -303,15 +324,15 @@ export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDo
 
       <div className="space-y-1 text-xs text-muted-foreground">
         <p>Send it as a bearer token:</p>
-        <code className="block rounded-md bg-muted/60 px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-foreground break-all">
+        <code className="block rounded-md bg-muted/60 px-2.5 py-2 font-mono text-[11.5px] leading-relaxed text-foreground wrap-break-word">
           {example}
         </code>
       </div>
 
       <div className={cn("flex gap-2 pt-1", compact ? "flex-col" : "justify-end")}>
-        {compact && clipboardAvailable && (
-          <Button type="button" size="lg" className="w-full" onClick={() => void copyKey()}>
-            {copied ? <Check /> : <Copy />}
+        {compact && !manualCopy && (
+          <Button ref={copyButtonRef} type="button" size="lg" className="w-full" onClick={() => void copyKey()}>
+            {copyIcon}
             {copied ? "Copied" : "Copy key"}
           </Button>
         )}

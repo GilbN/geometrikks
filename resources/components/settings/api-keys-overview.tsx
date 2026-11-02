@@ -1,9 +1,10 @@
 import { useRef, useState } from "react"
+import { useIsMutating } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { KeyRound, Plus } from "lucide-react"
 import { toast } from "sonner"
 import type { ApiKeyView, CreatedApiKey } from "@/lib/api"
-import { useApiKeys, useRevokeApiKey } from "@/lib/queries"
+import { queryKeys, useApiKeys, useRevokeApiKey } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import {
   AlertDialog,
@@ -19,11 +20,18 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { MonoChip, StatusLed, type LedTone } from "@/components/settings/status-led"
+import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import { SectionIcon } from "@/components/settings/status-overview"
 import { ApiKeyCreateForm, ApiKeyReveal } from "@/components/settings/api-key-create"
 import {
@@ -31,6 +39,8 @@ import {
   createdKeyLine,
   expiryShort,
   formatKeyDate,
+  lastUsedDetail,
+  lastUsedLabel,
   lastUsedShort,
   scopeLabel,
   usageTone,
@@ -38,10 +48,11 @@ import {
 } from "@/components/settings/api-keys-logic"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 
-const USAGE_LED: Record<UsageTone, LedTone> = {
-  live: "emerald",
-  idle: "muted",
-  stale: "amber",
+/** Live glows green and stale amber, like the other status dots; idle is a plain grey dot. */
+function UsageDot({ tone }: { tone: UsageTone }) {
+  if (tone === "live") return <StatusLed tone="emerald" />
+  if (tone === "stale") return <StatusLed tone="amber" />
+  return <span className="inline-flex size-2 shrink-0 rounded-full bg-muted-foreground/60" />
 }
 
 export function ApiKeyScopeBadge({ apiKey }: { apiKey: ApiKeyView }) {
@@ -66,23 +77,25 @@ export function ApiKeyScopeBadge({ apiKey }: { apiKey: ApiKeyView }) {
   )
 }
 
+/** The dot and short text are visual; screen readers get the full sentence. */
 function LastUsedCell({ apiKey, now }: { apiKey: ApiKeyView; now: number }) {
+  const detail = lastUsedDetail(apiKey, now)
   const label = (
     <span className="inline-flex items-center gap-2">
-      <StatusLed tone={USAGE_LED[usageTone(apiKey, now)]} />
-      {lastUsedShort(apiKey, now)}
+      <UsageDot tone={usageTone(apiKey, now)} />
+      <span aria-hidden="true">{lastUsedShort(apiKey, now)}</span>
+      <span className="sr-only">{detail ?? lastUsedLabel(apiKey, now)}</span>
     </span>
   )
-  if (!apiKey.lastUsedIp) return label
+  if (!detail) return label
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span tabIndex={0} className="rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
           {label}
-          <span className="sr-only">, from {apiKey.lastUsedIp}</span>
         </span>
       </TooltipTrigger>
-      <TooltipContent>From {apiKey.lastUsedIp}</TooltipContent>
+      <TooltipContent aria-hidden="true">{detail}</TooltipContent>
     </Tooltip>
   )
 }
@@ -148,15 +161,27 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
   )
 }
 
-/** Create, then the one-time reveal in the same dialog. */
-export function CreateApiKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+/** The Create key button and its dialog: the form, then the one-time reveal. */
+export function CreateApiKeyDialog({ triggerRef }: { triggerRef?: React.Ref<HTMLButtonElement> }) {
+  const [open, setOpen] = useState(false)
   const [created, setCreated] = useState<CreatedApiKey | null>(null)
+  // Closing mid-request would unmount the form and lose the only response
+  // that carries the key.
+  const creating = useIsMutating({ mutationKey: queryKeys.auth.createApiKey }) > 0
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen || !creating) && setOpen(nextOpen)}>
+      <DialogTrigger asChild>
+        <Button ref={triggerRef} type="button">
+          <Plus />
+          Create key
+        </Button>
+      </DialogTrigger>
       <DialogContent
         className="sm:max-w-xl"
+        showCloseButton={!creating}
+        onEscapeKeyDown={(event) => creating && event.preventDefault()}
         // A stray click beside the reveal would throw the key away.
-        onInteractOutside={(event) => created && event.preventDefault()}
+        onInteractOutside={(event) => (creating || created) && event.preventDefault()}
         onCloseAutoFocus={() => setCreated(null)}
       >
         {created ? (
@@ -165,7 +190,7 @@ export function CreateApiKeyDialog({ open, onOpenChange }: { open: boolean; onOp
               <DialogTitle>Key created</DialogTitle>
               <DialogDescription>{createdKeyLine(created.apiKey)}</DialogDescription>
             </DialogHeader>
-            <ApiKeyReveal created={created} onDone={() => onOpenChange(false)} />
+            <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
           </>
         ) : (
           <>
@@ -175,20 +200,11 @@ export function CreateApiKeyDialog({ open, onOpenChange }: { open: boolean; onOp
                 Name it after whatever will use it, so you know what breaks when you revoke it.
               </DialogDescription>
             </DialogHeader>
-            <ApiKeyCreateForm onCreated={setCreated} onCancel={() => onOpenChange(false)} />
+            <ApiKeyCreateForm onCreated={setCreated} onCancel={() => setOpen(false)} />
           </>
         )}
       </DialogContent>
     </Dialog>
-  )
-}
-
-export function CreateApiKeyButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Button type="button" onClick={onClick}>
-      <Plus />
-      Create key
-    </Button>
   )
 }
 
@@ -247,7 +263,8 @@ function ApiKeysTable({
   )
 }
 
-export function ApiKeysOverview({ onCreate }: { onCreate: () => void }) {
+/** `focusOutsideList` takes focus when a revoke empties the list and the card goes with it. */
+export function ApiKeysOverview({ focusOutsideList }: { focusOutsideList: () => void }) {
   const { data, isError } = useApiKeys()
   const cardRef = useRef<HTMLDivElement>(null)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
@@ -296,20 +313,16 @@ export function ApiKeysOverview({ onCreate }: { onCreate: () => void }) {
   if (data.keys.length === 0) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+        <CardContent className="flex items-start gap-3">
           <SectionIcon icon={KeyRound} />
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium">No keys yet</p>
             <p className="max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
-              Create one key for each script, monitor or dashboard that reads GeoMetrikks. It sends the key in an{" "}
-              <MonoChip>Authorization: Bearer</MonoChip> header, and you can revoke it here without touching the
-              others.
+              Create one key for each script, monitor or dashboard that reads GeoMetrikks. Each tool sends its
+              key in an <MonoChip>Authorization: Bearer</MonoChip> header, and revoking one key leaves the others
+              working.
             </p>
           </div>
-          <Button type="button" variant="outline" onClick={onCreate}>
-            <Plus />
-            Create key
-          </Button>
         </CardContent>
       </Card>
     )
@@ -318,7 +331,11 @@ export function ApiKeysOverview({ onCreate }: { onCreate: () => void }) {
   return (
     <Card ref={cardRef} tabIndex={-1} aria-label="API keys" className="gap-0 py-0 outline-none">
       <div ref={layoutRef}>
-        <ApiKeysTable apiKeys={data.keys} narrow={narrow} onRevoked={() => cardRef.current?.focus()} />
+        <ApiKeysTable
+          apiKeys={data.keys}
+          narrow={narrow}
+          onRevoked={() => (data.keys.length > 1 ? cardRef.current?.focus() : focusOutsideList())}
+        />
       </div>
     </Card>
   )

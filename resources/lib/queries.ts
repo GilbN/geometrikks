@@ -127,6 +127,7 @@ export const queryKeys = {
     me: ["auth", "me"] as const,
     oidcStatus: ["auth", "oidc-status"] as const,
     apiKeys: ["auth", "api-keys"] as const,
+    createApiKey: ["auth", "api-keys", "create"] as const,
   },
   system: {
     settings: ["system", "settings"] as const,
@@ -462,14 +463,17 @@ export function useApiKeys() {
     queryKey: queryKeys.auth.apiKeys,
     queryFn: fetchApiKeys,
     refetchInterval: 30_000,
-    retry: 1,
   })
 }
 
 export function useCreateApiKey() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: queryKeys.auth.createApiKey,
     mutationFn: (payload: CreateApiKeyPayload) => createApiKey(payload),
+    // The response holds the full key. With gcTime 0 and a reset() from the
+    // caller once it has the key, no cache keeps it after the reveal.
+    gcTime: 0,
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.auth.apiKeys })
     },

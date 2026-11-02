@@ -47,6 +47,13 @@ export function lastUsedLabel(apiKey: ApiKeyView, now: number): string {
   return "Never used"
 }
 
+/** What the Last used cell's tooltip adds: the IP, or why a never-used key is flagged. */
+export function lastUsedDetail(apiKey: ApiKeyView, now: number): string | null {
+  if (apiKey.lastUsedIp) return `${lastUsedLabel(apiKey, now)} from ${apiKey.lastUsedIp}`
+  if (usageTone(apiKey, now) === "stale") return lastUsedLabel(apiKey, now)
+  return null
+}
+
 export function lastUsedShort(apiKey: ApiKeyView, now: number): string {
   return apiKey.lastUsedAt ? timeAgo(now - Date.parse(apiKey.lastUsedAt)) : "Never"
 }

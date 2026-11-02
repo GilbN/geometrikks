@@ -10,6 +10,7 @@ import {
   expiryLabel,
   expiryShort,
   formatKeyDate,
+  lastUsedDetail,
   lastUsedLabel,
   lastUsedShort,
   scopeLabel,
@@ -115,6 +116,25 @@ describe("lastUsedShort", () => {
   it("reads Never for a key never used, stale or not", () => {
     expect(lastUsedShort(makeKey(), NOW)).toBe("Never")
     expect(lastUsedShort(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe("Never")
+  })
+})
+
+describe("lastUsedDetail", () => {
+  it("names the last IP next to the time", () => {
+    const apiKey = makeKey({ lastUsedAt: isoAgo(3 * DAY), lastUsedIp: "192.168.1.20" })
+    expect(lastUsedDetail(apiKey, NOW)).toBe("Used 3 days ago from 192.168.1.20")
+  })
+
+  it("explains a stale key, which has no IP", () => {
+    expect(lastUsedDetail(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe("Never used, created 4 months ago")
+  })
+
+  it("has nothing to add for a new key never used", () => {
+    expect(lastUsedDetail(makeKey(), NOW)).toBeNull()
+  })
+
+  it("has nothing to add for a used key without an IP", () => {
+    expect(lastUsedDetail(makeKey({ lastUsedAt: isoAgo(HOUR) }), NOW)).toBeNull()
   })
 })
 
