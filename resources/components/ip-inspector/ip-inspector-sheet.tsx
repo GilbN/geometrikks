@@ -159,7 +159,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
                 {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
               </DecisionBadge>
             )}
-            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} />}
+            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
           </div>
         )}
       </header>

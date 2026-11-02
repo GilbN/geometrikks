@@ -32,6 +32,7 @@ import { TABLE_PAGE_SIZE, TablePaginationFooter } from "@/components/analytics/t
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { useFitLayout } from "@/components/data/narrow-layout"
 import { DropCredit } from "@/components/drop/drop-credit"
+import { SblRecordLink } from "@/components/drop/sbl-record-link"
 import type { BanNetworkResult, BanNetworksResponse, DropNetworkTrafficView } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
@@ -279,7 +280,9 @@ function DropNetworkRow({
   return (
     <TableRow>
       <TableCell className="font-mono">{dropNetwork.cidr}</TableCell>
-      <TableCell className="font-mono text-muted-foreground">{dropNetwork.sblId}</TableCell>
+      <TableCell className="font-mono text-muted-foreground">
+        {dropNetwork.sblId ? <SblRecordLink sblId={dropNetwork.sblId} /> : "-"}
+      </TableCell>
       <TableCell className="max-w-[16rem] truncate" title={dropNetwork.asOrg ?? undefined}>
         {asnText ? (
           <>

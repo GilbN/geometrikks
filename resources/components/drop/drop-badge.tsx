@@ -6,15 +6,19 @@
  */
 import { OctagonX } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { SblRecordLink } from "@/components/drop/sbl-record-link"
 import { cn } from "@/lib/utils"
 
 export function DropBadge({
   sblId,
   variant,
+  linked = false,
   className,
 }: {
   sblId?: string
   variant: "short" | "long" | "popup"
+  /** The long variant links its SBL id to the Spamhaus record. Off inside menus and dialog titles. */
+  linked?: boolean
   className?: string
 }) {
   const title = sblId ? `On the DROP list as ${sblId}` : "On the DROP list"
@@ -44,6 +48,7 @@ export function DropBadge({
       title={title}
       className={cn(
         "border-destructive/55 font-semibold tracking-[0.02em] text-destructive",
+        linked && "overflow-visible",
         className,
       )}
     >
@@ -52,7 +57,11 @@ export function DropBadge({
       {variant === "long" && sblId && (
         <>
           <span aria-hidden>·</span>
-          <span className="font-mono text-[11px] font-medium opacity-85">{sblId}</span>
+          {linked ? (
+            <SblRecordLink sblId={sblId} className="font-mono text-[11px] font-medium opacity-85 hover:text-current hover:opacity-100" />
+          ) : (
+            <span className="font-mono text-[11px] font-medium opacity-85">{sblId}</span>
+          )}
         </>
       )}
     </Badge>

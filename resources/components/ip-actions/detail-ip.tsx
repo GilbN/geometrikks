@@ -28,7 +28,7 @@ export function DetailIpBlock({ values, children }: { values: IpRowValues; child
           {(decision !== null || dropNetwork) && (
             <span className="flex items-center gap-2">
               {decision !== null && <DecisionBadge type={decision} />}
-              {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} />}
+              {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
             </span>
           )}
         </div>
