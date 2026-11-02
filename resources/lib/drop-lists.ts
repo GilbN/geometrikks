@@ -304,8 +304,25 @@ export function dropMarkTitle(sblId: string, decisionTitle?: string): string {
   return `${decisionTitle.replace(/\.$/, "")}. ${dropText}`
 }
 
-/** The screen-reader suffix after a marked IP. */
-export const DROP_MARK_SR_TEXT = ` (on the DROP list)`
+/** The screen-reader suffix after a marked IP. It names the SBL record, like the tooltip. */
+export function dropMarkSrText(sblId: string): string {
+  return sblId ? ` (on the DROP list as ${sblId})` : " (on the DROP list)"
+}
+
+export type DropNetworkBanState = "banned" | "unbanned" | "unknown"
+
+/** Whether the menu offers Ban or Unban for a DROP network. When the
+ *  banned-ranges read has failed with nothing cached the state is unknown,
+ *  as the Security card shows it, and neither is offered. */
+export function dropNetworkBanState(
+  cidr: string,
+  bannedRanges: { data?: ReadonlyMap<string, unknown>; isError: boolean },
+): DropNetworkBanState {
+  if (bannedRanges.data === undefined) return bannedRanges.isError ? "unknown" : "unbanned"
+  return bannedRanges.data.has(cidr) ? "banned" : "unbanned"
+}
+
+export const DROP_NETWORK_STATUS_UNKNOWN_TEXT = "DROP network status unknown"
 
 /** The reason on a DROP network ban. The decisions table shows it after the origin. */
 export function dropBanReason(sblId: string): string {

@@ -30,7 +30,7 @@ export function DetailIpBlock({ values, children }: { values: IpRowValues; child
           title={dropNetwork ? dropMarkTitle(dropNetwork.sblId) : undefined}
         >
           {values.ip}
-          {dropNetwork && <DropMarkSrText />}
+          {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
         </span>
         {decision !== null && <DecisionBadge type={decision} />}
         <span className="ml-auto flex shrink-0 items-center">

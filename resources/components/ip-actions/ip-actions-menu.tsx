@@ -46,7 +46,14 @@ import { scenarioText } from "@/lib/scenario-name"
 import { countryLabel, type FilterTarget, type IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
-import { dropBanReason, dropNetworkBannedText, dropNetworkUnbannedText, type DropNetworkMatch } from "@/lib/drop-lists"
+import {
+  DROP_NETWORK_STATUS_UNKNOWN_TEXT,
+  dropBanReason,
+  dropNetworkBannedText,
+  dropNetworkBanState,
+  dropNetworkUnbannedText,
+  type DropNetworkMatch,
+} from "@/lib/drop-lists"
 import { useBanIp, useBannedIps, useBannedRanges, useCrowdsecStatus, useDropNetwork, useIpDecisions, useUnbanIp } from "@/lib/queries"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
@@ -101,7 +108,11 @@ function filterActions(ip: string, target: FilterTarget): IpAction[] {
 
 function ActionDetail({ value }: { value?: string }) {
   if (value === undefined) return null
-  return <span className="ml-auto max-w-48 truncate pl-4 font-mono text-xs text-muted-foreground">{value}</span>
+  return (
+    <span className="ml-auto max-w-48 truncate pl-4 font-mono text-xs text-muted-foreground" title={value}>
+      {value}
+    </span>
+  )
 }
 
 type BanDuration = (typeof BAN_DURATIONS)[number]
@@ -113,7 +124,7 @@ function useDropNetworkBan(dropNetwork: DropNetworkMatch | null, active: boolean
   const unbanNetwork = useUnbanIp()
   const cidr = dropNetwork?.cidr ?? ""
   return {
-    banned: bannedRanges.data?.has(cidr) ?? false,
+    state: dropNetworkBanState(cidr, bannedRanges),
     busy: bannedRanges.isLoading || banNetwork.isPending || unbanNetwork.isPending,
     // mutate's own callbacks never run once a table refresh unmounts the
     // row, so the toasts hang off mutateAsync.
@@ -439,7 +450,13 @@ export function IpActionsMenu({
                     </div>
                   )}
                   {dropBanShown &&
-                    (dropNetworkBan.banned ? (
+                    (dropNetworkBan.state === "unknown" ? (
+                      <Button variant="ghost" className="h-11 justify-start gap-3 px-3 font-normal" disabled>
+                        <ShieldBan />
+                        {DROP_NETWORK_STATUS_UNKNOWN_TEXT}
+                        <ActionDetail value={dropNetwork.cidr} />
+                      </Button>
+                    ) : dropNetworkBan.state === "banned" ? (
                       <DrawerClose asChild>
                         <Button
                           variant="ghost"
@@ -573,7 +590,13 @@ export function IpActionsMenu({
                   </DropdownMenuSub>
                 )}
                 {dropBanShown &&
-                  (dropNetworkBan.banned ? (
+                  (dropNetworkBan.state === "unknown" ? (
+                    <DropdownMenuItem disabled>
+                      <ShieldBan />
+                      {DROP_NETWORK_STATUS_UNKNOWN_TEXT}
+                      <ActionDetail value={dropNetwork.cidr} />
+                    </DropdownMenuItem>
+                  ) : dropNetworkBan.state === "banned" ? (
                     <DropdownMenuItem disabled={dropNetworkBan.busy} onSelect={dropNetworkBan.unban}>
                       <ShieldOff />
                       Unban DROP network
@@ -597,7 +620,7 @@ export function IpActionsMenu({
                           {duration.label}
                         </DropdownMenuItem>
                       ))}
-                      <DropdownMenuItem className="pl-8" onSelect={openDropBanDialog}>
+                      <DropdownMenuItem className="pl-8" disabled={dropNetworkBan.busy} onSelect={openDropBanDialog}>
                         More options…
                       </DropdownMenuItem>
                     </DropdownMenuGroup>

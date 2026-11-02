@@ -37,7 +37,7 @@ export function IpLabel({
         title={dropNetwork ? dropMarkTitle(dropNetwork.sblId) : undefined}
       >
         {ip}
-        {dropNetwork && <DropMarkSrText />}
+        {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
       </span>
     )
   }
@@ -49,7 +49,7 @@ export function IpLabel({
     >
       {ip}
       <span className="sr-only"> ({decisionLabel(decision)})</span>
-      {dropNetwork && <DropMarkSrText />}
+      {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
     </span>
   )
 }

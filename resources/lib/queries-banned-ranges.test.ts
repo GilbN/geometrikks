@@ -58,3 +58,15 @@ it("looks ranges up by their exact CIDR", () => {
   expect(bannedRanges.get("192.0.2.0/24")).toEqual(bannedRange)
   expect(bannedRanges.has("192.0.2.0/25")).toBe(false)
 })
+
+it("builds one Map per response however many menus read it", () => {
+  for (let menuCount = 0; menuCount < 5; menuCount++) useBannedRanges()
+  const bannedRanges: BannedRangeView[] = [{ value: "192.0.2.0/24", type: "ban", expiresAt: null }]
+  const bannedRangesSelects = mocks.options
+    .filter((options) => options.queryKey[1] === "banned-ranges")
+    .map((options) => options.select)
+  const bannedRangeMaps = new Set(bannedRangesSelects.map((select) => select(bannedRanges)))
+  expect(bannedRangesSelects).toHaveLength(5)
+  expect(bannedRangeMaps.size).toBe(1)
+  expect(bannedRangesSelects[0](bannedRanges.slice())).not.toBe([...bannedRangeMaps][0])
+})

@@ -482,8 +482,16 @@ export function useBannedIps() {
   })
 }
 
+// Every IP menu is an observer, so the Map is cached per response like selectDropIndex.
+const bannedRangeMaps = new WeakMap<BannedRangeView[], Map<string, BannedRangeView>>()
+
 function selectBannedRanges(bannedRanges: BannedRangeView[]): Map<string, BannedRangeView> {
-  return new Map(bannedRanges.map((bannedRange) => [bannedRange.value, bannedRange]))
+  let bannedRangeMap = bannedRangeMaps.get(bannedRanges)
+  if (bannedRangeMap === undefined) {
+    bannedRangeMap = new Map(bannedRanges.map((bannedRange) => [bannedRange.value, bannedRange]))
+    bannedRangeMaps.set(bannedRanges, bannedRangeMap)
+  }
+  return bannedRangeMap
 }
 
 /** CIDR to its Range decision, for every range under one. /ws/crowdsec

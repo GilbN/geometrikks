@@ -4,6 +4,8 @@ import { formatTs } from "./datetime"
 import {
   dropAsnFreshness,
   dropAsnsLoaded,
+  dropMarkSrText,
+  dropNetworkBanState,
   dropNetworksLoaded,
   dropCreditText,
   dropFeedRecords,
@@ -297,6 +299,37 @@ describe("dropNetworksLoaded", () => {
     expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4" }), feedView({ feed: "v6", fetchedAt })] })).toBe(true)
     expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4", fetchedAt })] })).toBe(true)
     expect(dropNetworksLoaded(null)).toBe(false)
+  })
+})
+
+describe("dropMarkSrText", () => {
+  it("names the SBL record, like the tooltip", () => {
+    expect(dropMarkSrText("SBL000001")).toBe(" (on the DROP list as SBL000001)")
+  })
+
+  it("leaves out the record without an SBL id", () => {
+    expect(dropMarkSrText("")).toBe(" (on the DROP list)")
+  })
+})
+
+describe("dropNetworkBanState", () => {
+  const bannedRanges = new Map([["192.0.2.0/24", { value: "192.0.2.0/24" }]])
+
+  it("reads the network's Range decision", () => {
+    expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: false })).toBe("banned")
+    expect(dropNetworkBanState("198.51.100.0/24", { data: bannedRanges, isError: false })).toBe("unbanned")
+  })
+
+  it("is unknown when the read failed with nothing cached", () => {
+    expect(dropNetworkBanState("192.0.2.0/24", { data: undefined, isError: true })).toBe("unknown")
+  })
+
+  it("keeps the last answer when a refetch fails", () => {
+    expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: true })).toBe("banned")
+  })
+
+  it("offers Ban while the first read is loading", () => {
+    expect(dropNetworkBanState("192.0.2.0/24", { data: undefined, isError: false })).toBe("unbanned")
   })
 })
 

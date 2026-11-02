@@ -4,7 +4,7 @@
  * SBL record and screen readers get a text suffix.
  */
 import type { CSSProperties, ReactNode } from "react"
-import { DROP_MARK_SR_TEXT, dropMarkTitle } from "@/lib/drop-lists"
+import { dropMarkSrText, dropMarkTitle } from "@/lib/drop-lists"
 import { useDropNetwork } from "@/lib/queries"
 
 export const DROP_UNDERLINE_CLASS =
@@ -18,8 +18,8 @@ const DROP_UNDERLINE_STYLE: CSSProperties = {
   textUnderlineOffset: "3px",
 }
 
-export function DropMarkSrText() {
-  return <span className="sr-only">{DROP_MARK_SR_TEXT}</span>
+export function DropMarkSrText({ sblId }: { sblId: string }) {
+  return <span className="sr-only">{dropMarkSrText(sblId)}</span>
 }
 
 /** An IP inside a map popup, which styles inline rather than through utility classes. */
@@ -29,7 +29,7 @@ export function DropPopupIp({ ip, children }: { ip: string; children?: ReactNode
   return (
     <span style={DROP_UNDERLINE_STYLE} title={dropMarkTitle(dropNetwork.sblId)}>
       {children ?? ip}
-      <DropMarkSrText />
+      <DropMarkSrText sblId={dropNetwork.sblId} />
     </span>
   )
 }
