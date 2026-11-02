@@ -13,8 +13,10 @@ from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_502_BAD_GATEWAY
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.drop.dependencies import provide_drop_snapshot
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
-from geometrikks.domain.reports.abuse_report import AbuseReportRepository, ReportIp
+from geometrikks.domain.reports.abuse_report import AbuseReportRepository, ReportIp, mark_drop_listings
 from geometrikks.domain.reports.crowdsec import (
     ASN_ALERT_LIMIT,
     IP_ALERT_LIMIT,
@@ -29,6 +31,7 @@ from geometrikks.domain.reports.schemas import (
     ReportAlertDTO,
     ReportCrowdSec,
     ReportDecisionDTO,
+    ReportDropNetworkDTO,
     ReportIpDTO,
     ReportLineDTO,
     ReportPathDTO,
@@ -160,6 +163,12 @@ def _to_ip_dto(item: ReportIp, crowdsec: IpCrowdSec | None) -> ReportIpDTO:
             for a in crowdsec.alerts
         ],
         alerts_truncated=crowdsec.alerts_truncated,
+        drop_network=(
+            ReportDropNetworkDTO(cidr=item.drop_network.cidr, sbl_id=item.drop_network.sbl_id)
+            if item.drop_network
+            else None
+        ),
+        asn_drop=item.asn_drop,
     )
 
 
@@ -188,6 +197,7 @@ class ReportsController(Controller):
     dependencies = {
         "abuse_report_repo": Provide(provide_abuse_report_repo),
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
+        "drop_snapshot": Provide(provide_drop_snapshot),
         "rdap": Provide(provide_rdap_client, sync_to_thread=False),
     }
 
@@ -204,6 +214,7 @@ class ReportsController(Controller):
         self,
         abuse_report_repo: NamedDependency[AbuseReportRepository],
         crowdsec: NamedDependency[CrowdSecService | None],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         settings: NamedDependency[SkipValidation[Settings]],
         start_date: StartDate,
         end_date: EndDate,
@@ -236,6 +247,7 @@ class ReportsController(Controller):
         evidence = await abuse_report_repo.get_evidence(
             ips, start_date, end_date, lines_per_ip=lines_per_ip
         )
+        mark_drop_listings(evidence.ips, drop_snapshot)
         crowdsec_evidence = await gather_crowdsec(
             crowdsec, ips, start_date, end_date,
             alerts_enabled=settings.crowdsec.write_enabled,
@@ -245,14 +257,16 @@ class ReportsController(Controller):
         if selection is None:
             only = evidence.ips[0]
             target = ReportTarget(
-                kind="ip", ip_address=only.ip, asn=only.asn, asn_organization=only.asn_organization
+                kind="ip", ip_address=only.ip, asn=only.asn, asn_organization=only.asn_organization,
+                asn_drop=only.asn_drop,
             )
             ip_count = 1 if only.total_requests else 0
             total_requests = only.total_requests
             status_4xx = only.status_4xx
         else:
             target = ReportTarget(
-                kind="asn", ip_address=None, asn=asn, asn_organization=selection.organization
+                kind="asn", ip_address=None, asn=asn, asn_organization=selection.organization,
+                asn_drop=asn is not None and drop_snapshot.is_drop_asn(asn),
             )
             ip_count = selection.ip_count
             total_requests = selection.total_requests
@@ -265,6 +279,8 @@ class ReportsController(Controller):
             ips=len(ips),
             crowdsec=crowdsec_evidence.status,
             redactions=evidence.redactions,
+            asn_drop=target.asn_drop,
+            drop_networks=sum(item.drop_network is not None for item in evidence.ips),
         )
         return AbuseReportResponse(
             target=target,

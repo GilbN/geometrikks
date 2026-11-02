@@ -8,6 +8,7 @@ import type {
   AbuseReportResponse,
   ReportAlertDto,
   ReportDecisionDto,
+  ReportDropNetworkDto,
   ReportIpDto,
   ReportLineDto,
 } from "@/generated/api/types.gen"
@@ -196,10 +197,41 @@ function networkLabel(ip: ReportIpDto): string | null {
   return parts.length ? parts.join(", ") : null
 }
 
+/** "Spamhaus DROP SBL000042 (198.51.100.0/24), ASN-DROP AS64500", naming only the listings that apply. */
+function listedOn(ip: ReportIpDto): string | null {
+  const listings = []
+  if (ip.dropNetwork) listings.push(`Spamhaus DROP ${ip.dropNetwork.sblId} (${ip.dropNetwork.cidr})`)
+  if (ip.asnDrop && ip.asn != null) listings.push(`ASN-DROP AS${ip.asn}`)
+  return listings.length ? listings.join(", ") : null
+}
+
+export interface ReportDropListings {
+  dropNetwork: ReportDropNetworkDto | null
+  asnDropAsn: number | null
+}
+
+/** The DROP listings of the report's target. An ASN report has no single network, so only its ASN counts. */
+export function reportDropListings(report: AbuseReportResponse): ReportDropListings {
+  const { target } = report
+  const asnDropAsn = target.asnDrop && target.asn != null ? target.asn : null
+  const dropNetwork = target.kind === "ip" ? (report.ips[0]?.dropNetwork ?? null) : null
+  return { dropNetwork, asnDropAsn }
+}
+
+/** The bold first sentence of the dialog's DROP notice, or null when nothing is listed. */
+export function dropNoticeHeadline({ dropNetwork, asnDropAsn }: ReportDropListings): string | null {
+  const clauses = []
+  if (dropNetwork) clauses.push(`On the DROP list as ${dropNetwork.sblId} (${dropNetwork.cidr})`)
+  if (asnDropAsn != null) clauses.push(`AS${asnDropAsn} is on ASN-DROP`)
+  return clauses.length ? `${clauses.join(", and ")}.` : null
+}
+
 function ipSection(ip: ReportIpDto, report: AbuseReportResponse): string[] {
   const out = [`== ${ip.ipAddress} ==`]
   const network = networkLabel(ip)
   if (network) out.push(`Network: ${network}`)
+  const listings = listedOn(ip)
+  if (listings) out.push(`Listed on: ${listings}`)
   if (ip.totalRequests === 0) {
     out.push("No requests from this address in the reporting period.")
   } else {
@@ -364,6 +396,8 @@ export const CSV_COLUMNS = [
   "asn",
   "as_organization",
   "country",
+  "drop_network",
+  "drop_sbl",
   "method",
   "path",
   "http_version",
@@ -384,6 +418,8 @@ export function formatAbuseReportCsv(report: AbuseReportResponse): string {
           ip.asn,
           ip.asnOrganization,
           ip.countryCode,
+          ip.dropNetwork?.cidr,
+          ip.dropNetwork?.sblId,
           line.method,
           line.url,
           line.httpVersion,

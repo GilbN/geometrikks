@@ -4,7 +4,7 @@
  * from an RDAP lookup that runs only when asked for.
  */
 import { useMemo, useRef, useState } from "react"
-import { Check, Copy, Download, Loader2, MailWarning, Maximize2, Minimize2, RotateCw, Search, ShieldAlert } from "lucide-react"
+import { Check, Copy, Download, Loader2, MailWarning, Maximize2, Minimize2, OctagonX, RotateCw, Search, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,11 +20,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ExternalLink } from "@/components/crowdsec/external-link"
+import { DropBadge } from "@/components/drop/drop-badge"
+import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import type { AbuseContactResponse, AbuseReportResponse } from "@/generated/api/types.gen"
-import { formatAbuseReportCsv, formatAbuseReportText, reportFileName } from "@/lib/abuse-report"
+import {
+  dropNoticeHeadline,
+  formatAbuseReportCsv,
+  formatAbuseReportText,
+  reportDropListings,
+  reportFileName,
+  type ReportDropListings,
+} from "@/lib/abuse-report"
 import type { AbuseReportTarget } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
-import { useAbuseContact, useAbuseReport } from "@/lib/queries"
+import { dropBanReason, dropNetworkBanState } from "@/lib/drop-lists"
+import { useAbuseContact, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { formatTs } from "@/lib/datetime"
@@ -157,6 +167,8 @@ function AbuseReportBody({
 
   const title = target.kind === "asn" ? asLabel(target.asn, subject.organization) : target.ip
   const loading = report.isLoading || (report.isPlaceholderData && report.isFetching)
+  const dropListings = data && !report.isPlaceholderData ? reportDropListings(data) : null
+  const titleDropBadge = target.kind === "asn" ? dropListings?.asnDropAsn != null : dropListings?.dropNetwork != null
 
   return (
     <div ref={container} className={cn("flex min-w-0 flex-col gap-4", expanded && "min-h-0 flex-1")}>
@@ -164,6 +176,7 @@ function AbuseReportBody({
         <DialogTitle className="flex items-center gap-2 pr-6">
           <MailWarning className="size-4 shrink-0 text-muted-foreground" />
           Abuse report: <span className="min-w-0 font-mono wrap-anywhere">{title}</span>
+          {titleDropBadge && <DropBadge variant="short" sblId={dropListings?.dropNetwork?.sblId} className="shrink-0" />}
         </DialogTitle>
         <DialogDescription>{period}, times in UTC.</DialogDescription>
       </DialogHeader>
@@ -230,6 +243,8 @@ function AbuseReportBody({
           </ToggleGroup>
         </div>
       </div>
+
+      {!expanded && dropListings && <DropNotice listings={dropListings} />}
 
       {!expanded && (
       <ContactPanel
@@ -312,6 +327,64 @@ function AbuseReportBody({
           {copied ? "Copied" : "Copy"}
         </Button>
       </DialogFooter>
+    </div>
+  )
+}
+
+/** Says the target is on a DROP list, links its SBL record, and offers the network ban. */
+function DropNotice({ listings }: { listings: ReportDropListings }) {
+  const { dropNetwork, asnDropAsn } = listings
+  const { data: status } = useCrowdsecStatus()
+  const banAvailable = status?.writeEnabled === true && dropNetwork !== null
+  const bannedRanges = useBannedRanges(banAvailable)
+  const [banDialogOpen, setBanDialogOpen] = useState(false)
+  const banButtonRef = useRef<HTMLButtonElement>(null)
+  const headline = dropNoticeHeadline(listings)
+  if (headline === null) return null
+  const banShown = banAvailable && dropNetworkBanState(dropNetwork.cidr, bannedRanges) === "unbanned"
+  const lists = dropNetwork !== null && asnDropAsn !== null ? "These lists hold" : "The list holds"
+  return (
+    <div className="flex gap-2 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs">
+      <OctagonX aria-hidden className="mt-px size-3.5 shrink-0 text-destructive" />
+      <div className="@container/drop-notice min-w-0 flex-1 space-y-1">
+        <p>
+          <strong className="font-semibold text-destructive">{headline}</strong> {lists} networks that are hijacked or
+          run by spam and cybercrime operations. The abuse contact below may belong to the same people, so a report
+          there may go nowhere. If the address block is leased, the contact may be the leasing company, which can act
+          on it.
+        </p>
+        {dropNetwork && (
+          <p className="flex flex-wrap items-center gap-x-2">
+            <ExternalLink href="https://check.spamhaus.org/" className="pointer-coarse:min-h-8">
+              View {dropNetwork.sblId}
+            </ExternalLink>
+            {banShown && (
+              <>
+                <span aria-hidden className="text-muted-foreground @max-[16rem]/drop-notice:hidden">
+                  ·
+                </span>
+                <button
+                  ref={banButtonRef}
+                  type="button"
+                  className="underline-offset-2 hover:underline pointer-coarse:min-h-8"
+                  onClick={() => setBanDialogOpen(true)}
+                >
+                  Ban DROP network…
+                </button>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+      {dropNetwork && (
+        <BanIpDialog
+          open={banDialogOpen}
+          onOpenChange={setBanDialogOpen}
+          initialIp={dropNetwork.cidr}
+          initialReason={dropBanReason(dropNetwork.sblId)}
+          returnFocusTo={banButtonRef}
+        />
+      )}
     </div>
   )
 }

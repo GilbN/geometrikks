@@ -4,10 +4,12 @@ import {
   CSV_COLUMNS,
   WRAP_WIDTH,
   behaviorFindings,
+  dropNoticeHeadline,
   formatAbuseReportCsv,
   formatAbuseReportText,
   groupDecisions,
   logLine,
+  reportDropListings,
   reportFileName,
   summarizeAlerts,
   wrap,
@@ -47,6 +49,8 @@ function ip(overrides: Partial<ReportIpDto> = {}): ReportIpDto {
     decisions: [],
     alerts: [],
     alertsTruncated: false,
+    dropNetwork: null,
+    asnDrop: false,
     ...overrides,
   }
 }
@@ -66,7 +70,7 @@ function alert(overrides: Partial<ReportAlertDto> = {}): ReportAlertDto {
 
 function report(overrides: Partial<AbuseReportResponse> = {}): AbuseReportResponse {
   return {
-    target: { kind: "ip", ipAddress: "198.51.100.7", asn: 64500, asnOrganization: "Example Hosting" },
+    target: { kind: "ip", ipAddress: "198.51.100.7", asn: 64500, asnOrganization: "Example Hosting", asnDrop: false },
     startDate: "2026-09-19T12:00:00+00:00",
     endDate: "2026-09-26T12:00:00+00:00",
     generatedAt: "2026-09-26T12:00:05+00:00",
@@ -195,7 +199,7 @@ describe("formatAbuseReportText", () => {
   it("lists the busiest addresses of an ASN", () => {
     const text = formatAbuseReportText(
       report({
-        target: { kind: "asn", ipAddress: null, asn: 64500, asnOrganization: "Example Hosting" },
+        target: { kind: "asn", ipAddress: null, asn: 64500, asnOrganization: "Example Hosting", asnDrop: false },
         ipCount: 40,
         totalRequests: 900,
         status4xx: 630,
@@ -240,13 +244,71 @@ describe("formatAbuseReportText", () => {
   })
 })
 
+describe("DROP listings in the text", () => {
+  const listedIp = ip({ dropNetwork: { cidr: "198.51.100.0/24", sblId: "SBL000042" }, asnDrop: true })
+
+  it("adds the Listed on line after the Network line", () => {
+    const lines = formatAbuseReportText(report({ ips: [listedIp] })).split("\n")
+    const network = lines.indexOf("Network: AS64500 Example Hosting, US")
+    expect(lines[network + 1]).toBe("Listed on: Spamhaus DROP SBL000042 (198.51.100.0/24), ASN-DROP AS64500")
+  })
+
+  it("lists only the listings that apply", () => {
+    const networkOnly = formatAbuseReportText(report({ ips: [ip({ dropNetwork: listedIp.dropNetwork })] }))
+    const asnOnly = formatAbuseReportText(report({ ips: [ip({ asnDrop: true })] }))
+    expect(networkOnly).toContain("\nListed on: Spamhaus DROP SBL000042 (198.51.100.0/24)\n")
+    expect(asnOnly).toContain("\nListed on: ASN-DROP AS64500\n")
+  })
+
+  it("has no Listed on line without a listing", () => {
+    expect(formatAbuseReportText(report())).not.toContain("Listed on:")
+  })
+})
+
+describe("reportDropListings and dropNoticeHeadline", () => {
+  const dropNetwork = { cidr: "198.51.100.0/24", sblId: "SBL000042" }
+
+  it("names the network and the ASN of an IP report", () => {
+    const listed = report({
+      target: { kind: "ip", ipAddress: "198.51.100.7", asn: 64500, asnOrganization: null, asnDrop: true },
+      ips: [ip({ dropNetwork, asnDrop: true })],
+    })
+    const listings = reportDropListings(listed)
+    expect(listings).toEqual({ dropNetwork, asnDropAsn: 64500 })
+    expect(dropNoticeHeadline(listings)).toBe("On the DROP list as SBL000042 (198.51.100.0/24), and AS64500 is on ASN-DROP.")
+  })
+
+  it("names one listing alone", () => {
+    expect(dropNoticeHeadline({ dropNetwork, asnDropAsn: null })).toBe("On the DROP list as SBL000042 (198.51.100.0/24).")
+    expect(dropNoticeHeadline({ dropNetwork: null, asnDropAsn: 64500 })).toBe("AS64500 is on ASN-DROP.")
+    expect(dropNoticeHeadline({ dropNetwork: null, asnDropAsn: null })).toBeNull()
+  })
+
+  it("reads an ASN report from the target only", () => {
+    const asnReport = report({
+      target: { kind: "asn", ipAddress: null, asn: 64500, asnOrganization: null, asnDrop: true },
+      ips: [ip({ dropNetwork, asnDrop: true })],
+    })
+    expect(reportDropListings(asnReport)).toEqual({ dropNetwork: null, asnDropAsn: 64500 })
+  })
+})
+
 describe("formatAbuseReportCsv", () => {
   it("writes one row per log line, quoted per RFC 4180", () => {
     const rows = formatAbuseReportCsv(report()).trimEnd().split("\r\n")
     expect(rows[0]).toBe(CSV_COLUMNS.join(","))
-    expect(rows[1]).toBe(
-      '2026-09-25T09:30:00.000Z,198.51.100.7,64500,Example Hosting,US,GET,/.env,HTTP/1.1,404,153,"say ""hi"""',
+    expect(rows[0]).toBe(
+      "timestamp_utc,source_ip,asn,as_organization,country,drop_network,drop_sbl,method,path,http_version,status,bytes,user_agent",
     )
+    expect(rows[1]).toBe(
+      '2026-09-25T09:30:00.000Z,198.51.100.7,64500,Example Hosting,US,,,GET,/.env,HTTP/1.1,404,153,"say ""hi"""',
+    )
+  })
+
+  it("fills the DROP columns for a listed IP", () => {
+    const listed = ip({ dropNetwork: { cidr: "198.51.100.0/24", sblId: "SBL000042" } })
+    const rows = formatAbuseReportCsv(report({ ips: [listed] })).trimEnd().split("\r\n")
+    expect(rows[1]).toContain(",US,198.51.100.0/24,SBL000042,GET,")
   })
 
   it("defuses cells a spreadsheet would run as formulas", () => {
@@ -258,7 +320,7 @@ describe("formatAbuseReportCsv", () => {
 
 describe("reportFileName", () => {
   it("names IPv6 files without colons", () => {
-    const r = report({ target: { kind: "ip", ipAddress: "2001:db8::1", asn: null, asnOrganization: null } })
+    const r = report({ target: { kind: "ip", ipAddress: "2001:db8::1", asn: null, asnOrganization: null, asnDrop: false } })
     expect(reportFileName(r, "txt")).toBe("abuse-report-2001-db8--1-2026-09-26.txt")
   })
 })

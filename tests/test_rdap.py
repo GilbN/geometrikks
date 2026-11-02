@@ -9,6 +9,7 @@ from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
+from geometrikks.domain.drop.snapshot import EMPTY_DROP_SNAPSHOT
 from geometrikks.domain.exceptions import DomainNotFoundError, DomainValidationError
 from geometrikks.domain.reports.controllers import ReportsController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
@@ -198,6 +199,7 @@ def make_app(client: RdapClient) -> Litestar:
             "rdap": Provide(lambda: client, sync_to_thread=False),
             # The report route shares the controller; nothing here touches the database.
             "abuse_report_repo": Provide(lambda: None, sync_to_thread=False),
+            "drop_snapshot": Provide(lambda: EMPTY_DROP_SNAPSHOT, sync_to_thread=False),
         }
 
     return Litestar(

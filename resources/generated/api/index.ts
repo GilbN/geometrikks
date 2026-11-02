@@ -520,6 +520,7 @@ export type {
   ReportAlertDto,
   ReportCrowdSec,
   ReportDecisionDto,
+  ReportDropNetworkDto,
   ReportIpDto,
   ReportLineDto,
   ReportPathDto,

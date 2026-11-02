@@ -5383,6 +5383,22 @@
         "title": "ReportDecisionDTO",
         "type": "object"
       },
+      "ReportDropNetworkDTO": {
+        "properties": {
+          "cidr": {
+            "type": "string"
+          },
+          "sblId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cidr",
+          "sblId"
+        ],
+        "title": "ReportDropNetworkDTO",
+        "type": "object"
+      },
       "ReportIpDTO": {
         "properties": {
           "alerts": {
@@ -5403,6 +5419,9 @@
                 "type": "null"
               }
             ]
+          },
+          "asnDrop": {
+            "type": "boolean"
           },
           "asnOrganization": {
             "oneOf": [
@@ -5442,6 +5461,16 @@
           },
           "distinctPaths": {
             "type": "integer"
+          },
+          "dropNetwork": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReportDropNetworkDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "firstSeen": {
             "oneOf": [
@@ -5520,11 +5549,13 @@
           "alerts",
           "alertsTruncated",
           "asn",
+          "asnDrop",
           "asnOrganization",
           "countryCode",
           "countryName",
           "decisions",
           "distinctPaths",
+          "dropNetwork",
           "firstSeen",
           "ipAddress",
           "lastSeen",
@@ -5669,6 +5700,9 @@
               }
             ]
           },
+          "asnDrop": {
+            "type": "boolean"
+          },
           "asnOrganization": {
             "oneOf": [
               {
@@ -5699,6 +5733,7 @@
         },
         "required": [
           "asn",
+          "asnDrop",
           "asnOrganization",
           "ipAddress",
           "kind"

@@ -30,6 +30,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.analytics.ip_profile import BucketWidth, profile_bucket_width
+from geometrikks.domain.drop.snapshot import DropNetworkMatch, DropSnapshot
 
 PATH_LIMIT = 10
 USER_AGENT_LIMIT = 3
@@ -108,6 +109,15 @@ class ReportIp:
     paths: list[ReportPath] = field(default_factory=list)
     user_agents: list[ReportUserAgent] = field(default_factory=list)
     lines: list[ReportLine] = field(default_factory=list)
+    drop_network: DropNetworkMatch | None = None
+    asn_drop: bool = False
+
+
+def mark_drop_listings(report_ips: list[ReportIp], drop_snapshot: DropSnapshot) -> None:
+    """Sets each IP's DROP network and whether its ASN is on ASN-DROP."""
+    for report_ip in report_ips:
+        report_ip.drop_network = drop_snapshot.network_for(report_ip.ip)
+        report_ip.asn_drop = report_ip.asn is not None and drop_snapshot.is_drop_asn(report_ip.asn)
 
 
 @dataclass
