@@ -1633,6 +1633,81 @@ async def test_ban_networks_bans_a_single_address_network_as_an_ip_the_way_ban_d
     assert (single_service.bans[0]["scope"], single_service.bans[0]["value"]) == ("Ip", "192.0.2.7")
 
 
+class LapiStateCrowdSec(WritableFakeCrowdSec):
+    """Keeps the decisions its bans create, the way the LAPI does, and filters on scopes."""
+
+    async def get_decisions(self, **filters: Any) -> list[Decision]:
+        self.calls.append(filters)
+        scopes = filters.get("scopes")
+        if scopes is None:
+            return self._decisions
+        return [decision for decision in self._decisions if decision.scope in scopes.split(",")]
+
+    async def ban(self, value, *, scope="Ip", decision_type="ban", duration=None, reason=None):
+        await super().ban(value, scope=scope, decision_type=decision_type, duration=duration, reason=reason)
+        self._decisions.append(make_decision(
+            id=len(self._decisions) + 1, scope=scope, value=value, type=decision_type, duration=duration,
+        ))
+
+    async def unban(self, value, *, scope="Ip"):
+        self.unbans.append((value, scope))
+        kept_decisions = [
+            decision for decision in self._decisions if (decision.scope, decision.value) != (scope, value)
+        ]
+        deleted = len(self._decisions) - len(kept_decisions)
+        self._decisions = kept_decisions
+        return deleted
+
+
+@pytest.mark.parametrize(
+    ("host_network", "address"), [("192.0.2.7/32", "192.0.2.7"), ("2001:db8::1/128", "2001:db8::1")]
+)
+async def test_a_banned_single_address_network_reads_as_banned_until_unbanned(monkeypatch, host_network, address):
+    enable_write(monkeypatch)
+    service = LapiStateCrowdSec()
+    traffic = FakeDropTraffic([
+        DropNetworkHits(cidr=host_network, sbl_id="SBL000007", hits=4, ips=1, last_seen=None),
+    ])
+    app = make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT, drop_traffic=traffic)
+    ban_body = {"networks": [host_network], "duration": "24h"}
+    async with AsyncTestClient(app=app) as client:
+        first_run = (await client.post("/api/v1/crowdsec/ban-networks", json=ban_body)).json()
+        banned_ranges = (await client.get("/api/v1/crowdsec/banned-ranges")).json()
+        drop_networks = (await client.get("/api/v1/crowdsec/drop-networks")).json()
+        retry = (await client.post("/api/v1/crowdsec/ban-networks", json=ban_body)).json()
+        unban = await client.post("/api/v1/crowdsec/unban", json={"ip": host_network})
+        banned_ranges_after_unban = (await client.get("/api/v1/crowdsec/banned-ranges")).json()
+
+    assert first_run["results"] == [{"network": host_network, "ok": True, "error": None, "alreadyBanned": False}]
+    assert [(banned_range["value"], banned_range["type"]) for banned_range in banned_ranges] == [(host_network, "ban")]
+    assert drop_networks["bannedNetworks"] == 1
+    assert drop_networks["items"][0]["decision"]["value"] == host_network
+    assert retry["results"] == [{"network": host_network, "ok": True, "error": None, "alreadyBanned": True}]
+    assert [(ban["scope"], ban["value"]) for ban in service.bans] == [("Ip", address)]
+    assert unban.json() == {"deleted": 1}
+    assert service.unbans == [(address, "Ip")]
+    assert banned_ranges_after_unban == []
+
+
+async def test_banned_ranges_lists_an_ip_decision_only_for_a_single_address_drop_network():
+    service = LapiStateCrowdSec([
+        make_decision(id=1, scope="Ip", value="192.0.2.7"),
+        make_decision(id=2, scope="Ip", value="203.0.113.9"),
+        range_decision("198.51.100.0/24", id=3),
+    ])
+    async with AsyncTestClient(app=make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert sorted(banned_range["value"] for banned_range in resp.json()) == ["192.0.2.7/32", "198.51.100.0/24"]
+
+
+async def test_banned_ranges_asks_only_for_range_decisions_without_single_address_networks():
+    service = LapiStateCrowdSec([make_decision(id=1, scope="Ip", value="192.0.2.7")])
+    async with AsyncTestClient(app=make_app(service, drop_snapshot=DROP_SNAPSHOT)) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert resp.json() == []
+    assert service.calls == [{"scopes": "Range"}]
+
+
 ASN_ONLY_SNAPSHOT = DropSnapshot(
     networks=(),
     feeds=(

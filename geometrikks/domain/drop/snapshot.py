@@ -102,8 +102,11 @@ class DropSnapshot:
         self.asns = asns
         self.feeds = feeds
         ranges_by_version: dict[int, list[tuple[int, int, int, DropNetworkMatch]]] = {4: [], 6: []}
+        host_networks: set[str] = set()
         for network_match in networks:
             network = ip_network(network_match.cidr, strict=False)
+            if network.num_addresses == 1:
+                host_networks.add(str(network))
             ranges_by_version[network.version].append(
                 (
                     int(network.network_address),
@@ -113,6 +116,8 @@ class DropSnapshot:
                 )
             )
         self._indexes = {version: _RangeIndex(ranges) for version, ranges in ranges_by_version.items()}
+        # Single-address networks (/32, /128), which CrowdSec bans as Ip decisions.
+        self.host_networks = frozenset(host_networks)
         self._asn_entries = {asn_entry.asn: asn_entry for asn_entry in asns}
         fetched_times = [feed.fetched_at for feed in feeds if feed.fetched_at is not None]
         self.updated_at: datetime | None = max(fetched_times) if fetched_times else None

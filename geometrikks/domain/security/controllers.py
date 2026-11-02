@@ -462,16 +462,32 @@ def _canonical_cidr(value: str) -> str | None:
         return None
 
 
-def _banned_ranges(decisions: list[Decision], now: datetime) -> dict[str, BannedRangeView]:
+def _host_cidr(value: str) -> str | None:
+    ip = canonical_ip(value)
+    return None if ip is None else str(ipaddress.ip_network(ip))
+
+
+def _banned_ranges(
+    decisions: list[Decision], now: datetime, host_networks: frozenset[str] = frozenset()
+) -> dict[str, BannedRangeView]:
     """Active Range decisions by canonical CIDR, keeping the strongest type on each.
 
-    Between two decisions of the same type the later expiry wins.
+    An Ip decision counts too when its address, as a /32 or /128, is one of
+    ``host_networks``: ``_decision_target`` bans those networks as Ip
+    decisions. Between two decisions of the same type the later expiry wins.
     """
     banned_ranges: dict[str, BannedRangeView] = {}
     for decision in decisions:
-        if decision.scope != "Range" or decision.expired:
+        if decision.expired:
             continue
-        cidr = _canonical_cidr(decision.value)
+        if decision.scope == "Range":
+            cidr = _canonical_cidr(decision.value)
+        elif decision.scope == "Ip":
+            cidr = _host_cidr(decision.value)
+            if cidr not in host_networks:
+                continue
+        else:
+            continue
         if cidr is None:
             continue
         seconds_left = go_duration_seconds(decision.duration)
@@ -489,14 +505,21 @@ def _banned_ranges(decisions: list[Decision], now: datetime) -> dict[str, Banned
     return banned_ranges
 
 
-async def _active_banned_ranges(service: CrowdSecService) -> dict[str, BannedRangeView]:
-    return _banned_ranges(await service.get_decisions(scopes="Range"), datetime.now(timezone.utc))
+async def _active_banned_ranges(
+    service: CrowdSecService, drop_snapshot: DropSnapshot
+) -> dict[str, BannedRangeView]:
+    """Range decisions, plus Ip decisions on the snapshot's single-address networks."""
+    host_networks = drop_snapshot.host_networks
+    decisions = await service.get_decisions(scopes="Range,Ip" if host_networks else "Range")
+    return _banned_ranges(decisions, datetime.now(timezone.utc), host_networks)
 
 
-async def _banned_ranges_if_reachable(service: CrowdSecService) -> dict[str, BannedRangeView] | None:
+async def _banned_ranges_if_reachable(
+    service: CrowdSecService, drop_snapshot: DropSnapshot
+) -> dict[str, BannedRangeView] | None:
     """Like ``_active_banned_ranges``, but None when the LAPI cannot be asked."""
     try:
-        return await _active_banned_ranges(service)
+        return await _active_banned_ranges(service, drop_snapshot)
     except CrowdSecError as exc:
         logger.warning("crowdsec_range_decisions_unavailable", error=str(exc))
         return None
@@ -647,11 +670,17 @@ class CrowdSecController(Controller):
 
     @get("/banned-ranges")
     async def list_banned_ranges(
-        self, crowdsec: NamedDependency[CrowdSecService | None]
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
     ) -> list[BannedRangeView]:
-        """Every CIDR under an active Range decision, with the type to show it as."""
+        """Every CIDR under an active Range decision, with the type to show it as.
+
+        A single-address DROP network is banned as an Ip decision, so it is
+        listed as its /32 or /128 while that decision lasts.
+        """
         service = _require_service(crowdsec)
-        return list((await _active_banned_ranges(service)).values())
+        return list((await _active_banned_ranges(service, drop_snapshot)).values())
 
     @get("/drop-networks")
     async def list_drop_networks(
@@ -680,7 +709,7 @@ class CrowdSecController(Controller):
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
         all_drop_network_hits = await drop_traffic_repo.network_hits(start, end)
-        reachable_banned_ranges = await _banned_ranges_if_reachable(service)
+        reachable_banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot)
         banned_ranges = reachable_banned_ranges or {}
         page_drop_network_hits = all_drop_network_hits[(page - 1) * page_size : page * page_size]
         origins = await drop_traffic_repo.network_origins(
@@ -984,12 +1013,12 @@ class CrowdSecController(Controller):
         single-address network becomes an Ip decision.
 
         Name the networks, or set allUnbannedDays to ban every DROP network
-        with traffic in that window and no active Range decision. That form
-        bans the busiest MAX_BULK_BAN_NETWORKS and leftOut counts the rest. A
-        network that is not on the DROP list or whose ban fails gets an error
-        result and the loop goes on. A named network that already holds a
-        Range decision is not banned again. It comes back ok with
-        alreadyBanned set, so a retry is safe.
+        with traffic in that window and no active ban. That form bans the
+        busiest MAX_BULK_BAN_NETWORKS and leftOut counts the rest. A network
+        that is not on the DROP list or whose ban fails gets an error result
+        and the loop goes on. A named network that is already banned (a Range
+        decision, or an Ip decision on a single-address network) is not banned
+        again. It comes back ok with alreadyBanned set, so a retry is safe.
         """
         service = _require_write(crowdsec, settings)
         if (data.networks is None) == (data.all_unbanned_days is None):
@@ -1003,14 +1032,14 @@ class CrowdSecController(Controller):
             if data.networks is not None:
                 requested_networks = data.networks
                 # An unreachable LAPI is reported by the bans themselves.
-                banned_ranges = await _banned_ranges_if_reachable(service) or {}
+                banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot) or {}
             else:
                 requested_networks = []
                 banned_ranges = {}
                 if drop_snapshot.networks_loaded:
                     end = datetime.now(timezone.utc)
                     start = end - timedelta(days=data.all_unbanned_days or 0)
-                    banned_ranges = await _active_banned_ranges(service)
+                    banned_ranges = await _active_banned_ranges(service, drop_snapshot)
                     unbanned_networks = [
                         drop_network_hits.cidr
                         for drop_network_hits in await drop_traffic_repo.network_hits(start, end)

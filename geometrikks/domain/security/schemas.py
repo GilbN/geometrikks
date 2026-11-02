@@ -97,7 +97,10 @@ class DropNetworkOrigin:
 
 
 class BannedRangeView(msgspec.Struct, rename="camel"):
-    """A CIDR under an active Range decision and the strongest type on it."""
+    """A CIDR under an active ban and the strongest type on it.
+
+    A single-address DROP network, banned as an Ip decision, appears as its /32 or /128.
+    """
 
     value: str
     type: str
@@ -147,7 +150,7 @@ class BanNetworkResult(msgspec.Struct, rename="camel"):
     network: str
     ok: bool
     error: str | None
-    # True when the network already held a Range decision and was left alone.
+    # True when the network was already banned and was left alone.
     already_banned: bool
 
 
