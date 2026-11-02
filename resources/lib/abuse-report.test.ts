@@ -263,6 +263,14 @@ describe("DROP listings in the text", () => {
   it("has no Listed on line without a listing", () => {
     expect(formatAbuseReportText(report())).not.toContain("Listed on:")
   })
+
+  it("names the IPv4 network for an IPv4-mapped client", () => {
+    const mappedIp = ip({ ipAddress: "::ffff:192.0.2.10", dropNetwork: { cidr: "192.0.2.0/24", sblId: "SBL000042" } })
+    const target = { kind: "ip" as const, ipAddress: "::ffff:192.0.2.10", asn: 64500, asnOrganization: null, asnDrop: false }
+    const text = formatAbuseReportText(report({ target, ips: [mappedIp] }))
+    expect(text).toContain("::ffff:192.0.2.10")
+    expect(text).toContain("\nNetwork: AS64500 Example Hosting, US\nListed on: Spamhaus DROP SBL000042 (192.0.2.0/24)\n")
+  })
 })
 
 describe("reportDropListings and dropNoticeHeadline", () => {
@@ -298,17 +306,24 @@ describe("formatAbuseReportCsv", () => {
     const rows = formatAbuseReportCsv(report()).trimEnd().split("\r\n")
     expect(rows[0]).toBe(CSV_COLUMNS.join(","))
     expect(rows[0]).toBe(
-      "timestamp_utc,source_ip,asn,as_organization,country,drop_network,drop_sbl,method,path,http_version,status,bytes,user_agent",
+      "timestamp_utc,source_ip,asn,as_organization,country,method,path,http_version,status,bytes,user_agent,drop_network,drop_sbl",
     )
     expect(rows[1]).toBe(
-      '2026-09-25T09:30:00.000Z,198.51.100.7,64500,Example Hosting,US,,,GET,/.env,HTTP/1.1,404,153,"say ""hi"""',
+      '2026-09-25T09:30:00.000Z,198.51.100.7,64500,Example Hosting,US,GET,/.env,HTTP/1.1,404,153,"say ""hi""",,',
     )
   })
 
   it("fills the DROP columns for a listed IP", () => {
     const listed = ip({ dropNetwork: { cidr: "198.51.100.0/24", sblId: "SBL000042" } })
     const rows = formatAbuseReportCsv(report({ ips: [listed] })).trimEnd().split("\r\n")
-    expect(rows[1]).toContain(",US,198.51.100.0/24,SBL000042,GET,")
+    expect(rows[1]).toBe(
+      '2026-09-25T09:30:00.000Z,198.51.100.7,64500,Example Hosting,US,GET,/.env,HTTP/1.1,404,153,"say ""hi""",198.51.100.0/24,SBL000042',
+    )
+  })
+
+  it("keeps the 0.19.0 columns in place for scripts that read by position", () => {
+    const shipped = ["timestamp_utc", "source_ip", "asn", "as_organization", "country", "method", "path", "http_version", "status", "bytes", "user_agent"]
+    expect(CSV_COLUMNS.slice(0, shipped.length)).toEqual(shipped)
   })
 
   it("defuses cells a spreadsheet would run as formulas", () => {

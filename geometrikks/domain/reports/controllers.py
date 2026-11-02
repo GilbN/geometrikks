@@ -257,7 +257,10 @@ class ReportsController(Controller):
         if selection is None:
             only = evidence.ips[0]
             target = ReportTarget(
-                kind="ip", ip_address=only.ip, asn=only.asn, asn_organization=only.asn_organization,
+                kind="ip",
+                ip_address=only.ip,
+                asn=only.asn,
+                asn_organization=only.asn_organization,
                 asn_drop=only.asn_drop,
             )
             ip_count = 1 if only.total_requests else 0
@@ -265,7 +268,10 @@ class ReportsController(Controller):
             status_4xx = only.status_4xx
         else:
             target = ReportTarget(
-                kind="asn", ip_address=None, asn=asn, asn_organization=selection.organization,
+                kind="asn",
+                ip_address=None,
+                asn=asn,
+                asn_organization=selection.organization,
                 asn_drop=asn is not None and drop_snapshot.is_drop_asn(asn),
             )
             ip_count = selection.ip_count

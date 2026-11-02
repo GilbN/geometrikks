@@ -33,7 +33,7 @@ import {
 } from "@/lib/abuse-report"
 import type { AbuseReportTarget } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
-import { dropBanReason, dropNetworkBanState } from "@/lib/drop-lists"
+import { dropBanReason, dropNetworkBanState, sblRecordUrl } from "@/lib/drop-lists"
 import { useAbuseContact, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
@@ -355,7 +355,7 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
         </p>
         {dropNetwork && (
           <p className="flex flex-wrap items-center gap-x-2">
-            <ExternalLink href="https://check.spamhaus.org/" className="pointer-coarse:min-h-8">
+            <ExternalLink href={sblRecordUrl(dropNetwork.sblId)} className="pointer-coarse:min-h-8">
               View {dropNetwork.sblId}
             </ExternalLink>
             {banShown && (

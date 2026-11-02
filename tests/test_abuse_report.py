@@ -458,6 +458,21 @@ async def test_ip_report_names_the_drop_network_and_asn_drop():
     assert ip["asnDrop"] is True
 
 
+async def test_an_ipv4_mapped_client_matches_the_ipv4_drop_network():
+    mapped_ip = "::ffff:192.0.2.10"
+    item = ReportIp(ip=mapped_ip, total_requests=1)
+    repo = FakeRepo({mapped_ip: item})
+    app = make_app(repo, drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "ipAddress": mapped_ip})
+    assert resp.status_code == 200
+    assert repo.evidence_calls == [[mapped_ip]]
+    ip = resp.json()["ips"][0]
+    assert ip["ipAddress"] == mapped_ip
+    assert ip["dropNetwork"] == {"cidr": "192.0.2.0/24", "sblId": "SBL000042"}
+    assert ip["asnDrop"] is False
+
+
 async def test_an_unlisted_ip_in_a_listed_asn_carries_only_asn_drop():
     item = ReportIp(ip="198.51.100.7", total_requests=1, asn=64500)
     app = make_app(FakeRepo({"198.51.100.7": item}), drop_snapshot=make_drop_snapshot())

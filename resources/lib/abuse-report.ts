@@ -396,14 +396,14 @@ export const CSV_COLUMNS = [
   "asn",
   "as_organization",
   "country",
-  "drop_network",
-  "drop_sbl",
   "method",
   "path",
   "http_version",
   "status",
   "bytes",
   "user_agent",
+  "drop_network",
+  "drop_sbl",
 ] as const
 
 /** Every log line in the report, one row each, for providers that ask for CSV. */
@@ -418,14 +418,14 @@ export function formatAbuseReportCsv(report: AbuseReportResponse): string {
           ip.asn,
           ip.asnOrganization,
           ip.countryCode,
-          ip.dropNetwork?.cidr,
-          ip.dropNetwork?.sblId,
           line.method,
           line.url,
           line.httpVersion,
           line.statusCode,
           line.bytesSent,
           line.userAgent,
+          ip.dropNetwork?.cidr,
+          ip.dropNetwork?.sblId,
         ]
           .map(csvCell)
           .join(","),
