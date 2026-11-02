@@ -500,8 +500,11 @@ export function useBannedRanges(active = true) {
   })
 }
 
+export const DROP_NETWORKS_REFETCH_MS = 5 * 60_000
+
 /** Per-network DROP traffic for the Security card. It sits in the crowdsec group, so a
- *  ban anywhere refreshes the statuses. With `active` false it never asks. */
+ *  ban anywhere refreshes the statuses at once. Each answer aggregates the whole
+ *  window, so the poll is slow. With `active` false it never asks. */
 export function useDropNetworks(params: { days: 7 | 30 | 90; page: number; pageSize: number }, active = true) {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
@@ -509,7 +512,8 @@ export function useDropNetworks(params: { days: 7 | 30 | 90; page: number; pageS
     queryFn: () => fetchDropNetworks(params),
     enabled: active && status?.enabled === true,
     placeholderData: keepPreviousData,
-    refetchInterval: 60_000,
+    refetchInterval: DROP_NETWORKS_REFETCH_MS,
+    refetchOnWindowFocus: true,
   })
 }
 
