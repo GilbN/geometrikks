@@ -5,6 +5,7 @@ import {
   bulkBanLeftOutText,
   bulkBanResultCounts,
   bulkBanResultText,
+  bulkBanResultTitle,
   counted,
   dropLastSeenText,
   dropNetworkFreshness,
@@ -108,17 +109,40 @@ describe("bulk ban results", () => {
   const results = [ok("192.0.2.0/24"), failed("198.51.100.0/24", "CrowdSec LAPI is unreachable"), already("203.0.113.0/24"), ok("2001:db8::/32")]
 
   it("counts banned, already banned and failed networks", () => {
-    expect(bulkBanResultCounts(results)).toEqual({ banned: 2, alreadyBanned: 1, failed: 1 })
+    expect(bulkBanResultCounts(results)).toEqual({ banned: 2, alreadyBanned: 1, failed: 1, notAttempted: 0 })
   })
 
   it("reports the counts in one line", () => {
     expect(bulkBanResultText(bulkBanResultCounts(results), "4 hours")).toBe(
       "Banned 2 networks for 4 hours. 1 was already banned. 1 failed.",
     )
-    expect(bulkBanResultText({ banned: 1, alreadyBanned: 0, failed: 0 }, "Forever")).toBe("Banned 1 network for good.")
-    expect(bulkBanResultText({ banned: 0, alreadyBanned: 2, failed: 3 }, "1 hour")).toBe(
+    expect(bulkBanResultText({ banned: 1, alreadyBanned: 0, failed: 0, notAttempted: 0 }, "Forever")).toBe("Banned 1 network for good.")
+    expect(bulkBanResultText({ banned: 0, alreadyBanned: 2, failed: 3, notAttempted: 0 }, "1 hour")).toBe(
       "Banned 0 networks for 1 hour. 2 were already banned. 3 failed.",
     )
+  })
+
+  it("counts the networks a stopped run did not attempt apart from the failures", () => {
+    const stoppedResults = [
+      ok("192.0.2.0/24"),
+      failed("198.51.100.0/24", "LAPI unreachable: timed out"),
+      failed("203.0.113.0/24", "not attempted: CrowdSec unreachable"),
+      failed("2001:db8::/32", "not attempted: time limit"),
+    ]
+    const counts = bulkBanResultCounts(stoppedResults)
+    expect(counts).toEqual({ banned: 1, alreadyBanned: 0, failed: 1, notAttempted: 2 })
+    expect(bulkBanResultText(counts, "24 hours")).toBe(
+      "Banned 1 network for 24 hours. 1 failed. 2 were not attempted.",
+    )
+    expect(bulkBanResultText({ banned: 3, alreadyBanned: 0, failed: 0, notAttempted: 1 }, "24 hours")).toBe(
+      "Banned 3 networks for 24 hours. 1 was not attempted.",
+    )
+  })
+
+  it("titles the outcome by its worst result", () => {
+    expect(bulkBanResultTitle({ banned: 1, alreadyBanned: 0, failed: 1, notAttempted: 2 })).toBe("Some bans failed")
+    expect(bulkBanResultTitle({ banned: 3, alreadyBanned: 0, failed: 0, notAttempted: 1 })).toBe("The run stopped early")
+    expect(bulkBanResultTitle({ banned: 3, alreadyBanned: 1, failed: 0, notAttempted: 0 })).toBe("Networks banned")
   })
 
   it("lists failures first, then already banned, then bans", () => {

@@ -19,6 +19,7 @@ from geometrikks.services.crowdsec.exceptions import (
     CrowdSecAuthError,
     CrowdSecError,
     CrowdSecUnavailableError,
+    CrowdSecUnreachableError,
     CrowdSecUnsupportedError,
 )
 from geometrikks.services.crowdsec.schemas import Alert, Decision, DecisionStreamDelta
@@ -157,6 +158,8 @@ class CrowdSecService:
             raise CrowdSecUnavailableError(
                 f"LAPI error: HTTP {exc.response.status_code}"
             ) from exc
+        except httpx2.TransportError as exc:
+            raise CrowdSecUnreachableError(f"LAPI unreachable: {exc}") from exc
         except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
         # The LAPI returns JSON null when no decisions match.
@@ -188,6 +191,8 @@ class CrowdSecService:
             raise CrowdSecUnavailableError(
                 f"LAPI error: HTTP {exc.response.status_code}"
             ) from exc
+        except httpx2.TransportError as exc:
+            raise CrowdSecUnreachableError(f"LAPI unreachable: {exc}") from exc
         except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
         body = resp.json() or {}
@@ -224,6 +229,8 @@ class CrowdSecService:
             if resp.status_code in (401, 403):
                 raise CrowdSecAuthError("LAPI rejected the machine credentials")
             resp.raise_for_status()
+        except httpx2.TransportError as exc:
+            raise CrowdSecUnreachableError(f"LAPI unreachable: {exc}") from exc
         except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
         self._machine_token = resp.json()["token"]
@@ -267,6 +274,8 @@ class CrowdSecService:
             raise CrowdSecUnavailableError(
                 f"LAPI error: HTTP {exc.response.status_code}"
             ) from exc
+        except httpx2.TransportError as exc:
+            raise CrowdSecUnreachableError(f"LAPI unreachable: {exc}") from exc
         except httpx2.HTTPError as exc:
             raise CrowdSecUnavailableError(f"LAPI unreachable: {exc}") from exc
 

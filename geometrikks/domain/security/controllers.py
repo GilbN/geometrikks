@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import time
 
 import msgspec
 from datetime import datetime, timedelta, timezone
 from collections import Counter
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from advanced_alchemy.extensions.litestar import filters
@@ -25,6 +28,7 @@ from litestar.openapi.datastructures import ResponseSpec
 from litestar.status_codes import (
     HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
@@ -70,7 +74,14 @@ from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, ServerIn
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import (
-    Alert, CrowdSecError, CrowdSecService, Decision, DecisionScope, DecisionType, manual_reason,
+    Alert,
+    CrowdSecError,
+    CrowdSecService,
+    CrowdSecUnreachableError,
+    Decision,
+    DecisionScope,
+    DecisionType,
+    manual_reason,
 )
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.locator import GeoIpLocator
@@ -103,6 +114,15 @@ GO_DURATION_RE = re.compile(r"^(\d+h)?(\d+m)?(\d+s)?$")
 # with Go's time.ParseDuration, which has no "d" unit, so _ban_duration
 # folds days into hours.
 BAN_DURATION_RE = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$")
+
+BULK_BAN_UNREACHABLE_LIMIT = 3
+BULK_BAN_TIME_LIMIT_SECONDS = 120
+# The Security card counts these apart from failures by their "not attempted:" prefix.
+BULK_BAN_NOT_ATTEMPTED_ERRORS = {
+    "crowdsec_unreachable": "not attempted: CrowdSec unreachable",
+    "time_limit": "not attempted: time limit",
+}
+_bulk_ban_clock: Callable[[], float] = time.monotonic
 
 logger = get_logger(__name__)
 
@@ -523,6 +543,14 @@ async def _banned_ranges_if_reachable(
     except CrowdSecError as exc:
         logger.warning("crowdsec_range_decisions_unavailable", error=str(exc))
         return None
+
+
+@dataclass(frozen=True)
+class _PendingNetworkBan:
+    cidr: str
+    scope: DecisionScope
+    value: str
+    reason: str
 
 
 def _actor(request: Request) -> str:
@@ -1001,6 +1029,7 @@ class CrowdSecController(Controller):
     async def ban_networks(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
+        db_session: NamedDependency[AsyncSession],
         drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         drop_traffic_repo: NamedDependency[SkipValidation[DropTrafficRepository]],
         data: JSONBody[BanNetworksRequest],
@@ -1019,15 +1048,21 @@ class CrowdSecController(Controller):
         and the loop goes on. A named network that is already banned (a Range
         decision, or an Ip decision on a single-address network) is not banned
         again. It comes back ok with alreadyBanned set, so a retry is safe.
+
+        The run stops after BULK_BAN_UNREACHABLE_LIMIT bans in a row find the
+        LAPI unreachable, or after BULK_BAN_TIME_LIMIT_SECONDS. Every network
+        left comes back with ok false and a "not attempted" error.
         """
         service = _require_write(crowdsec, settings)
         if (data.networks is None) == (data.all_unbanned_days is None):
             raise DomainValidationError("Send either networks or allUnbannedDays, not both and not neither")
         duration = _ban_duration(data.duration)
+        deadline = _bulk_ban_clock() + BULK_BAN_TIME_LIMIT_SECONDS
         mode = "networks" if data.networks is not None else "allUnbannedDays"
         ban_results: list[BanNetworkResult] = []
         left_out = 0
         completed = False
+        stop_reason: str | None = None
         try:
             if data.networks is not None:
                 requested_networks = data.networks
@@ -1050,10 +1085,11 @@ class CrowdSecController(Controller):
 
             sbl_ids_by_cidr = {network.cidr: network.sbl_id for network in drop_snapshot.networks}
             seen_networks: set[str] = set()
+            planned_bans: list[BanNetworkResult | _PendingNetworkBan] = []
             for requested_network in requested_networks:
                 cidr = _canonical_cidr(requested_network)
                 if cidr is None:
-                    ban_results.append(BanNetworkResult(
+                    planned_bans.append(BanNetworkResult(
                         network=requested_network, ok=False, error="Not a valid network", already_banned=False
                     ))
                     continue
@@ -1062,38 +1098,69 @@ class CrowdSecController(Controller):
                 seen_networks.add(cidr)
                 sbl_id = sbl_ids_by_cidr.get(cidr)
                 if sbl_id is None:
-                    ban_results.append(BanNetworkResult(
+                    planned_bans.append(BanNetworkResult(
                         network=cidr, ok=False, error="Not on the DROP list", already_banned=False
                     ))
                     continue
                 if cidr in banned_ranges:
-                    ban_results.append(BanNetworkResult(network=cidr, ok=True, error=None, already_banned=True))
+                    planned_bans.append(BanNetworkResult(network=cidr, ok=True, error=None, already_banned=True))
                     continue
                 scope, value = _decision_target(cidr)
+                planned_bans.append(_PendingNetworkBan(
+                    cidr=cidr, scope=scope, value=value, reason=f"Spamhaus DROP {sbl_id}"
+                ))
+
+            # Ending the read transaction hands the pooled connection back
+            # before the LAPI loop, which can run for minutes.
+            await db_session.rollback()
+
+            unreachable_in_a_row = 0
+            for planned_ban in planned_bans:
+                if isinstance(planned_ban, BanNetworkResult):
+                    ban_results.append(planned_ban)
+                    continue
+                if stop_reason is None:
+                    if unreachable_in_a_row >= BULK_BAN_UNREACHABLE_LIMIT:
+                        stop_reason = "crowdsec_unreachable"
+                    elif _bulk_ban_clock() >= deadline:
+                        stop_reason = "time_limit"
+                if stop_reason is not None:
+                    ban_results.append(BanNetworkResult(
+                        network=planned_ban.cidr, ok=False,
+                        error=BULK_BAN_NOT_ATTEMPTED_ERRORS[stop_reason], already_banned=False,
+                    ))
+                    continue
                 try:
                     await service.ban(
-                        value, scope=scope, decision_type="ban", duration=duration,
-                        reason=f"Spamhaus DROP {sbl_id}",
+                        planned_ban.value, scope=planned_ban.scope, decision_type="ban", duration=duration,
+                        reason=planned_ban.reason,
                     )
                 except CrowdSecError as exc:
+                    unreachable_in_a_row = unreachable_in_a_row + 1 if isinstance(exc, CrowdSecUnreachableError) else 0
                     ban_results.append(BanNetworkResult(
-                        network=cidr, ok=False, error=str(exc), already_banned=False
+                        network=planned_ban.cidr, ok=False, error=str(exc), already_banned=False
                     ))
                 else:
-                    ban_results.append(BanNetworkResult(network=cidr, ok=True, error=None, already_banned=False))
+                    unreachable_in_a_row = 0
+                    ban_results.append(BanNetworkResult(
+                        network=planned_ban.cidr, ok=True, error=None, already_banned=False
+                    ))
             completed = True
         finally:
             already_banned_count = sum(1 for ban_result in ban_results if ban_result.already_banned)
+            not_attempted_errors = set(BULK_BAN_NOT_ATTEMPTED_ERRORS.values())
             logger.info(
                 "crowdsec_bulk_ban",
                 actor=_actor(request),
                 mode=mode,
                 duration=duration,
                 completed=completed,
+                stop_reason=stop_reason,
                 requested=len(ban_results),
                 ok=sum(1 for ban_result in ban_results if ban_result.ok) - already_banned_count,
                 already_banned=already_banned_count,
                 failed=sum(1 for ban_result in ban_results if not ban_result.ok),
+                not_attempted=sum(1 for ban_result in ban_results if ban_result.error in not_attempted_errors),
                 left_out=left_out,
             )
         return BanNetworksResponse(results=ban_results, left_out=left_out)

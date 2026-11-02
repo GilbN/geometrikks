@@ -43,6 +43,7 @@ import {
   counted,
   bulkBanLeftOutText,
   bulkBanResultCounts,
+  bulkBanResultTitle,
   bulkBanResultText,
   dropLastSeenText,
   dropNetworkFreshness,
@@ -488,7 +489,7 @@ function BulkBanOutcomeView({ outcome, onDone }: { outcome: BulkBanOutcome; onDo
   return (
     <>
       <AlertDialogHeader>
-        <AlertDialogTitle>{counts.failed > 0 ? "Some bans failed" : "Networks banned"}</AlertDialogTitle>
+        <AlertDialogTitle>{bulkBanResultTitle(counts)}</AlertDialogTitle>
         <AlertDialogDescription>{bulkBanResultText(counts, durationLabel)}</AlertDialogDescription>
       </AlertDialogHeader>
       {leftOutText && <p className="text-center text-sm text-amber-600 sm:text-left dark:text-amber-400">{leftOutText}</p>}

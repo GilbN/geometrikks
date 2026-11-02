@@ -71,26 +71,37 @@ export function bulkBanConfirmText(
   return { title: `Ban ${networks} ${forDuration(durationLabel)}?`, description }
 }
 
-export type BulkBanResultCounts = { banned: number; alreadyBanned: number; failed: number }
+export type BulkBanResultCounts = { banned: number; alreadyBanned: number; failed: number; notAttempted: number }
+
+/** Matches BULK_BAN_NOT_ATTEMPTED_ERRORS in geometrikks/domain/security/controllers.py. */
+const NOT_ATTEMPTED_PREFIX = "not attempted:"
 
 export function bulkBanResultCounts(banResults: readonly BanNetworkResult[]): BulkBanResultCounts {
-  const counts = { banned: 0, alreadyBanned: 0, failed: 0 }
+  const counts = { banned: 0, alreadyBanned: 0, failed: 0, notAttempted: 0 }
   for (const banResult of banResults) {
-    if (!banResult.ok) counts.failed += 1
+    if (!banResult.ok && banResult.error?.startsWith(NOT_ATTEMPTED_PREFIX)) counts.notAttempted += 1
+    else if (!banResult.ok) counts.failed += 1
     else if (banResult.alreadyBanned) counts.alreadyBanned += 1
     else counts.banned += 1
   }
   return counts
 }
 
-/** "Banned 135 networks for 24 hours. 1 was already banned. 2 failed." */
+const wasOrWere = (count: number) => `${formatNumber(count)} ${count === 1 ? "was" : "were"}`
+
+/** "Banned 135 networks for 24 hours. 1 was already banned. 2 failed. 40 were not attempted." */
 export function bulkBanResultText(counts: BulkBanResultCounts, durationLabel: string): string {
   const sentences = [`Banned ${counted(counts.banned, "network", "networks")} ${forDuration(durationLabel)}.`]
-  if (counts.alreadyBanned > 0) {
-    sentences.push(`${formatNumber(counts.alreadyBanned)} ${counts.alreadyBanned === 1 ? "was" : "were"} already banned.`)
-  }
+  if (counts.alreadyBanned > 0) sentences.push(`${wasOrWere(counts.alreadyBanned)} already banned.`)
   if (counts.failed > 0) sentences.push(`${formatNumber(counts.failed)} failed.`)
+  if (counts.notAttempted > 0) sentences.push(`${wasOrWere(counts.notAttempted)} not attempted.`)
   return sentences.join(" ")
+}
+
+export function bulkBanResultTitle(counts: BulkBanResultCounts): string {
+  if (counts.failed > 0) return "Some bans failed"
+  if (counts.notAttempted > 0) return "The run stopped early"
+  return "Networks banned"
 }
 
 /** Failures first, since they are the ones to act on. */
