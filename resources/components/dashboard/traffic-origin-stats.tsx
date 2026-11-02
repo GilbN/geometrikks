@@ -15,10 +15,41 @@ import { Network, OctagonX, Server } from "lucide-react"
 import { ErrorBanner } from "@/components/error-banner"
 import { SectionHeader } from "@/components/section-header"
 import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
+import { StatInfo } from "@/components/dashboard/stat-info"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
 import { dropTrafficSubtitle } from "@/lib/drop-lists"
 import { useTopAsns } from "@/lib/queries"
+
+function DropTrafficHelp() {
+  return (
+    <>
+      <p>
+        Requests from networks on Spamhaus's ASN-DROP list. DROP stands for
+        Don't Route Or Peer. It names networks run by spam and cybercrime
+        operations, so traffic from them is almost never legitimate.
+      </p>
+      <p>
+        The name is the list's. GeoMetrikks has not dropped or blocked these
+        requests.
+      </p>
+    </>
+  )
+}
+
+function HostingTrafficHelp({ dropShown }: { dropShown: boolean }) {
+  return (
+    <>
+      <p>
+        Requests from networks on a bundled community list of hosting, VPN and
+        datacenter operators. Traffic from these is mostly bots, scanners and
+        VPN users rather than people browsing from home. Browse the list under
+        Settings &gt; About.
+      </p>
+      {dropShown && <p>Networks on Spamhaus DROP count on the Spamhaus DROP card instead.</p>}
+    </>
+  )
+}
 
 export function TrafficOriginStats() {
   // Default limit on purpose: a different limit would be a different query
@@ -75,7 +106,12 @@ export function TrafficOriginStats() {
       <StatGrid className={dropShare !== null ? "md:grid-cols-3" : undefined}>
         {dropShare !== null && (
           <StatCard
-            title="DROP Traffic"
+            title="Spamhaus DROP"
+            info={
+              <StatInfo label="What Spamhaus DROP traffic is">
+                <DropTrafficHelp />
+              </StatInfo>
+            }
             value={`${dropShare.toFixed(1)}%`}
             valueClassName="text-destructive"
             subtitle={dropTrafficSubtitle(dropHits, dropAsnCount, classified, coverage)}
@@ -85,6 +121,11 @@ export function TrafficOriginStats() {
         )}
         <StatCard
           title="Hosting Traffic"
+          info={
+            <StatInfo label="What hosting traffic is">
+              <HostingTrafficHelp dropShown={dropShare !== null} />
+            </StatInfo>
+          }
           value={`${hostingShare.toFixed(1)}%`}
           subtitle={
             coverage < 99.5

@@ -35,18 +35,18 @@ describe("dropCreditText", () => {
 })
 
 describe("dropTrafficSubtitle", () => {
-  it("counts DROP ASNs, singular for one", () => {
-    expect(dropTrafficSubtitle(1234, 3, 5000, 100)).toBe("1,234 requests from 3 DROP ASNs")
-    expect(dropTrafficSubtitle(5, 1, 5000, 99.5)).toBe("5 requests from 1 DROP ASN")
-    expect(dropTrafficSubtitle(5, null, 5000, 100)).toBe("5 requests from DROP ASNs")
+  it("counts listed ASNs, singular for one", () => {
+    expect(dropTrafficSubtitle(1234, 3, 5000, 100)).toBe("1,234 requests from 3 listed ASNs")
+    expect(dropTrafficSubtitle(5, 1, 5000, 99.5)).toBe("5 requests from 1 listed ASN")
+    expect(dropTrafficSubtitle(5, null, 5000, 100)).toBe("5 requests from listed ASNs")
   })
 
   it("names the classified denominator when the range is not fully covered", () => {
     expect(dropTrafficSubtitle(1234, 3, 5000, 80.2)).toBe(
-      "1,234 of 5,000 classified requests (80% of range), from 3 DROP ASNs",
+      "1,234 of 5,000 classified requests (80% of range), from 3 listed ASNs",
     )
-    expect(dropTrafficSubtitle(5, 1, 100, 99.4)).toBe("5 of 100 classified requests (99% of range), from 1 DROP ASN")
-    expect(dropTrafficSubtitle(5, null, 100, 50)).toBe("5 of 100 classified requests (50% of range), from DROP ASNs")
+    expect(dropTrafficSubtitle(5, 1, 100, 99.4)).toBe("5 of 100 classified requests (99% of range), from 1 listed ASN")
+    expect(dropTrafficSubtitle(5, null, 100, 50)).toBe("5 of 100 classified requests (50% of range), from listed ASNs")
   })
 })
 

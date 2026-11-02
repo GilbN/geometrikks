@@ -40,7 +40,7 @@ export function dropTrafficSubtitle(
   coverage: number,
 ): string {
   const source =
-    dropAsnCount === null ? "DROP ASNs" : `${formatNumber(dropAsnCount)} DROP ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
+    dropAsnCount === null ? "listed ASNs" : `${formatNumber(dropAsnCount)} listed ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
   if (coverage < 99.5) {
     return `${formatNumber(dropHits)} of ${formatNumber(classified)} classified requests (${coverage.toFixed(0)}% of range), from ${source}`
   }
