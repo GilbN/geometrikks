@@ -6,11 +6,14 @@ import { cn } from "@/lib/utils"
 export function SettingsPage({
   title,
   subtitle,
+  actions,
   toolbar,
   children,
 }: {
   title: string
   subtitle: string
+  /** Buttons beside the title, such as a page's Create button. */
+  actions?: React.ReactNode
   /** Page-level controls that belong with the title, inside the band. */
   toolbar?: React.ReactNode
   children: React.ReactNode
@@ -26,7 +29,7 @@ export function SettingsPage({
           !toolbar && "max-md:contents"
         )}
       >
-        <PageHeader title={title} subtitle={subtitle} />
+        <PageHeader title={title} subtitle={subtitle} actions={actions} />
         {toolbar}
       </div>
       {children}

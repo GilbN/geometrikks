@@ -1,5 +1,5 @@
 /**
- * /settings on a phone: the eight sections in three groups, each with one
+ * /settings on a phone: the nine sections in three groups, each with one
  * live line, instead of a dropdown above whichever page opened first. From
  * md up /settings still redirects to Status and the side nav lists sections.
  */
@@ -12,6 +12,7 @@ import {
   CircleArrowUp,
   FileClock,
   Info,
+  KeyRound,
   Network,
   Palette,
   ScrollText,
@@ -21,6 +22,7 @@ import { GlowDot } from "@/components/reload-notice"
 import { useTheme } from "@/components/theme-provider"
 import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
+import { apiKeysSummary } from "@/components/settings/api-keys-logic"
 import { envSettingCount, isOverridden } from "@/components/settings/environment-fields"
 import {
   advisoryCards,
@@ -31,6 +33,7 @@ import {
 } from "@/components/settings/status-logic"
 import {
   useAbout,
+  useApiKeys,
   useChangelogUnseen,
   useHealth,
   useInstances,
@@ -58,6 +61,7 @@ export function SettingsHome() {
   const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
   const { data: settings } = useSystemSettings()
   const { data: about } = useAbout()
+  const { data: apiKeyList } = useApiKeys()
   const changelogUnseen = useChangelogUnseen()
   const unseenRelease = useUnseenRelease()
   const { resolvedTheme, colorTheme } = useTheme()
@@ -121,6 +125,7 @@ export function SettingsHome() {
             ? `${settings.sections.flatMap((section) => section.fields).filter(isOverridden).length} of ${envSettingCount(settings.sections)} settings overridden`
             : "Settings from the environment",
         },
+        { to: "/settings/api-keys", label: "API keys", icon: KeyRound, line: apiKeysSummary(apiKeyList) },
         {
           to: "/settings/appearance",
           label: "Appearance",
