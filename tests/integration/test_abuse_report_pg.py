@@ -4,9 +4,16 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from litestar.testing import AsyncTestClient
 from sqlalchemy import text
 
 from geometrikks.domain.reports.abuse_report import AbuseReportRepository
+from geometrikks.server.core import create_app
+from tests.integration.test_drop_snapshot_pg import (  # noqa: F401  (autouse structlog reset)
+    _reset_structlog_config,
+    build_settings,
+    import_fixture_lists,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -125,3 +132,49 @@ async def test_a_short_window_still_knows_the_operator_hosts(pg_session_maker, c
         )
 
     assert evidence.ips[0].lines[0].url == "/?next=[redacted]"
+
+
+# In the imported fixture lists: 198.51.100.64/26 is SBL000001 and AS64496 is on ASN-DROP.
+DROP_IP = "198.51.100.100"
+DROP_ASN = 64496
+
+
+async def _fetch_report(settings, params: dict[str, str]) -> dict:
+    window = {"startDate": (NOW - timedelta(hours=6)).isoformat(), "endDate": NOW.isoformat()}
+    async with AsyncTestClient(app=create_app(settings=settings)) as client:
+        response = await client.get("/api/v1/reports/abuse", params={**window, **params})
+    assert response.status_code == 200
+    return response.json()
+
+
+async def test_report_on_an_imported_drop_network_carries_the_listings(
+    migrated_database_url, pg_session_maker, clean_tables
+):
+    await import_fixture_lists(pg_session_maker)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=NOW - timedelta(hours=1), ip=DROP_IP, asn=DROP_ASN)
+        await _insert_log(session, ts=NOW - timedelta(hours=1), ip=SCANNER, asn=DROP_ASN)
+        await session.commit()
+    settings = build_settings(migrated_database_url)
+
+    ip_report = await _fetch_report(settings, {"ipAddress": DROP_IP})
+    asn_report = await _fetch_report(settings, {"asn": str(DROP_ASN)})
+
+    assert ip_report["target"]["asnDrop"] is True
+    assert ip_report["ips"][0]["dropNetwork"] == {"cidr": "198.51.100.64/26", "sblId": "SBL000001"}
+    assert ip_report["ips"][0]["asnDrop"] is True
+    assert asn_report["target"]["asnDrop"] is True
+    drop_networks_by_ip = {ip["ipAddress"]: ip["dropNetwork"] for ip in asn_report["ips"]}
+    assert drop_networks_by_ip == {DROP_IP: {"cidr": "198.51.100.64/26", "sblId": "SBL000001"}, SCANNER: None}
+
+
+async def test_report_shows_no_listing_with_drop_disabled(migrated_database_url, pg_session_maker, clean_tables):
+    await import_fixture_lists(pg_session_maker)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=NOW - timedelta(hours=1), ip=DROP_IP, asn=DROP_ASN)
+        await session.commit()
+
+    ip_report = await _fetch_report(build_settings(migrated_database_url, drop_enabled=False), {"ipAddress": DROP_IP})
+
+    assert ip_report["target"]["asnDrop"] is False
+    assert (ip_report["ips"][0]["dropNetwork"], ip_report["ips"][0]["asnDrop"]) == (None, False)

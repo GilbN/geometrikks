@@ -1431,17 +1431,27 @@ export type ReportDecisionDto = {
 };
 
 /**
+ * ReportDropNetworkDTO
+ */
+export type ReportDropNetworkDto = {
+  cidr: string;
+  sblId: string;
+};
+
+/**
  * ReportIpDTO
  */
 export type ReportIpDto = {
   alerts: Array<ReportAlertDto>;
   alertsTruncated: boolean;
   asn: number | null;
+  asnDrop: boolean;
   asnOrganization: string | null;
   countryCode: string | null;
   countryName: string | null;
   decisions: Array<ReportDecisionDto>;
   distinctPaths: number;
+  dropNetwork: ReportDropNetworkDto | null;
   firstSeen: string | null;
   ipAddress: string;
   lastSeen: string | null;
@@ -1493,6 +1503,7 @@ export type ReportPeakDto = {
  */
 export type ReportTarget = {
   asn: number | null;
+  asnDrop: boolean;
   asnOrganization: string | null;
   ipAddress: string | null;
   kind: "ip" | "asn";

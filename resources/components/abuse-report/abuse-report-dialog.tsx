@@ -3,8 +3,8 @@
  * as plain text or CSV, and copies or downloads it. The abuse contact comes
  * from an RDAP lookup that runs only when asked for.
  */
-import { useMemo, useRef, useState } from "react"
-import { Check, Copy, Download, Loader2, MailWarning, Maximize2, Minimize2, RotateCw, Search, ShieldAlert } from "lucide-react"
+import { useMemo, useRef, useState, type RefObject } from "react"
+import { Check, Copy, Download, Loader2, MailWarning, Maximize2, Minimize2, OctagonX, RotateCw, Search, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -20,11 +20,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { ExternalLink } from "@/components/crowdsec/external-link"
+import { DropBadge } from "@/components/drop/drop-badge"
+import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import type { AbuseContactResponse, AbuseReportResponse } from "@/generated/api/types.gen"
-import { formatAbuseReportCsv, formatAbuseReportText, reportFileName } from "@/lib/abuse-report"
+import {
+  dropNoticeHeadline,
+  formatAbuseReportCsv,
+  formatAbuseReportText,
+  reportDropListings,
+  reportFileName,
+  reportIsFor,
+  titleDropBadgeKind,
+  type ReportDropListings,
+} from "@/lib/abuse-report"
 import type { AbuseReportTarget } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
-import { useAbuseContact, useAbuseReport } from "@/lib/queries"
+import { dropBanReason, dropNetworkBanOffered, sblRecordUrl } from "@/lib/drop-lists"
+import { focusTarget } from "@/lib/drop-networks"
+import { useAbuseContact, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { formatTs } from "@/lib/datetime"
@@ -67,9 +80,8 @@ export function AbuseReportDialog({
     <Dialog open={open} onOpenChange={openChange}>
       <DialogContent
         className={cn(
-          expanded
-            ? "flex h-dvh max-h-none w-screen max-w-none flex-col rounded-none sm:max-w-none"
-            : "max-h-[90vh] overflow-y-auto sm:max-w-3xl",
+          "flex flex-col gap-0 p-0",
+          expanded ? "h-dvh max-h-none w-screen max-w-none rounded-none sm:max-w-none" : "max-h-[90vh] sm:max-w-3xl",
         )}
         onEscapeKeyDown={(event) => {
           // The first Escape leaves full screen, the next closes the dialog.
@@ -157,152 +169,168 @@ function AbuseReportBody({
 
   const title = target.kind === "asn" ? asLabel(target.asn, subject.organization) : target.ip
   const loading = report.isLoading || (report.isPlaceholderData && report.isFetching)
+  const dropListings = data && (!report.isPlaceholderData || reportIsFor(data, target)) ? reportDropListings(data) : null
+  const titleDropBadge = dropListings ? titleDropBadgeKind(dropListings) : null
 
   return (
-    <div ref={container} className={cn("flex min-w-0 flex-col gap-4", expanded && "min-h-0 flex-1")}>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 pr-6">
-          <MailWarning className="size-4 shrink-0 text-muted-foreground" />
-          Abuse report: <span className="min-w-0 font-mono wrap-anywhere">{title}</span>
+    <div ref={container} className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <DialogHeader className="shrink-0 gap-1 border-b px-4 pt-4 pb-3 text-left sm:gap-2 sm:px-6 sm:pt-6 sm:pb-4">
+        <DialogTitle className="pr-6 text-base leading-snug sm:text-lg">
+          <MailWarning className="mr-2 inline size-4 align-[-2px] text-muted-foreground" />
+          Abuse report: <span className="font-mono wrap-anywhere">{title}</span>
+          {titleDropBadge && (
+            <DropBadge
+              variant="short"
+              list={titleDropBadge === "asn" ? "asn-drop" : "drop"}
+              showListName
+              sblId={titleDropBadge === "network" ? dropListings?.dropNetwork?.sblId : undefined}
+              className="ml-2 align-[2px]"
+            />
+          )}
         </DialogTitle>
-        <DialogDescription>{period}, times in UTC.</DialogDescription>
+        <DialogDescription className="text-xs sm:text-sm">{period}, times in UTC.</DialogDescription>
       </DialogHeader>
 
-      <div className={cn("flex flex-wrap items-end gap-x-4 gap-y-3", expanded && "hidden")}>
-        {subject.kind === "ip" && asn != null && (
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-6">
+        <div className={cn("flex flex-wrap items-end gap-x-4 gap-y-3", expanded && "hidden")}>
+          {subject.kind === "ip" && asn != null && (
+            <div className="space-y-1.5">
+              <Label>Report on</Label>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={scope}
+                onValueChange={(value) => value && switchScope(value as "ip" | "asn")}
+              >
+                <ToggleGroupItem value="ip">This IP</ToggleGroupItem>
+                <ToggleGroupItem value="asn">All of AS{asn}</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+          )}
+          {target.kind === "asn" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="abuse-max-ips">Addresses</Label>
+              <Select value={String(maxIps)} onValueChange={(value) => setMaxIps(Number(value))}>
+                <SelectTrigger id="abuse-max-ips" size="sm" className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MAX_IPS.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      Busiest {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-1.5">
-            <Label>Report on</Label>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              value={scope}
-              onValueChange={(value) => value && switchScope(value as "ip" | "asn")}
-            >
-              <ToggleGroupItem value="ip">This IP</ToggleGroupItem>
-              <ToggleGroupItem value="asn">All of AS{asn}</ToggleGroupItem>
-            </ToggleGroup>
-          </div>
-        )}
-        {target.kind === "asn" && (
-          <div className="space-y-1.5">
-            <Label htmlFor="abuse-max-ips">Addresses</Label>
-            <Select value={String(maxIps)} onValueChange={(value) => setMaxIps(Number(value))}>
-              <SelectTrigger id="abuse-max-ips" size="sm" className="w-32">
+            <Label htmlFor="abuse-lines">Log lines per IP</Label>
+            <Select value={String(linesPerIp)} onValueChange={(value) => setLinesPerIp(Number(value))}>
+              <SelectTrigger id="abuse-lines" size="sm" className="w-28">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {MAX_IPS.map((n) => (
+                {LINES_PER_IP.map((n) => (
                   <SelectItem key={n} value={String(n)}>
-                    Busiest {n}
+                    {n}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-        )}
-        <div className="space-y-1.5">
-          <Label htmlFor="abuse-lines">Log lines per IP</Label>
-          <Select value={String(linesPerIp)} onValueChange={(value) => setLinesPerIp(Number(value))}>
-            <SelectTrigger id="abuse-lines" size="sm" className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {LINES_PER_IP.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label>Format</Label>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            value={format}
-            onValueChange={(value) => value && setFormat(value as Format)}
-          >
-            <ToggleGroupItem value="text">Text</ToggleGroupItem>
-            <ToggleGroupItem value="csv">CSV</ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-      </div>
-
-      {!expanded && (
-      <ContactPanel
-        target={target}
-        contact={contact.data}
-        requested={lookups.has(targetKey)}
-        loading={contact.isFetching}
-        error={contact.isError ? errorDetail(contact.error, "The RDAP lookup failed.") : null}
-        onLookup={() => (lookups.has(targetKey) ? void contact.refetch() : setLookups(new Set(lookups).add(targetKey)))}
-      />
-      )}
-
-      {!expanded && data && !report.isPlaceholderData && <ReportNotes report={data} />}
-
-      <p className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
-        <ShieldAlert className="mt-px size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-        <span>
-          The report leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user
-          agents it tries to strip the hostnames you serve, your public address and any server name with a dot. It
-          also tries to strip credentials such as API keys from paths. It can miss some, so read it before you send
-          it.
-        </span>
-      </p>
-
-      <div className={cn("flex flex-col gap-1.5", expanded && "min-h-0 flex-1")}>
-        {data && (
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Preview</span>
-            <span className="flex items-center gap-1">
-              {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Updating" />}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={() => onExpandedChange(!expanded)}
-              >
-                {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-                {expanded ? "Exit full screen" : "Full screen"}
-              </Button>
-            </span>
+          <div className="space-y-1.5">
+            <Label>Format</Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={format}
+              onValueChange={(value) => value && setFormat(value as Format)}
+            >
+              <ToggleGroupItem value="text">Text</ToggleGroupItem>
+              <ToggleGroupItem value="csv">CSV</ToggleGroupItem>
+            </ToggleGroup>
           </div>
+        </div>
+
+        {!expanded && dropListings && <DropNotice listings={dropListings} />}
+
+        {!expanded && (
+        <ContactPanel
+          target={target}
+          contact={contact.data}
+          requested={lookups.has(targetKey)}
+          loading={contact.isFetching}
+          error={contact.isError ? errorDetail(contact.error, "The RDAP lookup failed.") : null}
+          onLookup={() => (lookups.has(targetKey) ? void contact.refetch() : setLookups(new Set(lookups).add(targetKey)))}
+        />
         )}
-        {report.isError && !data ? (
-          <div className="flex items-center gap-3 text-sm text-destructive">
-            {errorDetail(report.error, "Could not build the report.")}
-            <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs" onClick={() => void report.refetch()}>
-              <RotateCw className="size-3" />
-              Retry
-            </Button>
-          </div>
-        ) : !data ? (
-          <div className="relative">
-            <Skeleton className="h-72 w-full" />
-            <div role="status" className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Building the report…
+
+        {!expanded && data && !report.isPlaceholderData && <ReportNotes report={data} />}
+
+        <p className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
+          <ShieldAlert className="mt-px size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span>
+            The report leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user
+            agents it tries to strip the hostnames you serve, your public address and any server name with a dot. It
+            also tries to strip credentials such as API keys from paths. It can miss some, so read it before you send
+            it.
+          </span>
+        </p>
+
+        <div className={cn("flex flex-col gap-1.5", expanded && "min-h-0 flex-1")}>
+          {data && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Preview</span>
+              <span className="flex items-center gap-1">
+                {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Updating" />}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs"
+                  onClick={() => onExpandedChange(!expanded)}
+                >
+                  {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                  {expanded ? "Exit full screen" : "Full screen"}
+                </Button>
+              </span>
             </div>
-          </div>
-        ) : (
-          <pre
-            aria-label="Report preview"
-            className={cn(
-              "overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed whitespace-pre",
-              expanded ? "min-h-0 flex-1 text-xs" : "h-[min(24rem,45vh)]",
-              loading && "opacity-50",
-            )}
-          >
-            {text}
-          </pre>
-        )}
+          )}
+          {report.isError && !data ? (
+            <div className="flex items-center gap-3 text-sm text-destructive">
+              {errorDetail(report.error, "Could not build the report.")}
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs" onClick={() => void report.refetch()}>
+                <RotateCw className="size-3" />
+                Retry
+              </Button>
+            </div>
+          ) : !data ? (
+            <div className="relative">
+              <Skeleton className="h-72 w-full" />
+              <div role="status" className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Building the report…
+              </div>
+            </div>
+          ) : (
+            <pre
+              aria-label="Report preview"
+              className={cn(
+                "overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-[11px] leading-relaxed whitespace-pre",
+                expanded ? "min-h-0 flex-1 text-xs" : "h-[min(18rem,45vh)]",
+                loading && "opacity-50",
+              )}
+            >
+              {text}
+            </pre>
+          )}
+        </div>
+
       </div>
 
-      <DialogFooter>
+      <DialogFooter className="shrink-0 flex-row justify-end border-t px-4 py-3 *:flex-1 sm:px-6 sm:py-4 sm:*:flex-none">
         <Button variant="outline" onClick={download} disabled={!data || loading}>
           <Download data-icon="inline-start" />
           Download .{format === "text" ? "txt" : "csv"}
@@ -312,6 +340,97 @@ function AbuseReportBody({
           {copied ? "Copied" : "Copy"}
         </Button>
       </DialogFooter>
+    </div>
+  )
+}
+
+/** Networks an ASN report's DROP notice links; the report text names the rest. */
+const NOTICE_NETWORKS = 4
+
+/** Says the target is on a DROP list, links its SBL records, and offers the network ban. */
+function DropNotice({ listings }: { listings: ReportDropListings }) {
+  const { dropNetwork, asnDropAsn, addressNetworks } = listings
+  const { data: status } = useCrowdsecStatus()
+  const banAvailable = status?.writeEnabled === true && dropNetwork !== null
+  const bannedRanges = useBannedRanges(banAvailable)
+  const [banDialogOpen, setBanDialogOpen] = useState(false)
+  const banButtonRef = useRef<HTMLButtonElement>(null)
+  const noticeRef = useRef<HTMLDivElement>(null)
+  // A successful ban refetches the banned ranges and unmounts the ban link
+  // before the dialog closes, so focus falls back to the notice.
+  const returnFocusTo = useMemo<RefObject<HTMLElement | null>>(
+    () => ({
+      get current() {
+        return focusTarget([banButtonRef.current, noticeRef.current])
+      },
+    }),
+    [],
+  )
+  const headline = dropNoticeHeadline(listings)
+  if (headline === null) return null
+  const banShown = banAvailable && dropNetworkBanOffered(dropNetwork.cidr, bannedRanges)
+  const onDrop = dropNetwork !== null || addressNetworks.length > 0
+  const lists = onDrop && asnDropAsn !== null ? "These lists hold" : "The list holds"
+  const moreNetworks = addressNetworks.length - NOTICE_NETWORKS
+  return (
+    <div
+      ref={noticeRef}
+      tabIndex={-1}
+      className="flex gap-2 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
+      <OctagonX aria-hidden className="mt-px size-3.5 shrink-0 text-destructive" />
+      <div className="@container/drop-notice min-w-0 flex-1 space-y-1">
+        <p className="font-semibold text-destructive">{headline}</p>
+        <p>
+          {lists} networks that are hijacked or run by spam and cybercrime operations. The abuse contact below may belong to the same people, so a report
+          there may go nowhere. If the address block is leased, the contact may be the leasing company, which can act
+          on it.
+        </p>
+        {addressNetworks.length > 0 && (
+          <p className="flex flex-wrap items-center gap-x-3">
+            {addressNetworks.slice(0, NOTICE_NETWORKS).map((network) => (
+              <span key={network.cidr} className="inline-flex items-center gap-1.5">
+                <ExternalLink href={sblRecordUrl(network.sblId)} className="pointer-coarse:min-h-8">
+                  View {network.sblId}
+                </ExternalLink>
+                <span className="font-mono text-muted-foreground">{network.cidr}</span>
+              </span>
+            ))}
+            {moreNetworks > 0 && <span className="text-muted-foreground">and {moreNetworks} more in the report</span>}
+          </p>
+        )}
+        {dropNetwork && (
+          <p className="flex flex-wrap items-center gap-x-2">
+            <ExternalLink href={sblRecordUrl(dropNetwork.sblId)} className="pointer-coarse:min-h-8">
+              View {dropNetwork.sblId}
+            </ExternalLink>
+            {banShown && (
+              <>
+                <span aria-hidden className="text-muted-foreground @max-[16rem]/drop-notice:hidden">
+                  ·
+                </span>
+                <button
+                  ref={banButtonRef}
+                  type="button"
+                  className="underline-offset-2 hover:underline pointer-coarse:min-h-8"
+                  onClick={() => setBanDialogOpen(true)}
+                >
+                  Ban DROP network…
+                </button>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+      {dropNetwork && (
+        <BanIpDialog
+          open={banDialogOpen}
+          onOpenChange={setBanDialogOpen}
+          initialIp={dropNetwork.cidr}
+          initialReason={dropBanReason(dropNetwork.sblId)}
+          returnFocusTo={returnFocusTo}
+        />
+      )}
     </div>
   )
 }

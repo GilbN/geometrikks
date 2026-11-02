@@ -20,6 +20,13 @@ from geometrikks.domain.reports.abuse_report import (
     registrable_domain,
     secret_param,
 )
+from geometrikks.domain.drop.snapshot import (
+    EMPTY_DROP_SNAPSHOT,
+    DropAsnEntry,
+    DropNetworkMatch,
+    DropSnapshot,
+    FeedState,
+)
 from geometrikks.domain.reports.controllers import ReportsController
 from geometrikks.domain.reports.crowdsec import alert_in_window, gather_crowdsec
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
@@ -291,11 +298,14 @@ class FakeRepo(AbuseReportRepository):
         )
 
 
-def make_app(repo: FakeRepo, crowdsec: FakeCrowdSec | None = None) -> Litestar:
+def make_app(
+    repo: FakeRepo, crowdsec: FakeCrowdSec | None = None, drop_snapshot: DropSnapshot = EMPTY_DROP_SNAPSHOT
+) -> Litestar:
     class _TestController(ReportsController):
         dependencies = {
             **(ReportsController.dependencies or {}),
             "abuse_report_repo": Provide(lambda: repo, sync_to_thread=False),
+            "drop_snapshot": Provide(lambda: drop_snapshot, sync_to_thread=False),
         }
 
     app = Litestar(
@@ -351,6 +361,7 @@ async def test_ip_report_wire_shape():
     body = resp.json()
     assert body["target"] == {
         "kind": "ip", "ipAddress": "198.51.100.7", "asn": 64500, "asnOrganization": "Example Hosting",
+        "asnDrop": False,
     }
     assert (body["ipCount"], body["totalRequests"], body["redactions"]) == (1, 3, 2)
     assert body["crowdsec"] == {"status": "disabled", "message": None}
@@ -358,6 +369,7 @@ async def test_ip_report_wire_shape():
     assert (ip["status4xx"], ip["alertsTruncated"]) == (3, False)
     assert ip["lines"][0]["url"] == "/.env"
     assert "host" not in ip["lines"][0] and "referrer" not in ip["lines"][0]
+    assert (ip["dropNetwork"], ip["asnDrop"]) == (None, False)
 
 
 async def test_asn_report_carries_selection_totals():
@@ -369,7 +381,9 @@ async def test_asn_report_carries_selection_totals():
     async with AsyncTestClient(make_app(repo)) as client:
         resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "asn": "64500", "maxIps": "2"})
     body = resp.json()
-    assert body["target"] == {"kind": "asn", "ipAddress": None, "asn": 64500, "asnOrganization": "Example Hosting"}
+    assert body["target"] == {
+        "kind": "asn", "ipAddress": None, "asn": 64500, "asnOrganization": "Example Hosting", "asnDrop": False,
+    }
     assert (body["ipCount"], body["totalRequests"], body["status4xx"], len(body["ips"])) == (40, 900, 700, 2)
 
 
@@ -409,3 +423,94 @@ async def test_lapi_outage_still_returns_the_logs(monkeypatch):
         resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "ipAddress": "198.51.100.7"})
     assert resp.status_code == 200
     assert resp.json()["crowdsec"]["status"] == "unavailable"
+
+
+# -- DROP listings -----------------------------------------------------------
+
+
+def make_drop_snapshot() -> DropSnapshot:
+    loaded_at = NOW - timedelta(hours=1)
+    return DropSnapshot(
+        networks=(
+            DropNetworkMatch(cidr="192.0.2.0/24", sbl_id="SBL000042"),
+            DropNetworkMatch(cidr="2001:db8::/32", sbl_id="SBL000043"),
+        ),
+        asns=(DropAsnEntry(asn=64500, name="EXAMPLE-AS", country_code="NL"),),
+        feeds=tuple(
+            FeedState(
+                feed=feed, upstream_timestamp=None, record_count=1, copyright=None,
+                fetched_at=loaded_at, checked_at=loaded_at, last_error=None,
+            )
+            for feed in ("v4", "v6", "asn")
+        ),
+    )
+
+
+async def test_ip_report_names_the_drop_network_and_asn_drop():
+    item = ReportIp(ip="192.0.2.7", total_requests=1, asn=64500, asn_organization="Example Hosting")
+    app = make_app(FakeRepo({"192.0.2.7": item}), drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "ipAddress": "192.0.2.7"})
+    body = resp.json()
+    assert body["target"]["asnDrop"] is True
+    ip = body["ips"][0]
+    assert ip["dropNetwork"] == {"cidr": "192.0.2.0/24", "sblId": "SBL000042"}
+    assert ip["asnDrop"] is True
+
+
+async def test_an_ipv4_mapped_client_matches_the_ipv4_drop_network():
+    mapped_ip = "::ffff:192.0.2.10"
+    item = ReportIp(ip=mapped_ip, total_requests=1)
+    repo = FakeRepo({mapped_ip: item})
+    app = make_app(repo, drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "ipAddress": mapped_ip})
+    assert resp.status_code == 200
+    assert repo.evidence_calls == [[mapped_ip]]
+    ip = resp.json()["ips"][0]
+    assert ip["ipAddress"] == mapped_ip
+    assert ip["dropNetwork"] == {"cidr": "192.0.2.0/24", "sblId": "SBL000042"}
+    assert ip["asnDrop"] is False
+
+
+async def test_an_unlisted_ip_in_a_listed_asn_carries_only_asn_drop():
+    item = ReportIp(ip="198.51.100.7", total_requests=1, asn=64500)
+    app = make_app(FakeRepo({"198.51.100.7": item}), drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "ipAddress": "198.51.100.7"})
+    ip = resp.json()["ips"][0]
+    assert (ip["dropNetwork"], ip["asnDrop"]) == (None, True)
+
+
+async def test_a_listed_ip_without_asn_data_is_not_asn_drop():
+    app = make_app(FakeRepo({}), drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "ipAddress": "2001:db8::7"})
+    body = resp.json()
+    assert body["target"]["asnDrop"] is False
+    assert body["ips"][0]["dropNetwork"] == {"cidr": "2001:db8::/32", "sblId": "SBL000043"}
+    assert body["ips"][0]["asnDrop"] is False
+
+
+async def test_asn_report_on_an_asn_drop_asn_flags_the_target():
+    selection = AsnSelection(
+        ips=["192.0.2.7", "198.51.100.8"], ip_count=2, total_requests=5, total_4xx=5, organization="Example Hosting",
+    )
+    evidence = {
+        "192.0.2.7": ReportIp(ip="192.0.2.7", total_requests=3, asn=64500),
+        "198.51.100.8": ReportIp(ip="198.51.100.8", total_requests=2, asn=64500),
+    }
+    app = make_app(FakeRepo(evidence, selection), drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "asn": "64500"})
+    body = resp.json()
+    assert body["target"]["asnDrop"] is True
+    assert [ip["dropNetwork"] for ip in body["ips"]] == [{"cidr": "192.0.2.0/24", "sblId": "SBL000042"}, None]
+
+
+async def test_asn_report_on_an_unlisted_asn_is_not_asn_drop():
+    selection = AsnSelection(ips=[], ip_count=0, total_requests=0, total_4xx=0, organization=None)
+    app = make_app(FakeRepo({}, selection), drop_snapshot=make_drop_snapshot())
+    async with AsyncTestClient(app) as client:
+        resp = await client.get("/api/v1/reports/abuse", params={**WINDOW, "asn": "64501"})
+    assert resp.json()["target"]["asnDrop"] is False

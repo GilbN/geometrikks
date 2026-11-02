@@ -5,6 +5,8 @@ import {
   dropAsnFreshness,
   dropAsnsLoaded,
   dropMarkSrText,
+  dropBadgeLabel,
+  dropNetworkBanOffered,
   dropNetworkBanState,
   dropNetworksLoaded,
   dropCreditText,
@@ -313,6 +315,18 @@ describe("dropMarkSrText", () => {
   })
 })
 
+describe("dropBadgeLabel", () => {
+  it("reads DROP by default, ASN-DROP listings included", () => {
+    expect(dropBadgeLabel("drop", false)).toBe("DROP")
+    expect(dropBadgeLabel("asn-drop", false)).toBe("DROP")
+  })
+
+  it("names ASN-DROP only when the badge shows its list", () => {
+    expect(dropBadgeLabel("asn-drop", true)).toBe("ASN-DROP")
+    expect(dropBadgeLabel("drop", true)).toBe("DROP")
+  })
+})
+
 describe("dropNetworkBanState", () => {
   const bannedRanges = new Map([["192.0.2.0/24", { value: "192.0.2.0/24" }]])
 
@@ -329,8 +343,31 @@ describe("dropNetworkBanState", () => {
     expect(dropNetworkBanState("192.0.2.0/24", { data: bannedRanges, isError: true })).toBe("banned")
   })
 
-  it("offers Ban while the first read is loading", () => {
-    expect(dropNetworkBanState("192.0.2.0/24", { data: undefined, isError: false })).toBe("unbanned")
+  it("is pending until the first read answers, paused or loading", () => {
+    expect(dropNetworkBanState("192.0.2.0/24", { data: undefined, isError: false })).toBe("pending")
+  })
+})
+
+describe("dropNetworkBanOffered", () => {
+  const bannedRanges = new Map([["192.0.2.0/24", { value: "192.0.2.0/24" }]])
+
+  it("offers nothing until the first read answers", () => {
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: undefined, isError: false })).toBe(false)
+  })
+
+  it("offers nothing while a first fetch is paused offline", () => {
+    // TanStack Query v5: a paused first fetch has no data, no error and isLoading false.
+    const paused = { data: undefined, isError: false, isLoading: false, fetchStatus: "paused" }
+    expect(dropNetworkBanOffered("198.51.100.0/24", paused)).toBe(false)
+  })
+
+  it("offers the ban only for an unbanned network", () => {
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: bannedRanges, isError: false })).toBe(true)
+    expect(dropNetworkBanOffered("192.0.2.0/24", { data: bannedRanges, isError: false })).toBe(false)
+  })
+
+  it("offers nothing when the ban state is unknown", () => {
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: undefined, isError: true })).toBe(false)
   })
 })
 

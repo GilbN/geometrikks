@@ -13,6 +13,7 @@ class ReportTarget(msgspec.Struct, rename="camel"):
     ip_address: str | None
     asn: int | None
     asn_organization: str | None
+    asn_drop: bool
 
 
 class ReportPeakDTO(msgspec.Struct, rename="camel"):
@@ -80,6 +81,13 @@ class ReportAlertDTO(msgspec.Struct, rename="camel"):
     decisions: list[ReportAlertDecisionDTO]
 
 
+class ReportDropNetworkDTO(msgspec.Struct, rename="camel"):
+    """The DROP network that holds the IP, with its SBL record id."""
+
+    cidr: str
+    sbl_id: str
+
+
 class ReportIpDTO(msgspec.Struct, rename="camel"):
     """Everything the report says about one source IP."""
 
@@ -105,6 +113,8 @@ class ReportIpDTO(msgspec.Struct, rename="camel"):
     decisions: list[ReportDecisionDTO]
     alerts: list[ReportAlertDTO]
     alerts_truncated: bool
+    drop_network: ReportDropNetworkDTO | None
+    asn_drop: bool
 
 
 CrowdSecReportStatus = Literal["disabled", "ok", "decisions-only", "unavailable"]

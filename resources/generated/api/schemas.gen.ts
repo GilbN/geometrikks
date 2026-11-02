@@ -5105,6 +5105,20 @@ export const ReportDecisionDTOSchema = {
   type: "object",
 } as const;
 
+export const ReportDropNetworkDTOSchema = {
+  properties: {
+    cidr: {
+      type: "string",
+    },
+    sblId: {
+      type: "string",
+    },
+  },
+  required: ["cidr", "sblId"],
+  title: "ReportDropNetworkDTO",
+  type: "object",
+} as const;
+
 export const ReportIpDTOSchema = {
   properties: {
     alerts: {
@@ -5125,6 +5139,9 @@ export const ReportIpDTOSchema = {
           type: "null",
         },
       ],
+    },
+    asnDrop: {
+      type: "boolean",
     },
     asnOrganization: {
       oneOf: [
@@ -5164,6 +5181,16 @@ export const ReportIpDTOSchema = {
     },
     distinctPaths: {
       type: "integer",
+    },
+    dropNetwork: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/ReportDropNetworkDTO",
+        },
+        {
+          type: "null",
+        },
+      ],
     },
     firstSeen: {
       oneOf: [
@@ -5242,11 +5269,13 @@ export const ReportIpDTOSchema = {
     "alerts",
     "alertsTruncated",
     "asn",
+    "asnDrop",
     "asnOrganization",
     "countryCode",
     "countryName",
     "decisions",
     "distinctPaths",
+    "dropNetwork",
     "firstSeen",
     "ipAddress",
     "lastSeen",
@@ -5388,6 +5417,9 @@ export const ReportTargetSchema = {
         },
       ],
     },
+    asnDrop: {
+      type: "boolean",
+    },
     asnOrganization: {
       oneOf: [
         {
@@ -5413,7 +5445,7 @@ export const ReportTargetSchema = {
       type: "string",
     },
   },
-  required: ["asn", "asnOrganization", "ipAddress", "kind"],
+  required: ["asn", "asnDrop", "asnOrganization", "ipAddress", "kind"],
   title: "ReportTarget",
   type: "object",
 } as const;
