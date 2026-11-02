@@ -25,7 +25,7 @@ from geometrikks.domain.auth.api_keys import (
     is_well_formed_api_key,
 )
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
-from geometrikks.server import runtime
+from geometrikks.server import api_key_store, runtime
 from geometrikks.server.api_key_store import ApiKeyStore, install_api_key_store
 from tests.api_key_support import MemoryApiKeyRepository
 
@@ -268,15 +268,51 @@ async def test_rejection_log_throttle_per_prefix_and_ip() -> None:
     assert store.should_log_rejection("gmk_7Hq2", "192.168.1.20") is True
 
 
-async def test_rejection_log_throttle_drops_entries_older_than_the_window() -> None:
+async def test_rejection_log_throttle_drops_entries_older_than_the_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(api_key_store, "REJECTION_LOG_MAX_ENTRIES", 3)
     store, _, clock = _store()
-    for host_number in range(100):
-        store.should_log_rejection("gmk_7Hq2", f"10.0.0.{host_number}")
-    clock.advance(61)
+    for host_number in range(3):
+        assert store.should_log_rejection("gmk_7Hq2", f"10.0.0.{host_number}") is True
+    assert store.should_log_rejection("gmk_7Hq2", "10.0.0.3") is False
 
-    store.should_log_rejection("gmk_Ve8s", "192.168.1.20")
+    clock.advance(60)
 
-    assert len(store._rejections_logged_at) == 1
+    assert store.should_log_rejection("gmk_7Hq2", "10.0.0.3") is True
+    assert store.should_log_rejection("gmk_7Hq2", "10.0.0.0") is True
+
+
+async def test_rejection_log_stops_at_the_cap_instead_of_growing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(api_key_store, "REJECTION_LOG_MAX_ENTRIES", 2)
+    store, _, clock = _store()
+
+    assert store.should_log_rejection("gmk_aaaa", "10.0.0.1") is True
+    clock.advance(1)
+    assert store.should_log_rejection("gmk_bbbb", "10.0.0.1") is True
+    assert store.should_log_rejection("gmk_cccc", "10.0.0.1") is False
+
+    clock.advance(59)
+    assert store.should_log_rejection("gmk_cccc", "10.0.0.1") is True
+    assert store.should_log_rejection("gmk_dddd", "10.0.0.1") is False
+
+
+async def test_overlapping_requests_write_last_used_once() -> None:
+    store, repository, _ = _store()
+    _, key = await store.create(name="homepage", scope="read", expires_at=None, created_by="admin")
+    stale_records = [await store.authenticate(key) for _ in range(10)]
+
+    for api_key_record in stale_records:
+        assert api_key_record is not None
+        await store.record_use(api_key_record, "192.168.1.20")
+
+    assert [touch[1:] for touch in repository.touches] == [(START, "192.168.1.20")]
+
+
+async def test_list_keeps_same_time_inserts_newest_first() -> None:
+    store, _, _ = _store()
+    await store.create(name="first", scope="read", expires_at=None, created_by="admin")
+    await store.create(name="second", scope="read", expires_at=None, created_by="admin")
+
+    assert [api_key_record.name for api_key_record in await store.list_records()] == ["second", "first"]
 
 
 async def test_unavailable_store_raises_503() -> None:

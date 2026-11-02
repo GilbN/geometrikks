@@ -29,6 +29,8 @@ logger = get_logger(__name__)
 API_KEY_NAME_MAX_LENGTH = 64
 LAST_USED_WRITE_INTERVAL = timedelta(seconds=60)
 REJECTION_LOG_INTERVAL = timedelta(seconds=60)
+# Anyone can send a random gmk_ token, so the rejection map must not grow with the attacker.
+REJECTION_LOG_MAX_ENTRIES = 10_000
 
 _T = TypeVar("_T")
 
@@ -151,6 +153,7 @@ class ApiKeyStore:
         self.clock = clock
         self.timeout = timeout
         self._rejections_logged_at: dict[tuple[str, str | None], datetime] = {}
+        self._last_touch_by_key: dict[UUID, tuple[datetime, str | None]] = {}
 
     async def _call(self, operation: Callable[[], Awaitable[_T]]) -> _T:
         if not self.is_available():
@@ -192,6 +195,7 @@ class ApiKeyStore:
 
     async def revoke(self, key_id: UUID) -> ApiKeyRecord:
         api_key_record = await self._call(lambda: self.repository.delete(key_id))
+        self._last_touch_by_key.pop(key_id, None)
         if api_key_record is None:
             raise DomainNotFoundError("The API key does not exist.")
         return api_key_record
@@ -199,12 +203,15 @@ class ApiKeyStore:
     async def record_use(self, record: ApiKeyRecord, ip: str | None) -> None:
         """Store when and from where ``record`` was last used. A failed write never fails the request."""
         now = self.clock()
-        if (
-            record.last_used_at is not None
-            and now - record.last_used_at <= LAST_USED_WRITE_INTERVAL
-            and record.last_used_ip == ip
+        # Requests that authenticated before an earlier touch committed all carry the same
+        # stale record, so the last touch this process started is checked as well.
+        for last_used_at, last_used_ip in (
+            (record.last_used_at, record.last_used_ip),
+            self._last_touch_by_key.get(record.id, (None, None)),
         ):
-            return
+            if last_used_at is not None and now - last_used_at <= LAST_USED_WRITE_INTERVAL and last_used_ip == ip:
+                return
+        self._last_touch_by_key[record.id] = (now, ip)
         try:
             await self._call(lambda: self.repository.touch(record.id, at=now, ip=ip))
         except Exception:
@@ -213,13 +220,16 @@ class ApiKeyStore:
     def should_log_rejection(self, display_prefix: str, ip: str | None) -> bool:
         """True at most once a minute per (display prefix, IP), so a stale key polling does not flood the log."""
         now = self.clock()
-        self._rejections_logged_at = {
-            rejection: logged_at
-            for rejection, logged_at in self._rejections_logged_at.items()
-            if now - logged_at < REJECTION_LOG_INTERVAL
-        }
+        # Entries are only ever added at the back with the current time, so the oldest is first.
+        while self._rejections_logged_at:
+            oldest_rejection, logged_at = next(iter(self._rejections_logged_at.items()))
+            if now - logged_at < REJECTION_LOG_INTERVAL:
+                break
+            del self._rejections_logged_at[oldest_rejection]
         rejection = (display_prefix, ip)
         if rejection in self._rejections_logged_at:
+            return False
+        if len(self._rejections_logged_at) >= REJECTION_LOG_MAX_ENTRIES:
             return False
         self._rejections_logged_at[rejection] = now
         return True

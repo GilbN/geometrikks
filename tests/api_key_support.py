@@ -28,7 +28,12 @@ class MemoryApiKeyRepository:
         return self.records_by_hash.get(key_hash)
 
     async def list_records(self) -> list[ApiKeyRecord]:
-        return sorted(self.records_by_hash.values(), key=lambda api_key_record: api_key_record.created_at, reverse=True)
+        # Reversed first so the stable sort keeps the newest insert ahead of a same-time older one.
+        return sorted(
+            reversed(self.records_by_hash.values()),
+            key=lambda api_key_record: api_key_record.created_at,
+            reverse=True,
+        )
 
     async def insert(
         self,
