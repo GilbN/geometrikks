@@ -7,6 +7,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { LocateFixed, ScanSearch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { DropBadge } from "@/components/drop/drop-badge"
 import { DROP_UNDERLINE_CLASS, DropMarkSrText } from "@/components/drop/drop-mark"
 import { CopyIpButton, IpActionsMenu, IpContext } from "@/components/ip-actions/ip-actions-menu"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
@@ -24,15 +25,22 @@ export function DetailIpBlock({ values, children }: { values: IpRowValues; child
   const decision = bannedIps?.get(values.ip) ?? null
   return (
     <div className="-mx-4 -mt-4 mb-2 border-b border-border/50 px-4 py-3">
-      <div className="flex items-center gap-2">
-        <span
-          className={cn("min-w-0 break-all font-mono text-xl", dropNetwork && DROP_UNDERLINE_CLASS)}
-          title={dropNetwork ? dropMarkTitle(dropNetwork.sblId) : undefined}
-        >
-          {values.ip}
-          {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
-        </span>
-        {decision !== null && <DecisionBadge type={decision} />}
+      <div className="flex items-start gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span
+            className={cn("min-w-0 break-all font-mono text-xl", dropNetwork && DROP_UNDERLINE_CLASS)}
+            title={dropNetwork ? dropMarkTitle(dropNetwork.sblId) : undefined}
+          >
+            {values.ip}
+            {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
+          </span>
+          {(decision !== null || dropNetwork) && (
+            <span className="flex items-center gap-2">
+              {decision !== null && <DecisionBadge type={decision} />}
+              {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} />}
+            </span>
+          )}
+        </div>
         <span className="ml-auto flex shrink-0 items-center">
           {children}
           <CopyIpButton ip={values.ip} />

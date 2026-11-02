@@ -8,7 +8,7 @@ import { dropMarkSrText, dropMarkTitle } from "@/lib/drop-lists"
 import { useDropNetwork } from "@/lib/queries"
 
 export const DROP_UNDERLINE_CLASS =
-  "underline decoration-dashed decoration-destructive decoration-[1.5px] underline-offset-4"
+  "underline decoration-dashed decoration-destructive decoration-2 underline-offset-2 pb-0.5"
 
 const DROP_UNDERLINE_STYLE: CSSProperties = {
   textDecorationLine: "underline",
