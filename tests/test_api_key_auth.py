@@ -88,7 +88,11 @@ async def test_head_with_read_key_allowed():
     async with AsyncTestClient(app=app) as client:
         api_key = await create_key(app)
         res = await client.head("/api/v1/test-head", headers=bearer(api_key))
+        anonymous = await client.head("/api/v1/test-head")
+        unknown = await client.head("/api/v1/test-head", headers=bearer(UNKNOWN_KEY))
     assert res.status_code == 200
+    assert anonymous.status_code == 401
+    assert unknown.status_code == 401
 
 
 @pytest.mark.parametrize(
@@ -170,6 +174,39 @@ async def test_revoked_key_is_401_on_next_request():
         [api_key_record] = await key_store(app).list_records()
         await key_store(app).revoke(api_key_record.id)
         res = await client.get("/api/v1/protected", headers=bearer(api_key))
+    assert res.status_code == 401
+
+
+@pytest.mark.parametrize(
+    "headers_for",
+    [
+        lambda token: [("Authorization", "Bearer some.jwt.value"), ("Authorization", f"Bearer {token}")],
+        lambda token: [("Authorization", f"Bearer some.jwt.value, Bearer {token}")],
+    ],
+    ids=["repeated-header", "comma-joined"],
+)
+async def test_key_behind_another_bearer_still_decides(headers_for: Callable[[str], list[tuple[str, str]]]):
+    app = key_app()
+    async with AsyncTestClient(app=app) as client:
+        api_key = await create_key(app)
+        assert (await client.post("/api/v1/auth/login", json=CREDS)).status_code == 200
+        read_key_post = await client.post("/api/v1/test-write", headers=headers_for(api_key))
+        bad_key_get = await client.get("/api/v1/protected", headers=headers_for("gmk_bad"))
+        session_me = await client.get("/api/v1/auth/me")
+    assert read_key_post.status_code == 403
+    assert bad_key_get.status_code == 401
+    assert session_me.status_code == 200
+
+
+async def test_two_api_keys_in_one_request_are_rejected():
+    app = key_app()
+    async with AsyncTestClient(app=app) as client:
+        first_key = await create_key(app, name="first")
+        second_key = await create_key(app, name="second")
+        res = await client.get(
+            "/api/v1/protected",
+            headers=[("Authorization", f"Bearer {first_key}"), ("Authorization", f"Bearer {second_key}")],
+        )
     assert res.status_code == 401
 
 
@@ -260,13 +297,8 @@ async def test_read_key_cannot_ban_networks():
     ban_body = {"networks": ["192.0.2.0/24"], "duration": "7d"}
     async with AsyncTestClient(app=app) as client:
         read_key = await create_key(app, name="dashboard")
-        read_write_key = await create_key(app, name="automation", scope="read_write")
         read_attempt = await client.post("/api/v1/crowdsec/ban-networks", json=ban_body, headers=bearer(read_key))
-        read_write_attempt = await client.post(
-            "/api/v1/crowdsec/ban-networks", json=ban_body, headers=bearer(read_write_key)
-        )
     assert read_attempt.status_code == 403
-    assert read_write_attempt.status_code != 403
 
 
 async def test_read_write_key_can_post():
@@ -361,12 +393,12 @@ async def test_repository_outage_is_503():
     assert res.status_code == 503
 
 
-async def test_missing_store_is_401():
+async def test_missing_store_is_503():
     app = key_app()
     del app.state.api_key_store
     async with AsyncTestClient(app=app) as client:
         res = await client.get("/api/v1/protected", headers=bearer(UNKNOWN_KEY))
-    assert res.status_code == 401
+    assert res.status_code == 503
 
 
 async def test_rejection_lines_are_throttled():

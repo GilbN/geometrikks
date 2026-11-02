@@ -138,8 +138,8 @@ def test_ws_feeds_rejected_without_session(path):
     from litestar.exceptions import WebSocketDisconnect
 
     with TestClient(app=make_app()) as client:
-        # The middleware's NotAuthorizedException closes the handshake
-        # (4000 + 401 = 4401), surfaced by the test client as a disconnect.
+        # The middleware's NotAuthorizedException closes the handshake with
+        # code 4500, surfaced by the test client as a disconnect.
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect(path) as ws:
                 ws.receive_json(timeout=10)

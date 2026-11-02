@@ -385,6 +385,9 @@ def create_session_auth(settings: "Settings") -> "GeoSessionAuth":
     session_auth = GeoSessionAuth(
         retrieve_user_handler=retrieve_user_handler,
         authentication_middleware_class=ApiKeyAuthMiddleware,
+        # Litestar also skips HEAD by default, which would leave any HEAD handler
+        # public and never check a key sent with it.
+        exclude_http_methods=["OPTIONS"],
         session_backend_config=RotatingServerSideSessionConfig(
             max_age=settings.session_max_age_seconds,
             secure=settings.session_secure,

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 from litestar.enums import ScopeType
-from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
+from litestar.exceptions import NotAuthorizedException, PermissionDeniedException, ServiceUnavailableException
 from litestar.middleware.authentication import AuthenticationResult
 from litestar.middleware.session.server_side import ServerSideSessionBackend
 from litestar.openapi.spec import Components, SecurityScheme
@@ -49,15 +49,20 @@ class ApiKeyPrincipal:
     scope: ApiKeyScope
 
 
-def bearer_token(connection: ASGIConnection[Any, Any, Any, Any]) -> str | None:
-    """The token of an ``Authorization: Bearer`` header, any case and padding, or None."""
-    authorization = connection.headers.get("authorization")
-    if authorization is None:
-        return None
-    scheme_and_token = authorization.split(maxsplit=1)
-    if len(scheme_and_token) != 2 or scheme_and_token[0].lower() != "bearer":
-        return None
-    return scheme_and_token[1].strip()
+def bearer_tokens(connection: ASGIConnection[Any, Any, Any, Any]) -> list[str]:
+    """Every ``Bearer`` token the request carries, any case and padding.
+
+    Repeated Authorization headers and comma-joined credentials are all read.
+    Reading only the first would let a proxy's JWT placed ahead of a Read key
+    hide the key and hand the request to the cookie.
+    """
+    tokens: list[str] = []
+    for authorization in connection.headers.getall("authorization", []):
+        for credential in authorization.split(","):
+            scheme_and_token = credential.split(maxsplit=1)
+            if len(scheme_and_token) == 2 and scheme_and_token[0].lower() == "bearer":
+                tokens.append(scheme_and_token[1].strip())
+    return tokens
 
 
 class ApiKeyAuthMiddleware(SessionAuthMiddleware):
@@ -70,13 +75,14 @@ class ApiKeyAuthMiddleware(SessionAuthMiddleware):
     """
 
     async def authenticate_request(self, connection: ASGIConnection[Any, Any, Any, Any]) -> AuthenticationResult:
-        token = bearer_token(connection)
-        if token is None or not is_api_key_token(token):
+        api_key_tokens = [token for token in bearer_tokens(connection) if is_api_key_token(token)]
+        if not api_key_tokens:
             return await super().authenticate_request(connection)
         store = runtime.get_api_key_store(connection.app)
         if store is None:
-            raise NotAuthorizedException("API keys are unavailable")
-        if not is_well_formed_api_key(token):
+            raise ServiceUnavailableException(detail="API keys are unavailable.")
+        token = api_key_tokens[0]
+        if len(api_key_tokens) > 1 or not is_well_formed_api_key(token):
             self._reject(store, connection, token, "malformed")
         api_key_record = await store.authenticate(token)
         if api_key_record is None:
