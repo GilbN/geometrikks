@@ -13,6 +13,7 @@ import type {
   ReportLineDto,
 } from "@/generated/api/types.gen"
 import { SIGNAL_THRESHOLDS } from "@/components/ip-inspector/signals"
+import type { AbuseReportTarget } from "@/lib/api"
 import { goDurationMs } from "@/lib/crowdsec-alerts"
 
 /** CrowdSec scenarios named in the opening paragraph of an ASN report. */
@@ -218,6 +219,12 @@ export function reportDropListings(report: AbuseReportResponse): ReportDropListi
   return { dropNetwork, asnDropAsn }
 }
 
+/** Whether the report covers this target, whatever its time range, line count or address cap. */
+export function reportIsFor(report: AbuseReportResponse, target: AbuseReportTarget): boolean {
+  if (target.kind === "ip") return report.target.kind === "ip" && report.target.ipAddress === target.ip
+  return report.target.kind === "asn" && report.target.asn === target.asn
+}
+
 /** The bold first sentence of the dialog's DROP notice, or null when nothing is listed. */
 export function dropNoticeHeadline({ dropNetwork, asnDropAsn }: ReportDropListings): string | null {
   const clauses = []
@@ -357,6 +364,9 @@ export function formatAbuseReportText(report: AbuseReportResponse, contact?: Abu
   out.push(`Subject: Abuse report for ${targetLabel(report)}${scope}, ${days}`)
   if (contact?.abuseEmails.length) out.push(`To: ${contact.abuseEmails.join(", ")}`)
   out.push("", "Hello,", "", ...opening(report), "")
+  if (report.target.kind === "asn" && !report.ips.length && report.target.asnDrop && report.target.asn != null) {
+    out.push(`Listed on: ASN-DROP AS${report.target.asn}`, "")
+  }
 
   if (report.target.kind === "asn" && report.ips.length) {
     const partial = report.ipCount > report.ips.length

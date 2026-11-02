@@ -12,16 +12,18 @@ import { cn } from "@/lib/utils"
 export function DropBadge({
   sblId,
   variant,
+  list = "drop",
   linked = false,
   className,
 }: {
   sblId?: string
   variant: "short" | "long" | "popup"
+  list?: "drop" | "asn-drop"
   /** The long variant links its SBL id to the Spamhaus record. Off inside menus and dialog titles. */
   linked?: boolean
   className?: string
 }) {
-  const title = sblId ? `On the DROP list as ${sblId}` : "On the DROP list"
+  const title = list === "asn-drop" ? "On the ASN-DROP list" : sblId ? `On the DROP list as ${sblId}` : "On the DROP list"
   if (variant === "popup") {
     return (
       <span

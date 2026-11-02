@@ -11,6 +11,7 @@ import {
   logLine,
   reportDropListings,
   reportFileName,
+  reportIsFor,
   summarizeAlerts,
   wrap,
 } from "./abuse-report"
@@ -264,6 +265,21 @@ describe("DROP listings in the text", () => {
     expect(formatAbuseReportText(report())).not.toContain("Listed on:")
   })
 
+  it("lists an ASN-DROP target with no address rows", () => {
+    const target = { kind: "asn" as const, ipAddress: null, asn: 64500, asnOrganization: "Example Hosting", asnDrop: true }
+    const empty = { target, ipCount: 0, totalRequests: 0, status4xx: 0, ips: [] }
+    const lines = formatAbuseReportText(report(empty)).split("\n")
+    expect(lines.filter((line) => line.startsWith("Listed on:"))).toEqual(["Listed on: ASN-DROP AS64500"])
+    const unlisted = formatAbuseReportText(report({ ...empty, target: { ...target, asnDrop: false } }))
+    expect(unlisted).not.toContain("Listed on:")
+  })
+
+  it("keeps the ASN listing on the address rows when there are some", () => {
+    const target = { kind: "asn" as const, ipAddress: null, asn: 64500, asnOrganization: "Example Hosting", asnDrop: true }
+    const text = formatAbuseReportText(report({ target, ips: [ip({ asnDrop: true })] }))
+    expect(text.match(/^Listed on:.*$/gm)).toEqual(["Listed on: ASN-DROP AS64500"])
+  })
+
   it("names the IPv4 network for an IPv4-mapped client", () => {
     const mappedIp = ip({ ipAddress: "::ffff:192.0.2.10", dropNetwork: { cidr: "192.0.2.0/24", sblId: "SBL000042" } })
     const target = { kind: "ip" as const, ipAddress: "::ffff:192.0.2.10", asn: 64500, asnOrganization: null, asnDrop: false }
@@ -298,6 +314,25 @@ describe("reportDropListings and dropNoticeHeadline", () => {
       ips: [ip({ dropNetwork, asnDrop: true })],
     })
     expect(reportDropListings(asnReport)).toEqual({ dropNetwork: null, asnDropAsn: 64500 })
+  })
+})
+
+describe("reportIsFor", () => {
+  const asnTarget = { kind: "asn" as const, ipAddress: null, asn: 64500, asnOrganization: null, asnDrop: true }
+
+  it("matches the same IP whatever the other options", () => {
+    expect(reportIsFor(report(), { kind: "ip", ip: "198.51.100.7" })).toBe(true)
+    expect(reportIsFor(report(), { kind: "ip", ip: "198.51.100.8" })).toBe(false)
+  })
+
+  it("matches the same ASN", () => {
+    expect(reportIsFor(report({ target: asnTarget }), { kind: "asn", asn: 64500 })).toBe(true)
+    expect(reportIsFor(report({ target: asnTarget }), { kind: "asn", asn: 64501 })).toBe(false)
+  })
+
+  it("never matches across a scope switch", () => {
+    expect(reportIsFor(report(), { kind: "asn", asn: 64500 })).toBe(false)
+    expect(reportIsFor(report({ target: asnTarget }), { kind: "ip", ip: "198.51.100.7" })).toBe(false)
   })
 })
 

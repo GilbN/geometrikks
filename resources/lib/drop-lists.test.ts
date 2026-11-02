@@ -5,6 +5,7 @@ import {
   dropAsnFreshness,
   dropAsnsLoaded,
   dropMarkSrText,
+  dropNetworkBanOffered,
   dropNetworkBanState,
   dropNetworksLoaded,
   dropCreditText,
@@ -331,6 +332,23 @@ describe("dropNetworkBanState", () => {
 
   it("offers Ban while the first read is loading", () => {
     expect(dropNetworkBanState("192.0.2.0/24", { data: undefined, isError: false })).toBe("unbanned")
+  })
+})
+
+describe("dropNetworkBanOffered", () => {
+  const bannedRanges = new Map([["192.0.2.0/24", { value: "192.0.2.0/24" }]])
+
+  it("offers nothing until the first read answers", () => {
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: undefined, isError: false, isLoading: true })).toBe(false)
+  })
+
+  it("offers the ban only for an unbanned network", () => {
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: bannedRanges, isError: false, isLoading: false })).toBe(true)
+    expect(dropNetworkBanOffered("192.0.2.0/24", { data: bannedRanges, isError: false, isLoading: false })).toBe(false)
+  })
+
+  it("offers nothing when the ban state is unknown", () => {
+    expect(dropNetworkBanOffered("198.51.100.0/24", { data: undefined, isError: true, isLoading: false })).toBe(false)
   })
 })
 

@@ -322,6 +322,15 @@ export function dropNetworkBanState(
   return bannedRanges.data.has(cidr) ? "banned" : "unbanned"
 }
 
+/** Whether to offer a ban for an unbanned DROP network. Offers nothing until
+ *  the first banned-ranges read answers. */
+export function dropNetworkBanOffered(
+  cidr: string,
+  bannedRanges: { data?: ReadonlyMap<string, unknown>; isError: boolean; isLoading: boolean },
+): boolean {
+  return !bannedRanges.isLoading && dropNetworkBanState(cidr, bannedRanges) === "unbanned"
+}
+
 export const DROP_NETWORK_STATUS_UNKNOWN_TEXT = "DROP network status unknown"
 
 /** The reason on a DROP network ban. The decisions table shows it after the origin. */

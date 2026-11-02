@@ -3,7 +3,7 @@
  * as plain text or CSV, and copies or downloads it. The abuse contact comes
  * from an RDAP lookup that runs only when asked for.
  */
-import { useMemo, useRef, useState } from "react"
+import { useMemo, useRef, useState, type RefObject } from "react"
 import { Check, Copy, Download, Loader2, MailWarning, Maximize2, Minimize2, OctagonX, RotateCw, Search, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -29,11 +29,13 @@ import {
   formatAbuseReportText,
   reportDropListings,
   reportFileName,
+  reportIsFor,
   type ReportDropListings,
 } from "@/lib/abuse-report"
 import type { AbuseReportTarget } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
-import { dropBanReason, dropNetworkBanState, sblRecordUrl } from "@/lib/drop-lists"
+import { dropBanReason, dropNetworkBanOffered, sblRecordUrl } from "@/lib/drop-lists"
+import { focusTarget } from "@/lib/drop-networks"
 import { useAbuseContact, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
@@ -167,7 +169,7 @@ function AbuseReportBody({
 
   const title = target.kind === "asn" ? asLabel(target.asn, subject.organization) : target.ip
   const loading = report.isLoading || (report.isPlaceholderData && report.isFetching)
-  const dropListings = data && !report.isPlaceholderData ? reportDropListings(data) : null
+  const dropListings = data && (!report.isPlaceholderData || reportIsFor(data, target)) ? reportDropListings(data) : null
   const titleDropBadge = target.kind === "asn" ? dropListings?.asnDropAsn != null : dropListings?.dropNetwork != null
 
   return (
@@ -176,7 +178,14 @@ function AbuseReportBody({
         <DialogTitle className="flex items-center gap-2 pr-6">
           <MailWarning className="size-4 shrink-0 text-muted-foreground" />
           Abuse report: <span className="min-w-0 font-mono wrap-anywhere">{title}</span>
-          {titleDropBadge && <DropBadge variant="short" sblId={dropListings?.dropNetwork?.sblId} className="shrink-0" />}
+          {titleDropBadge && (
+            <DropBadge
+              variant="short"
+              list={target.kind === "asn" ? "asn-drop" : "drop"}
+              sblId={dropListings?.dropNetwork?.sblId}
+              className="shrink-0"
+            />
+          )}
         </DialogTitle>
         <DialogDescription>{period}, times in UTC.</DialogDescription>
       </DialogHeader>
@@ -339,12 +348,27 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
   const bannedRanges = useBannedRanges(banAvailable)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   const banButtonRef = useRef<HTMLButtonElement>(null)
+  const noticeRef = useRef<HTMLDivElement>(null)
+  // A successful ban refetches the banned ranges and unmounts the ban link
+  // before the dialog closes, so focus falls back to the notice.
+  const returnFocusTo = useMemo<RefObject<HTMLElement | null>>(
+    () => ({
+      get current() {
+        return focusTarget([banButtonRef.current, noticeRef.current])
+      },
+    }),
+    [],
+  )
   const headline = dropNoticeHeadline(listings)
   if (headline === null) return null
-  const banShown = banAvailable && dropNetworkBanState(dropNetwork.cidr, bannedRanges) === "unbanned"
+  const banShown = banAvailable && dropNetworkBanOffered(dropNetwork.cidr, bannedRanges)
   const lists = dropNetwork !== null && asnDropAsn !== null ? "These lists hold" : "The list holds"
   return (
-    <div className="flex gap-2 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs">
+    <div
+      ref={noticeRef}
+      tabIndex={-1}
+      className="flex gap-2 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
       <OctagonX aria-hidden className="mt-px size-3.5 shrink-0 text-destructive" />
       <div className="@container/drop-notice min-w-0 flex-1 space-y-1">
         <p>
@@ -382,7 +406,7 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
           onOpenChange={setBanDialogOpen}
           initialIp={dropNetwork.cidr}
           initialReason={dropBanReason(dropNetwork.sblId)}
-          returnFocusTo={banButtonRef}
+          returnFocusTo={returnFocusTo}
         />
       )}
     </div>
