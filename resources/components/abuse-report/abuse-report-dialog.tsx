@@ -183,6 +183,7 @@ function AbuseReportBody({
             <DropBadge
               variant="short"
               list={titleDropBadge === "asn" ? "asn-drop" : "drop"}
+              showListName
               sblId={titleDropBadge === "network" ? dropListings?.dropNetwork?.sblId : undefined}
               className="shrink-0"
             />

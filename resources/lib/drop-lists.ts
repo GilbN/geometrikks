@@ -295,6 +295,12 @@ export function matchDropNetwork(dropIndex: DropIndex, ip: string): DropNetworkM
   return findRange(dropIndex.v6, ipv6Value(groups))
 }
 
+/** The DropBadge label. Every listing reads DROP unless the badge names its
+ *  list, as the abuse report title does for an ASN-only listing. */
+export function dropBadgeLabel(list: "drop" | "asn-drop", showListName: boolean): string {
+  return showListName && list === "asn-drop" ? "ASN-DROP" : "DROP"
+}
+
 const DROP_MARK_TEXT = "On the DROP list"
 
 /** The tooltip on a marked IP, after the decision's own tooltip when it has one. */
@@ -309,16 +315,18 @@ export function dropMarkSrText(sblId: string): string {
   return sblId ? ` (on the DROP list as ${sblId})` : " (on the DROP list)"
 }
 
-export type DropNetworkBanState = "banned" | "unbanned" | "unknown"
+export type DropNetworkBanState = "banned" | "unbanned" | "pending" | "unknown"
 
-/** Whether the menu offers Ban or Unban for a DROP network. When the
- *  banned-ranges read has failed with nothing cached the state is unknown,
- *  as the Security card shows it, and neither is offered. */
+/** Whether the menu offers Ban or Unban for a DROP network. Until the first
+ *  banned-ranges read answers the state is pending, and that includes a first
+ *  fetch paused while offline, which has no data and is not loading. When the
+ *  read has failed with nothing cached the state is unknown, as the Security
+ *  card shows it, and neither is offered. */
 export function dropNetworkBanState(
   cidr: string,
   bannedRanges: { data?: ReadonlyMap<string, unknown>; isError: boolean },
 ): DropNetworkBanState {
-  if (bannedRanges.data === undefined) return bannedRanges.isError ? "unknown" : "unbanned"
+  if (bannedRanges.data === undefined) return bannedRanges.isError ? "unknown" : "pending"
   return bannedRanges.data.has(cidr) ? "banned" : "unbanned"
 }
 
@@ -326,9 +334,9 @@ export function dropNetworkBanState(
  *  the first banned-ranges read answers. */
 export function dropNetworkBanOffered(
   cidr: string,
-  bannedRanges: { data?: ReadonlyMap<string, unknown>; isError: boolean; isLoading: boolean },
+  bannedRanges: { data?: ReadonlyMap<string, unknown>; isError: boolean },
 ): boolean {
-  return !bannedRanges.isLoading && dropNetworkBanState(cidr, bannedRanges) === "unbanned"
+  return dropNetworkBanState(cidr, bannedRanges) === "unbanned"
 }
 
 export const DROP_NETWORK_STATUS_UNKNOWN_TEXT = "DROP network status unknown"

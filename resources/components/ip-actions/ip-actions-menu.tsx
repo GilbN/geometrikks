@@ -123,9 +123,11 @@ function useDropNetworkBan(dropNetwork: DropNetworkMatch | null, active: boolean
   const banNetwork = useBanIp()
   const unbanNetwork = useUnbanIp()
   const cidr = dropNetwork?.cidr ?? ""
+  const state = dropNetworkBanState(cidr, bannedRanges)
   return {
-    state: dropNetworkBanState(cidr, bannedRanges),
-    busy: bannedRanges.isLoading || banNetwork.isPending || unbanNetwork.isPending,
+    // Pending shows the ban rows, disabled until the first read answers.
+    state: state === "pending" ? "unbanned" : state,
+    busy: state === "pending" || banNetwork.isPending || unbanNetwork.isPending,
     // mutate's own callbacks never run once a table refresh unmounts the
     // row, so the toasts hang off mutateAsync.
     ban: (duration: BanDuration) => {
@@ -499,7 +501,12 @@ export function IpActionsMenu({
                             </DrawerClose>
                           ))}
                           <DrawerClose asChild>
-                            <Button variant="outline" className="h-11" onClick={openDropBanDialog}>
+                            <Button
+                              variant="outline"
+                              className="h-11"
+                              disabled={dropNetworkBan.busy}
+                              onClick={openDropBanDialog}
+                            >
                               More options…
                             </Button>
                           </DrawerClose>
