@@ -102,6 +102,16 @@ export const AboutResponseSchema = {
     database: {
       $ref: "#/components/schemas/DatabaseVersionsView",
     },
+    dropLists: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DropListsAboutView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     geoip: {
       $ref: "#/components/schemas/GeoIPInfoView",
     },
@@ -1001,7 +1011,7 @@ export const AnalyticsSettingsViewSchema = {
 export const AsnCategoryTotalsDTOSchema = {
   properties: {
     category: {
-      enum: ["hosting", "other"],
+      enum: ["drop", "hosting", "other"],
       type: "string",
     },
     hits: {
@@ -1827,6 +1837,232 @@ export const DefaultServerLocationViewSchema = {
   },
   required: ["latitude", "longitude"],
   title: "DefaultServerLocationView",
+  type: "object",
+} as const;
+
+export const DropAsnViewSchema = {
+  properties: {
+    asn: {
+      type: "integer",
+    },
+    name: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["asn", "name"],
+  title: "DropAsnView",
+  type: "object",
+} as const;
+
+export const DropFeedViewSchema = {
+  properties: {
+    checkedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    feed: {
+      type: "string",
+    },
+    fetchedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastError: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    recordCount: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    upstreamTimestamp: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "checkedAt",
+    "feed",
+    "fetchedAt",
+    "lastError",
+    "recordCount",
+    "upstreamTimestamp",
+  ],
+  title: "DropFeedView",
+  type: "object",
+} as const;
+
+export const DropListsAboutViewSchema = {
+  properties: {
+    copyright: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    enabled: {
+      type: "boolean",
+    },
+    feeds: {
+      items: {
+        $ref: "#/components/schemas/DropFeedView",
+      },
+      type: "array",
+    },
+    loaded: {
+      type: "boolean",
+    },
+    stale: {
+      type: "boolean",
+    },
+    termsUrl: {
+      type: "string",
+    },
+    updatedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "copyright",
+    "enabled",
+    "feeds",
+    "loaded",
+    "stale",
+    "termsUrl",
+    "updatedAt",
+  ],
+  title: "DropListsAboutView",
+  type: "object",
+} as const;
+
+export const DropListsResponseSchema = {
+  properties: {
+    asns: {
+      items: {
+        $ref: "#/components/schemas/DropAsnView",
+      },
+      type: "array",
+    },
+    copyright: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    enabled: {
+      type: "boolean",
+    },
+    feeds: {
+      items: {
+        $ref: "#/components/schemas/DropFeedView",
+      },
+      type: "array",
+    },
+    loaded: {
+      type: "boolean",
+    },
+    networks: {
+      items: {
+        $ref: "#/components/schemas/DropNetworkView",
+      },
+      type: "array",
+    },
+    stale: {
+      type: "boolean",
+    },
+    updatedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "asns",
+    "copyright",
+    "enabled",
+    "feeds",
+    "loaded",
+    "networks",
+    "stale",
+    "updatedAt",
+  ],
+  title: "DropListsResponse",
+  type: "object",
+} as const;
+
+export const DropNetworkViewSchema = {
+  properties: {
+    cidr: {
+      type: "string",
+    },
+    sblId: {
+      type: "string",
+    },
+  },
+  required: ["cidr", "sblId"],
+  title: "DropNetworkView",
   type: "object",
 } as const;
 
@@ -3166,7 +3402,7 @@ export const IpProfileResponseSchema = {
       ],
     },
     asnCategory: {
-      enum: ["hosting", "other", null],
+      enum: ["drop", "hosting", "other", null],
       type: ["null", "string"],
     },
     asnOrganization: {
@@ -5577,7 +5813,7 @@ export const TopAsnDTOSchema = {
       type: "integer",
     },
     category: {
-      enum: ["hosting", "other"],
+      enum: ["drop", "hosting", "other"],
       type: "string",
     },
     hits: {
@@ -5610,6 +5846,16 @@ export const TopAsnsResponseSchema = {
       },
       type: "array",
     },
+    dropAsnCount: {
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     endDate: {
       type: "string",
     },
@@ -5631,6 +5877,7 @@ export const TopAsnsResponseSchema = {
   },
   required: [
     "categories",
+    "dropAsnCount",
     "endDate",
     "items",
     "startDate",
@@ -5779,7 +6026,7 @@ export const TopGeoAsnSchema = {
       type: "integer",
     },
     category: {
-      enum: ["hosting", "other"],
+      enum: ["drop", "hosting", "other"],
       type: "string",
     },
     eventCount: {

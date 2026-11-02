@@ -4,6 +4,8 @@ import {
   currentBuildKey,
   hasUnseenChanges,
   loadSeenBuild,
+  pageBuildKey,
+  resetPageBuildKey,
   saveSeenBuild,
   subscribeSeenBuild,
 } from "./changelog-seen"
@@ -82,5 +84,14 @@ describe("hasUnseenChanges", () => {
 
   it("flags a build the user has not looked at", () => {
     expect(hasUnseenChanges("0.11.0", "0.12.0")).toBe(true)
+  })
+})
+
+describe("pageBuildKey", () => {
+  afterEach(() => resetPageBuildKey())
+
+  it("keeps the first build this page saw after About reports a newer one", () => {
+    expect(pageBuildKey({ version: "0.23.0", changelogDigest: "old-digest" })).toBe("old-digest")
+    expect(pageBuildKey({ version: "0.24.0", changelogDigest: "new-digest" })).toBe("old-digest")
   })
 })

@@ -9,26 +9,31 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
+import { DropCredit } from "@/components/drop/drop-credit"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
-import { useTopAsns } from "@/lib/queries"
+import { dropAsnFreshness } from "@/lib/drop-lists"
+import { useAbout, useTopAsns } from "@/lib/queries"
 import { CategoryBadge } from "./top-asns-table"
 
 export function TrafficOriginCard() {
   const { data, isError, error } = useTopAsns({ limit: 25 })
+  const { data: about } = useAbout()
 
+  const drop = data?.categories.find((c) => c.category === "drop")
   const hosting = data?.categories.find((c) => c.category === "hosting")
   const other = data?.categories.find((c) => c.category === "other")
   const totalRequests = data?.totalRequests ?? 0
   // See asn-coverage.ts for why the share and the coverage use different
   // denominators.
-  const { classified, unenriched, hostingShare: share, coverage } = asnCoverage(
+  const dropFreshness = dropAsnFreshness(about?.dropLists)
+  const { classified, unenriched, hostingShare: share, dropShare, coverage } = asnCoverage(
     data?.categories,
     totalRequests,
   )
 
   return (
-    <Card>
+    <Card className="@container">
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Traffic origin
@@ -66,11 +71,11 @@ export function TrafficOriginCard() {
                 have no ASN data and are excluded above.
               </p>
             )}
-            <div className="h-2.5 rounded-full bg-muted">
-              <div
-                className="h-2.5 rounded-full bg-primary"
-                style={{ width: `${share}%` }}
-              />
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+              {dropShare !== null && (
+                <div className="h-full bg-destructive" style={{ width: `${dropShare}%` }} />
+              )}
+              <div className="h-full bg-primary" style={{ width: `${share}%` }} />
             </div>
             <Table>
               <TableHeader>
@@ -82,11 +87,20 @@ export function TrafficOriginCard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[hosting, other].map(
+                {[drop, hosting, other].map(
                   (cat) =>
                     cat && (
                       <TableRow key={cat.category}>
-                        <TableCell><CategoryBadge category={cat.category} /></TableCell>
+                        <TableCell className="whitespace-normal">
+                          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <CategoryBadge category={cat.category} />
+                            {cat.category === "drop" && (
+                              <span className="hidden text-xs text-muted-foreground @lg:inline">
+                                networks with no legitimate traffic
+                              </span>
+                            )}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">{formatNumber(cat.hits)}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatBytes(cat.totalBytes)}</TableCell>
                         <TableCell className="text-right tabular-nums">
@@ -105,6 +119,9 @@ export function TrafficOriginCard() {
                 )}
               </TableBody>
             </Table>
+            {drop && (
+              <DropCredit updatedAt={dropFreshness.updatedAt} stale={dropFreshness.stale} />
+            )}
           </div>
         )}
       </CardContent>

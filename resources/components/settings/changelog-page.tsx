@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { ChevronDown, ExternalLink } from "lucide-react"
 import type { ChangelogEntry, ChangelogRelease, ChangelogSection } from "@/generated/api/types.gen"
 import { useAbout, useChangelog } from "@/lib/queries"
-import { currentBuildKey, saveSeenBuild } from "@/lib/changelog-seen"
+import { pageBuildKey, saveSeenBuild } from "@/lib/changelog-seen"
 import { cn } from "@/lib/utils"
 import { publicVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
@@ -115,7 +115,7 @@ function ReleaseCard({
 export function ChangelogPage() {
   const { data, isLoading, isError, refetch } = useChangelog()
   const { data: about } = useAbout()
-  const buildKey = about ? currentBuildKey(about.app) : null
+  const buildKey = about ? pageBuildKey(about.app) : null
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
 
   // Opening this page is what "seen" means.

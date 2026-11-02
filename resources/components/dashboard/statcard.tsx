@@ -64,6 +64,7 @@ export function StatCard({
   trend,
   valueClassName,
   iconClassName,
+  info,
 }: {
   title: string
   value: string
@@ -72,6 +73,8 @@ export function StatCard({
   trend?: { value: number | null; positive?: boolean }
   valueClassName?: string
   iconClassName?: string
+  /** A help button after the title, such as a StatInfo popover. */
+  info?: React.ReactNode
 }) {
   const deltaValue = trend?.value
   const tone = deltaTone(deltaValue, trend?.positive)
@@ -79,9 +82,12 @@ export function StatCard({
   return (
     <Card className={CARD_CLASS}>
       <CardHeader className={HEADER_CLASS}>
-        <CardTitle className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          {title}
-        </CardTitle>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <CardTitle className="min-w-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            {title}
+          </CardTitle>
+          {info}
+        </div>
         <Icon className={cn("h-4 w-4 shrink-0 text-primary", iconClassName)} />
       </CardHeader>
       <CardContent className={CONTENT_CLASS}>

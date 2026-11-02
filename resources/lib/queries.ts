@@ -98,7 +98,7 @@ import {
 } from "@/generated/api/sdk.gen"
 import type { LogRecord } from "./logstream"
 import { useTimeRange } from "./time-range-context"
-import { currentBuildKey, hasUnseenChanges, saveSeenBuild, useSeenBuild } from "./changelog-seen"
+import { hasUnseenChanges, pageBuildKey, saveSeenBuild, useSeenBuild } from "./changelog-seen"
 import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
@@ -260,11 +260,16 @@ export function useSchedulerJobs() {
   })
 }
 
+/** About carries the DROP state and credit date, which change while a tab stays open. */
+export const ABOUT_STALE_MS = 5 * 60_000
+
 export function useAbout() {
   return useQuery({
     queryKey: queryKeys.system.about,
     queryFn: fetchAbout,
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: ABOUT_STALE_MS,
+    refetchInterval: ABOUT_STALE_MS,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -293,7 +298,7 @@ export function useChangelog() {
 export function useChangelogUnseen(): boolean {
   const { data } = useAbout()
   const seen = useSeenBuild()
-  const current = data ? currentBuildKey(data.app) : null
+  const current = data ? pageBuildKey(data.app) : null
   useEffect(() => {
     if (current && seen === null) saveSeenBuild(current)
   }, [current, seen])

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
+import { DropBadge } from "@/components/drop/drop-badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -17,7 +18,8 @@ import { useFitLayout } from "@/components/data/narrow-layout"
 import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
-export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
+export function CategoryBadge({ category }: { category: "drop" | "hosting" | "other" }) {
+  if (category === "drop") return <DropBadge variant="short" />
   return category === "hosting" ? (
     <Badge variant="secondary" className="gap-1.5">
       <span className="size-1.5 rounded-full bg-primary" />

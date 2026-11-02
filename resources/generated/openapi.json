@@ -104,6 +104,16 @@
           "database": {
             "$ref": "#/components/schemas/DatabaseVersionsView"
           },
+          "dropLists": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DropListsAboutView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "geoip": {
             "$ref": "#/components/schemas/GeoIPInfoView"
           },
@@ -1032,6 +1042,7 @@
         "properties": {
           "category": {
             "enum": [
+              "drop",
               "hosting",
               "other"
             ],
@@ -1925,6 +1936,233 @@
           "longitude"
         ],
         "title": "DefaultServerLocationView",
+        "type": "object"
+      },
+      "DropAsnView": {
+        "properties": {
+          "asn": {
+            "type": "integer"
+          },
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "asn",
+          "name"
+        ],
+        "title": "DropAsnView",
+        "type": "object"
+      },
+      "DropFeedView": {
+        "properties": {
+          "checkedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feed": {
+            "type": "string"
+          },
+          "fetchedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastError": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordCount": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "upstreamTimestamp": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "checkedAt",
+          "feed",
+          "fetchedAt",
+          "lastError",
+          "recordCount",
+          "upstreamTimestamp"
+        ],
+        "title": "DropFeedView",
+        "type": "object"
+      },
+      "DropListsAboutView": {
+        "properties": {
+          "copyright": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "feeds": {
+            "items": {
+              "$ref": "#/components/schemas/DropFeedView"
+            },
+            "type": "array"
+          },
+          "loaded": {
+            "type": "boolean"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "termsUrl": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "copyright",
+          "enabled",
+          "feeds",
+          "loaded",
+          "stale",
+          "termsUrl",
+          "updatedAt"
+        ],
+        "title": "DropListsAboutView",
+        "type": "object"
+      },
+      "DropListsResponse": {
+        "properties": {
+          "asns": {
+            "items": {
+              "$ref": "#/components/schemas/DropAsnView"
+            },
+            "type": "array"
+          },
+          "copyright": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "feeds": {
+            "items": {
+              "$ref": "#/components/schemas/DropFeedView"
+            },
+            "type": "array"
+          },
+          "loaded": {
+            "type": "boolean"
+          },
+          "networks": {
+            "items": {
+              "$ref": "#/components/schemas/DropNetworkView"
+            },
+            "type": "array"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "asns",
+          "copyright",
+          "enabled",
+          "feeds",
+          "loaded",
+          "networks",
+          "stale",
+          "updatedAt"
+        ],
+        "title": "DropListsResponse",
+        "type": "object"
+      },
+      "DropNetworkView": {
+        "properties": {
+          "cidr": {
+            "type": "string"
+          },
+          "sblId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cidr",
+          "sblId"
+        ],
+        "title": "DropNetworkView",
         "type": "object"
       },
       "EmbeddedLocationDTO": {
@@ -3349,6 +3587,7 @@
           },
           "asnCategory": {
             "enum": [
+              "drop",
               "hosting",
               "other",
               null
@@ -5895,6 +6134,7 @@
           },
           "category": {
             "enum": [
+              "drop",
               "hosting",
               "other"
             ],
@@ -5935,6 +6175,16 @@
             },
             "type": "array"
           },
+          "dropAsnCount": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "endDate": {
             "type": "string"
           },
@@ -5956,6 +6206,7 @@
         },
         "required": [
           "categories",
+          "dropAsnCount",
           "endDate",
           "items",
           "startDate",
@@ -6120,6 +6371,7 @@
           },
           "category": {
             "enum": [
+              "drop",
               "hosting",
               "other"
             ],
@@ -10966,6 +11218,38 @@
         "summary": "Unban",
         "tags": [
           "CrowdSec"
+        ]
+      }
+    },
+    "/api/v1/drop/lists": {
+      "get": {
+        "deprecated": false,
+        "description": "Listed DROP networks and ASNs, with the state of each feed.",
+        "operationId": "ApiV1DropListsGetDropLists",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DropListsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {
+              "Cache-Control": {
+                "deprecated": false,
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "GetDropLists",
+        "tags": [
+          "Drop"
         ]
       }
     },

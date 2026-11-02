@@ -161,6 +161,13 @@
       },
       "uri": "/api/v1/crowdsec/decisions/{decision_id}/alert"
     },
+    "get_drop_lists": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/drop/lists"
+    },
     "get_geo_log_facets": {
       "method": "get",
       "methods": [

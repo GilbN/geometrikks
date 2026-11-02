@@ -100,6 +100,8 @@ import type {
   ApiV1CrowdsecUnbanUnbanData,
   ApiV1CrowdsecUnbanUnbanErrors,
   ApiV1CrowdsecUnbanUnbanResponses,
+  ApiV1DropListsGetDropListsData,
+  ApiV1DropListsGetDropListsResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
@@ -1170,6 +1172,32 @@ export const apiV1CrowdsecUnbanUnban = <ThrowOnError extends boolean = false>(
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * GetDropLists
+ *
+ * Listed DROP networks and ASNs, with the state of each feed.
+ */
+export const apiV1DropListsGetDropLists = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1DropListsGetDropListsData, ThrowOnError>,
+): RequestResult<ApiV1DropListsGetDropListsResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<
+    ApiV1DropListsGetDropListsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+    ],
+    url: "/api/v1/drop/lists",
+    ...options,
   });
 
 /**

@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
-from litestar.params import QueryParameter
+from litestar.params import QueryParameter, SkipValidation
 
 from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
@@ -53,6 +53,8 @@ from geometrikks.domain.analytics.dependencies import (
     provide_live_stats_repo,
     provide_summary_stats_repo
 )
+from geometrikks.domain.drop.dependencies import provide_drop_snapshot
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
@@ -108,7 +110,11 @@ def _optional_bucket_dto(bucket: IpProfileBucket | None) -> IpProfileBucketDTO |
 
 
 def _to_ip_profile_response(
-    ip_address: str, start: datetime, end: datetime, profile: IpProfile
+    ip_address: str,
+    start: datetime,
+    end: datetime,
+    profile: IpProfile,
+    drop_snapshot: DropSnapshot | None = None,
 ) -> IpProfileResponse:
     """Wire shape for one profile; pure so the mapping is unit-testable."""
     errors = profile.status_4xx + profile.status_5xx
@@ -132,7 +138,7 @@ def _to_ip_profile_response(
         malformed_requests=profile.malformed_requests,
         asn=profile.asn,
         asn_organization=profile.asn_organization,
-        asn_category=classify_asn(profile.asn) if profile.asn is not None else None,
+        asn_category=classify_asn(profile.asn, drop_snapshot) if profile.asn is not None else None,
         granularity=profile.granularity,
         series=[_bucket_dto(b) for b in profile.series],
         peak=_optional_bucket_dto(profile.peak),
@@ -169,6 +175,7 @@ class AnalyticsController(Controller):
         "live_stats_repo": Provide(provide_live_stats_repo),
         "summary_stats_repo": Provide(provide_summary_stats_repo),
         "ip_profile_repo": Provide(provide_ip_profile_repo),
+        "drop_snapshot": Provide(provide_drop_snapshot),
     }
 
     @get("/summary", description="Get summary statistics for dashboard header cards.")
@@ -634,6 +641,7 @@ class AnalyticsController(Controller):
     async def get_top_asns(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         start_date: StartDate,
         end_date: EndDate,
         limit: Annotated[
@@ -659,10 +667,13 @@ class AnalyticsController(Controller):
             start_date, end_date, filters=filters
         )
 
-        totals: dict[str, list[int]] = {"hosting": [0, 0], "other": [0, 0]}
+        totals: dict[str, list[int]] = {"drop": [0, 0], "hosting": [0, 0], "other": [0, 0]}
         items: list[TopAsnDTO] = []
+        drop_asn_count = 0
         for row in rows:
-            category = classify_asn(row.asn)
+            category = classify_asn(row.asn, drop_snapshot)
+            if category == "drop":
+                drop_asn_count += 1
             totals[category][0] += row.hits
             totals[category][1] += row.total_bytes
             if len(items) < limit:
@@ -680,6 +691,17 @@ class AnalyticsController(Controller):
             total_bytes=total_bytes,
             items=items,
             categories=[
+                *(
+                    [
+                        AsnCategoryTotalsDTO(
+                            category="drop",
+                            hits=totals["drop"][0],
+                            total_bytes=totals["drop"][1],
+                        )
+                    ]
+                    if drop_snapshot.asns_loaded
+                    else []
+                ),
                 AsnCategoryTotalsDTO(
                     category="hosting",
                     hits=totals["hosting"][0],
@@ -691,6 +713,7 @@ class AnalyticsController(Controller):
                     total_bytes=totals["other"][1],
                 ),
             ],
+            drop_asn_count=drop_asn_count if drop_snapshot.asns_loaded else None,
         )
 
     @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")
@@ -772,6 +795,7 @@ class AnalyticsController(Controller):
     async def get_ip_profile(
         self,
         ip_profile_repo: NamedDependency[IpProfileRepository],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         start_date: StartDate,
         end_date: EndDate,
         ip_address: Annotated[
@@ -788,5 +812,5 @@ class AnalyticsController(Controller):
         if tz is not None:
             validate_timezone(tz)
         profile = await ip_profile_repo.get_profile(ip_address, start_date, end_date, tz=tz)
-        return _to_ip_profile_response(ip_address, start_date, end_date, profile)
+        return _to_ip_profile_response(ip_address, start_date, end_date, profile, drop_snapshot)
 

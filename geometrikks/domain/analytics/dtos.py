@@ -267,7 +267,9 @@ class TopAsnsResponse(msgspec.Struct, rename="camel"):
     ``total_requests`` and ``total_bytes`` count every request, with or
     without ASN data; rows without ASN data are absent from ``categories``,
     so coverage is measured against these totals. Lists have no defaults
-    (see TopUrlsResponse).
+    (see TopUrlsResponse). ``drop_asn_count`` counts the DROP-listed ASNs
+    with traffic in the range, beyond the top N too, and is None while the
+    ASN DROP list has never downloaded.
     """
 
     start_date: str
@@ -276,6 +278,7 @@ class TopAsnsResponse(msgspec.Struct, rename="camel"):
     total_bytes: int
     items: list[TopAsnDTO]
     categories: list[AsnCategoryTotalsDTO]
+    drop_asn_count: int | None
 
 
 class TopIpDTO(msgspec.Struct, rename="camel"):

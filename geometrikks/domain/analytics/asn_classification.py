@@ -1,4 +1,4 @@
-"""Read-time ASN categorization: hosting/datacenter vs everything else.
+"""Read-time ASN categorization: DROP-listed, hosting/datacenter or everything else.
 
 Classification is not stored per row. Keyed by ASN, it applies
 retroactively when the list changes, and the analytics queries already
@@ -14,7 +14,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-AsnCategory = Literal["hosting", "other"]
+from geometrikks.domain.drop.snapshot import DropSnapshot, current_drop_snapshot
+
+AsnCategory = Literal["drop", "hosting", "other"]
 
 DATASET_NAME = "bad-asn-list"
 DATASET_URL = "https://github.com/brianhama/bad-asn-list"
@@ -50,8 +52,16 @@ def _hosting_asns() -> frozenset[int]:
     return frozenset(asn for asn, _ in hosting_asn_entries())
 
 
-def classify_asn(asn: int) -> AsnCategory:
-    """Category for one autonomous system number."""
+def classify_asn(asn: int, snapshot: DropSnapshot | None = None) -> AsnCategory:
+    """Category for one autonomous system number.
+
+    ``drop`` reads the given DROP snapshot, or the process-wide one when none is
+    given. Handlers pass the snapshot injected through the ``drop_snapshot``
+    dependency so one response never mixes two snapshots.
+    """
+    drop_snapshot = current_drop_snapshot() if snapshot is None else snapshot
+    if drop_snapshot.is_drop_asn(asn):
+        return "drop"
     return "hosting" if asn in _hosting_asns() else "other"
 
 

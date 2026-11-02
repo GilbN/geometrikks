@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from geometrikks.config.settings import Settings
+    from geometrikks.domain.drop.refresh import FirstRunFlag
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
     from geometrikks.services.release_check import ReleaseChecker
 
@@ -201,6 +202,30 @@ async def proxy_scan_job(
 async def release_check_job(release_checker: "ReleaseChecker") -> None:
     """Refresh the newest-release answer. run() logs its own failures."""
     await release_checker.run()
+
+
+async def drop_refresh_job(
+    session_factory: "Callable[[], AsyncSession]",
+    settings: "Settings",
+    first_run: "FirstRunFlag | None" = None,
+) -> None:
+    """Refresh the DROP lists; raise when every feed that was attempted failed.
+
+    The first run after startup skips feeds fetched within the refresh
+    interval, so restart loops do not hit the host.
+    """
+    from geometrikks.domain.drop.refresh import refresh_drop_lists
+
+    feed_outcomes = await refresh_drop_lists(
+        session_factory,
+        now=datetime.now(timezone.utc),
+        startup=first_run.consume() if first_run is not None else False,
+        refresh_hours=settings.drop.refresh_hours,
+    )
+    attempted_outcomes = [feed_outcome for feed_outcome in feed_outcomes if feed_outcome.status != "skipped"]
+    if attempted_outcomes and all(feed_outcome.status == "failed" for feed_outcome in attempted_outcomes):
+        failures = "; ".join(f"{feed_outcome.feed}: {feed_outcome.reason}" for feed_outcome in attempted_outcomes)
+        raise RuntimeError(f"DROP lists refresh failed: {failures}")
 
 
 async def agent_health_check_job(
@@ -419,6 +444,22 @@ async def create_scheduler(
             replace_existing=True,
         )
         logger.info("Scheduled release check every 12 hours")
+
+    if mode != "agent" and settings.drop.enabled:
+        from geometrikks.domain.drop.refresh import FirstRunFlag
+
+        scheduler.add_job(
+            drop_refresh_job,
+            IntervalTrigger(hours=settings.drop.refresh_hours),
+            id="drop-refresh",
+            name="DROP lists refresh",
+            args=[session_factory, settings, FirstRunFlag()],
+            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            misfire_grace_time=3600,
+            max_instances=1,
+            replace_existing=True,
+        )
+        logger.info("Scheduled DROP lists refresh every %d hour(s)", settings.drop.refresh_hours)
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;

@@ -97,6 +97,8 @@ import type {
   ApiV1CrowdsecUnbanUnbanData,
   ApiV1CrowdsecUnbanUnbanErrors,
   ApiV1CrowdsecUnbanUnbanResponses,
+  ApiV1DropListsGetDropListsData,
+  ApiV1DropListsGetDropListsResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
@@ -221,6 +223,7 @@ export type OperationName =
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_decision_alert'
+  | 'get_drop_lists'
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
@@ -296,6 +299,7 @@ export interface OperationDataTypes {
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData
+  'get_drop_lists': ApiV1DropListsGetDropListsData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryData
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData
@@ -372,6 +376,7 @@ export interface OperationResponseTypes {
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses
+  'get_drop_lists': ApiV1DropListsGetDropListsResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryResponses
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses
@@ -448,6 +453,7 @@ export interface OperationErrorTypes {
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors
+  'get_drop_lists': never
   'get_geo_log_facets': never
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryErrors
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors

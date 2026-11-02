@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2 } from "lucide-react"
+import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2, OctagonX } from "lucide-react"
 import { toast } from "sonner"
-import type { AboutResponse } from "@/generated/api/types.gen"
+import type { AboutResponse, DropListsAboutView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
+import { dropFeedRecords, dropListsErrorLines } from "@/lib/drop-lists"
 import { useAbout, useReleaseCheck } from "@/lib/queries"
 import { releaseCheckLine, skippedReleasesText } from "@/lib/release-check"
 import { saveSeenRelease } from "@/lib/release-seen"
@@ -22,6 +23,8 @@ import {
   aboutDetailsText,
   buildDateLabel,
   databaseSummary,
+  dropListsStatus,
+  dropListsSummary,
   geoipFreshness,
   geoipSummary,
   migrationStatus,
@@ -289,6 +292,106 @@ function InstallationCard({
   )
 }
 
+function DropListsState({ dropLists }: { dropLists: DropListsAboutView }) {
+  const status = dropListsStatus(dropLists)
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <StatusLed tone={status.tone} />
+      {status.label}
+    </span>
+  )
+}
+
+function DropTermsLink({ dropLists }: { dropLists: DropListsAboutView }) {
+  return (
+    <a
+      href={dropLists.termsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="tap-area whitespace-nowrap underline underline-offset-2"
+    >
+      Terms of use
+      <ExternalLink className="ml-1 inline size-3 align-[-1px]" />
+    </a>
+  )
+}
+
+const DROP_LISTS_EXPLAINER =
+  "Networks hijacked or run by spam and cybercrime operations. Listed ASNs get a DROP badge."
+
+const DROP_LISTS_PENDING = "The scheduler downloads the lists every DROP_REFRESH_HOURS, 24 hours by default."
+
+function DropListsCredit({ dropLists }: { dropLists: DropListsAboutView }) {
+  return (
+    <>
+      {dropLists.copyright && <>{dropLists.copyright} · </>}
+      <DropTermsLink dropLists={dropLists} />
+    </>
+  )
+}
+
+/** The DROP lists card: each feed's last error, record counts, and the list's credit. */
+function DropListsCard({ dropLists }: { dropLists: DropListsAboutView }) {
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={OctagonX} />
+            <CardTitle className="text-base">DROP lists</CardTitle>
+          </div>
+          <DropListsState dropLists={dropLists} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
+          <p key={errorLine} className="pb-1.5 text-xs break-words text-muted-foreground">
+            {errorLine}
+          </p>
+        ))}
+        {dropLists.loaded ? (
+          <>
+            {dropFeedRecords(dropLists.feeds).map((feedRecords) => (
+              <Row key={feedRecords.label} label={feedRecords.label} value={feedRecords.count} />
+            ))}
+            <p className="max-w-[80ch] pt-2 text-xs text-muted-foreground">{DROP_LISTS_EXPLAINER}</p>
+            <p className="pt-1 text-xs text-muted-foreground">
+              <DropListsCredit dropLists={dropLists} />
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{DROP_LISTS_PENDING}</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function PhoneDropListsValues({ dropLists }: { dropLists: DropListsAboutView }) {
+  return (
+    <>
+      {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
+        <p key={errorLine} className="py-1 text-xs break-words text-muted-foreground">
+          {errorLine}
+        </p>
+      ))}
+      {dropLists.loaded ? (
+        <>
+          {dropFeedRecords(dropLists.feeds).map((feedRecords) => (
+            <PhoneRow key={feedRecords.label} label={feedRecords.label} value={feedRecords.count} />
+          ))}
+          <p className="pt-1.5 text-xs text-muted-foreground">{DROP_LISTS_EXPLAINER}</p>
+          <p className="pt-1 text-xs text-muted-foreground">
+            <DropListsCredit dropLists={dropLists} />
+          </p>
+        </>
+      ) : (
+        <p className="pt-1 text-xs text-muted-foreground">{DROP_LISTS_PENDING}</p>
+      )}
+    </>
+  )
+}
+
 function MaxMindAttribution() {
   return (
     <p className="mt-4 text-xs text-muted-foreground">
@@ -522,7 +625,7 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
   )
 }
 
-/** Phones: the version card, then Runtime, Database and GeoIP as rows that open on tap. */
+/** Phones: the version card, then Runtime, Database, GeoIP and DROP as rows that open on tap. */
 function PhoneAbout({ about }: { about: AboutResponse }) {
   return (
     <div className="space-y-4">
@@ -543,6 +646,11 @@ function PhoneAbout({ about }: { about: AboutResponse }) {
         <SummarySection icon={Globe2} title="GeoIP databases" summary={geoipSummary(about)}>
           <PhoneGeoipValues about={about} />
         </SummarySection>
+        {about.dropLists && (
+          <SummarySection icon={OctagonX} title="DROP lists" summary={dropListsSummary(about.dropLists)}>
+            <PhoneDropListsValues dropLists={about.dropLists} />
+          </SummarySection>
+        )}
       </div>
     </div>
   )
@@ -753,6 +861,8 @@ export function AboutPage() {
           <MaxMindAttribution />
         </CardContent>
       </Card>
+
+      {data.dropLists && <DropListsCard dropLists={data.dropLists} />}
 
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap gap-2 py-4">

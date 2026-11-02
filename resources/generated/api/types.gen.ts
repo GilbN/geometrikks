@@ -33,6 +33,7 @@ export type AboutResponse = {
   app: AboutAppView;
   asnClassification?: AsnClassificationView | null;
   database: DatabaseVersionsView;
+  dropLists?: DropListsAboutView | null;
   geoip: GeoIpInfoView;
   geoipAsn?: GeoIpInfoView | null;
   geoipAsnEnabled?: boolean;
@@ -236,7 +237,7 @@ export type AnalyticsSettingsView = {
  * AsnCategoryTotalsDTO
  */
 export type AsnCategoryTotalsDto = {
-  category: "hosting" | "other";
+  category: "drop" | "hosting" | "other";
   hits: number;
   totalBytes: number;
 };
@@ -515,6 +516,61 @@ export type DefaultMapView = {
 export type DefaultServerLocationView = {
   latitude: number;
   longitude: number;
+};
+
+/**
+ * DropAsnView
+ */
+export type DropAsnView = {
+  asn: number;
+  name: string | null;
+};
+
+/**
+ * DropFeedView
+ */
+export type DropFeedView = {
+  checkedAt: string | null;
+  feed: string;
+  fetchedAt: string | null;
+  lastError: string | null;
+  recordCount: number | null;
+  upstreamTimestamp: string | null;
+};
+
+/**
+ * DropListsAboutView
+ */
+export type DropListsAboutView = {
+  copyright: string | null;
+  enabled: boolean;
+  feeds: Array<DropFeedView>;
+  loaded: boolean;
+  stale: boolean;
+  termsUrl: string;
+  updatedAt: string | null;
+};
+
+/**
+ * DropListsResponse
+ */
+export type DropListsResponse = {
+  asns: Array<DropAsnView>;
+  copyright: string | null;
+  enabled: boolean;
+  feeds: Array<DropFeedView>;
+  loaded: boolean;
+  networks: Array<DropNetworkView>;
+  stale: boolean;
+  updatedAt: string | null;
+};
+
+/**
+ * DropNetworkView
+ */
+export type DropNetworkView = {
+  cidr: string;
+  sblId: string;
 };
 
 /**
@@ -913,7 +969,7 @@ export type IpProfilePathDto = {
  */
 export type IpProfileResponse = {
   asn: number | null;
-  asnCategory: "hosting" | "other" | null;
+  asnCategory: "drop" | "hosting" | "other" | null;
   asnOrganization: string | null;
   avgRequestTime: number | null;
   distinctPaths: number;
@@ -1568,7 +1624,7 @@ export type TimeSeriesResponse = {
  */
 export type TopAsnDto = {
   asn: number;
-  category: "hosting" | "other";
+  category: "drop" | "hosting" | "other";
   hits: number;
   organization: string | null;
   totalBytes: number;
@@ -1579,6 +1635,7 @@ export type TopAsnDto = {
  */
 export type TopAsnsResponse = {
   categories: Array<AsnCategoryTotalsDto>;
+  dropAsnCount: number | null;
   endDate: string;
   items: Array<TopAsnDto>;
   startDate: string;
@@ -1645,7 +1702,7 @@ export type TopCountryStatsDto = {
  */
 export type TopGeoAsn = {
   asn: number;
-  category: "hosting" | "other";
+  category: "drop" | "hosting" | "other";
   eventCount: number;
   organization: string | null;
   uniqueIps: number;
@@ -3298,6 +3355,23 @@ export type ApiV1CrowdsecUnbanUnbanResponses = {
 
 export type ApiV1CrowdsecUnbanUnbanResponse =
   ApiV1CrowdsecUnbanUnbanResponses[keyof ApiV1CrowdsecUnbanUnbanResponses];
+
+export type ApiV1DropListsGetDropListsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/drop/lists";
+};
+
+export type ApiV1DropListsGetDropListsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: DropListsResponse;
+};
+
+export type ApiV1DropListsGetDropListsResponse =
+  ApiV1DropListsGetDropListsResponses[keyof ApiV1DropListsGetDropListsResponses];
 
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;
