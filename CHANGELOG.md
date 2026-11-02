@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- In a record sheet, a long ban reason wraps with the time left at its end. The time left used to sit beside the reason's first line while the rest of the reason wrapped underneath.
 - On a phone, a long IPv6 address in the abuse report's title wraps onto a second line. It used to make the dialog scroll sideways.
 
 ## [0.23.0] - 2026-10-31

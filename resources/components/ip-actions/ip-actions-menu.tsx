@@ -185,9 +185,17 @@ export function CopyIpButton({ ip, className }: { ip: string; className?: string
 function DecisionDetail({ ip, wrap }: { ip: string; wrap: boolean }) {
   const decision = winningDecision(useIpDecisions(ip).data)
   if (decision === null) return null
+  if (wrap) {
+    return (
+      <span className="min-w-0 [overflow-wrap:anywhere]">
+        <span title={decision.scenario}>{scenarioText(decision.scenario)}</span>{" "}
+        <span className="whitespace-nowrap">· {timeLeftText(decision.duration)}</span>
+      </span>
+    )
+  }
   return (
-    <span className={cn("flex gap-1", wrap ? "min-w-0" : "max-w-80")}>
-      <span className={wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate"} title={decision.scenario}>{scenarioText(decision.scenario)}</span>
+    <span className="flex max-w-80 gap-1">
+      <span className="truncate" title={decision.scenario}>{scenarioText(decision.scenario)}</span>
       <span className="shrink-0">· {timeLeftText(decision.duration)}</span>
     </span>
   )
