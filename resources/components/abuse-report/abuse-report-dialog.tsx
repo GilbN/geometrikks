@@ -342,9 +342,12 @@ function AbuseReportBody({
   )
 }
 
-/** Says the target is on a DROP list, links its SBL record, and offers the network ban. */
+/** Networks an ASN report's DROP notice links; the report text names the rest. */
+const NOTICE_NETWORKS = 4
+
+/** Says the target is on a DROP list, links its SBL records, and offers the network ban. */
 function DropNotice({ listings }: { listings: ReportDropListings }) {
-  const { dropNetwork, asnDropAsn } = listings
+  const { dropNetwork, asnDropAsn, addressNetworks } = listings
   const { data: status } = useCrowdsecStatus()
   const banAvailable = status?.writeEnabled === true && dropNetwork !== null
   const bannedRanges = useBannedRanges(banAvailable)
@@ -364,7 +367,9 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
   const headline = dropNoticeHeadline(listings)
   if (headline === null) return null
   const banShown = banAvailable && dropNetworkBanOffered(dropNetwork.cidr, bannedRanges)
-  const lists = dropNetwork !== null && asnDropAsn !== null ? "These lists hold" : "The list holds"
+  const onDrop = dropNetwork !== null || addressNetworks.length > 0
+  const lists = onDrop && asnDropAsn !== null ? "These lists hold" : "The list holds"
+  const moreNetworks = addressNetworks.length - NOTICE_NETWORKS
   return (
     <div
       ref={noticeRef}
@@ -373,12 +378,25 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
     >
       <OctagonX aria-hidden className="mt-px size-3.5 shrink-0 text-destructive" />
       <div className="@container/drop-notice min-w-0 flex-1 space-y-1">
+        <p className="font-semibold text-destructive">{headline}</p>
         <p>
-          <strong className="font-semibold text-destructive">{headline}</strong> {lists} networks that are hijacked or
-          run by spam and cybercrime operations. The abuse contact below may belong to the same people, so a report
+          {lists} networks that are hijacked or run by spam and cybercrime operations. The abuse contact below may belong to the same people, so a report
           there may go nowhere. If the address block is leased, the contact may be the leasing company, which can act
           on it.
         </p>
+        {addressNetworks.length > 0 && (
+          <p className="flex flex-wrap items-center gap-x-3">
+            {addressNetworks.slice(0, NOTICE_NETWORKS).map((network) => (
+              <span key={network.cidr} className="inline-flex items-center gap-1.5">
+                <ExternalLink href={sblRecordUrl(network.sblId)} className="pointer-coarse:min-h-8">
+                  View {network.sblId}
+                </ExternalLink>
+                <span className="font-mono text-muted-foreground">{network.cidr}</span>
+              </span>
+            ))}
+            {moreNetworks > 0 && <span className="text-muted-foreground">and {moreNetworks} more in the report</span>}
+          </p>
+        )}
         {dropNetwork && (
           <p className="flex flex-wrap items-center gap-x-2">
             <ExternalLink href={sblRecordUrl(dropNetwork.sblId)} className="pointer-coarse:min-h-8">

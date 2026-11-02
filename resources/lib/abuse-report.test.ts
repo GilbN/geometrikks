@@ -281,6 +281,30 @@ describe("DROP listings in the text", () => {
     expect(text.match(/^Listed on:.*$/gm)).toEqual(["Listed on: ASN-DROP AS64500"])
   })
 
+  it("links each SBL record once, before the address sections", () => {
+    const otherNetwork = { cidr: "203.0.113.0/24", sblId: "SBL000099" }
+    const target = { kind: "asn" as const, ipAddress: null, asn: 64500, asnOrganization: null, asnDrop: false }
+    const text = formatAbuseReportText(
+      report({
+        target,
+        ips: [
+          ip({ ipAddress: "198.51.100.7", dropNetwork: listedIp.dropNetwork }),
+          ip({ ipAddress: "198.51.100.8", dropNetwork: listedIp.dropNetwork }),
+          ip({ ipAddress: "203.0.113.1", dropNetwork: otherNetwork }),
+        ],
+      }),
+    )
+    expect(text).toContain(
+      "\nSpamhaus DROP records:\n" +
+        "SBL000042 (198.51.100.0/24): https://check.spamhaus.org/sbl/query/SBL000042\n" +
+        "SBL000099 (203.0.113.0/24): https://check.spamhaus.org/sbl/query/SBL000099\n\n",
+    )
+    expect(text.indexOf("Spamhaus DROP records:")).toBeLessThan(text.indexOf("== 198.51.100.7 =="))
+    const single = formatAbuseReportText(report({ ips: [listedIp] }))
+    expect(single).toContain("\nSpamhaus DROP record:\nSBL000042 (198.51.100.0/24): https://check.spamhaus.org/sbl/query/SBL000042\n")
+    expect(formatAbuseReportText(report({ ips: [ip({ asnDrop: true })] }))).not.toContain("Spamhaus DROP record")
+  })
+
   it("names the IPv4 network for an IPv4-mapped client", () => {
     const mappedIp = ip({ ipAddress: "::ffff:192.0.2.10", dropNetwork: { cidr: "192.0.2.0/24", sblId: "SBL000042" } })
     const target = { kind: "ip" as const, ipAddress: "::ffff:192.0.2.10", asn: 64500, asnOrganization: null, asnDrop: false }
@@ -299,22 +323,50 @@ describe("reportDropListings and dropNoticeHeadline", () => {
       ips: [ip({ dropNetwork, asnDrop: true })],
     })
     const listings = reportDropListings(listed)
-    expect(listings).toEqual({ dropNetwork, asnDropAsn: 64500 })
+    expect(listings).toEqual({ dropNetwork, asnDropAsn: 64500, addressNetworks: [], addressCount: 0 })
     expect(dropNoticeHeadline(listings)).toBe("On the DROP list as SBL000042 (198.51.100.0/24), and AS64500 is on ASN-DROP.")
   })
 
+  const unlisted = { dropNetwork: null, asnDropAsn: null, addressNetworks: [], addressCount: 0 }
+
   it("names one listing alone", () => {
-    expect(dropNoticeHeadline({ dropNetwork, asnDropAsn: null })).toBe("On the DROP list as SBL000042 (198.51.100.0/24).")
-    expect(dropNoticeHeadline({ dropNetwork: null, asnDropAsn: 64500 })).toBe("AS64500 is on ASN-DROP.")
-    expect(dropNoticeHeadline({ dropNetwork: null, asnDropAsn: null })).toBeNull()
+    expect(dropNoticeHeadline({ ...unlisted, dropNetwork })).toBe("On the DROP list as SBL000042 (198.51.100.0/24).")
+    expect(dropNoticeHeadline({ ...unlisted, asnDropAsn: 64500 })).toBe("AS64500 is on ASN-DROP.")
+    expect(dropNoticeHeadline(unlisted)).toBeNull()
   })
 
-  it("reads an ASN report from the target only", () => {
+  const asnTarget = { kind: "asn" as const, ipAddress: null, asn: 64500, asnOrganization: null, asnDrop: true }
+  const otherNetwork = { cidr: "203.0.113.0/24", sblId: "SBL000099" }
+
+  it("collects the DROP networks of an ASN report's addresses, the fullest first", () => {
     const asnReport = report({
-      target: { kind: "asn", ipAddress: null, asn: 64500, asnOrganization: null, asnDrop: true },
-      ips: [ip({ dropNetwork, asnDrop: true })],
+      target: asnTarget,
+      ips: [
+        ip({ ipAddress: "203.0.113.1", dropNetwork: otherNetwork }),
+        ip({ ipAddress: "198.51.100.7", dropNetwork, asnDrop: true }),
+        ip({ ipAddress: "198.51.100.8", dropNetwork, asnDrop: true }),
+        ip({ ipAddress: "192.0.2.1" }),
+      ],
     })
-    expect(reportDropListings(asnReport)).toEqual({ dropNetwork: null, asnDropAsn: 64500 })
+    expect(reportDropListings(asnReport)).toEqual({
+      dropNetwork: null,
+      asnDropAsn: 64500,
+      addressNetworks: [{ ...dropNetwork, addresses: 2 }, { ...otherNetwork, addresses: 1 }],
+      addressCount: 4,
+    })
+    expect(dropNoticeHeadline(reportDropListings(asnReport))).toBe(
+      "AS64500 is on ASN-DROP, and 3 of the 4 addresses the report lists are in DROP networks.",
+    )
+  })
+
+  it("says when every address of an ASN report is in one DROP network", () => {
+    const asnReport = report({
+      target: { ...asnTarget, asnDrop: false },
+      ips: [ip({ ipAddress: "198.51.100.7", dropNetwork }), ip({ ipAddress: "198.51.100.8", dropNetwork })],
+    })
+    expect(dropNoticeHeadline(reportDropListings(asnReport))).toBe("All 2 addresses the report lists are in a DROP network.")
+    const single = report({ target: { ...asnTarget, asnDrop: false }, ips: [ip({ dropNetwork })] })
+    expect(dropNoticeHeadline(reportDropListings(single))).toBe("The one address the report lists is in a DROP network.")
   })
 })
 
