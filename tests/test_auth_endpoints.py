@@ -76,7 +76,7 @@ def make_app(
     return app
 
 
-def make_disabled_app() -> Litestar:
+def make_disabled_app(*, extra_handlers: Sequence[Any] = ()) -> Litestar:
     """APP_AUTH_DISABLED=true: no session middleware, no auth_state.
 
     Mirrors what create_app() composes in that mode, without the lifespan
@@ -84,7 +84,7 @@ def make_disabled_app() -> Litestar:
     """
     settings = Settings(admin_user="admin", auth_disabled=True, _env_file=None)
     app = Litestar(
-        route_handlers=[create_api_v1_router([AuthController]), protected, fake_health],
+        route_handlers=[create_api_v1_router([AuthController]), protected, fake_health, *extra_handlers],
         dependencies={"settings": create_settings_provider(settings)},
         guards=[api_key_scope_guard],
         logging_config=None,

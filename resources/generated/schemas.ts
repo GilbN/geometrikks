@@ -53,6 +53,14 @@ import type {
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
+  ApiV1AuthApiKeysCreateApiKeyData,
+  ApiV1AuthApiKeysCreateApiKeyErrors,
+  ApiV1AuthApiKeysCreateApiKeyResponses,
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyData,
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors,
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses,
+  ApiV1AuthApiKeysListApiKeysData,
+  ApiV1AuthApiKeysListApiKeysResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -218,6 +226,7 @@ import type {
 export type OperationName =
   | 'ban'
   | 'ban_networks'
+  | 'create_api_key'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
@@ -267,6 +276,7 @@ export type OperationName =
   | 'list_access_logs'
   | 'list_alert_scenarios'
   | 'list_alerts'
+  | 'list_api_keys'
   | 'list_banned_ips'
   | 'list_banned_locations'
   | 'list_banned_ranges'
@@ -283,6 +293,7 @@ export type OperationName =
   | 'oidc_status'
   | 'options'
   | 'read_settings'
+  | 'revoke_api_key'
   | 'rotate'
   | 'run_scheduler_job'
   | 'server_locations'
@@ -297,6 +308,7 @@ export type OperationName =
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksData
+  'create_api_key': ApiV1AuthApiKeysCreateApiKeyData
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
@@ -346,6 +358,7 @@ export interface OperationDataTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsData
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosData
   'list_alerts': ApiV1CrowdsecAlertsListAlertsData
+  'list_api_keys': ApiV1AuthApiKeysListApiKeysData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsData
   'list_banned_ranges': ApiV1CrowdsecBannedRangesListBannedRangesData
@@ -362,6 +375,7 @@ export interface OperationDataTypes {
   'oidc_status': ApiV1AuthOidcStatusOidcStatusData
   'options': ApiV1AuthOptionsOptionsData
   'read_settings': ApiV1SettingsReadSettingsData
+  'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsData
@@ -377,6 +391,7 @@ export interface OperationDataTypes {
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksResponses
+  'create_api_key': ApiV1AuthApiKeysCreateApiKeyResponses
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
@@ -426,6 +441,7 @@ export interface OperationResponseTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsResponses
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses
   'list_alerts': ApiV1CrowdsecAlertsListAlertsResponses
+  'list_api_keys': ApiV1AuthApiKeysListApiKeysResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsResponses
   'list_banned_ranges': ApiV1CrowdsecBannedRangesListBannedRangesResponses
@@ -442,6 +458,7 @@ export interface OperationResponseTypes {
   'oidc_status': ApiV1AuthOidcStatusOidcStatusResponses
   'options': ApiV1AuthOptionsOptionsResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
+  'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsResponses
@@ -457,6 +474,7 @@ export interface OperationResponseTypes {
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksErrors
+  'create_api_key': ApiV1AuthApiKeysCreateApiKeyErrors
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
@@ -506,6 +524,7 @@ export interface OperationErrorTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsErrors
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors
   'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors
+  'list_api_keys': never
   'list_banned_ips': never
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsErrors
   'list_banned_ranges': never
@@ -522,6 +541,7 @@ export interface OperationErrorTypes {
   'oidc_status': never
   'options': never
   'read_settings': never
+  'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
   'server_locations': never

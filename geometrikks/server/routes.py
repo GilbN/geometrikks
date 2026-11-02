@@ -16,6 +16,7 @@ from geometrikks.domain.instances.controllers import InstanceController
 from geometrikks.domain.logs.controllers.access_logs import AccessLogController
 from geometrikks.domain.logs.controllers.access_log_debug import AccessLogDebugController
 from geometrikks.domain.analytics.controllers import AnalyticsController
+from geometrikks.domain.auth.api_key_controllers import ApiKeyController
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.reports.controllers import ReportsController
 from geometrikks.domain.security.controllers import CrowdSecController
@@ -77,6 +78,7 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         LogsController,
         SystemController,
         AuthController,
+        ApiKeyController,
         read_settings,
         stats,
     ]
