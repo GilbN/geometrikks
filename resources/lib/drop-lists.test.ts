@@ -15,6 +15,7 @@ import {
   dropTrafficSubtitle,
   dropMarkTitle,
   dropBanReason,
+  sblRecordUrl,
   dropNetworkBannedText,
   dropNetworkUnbannedText,
   buildDropIndex,
@@ -355,6 +356,16 @@ describe("dropMarkTitle", () => {
 describe("dropBanReason", () => {
   it("names the list and the SBL record", () => {
     expect(dropBanReason("SBL678435")).toBe("Spamhaus DROP SBL678435")
+  })
+})
+
+describe("sblRecordUrl", () => {
+  it("points at the SBL query path for the id", () => {
+    expect(sblRecordUrl("SBL678435")).toBe("https://check.spamhaus.org/sbl/query/SBL678435")
+  })
+
+  it("encodes an id that is not a plain token", () => {
+    expect(sblRecordUrl("SBL1/../x")).toBe("https://check.spamhaus.org/sbl/query/SBL1%2F..%2Fx")
   })
 })
 

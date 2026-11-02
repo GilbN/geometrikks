@@ -329,6 +329,11 @@ export function dropBanReason(sblId: string): string {
   return `Spamhaus DROP ${sblId}`
 }
 
+/** The SBL record on check.spamhaus.org. This path redirects to the results page for the id. */
+export function sblRecordUrl(sblId: string): string {
+  return `https://check.spamhaus.org/sbl/query/${encodeURIComponent(sblId)}`
+}
+
 export function dropNetworkBannedText(cidr: string, durationLabel: string): string {
   return `Banned DROP network ${cidr} ${forDuration(durationLabel)}`
 }
