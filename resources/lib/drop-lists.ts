@@ -47,22 +47,16 @@ export function dropTrafficSubtitle(
   return `${formatNumber(dropHits)} requests from ${source}`
 }
 
-const FEED_NOUNS: Record<string, [singular: string, plural: string]> = {
-  v4: ["IPv4 network", "IPv4 networks"],
-  v6: ["IPv6 network", "IPv6 networks"],
-  asn: ["ASN", "ASNs"],
-}
+const FEED_RECORD_LABELS: Record<string, string> = { v4: "IPv4 networks", v6: "IPv6 networks", asn: "ASNs" }
 
-/** "1,754 IPv4 networks, 89 IPv6 networks, 447 ASNs", skipping feeds that never downloaded. */
-export function dropFeedCounts(feeds: readonly DropFeedView[]): string {
+/** One labelled record count per downloaded feed, skipping feeds that never downloaded. */
+export function dropFeedRecords(feeds: readonly DropFeedView[]): { label: string; count: string }[] {
   return feeds
     .filter((feedView) => feedView.recordCount !== null)
-    .map((feedView) => {
-      const count = feedView.recordCount ?? 0
-      const [singular, plural] = FEED_NOUNS[feedView.feed] ?? [`${feedView.feed} record`, `${feedView.feed} records`]
-      return `${formatNumber(count)} ${count === 1 ? singular : plural}`
-    })
-    .join(", ")
+    .map((feedView) => ({
+      label: FEED_RECORD_LABELS[feedView.feed] ?? `${feedView.feed} records`,
+      count: formatNumber(feedView.recordCount ?? 0),
+    }))
 }
 
 const FEED_LABELS: Record<string, string> = { v4: "IPv4", v6: "IPv6", asn: "ASN" }

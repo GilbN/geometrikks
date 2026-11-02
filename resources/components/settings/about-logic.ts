@@ -1,7 +1,7 @@
 import type { AboutResponse, DropListsAboutView, GeoIpInfoView } from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
 import { formatTs } from "@/lib/datetime"
-import { type DropListsState, dropListsState } from "@/lib/drop-lists"
+import { dropListsState } from "@/lib/drop-lists"
 import { displayVersion, publicVersion } from "@/lib/version"
 
 export interface SectionSummary {
@@ -96,25 +96,19 @@ export function dropListsStatus(dropLists: DropListsAboutView): { tone: LedTone;
   return { tone: state === "failing" ? "amber" : "emerald", label: updatedAt ? `Updated ${updatedAt}` : "Downloaded" }
 }
 
-const DROP_SUMMARY_PARTS: Record<Exclude<DropListsState, "current">, string> = {
-  failing: "DROP download failed",
-  stale: "DROP out of date",
-  "not-downloaded": "DROP not downloaded",
-}
-
-export function geoipSummary(
-  about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled" | "dropLists">,
-): SectionSummary {
+export function geoipSummary(about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled">): SectionSummary {
   const asn = about.geoipAsnEnabled && about.geoipAsn ? about.geoipAsn : null
   const tones = [geoipFreshness(about.geoip.available, about.geoip.ageDays).tone]
   if (asn) tones.push(geoipFreshness(asn.available, asn.ageDays).tone)
   const parts = [geoipPart("City", about.geoip), asn ? geoipPart("ASN", asn) : "ASN disabled"]
-  if (about.dropLists && dropListsStatus(about.dropLists).tone === "amber") {
-    const state = dropListsState(about.dropLists)
-    tones.push("amber")
-    if (state !== "current") parts.push(DROP_SUMMARY_PARTS[state])
-  }
   return { tone: worstTone(tones), text: parts.join(", ") }
+}
+
+/** The phone row's line: the status, with a failed download named ahead of the last good one. */
+export function dropListsSummary(dropLists: DropListsAboutView): SectionSummary {
+  const status = dropListsStatus(dropLists)
+  if (dropListsState(dropLists) !== "failing") return { tone: status.tone, text: status.label }
+  return { tone: status.tone, text: `Download failed, ${status.label.charAt(0).toLowerCase()}${status.label.slice(1)}` }
 }
 
 /** A row with a red or amber light starts open, so the problem shows without a tap. */

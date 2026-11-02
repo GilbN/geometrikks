@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2 } from "lucide-react"
+import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2, OctagonX } from "lucide-react"
 import { toast } from "sonner"
 import type { AboutResponse, DropListsAboutView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
-import { dropFeedCounts, dropListsErrorLines } from "@/lib/drop-lists"
+import { dropFeedRecords, dropListsErrorLines } from "@/lib/drop-lists"
 import { useAbout, useReleaseCheck } from "@/lib/queries"
 import { releaseCheckLine, skippedReleasesText } from "@/lib/release-check"
 import { saveSeenRelease } from "@/lib/release-seen"
@@ -24,6 +24,7 @@ import {
   buildDateLabel,
   databaseSummary,
   dropListsStatus,
+  dropListsSummary,
   geoipFreshness,
   geoipSummary,
   migrationStatus,
@@ -315,50 +316,79 @@ function DropTermsLink({ dropLists }: { dropLists: DropListsAboutView }) {
   )
 }
 
-/** The DROP lists under the hosting list: state, each feed's last error, and record counts. */
-function DropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
+const DROP_LISTS_EXPLAINER =
+  "Networks hijacked or run by spam and cybercrime operations. Listed ASNs get a DROP badge."
+
+const DROP_LISTS_PENDING = "The scheduler downloads the lists every DROP_REFRESH_HOURS, 24 hours by default."
+
+function DropListsCredit({ dropLists }: { dropLists: DropListsAboutView }) {
   return (
-    <div className="mt-3">
-      <Row label="DROP lists" value={<DropListsState dropLists={dropLists} />} />
-      {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
-        <p key={errorLine} className="pt-1.5 text-xs break-words text-muted-foreground">
-          {errorLine}
-        </p>
-      ))}
-      {dropLists.loaded && (
-        <>
-          <Row label="Records" value={<span className="break-normal">{dropFeedCounts(dropLists.feeds)}</span>} />
-          <p className="pt-2 text-xs text-muted-foreground">
-            Networks hijacked or run by spam and cybercrime operations; listed
-            ASNs are badged DROP.
-          </p>
-          <p className="pt-1 text-xs text-muted-foreground">
-            {dropLists.copyright && <>{dropLists.copyright} · </>}
-            <DropTermsLink dropLists={dropLists} />
-          </p>
-        </>
-      )}
-    </div>
+    <>
+      {dropLists.copyright && <>{dropLists.copyright} · </>}
+      <DropTermsLink dropLists={dropLists} />
+    </>
   )
 }
 
-function PhoneDropListsRows({ dropLists }: { dropLists: DropListsAboutView }) {
+/** The DROP lists card: each feed's last error, record counts, and the list's credit. */
+function DropListsCard({ dropLists }: { dropLists: DropListsAboutView }) {
   return (
-    <div className="mt-2.5">
-      <PhoneRow label="DROP lists" value={<DropListsState dropLists={dropLists} />} />
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={OctagonX} />
+            <CardTitle className="text-base">DROP lists</CardTitle>
+          </div>
+          <DropListsState dropLists={dropLists} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
+          <p key={errorLine} className="pb-1.5 text-xs break-words text-muted-foreground">
+            {errorLine}
+          </p>
+        ))}
+        {dropLists.loaded ? (
+          <>
+            {dropFeedRecords(dropLists.feeds).map((feedRecords) => (
+              <Row key={feedRecords.label} label={feedRecords.label} value={feedRecords.count} />
+            ))}
+            <p className="max-w-[80ch] pt-2 text-xs text-muted-foreground">{DROP_LISTS_EXPLAINER}</p>
+            <p className="pt-1 text-xs text-muted-foreground">
+              <DropListsCredit dropLists={dropLists} />
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{DROP_LISTS_PENDING}</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function PhoneDropListsValues({ dropLists }: { dropLists: DropListsAboutView }) {
+  return (
+    <>
       {dropListsErrorLines(dropLists.feeds).map((errorLine) => (
-        <PhoneRowDetail key={errorLine}>{errorLine}</PhoneRowDetail>
+        <p key={errorLine} className="py-1 text-xs break-words text-muted-foreground">
+          {errorLine}
+        </p>
       ))}
-      {dropLists.loaded && (
+      {dropLists.loaded ? (
         <>
-          <PhoneRowDetail>{dropFeedCounts(dropLists.feeds)}</PhoneRowDetail>
-          <PhoneRowDetail>
-            {dropLists.copyright && <>{dropLists.copyright} · </>}
-            <DropTermsLink dropLists={dropLists} />
-          </PhoneRowDetail>
+          {dropFeedRecords(dropLists.feeds).map((feedRecords) => (
+            <PhoneRow key={feedRecords.label} label={feedRecords.label} value={feedRecords.count} />
+          ))}
+          <p className="pt-1.5 text-xs text-muted-foreground">{DROP_LISTS_EXPLAINER}</p>
+          <p className="pt-1 text-xs text-muted-foreground">
+            <DropListsCredit dropLists={dropLists} />
+          </p>
         </>
+      ) : (
+        <p className="pt-1 text-xs text-muted-foreground">{DROP_LISTS_PENDING}</p>
       )}
-    </div>
+    </>
   )
 }
 
@@ -590,13 +620,12 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
           </p>
         )}
       </div>
-      {about.dropLists && <PhoneDropListsRows dropLists={about.dropLists} />}
       <MaxMindAttribution />
     </>
   )
 }
 
-/** Phones: the version card, then Runtime, Database and GeoIP as rows that open on tap. */
+/** Phones: the version card, then Runtime, Database, GeoIP and DROP as rows that open on tap. */
 function PhoneAbout({ about }: { about: AboutResponse }) {
   return (
     <div className="space-y-4">
@@ -617,6 +646,11 @@ function PhoneAbout({ about }: { about: AboutResponse }) {
         <SummarySection icon={Globe2} title="GeoIP databases" summary={geoipSummary(about)}>
           <PhoneGeoipValues about={about} />
         </SummarySection>
+        {about.dropLists && (
+          <SummarySection icon={OctagonX} title="DROP lists" summary={dropListsSummary(about.dropLists)}>
+            <PhoneDropListsValues dropLists={about.dropLists} />
+          </SummarySection>
+        )}
       </div>
     </div>
   )
@@ -822,12 +856,13 @@ export function AboutPage() {
                   ASN enrichment is turned off (GEOIP_ASN_ENABLED=false).
                 </p>
               )}
-              {data.dropLists && <DropListsRows dropLists={data.dropLists} />}
             </div>
           </div>
           <MaxMindAttribution />
         </CardContent>
       </Card>
+
+      {data.dropLists && <DropListsCard dropLists={data.dropLists} />}
 
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap gap-2 py-4">

@@ -5,7 +5,7 @@ import {
   dropAsnFreshness,
   dropAsnsLoaded,
   dropCreditText,
-  dropFeedCounts,
+  dropFeedRecords,
   dropFeedFailing,
   dropListsErrorLines,
   dropListsState,
@@ -78,18 +78,24 @@ describe("dropAsnFreshness", () => {
   })
 })
 
-describe("dropFeedCounts", () => {
-  it("names each downloaded feed with its record count", () => {
+describe("dropFeedRecords", () => {
+  it("labels each downloaded feed's record count", () => {
     const feeds = [
       feedView({ feed: "v4", recordCount: 1754 }),
       feedView({ feed: "v6", recordCount: 1 }),
       feedView({ feed: "asn", recordCount: 447 }),
     ]
-    expect(dropFeedCounts(feeds)).toBe("1,754 IPv4 networks, 1 IPv6 network, 447 ASNs")
+    expect(dropFeedRecords(feeds)).toEqual([
+      { label: "IPv4 networks", count: "1,754" },
+      { label: "IPv6 networks", count: "1" },
+      { label: "ASNs", count: "447" },
+    ])
   })
 
   it("skips feeds that never downloaded", () => {
-    expect(dropFeedCounts([feedView({ feed: "v4" }), feedView({ feed: "asn", recordCount: 2 })])).toBe("2 ASNs")
+    expect(dropFeedRecords([feedView({ feed: "v4" }), feedView({ feed: "asn", recordCount: 2 })])).toEqual([
+      { label: "ASNs", count: "2" },
+    ])
   })
 })
 

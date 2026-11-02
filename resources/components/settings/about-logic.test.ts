@@ -5,6 +5,7 @@ import {
   buildDateLabel,
   databaseSummary,
   dropListsStatus,
+  dropListsSummary,
   geoipSummary,
   migrationStatus,
   runtimeLabel,
@@ -168,52 +169,6 @@ describe("section summaries", () => {
     })
   })
 
-  it("names DROP lists that are out of date or failed to download", () => {
-    const about = makeAbout()
-    const dropLists = {
-      enabled: true,
-      loaded: true,
-      stale: true,
-      updatedAt: "2026-10-20T06:14:00Z",
-      copyright: null,
-      termsUrl: "https://www.spamhaus.org/drop/terms/",
-      feeds: [],
-    }
-    expect(geoipSummary({ ...about, dropLists })).toEqual({
-      tone: "amber",
-      text: "City 7 days old, ASN 6 days old, DROP out of date",
-    })
-    const failed = {
-      ...dropLists,
-      loaded: false,
-      updatedAt: null,
-      feeds: [{ feed: "v4", recordCount: null, upstreamTimestamp: null, fetchedAt: null, checkedAt: null, lastError: "HTTP 403" }],
-    }
-    expect(geoipSummary({ ...about, dropLists: failed }).text).toBe("City 7 days old, ASN 6 days old, DROP not downloaded")
-    expect(geoipSummary({ ...about, dropLists: { ...dropLists, stale: false } }).text).toBe("City 7 days old, ASN 6 days old")
-    expect(geoipSummary({ ...about, dropLists: { ...failed, feeds: [] } }).tone).toBe("emerald")
-  })
-
-  it("names a DROP download that failed after the lists loaded", () => {
-    const about = makeAbout()
-    const failing = {
-      enabled: true,
-      loaded: true,
-      stale: false,
-      updatedAt: "2026-10-30T06:00:00Z",
-      copyright: null,
-      termsUrl: "https://www.spamhaus.org/drop/terms/",
-      feeds: [
-        { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-10-30T06:00:00Z", lastError: null },
-        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" },
-      ],
-    }
-    expect(geoipSummary({ ...about, dropLists: failing })).toEqual({
-      tone: "amber",
-      text: "City 7 days old, ASN 6 days old, DROP download failed",
-    })
-  })
-
   it("uses the singular for one day", () => {
     const about = makeAbout()
     expect(geoipSummary({ ...about, geoip: { ...about.geoip, ageDays: 1 } }).text).toBe("City 1 day old, ASN 6 days old")
@@ -325,5 +280,41 @@ describe("aboutDetailsText", () => {
     const about = makeAbout()
     const text = aboutDetailsText({ ...about, database: { ...about.database, migrationRevision: "9f1c2ab4d7e0" } })
     expect(text.split("\n")[4]).toBe("Migration 9f1c2ab4d7e0 (differs from this build, build ships a41d7e6c2b95)")
+  })
+})
+
+describe("dropListsSummary", () => {
+  const dropLists = {
+    enabled: true,
+    loaded: true,
+    stale: false,
+    updatedAt: "2026-10-30T06:00:00Z",
+    copyright: null,
+    termsUrl: "https://www.spamhaus.org/drop/terms/",
+    feeds: [
+      { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-10-30T06:00:00Z", lastError: null },
+    ],
+  }
+
+  it("reads like the status when nothing failed", () => {
+    expect(dropListsSummary(dropLists)).toEqual({ tone: "emerald", text: dropListsStatus(dropLists).label })
+    expect(dropListsSummary({ ...dropLists, stale: true }).text).toMatch(/^Out of date, updated /)
+    expect(dropListsSummary({ ...dropLists, loaded: false, updatedAt: null, feeds: [] })).toEqual({
+      tone: "muted",
+      text: "Not downloaded yet",
+    })
+  })
+
+  it("names a download that failed after the lists loaded", () => {
+    const failing = {
+      ...dropLists,
+      feeds: [
+        ...dropLists.feeds,
+        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" },
+      ],
+    }
+    const summary = dropListsSummary(failing)
+    expect(summary.tone).toBe("amber")
+    expect(summary.text).toMatch(/^Download failed, updated /)
   })
 })
