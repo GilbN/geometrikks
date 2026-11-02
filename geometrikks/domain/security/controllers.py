@@ -978,7 +978,10 @@ class CrowdSecController(Controller):
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> BanNetworksResponse:
-        """Ban DROP networks as Range decisions, reporting every network's outcome.
+        """Ban DROP networks, reporting every network's outcome.
+
+        Each ban takes the scope ``/ban`` gives the same value, so a
+        single-address network becomes an Ip decision.
 
         Name the networks, or set allUnbannedDays to ban every DROP network
         with traffic in that window and no active Range decision. That form
@@ -1037,9 +1040,10 @@ class CrowdSecController(Controller):
                 if cidr in banned_ranges:
                     ban_results.append(BanNetworkResult(network=cidr, ok=True, error=None, already_banned=True))
                     continue
+                scope, value = _decision_target(cidr)
                 try:
                     await service.ban(
-                        cidr, scope="Range", decision_type="ban", duration=duration,
+                        value, scope=scope, decision_type="ban", duration=duration,
                         reason=f"Spamhaus DROP {sbl_id}",
                     )
                 except CrowdSecError as exc:

@@ -1596,6 +1596,43 @@ async def test_ban_networks_still_bans_when_the_decision_lookup_fails(monkeypatc
     assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24"]
 
 
+async def test_ban_networks_bans_a_network_whose_range_decision_has_expired(monkeypatch):
+    service = WritableFakeCrowdSec([range_decision("192.0.2.0/24", duration="-1h")])
+    async with AsyncTestClient(app=make_app(service)) as client:
+        assert (await client.get("/api/v1/crowdsec/banned-ranges")).json() == []
+    resp, service, _ = await post_ban_networks(
+        monkeypatch, {"networks": ["192.0.2.0/24"], "duration": "24h"}, service=service
+    )
+    assert resp.json()["results"] == [
+        {"network": "192.0.2.0/24", "ok": True, "error": None, "alreadyBanned": False},
+    ]
+    assert [ban["value"] for ban in service.bans] == ["192.0.2.0/24"]
+
+
+HOST_PREFIX_SNAPSHOT = DropSnapshot(
+    networks=(
+        DropNetworkMatch("192.0.2.7/32", "SBL000007"),
+        DropNetworkMatch("2001:db8::1/128", "SBL000008"),
+    ),
+    feeds=(FeedState("v4", None, 2, None, DROP_FETCHED_AT, DROP_FETCHED_AT, None),),
+)
+
+
+async def test_ban_networks_bans_a_single_address_network_as_an_ip_the_way_ban_does(monkeypatch):
+    resp, service, _ = await post_ban_networks(
+        monkeypatch,
+        {"networks": ["192.0.2.7/32", "2001:db8::1/128"], "duration": "24h"},
+        snapshot=HOST_PREFIX_SNAPSHOT,
+    )
+    _, single_service = await post_ban(monkeypatch, {"ip": "192.0.2.7/32"})
+
+    assert [(result["network"], result["ok"]) for result in resp.json()["results"]] == [
+        ("192.0.2.7/32", True), ("2001:db8::1/128", True),
+    ]
+    assert [(ban["scope"], ban["value"]) for ban in service.bans] == [("Ip", "192.0.2.7"), ("Ip", "2001:db8::1")]
+    assert (single_service.bans[0]["scope"], single_service.bans[0]["value"]) == ("Ip", "192.0.2.7")
+
+
 async def test_ban_networks_with_all_unbanned_days_skips_ranges_that_hold_a_decision(monkeypatch):
     service = WritableFakeCrowdSec([range_decision("198.51.100.0/24")])
     resp, service, traffic = await post_ban_networks(
