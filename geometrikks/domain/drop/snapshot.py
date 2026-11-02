@@ -25,6 +25,7 @@ logger = get_logger(__name__)
 
 STATE_CHECK_INTERVAL_SECONDS = 60.0
 STALE_AFTER = timedelta(days=7)
+NETWORK_FEEDS = ("v4", "v6")
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,9 @@ class DropSnapshot:
         fetched_times = [feed.fetched_at for feed in feeds if feed.fetched_at is not None]
         self.updated_at: datetime | None = max(fetched_times) if fetched_times else None
         self.asns_loaded = any(feed.feed == "asn" and feed.fetched_at is not None for feed in feeds)
+        self.networks_loaded = any(
+            feed.feed in NETWORK_FEEDS and feed.fetched_at is not None for feed in feeds
+        )
 
     @property
     def loaded(self) -> bool:

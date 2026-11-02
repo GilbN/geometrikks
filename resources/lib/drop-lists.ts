@@ -82,6 +82,14 @@ export function dropAsnsLoaded(dropLists: Pick<DropListsAboutView, "feeds"> | nu
   return dropLists?.feeds.some((feedView) => feedView.feed === "asn" && feedView.fetchedAt !== null) ?? false
 }
 
+/** True once a network list (v4 or v6) has downloaded. An ASN list alone has no networks to show traffic for. */
+export function dropNetworksLoaded(dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined): boolean {
+  return (
+    dropLists?.feeds.some((feedView) => (feedView.feed === "v4" || feedView.feed === "v6") && feedView.fetchedAt !== null) ??
+    false
+  )
+}
+
 /** True when the feed's latest download attempt failed after, or without, a good one. */
 export function dropFeedFailing(feedView: DropFeedView): boolean {
   if (!feedView.lastError) return false

@@ -4,6 +4,7 @@ import { formatTs } from "./datetime"
 import {
   dropAsnFreshness,
   dropAsnsLoaded,
+  dropNetworksLoaded,
   dropCreditText,
   dropFeedRecords,
   dropFeedFailing,
@@ -286,6 +287,16 @@ describe("matchDropNetwork", () => {
     }
     expect(matched).toBeGreaterThan(0)
     expect(elapsedMs).toBeLessThan(50)
+  })
+})
+
+describe("dropNetworksLoaded", () => {
+  it("needs a network feed, not the ASN feed alone", () => {
+    const fetchedAt = "2026-11-01T06:00:00Z"
+    expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4" }), feedView({ feed: "v6" }), feedView({ feed: "asn", fetchedAt })] })).toBe(false)
+    expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4" }), feedView({ feed: "v6", fetchedAt })] })).toBe(true)
+    expect(dropNetworksLoaded({ feeds: [feedView({ feed: "v4", fetchedAt })] })).toBe(true)
+    expect(dropNetworksLoaded(null)).toBe(false)
   })
 })
 

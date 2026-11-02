@@ -672,7 +672,7 @@ class CrowdSecController(Controller):
         the traffic, with every decision null and decisionsAvailable false.
         """
         service = _require_service(crowdsec)
-        if not drop_snapshot.loaded:
+        if not drop_snapshot.networks_loaded:
             return DropNetworksResponse(
                 loaded=False, days=days, total_networks=0, total_ips=0, total_hits=0,
                 banned_networks=0, decisions_available=True, items=[],
@@ -1007,7 +1007,7 @@ class CrowdSecController(Controller):
             else:
                 requested_networks = []
                 banned_ranges = {}
-                if drop_snapshot.loaded:
+                if drop_snapshot.networks_loaded:
                     end = datetime.now(timezone.utc)
                     start = end - timedelta(days=data.all_unbanned_days or 0)
                     banned_ranges = await _active_banned_ranges(service)

@@ -1633,6 +1633,31 @@ async def test_ban_networks_bans_a_single_address_network_as_an_ip_the_way_ban_d
     assert (single_service.bans[0]["scope"], single_service.bans[0]["value"]) == ("Ip", "192.0.2.7")
 
 
+ASN_ONLY_SNAPSHOT = DropSnapshot(
+    networks=(),
+    feeds=(
+        FeedState("v4", None, None, None, None, DROP_FETCHED_AT, "HTTP 503"),
+        FeedState("v6", None, None, None, None, DROP_FETCHED_AT, "HTTP 503"),
+        FeedState("asn", None, 1, None, DROP_FETCHED_AT, DROP_FETCHED_AT, None),
+    ),
+)
+
+
+async def test_drop_networks_is_not_loaded_when_only_the_asn_feed_has_loaded():
+    resp, traffic = await get_drop_networks(snapshot=ASN_ONLY_SNAPSHOT)
+    assert resp.json()["loaded"] is False
+    assert traffic.windows == []
+
+
+async def test_ban_networks_with_all_unbanned_days_bans_nothing_when_only_the_asn_feed_has_loaded(monkeypatch):
+    resp, service, traffic = await post_ban_networks(
+        monkeypatch, {"allUnbannedDays": 30, "duration": "24h"}, snapshot=ASN_ONLY_SNAPSHOT
+    )
+    assert resp.json() == {"results": [], "leftOut": 0}
+    assert service.bans == []
+    assert traffic.windows == []
+
+
 async def test_ban_networks_with_all_unbanned_days_skips_ranges_that_hold_a_decision(monkeypatch):
     service = WritableFakeCrowdSec([range_decision("198.51.100.0/24")])
     resp, service, traffic = await post_ban_networks(

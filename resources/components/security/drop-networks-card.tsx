@@ -35,7 +35,7 @@ import { DropCredit } from "@/components/drop/drop-credit"
 import type { BanNetworkResult, BanNetworksResponse, DropNetworkTrafficView } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
-import { dropBanReason, dropNetworkBannedText } from "@/lib/drop-lists"
+import { dropBanReason, dropNetworkBannedText, dropNetworksLoaded } from "@/lib/drop-lists"
 import {
   DROP_NETWORK_RANGES,
   DROP_NETWORKS_STALE_NOTE,
@@ -66,7 +66,7 @@ const BAN_BUTTON_CLASS =
 
 export function DropNetworksCard() {
   const { data: about } = useAbout()
-  const listsLoaded = about?.dropLists?.enabled === true && about.dropLists.loaded
+  const listsLoaded = about?.dropLists?.enabled === true && dropNetworksLoaded(about.dropLists)
   if (!listsLoaded) return null
   return <DropNetworksCardBody />
 }
