@@ -133,6 +133,42 @@ class TestTailLogin:
         records = service.tail_login(lines=10)
         assert [r["event"] for r in records] == ["login_success"]
 
+    def test_tail_login_parses_key_and_marks_rejections_as_warnings(self, service, tmp_path):
+        login = tmp_path / "logs" / "login.log"
+        login.write_text(
+            '2026-11-02T10:00:00Z api_key_created user="admin" ip=192.168.1.5 key="homepage"\n'
+            '2026-11-02T10:06:00Z api_key_rejected user="gmk_7Hq2" ip=192.168.1.20\n'
+            '2026-11-02T10:07:00Z api_key_rejected user="gmk_Ve8s" ip=192.168.1.20 key="test-curl"\n',
+            encoding="utf-8",
+        )
+        records = service.tail_login(lines=10)
+        assert [
+            (login_record["event"], login_record["level"], login_record.get("key"))
+            for login_record in records
+        ] == [
+            ("api_key_created", "info", "homepage"),
+            ("api_key_rejected", "warning", None),
+            ("api_key_rejected", "warning", "test-curl"),
+        ]
+        assert [login_record["user"] for login_record in records] == ["admin", "gmk_7Hq2", "gmk_Ve8s"]
+        assert [login_record["ip"] for login_record in records] == [
+            "192.168.1.5", "192.168.1.20", "192.168.1.20",
+        ]
+
+    def test_old_lines_parse_without_key(self, service, tmp_path):
+        login = tmp_path / "logs" / "login.log"
+        login.write_text(
+            '2026-07-23T00:01:00Z login_success user="bob" ip=1.2.3.4\n'
+            '2026-07-23T00:02:00Z login_failed user="eve" ip=-\n'
+            '2026-07-23T00:03:00Z logout user="bob" ip=1.2.3.4\n',
+            encoding="utf-8",
+        )
+        records = service.tail_login(lines=10)
+        assert [login_record["event"] for login_record in records] == [
+            "login_success", "login_failed", "logout",
+        ]
+        assert all("key" not in login_record for login_record in records)
+
     def test_missing_file_returns_empty(self, tmp_path):
         from geometrikks.services.logfiles import LogFilesService
         svc = LogFilesService(log_dir=tmp_path / "nope", access_log_paths=[])
