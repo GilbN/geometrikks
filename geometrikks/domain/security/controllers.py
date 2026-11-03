@@ -1106,8 +1106,8 @@ class CrowdSecController(Controller):
             QueryParameter(
                 required=False,
                 description=(
-                    "Keep only alerts that hold a decision covering this IP. An alert on the IP without a "
-                    "decision is left out. A value that is not an IP gets a 400."
+                    "Keep only alerts that hold a decision covering this IP. The filter excludes alerts on this "
+                    "IP that have no decision. A value that is not an IP gets a 400."
                 ),
             ),
         ] = None,
