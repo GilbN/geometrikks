@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 import msgspec
 
@@ -25,10 +25,13 @@ class GeoLocationDTO(SQLAlchemyDTO[GeoLocation]):
     )
 
 
-class EmbeddedLocationDTO(msgspec.Struct, rename="camel"):
-    """Lightweight location data for embedding in other DTOs."""
+LocationId = Annotated[int, msgspec.Meta(description="The location's `id`, as `/api/v1/geo-locations` lists it.")]
 
-    id: int
+
+class EmbeddedLocationDTO(msgspec.Struct, rename="camel"):
+    """The place and coordinates of one location."""
+
+    id: LocationId
     latitude: float
     longitude: float
     city: str | None = None
@@ -37,80 +40,101 @@ class EmbeddedLocationDTO(msgspec.Struct, rename="camel"):
 
 
 class TopIPDTO(msgspec.Struct, rename="camel"):
-    """Top IP address with event count and optional location."""
+    """One client IP with its geo events at one location."""
 
     ip_address: str
-    event_count: int
-    location: EmbeddedLocationDTO | None = None  # Optional - used for global top IPs
+    event_count: Annotated[int, msgspec.Meta(description="The IP's events at this one location in the range.")]
+    location: Annotated[
+        EmbeddedLocationDTO | None,
+        msgspec.Meta(
+            description=(
+                "The location where the IP had the most events, the one `eventCount` counts. Null in the top "
+                "IPs of a single location."
+            )
+        ),
+    ] = None
 
 
+# The geometry fields have no defaults on purpose. A default makes them
+# optional in OpenAPI and in the generated TS client.
 class GeoJSONPointGeometry(msgspec.Struct, rename="camel"):
-    """GeoJSON Point geometry.
-
-    Fields are deliberately default-less: dataclass defaults make them
-    non-required in OpenAPI, which turns into optional fields in the
-    generated TS client. The controller always constructs them explicitly.
-    """
+    """A GeoJSON point."""
 
     type: Literal["Point"]
-    coordinates: tuple[float, float]
+    coordinates: Annotated[
+        tuple[float, float], msgspec.Meta(description="`[longitude, latitude]`, in GeoJSON order.")
+    ]
 
 
 class GeoJSONFeatureProperties(msgspec.Struct, rename="camel"):
-    """Properties for a GeoJSON feature representing a location with event count."""
+    """One location and its events in the range."""
 
-    id: int
+    id: LocationId
     geohash: str
     country_code: str
     country_name: str
-    last_hit: datetime | None
+    last_hit: Annotated[
+        datetime | None,
+        msgspec.Meta(
+            description=(
+                "The newest event at this location, whatever the range. A scheduler job updates it, so it can "
+                "lag by a few minutes. Null until the job first runs for the location."
+            )
+        ),
+    ]
     state: str | None
     state_code: str | None
     city: str | None
     postal_code: str | None
-    timezone: str | None
-    event_count: int
-    top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
+    timezone: Annotated[str | None, msgspec.Meta(description="The location's IANA timezone from GeoIP.")]
+    event_count: Annotated[int, msgspec.Meta(description="Events at this location in the range.")]
+    top_ips: Annotated[
+        list[TopIPDTO],
+        msgspec.Meta(description="Always empty here. `/api/v1/geo-locations/{location_id}/top-ips` lists them."),
+    ] = msgspec.field(default_factory=list)
 
 
 class GeoJSONFeature(msgspec.Struct, rename="camel"):
-    """GeoJSON Feature representing a location."""
+    """One location as a GeoJSON Feature."""
 
-    type: str
+    type: Annotated[str, msgspec.Meta(description="Always `Feature`.")]
     geometry: GeoJSONPointGeometry
     properties: GeoJSONFeatureProperties
 
 class GeoJSONFeatureStats(msgspec.Struct, rename="camel"):
-    """Statistics for GeoJSONFeatureCollection."""
+    """Totals over every feature in the collection."""
 
     events: int
-    countries: int
-    cities: int
-    locations: int
+    countries: Annotated[int, msgspec.Meta(description="Distinct country codes.")]
+    cities: Annotated[
+        int,
+        msgspec.Meta(description="Distinct city names. Cities with the same name in different countries count once."),
+    ]
+    locations: Annotated[int, msgspec.Meta(description="The number of features.")]
 
 class GeoJSONFeatureCollection(msgspec.Struct, rename="camel"):
-    """GeoJSON FeatureCollection for locations with event counts."""
+    """The locations with events in a time range, as a GeoJSON FeatureCollection, busiest first."""
 
-    type: str
+    type: Annotated[str, msgspec.Meta(description="Always `FeatureCollection`.")]
     features: list[GeoJSONFeature]
     stats: GeoJSONFeatureStats
 
 
 class LocationTopIPsResponse(msgspec.Struct, rename="camel"):
-    """Response for location top IPs endpoint."""
+    """The client IPs with the most events at one location, most first."""
 
-    location_id: int
+    location_id: LocationId
     top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
 
 
 class GlobalTopIPsResponse(msgspec.Struct, rename="camel"):
-    """Response for global top IPs endpoint."""
+    """The client IPs with the most events, each at the location where it had the most."""
 
     top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
 
 
 class TopCountryDTO(msgspec.Struct, rename="camel"):
-    """Top country with event count."""
+    """One country with its geo events."""
 
     country_code: str
     country_name: str | None
@@ -118,26 +142,41 @@ class TopCountryDTO(msgspec.Struct, rename="camel"):
 
 
 class TopCountriesResponse(msgspec.Struct, rename="camel"):
-    """Response for top countries endpoint."""
+    """Countries ordered by geo event count, most first."""
 
     top_countries: list[TopCountryDTO] = msgspec.field(default_factory=list)
 
 
 class ServerLocationView(msgspec.Struct, rename="camel"):
-    """Where one server sits on the map, auto-detected or overridden."""
+    """Where one server sits on the map."""
 
     server: str
     latitude: float
     longitude: float
-    source: Literal["auto", "override"]
-    detected_at: str | None
-    # Day precision (from the daily server aggregate); None when the
-    # server has never recorded a geo event.
-    last_event_day: str | None
+    source: Annotated[
+        Literal["auto", "override"],
+        msgspec.Meta(
+            description=(
+                "`auto` when the instance that tails the server recorded its own location, from its "
+                "MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when "
+                "MAP_SERVER_LOCATIONS on the head pins the server."
+            )
+        ),
+    ]
+    detected_at: Annotated[
+        str | None,
+        msgspec.Meta(description="When the instance last recorded the location, as ISO 8601. Null for an override."),
+    ]
+    last_event_day: Annotated[
+        str | None,
+        msgspec.Meta(
+            description="The UTC day of the server's newest geo event, as `YYYY-MM-DD`. Null when it has none."
+        ),
+    ]
 
 
 class DefaultServerLocationView(msgspec.Struct, rename="camel"):
-    """This instance's own location, used for any server without a server_locations row."""
+    """This instance's own location, which the map uses for a server without a location of its own."""
 
     latitude: float
     longitude: float
@@ -146,5 +185,13 @@ class DefaultServerLocationView(msgspec.Struct, rename="camel"):
 class ServerLocationsResponse(msgspec.Struct, rename="camel"):
     """Every server's map location, plus this instance's own location as the default."""
 
-    locations: list[ServerLocationView]
-    default: DefaultServerLocationView | None
+    locations: Annotated[list[ServerLocationView], msgspec.Meta(description="Sorted by server name.")]
+    default: Annotated[
+        DefaultServerLocationView | None,
+        msgspec.Meta(
+            description=(
+                "This instance's own location, found at startup or set with MAP_SERVER_LATITUDE and "
+                "MAP_SERVER_LONGITUDE. Null when it has neither."
+            )
+        ),
+    ]

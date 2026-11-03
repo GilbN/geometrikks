@@ -1,6 +1,8 @@
 """Stats API endpoint for log parser statistics."""
 from __future__ import annotations
 
+from typing import Annotated
+
 import msgspec
 
 from litestar import get
@@ -11,30 +13,54 @@ from geometrikks.services.logsources import LokiSource
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
+# The selector and the server name describe the operator's log setup, so
+# they are served here, behind auth, and never on /health.
 class LokiSourceStats(msgspec.Struct, rename="camel"):
-    """One LOKI_QUERIES entry as the ingestion service sees it.
+    """One query from LOKI_QUERIES and how ingestion is reading it."""
 
-    The selector and the server name describe the operator's log setup, so they
-    are served here, behind auth, and never on /health.
-    """
-
-    query: str
-    label: str
-    server: str
-    available: bool
-    reason: str | None
-    # Detected (auto) or pinned format; None until the first line is read.
-    log_format: str | None
-    parsed_lines: int
+    query: Annotated[str, msgspec.Meta(description="The LogQL selector as configured.")]
+    label: Annotated[
+        str,
+        msgspec.Meta(
+            description=(
+                "`loki:` and the query's position in LOKI_QUERIES, counted from 1. `/health` names an "
+                "unavailable source by this label."
+            )
+        ),
+    ]
+    server: Annotated[str, msgspec.Meta(description="The server name this query's lines are stored under.")]
+    available: Annotated[bool, msgspec.Meta(description="False while Loki cannot be reached or rejects the query.")]
+    reason: Annotated[
+        str | None,
+        msgspec.Meta(description="`unreachable` or `rejected` while the source is unavailable, otherwise null."),
+    ]
+    log_format: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "The log format in use, such as `traefik-json`, either configured or detected from the lines. "
+                "Null while a detected format has not been found yet."
+            )
+        ),
+    ]
+    parsed_lines: Annotated[int, msgspec.Meta(description="Lines from this query that parsed.")]
 
 
 class IngestionStatsResponse(msgspec.Struct, rename="camel"):
-    total_parsed_lines: int
-    total_skipped_lines: int
-    total_pending_records: int
-    total_ignored_lines: int
-    total_processed: int
-    is_running: bool
+    """The log ingestion counters of this process. They start at zero when the process starts."""
+
+    total_parsed_lines: Annotated[int, msgspec.Meta(description="Log lines that parsed, across all sources.")]
+    total_skipped_lines: Annotated[int, msgspec.Meta(description="Log lines that did not match the log format.")]
+    total_pending_records: Annotated[
+        int, msgspec.Meta(description="Parsed records held in memory until the next database write.")
+    ]
+    total_ignored_lines: Annotated[
+        int, msgspec.Meta(description="Log lines dropped because the client IP is in LOGPARSER_IGNORE_IPS.")
+    ]
+    total_processed: Annotated[int, msgspec.Meta(description="Parsed records that ingestion has passed to a database write.")]
+    is_running: Annotated[
+        bool, msgspec.Meta(description="False when ingestion is turned off, failed to start or has stopped.")
+    ]
     loki_sources: list[LokiSourceStats] = msgspec.field(default_factory=list)
 
 
@@ -63,6 +89,12 @@ def _loki_sources(service: LogIngestionService) -> list[LokiSourceStats]:
 @get(
     "/stats",
     tags=["Analytics"],
+    summary="Get the log ingestion counters",
+    description=(
+        "Returns the line and record counters of this process, and the state of each Loki query in "
+        "LOKI_QUERIES. The counters start at zero when the process starts. Without an ingestion service, "
+        "as with LOGPARSER_ENABLED=false, every counter is 0, `isRunning` is false and `lokiSources` is empty."
+    ),
     dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
 )
 async def stats(

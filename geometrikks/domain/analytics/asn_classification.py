@@ -17,6 +17,10 @@ from typing import Literal
 from geometrikks.domain.drop.snapshot import DropSnapshot, current_drop_snapshot
 
 AsnCategory = Literal["drop", "hosting", "other"]
+ASN_CATEGORY_DESCRIPTION = (
+    "`drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of "
+    "hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential."
+)
 
 DATASET_NAME = "bad-asn-list"
 DATASET_URL = "https://github.com/brianhama/bad-asn-list"

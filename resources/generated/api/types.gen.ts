@@ -368,9 +368,12 @@ export type ApiKeyView = {
 /**
  * AsnCategoryTotalsDTO
  *
- * Aggregate hits/bytes for one traffic-origin category.
+ * Hits and bytes summed over every ASN of one category.
  */
 export type AsnCategoryTotalsDto = {
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.
+   */
   category: "drop" | "hosting" | "other";
   hits: number;
   totalBytes: number;
@@ -676,26 +679,36 @@ export type CrowdSecStatusResponse = {
 /**
  * CumulativeDataPoint
  *
- * Cumulative metrics for a single time point.
- *
- * Running totals that reset at the start of the selected time range.
+ * Running totals from the start of the range through the end of one bucket.
  */
 export type CumulativeDataPoint = {
   cumulativeAccessLogs: number;
   cumulativeBytes: number;
   cumulativeGeoEvents: number;
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * CumulativeTimeSeriesResponse
  *
- * Response containing cumulative time-series data for area charts.
+ * Running totals of requests, geo events and bytes, one point per bucket, oldest first.
  */
 export type CumulativeTimeSeriesResponse = {
   data?: Array<CumulativeDataPoint>;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * `raw` for ranges up to 24 hours, which have hourly buckets counted from the raw rows. Otherwise `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
@@ -820,7 +833,7 @@ export type DefaultMapView = {
 /**
  * DefaultServerLocationView
  *
- * This instance's own location, used for any server without a server_locations row.
+ * This instance's own location, which the map uses for a server without a location of its own.
  */
 export type DefaultServerLocationView = {
   latitude: number;
@@ -930,12 +943,15 @@ export type DropNetworksResponse = {
 /**
  * EmbeddedLocationDTO
  *
- * Lightweight location data for embedding in other DTOs.
+ * The place and coordinates of one location.
  */
 export type EmbeddedLocationDto = {
   city?: string | null;
   countryCode?: string | null;
   countryName?: string | null;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   id: number;
   latitude: number;
   longitude: number;
@@ -956,41 +972,65 @@ export type ErrorEnvelope = {
 /**
  * GeoAsnFacet
  *
- * One autonomous system present in the data.
+ * One autonomous system in the stored data.
  */
 export type GeoAsnFacet = {
   asn: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   organization: string | null;
 };
 
 /**
  * GeoCountryFacet
  *
- * One country present in the geo data.
+ * One country in the stored data.
  */
 export type GeoCountryFacet = {
+  /**
+   * The two-letter ISO 3166-1 code, the value `countryCodeIn` takes.
+   */
   code: string;
+  /**
+   * The country name, or the code when GeoIP gives no name.
+   */
   name: string;
 };
 
 /**
  * GeoEventFacets
  *
- * Distinct filterable values present in the geo data.
+ * The values the geo event filters accept, as found in the stored data.
  */
 export type GeoEventFacets = {
+  /**
+   * Sorted by organization, with the ones that have none last.
+   */
   asns: Array<GeoAsnFacet>;
+  /**
+   * Sorted by name.
+   */
   cities: Array<string>;
+  /**
+   * Sorted by name.
+   */
   countries: Array<GeoCountryFacet>;
+  /**
+   * Sorted by name.
+   */
   servers: Array<string>;
 };
 
 /**
  * GeoEventsDataPoint
  *
- * Geo events metrics for a single time point.
+ * Geo event counts for one bucket. The unique counts are estimates.
  */
 export type GeoEventsDataPoint = {
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
   totalGeoEvents: number;
   uniqueCities: number;
@@ -1001,14 +1041,21 @@ export type GeoEventsDataPoint = {
 /**
  * GeoEventsTimeSeriesResponse
  *
- * Response containing geo events time-series data.
- *
- * ``data`` is deliberately default-less (see TimeSeriesResponse).
+ * Geo event counts per bucket, oldest first. Buckets without events are left out.
  */
 export type GeoEventsTimeSeriesResponse = {
   data: Array<GeoEventsDataPoint>;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The bucket size used, `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
@@ -1063,67 +1110,96 @@ export type GeoIpInfoView = {
 /**
  * GeoJSONFeature
  *
- * GeoJSON Feature representing a location.
+ * One location as a GeoJSON Feature.
  */
 export type GeoJsonFeature = {
   geometry: GeoJsonPointGeometry;
   properties: GeoJsonFeatureProperties;
+  /**
+   * Always `Feature`.
+   */
   type: string;
 };
 
 /**
  * GeoJSONFeatureCollection
  *
- * GeoJSON FeatureCollection for locations with event counts.
+ * The locations with events in a time range, as a GeoJSON FeatureCollection, busiest first.
  */
 export type GeoJsonFeatureCollection = {
   features: Array<GeoJsonFeature>;
   stats: GeoJsonFeatureStats;
+  /**
+   * Always `FeatureCollection`.
+   */
   type: string;
 };
 
 /**
  * GeoJSONFeatureProperties
  *
- * Properties for a GeoJSON feature representing a location with event count.
+ * One location and its events in the range.
  */
 export type GeoJsonFeatureProperties = {
   city: string | null;
   countryCode: string;
   countryName: string;
+  /**
+   * Events at this location in the range.
+   */
   eventCount: number;
   geohash: string;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   id: number;
+  /**
+   * The newest event at this location, whatever the range. A scheduler job updates it, so it can lag by a few minutes. Null until the job first runs for the location.
+   */
   lastHit: string | null;
   postalCode: string | null;
   state: string | null;
   stateCode: string | null;
+  /**
+   * The location's IANA timezone from GeoIP.
+   */
   timezone: string | null;
+  /**
+   * Always empty here. `/api/v1/geo-locations/{location_id}/top-ips` lists them.
+   */
   topIps?: Array<TopIpdto>;
 };
 
 /**
  * GeoJSONFeatureStats
  *
- * Statistics for GeoJSONFeatureCollection.
+ * Totals over every feature in the collection.
  */
 export type GeoJsonFeatureStats = {
+  /**
+   * Distinct city names. Cities with the same name in different countries count once.
+   */
   cities: number;
+  /**
+   * Distinct country codes.
+   */
   countries: number;
   events: number;
+  /**
+   * The number of features.
+   */
   locations: number;
 };
 
 /**
  * GeoJSONPointGeometry
  *
- * GeoJSON Point geometry.
- *
- * Fields are deliberately default-less: dataclass defaults make them
- * non-required in OpenAPI, which turns into optional fields in the
- * generated TS client. The controller always constructs them explicitly.
+ * A GeoJSON point.
  */
 export type GeoJsonPointGeometry = {
+  /**
+   * `[longitude, latitude]`, in GeoJSON order.
+   */
   coordinates: [number, number];
   type: "Point";
 };
@@ -1131,9 +1207,12 @@ export type GeoJsonPointGeometry = {
 /**
  * GeoLogEntry
  *
- * One grouped (location, IP) row for the geo-logs table.
+ * The events from one IP at one location in the range.
  */
 export type GeoLogEntry = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   asOrganization: string | null;
   asn: number | null;
   city: string | null;
@@ -1141,11 +1220,20 @@ export type GeoLogEntry = {
   countryName: string;
   eventCount: number;
   ipAddress: string;
+  /**
+   * The time of the last event. On ranges over 24 hours it can be the start of the hour or UTC day that held it.
+   */
   lastSeen: string | null;
   latitude: number;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   locationId: number;
   longitude: number;
   postalCode: string | null;
+  /**
+   * The servers that recorded these events, sorted by name. Older aggregated history can lack server data, so on ranges over 24 hours this can be incomplete or empty.
+   */
   servers: Array<string>;
   state: string | null;
   stateCode: string | null;
@@ -1154,7 +1242,9 @@ export type GeoLogEntry = {
 /**
  * GeoLogPercentChange
  *
- * Percent change vs the previous period (None when previous is 0).
+ * The percent change of each figure from the previous period.
+ *
+ * 25.0 means a rise of a quarter. A figure is null when its previous value is 0.
  */
 export type GeoLogPercentChange = {
   totalEvents: number | null;
@@ -1166,7 +1256,7 @@ export type GeoLogPercentChange = {
 /**
  * GeoLogPeriod
  *
- * Aggregate geo-event metrics for one period.
+ * Geo event totals for one period.
  */
 export type GeoLogPeriod = {
   totalEvents: number;
@@ -1178,22 +1268,37 @@ export type GeoLogPeriod = {
 /**
  * GeoLogSummaryResponse
  *
- * Summary stats for the geo-logs stat cards.
+ * Geo event totals for a time range, and optionally for the period of the same length before it.
  */
 export type GeoLogSummaryResponse = {
   currentPeriod: GeoLogPeriod;
+  /**
+   * The request's `toTimestamp`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * Null whenever `previousPeriod` is null.
+   */
   percentChanges: GeoLogPercentChange | null;
+  /**
+   * Null unless `comparePrevious` is true and the previous period has events.
+   */
   previousPeriod: GeoLogPeriod | null;
+  /**
+   * The request's `fromTimestamp`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * GeoLogTimeSeriesPoint
  *
- * One chart bucket.
+ * Geo events and unique IPs for one bucket.
  */
 export type GeoLogTimeSeriesPoint = {
+  /**
+   * The bucket start, in UTC.
+   */
   timestamp: string;
   totalEvents: number;
   uniqueIps: number;
@@ -1202,19 +1307,28 @@ export type GeoLogTimeSeriesPoint = {
 /**
  * GeoLogTimeSeriesResponse
  *
- * Bucketed geo-event series for the geo-logs chart.
+ * Geo events and unique IPs per bucket, oldest first. Buckets without events are left out.
  */
 export type GeoLogTimeSeriesResponse = {
   data: Array<GeoLogTimeSeriesPoint>;
+  /**
+   * The request's `toTimestamp`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The bucket size used, `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `fromTimestamp`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * GlobalTopIPsResponse
  *
- * Response for global top IPs endpoint.
+ * The client IPs with the most events, each at the location where it had the most.
  */
 export type GlobalTopIpsResponse = {
   topIps?: Array<TopIpdto>;
@@ -1420,14 +1534,34 @@ export type IngestionHealth = {
 
 /**
  * IngestionStatsResponse
+ *
+ * The log ingestion counters of this process. They start at zero when the process starts.
  */
 export type IngestionStatsResponse = {
+  /**
+   * False when ingestion is turned off, failed to start or has stopped.
+   */
   isRunning: boolean;
   lokiSources?: Array<LokiSourceStats>;
+  /**
+   * Log lines dropped because the client IP is in LOGPARSER_IGNORE_IPS.
+   */
   totalIgnoredLines: number;
+  /**
+   * Log lines that parsed, across all sources.
+   */
   totalParsedLines: number;
+  /**
+   * Parsed records held in memory until the next database write.
+   */
   totalPendingRecords: number;
+  /**
+   * Parsed records that ingestion has passed to a database write.
+   */
   totalProcessed: number;
+  /**
+   * Log lines that did not match the log format.
+   */
   totalSkippedLines: number;
 };
 
@@ -1523,79 +1657,150 @@ export type InstancesResponse = {
 /**
  * IpProfileBucketDTO
  *
- * One sparkline bucket for the IP inspector.
+ * One bucket of an IP's hit series.
  */
 export type IpProfileBucketDto = {
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * IpProfileHostDTO
  *
- * Hits against one proxied host; ``host`` is null for lines without one.
+ * One host this IP sent requests to, with its hits.
  */
 export type IpProfileHostDto = {
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The Host header. Null for lines that carry none.
+   */
   host: string | null;
 };
 
 /**
  * IpProfilePathDTO
  *
- * One host and path pair this IP requested, with its hit and error counts.
+ * One host and path this IP requested, with its hits.
  */
 export type IpProfilePathDto = {
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The Host header. Null for lines that carry none.
+   */
   host: string | null;
+  /**
+   * The request target, query string included.
+   */
   url: string;
 };
 
 /**
  * IpProfileResponse
  *
- * Access-log profile of one client IP for the IP inspector sheet.
+ * The access log profile of one client IP for a time range.
  *
- * An IP with no rows in range comes back zeroed with empty lists, not as a
- * 404: the sheet still has ban state and other locations to show. Lists
- * have no defaults (see TopUrlsResponse).
+ * An IP without requests in the range gets zero request counts and empty lists rather than a 404.
+ * Request times are in seconds over the timed requests.
  */
 export type IpProfileResponse = {
+  /**
+   * The ASN of the IP's newest request in the range that had one.
+   */
   asn: number | null;
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential. Null without ASN data.
+   */
   asnCategory: "drop" | "hosting" | "other" | null;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   asnOrganization: string | null;
   avgRequestTime: number | null;
+  /**
+   * How many different request targets the IP sent.
+   */
   distinctPaths: number;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The share of requests with a 4xx or 5xx status, from 0 to 1.
+   */
   errorRate: number;
+  /**
+   * The IP's first request in the range, as ISO 8601 in UTC.
+   */
   firstSeen: string | null;
+  /**
+   * `hourly` for ranges up to 7 days, `daily` above.
+   */
   granularity: "hourly" | "daily";
+  /**
+   * Up to 5 hosts, most hits first.
+   */
   hosts: Array<IpProfileHostDto>;
   ipAddress: string;
+  /**
+   * The IP's last request in the range, as ISO 8601 in UTC.
+   */
   lastSeen: string | null;
+  /**
+   * Lines from the IP that GeoMetrikks flagged as malformed, counted by when it stored them rather than by their log time.
+   */
   malformedRequests: number;
   p95RequestTime: number | null;
+  /**
+   * Up to 5 host and path pairs, most hits first.
+   */
   paths: Array<IpProfilePathDto>;
+  /**
+   * The bucket with the most hits, the earliest one on a tie.
+   */
   peak: IpProfileBucketDto | null;
+  /**
+   * Hits per bucket, oldest first. Buckets without hits are left out.
+   */
   series: Array<IpProfileBucketDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.
+   */
   timedRequests: number;
   totalBytes: number;
   totalRequests: number;
+  /**
+   * Up to 3 user agents, most hits first.
+   */
   userAgents: Array<IpProfileUserAgentDto>;
 };
 
 /**
  * IpProfileUserAgentDTO
  *
- * One user agent this IP sent, with its hit count.
+ * One user agent this IP sent, with its hits.
  */
 export type IpProfileUserAgentDto = {
   hits: number;
@@ -1744,9 +1949,12 @@ export type ListGeoLocationsGeoLocationResponseBody = {
 /**
  * LocationTopIPsResponse
  *
- * Response for location top IPs endpoint.
+ * The client IPs with the most events at one location, most first.
  */
 export type LocationTopIpsResponse = {
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   locationId: number;
   topIps?: Array<TopIpdto>;
 };
@@ -1873,18 +2081,36 @@ export type LogparserSettingsView = {
 /**
  * LokiSourceStats
  *
- * One LOKI_QUERIES entry as the ingestion service sees it.
- *
- * The selector and the server name describe the operator's log setup, so they
- * are served here, behind auth, and never on /health.
+ * One query from LOKI_QUERIES and how ingestion is reading it.
  */
 export type LokiSourceStats = {
+  /**
+   * False while Loki cannot be reached or rejects the query.
+   */
   available: boolean;
+  /**
+   * `loki:` and the query's position in LOKI_QUERIES, counted from 1. `/health` names an unavailable source by this label.
+   */
   label: string;
+  /**
+   * The log format in use, such as `traefik-json`, either configured or detected from the lines. Null while a detected format has not been found yet.
+   */
   logFormat: string | null;
+  /**
+   * Lines from this query that parsed.
+   */
   parsedLines: number;
+  /**
+   * The LogQL selector as configured.
+   */
   query: string;
+  /**
+   * `unreachable` or `rejected` while the source is unavailable, otherwise null.
+   */
   reason: string | null;
+  /**
+   * The server name this query's lines are stored under.
+   */
   server: string;
 };
 
@@ -1976,14 +2202,28 @@ export type ParseErrorCount = {
 /**
  * PercentChange
  *
- * Percent change between two periods.
+ * The percent change of each figure from the previous period.
+ *
+ * 25.0 means a rise of a quarter. A figure is null when its previous value is 0 or was not measured.
  */
 export type PercentChange = {
   avgRequestTime?: number | null;
   bytesSent?: number | null;
+  /**
+   * The relative change of `errorRate` itself, not a difference in percentage points.
+   */
   errorRate?: number | null;
+  /**
+   * The change in `totalGeoEvents`.
+   */
   geoRecords?: number | null;
+  /**
+   * The change in `totalRequests`.
+   */
   logRecords?: number | null;
+  /**
+   * The change in `malformedRequests`. Always null on `/api/v1/analytics/live-summary`.
+   */
   malformedRate?: number | null;
   uniqueIps?: number | null;
 };
@@ -1991,23 +2231,43 @@ export type PercentChange = {
 /**
  * PeriodSummary
  *
- * Summary statistics for a single period.
+ * Request and geo event totals for one period.
+ *
+ * Request times are in seconds over the timed requests, and null when none was timed.
  */
 export type PeriodSummary = {
   avgBytesPerRequest: number;
   avgRequestTime: number | null;
+  /**
+   * The share of requests with a 4xx or 5xx status, from 0 to 1.
+   */
   errorRate: number;
+  /**
+   * Lines GeoMetrikks flagged as malformed, counted by when it stored them rather than by their log time.
+   */
   malformedRequests: number;
   maxRequestTime: number | null;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.
+   */
   timedRequests: number;
   totalBytesSent: number;
+  /**
+   * Logged requests whose client IP has a GeoIP location.
+   */
   totalGeoEvents: number;
   totalRequests: number;
+  /**
+   * Distinct countries among the geo events.
+   */
   uniqueCountries: number;
+  /**
+   * Distinct client IPs among the geo events.
+   */
   uniqueIps: number;
 };
 
@@ -2328,14 +2588,23 @@ export type SchedulerJobsResponse = {
 /**
  * ServerLocationView
  *
- * Where one server sits on the map, auto-detected or overridden.
+ * Where one server sits on the map.
  */
 export type ServerLocationView = {
+  /**
+   * When the instance last recorded the location, as ISO 8601. Null for an override.
+   */
   detectedAt: string | null;
+  /**
+   * The UTC day of the server's newest geo event, as `YYYY-MM-DD`. Null when it has none.
+   */
   lastEventDay: string | null;
   latitude: number;
   longitude: number;
   server: string;
+  /**
+   * `auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.
+   */
   source: "auto" | "override";
 };
 
@@ -2345,7 +2614,13 @@ export type ServerLocationView = {
  * Every server's map location, plus this instance's own location as the default.
  */
 export type ServerLocationsResponse = {
+  /**
+   * This instance's own location, found at startup or set with MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE. Null when it has neither.
+   */
   default: DefaultServerLocationView | null;
+  /**
+   * Sorted by server name.
+   */
   locations: Array<ServerLocationView>;
 };
 
@@ -2448,15 +2723,25 @@ export type SourceReport = {
 /**
  * SummaryResponse
  *
- * Response containing summary statistics with optional comparison.
- *
- * Used for dashboard header cards showing key metrics.
+ * Totals for a time range, and optionally for the period of the same length before it.
  */
 export type SummaryResponse = {
   currentPeriod: PeriodSummary;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * Null whenever `previousPeriod` is null.
+   */
   percentChanges?: PercentChange | null;
+  /**
+   * Null unless `comparePrevious` is true and the previous period has data.
+   */
   previousPeriod?: PeriodSummary | null;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
@@ -2472,12 +2757,16 @@ export type SystemSettingsResponse = {
 /**
  * TimeSeriesDataPoint
  *
- * A single data point in a time-series response.
+ * Request metrics for one bucket.
  *
- * Used for charting requests, bandwidth, performance over time.
+ * Request times are in seconds and cover the timed requests only. Each one is null when the bucket has
+ * no timed requests. Without a filter, the percentiles are estimates.
  */
 export type TimeSeriesDataPoint = {
   avgRequestTime: number | null;
+  /**
+   * The share of requests with a 4xx or 5xx status, from 0 to 1.
+   */
   errorRate: number;
   p50RequestTime: number | null;
   p95RequestTime: number | null;
@@ -2486,9 +2775,18 @@ export type TimeSeriesDataPoint = {
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.
+   */
   timedRequests: number;
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
   totalBytesSent: number;
+  /**
+   * Always 0. `/api/v1/analytics/geo-time-series` has the geo series.
+   */
   totalGeoEvents: number;
   totalRequests: number;
 };
@@ -2496,27 +2794,39 @@ export type TimeSeriesDataPoint = {
 /**
  * TimeSeriesResponse
  *
- * Response containing time-series data for charts.
- *
- * ``data`` is deliberately default-less so it is required in OpenAPI and
- * non-optional in the generated TS client.
+ * Request metrics per bucket, oldest first. Buckets without requests are left out.
  */
 export type TimeSeriesResponse = {
   data: Array<TimeSeriesDataPoint>;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The bucket size used, `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopAsnDTO
  *
- * A single autonomous system with its aggregate metrics.
+ * One autonomous system with its hits and bytes.
  */
 export type TopAsnDto = {
   asn: number;
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.
+   */
   category: "drop" | "hosting" | "other";
   hits: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   organization: string | null;
   totalBytes: number;
 };
@@ -2524,55 +2834,78 @@ export type TopAsnDto = {
 /**
  * TopAsnsResponse
  *
- * Top ASNs plus category totals.
+ * Autonomous systems ordered by hits, with totals per category.
  *
- * ``categories`` covers every ASN in the range, not only the top N.
- * ``total_requests`` and ``total_bytes`` count every request, with or
- * without ASN data; rows without ASN data are absent from ``categories``,
- * so coverage is measured against these totals. Lists have no defaults
- * (see TopUrlsResponse). ``drop_asn_count`` counts the DROP-listed ASNs
- * with traffic in the range, beyond the top N too, and is None while the
- * ASN DROP list has never downloaded.
+ * Requests without ASN data appear in `totalRequests` and `totalBytes` but in no category, so the
+ * difference is the traffic GeoMetrikks could not match to an ASN.
  */
 export type TopAsnsResponse = {
+  /**
+   * Totals over every ASN in the range, not only the listed ones. `drop` appears once the ASN-DROP list has downloaded.
+   */
   categories: Array<AsnCategoryTotalsDto>;
+  /**
+   * How many ASN-DROP listed ASNs sent traffic in the range, counting those beyond `limit`. Null until the ASN-DROP list has downloaded.
+   */
   dropAsnCount: number | null;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopAsnDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
+  /**
+   * The bytes of every request in the range, with or without ASN data.
+   */
   totalBytes: number;
+  /**
+   * Every request in the range, with or without ASN data.
+   */
   totalRequests: number;
 };
 
 /**
  * TopCitiesResponse
  *
- * Response containing top cities by hit count.
- *
- * ``items`` is deliberately default-less (see TopUrlsResponse).
+ * Cities ordered by hits, most first.
  */
 export type TopCitiesResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopCityStatsDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopCityStatsDTO
  *
- * A single city with its aggregate metrics.
+ * One city with its hits.
  */
 export type TopCityStatsDto = {
   city: string;
+  /**
+   * A country with a city of this name in the range. Cities with the same name in different countries share one row.
+   */
   countryCode: string | null;
   hits: number;
+  /**
+   * Distinct client IPs from the city.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopCountriesResponse
  *
- * Response for top countries endpoint.
+ * Countries ordered by geo event count, most first.
  */
 export type TopCountriesResponse = {
   topCountries?: Array<TopCountryDto>;
@@ -2581,20 +2914,24 @@ export type TopCountriesResponse = {
 /**
  * TopCountriesStatsResponse
  *
- * Response containing top countries by hit count.
- *
- * ``items`` is deliberately default-less (see TopUrlsResponse).
+ * Countries ordered by hits, most first.
  */
 export type TopCountriesStatsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopCountryStatsDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopCountryDTO
  *
- * Top country with event count.
+ * One country with its geo events.
  */
 export type TopCountryDto = {
   countryCode: string;
@@ -2605,30 +2942,44 @@ export type TopCountryDto = {
 /**
  * TopCountryStatsDTO
  *
- * A single country with its aggregate metrics.
+ * One country with its hits.
  */
 export type TopCountryStatsDto = {
   countryCode: string;
   countryName: string | null;
   hits: number;
+  /**
+   * Distinct client IPs from the country.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoAsn
  *
- * Top autonomous system by geo-event count (rows without ASN data excluded).
+ * One autonomous system with its geo events.
  */
 export type TopGeoAsn = {
   asn: number;
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.
+   */
   category: "drop" | "hosting" | "other";
   eventCount: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   organization: string | null;
+  /**
+   * Distinct client IPs among the events.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoAsnsResponse
+ *
+ * Autonomous systems ordered by geo event count, most first.
  */
 export type TopGeoAsnsResponse = {
   items: Array<TopGeoAsn>;
@@ -2636,6 +2987,8 @@ export type TopGeoAsnsResponse = {
 
 /**
  * TopGeoCitiesResponse
+ *
+ * Cities ordered by geo event count, most first.
  */
 export type TopGeoCitiesResponse = {
   items: Array<TopGeoCity>;
@@ -2644,17 +2997,25 @@ export type TopGeoCitiesResponse = {
 /**
  * TopGeoCity
  *
- * Top city by event count (NULL cities excluded).
+ * One city with its geo events.
  */
 export type TopGeoCity = {
   city: string;
+  /**
+   * A country with a city of this name in the range. Cities with the same name in different countries share one row.
+   */
   countryCode: string | null;
   eventCount: number;
+  /**
+   * Distinct client IPs among the events.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoCountriesResponse
+ *
+ * Countries ordered by geo event count, most first.
  */
 export type TopGeoCountriesResponse = {
   items: Array<TopGeoCountry>;
@@ -2663,24 +3024,36 @@ export type TopGeoCountriesResponse = {
 /**
  * TopGeoCountry
  *
- * Top country by event count.
+ * One country with its geo events.
  */
 export type TopGeoCountry = {
   countryCode: string;
   countryName: string | null;
   eventCount: number;
+  /**
+   * Distinct client IPs among the events.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoIp
  *
- * Top IP by event count across all locations.
+ * One client IP with its geo events across every location.
  */
 export type TopGeoIp = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   asOrganization: string | null;
   asn: number | null;
+  /**
+   * One of the IP's cities when it has events in several.
+   */
   city: string | null;
+  /**
+   * One of the IP's countries when it has events in several.
+   */
   countryCode: string | null;
   eventCount: number;
   ipAddress: string;
@@ -2688,6 +3061,8 @@ export type TopGeoIp = {
 
 /**
  * TopGeoIpsResponse
+ *
+ * Client IPs ordered by geo event count, most first.
  */
 export type TopGeoIpsResponse = {
   items: Array<TopGeoIp>;
@@ -2696,22 +3071,37 @@ export type TopGeoIpsResponse = {
 /**
  * TopIPDTO
  *
- * Top IP address with event count and optional location.
+ * One client IP with its geo events at one location.
  */
 export type TopIpdto = {
+  /**
+   * The IP's events at this one location in the range.
+   */
   eventCount: number;
   ipAddress: string;
+  /**
+   * The location where the IP had the most events, the one `eventCount` counts. Null in the top IPs of a single location.
+   */
   location?: EmbeddedLocationDto | null;
 };
 
 /**
  * TopIpDTO
  *
- * A single IP address with its aggregate hit metrics.
+ * One client IP with its hits.
  */
 export type TopIpDto = {
+  /**
+   * Null when GeoIP has no city for the IP.
+   */
   city: string | null;
+  /**
+   * Null when GeoIP has no country for the IP.
+   */
   countryCode: string | null;
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
   ipAddress: string;
@@ -2721,52 +3111,71 @@ export type TopIpDto = {
 /**
  * TopIpsResponse
  *
- * Response containing top IPs by hit count.
- *
- * ``items`` is deliberately default-less (see TopUrlsResponse).
+ * Client IPs ordered by hits, most first.
  */
 export type TopIpsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopIpDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopUrlDTO
  *
- * One host and path with its aggregate hit metrics.
- *
- * ``host`` is NULL for rows whose log line carried no Host header
- * (combined-format nginx archives).
+ * One host and path with its hits.
  */
 export type TopUrlDto = {
+  /**
+   * The mean request time in seconds over the timed hits. Null when none was timed.
+   */
   avgRequestTime: number | null;
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format.
+   */
   host: string | null;
+  /**
+   * Hits with a measured request time.
+   */
   timedHits: number;
   totalBytes: number;
+  /**
+   * The request target, query string included.
+   */
   url: string;
 };
 
 /**
  * TopUrlsResponse
  *
- * Response containing top URLs by hit count.
- *
- * ``items`` is deliberately default-less: a dataclass default makes it
- * non-required in OpenAPI and therefore optional in the generated TS client.
+ * Host and path pairs ordered by hits, most first.
  */
 export type TopUrlsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopUrlDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopUserAgentDTO
  *
- * A single user agent with its hit count.
+ * One user agent string with its hits.
  */
 export type TopUserAgentDto = {
   hits: number;
@@ -2776,13 +3185,17 @@ export type TopUserAgentDto = {
 /**
  * TopUserAgentsResponse
  *
- * Response containing top user agents by hit count.
- *
- * ``items`` is deliberately default-less (see TopUrlsResponse).
+ * User agents ordered by hits, most first.
  */
 export type TopUserAgentsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopUserAgentDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
@@ -2867,7 +3280,7 @@ export type ApiV1AccessLogDebugListAccessLogDebugError =
 
 export type ApiV1AccessLogDebugListAccessLogDebugResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<AccessLogDebugEntry>;
@@ -2961,11 +3374,11 @@ export type ApiV1AccessLogsListAccessLogsData = {
     hostIn?: Array<string> | null;
     hostNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Exclude these servers (repeatable)
+     * Leave out rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverNotIn?: Array<string> | null;
     logFormatIn?: Array<string> | null;
@@ -2994,7 +3407,7 @@ export type ApiV1AccessLogsListAccessLogsError =
 
 export type ApiV1AccessLogsListAccessLogsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<ListAccessLogsAccessLogResponseBody>;
@@ -3038,19 +3451,19 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, and an unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -3091,19 +3504,19 @@ export type ApiV1AnalyticsIpProfileGetIpProfileData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Client IP to profile
+     * The client IP to profile. A value that is not an IP gets a 400.
      */
     ipAddress: string;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, and an unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -3144,15 +3557,15 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Include comparison with previous period of same length
+     * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
     comparePrevious?: boolean;
   };
@@ -3193,15 +3606,15 @@ export type ApiV1AnalyticsSummaryGetSummaryData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Include comparison with previous period of same length
+     * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
     comparePrevious?: boolean;
   };
@@ -3242,35 +3655,35 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, and an unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -3311,11 +3724,11 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
   };
@@ -3357,31 +3770,31 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Maximum number of ASNs to return
+     * How many ASNs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
   };
@@ -3422,31 +3835,31 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Maximum number of cities
+     * How many cities to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
   };
@@ -3487,31 +3900,31 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Maximum number of countries
+     * How many countries to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
   };
@@ -3552,31 +3965,31 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Maximum number of IPs
+     * How many IPs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
   };
@@ -3617,31 +4030,31 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Maximum number of URLs to return
+     * How many URLs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
   };
@@ -3682,31 +4095,31 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * Maximum number of user agents to return
+     * How many user agents to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
   };
@@ -4232,15 +4645,15 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
     fromTimestamp?: string | null;
     toTimestamp?: string | null;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
   };
@@ -4329,7 +4742,7 @@ export type ApiV1CrowdsecDecisionsListDecisionsError =
 
 export type ApiV1CrowdsecDecisionsListDecisionsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<DecisionGroupView>;
@@ -4583,18 +4996,24 @@ export type ApiV1GeoEventsListGeoEventsData = {
      * Field to search
      */
     sortOrder?: "asc" | "desc" | null;
+    /**
+     * Keep only events at or after this time, as ISO 8601 with a timezone.
+     */
     fromTimestamp?: string | null;
+    /**
+     * Keep only events at or before this time, as ISO 8601 with a timezone.
+     */
     toTimestamp?: string | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
   };
@@ -4622,7 +5041,7 @@ export type ApiV1GeoEventsListGeoEventsError =
 
 export type ApiV1GeoEventsListGeoEventsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<ListGeoEventsGeoEventResponseBody>;
@@ -4665,44 +5084,56 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 50.
+     */
     pageSize?: number;
     /**
-     * Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist
+     * The column to sort by: `event_count`, `last_seen`, `ip_address`, `city`, `postal_code`, `state`, `country_code`, `country_name`, `latitude`, `longitude` or `asn`. Defaults to `event_count`. Any other value gets a 400.
      */
     orderBy?: string;
     /**
-     * Sort direction
+     * `asc` or `desc`. Defaults to `desc`.
      */
     sortOrder?: "asc" | "desc";
   };
@@ -4730,7 +5161,7 @@ export type ApiV1GeoEventsLogsGetGeoLogsError =
 
 export type ApiV1GeoEventsLogsGetGeoLogsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<GeoLogEntry>;
@@ -4756,38 +5187,44 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Include comparison with previous period of same length
+     * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
     comparePrevious?: boolean;
   };
@@ -4827,42 +5264,48 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, and an unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -4902,38 +5345,44 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of ASNs
+     * How many ASNs to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -4973,38 +5422,44 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of cities
+     * How many cities to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -5044,38 +5499,44 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of countries
+     * How many countries to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -5115,38 +5576,44 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of IPs
+     * How many IPs to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -5213,7 +5680,7 @@ export type ApiV1GeoLocationsListGeoLocationsError =
 
 export type ApiV1GeoLocationsListGeoLocationsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<ListGeoLocationsGeoLocationResponseBody>;
@@ -5240,39 +5707,39 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
   };
@@ -5329,7 +5796,7 @@ export type ApiV1GeoLocationsServerLocationsDeleteServerLocationData = {
   body?: never;
   path: {
     /**
-     * Server whose location to remove
+     * The server name, as `/api/v1/geo-locations/server-locations` lists it.
      */
     server: string;
   };
@@ -5379,15 +5846,15 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of countries to return
+     * How many countries to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -5428,15 +5895,15 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of IPs to return
+     * How many IPs to return, from 1 to 20. Defaults to 5.
      */
     limit?: number;
   };
@@ -5475,19 +5942,22 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponse =
 export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData = {
   body?: never;
   path: {
+    /**
+     * The location's `id`, from `/api/v1/geo-locations` or a GeoJSON feature's `properties.id`.
+     */
     location_id: number;
   };
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of IPs to return
+     * How many IPs to return, from 1 to 20. Defaults to 5.
      */
     limit?: number;
   };
@@ -5732,11 +6202,11 @@ export type ApiV1ReportsAbuseGetAbuseReportData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**

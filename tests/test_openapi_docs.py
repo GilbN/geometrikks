@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Generic, TypedDict, TypeVar
 
 import msgspec
 import pytest
+from advanced_alchemy.service import OffsetPagination
 from litestar import Litestar, get
+from litestar._openapi.schema_generation.plugins import StructSchemaPlugin
 from litestar.openapi import OpenAPIConfig
 from litestar.openapi.spec import Schema
 from litestar.typing import FieldDefinition
@@ -16,7 +19,14 @@ from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.system.controllers.settings import DefaultMapView
 from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY
 from geometrikks.server.openapi_docs import API_TAGS
-from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS, _describe, own_docstring
+from geometrikks.server.openapi_schema_plugins import (
+    DOCSTRING_SCHEMA_PLUGINS,
+    OFFSET_PAGE_DESCRIPTION,
+    StructDocstringSchemaPlugin,
+    TypedDictDocstringSchemaPlugin,
+    _describe,
+    own_docstring,
+)
 from geometrikks.services.logfiles import LogTailRecord
 
 PageItemT = TypeVar("PageItemT")
@@ -56,6 +66,33 @@ class DocumentedRecord(TypedDict):
     value: int
 
 
+@dataclass
+class DocumentedDataclass:
+    """The dataclass's docstring."""
+
+    value: int
+
+
+class ExplicitlyDescribedStruct(msgspec.Struct):
+    """The docstring that must not replace the explicit description."""
+
+    value: int
+
+
+class ExplicitDescriptionStructPlugin(StructSchemaPlugin):
+    def to_openapi_schema(self, field_definition: FieldDefinition, schema_creator: Any) -> Schema:
+        schema = super().to_openapi_schema(field_definition, schema_creator)
+        if field_definition.type_ is ExplicitlyDescribedStruct:
+            schema.description = "Set explicitly."
+        return schema
+
+
+# The MRO puts the explicit plugin between the docstring plugin and Litestar's,
+# so the description is set before the docstring plugin looks at the schema.
+class DocstringOverExplicitStructPlugin(StructDocstringSchemaPlugin, ExplicitDescriptionStructPlugin):
+    pass
+
+
 @get("/child")
 async def child_handler() -> UndocumentedChild:
     return UndocumentedChild(value=1, extra=2)
@@ -76,14 +113,34 @@ async def record_handler() -> DocumentedRecord:
     return {"value": 1}
 
 
+@get("/dataclass")
+async def dataclass_handler() -> DocumentedDataclass:
+    return DocumentedDataclass(value=1)
+
+
+@get("/offset-page")
+async def offset_page_handler() -> OffsetPagination[NestedStruct]:
+    return OffsetPagination(items=[NestedStruct(value=1)], limit=1, offset=0, total=1)
+
+
+@get("/explicit")
+async def explicit_handler() -> ExplicitlyDescribedStruct:
+    return ExplicitlyDescribedStruct(value=1)
+
+
 @pytest.fixture
-def plugin_components() -> dict[str, Any]:
+def plugin_document() -> dict[str, Any]:
     app = Litestar(
-        route_handlers=[child_handler, nesting_handler, page_handler, record_handler],
+        route_handlers=[child_handler, nesting_handler, page_handler, record_handler, dataclass_handler, offset_page_handler],
         plugins=DOCSTRING_SCHEMA_PLUGINS,
         openapi_config=OpenAPIConfig(title="plugin test", version="1"),
     )
-    return app.openapi_schema.to_schema()["components"]["schemas"]
+    return app.openapi_schema.to_schema()
+
+
+@pytest.fixture
+def plugin_components(plugin_document: dict[str, Any]) -> dict[str, Any]:
+    return plugin_document["components"]["schemas"]
 
 
 def _component_named(components: dict[str, Any], prefix: str) -> dict[str, Any]:
@@ -124,6 +181,32 @@ def test_generic_struct_gets_its_docstring(plugin_components: dict[str, Any]):
 
 def test_typed_dict_gets_its_docstring(plugin_components: dict[str, Any]):
     assert plugin_components["DocumentedRecord"]["description"] == "The TypedDict's docstring."
+
+
+def test_dataclass_gets_its_docstring(plugin_components: dict[str, Any]):
+    assert plugin_components["DocumentedDataclass"]["description"] == "The dataclass's docstring."
+
+
+def test_offset_page_stays_inline_with_a_user_facing_description(plugin_document: dict[str, Any]):
+    schema = plugin_document["paths"]["/offset-page"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert "$ref" not in schema
+    assert schema["description"] == OFFSET_PAGE_DESCRIPTION
+    assert set(schema["properties"]) == {"items", "limit", "offset", "total"}
+
+
+def test_paged_app_responses_get_the_page_description(openapi_document: dict[str, Any]):
+    response = openapi_document["paths"]["/api/v1/geo-events/logs"]["get"]["responses"]["200"]
+    assert response["content"]["application/json"]["schema"]["description"] == OFFSET_PAGE_DESCRIPTION
+
+
+def test_explicit_component_description_is_not_replaced_by_the_docstring():
+    app = Litestar(
+        route_handlers=[explicit_handler],
+        plugins=[DocstringOverExplicitStructPlugin(), TypedDictDocstringSchemaPlugin()],
+        openapi_config=OpenAPIConfig(title="plugin test", version="1"),
+    )
+    components = app.openapi_schema.to_schema()["components"]["schemas"]
+    assert components["ExplicitlyDescribedStruct"]["description"] == "Set explicitly."
 
 
 def test_existing_description_is_kept():

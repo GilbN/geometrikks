@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
@@ -57,6 +57,8 @@ from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.lib.parameters import (
     CityFilter,
+    ChartGranularity,
+    ComparePrevious,
     CountryCodeFilter,
     EndDate,
     IpAddressExcludeFilter,
@@ -165,6 +167,14 @@ def _resolve_chart_granularity(
     return granularity
 
 
+RAW_RETENTION_NOTE = "which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default"
+FILTERED_RAW_NOTE = f"A country, city or IP filter makes it read the raw access log rows, {RAW_RETENTION_NOTE}."
+AGGREGATE_EDGE_NOTE = (
+    "Ranges over 24 hours read the hourly aggregates, or the daily ones above 30 days, and count from the "
+    "start of the hour or UTC day that holds `startDate`."
+)
+
+
 class AnalyticsController(Controller):
     """Analytics endpoints for dashboard data and time-series charts."""
 
@@ -178,19 +188,23 @@ class AnalyticsController(Controller):
         "drop_snapshot": Provide(provide_drop_snapshot),
     }
 
-    @get("/summary", description="Get summary statistics for dashboard header cards.")
+    @get(
+        "/summary",
+        summary="Get the traffic summary for a time range",
+        description=(
+            "Returns request, byte, status class, latency and geo event totals for the range. With "
+            "`comparePrevious` it adds the period of the same length that ends just before `startDate`, and "
+            "both comparison fields stay null when that period has no data. "
+            f"{AGGREGATE_EDGE_NOTE} The unique IP and country counts are then estimates, and "
+            "`/api/v1/analytics/live-summary` gives exact figures."
+        ),
+    )
     async def get_summary(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: StartDate,
         end_date: EndDate,
-        compare_previous: Annotated[
-            bool,
-            QueryParameter(
-                name="comparePrevious",
-                description="Include comparison with previous period of same length",
-            ),
-        ] = False,
+        compare_previous: ComparePrevious = False,
     ) -> SummaryResponse:
         """Get aggregated summary statistics for a date range.
 
@@ -306,19 +320,22 @@ class AnalyticsController(Controller):
             percent_changes=percent_changes,
         )
 
-    @get("/live-summary", description="Get live summary statistics by querying raw data tables.")
+    @get(
+        "/live-summary",
+        summary="Get the exact traffic summary from the raw rows",
+        description=(
+            "Returns the same figures as `/api/v1/analytics/summary`, counted from the raw access log and geo event "
+            "rows of the exact range, so the unique counts are exact. It gets slower as the range grows, and "
+            "the raw rows go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. "
+            "`percentChanges.malformedRate` is always null here."
+        ),
+    )
     async def get_live_summary(
         self,
         live_stats_repo: NamedDependency[LiveStatsRepository],
         start_date: StartDate,
         end_date: EndDate,
-        compare_previous: Annotated[
-            bool,
-            QueryParameter(
-                name="comparePrevious",
-                description="Include comparison with previous period of same length",
-            ),
-        ] = False,
+        compare_previous: ComparePrevious = False,
     ) -> SummaryResponse:
         """Get live summary statistics by querying raw data tables.
 
@@ -434,7 +451,16 @@ class AnalyticsController(Controller):
             percent_changes=percent_changes,
         )
 
-    @get("/time-series/cumulative", description="Get cumulative time series data for area charts.")
+    @get(
+        "/time-series/cumulative",
+        summary="Get running totals of requests, events and bytes",
+        description=(
+            "Returns one point per bucket with the requests, geo events and bytes sent so far in the range, "
+            "oldest first. Buckets are hours for ranges up to 30 days and UTC days above. `granularity` reads "
+            "`raw` for ranges up to 24 hours, which are hourly buckets counted from the raw rows. Hours or days "
+            "without traffic have no point."
+        ),
+    )
     async def get_cumulative_time_series(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -474,21 +500,23 @@ class AnalyticsController(Controller):
             data=data_points,
         )
 
-    @get("/time-series", description="Per-bucket access-log metrics for charts.")
+    @get(
+        "/time-series",
+        summary="Get request metrics per hour or day",
+        description=(
+            "Returns requests, bytes, status classes, error rate and latency for each bucket that has "
+            "requests, oldest first. Without filters it reads the hourly or daily aggregates. "
+            f"{FILTERED_RAW_NOTE} On that filtered path `tz` applies to ranges of any length. "
+            "`totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series."
+        ),
+    )
     async def get_time_series(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         live_stats_repo: NamedDependency[LiveStatsRepository],
         start_date: StartDate,
         end_date: EndDate,
-        granularity: Annotated[
-            Literal["hourly", "daily"] | None,
-            QueryParameter(
-                description="Bucket size override. Omit to auto-select "
-                "(hourly <= 30 days, daily above). RAW is never available.",
-                required=False,
-            ),
-        ] = None,
+        granularity: ChartGranularity = None,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
         ip_address: IpAddressFilter = None,
@@ -542,20 +570,20 @@ class AnalyticsController(Controller):
             ],
         )
 
-    @get("/geo-time-series", description="Per-bucket geo-event metrics for charts.")
+    @get(
+        "/geo-time-series",
+        summary="Get geo event counts per hour or day",
+        description=(
+            "Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest "
+            "first. It reads the hourly or daily aggregates, so the unique counts are estimates."
+        ),
+    )
     async def get_geo_time_series(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         start_date: StartDate,
         end_date: EndDate,
-        granularity: Annotated[
-            Literal["hourly", "daily"] | None,
-            QueryParameter(
-                description="Bucket size override. Omit to auto-select "
-                "(hourly <= 30 days, daily above). RAW is never available.",
-                required=False,
-            ),
-        ] = None,
+        granularity: ChartGranularity = None,
         tz: Timezone = None,
     ) -> GeoEventsTimeSeriesResponse:
         """Get per-bucket geo-event metrics (events, unique IPs/countries/cities)."""
@@ -581,7 +609,14 @@ class AnalyticsController(Controller):
             ],
         )
 
-    @get("/top-urls", description="Top URLs by hits (CAGG-served above 24h; filters force a raw scan).")
+    @get(
+        "/top-urls",
+        summary="List the most requested URLs",
+        description=(
+            "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. "
+            f"Lines without a path are left out. {FILTERED_RAW_NOTE}"
+        ),
+    )
     async def get_top_urls(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -589,7 +624,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of URLs to return", ge=1, le=100),
+            QueryParameter(description="How many URLs to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
         ] = 25,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -609,7 +644,14 @@ class AnalyticsController(Controller):
             items=[TopUrlDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-user-agents", description="Top user agents by hits (CAGG-served above 24h; filters force a raw scan).")
+    @get(
+        "/top-user-agents",
+        summary="List the most common user agents",
+        description=(
+            "Returns user agent strings ordered by hits. Lines without a user agent are left out. "
+            f"{FILTERED_RAW_NOTE}"
+        ),
+    )
     async def get_top_user_agents(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -617,7 +659,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of user agents to return", ge=1, le=100),
+            QueryParameter(description="How many user agents to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
         ] = 25,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -637,7 +679,16 @@ class AnalyticsController(Controller):
             items=[TopUserAgentDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-asns", description="Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).")
+    @get(
+        "/top-asns",
+        summary="List the networks that send the most requests",
+        description=(
+            "Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN "
+            "in the range, not only the top `limit`, and `totalRequests` and `totalBytes` count every request, "
+            "so the traffic without ASN data is what the categories leave over. "
+            f"{FILTERED_RAW_NOTE}"
+        ),
+    )
     async def get_top_asns(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -646,7 +697,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of ASNs to return", ge=1, le=100),
+            QueryParameter(description="How many ASNs to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
         ] = 25,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -716,7 +767,14 @@ class AnalyticsController(Controller):
             drop_asn_count=drop_asn_count if drop_snapshot.asns_loaded else None,
         )
 
-    @get("/top-ips", description="Top client IPs by hits (CAGG-served above 24h, filters included).")
+    @get(
+        "/top-ips",
+        summary="List the client IPs with the most requests",
+        description=(
+            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. The "
+            "filters work on ranges of any length."
+        ),
+    )
     async def get_top_ips(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -724,7 +782,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of IPs", ge=1, le=100),
+            QueryParameter(description="How many IPs to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
         ] = 25,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -740,7 +798,14 @@ class AnalyticsController(Controller):
             items=[TopIpDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-countries", description="Top countries by hits (CAGG-served above 24h, filters included).")
+    @get(
+        "/top-countries",
+        summary="List the countries with the most requests",
+        description=(
+            "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests "
+            "without a country are left out."
+        ),
+    )
     async def get_top_countries(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -748,7 +813,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of countries", ge=1, le=100),
+            QueryParameter(description="How many countries to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
         ] = 25,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -764,7 +829,14 @@ class AnalyticsController(Controller):
             items=[TopCountryStatsDTO(**vars(r)) for r in rows],
         )
 
-    @get("/top-cities", description="Top cities by hits (CAGG-served above 24h, filters included).")
+    @get(
+        "/top-cities",
+        summary="List the cities with the most requests",
+        description=(
+            "Returns cities ordered by hits, with the number of distinct client IPs from each. Requests "
+            "without a city are left out, and cities with the same name in different countries count as one."
+        ),
+    )
     async def get_top_cities(
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
@@ -772,7 +844,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of cities", ge=1, le=100),
+            QueryParameter(description="How many cities to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
         ] = 25,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -790,7 +862,13 @@ class AnalyticsController(Controller):
 
     @get(
         "/ip-profile",
-        description="Access-log profile of one client IP for the IP inspector (raw scan bounded to one indexed IP).",
+        summary="Get the access log profile of one IP",
+        description=(
+            "Returns totals, status classes, latency, first and last seen, the top 5 hosts and paths, the top 3 "
+            "user agents and a hit series for one client IP. The series has hourly buckets for ranges up to 7 "
+            "days and daily buckets above, and `tz` applies to ranges of any length. It reads the raw rows, "
+            f"{RAW_RETENTION_NOTE}. An IP without requests in the range gets zero request counts and empty lists, not a 404."
+        ),
     )
     async def get_ip_profile(
         self,
@@ -800,7 +878,7 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         ip_address: Annotated[
             str,
-            QueryParameter(name="ipAddress", description="Client IP to profile"),
+            QueryParameter(name="ipAddress", description="The client IP to profile. A value that is not an IP gets a 400."),
         ],
         tz: Timezone = None,
     ) -> IpProfileResponse:

@@ -87,8 +87,8 @@ event, geo location, access log, access log debug and CrowdSec banned-location e
 `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for \
 longer ones, and their `granularity` parameter forces either size. Every response with buckets names \
 the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone \
-such as `Europe/Oslo`. `tz` only shifts ranges of 30 days or less to local days, and longer ranges \
-keep UTC days whatever it says.
+such as `Europe/Oslo`. `tz` shifts ranges of 30 days or less to local days, and longer ranges keep \
+UTC days unless the endpoint's description says otherwise.
 
 ## Pagination
 

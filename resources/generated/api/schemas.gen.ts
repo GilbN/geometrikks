@@ -1155,9 +1155,11 @@ export const ApiKeyViewSchema = {
 } as const;
 
 export const AsnCategoryTotalsDTOSchema = {
-  description: "Aggregate hits/bytes for one traffic-origin category.",
+  description: "Hits and bytes summed over every ASN of one category.",
   properties: {
     category: {
+      description:
+        "`drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.",
       enum: ["drop", "hosting", "other"],
       type: "string",
     },
@@ -1775,7 +1777,7 @@ export const CrowdSecStatusResponseSchema = {
 
 export const CumulativeDataPointSchema = {
   description:
-    "Cumulative metrics for a single time point.\n\nRunning totals that reset at the start of the selected time range.",
+    "Running totals from the start of the range through the end of one bucket.",
   properties: {
     cumulativeAccessLogs: {
       type: "integer",
@@ -1787,6 +1789,7 @@ export const CumulativeDataPointSchema = {
       type: "integer",
     },
     timestamp: {
+      description: "The bucket start, as ISO 8601 in UTC.",
       type: "string",
     },
   },
@@ -1802,7 +1805,7 @@ export const CumulativeDataPointSchema = {
 
 export const CumulativeTimeSeriesResponseSchema = {
   description:
-    "Response containing cumulative time-series data for area charts.",
+    "Running totals of requests, geo events and bytes, one point per bucket, oldest first.",
   properties: {
     data: {
       items: {
@@ -1811,12 +1814,16 @@ export const CumulativeTimeSeriesResponseSchema = {
       type: "array",
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     granularity: {
+      description:
+        "`raw` for ranges up to 24 hours, which have hourly buckets counted from the raw rows. Otherwise `hourly` or `daily`.",
       type: "string",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -2183,7 +2190,7 @@ export const DefaultMapViewSchema = {
 
 export const DefaultServerLocationViewSchema = {
   description:
-    "This instance's own location, used for any server without a server_locations row.",
+    "This instance's own location, which the map uses for a server without a location of its own.",
   properties: {
     latitude: {
       type: "number",
@@ -2544,7 +2551,7 @@ export const DropNetworksResponseSchema = {
 } as const;
 
 export const EmbeddedLocationDTOSchema = {
-  description: "Lightweight location data for embedding in other DTOs.",
+  description: "The place and coordinates of one location.",
   properties: {
     city: {
       oneOf: [
@@ -2577,6 +2584,7 @@ export const EmbeddedLocationDTOSchema = {
       ],
     },
     id: {
+      description: "The location's `id`, as `/api/v1/geo-locations` lists it.",
       type: "integer",
     },
     latitude: {
@@ -2616,12 +2624,14 @@ export const ErrorEnvelopeSchema = {
 } as const;
 
 export const GeoAsnFacetSchema = {
-  description: "One autonomous system present in the data.",
+  description: "One autonomous system in the stored data.",
   properties: {
     asn: {
       type: "integer",
     },
     organization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -2638,12 +2648,15 @@ export const GeoAsnFacetSchema = {
 } as const;
 
 export const GeoCountryFacetSchema = {
-  description: "One country present in the geo data.",
+  description: "One country in the stored data.",
   properties: {
     code: {
+      description:
+        "The two-letter ISO 3166-1 code, the value `countryCodeIn` takes.",
       type: "string",
     },
     name: {
+      description: "The country name, or the code when GeoIP gives no name.",
       type: "string",
     },
   },
@@ -2653,27 +2666,32 @@ export const GeoCountryFacetSchema = {
 } as const;
 
 export const GeoEventFacetsSchema = {
-  description: "Distinct filterable values present in the geo data.",
+  description:
+    "The values the geo event filters accept, as found in the stored data.",
   properties: {
     asns: {
+      description: "Sorted by organization, with the ones that have none last.",
       items: {
         $ref: "#/components/schemas/GeoAsnFacet",
       },
       type: "array",
     },
     cities: {
+      description: "Sorted by name.",
       items: {
         type: "string",
       },
       type: "array",
     },
     countries: {
+      description: "Sorted by name.",
       items: {
         $ref: "#/components/schemas/GeoCountryFacet",
       },
       type: "array",
     },
     servers: {
+      description: "Sorted by name.",
       items: {
         type: "string",
       },
@@ -2686,9 +2704,11 @@ export const GeoEventFacetsSchema = {
 } as const;
 
 export const GeoEventsDataPointSchema = {
-  description: "Geo events metrics for a single time point.",
+  description:
+    "Geo event counts for one bucket. The unique counts are estimates.",
   properties: {
     timestamp: {
+      description: "The bucket start, as ISO 8601 in UTC.",
       type: "string",
     },
     totalGeoEvents: {
@@ -2717,7 +2737,7 @@ export const GeoEventsDataPointSchema = {
 
 export const GeoEventsTimeSeriesResponseSchema = {
   description:
-    "Response containing geo events time-series data.\n\n``data`` is deliberately default-less (see TimeSeriesResponse).",
+    "Geo event counts per bucket, oldest first. Buckets without events are left out.",
   properties: {
     data: {
       items: {
@@ -2726,12 +2746,15 @@ export const GeoEventsTimeSeriesResponseSchema = {
       type: "array",
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     granularity: {
+      description: "The bucket size used, `hourly` or `daily`.",
       type: "string",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -2825,7 +2848,7 @@ export const GeoIPInfoViewSchema = {
 } as const;
 
 export const GeoJSONFeatureSchema = {
-  description: "GeoJSON Feature representing a location.",
+  description: "One location as a GeoJSON Feature.",
   properties: {
     geometry: {
       $ref: "#/components/schemas/GeoJSONPointGeometry",
@@ -2834,6 +2857,7 @@ export const GeoJSONFeatureSchema = {
       $ref: "#/components/schemas/GeoJSONFeatureProperties",
     },
     type: {
+      description: "Always `Feature`.",
       type: "string",
     },
   },
@@ -2843,7 +2867,8 @@ export const GeoJSONFeatureSchema = {
 } as const;
 
 export const GeoJSONFeatureCollectionSchema = {
-  description: "GeoJSON FeatureCollection for locations with event counts.",
+  description:
+    "The locations with events in a time range, as a GeoJSON FeatureCollection, busiest first.",
   properties: {
     features: {
       items: {
@@ -2855,6 +2880,7 @@ export const GeoJSONFeatureCollectionSchema = {
       $ref: "#/components/schemas/GeoJSONFeatureStats",
     },
     type: {
+      description: "Always `FeatureCollection`.",
       type: "string",
     },
   },
@@ -2864,8 +2890,7 @@ export const GeoJSONFeatureCollectionSchema = {
 } as const;
 
 export const GeoJSONFeaturePropertiesSchema = {
-  description:
-    "Properties for a GeoJSON feature representing a location with event count.",
+  description: "One location and its events in the range.",
   properties: {
     city: {
       oneOf: [
@@ -2884,15 +2909,19 @@ export const GeoJSONFeaturePropertiesSchema = {
       type: "string",
     },
     eventCount: {
+      description: "Events at this location in the range.",
       type: "integer",
     },
     geohash: {
       type: "string",
     },
     id: {
+      description: "The location's `id`, as `/api/v1/geo-locations` lists it.",
       type: "integer",
     },
     lastHit: {
+      description:
+        "The newest event at this location, whatever the range. A scheduler job updates it, so it can lag by a few minutes. Null until the job first runs for the location.",
       oneOf: [
         {
           format: "date-time",
@@ -2934,6 +2963,7 @@ export const GeoJSONFeaturePropertiesSchema = {
       ],
     },
     timezone: {
+      description: "The location's IANA timezone from GeoIP.",
       oneOf: [
         {
           type: "string",
@@ -2944,6 +2974,8 @@ export const GeoJSONFeaturePropertiesSchema = {
       ],
     },
     topIps: {
+      description:
+        "Always empty here. `/api/v1/geo-locations/{location_id}/top-ips` lists them.",
       items: {
         $ref: "#/components/schemas/TopIPDTO",
       },
@@ -2968,18 +3000,22 @@ export const GeoJSONFeaturePropertiesSchema = {
 } as const;
 
 export const GeoJSONFeatureStatsSchema = {
-  description: "Statistics for GeoJSONFeatureCollection.",
+  description: "Totals over every feature in the collection.",
   properties: {
     cities: {
+      description:
+        "Distinct city names. Cities with the same name in different countries count once.",
       type: "integer",
     },
     countries: {
+      description: "Distinct country codes.",
       type: "integer",
     },
     events: {
       type: "integer",
     },
     locations: {
+      description: "The number of features.",
       type: "integer",
     },
   },
@@ -2989,10 +3025,10 @@ export const GeoJSONFeatureStatsSchema = {
 } as const;
 
 export const GeoJSONPointGeometrySchema = {
-  description:
-    "GeoJSON Point geometry.\n\nFields are deliberately default-less: dataclass defaults make them\nnon-required in OpenAPI, which turns into optional fields in the\ngenerated TS client. The controller always constructs them explicitly.",
+  description: "A GeoJSON point.",
   properties: {
     coordinates: {
+      description: "`[longitude, latitude]`, in GeoJSON order.",
       prefixItems: [
         {
           type: "number",
@@ -3014,9 +3050,11 @@ export const GeoJSONPointGeometrySchema = {
 } as const;
 
 export const GeoLogEntrySchema = {
-  description: "One grouped (location, IP) row for the geo-logs table.",
+  description: "The events from one IP at one location in the range.",
   properties: {
     asOrganization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -3059,6 +3097,8 @@ export const GeoLogEntrySchema = {
       type: "string",
     },
     lastSeen: {
+      description:
+        "The time of the last event. On ranges over 24 hours it can be the start of the hour or UTC day that held it.",
       oneOf: [
         {
           format: "date-time",
@@ -3073,6 +3113,7 @@ export const GeoLogEntrySchema = {
       type: "number",
     },
     locationId: {
+      description: "The location's `id`, as `/api/v1/geo-locations` lists it.",
       type: "integer",
     },
     longitude: {
@@ -3089,6 +3130,8 @@ export const GeoLogEntrySchema = {
       ],
     },
     servers: {
+      description:
+        "The servers that recorded these events, sorted by name. Older aggregated history can lack server data, so on ranges over 24 hours this can be incomplete or empty.",
       items: {
         type: "string",
       },
@@ -3138,7 +3181,7 @@ export const GeoLogEntrySchema = {
 
 export const GeoLogPercentChangeSchema = {
   description:
-    "Percent change vs the previous period (None when previous is 0).",
+    "The percent change of each figure from the previous period.\n\n25.0 means a rise of a quarter. A figure is null when its previous value is 0.",
   properties: {
     totalEvents: {
       oneOf: [
@@ -3187,7 +3230,7 @@ export const GeoLogPercentChangeSchema = {
 } as const;
 
 export const GeoLogPeriodSchema = {
-  description: "Aggregate geo-event metrics for one period.",
+  description: "Geo event totals for one period.",
   properties: {
     totalEvents: {
       type: "integer",
@@ -3208,15 +3251,18 @@ export const GeoLogPeriodSchema = {
 } as const;
 
 export const GeoLogSummaryResponseSchema = {
-  description: "Summary stats for the geo-logs stat cards.",
+  description:
+    "Geo event totals for a time range, and optionally for the period of the same length before it.",
   properties: {
     currentPeriod: {
       $ref: "#/components/schemas/GeoLogPeriod",
     },
     endDate: {
+      description: "The request's `toTimestamp`, echoed as ISO 8601.",
       type: "string",
     },
     percentChanges: {
+      description: "Null whenever `previousPeriod` is null.",
       oneOf: [
         {
           $ref: "#/components/schemas/GeoLogPercentChange",
@@ -3227,6 +3273,8 @@ export const GeoLogSummaryResponseSchema = {
       ],
     },
     previousPeriod: {
+      description:
+        "Null unless `comparePrevious` is true and the previous period has events.",
       oneOf: [
         {
           $ref: "#/components/schemas/GeoLogPeriod",
@@ -3237,6 +3285,7 @@ export const GeoLogSummaryResponseSchema = {
       ],
     },
     startDate: {
+      description: "The request's `fromTimestamp`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -3252,9 +3301,10 @@ export const GeoLogSummaryResponseSchema = {
 } as const;
 
 export const GeoLogTimeSeriesPointSchema = {
-  description: "One chart bucket.",
+  description: "Geo events and unique IPs for one bucket.",
   properties: {
     timestamp: {
+      description: "The bucket start, in UTC.",
       format: "date-time",
       type: "string",
     },
@@ -3271,7 +3321,8 @@ export const GeoLogTimeSeriesPointSchema = {
 } as const;
 
 export const GeoLogTimeSeriesResponseSchema = {
-  description: "Bucketed geo-event series for the geo-logs chart.",
+  description:
+    "Geo events and unique IPs per bucket, oldest first. Buckets without events are left out.",
   properties: {
     data: {
       items: {
@@ -3280,12 +3331,15 @@ export const GeoLogTimeSeriesResponseSchema = {
       type: "array",
     },
     endDate: {
+      description: "The request's `toTimestamp`, echoed as ISO 8601.",
       type: "string",
     },
     granularity: {
+      description: "The bucket size used, `hourly` or `daily`.",
       type: "string",
     },
     startDate: {
+      description: "The request's `fromTimestamp`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -3295,7 +3349,8 @@ export const GeoLogTimeSeriesResponseSchema = {
 } as const;
 
 export const GlobalTopIPsResponseSchema = {
-  description: "Response for global top IPs endpoint.",
+  description:
+    "The client IPs with the most events, each at the location where it had the most.",
   properties: {
     topIps: {
       items: {
@@ -3714,8 +3769,12 @@ export const IngestionHealthSchema = {
 } as const;
 
 export const IngestionStatsResponseSchema = {
+  description:
+    "The log ingestion counters of this process. They start at zero when the process starts.",
   properties: {
     isRunning: {
+      description:
+        "False when ingestion is turned off, failed to start or has stopped.",
       type: "boolean",
     },
     lokiSources: {
@@ -3725,18 +3784,26 @@ export const IngestionStatsResponseSchema = {
       type: "array",
     },
     totalIgnoredLines: {
+      description:
+        "Log lines dropped because the client IP is in LOGPARSER_IGNORE_IPS.",
       type: "integer",
     },
     totalParsedLines: {
+      description: "Log lines that parsed, across all sources.",
       type: "integer",
     },
     totalPendingRecords: {
+      description:
+        "Parsed records held in memory until the next database write.",
       type: "integer",
     },
     totalProcessed: {
+      description:
+        "Parsed records that ingestion has passed to a database write.",
       type: "integer",
     },
     totalSkippedLines: {
+      description: "Log lines that did not match the log format.",
       type: "integer",
     },
   },
@@ -3918,15 +3985,17 @@ export const InstancesResponseSchema = {
 } as const;
 
 export const IpProfileBucketDTOSchema = {
-  description: "One sparkline bucket for the IP inspector.",
+  description: "One bucket of an IP's hit series.",
   properties: {
     errorHits: {
+      description: "Hits with a status of 400 or higher.",
       type: "integer",
     },
     hits: {
       type: "integer",
     },
     timestamp: {
+      description: "The bucket start, as ISO 8601 in UTC.",
       type: "string",
     },
   },
@@ -3936,16 +4005,17 @@ export const IpProfileBucketDTOSchema = {
 } as const;
 
 export const IpProfileHostDTOSchema = {
-  description:
-    "Hits against one proxied host; ``host`` is null for lines without one.",
+  description: "One host this IP sent requests to, with its hits.",
   properties: {
     errorHits: {
+      description: "Hits with a status of 400 or higher.",
       type: "integer",
     },
     hits: {
       type: "integer",
     },
     host: {
+      description: "The Host header. Null for lines that carry none.",
       oneOf: [
         {
           type: "string",
@@ -3962,16 +4032,17 @@ export const IpProfileHostDTOSchema = {
 } as const;
 
 export const IpProfilePathDTOSchema = {
-  description:
-    "One host and path pair this IP requested, with its hit and error counts.",
+  description: "One host and path this IP requested, with its hits.",
   properties: {
     errorHits: {
+      description: "Hits with a status of 400 or higher.",
       type: "integer",
     },
     hits: {
       type: "integer",
     },
     host: {
+      description: "The Host header. Null for lines that carry none.",
       oneOf: [
         {
           type: "string",
@@ -3982,6 +4053,7 @@ export const IpProfilePathDTOSchema = {
       ],
     },
     url: {
+      description: "The request target, query string included.",
       type: "string",
     },
   },
@@ -3992,9 +4064,11 @@ export const IpProfilePathDTOSchema = {
 
 export const IpProfileResponseSchema = {
   description:
-    "Access-log profile of one client IP for the IP inspector sheet.\n\nAn IP with no rows in range comes back zeroed with empty lists, not as a\n404: the sheet still has ban state and other locations to show. Lists\nhave no defaults (see TopUrlsResponse).",
+    "The access log profile of one client IP for a time range.\n\nAn IP without requests in the range gets zero request counts and empty lists rather than a 404.\nRequest times are in seconds over the timed requests.",
   properties: {
     asn: {
+      description:
+        "The ASN of the IP's newest request in the range that had one.",
       oneOf: [
         {
           type: "integer",
@@ -4005,10 +4079,14 @@ export const IpProfileResponseSchema = {
       ],
     },
     asnCategory: {
+      description:
+        "`drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential. Null without ASN data.",
       enum: ["drop", "hosting", "other", null],
       type: ["null", "string"],
     },
     asnOrganization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -4029,15 +4107,20 @@ export const IpProfileResponseSchema = {
       ],
     },
     distinctPaths: {
+      description: "How many different request targets the IP sent.",
       type: "integer",
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     errorRate: {
+      description:
+        "The share of requests with a 4xx or 5xx status, from 0 to 1.",
       type: "number",
     },
     firstSeen: {
+      description: "The IP's first request in the range, as ISO 8601 in UTC.",
       oneOf: [
         {
           type: "string",
@@ -4048,10 +4131,12 @@ export const IpProfileResponseSchema = {
       ],
     },
     granularity: {
+      description: "`hourly` for ranges up to 7 days, `daily` above.",
       enum: ["hourly", "daily"],
       type: "string",
     },
     hosts: {
+      description: "Up to 5 hosts, most hits first.",
       items: {
         $ref: "#/components/schemas/IpProfileHostDTO",
       },
@@ -4061,6 +4146,7 @@ export const IpProfileResponseSchema = {
       type: "string",
     },
     lastSeen: {
+      description: "The IP's last request in the range, as ISO 8601 in UTC.",
       oneOf: [
         {
           type: "string",
@@ -4071,6 +4157,8 @@ export const IpProfileResponseSchema = {
       ],
     },
     malformedRequests: {
+      description:
+        "Lines from the IP that GeoMetrikks flagged as malformed, counted by when it stored them rather than by their log time.",
       type: "integer",
     },
     p95RequestTime: {
@@ -4084,12 +4172,14 @@ export const IpProfileResponseSchema = {
       ],
     },
     paths: {
+      description: "Up to 5 host and path pairs, most hits first.",
       items: {
         $ref: "#/components/schemas/IpProfilePathDTO",
       },
       type: "array",
     },
     peak: {
+      description: "The bucket with the most hits, the earliest one on a tie.",
       oneOf: [
         {
           $ref: "#/components/schemas/IpProfileBucketDTO",
@@ -4100,12 +4190,15 @@ export const IpProfileResponseSchema = {
       ],
     },
     series: {
+      description:
+        "Hits per bucket, oldest first. Buckets without hits are left out.",
       items: {
         $ref: "#/components/schemas/IpProfileBucketDTO",
       },
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
     status2xx: {
@@ -4121,6 +4214,8 @@ export const IpProfileResponseSchema = {
       type: "integer",
     },
     timedRequests: {
+      description:
+        "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.",
       type: "integer",
     },
     totalBytes: {
@@ -4130,6 +4225,7 @@ export const IpProfileResponseSchema = {
       type: "integer",
     },
     userAgents: {
+      description: "Up to 3 user agents, most hits first.",
       items: {
         $ref: "#/components/schemas/IpProfileUserAgentDTO",
       },
@@ -4169,7 +4265,7 @@ export const IpProfileResponseSchema = {
 } as const;
 
 export const IpProfileUserAgentDTOSchema = {
-  description: "One user agent this IP sent, with its hit count.",
+  description: "One user agent this IP sent, with its hits.",
   properties: {
     hits: {
       type: "integer",
@@ -4747,9 +4843,11 @@ export const ListGeoLocationsGeoLocationResponseBodySchema = {
 } as const;
 
 export const LocationTopIPsResponseSchema = {
-  description: "Response for location top IPs endpoint.",
+  description:
+    "The client IPs with the most events at one location, most first.",
   properties: {
     locationId: {
+      description: "The location's `id`, as `/api/v1/geo-locations` lists it.",
       type: "integer",
     },
     topIps: {
@@ -4949,16 +5047,20 @@ export const LogparserSettingsViewSchema = {
 } as const;
 
 export const LokiSourceStatsSchema = {
-  description:
-    "One LOKI_QUERIES entry as the ingestion service sees it.\n\nThe selector and the server name describe the operator's log setup, so they\nare served here, behind auth, and never on /health.",
+  description: "One query from LOKI_QUERIES and how ingestion is reading it.",
   properties: {
     available: {
+      description: "False while Loki cannot be reached or rejects the query.",
       type: "boolean",
     },
     label: {
+      description:
+        "`loki:` and the query's position in LOKI_QUERIES, counted from 1. `/health` names an unavailable source by this label.",
       type: "string",
     },
     logFormat: {
+      description:
+        "The log format in use, such as `traefik-json`, either configured or detected from the lines. Null while a detected format has not been found yet.",
       oneOf: [
         {
           type: "string",
@@ -4969,12 +5071,16 @@ export const LokiSourceStatsSchema = {
       ],
     },
     parsedLines: {
+      description: "Lines from this query that parsed.",
       type: "integer",
     },
     query: {
+      description: "The LogQL selector as configured.",
       type: "string",
     },
     reason: {
+      description:
+        "`unreachable` or `rejected` while the source is unavailable, otherwise null.",
       oneOf: [
         {
           type: "string",
@@ -4985,6 +5091,7 @@ export const LokiSourceStatsSchema = {
       ],
     },
     server: {
+      description: "The server name this query's lines are stored under.",
       type: "string",
     },
   },
@@ -5182,7 +5289,8 @@ export const ParseErrorCountSchema = {
 } as const;
 
 export const PercentChangeSchema = {
-  description: "Percent change between two periods.",
+  description:
+    "The percent change of each figure from the previous period.\n\n25.0 means a rise of a quarter. A figure is null when its previous value is 0 or was not measured.",
   properties: {
     avgRequestTime: {
       oneOf: [
@@ -5205,6 +5313,8 @@ export const PercentChangeSchema = {
       ],
     },
     errorRate: {
+      description:
+        "The relative change of `errorRate` itself, not a difference in percentage points.",
       oneOf: [
         {
           type: "number",
@@ -5215,6 +5325,7 @@ export const PercentChangeSchema = {
       ],
     },
     geoRecords: {
+      description: "The change in `totalGeoEvents`.",
       oneOf: [
         {
           type: "number",
@@ -5225,6 +5336,7 @@ export const PercentChangeSchema = {
       ],
     },
     logRecords: {
+      description: "The change in `totalRequests`.",
       oneOf: [
         {
           type: "number",
@@ -5235,6 +5347,8 @@ export const PercentChangeSchema = {
       ],
     },
     malformedRate: {
+      description:
+        "The change in `malformedRequests`. Always null on `/api/v1/analytics/live-summary`.",
       oneOf: [
         {
           type: "number",
@@ -5261,7 +5375,8 @@ export const PercentChangeSchema = {
 } as const;
 
 export const PeriodSummarySchema = {
-  description: "Summary statistics for a single period.",
+  description:
+    "Request and geo event totals for one period.\n\nRequest times are in seconds over the timed requests, and null when none was timed.",
   properties: {
     avgBytesPerRequest: {
       type: "number",
@@ -5277,9 +5392,13 @@ export const PeriodSummarySchema = {
       ],
     },
     errorRate: {
+      description:
+        "The share of requests with a 4xx or 5xx status, from 0 to 1.",
       type: "number",
     },
     malformedRequests: {
+      description:
+        "Lines GeoMetrikks flagged as malformed, counted by when it stored them rather than by their log time.",
       type: "integer",
     },
     maxRequestTime: {
@@ -5305,21 +5424,26 @@ export const PeriodSummarySchema = {
       type: "integer",
     },
     timedRequests: {
+      description:
+        "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.",
       type: "integer",
     },
     totalBytesSent: {
       type: "integer",
     },
     totalGeoEvents: {
+      description: "Logged requests whose client IP has a GeoIP location.",
       type: "integer",
     },
     totalRequests: {
       type: "integer",
     },
     uniqueCountries: {
+      description: "Distinct countries among the geo events.",
       type: "integer",
     },
     uniqueIps: {
+      description: "Distinct client IPs among the geo events.",
       type: "integer",
     },
   },
@@ -6176,9 +6300,11 @@ export const SchedulerJobsResponseSchema = {
 } as const;
 
 export const ServerLocationViewSchema = {
-  description: "Where one server sits on the map, auto-detected or overridden.",
+  description: "Where one server sits on the map.",
   properties: {
     detectedAt: {
+      description:
+        "When the instance last recorded the location, as ISO 8601. Null for an override.",
       oneOf: [
         {
           type: "string",
@@ -6189,6 +6315,8 @@ export const ServerLocationViewSchema = {
       ],
     },
     lastEventDay: {
+      description:
+        "The UTC day of the server's newest geo event, as `YYYY-MM-DD`. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -6208,6 +6336,8 @@ export const ServerLocationViewSchema = {
       type: "string",
     },
     source: {
+      description:
+        "`auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.",
       enum: ["auto", "override"],
       type: "string",
     },
@@ -6229,6 +6359,8 @@ export const ServerLocationsResponseSchema = {
     "Every server's map location, plus this instance's own location as the default.",
   properties: {
     default: {
+      description:
+        "This instance's own location, found at startup or set with MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE. Null when it has neither.",
       oneOf: [
         {
           $ref: "#/components/schemas/DefaultServerLocationView",
@@ -6239,6 +6371,7 @@ export const ServerLocationsResponseSchema = {
       ],
     },
     locations: {
+      description: "Sorted by server name.",
       items: {
         $ref: "#/components/schemas/ServerLocationView",
       },
@@ -6426,15 +6559,17 @@ export const SourceReportSchema = {
 
 export const SummaryResponseSchema = {
   description:
-    "Response containing summary statistics with optional comparison.\n\nUsed for dashboard header cards showing key metrics.",
+    "Totals for a time range, and optionally for the period of the same length before it.",
   properties: {
     currentPeriod: {
       $ref: "#/components/schemas/PeriodSummary",
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     percentChanges: {
+      description: "Null whenever `previousPeriod` is null.",
       oneOf: [
         {
           $ref: "#/components/schemas/PercentChange",
@@ -6445,6 +6580,8 @@ export const SummaryResponseSchema = {
       ],
     },
     previousPeriod: {
+      description:
+        "Null unless `comparePrevious` is true and the previous period has data.",
       oneOf: [
         {
           $ref: "#/components/schemas/PeriodSummary",
@@ -6455,6 +6592,7 @@ export const SummaryResponseSchema = {
       ],
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -6480,7 +6618,7 @@ export const SystemSettingsResponseSchema = {
 
 export const TimeSeriesDataPointSchema = {
   description:
-    "A single data point in a time-series response.\n\nUsed for charting requests, bandwidth, performance over time.",
+    "Request metrics for one bucket.\n\nRequest times are in seconds and cover the timed requests only. Each one is null when the bucket has\nno timed requests. Without a filter, the percentiles are estimates.",
   properties: {
     avgRequestTime: {
       oneOf: [
@@ -6493,6 +6631,8 @@ export const TimeSeriesDataPointSchema = {
       ],
     },
     errorRate: {
+      description:
+        "The share of requests with a 4xx or 5xx status, from 0 to 1.",
       type: "number",
     },
     p50RequestTime: {
@@ -6538,15 +6678,20 @@ export const TimeSeriesDataPointSchema = {
       type: "integer",
     },
     timedRequests: {
+      description:
+        "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.",
       type: "integer",
     },
     timestamp: {
+      description: "The bucket start, as ISO 8601 in UTC.",
       type: "string",
     },
     totalBytesSent: {
       type: "integer",
     },
     totalGeoEvents: {
+      description:
+        "Always 0. `/api/v1/analytics/geo-time-series` has the geo series.",
       type: "integer",
     },
     totalRequests: {
@@ -6575,7 +6720,7 @@ export const TimeSeriesDataPointSchema = {
 
 export const TimeSeriesResponseSchema = {
   description:
-    "Response containing time-series data for charts.\n\n``data`` is deliberately default-less so it is required in OpenAPI and\nnon-optional in the generated TS client.",
+    "Request metrics per bucket, oldest first. Buckets without requests are left out.",
   properties: {
     data: {
       items: {
@@ -6584,12 +6729,15 @@ export const TimeSeriesResponseSchema = {
       type: "array",
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     granularity: {
+      description: "The bucket size used, `hourly` or `daily`.",
       type: "string",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -6599,12 +6747,14 @@ export const TimeSeriesResponseSchema = {
 } as const;
 
 export const TopAsnDTOSchema = {
-  description: "A single autonomous system with its aggregate metrics.",
+  description: "One autonomous system with its hits and bytes.",
   properties: {
     asn: {
       type: "integer",
     },
     category: {
+      description:
+        "`drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.",
       enum: ["drop", "hosting", "other"],
       type: "string",
     },
@@ -6612,6 +6762,8 @@ export const TopAsnDTOSchema = {
       type: "integer",
     },
     organization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -6632,15 +6784,19 @@ export const TopAsnDTOSchema = {
 
 export const TopAsnsResponseSchema = {
   description:
-    "Top ASNs plus category totals.\n\n``categories`` covers every ASN in the range, not only the top N.\n``total_requests`` and ``total_bytes`` count every request, with or\nwithout ASN data; rows without ASN data are absent from ``categories``,\nso coverage is measured against these totals. Lists have no defaults\n(see TopUrlsResponse). ``drop_asn_count`` counts the DROP-listed ASNs\nwith traffic in the range, beyond the top N too, and is None while the\nASN DROP list has never downloaded.",
+    "Autonomous systems ordered by hits, with totals per category.\n\nRequests without ASN data appear in `totalRequests` and `totalBytes` but in no category, so the\ndifference is the traffic GeoMetrikks could not match to an ASN.",
   properties: {
     categories: {
+      description:
+        "Totals over every ASN in the range, not only the listed ones. `drop` appears once the ASN-DROP list has downloaded.",
       items: {
         $ref: "#/components/schemas/AsnCategoryTotalsDTO",
       },
       type: "array",
     },
     dropAsnCount: {
+      description:
+        "How many ASN-DROP listed ASNs sent traffic in the range, counting those beyond `limit`. Null until the ASN-DROP list has downloaded.",
       oneOf: [
         {
           type: "integer",
@@ -6651,6 +6807,7 @@ export const TopAsnsResponseSchema = {
       ],
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     items: {
@@ -6660,12 +6817,16 @@ export const TopAsnsResponseSchema = {
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
     totalBytes: {
+      description:
+        "The bytes of every request in the range, with or without ASN data.",
       type: "integer",
     },
     totalRequests: {
+      description: "Every request in the range, with or without ASN data.",
       type: "integer",
     },
   },
@@ -6683,10 +6844,10 @@ export const TopAsnsResponseSchema = {
 } as const;
 
 export const TopCitiesResponseSchema = {
-  description:
-    "Response containing top cities by hit count.\n\n``items`` is deliberately default-less (see TopUrlsResponse).",
+  description: "Cities ordered by hits, most first.",
   properties: {
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     items: {
@@ -6696,6 +6857,7 @@ export const TopCitiesResponseSchema = {
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -6705,12 +6867,14 @@ export const TopCitiesResponseSchema = {
 } as const;
 
 export const TopCityStatsDTOSchema = {
-  description: "A single city with its aggregate metrics.",
+  description: "One city with its hits.",
   properties: {
     city: {
       type: "string",
     },
     countryCode: {
+      description:
+        "A country with a city of this name in the range. Cities with the same name in different countries share one row.",
       oneOf: [
         {
           type: "string",
@@ -6724,6 +6888,7 @@ export const TopCityStatsDTOSchema = {
       type: "integer",
     },
     uniqueIps: {
+      description: "Distinct client IPs from the city.",
       type: "integer",
     },
   },
@@ -6733,7 +6898,7 @@ export const TopCityStatsDTOSchema = {
 } as const;
 
 export const TopCountriesResponseSchema = {
-  description: "Response for top countries endpoint.",
+  description: "Countries ordered by geo event count, most first.",
   properties: {
     topCountries: {
       items: {
@@ -6748,10 +6913,10 @@ export const TopCountriesResponseSchema = {
 } as const;
 
 export const TopCountriesStatsResponseSchema = {
-  description:
-    "Response containing top countries by hit count.\n\n``items`` is deliberately default-less (see TopUrlsResponse).",
+  description: "Countries ordered by hits, most first.",
   properties: {
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     items: {
@@ -6761,6 +6926,7 @@ export const TopCountriesStatsResponseSchema = {
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -6770,7 +6936,7 @@ export const TopCountriesStatsResponseSchema = {
 } as const;
 
 export const TopCountryDTOSchema = {
-  description: "Top country with event count.",
+  description: "One country with its geo events.",
   properties: {
     countryCode: {
       type: "string",
@@ -6795,7 +6961,7 @@ export const TopCountryDTOSchema = {
 } as const;
 
 export const TopCountryStatsDTOSchema = {
-  description: "A single country with its aggregate metrics.",
+  description: "One country with its hits.",
   properties: {
     countryCode: {
       type: "string",
@@ -6814,6 +6980,7 @@ export const TopCountryStatsDTOSchema = {
       type: "integer",
     },
     uniqueIps: {
+      description: "Distinct client IPs from the country.",
       type: "integer",
     },
   },
@@ -6823,13 +6990,14 @@ export const TopCountryStatsDTOSchema = {
 } as const;
 
 export const TopGeoAsnSchema = {
-  description:
-    "Top autonomous system by geo-event count (rows without ASN data excluded).",
+  description: "One autonomous system with its geo events.",
   properties: {
     asn: {
       type: "integer",
     },
     category: {
+      description:
+        "`drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.",
       enum: ["drop", "hosting", "other"],
       type: "string",
     },
@@ -6837,6 +7005,8 @@ export const TopGeoAsnSchema = {
       type: "integer",
     },
     organization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -6847,6 +7017,7 @@ export const TopGeoAsnSchema = {
       ],
     },
     uniqueIps: {
+      description: "Distinct client IPs among the events.",
       type: "integer",
     },
   },
@@ -6856,6 +7027,7 @@ export const TopGeoAsnSchema = {
 } as const;
 
 export const TopGeoAsnsResponseSchema = {
+  description: "Autonomous systems ordered by geo event count, most first.",
   properties: {
     items: {
       items: {
@@ -6870,6 +7042,7 @@ export const TopGeoAsnsResponseSchema = {
 } as const;
 
 export const TopGeoCitiesResponseSchema = {
+  description: "Cities ordered by geo event count, most first.",
   properties: {
     items: {
       items: {
@@ -6884,12 +7057,14 @@ export const TopGeoCitiesResponseSchema = {
 } as const;
 
 export const TopGeoCitySchema = {
-  description: "Top city by event count (NULL cities excluded).",
+  description: "One city with its geo events.",
   properties: {
     city: {
       type: "string",
     },
     countryCode: {
+      description:
+        "A country with a city of this name in the range. Cities with the same name in different countries share one row.",
       oneOf: [
         {
           type: "string",
@@ -6903,6 +7078,7 @@ export const TopGeoCitySchema = {
       type: "integer",
     },
     uniqueIps: {
+      description: "Distinct client IPs among the events.",
       type: "integer",
     },
   },
@@ -6912,6 +7088,7 @@ export const TopGeoCitySchema = {
 } as const;
 
 export const TopGeoCountriesResponseSchema = {
+  description: "Countries ordered by geo event count, most first.",
   properties: {
     items: {
       items: {
@@ -6926,7 +7103,7 @@ export const TopGeoCountriesResponseSchema = {
 } as const;
 
 export const TopGeoCountrySchema = {
-  description: "Top country by event count.",
+  description: "One country with its geo events.",
   properties: {
     countryCode: {
       type: "string",
@@ -6945,6 +7122,7 @@ export const TopGeoCountrySchema = {
       type: "integer",
     },
     uniqueIps: {
+      description: "Distinct client IPs among the events.",
       type: "integer",
     },
   },
@@ -6954,9 +7132,11 @@ export const TopGeoCountrySchema = {
 } as const;
 
 export const TopGeoIpSchema = {
-  description: "Top IP by event count across all locations.",
+  description: "One client IP with its geo events across every location.",
   properties: {
     asOrganization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
       oneOf: [
         {
           type: "string",
@@ -6977,6 +7157,7 @@ export const TopGeoIpSchema = {
       ],
     },
     city: {
+      description: "One of the IP's cities when it has events in several.",
       oneOf: [
         {
           type: "string",
@@ -6987,6 +7168,7 @@ export const TopGeoIpSchema = {
       ],
     },
     countryCode: {
+      description: "One of the IP's countries when it has events in several.",
       oneOf: [
         {
           type: "string",
@@ -7016,6 +7198,7 @@ export const TopGeoIpSchema = {
 } as const;
 
 export const TopGeoIpsResponseSchema = {
+  description: "Client IPs ordered by geo event count, most first.",
   properties: {
     items: {
       items: {
@@ -7030,15 +7213,18 @@ export const TopGeoIpsResponseSchema = {
 } as const;
 
 export const TopIPDTOSchema = {
-  description: "Top IP address with event count and optional location.",
+  description: "One client IP with its geo events at one location.",
   properties: {
     eventCount: {
+      description: "The IP's events at this one location in the range.",
       type: "integer",
     },
     ipAddress: {
       type: "string",
     },
     location: {
+      description:
+        "The location where the IP had the most events, the one `eventCount` counts. Null in the top IPs of a single location.",
       oneOf: [
         {
           $ref: "#/components/schemas/EmbeddedLocationDTO",
@@ -7055,9 +7241,10 @@ export const TopIPDTOSchema = {
 } as const;
 
 export const TopIpDTOSchema = {
-  description: "A single IP address with its aggregate hit metrics.",
+  description: "One client IP with its hits.",
   properties: {
     city: {
+      description: "Null when GeoIP has no city for the IP.",
       oneOf: [
         {
           type: "string",
@@ -7068,6 +7255,7 @@ export const TopIpDTOSchema = {
       ],
     },
     countryCode: {
+      description: "Null when GeoIP has no country for the IP.",
       oneOf: [
         {
           type: "string",
@@ -7078,6 +7266,7 @@ export const TopIpDTOSchema = {
       ],
     },
     errorHits: {
+      description: "Hits with a status of 400 or higher.",
       type: "integer",
     },
     hits: {
@@ -7103,10 +7292,10 @@ export const TopIpDTOSchema = {
 } as const;
 
 export const TopIpsResponseSchema = {
-  description:
-    "Response containing top IPs by hit count.\n\n``items`` is deliberately default-less (see TopUrlsResponse).",
+  description: "Client IPs ordered by hits, most first.",
   properties: {
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     items: {
@@ -7116,6 +7305,7 @@ export const TopIpsResponseSchema = {
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -7125,10 +7315,11 @@ export const TopIpsResponseSchema = {
 } as const;
 
 export const TopUrlDTOSchema = {
-  description:
-    "One host and path with its aggregate hit metrics.\n\n``host`` is NULL for rows whose log line carried no Host header\n(combined-format nginx archives).",
+  description: "One host and path with its hits.",
   properties: {
     avgRequestTime: {
+      description:
+        "The mean request time in seconds over the timed hits. Null when none was timed.",
       oneOf: [
         {
           type: "number",
@@ -7139,12 +7330,15 @@ export const TopUrlDTOSchema = {
       ],
     },
     errorHits: {
+      description: "Hits with a status of 400 or higher.",
       type: "integer",
     },
     hits: {
       type: "integer",
     },
     host: {
+      description:
+        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format.",
       oneOf: [
         {
           type: "string",
@@ -7155,12 +7349,14 @@ export const TopUrlDTOSchema = {
       ],
     },
     timedHits: {
+      description: "Hits with a measured request time.",
       type: "integer",
     },
     totalBytes: {
       type: "integer",
     },
     url: {
+      description: "The request target, query string included.",
       type: "string",
     },
   },
@@ -7178,10 +7374,10 @@ export const TopUrlDTOSchema = {
 } as const;
 
 export const TopUrlsResponseSchema = {
-  description:
-    "Response containing top URLs by hit count.\n\n``items`` is deliberately default-less: a dataclass default makes it\nnon-required in OpenAPI and therefore optional in the generated TS client.",
+  description: "Host and path pairs ordered by hits, most first.",
   properties: {
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     items: {
@@ -7191,6 +7387,7 @@ export const TopUrlsResponseSchema = {
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },
@@ -7200,7 +7397,7 @@ export const TopUrlsResponseSchema = {
 } as const;
 
 export const TopUserAgentDTOSchema = {
-  description: "A single user agent with its hit count.",
+  description: "One user agent string with its hits.",
   properties: {
     hits: {
       type: "integer",
@@ -7215,10 +7412,10 @@ export const TopUserAgentDTOSchema = {
 } as const;
 
 export const TopUserAgentsResponseSchema = {
-  description:
-    "Response containing top user agents by hit count.\n\n``items`` is deliberately default-less (see TopUrlsResponse).",
+  description: "User agents ordered by hits, most first.",
   properties: {
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     items: {
@@ -7228,6 +7425,7 @@ export const TopUserAgentsResponseSchema = {
       type: "array",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
   },

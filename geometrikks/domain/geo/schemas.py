@@ -9,17 +9,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Sequence
+from typing import Annotated, Sequence
 
 import msgspec
 
-from geometrikks.domain.analytics.asn_classification import AsnCategory
+from geometrikks.domain.analytics.asn_classification import ASN_CATEGORY_DESCRIPTION, AsnCategory
+
+EchoedFrom = Annotated[str, msgspec.Meta(description="The request's `fromTimestamp`, echoed as ISO 8601.")]
+EchoedTo = Annotated[str, msgspec.Meta(description="The request's `toTimestamp`, echoed as ISO 8601.")]
+AsnOrganization = Annotated[
+    str | None,
+    msgspec.Meta(description="The network's name from the GeoLite2 ASN database. Null when it has none."),
+]
+DistinctIps = Annotated[int, msgspec.Meta(description="Distinct client IPs among the events.")]
 
 
 class GeoLogEntry(msgspec.Struct, rename="camel"):
-    """One grouped (location, IP) row for the geo-logs table."""
+    """The events from one IP at one location in the range."""
 
-    location_id: int
+    location_id: Annotated[int, msgspec.Meta(description="The location's `id`, as `/api/v1/geo-locations` lists it.")]
     city: str | None
     postal_code: str | None
     state: str | None
@@ -30,18 +38,32 @@ class GeoLogEntry(msgspec.Struct, rename="camel"):
     latitude: float
     longitude: float
     event_count: int
-    last_seen: datetime | None
+    last_seen: Annotated[
+        datetime | None,
+        msgspec.Meta(
+            description=(
+                "The time of the last event. On ranges over 24 hours it can be the start of the hour or UTC "
+                "day that held it."
+            )
+        ),
+    ]
     asn: int | None
-    as_organization: str | None
-    servers: list[str]
-    """Distinct servers that recorded this group in the selected range.
-    Pre-upgrade aggregate history is incomplete until the CLI backfill;
-    history beyond raw retention cannot recover its server data.
-    """
+    as_organization: AsnOrganization
+    # Aggregates written before server tracking have no server sets until the
+    # CLI backfill runs, and history past raw retention cannot get them back.
+    servers: Annotated[
+        list[str],
+        msgspec.Meta(
+            description=(
+                "The servers that recorded these events, sorted by name. Older aggregated history can lack "
+                "server data, so on ranges over 24 hours this can be incomplete or empty."
+            )
+        ),
+    ]
 
 
 class GeoLogPeriod(msgspec.Struct, rename="camel"):
-    """Aggregate geo-event metrics for one period."""
+    """Geo event totals for one period."""
 
     total_events: int
     unique_ips: int
@@ -50,7 +72,10 @@ class GeoLogPeriod(msgspec.Struct, rename="camel"):
 
 
 class GeoLogPercentChange(msgspec.Struct, rename="camel"):
-    """Percent change vs the previous period (None when previous is 0)."""
+    """The percent change of each figure from the previous period.
+
+    25.0 means a rise of a quarter. A figure is null when its previous value is 0.
+    """
 
     total_events: float | None
     unique_ips: float | None
@@ -59,108 +84,134 @@ class GeoLogPercentChange(msgspec.Struct, rename="camel"):
 
 
 class GeoLogSummaryResponse(msgspec.Struct, rename="camel"):
-    """Summary stats for the geo-logs stat cards."""
+    """Geo event totals for a time range, and optionally for the period of the same length before it."""
 
-    start_date: str
-    end_date: str
+    start_date: EchoedFrom
+    end_date: EchoedTo
     current_period: GeoLogPeriod
-    previous_period: GeoLogPeriod | None
-    percent_changes: GeoLogPercentChange | None
+    previous_period: Annotated[
+        GeoLogPeriod | None,
+        msgspec.Meta(description="Null unless `comparePrevious` is true and the previous period has events."),
+    ]
+    percent_changes: Annotated[
+        GeoLogPercentChange | None, msgspec.Meta(description="Null whenever `previousPeriod` is null.")
+    ]
 
 
 class GeoLogTimeSeriesPoint(msgspec.Struct, rename="camel"):
-    """One chart bucket."""
+    """Geo events and unique IPs for one bucket."""
 
-    timestamp: datetime
+    timestamp: Annotated[datetime, msgspec.Meta(description="The bucket start, in UTC.")]
     total_events: int
     unique_ips: int
 
 
 class GeoLogTimeSeriesResponse(msgspec.Struct, rename="camel"):
-    """Bucketed geo-event series for the geo-logs chart."""
+    """Geo events and unique IPs per bucket, oldest first. Buckets without events are left out."""
 
-    granularity: str
-    start_date: str
-    end_date: str
+    granularity: Annotated[str, msgspec.Meta(description="The bucket size used, `hourly` or `daily`.")]
+    start_date: EchoedFrom
+    end_date: EchoedTo
     data: list[GeoLogTimeSeriesPoint]
 
 
 class TopGeoIp(msgspec.Struct, rename="camel"):
-    """Top IP by event count across all locations."""
+    """One client IP with its geo events across every location."""
 
     ip_address: str
     event_count: int
-    country_code: str | None
-    city: str | None
+    country_code: Annotated[
+        str | None, msgspec.Meta(description="One of the IP's countries when it has events in several.")
+    ]
+    city: Annotated[str | None, msgspec.Meta(description="One of the IP's cities when it has events in several.")]
     asn: int | None
-    as_organization: str | None
+    as_organization: AsnOrganization
 
 
 class TopGeoIpsResponse(msgspec.Struct, rename="camel"):
+    """Client IPs ordered by geo event count, most first."""
+
     items: list[TopGeoIp]
 
 
 class TopGeoCountry(msgspec.Struct, rename="camel"):
-    """Top country by event count."""
+    """One country with its geo events."""
 
     country_code: str
     country_name: str | None
     event_count: int
-    unique_ips: int
+    unique_ips: DistinctIps
 
 
 class TopGeoCountriesResponse(msgspec.Struct, rename="camel"):
+    """Countries ordered by geo event count, most first."""
+
     items: list[TopGeoCountry]
 
 
 class TopGeoCity(msgspec.Struct, rename="camel"):
-    """Top city by event count (NULL cities excluded)."""
+    """One city with its geo events."""
 
     city: str
-    country_code: str | None
+    country_code: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "A country with a city of this name in the range. Cities with the same name in different "
+                "countries share one row."
+            )
+        ),
+    ]
     event_count: int
-    unique_ips: int
+    unique_ips: DistinctIps
 
 
 class TopGeoCitiesResponse(msgspec.Struct, rename="camel"):
+    """Cities ordered by geo event count, most first."""
+
     items: list[TopGeoCity]
 
 
 class TopGeoAsn(msgspec.Struct, rename="camel"):
-    """Top autonomous system by geo-event count (rows without ASN data excluded)."""
+    """One autonomous system with its geo events."""
 
     asn: int
-    organization: str | None
-    category: AsnCategory
+    organization: AsnOrganization
+    category: Annotated[AsnCategory, msgspec.Meta(description=ASN_CATEGORY_DESCRIPTION)]
     event_count: int
-    unique_ips: int
+    unique_ips: DistinctIps
 
 
 class TopGeoAsnsResponse(msgspec.Struct, rename="camel"):
+    """Autonomous systems ordered by geo event count, most first."""
+
     items: list[TopGeoAsn]
 
 
 class GeoAsnFacet(msgspec.Struct, rename="camel"):
-    """One autonomous system present in the data."""
+    """One autonomous system in the stored data."""
 
     asn: int
-    organization: str | None
+    organization: AsnOrganization
 
 
 class GeoCountryFacet(msgspec.Struct, rename="camel"):
-    """One country present in the geo data."""
+    """One country in the stored data."""
 
-    code: str
-    name: str
+    code: Annotated[str, msgspec.Meta(description="The two-letter ISO 3166-1 code, the value `countryCodeIn` takes.")]
+    name: Annotated[str, msgspec.Meta(description="The country name, or the code when GeoIP gives no name.")]
 
 
 class GeoEventFacets(msgspec.Struct, rename="camel"):
-    """Distinct filterable values present in the geo data."""
+    """The values the geo event filters accept, as found in the stored data."""
 
-    countries: list[GeoCountryFacet]
-    cities: list[str]
-    servers: list[str]
-    asns: list[GeoAsnFacet]
+    countries: Annotated[list[GeoCountryFacet], msgspec.Meta(description="Sorted by name.")]
+    cities: Annotated[list[str], msgspec.Meta(description="Sorted by name.")]
+    servers: Annotated[list[str], msgspec.Meta(description="Sorted by name.")]
+    asns: Annotated[
+        list[GeoAsnFacet],
+        msgspec.Meta(description="Sorted by organization, with the ones that have none last."),
+    ]
 
 
 @dataclass

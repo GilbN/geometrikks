@@ -691,10 +691,11 @@ async def health(
     security=NO_CREDENTIALS_SECURITY,
     summary="Check that the app is ready for traffic",
     description=(
-        "Runs `SELECT 1` against the database on every request. It answers 200 with `ready` true when the "
-        "query returns within two seconds and 503 with `ready` false otherwise, so a ready app goes back to "
-        "503 when the database drops. An agent also needs a passed startup schema check, and one whose check "
-        "timed out stays at 503 until it restarts. No credentials needed."
+        "Answers 200 with `ready` true when `SELECT 1` against the database returns within two seconds, and "
+        "503 with `ready` false otherwise. The head runs the query on every request, so a ready app goes back "
+        "to 503 when the database drops. An agent answers 503 without querying until its startup schema check "
+        "passes, then queries like the head, and one whose check timed out stays at 503 until it restarts. "
+        "No credentials needed."
     ),
     responses={
         HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(

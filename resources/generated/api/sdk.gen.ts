@@ -355,9 +355,9 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
   });
 
 /**
- * GetGeoTimeSeries
+ * Get geo event counts per hour or day
  *
- * Per-bucket geo-event metrics for charts.
+ * Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest first. It reads the hourly or daily aggregates, so the unique counts are estimates.
  */
 export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -389,9 +389,9 @@ export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   });
 
 /**
- * GetIpProfile
+ * Get the access log profile of one IP
  *
- * Access-log profile of one client IP for the IP inspector (raw scan bounded to one indexed IP).
+ * Returns totals, status classes, latency, first and last seen, the top 5 hosts and paths, the top 3 user agents and a hit series for one client IP. The series has hourly buckets for ranges up to 7 days and daily buckets above, and `tz` applies to ranges of any length. It reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. An IP without requests in the range gets zero request counts and empty lists, not a 404.
  */
 export const apiV1AnalyticsIpProfileGetIpProfile = <
   ThrowOnError extends boolean = false,
@@ -420,9 +420,9 @@ export const apiV1AnalyticsIpProfileGetIpProfile = <
   });
 
 /**
- * GetLiveSummary
+ * Get the exact traffic summary from the raw rows
  *
- * Get live summary statistics by querying raw data tables.
+ * Returns the same figures as `/api/v1/analytics/summary`, counted from the raw access log and geo event rows of the exact range, so the unique counts are exact. It gets slower as the range grows, and the raw rows go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. `percentChanges.malformedRate` is always null here.
  */
 export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
   ThrowOnError extends boolean = false,
@@ -451,9 +451,9 @@ export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
   });
 
 /**
- * GetSummary
+ * Get the traffic summary for a time range
  *
- * Get summary statistics for dashboard header cards.
+ * Returns request, byte, status class, latency and geo event totals for the range. With `comparePrevious` it adds the period of the same length that ends just before `startDate`, and both comparison fields stay null when that period has no data. Ranges over 24 hours read the hourly aggregates, or the daily ones above 30 days, and count from the start of the hour or UTC day that holds `startDate`. The unique IP and country counts are then estimates, and `/api/v1/analytics/live-summary` gives exact figures.
  */
 export const apiV1AnalyticsSummaryGetSummary = <
   ThrowOnError extends boolean = false,
@@ -482,9 +482,9 @@ export const apiV1AnalyticsSummaryGetSummary = <
   });
 
 /**
- * GetTimeSeries
+ * Get request metrics per hour or day
  *
- * Per-bucket access-log metrics for charts.
+ * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` applies to ranges of any length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
  */
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -513,9 +513,9 @@ export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   });
 
 /**
- * GetCumulativeTimeSeries
+ * Get running totals of requests, events and bytes
  *
- * Get cumulative time series data for area charts.
+ * Returns one point per bucket with the requests, geo events and bytes sent so far in the range, oldest first. Buckets are hours for ranges up to 30 days and UTC days above. `granularity` reads `raw` for ranges up to 24 hours, which are hourly buckets counted from the raw rows. Hours or days without traffic have no point.
  */
 export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -547,9 +547,9 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   });
 
 /**
- * GetTopAsns
+ * List the networks that send the most requests
  *
- * Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).
+ * Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`, and `totalRequests` and `totalBytes` count every request, so the traffic without ASN data is what the categories leave over. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
@@ -578,9 +578,9 @@ export const apiV1AnalyticsTopAsnsGetTopAsns = <
   });
 
 /**
- * GetTopCities
+ * List the cities with the most requests
  *
- * Top cities by hits (CAGG-served above 24h, filters included).
+ * Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one.
  */
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
@@ -609,9 +609,9 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
   });
 
 /**
- * GetTopCountries
+ * List the countries with the most requests
  *
- * Top countries by hits (CAGG-served above 24h, filters included).
+ * Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out.
  */
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -640,9 +640,9 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
   });
 
 /**
- * GetTopIps
+ * List the client IPs with the most requests
  *
- * Top client IPs by hits (CAGG-served above 24h, filters included).
+ * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. The filters work on ranges of any length.
  */
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
@@ -671,9 +671,9 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
   });
 
 /**
- * GetTopUrls
+ * List the most requested URLs
  *
- * Top URLs by hits (CAGG-served above 24h; filters force a raw scan).
+ * Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
@@ -702,9 +702,9 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
   });
 
 /**
- * GetTopUserAgents
+ * List the most common user agents
  *
- * Top user agents by hits (CAGG-served above 24h; filters force a raw scan).
+ * Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,
@@ -1431,7 +1431,9 @@ export const apiV1DropListsGetDropLists = <
   });
 
 /**
- * ListGeoEvents
+ * List geo events
+ *
+ * Returns one event per logged request whose client IP has a GeoIP location, newest first, with the location embedded. Page with `currentPage` and `pageSize`, 50 by default, and sort with `orderBy`, a snake_case field name such as `timestamp`, and `sortOrder`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive.
  */
 export const apiV1GeoEventsListGeoEvents = <
   ThrowOnError extends boolean = false,
@@ -1460,9 +1462,9 @@ export const apiV1GeoEventsListGeoEvents = <
   });
 
 /**
- * GetGeoLogFacets
+ * List the values the geo event filters accept
  *
- * Distinct filterable values for dropdowns.
+ * Returns every country, city, server and ASN in the stored data, to fill filter dropdowns. It takes no time range, and the values outlast the raw retention.
  */
 export const apiV1GeoEventsFacetsGetGeoLogFacets = <
   ThrowOnError extends boolean = false,
@@ -1491,9 +1493,9 @@ export const apiV1GeoEventsFacetsGetGeoLogFacets = <
   });
 
 /**
- * GetGeoLogs
+ * List geo events grouped by location and IP
  *
- * Geo events grouped by (location, IP) with counts.
+ * Returns one row per location and IP pair with its event count, last event, ASN and the servers that recorded it, paged with `currentPage` and `pageSize`. Rows with a null sort value come last in both directions. Ranges over 24 hours read the per-IP aggregates, so `lastSeen` can be the start of the hour or UTC day of the last event. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsLogsGetGeoLogs = <
   ThrowOnError extends boolean = false,
@@ -1522,9 +1524,9 @@ export const apiV1GeoEventsLogsGetGeoLogs = <
   });
 
 /**
- * GetGeoLogSummary
+ * Get geo event totals for a time range
  *
- * Aggregate geo-event stats for the stat cards.
+ * Returns the event count and the unique IPs, countries and cities for the range. With `comparePrevious` it adds the period of the same length that ends at `fromTimestamp`, and both comparison fields stay null when that period has no events. Unfiltered ranges over 24 hours read the hourly or daily aggregates, so they count from the start of the hour or UTC day holding `fromTimestamp` and the unique counts are estimates. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsSummaryGetGeoLogSummary = <
   ThrowOnError extends boolean = false,
@@ -1553,9 +1555,9 @@ export const apiV1GeoEventsSummaryGetGeoLogSummary = <
   });
 
 /**
- * GetGeoLogTimeSeries
+ * Get geo events and unique IPs per hour or day
  *
- * Per-bucket geo-event totals for the chart.
+ * Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, where unique IPs are estimates. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Those raw reads apply `tz` to ranges of any length and go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -1587,9 +1589,9 @@ export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
   });
 
 /**
- * GetGeoLogTopAsns
+ * List the networks with the most geo events
  *
- * Top autonomous systems by geo-event count.
+ * Returns autonomous systems ordered by event count, with the distinct IPs and the category of each. Events without ASN data are left out. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopAsnsGetGeoLogTopAsns = <
   ThrowOnError extends boolean = false,
@@ -1618,9 +1620,9 @@ export const apiV1GeoEventsTopAsnsGetGeoLogTopAsns = <
   });
 
 /**
- * GetGeoLogTopCities
+ * List the cities with the most geo events
  *
- * Top cities by geo-event count.
+ * Returns cities ordered by event count, with the distinct IPs from each. Events without a city are left out, and cities with the same name in different countries count as one. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopCitiesGetGeoLogTopCities = <
   ThrowOnError extends boolean = false,
@@ -1649,9 +1651,9 @@ export const apiV1GeoEventsTopCitiesGetGeoLogTopCities = <
   });
 
 /**
- * GetGeoLogTopCountries
+ * List the countries with the most geo events
  *
- * Top countries by geo-event count.
+ * Returns countries ordered by event count, with the distinct IPs from each. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopCountriesGetGeoLogTopCountries = <
   ThrowOnError extends boolean = false,
@@ -1683,9 +1685,9 @@ export const apiV1GeoEventsTopCountriesGetGeoLogTopCountries = <
   });
 
 /**
- * GetGeoLogTopIps
+ * List the IPs with the most geo events
  *
- * Top IPs by geo-event count.
+ * Returns client IPs ordered by event count across every location, with a country, city and ASN. For an IP seen in several locations, `countryCode` and `city` each show one of them. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
   ThrowOnError extends boolean = false,
@@ -1714,7 +1716,9 @@ export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
   });
 
 /**
- * ListGeoLocations
+ * List the stored locations
+ *
+ * Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`, 10 by default. It takes no time range or filters. Pass an item's `id` to `/api/v1/geo-locations/{location_id}/top-ips`.
  */
 export const apiV1GeoLocationsListGeoLocations = <
   ThrowOnError extends boolean = false,
@@ -1743,9 +1747,9 @@ export const apiV1GeoLocationsListGeoLocations = <
   });
 
 /**
- * GetGeojson
+ * Get the locations with events as GeoJSON
  *
- * Get all locations with event counts as GeoJSON FeatureCollection.
+ * Returns a GeoJSON FeatureCollection with one point per location that had events in the range, busiest first, and totals in `stats`. Ranges over 24 hours read the location aggregates and count from the start of the hour or UTC day holding `fromTimestamp`. An IP or ASN filter reads the raw rows instead, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. A server filter does the same on a database whose location aggregates predate server tracking.
  */
 export const apiV1GeoLocationsGeojsonGetGeojson = <
   ThrowOnError extends boolean = false,
@@ -1774,9 +1778,9 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
   });
 
 /**
- * ServerLocations
+ * Get the map location of every server
  *
- * Where each server sits on the map.
+ * Returns the location recorded for each server, and this instance's own location in `default`. The map puts a server without a recorded location at `default`.
  */
 export const apiV1GeoLocationsServerLocationsServerLocations = <
   ThrowOnError extends boolean = false,
@@ -1808,9 +1812,9 @@ export const apiV1GeoLocationsServerLocationsServerLocations = <
   });
 
 /**
- * DeleteServerLocation
+ * Remove a retired server's location
  *
- * Remove a retired server's auto-detected location. Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here.
+ * Deletes the auto-detected location of a server you no longer run and answers 204. If the server's instance still runs, it records the location again at its next location refresh. A location that MAP_SERVER_LOCATIONS pins gets a 409. Needs a Read/write API key or a browser session.
  */
 export const apiV1GeoLocationsServerLocationsDeleteServerLocation = <
   ThrowOnError extends boolean = false,
@@ -1842,9 +1846,9 @@ export const apiV1GeoLocationsServerLocationsDeleteServerLocation = <
   });
 
 /**
- * GetTopCountries
+ * List the countries with the most events, unfiltered
  *
- * Get top countries by event count.
+ * Returns countries ordered by event count. Ranges over 24 hours read the location aggregates and count from the start of the hour or UTC day holding `fromTimestamp`. `/api/v1/geo-events/top-countries` also counts unique IPs and takes filters.
  */
 export const apiV1GeoLocationsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -1876,9 +1880,9 @@ export const apiV1GeoLocationsTopCountriesGetTopCountries = <
   });
 
 /**
- * GetGlobalTopIps
+ * List the busiest IPs with their main location
  *
- * Get global top IPs by event count with their primary locations.
+ * Returns client IPs, each with the location where it had the most events in the range. The ranking and `eventCount` use that one location's events only, so an IP spread over several locations ranks lower than its total suggests.
  */
 export const apiV1GeoLocationsTopIpsGetGlobalTopIps = <
   ThrowOnError extends boolean = false,
@@ -1907,9 +1911,9 @@ export const apiV1GeoLocationsTopIpsGetGlobalTopIps = <
   });
 
 /**
- * GetLocationTopIps
+ * List the busiest IPs at one location
  *
- * Get top IPs for a specific location.
+ * Returns the client IPs with the most events at the location in the range, most first. The items carry no `location`. An unknown `location_id` gets an empty list.
  */
 export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
   ThrowOnError extends boolean = false,
@@ -2200,7 +2204,9 @@ export const apiV1SettingsReadSettings = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Stats
+ * Get the log ingestion counters
+ *
+ * Returns the line and record counters of this process, and the state of each Loki query in LOKI_QUERIES. The counters start at zero when the process starts. Without an ingestion service, as with LOGPARSER_ENABLED=false, every counter is 0, `isRunning` is false and `lokiSources` is empty.
  */
 export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1StatsStatsData, ThrowOnError>,
@@ -2485,7 +2491,7 @@ export const healthHealth = <ThrowOnError extends boolean = false>(
 /**
  * Check that the app is ready for traffic
  *
- * Runs `SELECT 1` against the database on every request. It answers 200 with `ready` true when the query returns within two seconds and 503 with `ready` false otherwise, so a ready app goes back to 503 when the database drops. An agent also needs a passed startup schema check, and one whose check timed out stays at 503 until it restarts. No credentials needed.
+ * Answers 200 with `ready` true when `SELECT 1` against the database returns within two seconds, and 503 with `ready` false otherwise. The head runs the query on every request, so a ready app goes back to 503 when the database drops. An agent answers 503 without querying until its startup schema check passes, then queries like the head, and one whose check timed out stays at 503 until it restarts. No credentials needed.
  */
 export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
   options?: Options<HealthReadyHealthReadyData, ThrowOnError>,
