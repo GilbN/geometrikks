@@ -2070,7 +2070,7 @@ export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
 /**
  * Download a log file
  *
- * Sends the file as an attachment, as gzip for a `.gz` archive and as plain text otherwise. Only a file that the file list shows as available can be downloaded. Anything else gets a 404.
+ * Sends the file as an attachment, as gzip for a `.gz` archive and as plain text otherwise. You can download only a file the file list shows as available. Anything else gets a 404.
  */
 export const apiV1LogsFilesKindNameDownload = <
   ThrowOnError extends boolean = false,
@@ -2292,7 +2292,7 @@ export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
 /**
  * List the ASNs that count as hosting providers
  *
- * Returns the bundled list that puts an ASN in the hosting category on the ASN views, with its source and license. All of its roughly 700 entries come in one response.
+ * Returns the bundled list that puts an ASN in the hosting category on the ASN views, with its source and license. The whole list comes in one response.
  */
 export const apiV1SystemAsnClassificationGetAsnClassification = <
   ThrowOnError extends boolean = false,

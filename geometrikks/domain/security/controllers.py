@@ -186,7 +186,7 @@ class CrowdSecStatusResponse(msgspec.Struct, rename="camel"):
     enabled: Annotated[
         bool,
         msgspec.Meta(
-            description="True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set. Always false on an agent."
+            description="True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set."
         ),
     ]
     write_enabled: Annotated[
@@ -1106,8 +1106,8 @@ class CrowdSecController(Controller):
             QueryParameter(
                 required=False,
                 description=(
-                    "Keep only alerts whose source is this IP or that hold a decision covering it. A value that "
-                    "is not an IP gets a 400."
+                    "Keep only alerts that hold a decision covering this IP. An alert on the IP without a "
+                    "decision is left out. A value that is not an IP gets a 400."
                 ),
             ),
         ] = None,

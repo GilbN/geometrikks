@@ -127,7 +127,9 @@ export type AbuseContactResponse = {
 /**
  * AbuseReportResponse
  *
- * Evidence for an abuse report, with every time in UTC.
+ * Evidence for an abuse report.
+ *
+ * Its times are in UTC, apart from `startDate` and `endDate`, which echo the request.
  */
 export type AbuseReportResponse = {
   crowdsec: ReportCrowdSec;
@@ -968,7 +970,7 @@ export type CrowdSecHealth = {
    */
   enabled: boolean;
   /**
-   * Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, while the app runs without its database, and before the first poll.
+   * Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, with SCHEDULER_ENABLED=false, while the app runs without its database, and before the first poll.
    */
   lapiReachable: boolean | null;
 };
@@ -997,7 +999,7 @@ export type CrowdSecStatsResponse = {
  */
 export type CrowdSecStatusResponse = {
   /**
-   * True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set. Always false on an agent.
+   * True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set.
    */
   enabled: boolean;
   /**
@@ -5105,7 +5107,7 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
      */
     limit?: number;
     /**
-     * Keep only alerts whose source is this IP or that hold a decision covering it. A value that is not an IP gets a 400.
+     * Keep only alerts that hold a decision covering this IP. An alert on the IP without a decision is left out. A value that is not an IP gets a 400.
      */
     ip?: string | null;
     /**

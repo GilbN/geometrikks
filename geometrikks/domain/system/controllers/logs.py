@@ -141,8 +141,8 @@ class LogsController(Controller):
         sync_to_thread=True,
         summary="Download a log file",
         description=(
-            "Sends the file as an attachment, as gzip for a `.gz` archive and as plain text otherwise. Only a "
-            "file that the file list shows as available can be downloaded. Anything else gets a 404."
+            "Sends the file as an attachment, as gzip for a `.gz` archive and as plain text otherwise. You can "
+            "download only a file the file list shows as available. Anything else gets a 404."
         ),
     )
     def download(

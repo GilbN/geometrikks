@@ -143,8 +143,8 @@ class CrowdSecHealth(msgspec.Struct, rename="camel"):
         bool | None,
         msgspec.Meta(
             description=(
-                "Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, while the app runs "
-                "without its database, and before the first poll."
+                "Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, with "
+                "SCHEDULER_ENABLED=false, while the app runs without its database, and before the first poll."
             )
         ),
     ]

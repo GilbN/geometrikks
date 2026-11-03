@@ -201,7 +201,10 @@ class ReportCrowdSec(msgspec.Struct, rename="camel"):
 
 
 class AbuseReportResponse(msgspec.Struct, rename="camel"):
-    """Evidence for an abuse report, with every time in UTC."""
+    """Evidence for an abuse report.
+
+    Its times are in UTC, apart from `startDate` and `endDate`, which echo the request.
+    """
 
     target: ReportTarget
     start_date: Annotated[str, msgspec.Meta(description="The request's `startDate`, echoed as ISO 8601.")]

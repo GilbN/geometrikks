@@ -546,7 +546,7 @@ class SystemController(Controller):
         summary="List the ASNs that count as hosting providers",
         description=(
             "Returns the bundled list that puts an ASN in the hosting category on the ASN views, with its "
-            "source and license. All of its roughly 700 entries come in one response."
+            "source and license. The whole list comes in one response."
         ),
     )
     async def get_asn_classification(self) -> AsnClassificationListResponse:

@@ -277,7 +277,8 @@ export const AbuseContactResponseSchema = {
 } as const;
 
 export const AbuseReportResponseSchema = {
-  description: "Evidence for an abuse report, with every time in UTC.",
+  description:
+    "Evidence for an abuse report.\n\nIts times are in UTC, apart from `startDate` and `endDate`, which echo the request.",
   properties: {
     crowdsec: {
       $ref: "#/components/schemas/ReportCrowdSec",
@@ -1862,7 +1863,7 @@ export const CrowdSecHealthSchema = {
     },
     lapiReachable: {
       description:
-        "Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, while the app runs without its database, and before the first poll.",
+        "Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, with SCHEDULER_ENABLED=false, while the app runs without its database, and before the first poll.",
       oneOf: [
         {
           type: "boolean",
@@ -1909,7 +1910,7 @@ export const CrowdSecStatusResponseSchema = {
   properties: {
     enabled: {
       description:
-        "True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set. Always false on an agent.",
+        "True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set.",
       type: "boolean",
     },
     lapiReachable: {

@@ -226,7 +226,8 @@ def _operations(document: dict[str, Any]) -> Iterator[tuple[str, str, dict[str, 
 
 def _parameters(document: dict[str, Any]) -> Iterator[tuple[str, str, dict[str, Any]]]:
     for method, path, operation in _operations(document):
-        for parameter in operation.get("parameters", []):
+        path_level_parameters = document["paths"][path].get("parameters", [])
+        for parameter in [*path_level_parameters, *operation.get("parameters", [])]:
             if parameter["in"] in {"query", "path"}:
                 yield method, path, parameter
 
@@ -235,9 +236,9 @@ def test_every_operation_has_a_written_summary(openapi_document: dict[str, Any])
     bad_summaries = [
         (method, path, operation.get("summary"))
         for method, path, operation in _operations(openapi_document)
-        if not operation.get("summary")
-        or GENERATED_SUMMARY.fullmatch(operation["summary"])
-        or operation["summary"].endswith(".")
+        if not (operation.get("summary") or "").strip()
+        or GENERATED_SUMMARY.fullmatch(operation["summary"].strip())
+        or operation["summary"].strip().endswith(".")
     ]
     assert bad_summaries == []
 
@@ -388,7 +389,8 @@ def test_every_tag_an_operation_uses_has_a_description(openapi_document: dict[st
         if isinstance(operation, dict)
         for tag_name in operation.get("tags", [])
     }
-    assert all(described_tags.get(tag_name) for tag_name in used_tags), used_tags - set(described_tags)
+    undescribed_tags = sorted(tag_name for tag_name in used_tags if not described_tags.get(tag_name))
+    assert undescribed_tags == []
 
 
 def test_every_operation_has_a_tag(openapi_document: dict[str, Any]):
