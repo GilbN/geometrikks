@@ -225,8 +225,10 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
   useBlocker({ shouldBlockFn: creatingNow, enableBeforeUnload: creatingNow })
   // Leaving the reveal throws the key away for good, so Back and links ask first.
   const drawerTitleRef = useRef<HTMLHeadingElement>(null)
+  // Once Copy key has worked the key is safe on the clipboard, so leaving no longer asks.
+  const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null)
   const revealingRef = useRef(false)
-  revealingRef.current = open && created !== null
+  revealingRef.current = open && created !== null && copiedKeyId !== created.apiKey.id
   const revealingNow = useCallback(() => revealingRef.current, [])
   const leaveBlocker = useBlocker({ shouldBlockFn: revealingNow, enableBeforeUnload: revealingNow, withResolver: true })
   const leaveReveal = () => {
@@ -295,7 +297,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
               />
             )}
             {created ? (
-              <ApiKeyReveal created={created} onDone={finishReveal} />
+              <ApiKeyReveal created={created} onDone={finishReveal} onCopied={() => setCopiedKeyId(created.apiKey.id)} />
             ) : (
               <ApiKeyCreateForm onCreated={setCreated} onCancel={() => changeOpen(false)} />
             )}
@@ -323,7 +325,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
                 <DialogTitle>Key created</DialogTitle>
                 <DialogDescription>{createdKeyLine(created.apiKey)}</DialogDescription>
               </DialogHeader>
-              <ApiKeyReveal created={created} onDone={finishReveal} />
+              <ApiKeyReveal created={created} onDone={finishReveal} onCopied={() => setCopiedKeyId(created.apiKey.id)} />
             </>
           ) : (
             <>

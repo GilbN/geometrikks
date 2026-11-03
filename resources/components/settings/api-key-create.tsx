@@ -236,7 +236,15 @@ export function ApiKeyCreateForm({
  * execCommand on plain http. Only if that fails too does the key move into a
  * read-only field that selects itself for a manual copy.
  */
-export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDone: () => void }) {
+export function ApiKeyReveal({
+  created,
+  onDone,
+  onCopied,
+}: {
+  created: CreatedApiKey
+  onDone: () => void
+  onCopied?: () => void
+}) {
   const [layoutRef, compact] = useNarrowLayout<HTMLDivElement>(COMPACT_WIDTH)
   const [manualCopy, setManualCopy] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -279,6 +287,7 @@ export function ApiKeyReveal({ created, onDone }: { created: CreatedApiKey; onDo
       return
     }
     setCopied(true)
+    onCopied?.()
     window.clearTimeout(copiedTimerRef.current)
     copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1500)
   }
