@@ -52,9 +52,25 @@ from geometrikks.lib.parameters import (
     Timezone,
     local_days_edge_note,
 )
+from geometrikks.lib.pagination import (
+    LIMIT_OFFSET_KEY,
+    MAX_PAGE_SIZE,
+    ORDER_BY_KEY,
+    limit_offset_provider,
+    order_by_provider,
+)
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
 
+GEO_EVENT_SORT_FIELDS = (
+    "timestamp",
+    "id",
+    "ip_address",
+    "server",
+    "location_id",
+    "autonomous_system_number",
+    "autonomous_system_organization",
+)
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:
@@ -194,13 +210,12 @@ class GeoEventController(Controller):
         # No config here: constructing it needs Settings(), which must not run
         # at import time. The service provider falls back to the request-scoped
         # ``db_session`` dependency registered by SQLAlchemyInitPlugin.
-        filters={
-            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
-            "pagination_size": 50,
-            "sort_field": "timestamp",            # default; overridable via ?orderBy
-            "sort_order": "desc",                 # -> ?sortOrder
-        },
+        # Kept so the aggregate ``filters`` asks for the two providers
+        # replaced below, which cap pageSize and check orderBy.
+        filters={"pagination_type": "limit_offset", "sort_field": "timestamp"},
     ) | {
+        LIMIT_OFFSET_KEY: limit_offset_provider(default_size=50),
+        ORDER_BY_KEY: order_by_provider(fields=GEO_EVENT_SORT_FIELDS, default="timestamp"),
         "time_window": Provide(provide_geo_event_time_window, sync_to_thread=False),
         "in_filters": Provide(provide_geo_event_in_filters, sync_to_thread=False),
         "geo_filters": Provide(provide_geo_event_filters, sync_to_thread=False),
@@ -212,9 +227,9 @@ class GeoEventController(Controller):
         summary="List geo events",
         description=(
             "Returns one event per logged request whose client IP has a GeoIP location, newest first, with "
-            "the location embedded. Page with `currentPage` and `pageSize`, 50 by default. Sort with `orderBy` "
-            "and `sortOrder`, where `orderBy` takes a snake_case field name such as `timestamp`. "
-            "`fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive."
+            "the location embedded. Page with `currentPage` and `pageSize`, and sort with `orderBy` and "
+            "`sortOrder`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are "
+            "inclusive."
         ),
     )
     async def list_geo_events(
@@ -259,9 +274,9 @@ class GeoEventController(Controller):
             int,
             QueryParameter(
                 name="pageSize",
-                description="Rows per page, from 1 to 500. Defaults to 50.",
+                description=f"Rows per page, from 1 to {MAX_PAGE_SIZE}. Defaults to 50.",
                 ge=1,
-                le=500,
+                le=MAX_PAGE_SIZE,
                 required=False,
             ),
         ] = 50,

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/configuration.md` puts the settings most installs need first: login, database, the logs to read and GeoIP. Each optional feature follows with its own section. The 28 settings for pool sizes, poll intervals, timeouts and log rotation sit in an Advanced tuning section near the end. Almost every install can leave them at their defaults.
 - The abuse report dialog keeps its title and its Download and Copy buttons in place while the rest scrolls, and its preview box is shorter. On a phone the title takes less room and the two buttons sit side by side.
 - The API reference at `/schema` now explains how to authenticate and what every endpoint does, and describes its parameters and response fields.
+- The paged API lists cap `pageSize`. `/api/v1/access-logs` and `/api/v1/access-log-debug` take up to 1000 rows a page, and `/api/v1/geo-events`, `/api/v1/geo-locations` and `/api/v1/crowdsec/decisions` take up to 500. A larger page gets a 400.
 
 ### Fixed
 
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`. A ban sent with an API key names the key, as in `api-key:homepage`.
 - In a record sheet, a long ban reason wraps with the time left at its end. The time left used to sit beside the reason's first line while the rest of the reason wrapped underneath.
 - On a phone, a long IPv6 address in the abuse report's title wraps onto a second line. It used to make the dialog scroll sideways.
+- `/api/v1/geo-events` and `/api/v1/access-logs` answer 400 for an `orderBy` field they cannot sort by, and the API reference lists the fields each one takes. They used to answer 500.
 
 ## [0.23.0] - 2026-10-31
 

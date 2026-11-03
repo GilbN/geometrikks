@@ -183,6 +183,20 @@ async def test_decisions_404_when_disabled():
         assert (await client.get("/api/v1/crowdsec/stats")).status_code == 404
 
 
+async def test_decisions_take_a_page_of_500():
+    async with AsyncTestClient(app=make_app(FakeCrowdSec([make_decision()]))) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions", params={"pageSize": 500})
+    assert resp.status_code == 200
+    assert resp.json()["limit"] == 500
+
+
+async def test_decisions_reject_a_page_over_500():
+    async with AsyncTestClient(app=make_app(FakeCrowdSec([make_decision()]))) as client:
+        resp = await client.get("/api/v1/crowdsec/decisions", params={"pageSize": 501})
+    assert resp.status_code == 400
+    assert resp.json()["status_code"] == 400
+
+
 async def test_decisions_enriches_ip_scope_only():
     decisions = [
         make_decision(id=1, value="1.2.3.4", scope="Ip"),

@@ -38,26 +38,14 @@ HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "pa
 # Litestar falls back to the handler name, one word with no spaces; a written summary always has one.
 GENERATED_SUMMARY = re.compile(r"\S+")
 
-# advanced_alchemy's create_service_dependencies builds these filter parameters and takes no
+# advanced_alchemy's create_service_dependencies builds these search parameters and takes no
 # descriptions, so each endpoint's description explains them instead.
 UNDESCRIBABLE_PARAMETERS = frozenset(
     {
-        ("get", "/api/v1/access-log-debug", "currentPage"),
-        ("get", "/api/v1/access-log-debug", "pageSize"),
         ("get", "/api/v1/access-log-debug", "searchString"),
         ("get", "/api/v1/access-log-debug", "searchIgnoreCase"),
-        ("get", "/api/v1/access-logs", "currentPage"),
-        ("get", "/api/v1/access-logs", "pageSize"),
         ("get", "/api/v1/access-logs", "searchString"),
         ("get", "/api/v1/access-logs", "searchIgnoreCase"),
-        ("get", "/api/v1/access-logs", "orderBy"),
-        ("get", "/api/v1/access-logs", "sortOrder"),
-        ("get", "/api/v1/geo-events", "currentPage"),
-        ("get", "/api/v1/geo-events", "pageSize"),
-        ("get", "/api/v1/geo-events", "orderBy"),
-        ("get", "/api/v1/geo-events", "sortOrder"),
-        ("get", "/api/v1/geo-locations", "currentPage"),
-        ("get", "/api/v1/geo-locations", "pageSize"),
     }
 )
 
@@ -265,6 +253,15 @@ def test_every_query_and_path_parameter_has_a_description(openapi_document: dict
 def test_undescribable_parameters_are_still_in_the_schema(openapi_document: dict[str, Any]):
     present = {(method, path, parameter["name"]) for method, path, parameter in _parameters(openapi_document)}
     assert UNDESCRIBABLE_PARAMETERS - present == set()
+
+
+def test_undescribable_parameters_still_lack_a_description(openapi_document: dict[str, Any]):
+    described = {
+        (method, path, parameter["name"])
+        for method, path, parameter in _parameters(openapi_document)
+        if parameter.get("description", "").strip()
+    }
+    assert UNDESCRIBABLE_PARAMETERS & described == set()
 
 
 def test_every_component_schema_has_a_description(openapi_document: dict[str, Any]):
