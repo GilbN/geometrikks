@@ -59,22 +59,22 @@ parameter:
 Error keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one \
 exception to this shape, and its 503 body is `{"ready": false}`.
 
-| Status | Meaning |
-| --- | --- |
-| 400 | A parameter or the body failed validation, for example an IP that does not parse, or a CrowdSec \
-request needs a newer LAPI than the one configured. |
-| 401 | The request carries no session and no key, or the key is malformed, unknown, revoked or expired. |
-| 403 | A Read key sent a write, a key called an endpoint that needs a browser session, or a \
-CrowdSec ban, unban or alert endpoint reached a server without CrowdSec machine credentials. |
-| 404 | No route or no resource matches. CrowdSec endpoints other than the status also answer 404 \
-when the CrowdSec integration is off. |
-| 409 | The request conflicts with the current state, for example a key name that is taken. |
-| 415 | `POST /api/v1/auth/api-keys` got a body that is not `application/json`. |
-| 500 | CrowdSec rejected the configured credentials, or the server hit an unexpected error. |
-| 502 | The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error. |
-| 503 | The database is unreachable. Checking an API key needs the database, so requests with a key \
+The status codes mean:
+
+- **400** A parameter or the body failed validation, for example an IP that does not parse, or a CrowdSec \
+request needs a newer LAPI than the one configured.
+- **401** The request carries no session and no key, or the key is malformed, unknown, revoked or expired.
+- **403** A Read key sent a write, a key called an endpoint that needs a browser session, or a \
+CrowdSec ban, unban or alert endpoint reached a server without CrowdSec machine credentials.
+- **404** No route or no resource matches. CrowdSec endpoints other than the status also answer 404 \
+when the CrowdSec integration is off.
+- **409** The request conflicts with the current state, for example a key name that is taken.
+- **415** `POST /api/v1/auth/api-keys` got a body that is not `application/json`.
+- **500** CrowdSec rejected the configured credentials, or the server hit an unexpected error.
+- **502** The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error.
+- **503** The database is unreachable. Checking an API key needs the database, so requests with a key \
 get a 503 until it is back. `/health/ready` also answers 503 on an agent whose startup schema check \
-timed out, even while the database answers. |
+timed out, even while the database answers.
 
 ## Time ranges
 

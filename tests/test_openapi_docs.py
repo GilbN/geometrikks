@@ -372,7 +372,7 @@ def test_struct_without_a_docstring_gets_no_description():
 
 @pytest.mark.parametrize(
     "required_text",
-    ["Authorization: Bearer gmk_", "**Read**", "**Read/write**", "| 401 |", "| 403 |", "| 503 |", "UTC"],
+    ["Authorization: Bearer gmk_", "**Read**", "**Read/write**", "- **401** ", "- **403** ", "- **503** ", "UTC"],
 )
 def test_intro_covers_auth_scopes_errors_and_time(openapi_document: dict[str, Any], required_text: str):
     assert required_text in openapi_document["info"]["description"]
