@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Each source in the instances API reports `lastReadAt` and `lastParsedAt`, so monitoring can detect a quiet source while other sources keep producing records. The timestamps distinguish new lines from parsed records and arrive with the instance's heartbeat.
 - Access-log scripts can poll overlapping windows with `window=10m`. Range headers let later pages reuse the same bounds. The API docs explain client deduplication and the limits for late records, imports and backfills.
 - Dashboards can fetch traffic, instance health, local ingestion status and active CrowdSec decisions with `GET /api/v1/integration/summary?window=24h`. Sections report unavailable data explicitly, and freshness fields distinguish log time, parser activity and heartbeats.
 - Scripts can test credentials with `GET /api/v1/auth/connection`. It returns the app/API version, authentication mode, configured features and the current key's name, scope and expiry. Auth-disabled servers say so explicitly instead of claiming a supplied key was validated.

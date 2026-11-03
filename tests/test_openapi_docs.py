@@ -61,6 +61,16 @@ def test_access_log_polling_window_and_headers_are_documented(openapi_document: 
     assert not parameters["window"].get("required", False)
     headers = operation["responses"]["200"]["headers"]
     assert "X-Range-Start" in headers and "X-Range-End" in headers
+
+
+def test_source_activity_timestamps_are_documented_as_nullable_datetimes(openapi_document: dict[str, Any]):
+    source = openapi_document["components"]["schemas"]["SourceReport"]
+    for field in ("lastReadAt", "lastParsedAt"):
+        assert field not in source.get("required", [])
+        assert {"type": "string", "format": "date-time"} in source["properties"][field]["oneOf"]
+        assert {"type": "null"} in source["properties"][field]["oneOf"]
+
+
 # Litestar falls back to the handler name, one word with no spaces; a written summary always has one.
 GENERATED_SUMMARY = re.compile(r"\S+")
 
