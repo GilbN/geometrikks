@@ -133,6 +133,16 @@ async def test_touch_updates_last_used_time_and_ip(db_config, clean_api_keys):
     assert touched_record.last_used_ip == "192.168.1.20"
 
 
+async def test_touch_of_a_revoked_key_does_nothing(db_config, clean_api_keys):
+    repository = SqlApiKeyRepository(db_config)
+    api_key_record, _ = await _insert(repository, "homepage")
+    await repository.delete(api_key_record.id)
+
+    await repository.touch(api_key_record.id, at=datetime(2026, 11, 2, 10, 0, tzinfo=UTC), ip="192.168.1.20")
+
+    assert await repository.list_records() == []
+
+
 async def test_delete_returns_the_record_once(db_config, clean_api_keys):
     repository = SqlApiKeyRepository(db_config)
     api_key_record, material = await _insert(repository, "homepage")

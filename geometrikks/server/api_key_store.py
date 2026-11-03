@@ -3,22 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 import sqlalchemy.exc
 from litestar.exceptions import ServiceUnavailableException
-from sqlalchemy import delete, select, update
 
 from geometrikks.domain.auth.api_keys import ApiKeyRecord, ApiKeyScope, generate_api_key, hash_api_key
 from geometrikks.domain.auth.models import ApiKey
+from geometrikks.domain.auth.repositories import ApiKeyTableRepository
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.session_store import _OUTAGE_ERRORS, SESSION_STORE_TIMEOUT_SECONDS
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import AsyncGenerator, Awaitable, Callable
     from uuid import UUID
 
     from advanced_alchemy.extensions.litestar import SQLAlchemyAsyncConfig
@@ -81,17 +82,33 @@ def _to_record(api_key: ApiKey) -> ApiKeyRecord:
 
 
 class SqlApiKeyRepository:
+    """ApiKeyRepository over the api_keys table, one session per call.
+
+    The auth middleware runs before dependency injection, so there is no
+    request session to borrow.
+    """
+
     def __init__(self, db_config: SQLAlchemyAsyncConfig) -> None:
         self.db_config = db_config
 
-    async def find_by_hash(self, key_hash: str) -> ApiKeyRecord | None:
+    @asynccontextmanager
+    async def _table(self) -> AsyncGenerator[ApiKeyTableRepository]:
+        """A repository on a fresh session, with Advanced Alchemy's error wrapping off.
+
+        Wrapped, a dropped connection becomes an IntegrityError and reads as a
+        duplicate name instead of a 503.
+        """
         async with self.db_config.get_session() as session:
-            api_key = await session.scalar(select(ApiKey).where(ApiKey.key_hash == key_hash))
+            yield ApiKeyTableRepository(session=session, wrap_exceptions=False)
+
+    async def find_by_hash(self, key_hash: str) -> ApiKeyRecord | None:
+        async with self._table() as table:
+            api_key = await table.get_one_or_none(key_hash=key_hash)
             return None if api_key is None else _to_record(api_key)
 
     async def list_records(self) -> list[ApiKeyRecord]:
-        async with self.db_config.get_session() as session:
-            api_keys = await session.scalars(select(ApiKey).order_by(ApiKey.created_at.desc(), ApiKey.id.desc()))
+        async with self._table() as table:
+            api_keys = await table.get_many(order_by=[(ApiKey.created_at, True), (ApiKey.id, True)])
             return [_to_record(api_key) for api_key in api_keys]
 
     async def insert(
@@ -112,28 +129,24 @@ class SqlApiKeyRepository:
             created_by=created_by,
             expires_at=expires_at,
         )
-        async with self.db_config.get_session() as session:
-            session.add(api_key)
+        async with self._table() as table:
             try:
-                await session.commit()
+                api_key = await table.add(api_key, auto_commit=True, auto_refresh=True)
             except sqlalchemy.exc.IntegrityError as error:
                 raise DomainConflictError(f"An API key named {name!r} already exists.") from error
-            await session.refresh(api_key)
             return _to_record(api_key)
 
     async def delete(self, key_id: UUID) -> ApiKeyRecord | None:
-        async with self.db_config.get_session() as session:
-            api_key = await session.scalar(delete(ApiKey).where(ApiKey.id == key_id).returning(ApiKey))
+        async with self._table() as table:
+            api_key = await table.delete_returning(key_id)
             api_key_record = None if api_key is None else _to_record(api_key)
-            await session.commit()
+            await table.session.commit()
             return api_key_record
 
     async def touch(self, key_id: UUID, *, at: datetime, ip: str | None) -> None:
-        async with self.db_config.get_session() as session:
-            await session.execute(
-                update(ApiKey).where(ApiKey.id == key_id).values(last_used_at=at, last_used_ip=ip)
-            )
-            await session.commit()
+        async with self._table() as table:
+            await table.set_last_used(key_id, at=at, ip=ip)
+            await table.session.commit()
 
 
 class ApiKeyStore:
