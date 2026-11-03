@@ -88,11 +88,16 @@ timed out, even while the database answers.
 
 ## Time ranges
 
-Most analytics endpoints and the abuse report take the range as `startDate` and `endDate`. The geo \
+Every analytics endpoint and the abuse report take the range as `startDate` and `endDate`. The geo \
 event, geo location, access log, access log debug and CrowdSec banned-location endpoints call it \
 `fromTimestamp` and `toTimestamp`. Send them as ISO 8601 with a timezone, such as \
 `2026-11-01T00:00:00Z`. GeoMetrikks stores times in UTC and returns them in UTC. A response that echoes \
 `startDate` and `endDate` keeps the offset you sent.
+
+Every `/api/v1/analytics` endpoint accepts `window=15m`, `window=24h` or `window=7d` instead of \
+explicit dates. Use positive whole minutes, hours or days, up to 365 days. Responses echo the \
+resolved bounds. Mixing modes, omitting one bound, using no timezone or sending an empty or inverted \
+analytics range returns 400 with `code: invalid_range`.
 
 `/api/v1/analytics/time-series`, `/api/v1/analytics/geo-time-series` and \
 `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for \

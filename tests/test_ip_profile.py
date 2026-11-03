@@ -210,3 +210,29 @@ async def test_endpoint_rejects_unknown_timezone():
             params={"ipAddress": "10.0.0.1", "startDate": START.isoformat(), "endDate": NOW.isoformat(), "tz": "Mars/Olympus"},
         )
     assert resp.status_code == 400
+
+
+async def test_endpoint_accepts_a_relative_window_and_echoes_its_bounds():
+    repo = _FakeIpProfileRepo(IpProfile())
+    async with AsyncTestClient(app=_app(repo)) as client:
+        response = await client.get(
+            "/api/v1/analytics/ip-profile", params={"ipAddress": "10.0.0.1", "window": "24h"},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    _, start, end = repo.calls[0]
+    assert end - start == timedelta(hours=24)
+    assert body["startDate"] == start.isoformat()
+    assert body["endDate"] == end.isoformat()
+
+
+async def test_endpoint_rejects_mixed_ranges_before_querying():
+    repo = _FakeIpProfileRepo(IpProfile())
+    async with AsyncTestClient(app=_app(repo)) as client:
+        response = await client.get(
+            "/api/v1/analytics/ip-profile",
+            params={"ipAddress": "10.0.0.1", "window": "1d", "startDate": START.isoformat()},
+        )
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_range"
+    assert repo.calls == []

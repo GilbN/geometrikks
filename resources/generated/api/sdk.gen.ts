@@ -371,7 +371,7 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
 export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<
+  options?: Options<
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
     ThrowOnError
   >,
@@ -380,7 +380,7 @@ export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
     ThrowOnError
@@ -436,13 +436,13 @@ export const apiV1AnalyticsIpProfileGetIpProfile = <
 export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsLiveSummaryGetLiveSummaryData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsLiveSummaryGetLiveSummaryData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
     ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
     ThrowOnError
@@ -467,13 +467,13 @@ export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
 export const apiV1AnalyticsSummaryGetSummary = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsSummaryGetSummaryData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsSummaryGetSummaryData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsSummaryGetSummaryResponses,
   ApiV1AnalyticsSummaryGetSummaryErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsSummaryGetSummaryResponses,
     ApiV1AnalyticsSummaryGetSummaryErrors,
     ThrowOnError
@@ -498,13 +498,13 @@ export const apiV1AnalyticsSummaryGetSummary = <
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTimeSeriesGetTimeSeriesData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTimeSeriesGetTimeSeriesData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
     ThrowOnError
@@ -529,7 +529,7 @@ export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
 export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<
+  options?: Options<
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData,
     ThrowOnError
   >,
@@ -538,7 +538,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
     ThrowOnError
@@ -563,13 +563,13 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopAsnsGetTopAsnsData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopAsnsGetTopAsnsData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
   ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
     ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
     ThrowOnError
@@ -594,13 +594,13 @@ export const apiV1AnalyticsTopAsnsGetTopAsns = <
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopCitiesGetTopCitiesData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopCitiesGetTopCitiesData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
   ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
     ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
     ThrowOnError
@@ -625,13 +625,16 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopCountriesGetTopCountriesData, ThrowOnError>,
+  options?: Options<
+    ApiV1AnalyticsTopCountriesGetTopCountriesData,
+    ThrowOnError
+  >,
 ): RequestResult<
   ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
   ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
     ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
     ThrowOnError
@@ -656,13 +659,13 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopIpsGetTopIpsData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopIpsGetTopIpsData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopIpsGetTopIpsResponses,
   ApiV1AnalyticsTopIpsGetTopIpsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopIpsGetTopIpsResponses,
     ApiV1AnalyticsTopIpsGetTopIpsErrors,
     ThrowOnError
@@ -687,13 +690,13 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopUrlsGetTopUrlsData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopUrlsGetTopUrlsData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
   ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
     ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
     ThrowOnError
@@ -718,7 +721,7 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<
+  options?: Options<
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
     ThrowOnError
   >,
@@ -727,7 +730,7 @@ export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
     ThrowOnError

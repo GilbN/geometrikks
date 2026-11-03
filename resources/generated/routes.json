@@ -147,8 +147,9 @@
         "GET"
       ],
       "queryParameters": {
-        "endDate": "DateTime",
-        "startDate": "DateTime"
+        "endDate": "DateTime | undefined",
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series/cumulative"
     },
@@ -332,10 +333,11 @@
         "GET"
       ],
       "queryParameters": {
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "startDate": "DateTime",
-        "tz": "string | undefined"
+        "startDate": "DateTime | undefined",
+        "tz": "string | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/geo-time-series"
     },
@@ -375,10 +377,11 @@
         "GET"
       ],
       "queryParameters": {
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string",
-        "startDate": "DateTime",
-        "tz": "string | undefined"
+        "startDate": "DateTime | undefined",
+        "tz": "string | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/ip-profile"
     },
@@ -389,8 +392,9 @@
       ],
       "queryParameters": {
         "comparePrevious": "boolean | undefined",
-        "endDate": "DateTime",
-        "startDate": "DateTime"
+        "endDate": "DateTime | undefined",
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/live-summary"
     },
@@ -447,8 +451,9 @@
       ],
       "queryParameters": {
         "comparePrevious": "boolean | undefined",
-        "endDate": "DateTime",
-        "startDate": "DateTime"
+        "endDate": "DateTime | undefined",
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/summary"
     },
@@ -467,12 +472,13 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "startDate": "DateTime",
-        "tz": "string | undefined"
+        "startDate": "DateTime | undefined",
+        "tz": "string | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series"
     },
@@ -484,11 +490,12 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-asns"
     },
@@ -500,11 +507,12 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-cities"
     },
@@ -516,11 +524,12 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-countries"
     },
@@ -544,11 +553,12 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-ips"
     },
@@ -560,11 +570,12 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-urls"
     },
@@ -576,11 +587,12 @@
       "queryParameters": {
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-user-agents"
     },

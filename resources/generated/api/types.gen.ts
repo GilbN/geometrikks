@@ -4173,15 +4173,19 @@ export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponse =
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
@@ -4232,13 +4236,17 @@ export type ApiV1AnalyticsIpProfileGetIpProfileData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * The client IP to profile. A value that is not an IP gets a 400.
      */
@@ -4287,15 +4295,19 @@ export type ApiV1AnalyticsIpProfileGetIpProfileResponse =
 export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
@@ -4340,15 +4352,19 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryResponse =
 export type ApiV1AnalyticsSummaryGetSummaryData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
@@ -4393,15 +4409,19 @@ export type ApiV1AnalyticsSummaryGetSummaryResponse =
 export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
@@ -4466,15 +4486,19 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesResponse =
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
   };
   url: "/api/v1/analytics/time-series/cumulative";
 };
@@ -4516,15 +4540,19 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
 export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many ASNs to return, from 1 to 100. Defaults to 25.
      */
@@ -4585,15 +4613,19 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsResponse =
 export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many cities to return, from 1 to 100. Defaults to 25.
      */
@@ -4654,15 +4686,19 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesResponse =
 export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many countries to return, from 1 to 100. Defaults to 25.
      */
@@ -4723,15 +4759,19 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesResponse =
 export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many IPs to return, from 1 to 100. Defaults to 25.
      */
@@ -4792,15 +4832,19 @@ export type ApiV1AnalyticsTopIpsGetTopIpsResponse =
 export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many URLs to return, from 1 to 100. Defaults to 25.
      */
@@ -4861,15 +4905,19 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsResponse =
 export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many user agents to return, from 1 to 100. Defaults to 25.
      */

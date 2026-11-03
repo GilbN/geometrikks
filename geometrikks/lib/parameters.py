@@ -27,8 +27,8 @@ def range_end_examples() -> list[Example]:
     return [Example(value=EXAMPLE_RANGE_END)]
 
 
-_RANGE_START = f"Start of the range, inclusive, as ISO 8601 with a timezone, such as `{EXAMPLE_RANGE_START}`."
-_RANGE_END = f"End of the range, exclusive, as ISO 8601 with a timezone, such as `{EXAMPLE_RANGE_END}`."
+RANGE_START_DESCRIPTION = f"Start of the range, inclusive, as ISO 8601 with a timezone, such as `{EXAMPLE_RANGE_START}`."
+RANGE_END_DESCRIPTION = f"End of the range, exclusive, as ISO 8601 with a timezone, such as `{EXAMPLE_RANGE_END}`."
 GEO_WHOLE_BUCKETS_NOTE = (
     "count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts "
     "before `toTimestamp`"
@@ -55,7 +55,7 @@ FromTimestamp = Annotated[
     datetime,
     QueryParameter(
         name="fromTimestamp",
-        description=_RANGE_START,
+        description=RANGE_START_DESCRIPTION,
         examples=range_start_examples(),
     ),
 ]
@@ -64,7 +64,7 @@ ToTimestamp = Annotated[
     datetime,
     QueryParameter(
         name="toTimestamp",
-        description=_RANGE_END,
+        description=RANGE_END_DESCRIPTION,
         examples=range_end_examples(),
     ),
 ]
@@ -74,7 +74,7 @@ StartDate = Annotated[
     datetime,
     QueryParameter(
         name="startDate",
-        description=_RANGE_START,
+        description=RANGE_START_DESCRIPTION,
         examples=range_start_examples(),
     ),
 ]
@@ -83,7 +83,7 @@ EndDate = Annotated[
     datetime,
     QueryParameter(
         name="endDate",
-        description=_RANGE_END,
+        description=RANGE_END_DESCRIPTION,
         examples=range_end_examples(),
     ),
 ]

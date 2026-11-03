@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Analytics API endpoints accept relative windows such as `window=24h` instead of explicit dates. Responses include the resolved bounds. Windows support whole minutes, hours or days, up to 365 days.
 - The details of a JSON debug line open on a Fields view with one row per key. Request and response headers come first, without Traefik's `request_` and `downstream_` prefixes, so a custom header your app sends sits at the top instead of somewhere in one long line. The keys GeoMetrikks drops follow, then the ones it stores, each tagged with the access-log column it fills. Nested keys show as dotted paths such as `request.tls.version`. The Raw tab shows the line as logged, and Copy still copies it. A line nested more than six levels deep or with more than 200 keys shows only the Raw tab, since no reverse proxy writes lines like that.
 - Debug Logs has a Source format column, which you turn on under Columns. A debug line's details also name the format that parsed it. Lines captured before this update show none.
 - API keys let scripts and dashboards call the API without logging in. Create them under Settings > API keys and send one as `Authorization: Bearer gmk_...`. A Read key can view data and open the live feeds, and a Read/write key can also ban, unban, run scheduler jobs and delete data. A key can have an expiry date. The list shows when and from which IP each key was last used, and GeoMetrikks shows a key only once, when you create it.
@@ -20,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A DROP lists card on Settings > About shows when the lists last downloaded, how many networks and ASNs they hold, and the error from any download that failed. Installs that limit outbound traffic need to allow www.spamhaus.org. Set `DROP_ENABLED=false` to stop the downloads and hide all of this.
 
 ### Changed
+
+- Analytics ranges must include a timezone and have a start before their end. Missing bounds and mixed relative and explicit ranges return 400 with `code: invalid_range`.
 
 - API error responses add a stable `code` for scripts to distinguish expired keys, read-only keys, validation failures and unavailable services. HTTP statuses, messages and validation details keep their existing meanings.
 

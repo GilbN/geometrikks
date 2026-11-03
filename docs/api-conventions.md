@@ -87,6 +87,7 @@ API errors use Litestar's HTTP-exception envelope with an added machine-readable
 | `api_keys_unavailable` | The API key store is unavailable. |
 | `validation_failed` | Request parameters or the body failed framework validation. |
 | `invalid_request` | A supplied value failed domain validation. |
+| `invalid_range` | The time range is missing, mixed, inverted or unsupported. |
 | `not_authenticated`, `forbidden` | Authentication is missing or access is denied. |
 | `not_found`, `method_not_allowed`, `conflict` | The resource or operation cannot satisfy the request. |
 | `request_too_large`, `unsupported_media_type`, `rate_limited` | The request exceeds a limit or uses an unsupported format. |
@@ -199,3 +200,16 @@ name. Every request and redirect must be https to a public DNS name.
 Private and reserved addresses answer 400. Space that no registry covers or
 holds answers 404, and a failed upstream request answers 502. Answers are
 cached for a day.
+
+## Relative analytics ranges
+
+Every `/api/v1/analytics` endpoint accepts `window=15m`, `window=24h` or
+`window=7d` instead of `startDate` and `endDate`. Use a positive whole number
+of minutes, hours or days, up to 365 days. The server resolves the window
+once per request and echoes its bounds in the response.
+
+Use exactly one mode: a window, or both explicit bounds. Mixed modes, missing
+bounds, bounds without timezones and empty or inverted ranges return 400 with
+`code: invalid_range`. Explicit ranges have no new duration cap.
+
+Geo, map and abuse-report endpoints keep their existing range parameters and defaults.
