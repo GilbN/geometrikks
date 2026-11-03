@@ -62,6 +62,9 @@ import type {
   ApiV1AuthApiKeysListApiKeysData,
   ApiV1AuthApiKeysListApiKeysErrors,
   ApiV1AuthApiKeysListApiKeysResponses,
+  ApiV1AuthConnectionConnectionData,
+  ApiV1AuthConnectionConnectionErrors,
+  ApiV1AuthConnectionConnectionResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -230,6 +233,7 @@ import type {
 export type OperationName =
   | 'ban'
   | 'ban_networks'
+  | 'connection'
   | 'create_api_key'
   | 'delete_instance'
   | 'delete_server_location'
@@ -312,6 +316,7 @@ export type OperationName =
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksData
+  'connection': ApiV1AuthConnectionConnectionData
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyData
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
@@ -395,6 +400,7 @@ export interface OperationDataTypes {
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksResponses
+  'connection': ApiV1AuthConnectionConnectionResponses
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyResponses
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
@@ -478,6 +484,7 @@ export interface OperationResponseTypes {
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksErrors
+  'connection': ApiV1AuthConnectionConnectionErrors
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyErrors
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors

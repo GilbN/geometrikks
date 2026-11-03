@@ -65,6 +65,9 @@ import type {
   ApiV1AuthApiKeysListApiKeysData,
   ApiV1AuthApiKeysListApiKeysErrors,
   ApiV1AuthApiKeysListApiKeysResponses,
+  ApiV1AuthConnectionConnectionData,
+  ApiV1AuthConnectionConnectionErrors,
+  ApiV1AuthConnectionConnectionResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -838,6 +841,37 @@ export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
       },
     ],
     url: "/api/v1/auth/api-keys/{key_id}",
+    ...options,
+  });
+
+/**
+ * Check credentials and configured API features
+ *
+ * Returns the app/API version and configured features without checking external services. API-key requests also return that key's name, scope and expiry. Invalid or expired keys get a coded 401 before this handler runs. Browser sessions return mode=session. With APP_AUTH_DISABLED=true, mode=disabled means a supplied key has not been validated.
+ */
+export const apiV1AuthConnectionConnection = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AuthConnectionConnectionData, ThrowOnError>,
+): RequestResult<
+  ApiV1AuthConnectionConnectionResponses,
+  ApiV1AuthConnectionConnectionErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AuthConnectionConnectionResponses,
+    ApiV1AuthConnectionConnectionErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/auth/connection",
     ...options,
   });
 

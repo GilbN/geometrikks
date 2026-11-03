@@ -20,6 +20,7 @@ from litestar.status_codes import (
 )
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.auth.connection import ConnectionResponse, connection_info
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
 from geometrikks.server.api_key_auth import (
@@ -262,6 +263,26 @@ class AuthController(Controller):
         # still get 401 so the axios interceptor redirects to /login.
         user: AdminUser = request.user
         return SessionUser(username=user.username, provider=user.provider)
+
+    @get(
+        "/connection",
+        summary="Check credentials and configured API features",
+        description=(
+            "Returns the app/API version and configured features without checking external services. "
+            "API-key requests also return that key's name, scope and expiry. Invalid or expired keys get "
+            "a coded 401 before this handler runs. Browser sessions return mode=session. With "
+            "APP_AUTH_DISABLED=true, mode=disabled means a supplied key has not been validated."
+        ),
+        response_headers={"Cache-Control": "no-store"},
+        responses={
+            HTTP_401_UNAUTHORIZED: ResponseSpec(data_container=ErrorEnvelope, description="Missing or invalid credentials."),
+            HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(data_container=ErrorEnvelope, description="The authentication store is unavailable."),
+        },
+    )
+    async def connection(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]],
+    ) -> ConnectionResponse:
+        return connection_info(settings, request.scope.get("user"))
 
     @get(
         "/options",

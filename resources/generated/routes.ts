@@ -23,6 +23,7 @@ export type UUID = string;
 export type RouteName =
   | 'ban'
   | 'ban_networks'
+  | 'connection'
   | 'create_api_key'
   | 'delete_instance'
   | 'delete_server_location'
@@ -106,6 +107,7 @@ export type RouteName =
 export interface RoutePathParams {
   'ban': Record<string, never>;
   'ban_networks': Record<string, never>;
+  'connection': Record<string, never>;
   'create_api_key': Record<string, never>;
   'delete_instance': {
     instance_name: string;
@@ -207,6 +209,7 @@ export interface RoutePathParams {
 export interface RouteQueryParams {
   'ban': Record<string, never>;
   'ban_networks': Record<string, never>;
+  'connection': Record<string, never>;
   'create_api_key': Record<string, never>;
   'delete_instance': Record<string, never>;
   'delete_server_location': Record<string, never>;
@@ -596,6 +599,13 @@ export const routeDefinitions = {
     path: '/api/v1/crowdsec/ban-networks',
     methods: ['POST'] as const,
     method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'connection': {
+    path: '/api/v1/auth/connection',
+    methods: ['GET'] as const,
+    method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
   },

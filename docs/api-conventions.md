@@ -213,3 +213,21 @@ bounds, bounds without timezones and empty or inverted ranges return 400 with
 `code: invalid_range`. Explicit ranges have no new duration cap.
 
 Geo, map and abuse-report endpoints keep their existing range parameters and defaults.
+
+## Connection checks
+
+`GET /api/v1/auth/connection` accepts API keys and browser sessions. It returns
+`appVersion`, `apiVersion`, `capabilities` and a `mode` discriminator:
+
+- `apiKey` also carries the current key's `name`, `scope` and `expiresAt`.
+- `session` has no key fields.
+- `disabled` means authentication is off. Any supplied key was not validated.
+
+Expired keys return 401 with `code: api_key_expired`; invalid or revoked keys
+return `api_key_invalid`. Store outages return 503 with `api_keys_unavailable`.
+Responses use `Cache-Control: no-store`.
+
+Capabilities are configured server features, independent of key permissions
+and current upstream availability. The names are `crowdsec`, `crowdsecWrite`,
+`asn` and `drop`. `crowdsecWrite` still requires a Read/write key or a session
+when authentication is enabled. A capability does not imply its service is reachable.

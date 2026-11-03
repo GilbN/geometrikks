@@ -31,6 +31,7 @@ from geometrikks.server.exceptions import (
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from uuid import UUID
 
     from litestar.config.app import AppConfig
@@ -61,6 +62,7 @@ class ApiKeyPrincipal:
     key_id: UUID
     name: str
     scope: ApiKeyScope
+    expires_at: datetime | None
 
 
 def bearer_tokens(connection: ASGIConnection[Any, Any, Any, Any]) -> list[str]:
@@ -104,7 +106,10 @@ class ApiKeyAuthMiddleware(SessionAuthMiddleware):
         if api_key_record.is_expired(store.clock()):
             self._reject(store, connection, token, "expired", key_name=api_key_record.name)
         await store.record_use(api_key_record, resolve_client_ip(connection))
-        principal = ApiKeyPrincipal(key_id=api_key_record.id, name=api_key_record.name, scope=api_key_record.scope)
+        principal = ApiKeyPrincipal(
+            key_id=api_key_record.id, name=api_key_record.name, scope=api_key_record.scope,
+            expires_at=api_key_record.expires_at,
+        )
         return AuthenticationResult(user=principal, auth=None)
 
     @staticmethod

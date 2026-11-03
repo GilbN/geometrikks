@@ -27,6 +27,7 @@ from geometrikks.domain.system.controllers.settings import read_settings
 from geometrikks.domain.system.controllers.stats import stats
 from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.config.settings import Settings
+from geometrikks.server.api_version import API_V1_PREFIX, API_VERSION
 
 
 @get(
@@ -48,8 +49,6 @@ def service_worker(settings: NamedDependency[SkipValidation[Settings]]) -> File:
     return File(path=sw_path, media_type="text/javascript")
 
 
-API_V1_PREFIX = "/api/v1"
-API_VERSION = "1"
 
 
 def create_api_v1_router(handlers: list[ControllerRouterHandler]) -> Router:

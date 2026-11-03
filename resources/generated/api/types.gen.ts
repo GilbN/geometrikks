@@ -541,6 +541,27 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * ApiKeyConnection
+ *
+ * A successfully authenticated API key. An expired key gets a 401 instead.
+ */
+export type ApiKeyConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  /**
+   * The key's expiry, or null if it never expires.
+   */
+  expiresAt: string | null;
+  mode: "apiKey";
+  name: string;
+  scope: "read" | "read_write";
+};
+
+/**
  * ApiKeyList
  *
  * Every stored API key, newest first.
@@ -1236,6 +1257,21 @@ export type DefaultMapView = {
 export type DefaultServerLocationView = {
   latitude: number;
   longitude: number;
+};
+
+/**
+ * DisabledConnection
+ *
+ * Authentication is disabled, so this response does not validate a supplied key.
+ */
+export type DisabledConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  mode: "disabled";
 };
 
 /**
@@ -3255,6 +3291,21 @@ export type ServerLocationsResponse = {
 };
 
 /**
+ * SessionConnection
+ *
+ * The request used an authenticated browser session.
+ */
+export type SessionConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  mode: "session";
+};
+
+/**
  * SessionUser
  *
  * The user of the current browser session.
@@ -5122,6 +5173,37 @@ export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses = {
 
 export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponse =
   ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses[keyof ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses];
+
+export type ApiV1AuthConnectionConnectionData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/connection";
+};
+
+export type ApiV1AuthConnectionConnectionErrors = {
+  /**
+   * Missing or invalid credentials.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The authentication store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthConnectionConnectionError =
+  ApiV1AuthConnectionConnectionErrors[keyof ApiV1AuthConnectionConnectionErrors];
+
+export type ApiV1AuthConnectionConnectionResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ApiKeyConnection | SessionConnection | DisabledConnection;
+};
+
+export type ApiV1AuthConnectionConnectionResponse =
+  ApiV1AuthConnectionConnectionResponses[keyof ApiV1AuthConnectionConnectionResponses];
 
 export type ApiV1AuthLoginLoginData = {
   body: LoginPayload;

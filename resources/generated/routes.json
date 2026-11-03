@@ -15,6 +15,13 @@
       ],
       "uri": "/api/v1/crowdsec/ban-networks"
     },
+    "connection": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/connection"
+    },
     "create_api_key": {
       "method": "post",
       "methods": [

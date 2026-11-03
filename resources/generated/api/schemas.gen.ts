@@ -1152,6 +1152,62 @@ export const AnalyticsSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const ApiKeyConnectionSchema = {
+  description:
+    "A successfully authenticated API key. An expired key gets a 401 instead.",
+  properties: {
+    apiVersion: {
+      type: "string",
+    },
+    appVersion: {
+      type: "string",
+    },
+    capabilities: {
+      description:
+        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+      items: {
+        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        type: "string",
+      },
+      type: "array",
+    },
+    expiresAt: {
+      description: "The key's expiry, or null if it never expires.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    mode: {
+      const: "apiKey",
+      type: "string",
+    },
+    name: {
+      type: "string",
+    },
+    scope: {
+      enum: ["read", "read_write"],
+      type: "string",
+    },
+  },
+  required: [
+    "apiVersion",
+    "appVersion",
+    "capabilities",
+    "expiresAt",
+    "mode",
+    "name",
+    "scope",
+  ],
+  title: "ApiKeyConnection",
+  type: "object",
+} as const;
+
 export const ApiKeyListSchema = {
   description: "Every stored API key, newest first.",
   properties: {
@@ -2392,6 +2448,35 @@ export const DefaultServerLocationViewSchema = {
   },
   required: ["latitude", "longitude"],
   title: "DefaultServerLocationView",
+  type: "object",
+} as const;
+
+export const DisabledConnectionSchema = {
+  description:
+    "Authentication is disabled, so this response does not validate a supplied key.",
+  properties: {
+    apiVersion: {
+      type: "string",
+    },
+    appVersion: {
+      type: "string",
+    },
+    capabilities: {
+      description:
+        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+      items: {
+        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        type: "string",
+      },
+      type: "array",
+    },
+    mode: {
+      const: "disabled",
+      type: "string",
+    },
+  },
+  required: ["apiVersion", "appVersion", "capabilities", "mode"],
+  title: "DisabledConnection",
   type: "object",
 } as const;
 
@@ -6693,6 +6778,34 @@ export const ServerLocationsResponseSchema = {
   },
   required: ["default", "locations"],
   title: "ServerLocationsResponse",
+  type: "object",
+} as const;
+
+export const SessionConnectionSchema = {
+  description: "The request used an authenticated browser session.",
+  properties: {
+    apiVersion: {
+      type: "string",
+    },
+    appVersion: {
+      type: "string",
+    },
+    capabilities: {
+      description:
+        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+      items: {
+        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        type: "string",
+      },
+      type: "array",
+    },
+    mode: {
+      const: "session",
+      type: "string",
+    },
+  },
+  required: ["apiVersion", "appVersion", "capabilities", "mode"],
+  title: "SessionConnection",
   type: "object",
 } as const;
 

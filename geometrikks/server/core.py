@@ -17,7 +17,8 @@ from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.openapi_docs import API_INTRO, API_TAGS
 from geometrikks.server.openapi_render import LiveRangeExamplesJsonPlugin
 from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS, document_error_codes
-from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
+from geometrikks.server.api_version import API_VERSION
+from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.logging import get_logger
 

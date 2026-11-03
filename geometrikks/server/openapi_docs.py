@@ -25,6 +25,12 @@ Every path under `/api/` and `/ws/` needs a key or a session. `/health`, `/healt
 `/api/v1/auth/oidc/callback` need neither. A server started with \
 `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.
 
+To test a connection, call `GET /api/v1/auth/connection`. It reports the app/API version, \
+authentication mode and configured features. With a key it also returns that key's name, scope and \
+expiry, without returning the secret. Invalid and expired keys get a coded 401. `mode: disabled` \
+means authentication is off and a supplied key has not been checked. Capabilities describe \
+configuration, not current upstream health or permission to write with a Read key.
+
 ## Scopes
 
 Every key has one of two scopes.
