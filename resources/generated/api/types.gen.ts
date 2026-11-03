@@ -3444,6 +3444,14 @@ export type SourceReport = {
    */
   label?: string;
   /**
+   * When this instance last parsed a line from this source into a record with a client IP. Unmatched lines and ignored IPs do not count. Processing time, not log time or commit time. Null until a record is parsed, or for older agents.
+   */
+  lastParsedAt?: string | null;
+  /**
+   * When this instance last read a new line from this source. Format samples and empty polls do not count. Uses the instance's clock. Null until a line is read, or for older agents.
+   */
+  lastReadAt?: string | null;
+  /**
    * The parser's log format, such as `traefik-json`. Null until it is known.
    */
   logFormat?: string | null;

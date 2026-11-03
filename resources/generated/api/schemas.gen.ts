@@ -7096,6 +7096,32 @@ export const SourceReportSchema = {
       description: "The file path, or the LogQL query of a Loki source.",
       type: "string",
     },
+    lastParsedAt: {
+      description:
+        "When this instance last parsed a line from this source into a record with a client IP. Unmatched lines and ignored IPs do not count. Processing time, not log time or commit time. Null until a record is parsed, or for older agents.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastReadAt: {
+      description:
+        "When this instance last read a new line from this source. Format samples and empty polls do not count. Uses the instance's clock. Null until a line is read, or for older agents.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     logFormat: {
       description:
         "The parser's log format, such as `traefik-json`. Null until it is known.",

@@ -42,6 +42,21 @@ class SourceReport(msgspec.Struct, rename="camel", kw_only=True):
         int,
         msgspec.Meta(description="Lines parsed from this source since the instance started."),
     ] = 0
+    last_read_at: Annotated[
+        datetime | None,
+        msgspec.Meta(description=(
+            "When this instance last read a new line from this source. Format samples and empty polls "
+            "do not count. Uses the instance's clock. Null until a line is read, or for older agents."
+        )),
+    ] = None
+    last_parsed_at: Annotated[
+        datetime | None,
+        msgspec.Meta(description=(
+            "When this instance last parsed a line from this source into a record with a client IP. "
+            "Unmatched lines and ignored IPs do not count. Processing time, not log time or commit time. "
+            "Null until a record is parsed, or for older agents."
+        )),
+    ] = None
 
 
 class JobReport(msgspec.Struct, rename="camel", kw_only=True):

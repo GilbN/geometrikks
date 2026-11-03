@@ -127,6 +127,16 @@ unavailable data is null rather than zero. `latestEventAt` is retained log time.
 is per process and does not prove a database commit. The CrowdSec count makes one LAPI request \
 with a two-second deadline. Use the detailed endpoints when you need individual records.
 
+## Source activity
+
+`GET /api/v1/instances` includes each instance's sources in `payload.sources`. Each source reports \
+`lastReadAt` when it last delivered a new line and `lastParsedAt` when it last produced a parsed record \
+with a client IP. Unmatched lines and ignored IPs advance only `lastReadAt`. Format samples, empty \
+polls and Loki overlap duplicates advance neither. The timestamps use the instance's clock and \
+arrive with its heartbeat, normally every 30 seconds. Check `lastSeen` and `checkingIn` too. Null \
+means no activity yet or an older agent. They reset when the instance restarts. They measure \
+processing activity, not log timestamps or database commits.
+
 ## Pagination
 
 Paged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, \

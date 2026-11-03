@@ -329,7 +329,16 @@ export function JobsList({ instance, now }: { instance: InstanceView; now: numbe
   )
 }
 
-export function SourcesList({ instance }: { instance: InstanceView }) {
+function SourceTime({ at, now }: { at: string | null | undefined; now: number }) {
+  if (!at) return <>Not reported yet</>
+  return (
+    <time dateTime={at} title={new Date(at).toLocaleString(undefined, { timeZoneName: "short" })}>
+      {relativeTime(at, now)}
+    </time>
+  )
+}
+
+export function SourcesList({ instance, now }: { instance: InstanceView; now: number }) {
   const sources = instance.payload?.sources ?? []
   if (sources.length === 0) return <p className="text-xs text-muted-foreground">No log sources reported.</p>
   return (
@@ -350,6 +359,12 @@ export function SourcesList({ instance }: { instance: InstanceView }) {
                 {details} · {(source.parsedLines ?? 0).toLocaleString()} lines
                 {!source.available && <span className="text-red-500"> · {sourceReasonLabel(source.reason)}</span>}
               </p>
+              <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-muted-foreground tabular-nums">
+                <dt>Last read</dt>
+                <dd><SourceTime at={source.lastReadAt} now={now} /></dd>
+                <dt>Last parsed</dt>
+                <dd><SourceTime at={source.lastParsedAt} now={now} /></dd>
+              </dl>
             </div>
           </li>
         )

@@ -728,6 +728,40 @@ async def test_service_ingests_from_loki_with_no_file_on_disk(fake: FakeLoki, cl
     assert service.total_processed == 1
 
 
+async def test_source_activity_ignores_empty_polls_and_overlap_duplicates(
+    fake: FakeLoki, clock: list[int],
+) -> None:
+    source = make_source(fake)
+    log_input = LogInput(source=source, parser=LogParser(source_label=source.label, log_format="nginx"))
+    service, _repos, _sessions = make_service([log_input])
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_until(lambda: len(fake.requests) >= 2)
+        assert log_input.last_read_at is None and log_input.last_parsed_at is None
+
+        fake.add(1001, LINE)
+        clock[0] = 1002 * NS
+        await wait_until(lambda: log_input.last_parsed_at is not None)
+        parsed_at = log_input.last_parsed_at
+        assert log_input.last_read_at == parsed_at
+
+        request_count = len(fake.requests)
+        await wait_until(lambda: len(fake.requests) >= request_count + 3)
+        assert log_input.last_read_at == parsed_at
+        assert log_input.last_parsed_at == parsed_at
+        assert log_input.parser.parsed_lines == 1
+
+        fake.add(1002, "unmatched line")
+        clock[0] = 1003 * NS
+        await wait_until(lambda: log_input.parser.skipped_lines == 1)
+        assert log_input.last_read_at is not None and parsed_at is not None
+        assert log_input.last_read_at > parsed_at
+        assert log_input.last_parsed_at == parsed_at
+    finally:
+        await service.stop(timeout=5.0)
+
+
 class AddsALineDuringTheFormatCheck(LokiSource):
     """Loki counterpart of tests.test_ingestion.WritesDuringFormatCheck."""
 

@@ -273,6 +273,29 @@ means the full decision list did not arrive within the deadline. The count
 includes all scopes and origins, including subscribed blocklists, and can differ
 from the Security page's filtered or grouped view.
 
+## Source activity
+
+`GET /api/v1/instances` reports each source under `instances[].payload.sources[]`.
+A Read API key can fetch it. File and Loki sources include:
+
+- `lastReadAt`: when this instance last received a new line from the source.
+  Format samples, empty polls and Loki overlap duplicates do not advance it.
+- `lastParsedAt`: when the source last produced a parsed record with a client IP,
+  using the same rules as `parsedLines`. Unmatched lines and ignored IPs do not
+  advance it. A parsed request classified as malformed still counts.
+
+Both fields use the instance's UTC clock. They measure processing activity;
+they do not report log timestamps, file modification times or committed writes.
+They start as null and reset when the source's input is recreated, normally
+on process restart. Older agents also report null. Reloading GeoIP readers
+preserves the timestamps.
+
+These reports arrive with heartbeats, normally every 30 seconds. Check the
+instance's `lastSeen` and `checkingIn` before treating its source data as current.
+An idle source can remain `available: true`; choose inactivity thresholds that
+fit the traffic expected from each source. Sources do not inherit activity
+from other sources on the same instance.
+
 ## Recent-record polling
 
 `GET /api/v1/access-logs?window=10m` selects the last ten minutes using log

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import httpx2
+import msgspec
 import pytest
 from litestar import Litestar
 
@@ -127,6 +128,29 @@ def _decoded_with_health(extra: dict[str, Any]) -> Any:
 def test_source_without_server_name_still_decodes() -> None:
     payload = _decoded_with_health({"sources": [{"kind": "file"}]})
     assert payload.sources[0].server_name == ""
+    assert payload.sources[0].last_read_at is None
+    assert payload.sources[0].last_parsed_at is None
+
+
+def test_source_activity_survives_heartbeat_serialization() -> None:
+    service = _service_with_two_sources()
+    read_at = datetime(2026, 11, 3, 12, tzinfo=timezone.utc)
+    parsed_at = datetime(2026, 11, 3, 11, tzinfo=timezone.utc)
+    service.inputs[0].last_read_at = read_at
+    service.inputs[0].last_parsed_at = parsed_at
+    service.inputs[1].last_read_at = parsed_at
+    app = Litestar(route_handlers=[])
+    app.state.ingestion_service = service
+
+    raw = msgspec.to_builtins(_build(app))
+    assert raw["sources"][0]["lastReadAt"] == "2026-11-03T12:00:00Z"
+    assert raw["sources"][0]["lastParsedAt"] == "2026-11-03T11:00:00Z"
+    assert raw["sources"][1]["lastReadAt"] == "2026-11-03T11:00:00Z"
+    assert raw["sources"][1]["lastParsedAt"] is None
+    decoded = decode_payload(raw)
+    assert decoded is not None
+    assert decoded.sources[0].last_read_at == read_at
+    assert decoded.sources[0].last_parsed_at == parsed_at
 
 
 def test_job_with_only_an_id_still_decodes() -> None:
