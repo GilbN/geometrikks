@@ -736,7 +736,9 @@ export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   });
 
 /**
- * ListApiKeys
+ * List API keys
+ *
+ * Returns every key, newest first, with its scope, expiry, and when and from which IP it was last used. The key itself never appears after creation. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthApiKeysListApiKeys = <
   ThrowOnError extends boolean = false,
@@ -764,7 +766,9 @@ export const apiV1AuthApiKeysListApiKeys = <
   });
 
 /**
- * CreateApiKey
+ * Create an API key
+ *
+ * Creates a key and returns it in `key`. This is the only time the full key appears, so store it now. A taken name gets a 409, and a name outside 1 to 64 characters or an expiry in the past gets a 400. Send the body as `application/json`. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthApiKeysCreateApiKey = <
   ThrowOnError extends boolean = false,
@@ -796,7 +800,9 @@ export const apiV1AuthApiKeysCreateApiKey = <
   });
 
 /**
- * RevokeApiKey
+ * Revoke an API key
+ *
+ * Deletes the key, so every request that sends it gets a 401 from then on. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
   ThrowOnError extends boolean = false,
@@ -824,7 +830,9 @@ export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
   });
 
 /**
- * Login
+ * Log in with the admin username and password
+ *
+ * Checks the admin username and password, starts a browser session and sets its cookie. Wrong credentials get a 401, and so does every attempt while password login is off because only OIDC is set up. A 503 means the database is down and nobody can log in. With APP_AUTH_DISABLED=true it checks nothing and answers with `mode` set to `disabled`.
  */
 export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
   options: Options<ApiV1AuthLoginLoginData, ThrowOnError>,
@@ -855,7 +863,9 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Logout
+ * Log out and end the browser session
+ *
+ * Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the identity provider's sign-out URL. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
@@ -877,7 +887,9 @@ export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Me
+ * Get the logged-in user
+ *
+ * Returns the username and how the user logged in. A request without a session gets a 401. With APP_AUTH_DISABLED=true it answers with `mode` set to `disabled`. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthMeMeData, ThrowOnError>,
@@ -899,7 +911,9 @@ export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * OidcStatus
+ * Get the OIDC single sign-on status
+ *
+ * Reports whether OIDC is configured, whether discovery against the issuer worked and the last discovery error. It also says whether password login and identity provider logout are on. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthOidcStatusOidcStatus = <
   ThrowOnError extends boolean = false,
@@ -927,7 +941,9 @@ export const apiV1AuthOidcStatusOidcStatus = <
   });
 
 /**
- * Options
+ * List the login methods this server offers
+ *
+ * Says whether password login is on and, when OIDC single sign-on is set up, gives the provider's name. It needs no credentials, so the login page can call it first. With APP_AUTH_DISABLED=true both are off.
  */
 export const apiV1AuthOptionsOptions = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthOptionsOptionsData, ThrowOnError>,
@@ -1944,9 +1960,9 @@ export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
   });
 
 /**
- * ListInstances
+ * List the head and the agents that send heartbeats
  *
- * List the head and every agent that reports a heartbeat, the head first, with a status and a list of problems for each.
+ * Lists every instance that sends heartbeats, with a status and the problems found for each. The head that answers comes first, then the rest with critical problems first. An instance silent for over 3 minutes shows `checkingIn` false. A 503 means the app runs without its database.
  */
 export const apiV1InstancesListInstances = <
   ThrowOnError extends boolean = false,
@@ -1975,9 +1991,9 @@ export const apiV1InstancesListInstances = <
   });
 
 /**
- * DeleteInstance
+ * Remove a retired instance from the list
  *
- * Remove a retired instance from the list. An instance that is still running reappears at its next heartbeat. The head cannot remove itself.
+ * Deletes the instance's heartbeat row. An instance that is still running reappears at its next heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a browser session.
  */
 export const apiV1InstancesInstanceNameDeleteInstance = <
   ThrowOnError extends boolean = false,
@@ -2006,7 +2022,9 @@ export const apiV1InstancesInstanceNameDeleteInstance = <
   });
 
 /**
- * ListFiles
+ * List the log files you can download
+ *
+ * Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` false.
  */
 export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsFilesListFilesData, ThrowOnError>,
@@ -2029,7 +2047,9 @@ export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Download
+ * Download a log file
+ *
+ * Sends the file as an attachment, as gzip for a `.gz` archive and as plain text otherwise. Only a file that the file list shows as available can be downloaded. Anything else gets a 404.
  */
 export const apiV1LogsFilesKindNameDownload = <
   ThrowOnError extends boolean = false,
@@ -2058,7 +2078,9 @@ export const apiV1LogsFilesKindNameDownload = <
   });
 
 /**
- * Rotate
+ * Rotate the app and login logs now
+ *
+ * Starts fresh log files and gzips the old ones into archives. A log that is empty is left alone. Returns the names of the files that rotated. Needs a Read/write API key or a browser session.
  */
 export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsRotateRotateData, ThrowOnError>,
@@ -2081,7 +2103,9 @@ export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Tail
+ * Get the newest app or login log records
+ *
+ * Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. Lines that do not parse are skipped, so fewer records can come back. App log records keep every key the event carried, so expect more keys than the schema lists.
  */
 export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsTailTailData, ThrowOnError>,
@@ -2170,7 +2194,9 @@ export const apiV1ReportsAbuseContactGetAbuseContact = <
   });
 
 /**
- * ReadSettings
+ * Get the settings the web app needs
+ *
+ * Returns the app name and version, the retention days, the access log paths and the map setup. Use `/api/v1/system/settings` for every setting with its environment variable.
  */
 export const apiV1SettingsReadSettings = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SettingsReadSettingsData, ThrowOnError>,
@@ -2216,7 +2242,9 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * GetAbout
+ * Get version, runtime and database details
+ *
+ * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. The database fields are null when the database is unreachable.
  */
 export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SystemAboutGetAboutData, ThrowOnError>,
@@ -2239,7 +2267,9 @@ export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * GetAsnClassification
+ * List the ASNs that count as hosting providers
+ *
+ * Returns the bundled list that puts an ASN in the hosting category on the ASN views, with its source and license. All of its roughly 700 entries come in one response.
  */
 export const apiV1SystemAsnClassificationGetAsnClassification = <
   ThrowOnError extends boolean = false,
@@ -2271,7 +2301,9 @@ export const apiV1SystemAsnClassificationGetAsnClassification = <
   });
 
 /**
- * GetChangelog
+ * List the releases in the changelog
+ *
+ * Returns every release in the bundled CHANGELOG.md, newest first, with its sections and entries. Entry text keeps its inline markdown. The list is empty when the install has no changelog.
  */
 export const apiV1SystemChangelogGetChangelog = <
   ThrowOnError extends boolean = false,
@@ -2300,7 +2332,9 @@ export const apiV1SystemChangelogGetChangelog = <
   });
 
 /**
- * GetDatabaseInfo
+ * Get the database size, retention and table stats
+ *
+ * Returns the database size, the PostgreSQL and TimescaleDB versions, the retention days, and row and size estimates for the geo_events, access_logs and access_log_debug tables. With the database unreachable it still answers 200, with `reachable` false and the stats null or empty.
  */
 export const apiV1SystemDatabaseGetDatabaseInfo = <
   ThrowOnError extends boolean = false,
@@ -2329,7 +2363,9 @@ export const apiV1SystemDatabaseGetDatabaseInfo = <
   });
 
 /**
- * GetReleaseCheck
+ * Get the newest release above the running version
+ *
+ * Reports the last check against GitHub Releases. `status` is `off` with APP_UPDATE_CHECK=false, with SCHEDULER_ENABLED=false, on agents and on local builds. This endpoint never calls GitHub itself.
  */
 export const apiV1SystemReleaseCheckGetReleaseCheck = <
   ThrowOnError extends boolean = false,
@@ -2358,7 +2394,9 @@ export const apiV1SystemReleaseCheckGetReleaseCheck = <
   });
 
 /**
- * GetSchedulerJobs
+ * List the scheduler jobs
+ *
+ * Returns every scheduled job with its trigger, its next run and the outcome of its last run since this process started.
  */
 export const apiV1SystemSchedulerJobsGetSchedulerJobs = <
   ThrowOnError extends boolean = false,
@@ -2387,7 +2425,9 @@ export const apiV1SystemSchedulerJobsGetSchedulerJobs = <
   });
 
 /**
- * RunSchedulerJob
+ * Run a scheduler job now
+ *
+ * Moves the job's next run to now and answers 202 right away, before the job finishes. A job that is already running does not start a second time, and an interval job counts its next run from this one. An unknown job id gets a 404. Needs a Read/write API key or a browser session.
  */
 export const apiV1SystemSchedulerJobsJobIdRunRunSchedulerJob = <
   ThrowOnError extends boolean = false,
@@ -2419,7 +2459,9 @@ export const apiV1SystemSchedulerJobsJobIdRunRunSchedulerJob = <
   });
 
 /**
- * GetSystemSettings
+ * Get every setting with its environment variable
+ *
+ * Returns the whole configuration in sections, with each setting's value, default, description and environment variable. A secret that is set shows as `******` and one that is not shows as null. Some rows add a value worked out at runtime, such as the auto-detected server location.
  */
 export const apiV1SystemSettingsGetSystemSettings = <
   ThrowOnError extends boolean = false,
@@ -2448,7 +2490,9 @@ export const apiV1SystemSettingsGetSystemSettings = <
   });
 
 /**
- * Health
+ * Check that the app is up and how its parts are doing
+ *
+ * Answers 200 whenever the process serves requests, so Docker and load balancers can use it as a liveness probe. Read `status` and the component objects to find a problem, and `advisories` for what needs fixing. No credentials needed.
  */
 export const healthHealth = <ThrowOnError extends boolean = false>(
   options?: Options<HealthHealthData, ThrowOnError>,
@@ -2469,7 +2513,9 @@ export const healthHealth = <ThrowOnError extends boolean = false>(
   );
 
 /**
- * HealthReady
+ * Check that the app is ready for traffic
+ *
+ * Answers 200 with `ready` true once `SELECT 1` against the database answers within two seconds, and 503 with `ready` false until then. An agent also waits for its startup schema check, and one whose check timed out stays at 503 until it restarts. No credentials needed.
  */
 export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
   options?: Options<HealthReadyHealthReadyData, ThrowOnError>,

@@ -24,6 +24,7 @@ import hashlib
 import re
 from datetime import date
 from functools import lru_cache
+from typing import Annotated
 from pathlib import Path
 
 import msgspec
@@ -42,24 +43,32 @@ _LINK_REF_RE = re.compile(r"^\[(?P<version>[^\]]+)\]:\s*(?P<url>\S+)\s*$")
 
 
 class ChangelogEntry(msgspec.Struct, rename="camel"):
+    """One changelog bullet, with its nested bullets in `children`. The text keeps its inline markdown."""
+
     text: str
     children: list[str]
 
 
 class ChangelogSection(msgspec.Struct, rename="camel"):
-    kind: str
+    """The entries of one kind within a release."""
+
+    kind: Annotated[str, msgspec.Meta(description="The section heading, such as `Added`, `Changed` or `Fixed`.")]
     entries: list[ChangelogEntry]
 
 
 class ChangelogRelease(msgspec.Struct, rename="camel"):
-    version: str
-    date: date | None
+    """One release in the changelog."""
+
+    version: Annotated[str, msgspec.Meta(description="The version, or `Unreleased` for changes not released yet.")]
+    date: Annotated[date | None, msgspec.Meta(description="The release date. Null when the heading has none, as for Unreleased.")]
     unreleased: bool
-    url: str | None
+    url: Annotated[str | None, msgspec.Meta(description="The release's tag or compare page, when the changelog links one.")]
     sections: list[ChangelogSection]
 
 
 class ChangelogResponse(msgspec.Struct, rename="camel"):
+    """Every release in the changelog, newest first."""
+
     releases: list[ChangelogRelease]
 
 

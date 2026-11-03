@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Annotated
 
 import msgspec
 
@@ -42,12 +43,14 @@ class DropListsResponse(msgspec.Struct, rename="camel"):
 
 
 class DropListsAboutView(msgspec.Struct, rename="camel"):
+    """The state of the Spamhaus DROP lists."""
+
     enabled: bool
-    loaded: bool
-    updated_at: datetime | None
-    stale: bool
-    copyright: str | None
-    terms_url: str
+    loaded: Annotated[bool, msgspec.Meta(description="Whether at least one feed has been fetched.")]
+    updated_at: Annotated[datetime | None, msgspec.Meta(description="When the most recent feed fetch succeeded.")]
+    stale: Annotated[bool, msgspec.Meta(description="True when `updatedAt` is more than 7 days ago.")]
+    copyright: Annotated[str | None, msgspec.Meta(description="The copyright line Spamhaus ships with the feeds.")]
+    terms_url: Annotated[str, msgspec.Meta(description="Spamhaus's terms of use for the DROP lists.")]
     feeds: list[DropFeedView]
 
 

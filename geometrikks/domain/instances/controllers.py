@@ -34,9 +34,11 @@ class InstanceController(Controller):
     @get(
         "/",
         return_dto=None,
+        summary="List the head and the agents that send heartbeats",
         description=(
-            "List the head and every agent that reports a heartbeat, the head first, "
-            "with a status and a list of problems for each."
+            "Lists every instance that sends heartbeats, with a status and the problems found for each. The "
+            "head that answers comes first, then the rest with critical problems first. An instance silent "
+            "for over 3 minutes shows `checkingIn` false. A 503 means the app runs without its database."
         ),
         responses={HTTP_503_SERVICE_UNAVAILABLE: _DATABASE_UNAVAILABLE},
     )
@@ -52,9 +54,11 @@ class InstanceController(Controller):
     @delete(
         "/{instance_name:str}",
         return_dto=None,
+        summary="Remove a retired instance from the list",
         description=(
-            "Remove a retired instance from the list. An instance that is still "
-            "running reappears at its next heartbeat. The head cannot remove itself."
+            "Deletes the instance's heartbeat row. An instance that is still running reappears at its next "
+            "heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a "
+            "browser session."
         ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
@@ -71,7 +75,7 @@ class InstanceController(Controller):
         request: Request,
         db_session: NamedDependency[AsyncSession],
         settings: NamedDependency[SkipValidation[Settings]],
-        instance_name: Annotated[str, PathParameter(description="Name of the instance to remove")],
+        instance_name: Annotated[str, PathParameter(description="The `instanceName` from the instance list.")],
     ) -> None:
         _require_database(request)
         user = request.scope.get("user")

@@ -32,13 +32,15 @@ _WARNING_LOGIN_EVENTS = frozenset({"login_failed", "api_key_rejected"})
 LogFileKind = Literal["app", "login", "access"]
 
 
+# App-log records are structlog JSONL events, so they carry arbitrary
+# additional context keys at runtime; a TypedDict is a plain dict, so
+# those keys pass through the API untouched while the schema documents
+# the fields every record can be expected to have.
 class LogTailRecord(TypedDict, total=False):
-    """Stable fields of a tailed log record.
+    """One log record.
 
-    App-log records are structlog JSONL events, so they carry arbitrary
-    additional context keys at runtime; a TypedDict is a plain dict, so
-    those keys pass through the API untouched while the schema documents
-    the fields every record can be expected to have.
+    An app log record holds the JSON event as GeoMetrikks wrote it, with more keys than these. A login log
+    record has `timestamp`, `level`, `event`, `logger` and `user`, plus `ip` and `key` when the line has them.
     """
 
     timestamp: str

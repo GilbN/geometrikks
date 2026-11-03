@@ -5,7 +5,7 @@ or newer release still decodes. Keys are only ever added, never renamed or
 repurposed.
 """
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 import msgspec
 
@@ -28,42 +28,72 @@ class ForwardedAdvisory(msgspec.Struct, rename="camel", kw_only=True):
 
 
 class SourceReport(msgspec.Struct, rename="camel", kw_only=True):
-    kind: str = ""
-    label: str = ""
-    server_name: str = ""
-    log_format: str | None = None
+    """A log source the instance tails."""
+
+    kind: Annotated[str, msgspec.Meta(description="`file` or `loki`.")] = ""
+    label: Annotated[str, msgspec.Meta(description="The file path, or the LogQL query of a Loki source.")] = ""
+    server_name: Annotated[str, msgspec.Meta(description="The server name its log lines are recorded under.")] = ""
+    log_format: Annotated[
+        str | None, msgspec.Meta(description="The parser's log format, such as `traefik-json`. Null until it is known.")
+    ] = None
     available: bool = True
-    reason: str | None = None
-    parsed_lines: int = 0
+    reason: Annotated[str | None, msgspec.Meta(description="Why the source is unavailable, when it is.")] = None
+    parsed_lines: Annotated[int, msgspec.Meta(description="Lines parsed from this source since the instance started.")] = 0
 
 
 class JobReport(msgspec.Struct, rename="camel", kw_only=True):
+    """A scheduler job on the instance."""
+
     id: str = ""
     name: str = ""
     next_run_time: datetime | None = None
     last_start: datetime | None = None
-    last_status: str | None = None
-    last_error: str | None = None
+    last_status: Annotated[str | None, msgspec.Meta(description="`success`, `error` or `missed`.")] = None
+    last_error: Annotated[
+        str | None, msgspec.Meta(description=f"The error of the last run, cut to {ERROR_MESSAGE_MAX_CHARS} characters.")
+    ] = None
 
 
 class LastErrorReport(msgspec.Struct, rename="camel", kw_only=True):
+    """The last failed database write on the instance."""
+
     message: str = ""
     at: datetime | None = None
 
 
 class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
-    health: dict[str, Any] = {}
+    """The details an instance sends with each heartbeat.
+
+    The 5-minute counts are null until the instance has run for 5 minutes.
+    """
+
+    health: Annotated[
+        dict[str, Any],
+        msgspec.Meta(description="The instance's health report. `health` on the instance gives it typed."),
+    ] = {}
     jobs: list[JobReport] = []
     last_error: LastErrorReport | None = None
-    lines_5m: int | None = None
-    failed_5m: int | None = None
-    written_5m: int | None = None
-    failed_batches_5m: int | None = None
-    recent_starts: list[datetime] = []
-    name_conflict_at: datetime | None = None
-    server_names: list[str] = []
+    lines_5m: Annotated[int | None, msgspec.Meta(description="Log lines parsed in the last 5 minutes.")] = None
+    failed_5m: Annotated[int | None, msgspec.Meta(description="Records that failed to write in the last 5 minutes.")] = None
+    written_5m: Annotated[int | None, msgspec.Meta(description="Records written in the last 5 minutes.")] = None
+    failed_batches_5m: Annotated[
+        int | None, msgspec.Meta(description="Database writes that failed in the last 5 minutes.")
+    ] = None
+    recent_starts: Annotated[
+        list[datetime], msgspec.Meta(description="When the process started, for up to its last 10 starts.")
+    ] = []
+    name_conflict_at: Annotated[
+        datetime | None,
+        msgspec.Meta(description="When another process last sent heartbeats under the same instance name."),
+    ] = None
+    server_names: Annotated[
+        list[str], msgspec.Meta(description="The server names the instance records log lines under.")
+    ] = []
     sources: list[SourceReport] = []
-    instance_name_source: str = "fallback"
+    instance_name_source: Annotated[
+        str,
+        msgspec.Meta(description="`configured` when APP_INSTANCE_NAME is set, `fallback` when the name is the default."),
+    ] = "fallback"
 
 
 def decode_payload(raw: dict[str, Any]) -> HeartbeatPayload | None:

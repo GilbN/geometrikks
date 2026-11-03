@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 import msgspec
-from typing import Any, get_args
+from typing import Annotated, Any, get_args
 
 from pydantic import SecretStr
 from pydantic.fields import FieldInfo
@@ -46,24 +46,43 @@ _SECTION_TITLES = {
 
 
 class SettingFieldView(msgspec.Struct, rename="camel"):
-    key: str
-    value: Any
-    default: Any
+    """One setting, or a value worked out at runtime that has no setting of its own."""
+
+    key: Annotated[str, msgspec.Meta(description="The setting's name inside its section, such as `raw_retention_days`.")]
+    value: Annotated[
+        Any,
+        msgspec.Meta(description=f"The current value. A secret shows as `{SECRET_PLACEHOLDER}` when set and null when not."),
+    ]
+    default: Annotated[
+        Any, msgspec.Meta(description="The default value. Null when the setting has no fixed default.")
+    ]
     description: str | None
-    env_var: str | None
+    env_var: Annotated[
+        str | None,
+        msgspec.Meta(description="The environment variable that sets it. Null for a value worked out at runtime."),
+    ]
     is_secret: bool
-    computed_value: Any = None
-    computed_source: str | None = None
+    computed_value: Annotated[
+        Any, msgspec.Meta(description="The value in effect when GeoMetrikks worked it out at runtime, else null.")
+    ] = None
+    computed_source: Annotated[
+        str | None,
+        msgspec.Meta(description="Where `computedValue` came from, `runtime` or `external_ip`."),
+    ] = None
 
 
 class SettingsSectionView(msgspec.Struct, rename="camel"):
-    name: str
+    """A group of settings that share an environment variable prefix."""
+
+    name: Annotated[str, msgspec.Meta(description="The section key, such as `geoip` or `crowdsec`.")]
     title: str
     description: str | None
     fields: list[SettingFieldView]
 
 
 class SystemSettingsResponse(msgspec.Struct, rename="camel"):
+    """Every setting, grouped into sections, with secrets hidden."""
+
     sections: list[SettingsSectionView]
 
 

@@ -7,6 +7,8 @@ exposed; add new fields consciously.
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import msgspec
 
 from litestar import Request, get
@@ -19,50 +21,98 @@ from geometrikks.services.geoip.self_location import SelfLocation, SelfLocationS
 
 
 class LogparserSettingsView(msgspec.Struct, rename="camel"):
-    log_paths: list[str]
-    send_logs: bool
-    store_debug_lines: bool
+    """The log ingestion settings."""
+
+    log_paths: Annotated[list[str], msgspec.Meta(description="The access log files this server tails, from LOGPARSER_LOG_PATHS.")]
+    send_logs: Annotated[bool, msgspec.Meta(description="Whether parsed log lines are written to the database.")]
+    store_debug_lines: Annotated[
+        bool,
+        msgspec.Meta(description="Whether every raw line goes to the debug table. When false, only malformed ones do."),
+    ]
 
 
 class AnalyticsSettingsView(msgspec.Struct, rename="camel"):
-    raw_retention_days: int
-    debug_retention_days: int
-    hourly_retention_days: int
-    compression_after_days: int
+    """How long the database keeps each kind of data, in days."""
+
+    raw_retention_days: Annotated[int, msgspec.Meta(description="Days to keep raw geo events and access log lines.")]
+    debug_retention_days: Annotated[int, msgspec.Meta(description="Days to keep the access log debug lines.")]
+    hourly_retention_days: Annotated[
+        int, msgspec.Meta(description="Days to keep the hourly aggregates. The daily aggregates are kept forever.")
+    ]
+    compression_after_days: Annotated[int, msgspec.Meta(description="Days after which stored data is compressed.")]
 
 
 class DefaultMapView(msgspec.Struct, rename="camel"):
+    """Where the map opens, from MAP_DEFAULT_VIEW."""
+
     latitude: float
     longitude: float
-    zoom: float
+    zoom: Annotated[float, msgspec.Meta(description="The zoom level, from 0 to 22.")]
 
 
 class MapSettingsView(msgspec.Struct, rename="camel"):
-    server_latitude: float | None
-    server_longitude: float | None
-    server_location_source: SelfLocationSource | None
-    carto_api_key: str | None
-    default_view: DefaultMapView | None
+    """The map setup."""
+
+    server_latitude: Annotated[
+        float | None, msgspec.Meta(description="Where this server sits, in decimal degrees. Null when unknown.")
+    ]
+    server_longitude: Annotated[
+        float | None, msgspec.Meta(description="Where this server sits, in decimal degrees. Null when unknown.")
+    ]
+    server_location_source: Annotated[
+        SelfLocationSource | None,
+        msgspec.Meta(
+            description=(
+                "`configured` when MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE set the location, `external_ip` "
+                "when GeoMetrikks looked up its own public IP."
+            )
+        ),
+    ]
+    carto_api_key: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "The CARTO basemap key from MAP_CARTO_API_KEY, or null. It is no secret, since the browser sends "
+                "it with every map tile request."
+            )
+        ),
+    ]
+    default_view: Annotated[
+        DefaultMapView | None,
+        msgspec.Meta(description="Null means the map opens on the server locations, or on the whole world."),
+    ]
 
 
 class RuntimeSettingsView(msgspec.Struct, rename="camel"):
-    """Non-sensitive information about the executing application image."""
+    """Where the app runs."""
 
-    container: bool
-    image_tag: str | None
+    container: Annotated[bool, msgspec.Meta(description="Whether the app runs from the GeoMetrikks container image.")]
+    image_tag: Annotated[str | None, msgspec.Meta(description="The container image tag. Null outside a container.")]
 
 
 class SafeSettingsResponse(msgspec.Struct, rename="camel"):
+    """The settings the web app reads to set itself up. No credentials appear here."""
+
     name: str
     version: str
-    environment: str
+    environment: Annotated[
+        str, msgspec.Meta(description="APP_ENVIRONMENT, one of `development`, `staging` or `production`.")
+    ]
     runtime: RuntimeSettingsView
     logparser: LogparserSettingsView
     analytics: AnalyticsSettingsView
     map: MapSettingsView
 
 
-@get("/settings", tags=["Settings"])
+@get(
+    "/settings",
+    tags=["Settings"],
+    summary="Get the settings the web app needs",
+    description=(
+        "Returns the app name and version, the retention days, the access log paths and the map setup. "
+        "Use `/api/v1/system/settings` for every setting with its environment variable."
+    ),
+)
 async def read_settings(
     request: Request, settings: NamedDependency[SkipValidation[Settings]]
 ) -> SafeSettingsResponse:

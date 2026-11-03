@@ -6,20 +6,42 @@ export type ClientOptions = {
 
 /**
  * AboutAppView
+ *
+ * The running app.
  */
 export type AboutAppView = {
+  /**
+   * A short hash of the bundled CHANGELOG.md that changes whenever the changelog does. Null when the install has no changelog.
+   */
   changelogDigest: string | null;
+  /**
+   * The git commit the app was built from, when known.
+   */
   commit: string | null;
+  /**
+   * Whether the app runs from the GeoMetrikks container image.
+   */
   container: boolean;
+  /**
+   * APP_ENVIRONMENT, one of `development`, `staging` or `production`.
+   */
   environment: string;
+  /**
+   * The container image tag. Null outside a container.
+   */
   imageTag: string | null;
   name: string;
+  /**
+   * When this process started.
+   */
   startedAt: string | null;
   version: string;
 };
 
 /**
  * AboutLinksView
+ *
+ * Links to the GeoMetrikks repository and its issue tracker.
  */
 export type AboutLinksView = {
   issues: string;
@@ -28,6 +50,11 @@ export type AboutLinksView = {
 
 /**
  * AboutResponse
+ *
+ * Version, runtime and database details for the About page.
+ *
+ * `geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null
+ * with DROP_ENABLED=false, or when the database cannot answer.
  */
 export type AboutResponse = {
   app: AboutAppView;
@@ -36,6 +63,9 @@ export type AboutResponse = {
   dropLists?: DropListsAboutView | null;
   geoip: GeoIpInfoView;
   geoipAsn?: GeoIpInfoView | null;
+  /**
+   * Whether ASN lookups are on. With it false, `geoipAsn` may still describe a file.
+   */
   geoipAsnEnabled?: boolean;
   links: AboutLinksView;
   runtime: RuntimeVersionsView;
@@ -43,6 +73,8 @@ export type AboutResponse = {
 
 /**
  * AbuseContactResponse
+ *
+ * RDAP answer for an IP or AS number: the holder and its abuse contact.
  */
 export type AbuseContactResponse = {
   abuseEmails: Array<string>;
@@ -61,6 +93,12 @@ export type AbuseContactResponse = {
 
 /**
  * AbuseReportResponse
+ *
+ * Evidence for an abuse report, in UTC, with the operator's names removed.
+ *
+ * ``ipCount``, ``totalRequests`` and ``status4xx`` cover every IP of the
+ * target in the window; ``ips`` holds the busiest ``maxIps`` of them. ``redactions``
+ * counts the operator names and addresses scrubbed from paths and user agents.
  */
 export type AbuseReportResponse = {
   crowdsec: ReportCrowdSec;
@@ -78,6 +116,13 @@ export type AbuseReportResponse = {
 
 /**
  * AccessLogDebugEntry
+ *
+ * One debug row with its access-log context, flattened for the table.
+ *
+ * The context fields are read straight off access_log_debug, where ingestion
+ * denormalized them; nothing here joins access_logs. They are None when the
+ * raw line never parsed into an access_logs row (access_log_id is a soft
+ * reference; no FK on hypertables).
  */
 export type AccessLogDebugEntry = {
   accessLogId?: number | null;
@@ -102,6 +147,8 @@ export type AccessLogDebugEntry = {
 
 /**
  * AccessLogDebugStats
+ *
+ * Aggregates for the debug-logs stat cards, scoped to a time range.
  */
 export type AccessLogDebugStats = {
   malformed: number;
@@ -111,6 +158,8 @@ export type AccessLogDebugStats = {
 
 /**
  * AccessLogFacets
+ *
+ * Distinct filterable values present in the access-log data.
  */
 export type AccessLogFacets = {
   cities: Array<string>;
@@ -122,13 +171,30 @@ export type AccessLogFacets = {
 
 /**
  * Advisory
+ *
+ * A problem that needs an operator's attention.
  */
 export type Advisory = {
+  /**
+   * What the problem means and how to fix it.
+   */
   detail?: string | null;
+  /**
+   * A link to the documentation for this problem.
+   */
   docsUrl?: string | null;
+  /**
+   * Names the kind of problem and stays the same, such as `asn-database-missing`.
+   */
   id: string;
+  /**
+   * The settings, command or short instruction that fixes the problem, when there is one.
+   */
   remedy?: string | null;
   severity: "warning" | "critical";
+  /**
+   * One or two sentences that name the problem.
+   */
   summary: string;
 };
 
@@ -225,40 +291,84 @@ export type AlertView = {
 
 /**
  * AnalyticsSettingsView
+ *
+ * How long the database keeps each kind of data, in days.
  */
 export type AnalyticsSettingsView = {
+  /**
+   * Days after which stored data is compressed.
+   */
   compressionAfterDays: number;
+  /**
+   * Days to keep the access log debug lines.
+   */
   debugRetentionDays: number;
+  /**
+   * Days to keep the hourly aggregates. The daily aggregates are kept forever.
+   */
   hourlyRetentionDays: number;
+  /**
+   * Days to keep raw geo events and access log lines.
+   */
   rawRetentionDays: number;
 };
 
 /**
  * ApiKeyList
+ *
+ * Every stored API key, newest first.
  */
 export type ApiKeyList = {
+  /**
+   * False on a server with APP_AUTH_DISABLED=true, where keys cannot exist.
+   */
   available: boolean;
   keys: Array<ApiKeyView>;
 };
 
 /**
  * ApiKeyView
+ *
+ * A stored API key. The key itself is never part of it.
  */
 export type ApiKeyView = {
   createdAt: string;
+  /**
+   * The username that created the key.
+   */
   createdBy: string;
+  /**
+   * The first eight characters of the key. They identify it here and in login.log.
+   */
   displayPrefix: string;
+  /**
+   * Whether `expiresAt` has passed. An expired key stays in the list until you revoke it.
+   */
   expired: boolean;
+  /**
+   * When the key stops working. Null means never.
+   */
   expiresAt: string | null;
   id: string;
+  /**
+   * When a request last used the key, or null if none has. It updates at most once a minute while the IP stays the same.
+   */
   lastUsedAt: string | null;
+  /**
+   * The client IP of the request that last used the key.
+   */
   lastUsedIp: string | null;
   name: string;
+  /**
+   * `read` allows GET and HEAD requests and the WebSocket feeds. `read_write` also allows writes.
+   */
   scope: "read" | "read_write";
 };
 
 /**
  * AsnCategoryTotalsDTO
+ *
+ * Aggregate hits/bytes for one traffic-origin category.
  */
 export type AsnCategoryTotalsDto = {
   category: "drop" | "hosting" | "other";
@@ -268,6 +378,8 @@ export type AsnCategoryTotalsDto = {
 
 /**
  * AsnClassificationListResponse
+ *
+ * The bundled list of hosting ASNs, with its source and license.
  */
 export type AsnClassificationListResponse = {
   dataset: string;
@@ -278,9 +390,14 @@ export type AsnClassificationListResponse = {
 
 /**
  * AsnClassificationView
+ *
+ * The bundled list of hosting ASNs that sorts ASNs into hosting and other.
  */
 export type AsnClassificationView = {
   dataset: string;
+  /**
+   * How many ASNs the list holds.
+   */
   entries: number;
   license: string;
   sourceUrl: string;
@@ -288,6 +405,8 @@ export type AsnClassificationView = {
 
 /**
  * AuthDisabled
+ *
+ * The server runs with APP_AUTH_DISABLED=true, so there is no session and no user.
  */
 export type AuthDisabled = {
   mode: "disabled";
@@ -295,9 +414,14 @@ export type AuthDisabled = {
 
 /**
  * AuthOptions
+ *
+ * The login methods this server offers.
  */
 export type AuthOptions = {
   oidc: OidcOption | null;
+  /**
+   * Whether the username and password login is on.
+   */
   password: boolean;
 };
 
@@ -313,6 +437,10 @@ export type BanNetworkResult = {
 
 /**
  * BanNetworksRequest
+ *
+ * Ban DROP networks: name them, or ask for every unbanned one with traffic.
+ *
+ * Exactly one of ``networks`` and ``all_unbanned_days`` must be set.
  */
 export type BanNetworksRequest = {
   allUnbannedDays?: 7 | 30 | 90 | null;
@@ -340,6 +468,8 @@ export type BanRequest = {
 
 /**
  * BannedIp
+ *
+ * One badge entry: an IP under a decision and the type worth showing.
  */
 export type BannedIp = {
   ip: string;
@@ -387,6 +517,8 @@ export type BannedMapProperties = {
 
 /**
  * BannedMapStats
+ *
+ * Totals over the mapped IPs, computed from the same list the features carry.
  */
 export type BannedMapStats = {
   cities: number;
@@ -398,6 +530,10 @@ export type BannedMapStats = {
 
 /**
  * BannedRangeView
+ *
+ * A CIDR under an active ban and the strongest type on it.
+ *
+ * A single-address DROP network, banned as an Ip decision, appears as its /32 or /128.
  */
 export type BannedRangeView = {
   expiresAt: string | null;
@@ -407,6 +543,8 @@ export type BannedRangeView = {
 
 /**
  * ChangelogEntry
+ *
+ * One changelog bullet, with its nested bullets in `children`. The text keeps its inline markdown.
  */
 export type ChangelogEntry = {
   children: Array<string>;
@@ -415,17 +553,30 @@ export type ChangelogEntry = {
 
 /**
  * ChangelogRelease
+ *
+ * One release in the changelog.
  */
 export type ChangelogRelease = {
+  /**
+   * The release date. Null when the heading has none, as for Unreleased.
+   */
   date: string | null;
   sections: Array<ChangelogSection>;
   unreleased: boolean;
+  /**
+   * The release's tag or compare page, when the changelog links one.
+   */
   url: string | null;
+  /**
+   * The version, or `Unreleased` for changes not released yet.
+   */
   version: string;
 };
 
 /**
  * ChangelogResponse
+ *
+ * Every release in the changelog, newest first.
  */
 export type ChangelogResponse = {
   releases: Array<ChangelogRelease>;
@@ -433,14 +584,21 @@ export type ChangelogResponse = {
 
 /**
  * ChangelogSection
+ *
+ * The entries of one kind within a release.
  */
 export type ChangelogSection = {
   entries: Array<ChangelogEntry>;
+  /**
+   * The section heading, such as `Added`, `Changed` or `Fixed`.
+   */
   kind: string;
 };
 
 /**
  * CountryFacet
+ *
+ * One country present in the access-log data.
  */
 export type CountryFacet = {
   code: string;
@@ -449,29 +607,50 @@ export type CountryFacet = {
 
 /**
  * CreateApiKeyPayload
+ *
+ * The name, scope and expiry of a new API key.
  */
 export type CreateApiKeyPayload = {
+  /**
+   * When the key stops working, as ISO 8601 with a timezone. It must lie in the future. Omit it or send null for a key that never expires.
+   */
   expiresAt?: string | null;
   /**
-   * 1 to 64 characters once surrounding whitespace is trimmed.
+   * 1 to 64 characters once surrounding whitespace is trimmed. No two keys may share a name, ignoring case.
    */
   name: string;
+  /**
+   * `read` allows GET and HEAD requests and the WebSocket feeds. `read_write` also allows writes. Defaults to `read`.
+   */
   scope?: "read" | "read_write";
 };
 
 /**
  * CreatedApiKey
+ *
+ * A new API key. This response is the only place the full key ever appears.
  */
 export type CreatedApiKey = {
   apiKey: ApiKeyView;
+  /**
+   * The full key, starting with gmk_. Send it as `Authorization: Bearer <key>`.
+   */
   key: string;
 };
 
 /**
  * CrowdSecHealth
+ *
+ * The CrowdSec integration.
  */
 export type CrowdSecHealth = {
+  /**
+   * Whether the CrowdSec integration is configured.
+   */
   enabled: boolean;
+  /**
+   * Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, while the app runs without its database, and before the first poll.
+   */
   lapiReachable: boolean | null;
 };
 
@@ -496,6 +675,10 @@ export type CrowdSecStatusResponse = {
 
 /**
  * CumulativeDataPoint
+ *
+ * Cumulative metrics for a single time point.
+ *
+ * Running totals that reset at the start of the selected time range.
  */
 export type CumulativeDataPoint = {
   cumulativeAccessLogs: number;
@@ -506,6 +689,8 @@ export type CumulativeDataPoint = {
 
 /**
  * CumulativeTimeSeriesResponse
+ *
+ * Response containing cumulative time-series data for area charts.
  */
 export type CumulativeTimeSeriesResponse = {
   data?: Array<CumulativeDataPoint>;
@@ -516,31 +701,66 @@ export type CumulativeTimeSeriesResponse = {
 
 /**
  * DatabaseHealth
+ *
+ * The database connection.
  */
 export type DatabaseHealth = {
+  /**
+   * Whether `SELECT 1` answered within two seconds.
+   */
   reachable: boolean;
+  /**
+   * False while the app runs without its database, with the scheduler, ingestion and live feeds paused. It can stay false for a while after `reachable` turns true.
+   */
   servicesActive?: boolean;
 };
 
 /**
  * DatabaseInfoResponse
+ *
+ * Database size, versions, retention and table stats for the Status page.
  */
 export type DatabaseInfoResponse = {
+  /**
+   * Days to keep the access log debug lines.
+   */
   debugRetentionDays: number;
+  /**
+   * Empty when the database is unreachable.
+   */
   hypertables: Array<HypertableStatsView>;
   postgresVersion: string | null;
   reachable: boolean;
+  /**
+   * Days to keep raw geo events and access log lines.
+   */
   retentionDays: number;
+  /**
+   * The whole database on disk, in bytes.
+   */
   sizeBytes: number | null;
   timescaledbVersion: string | null;
 };
 
 /**
  * DatabaseVersionsView
+ *
+ * The database server, its extensions and the schema version.
+ *
+ * Everything except `migrationHead` is null when the database is unreachable.
  */
 export type DatabaseVersionsView = {
+  /**
+   * The newest migration this build ships. It differs from `migrationRevision` only after a start without the database, a rollback, or on an agent older than the head.
+   */
   migrationHead: string;
+  /**
+   * The title of that migration, when this build knows it.
+   */
   migrationName: string | null;
+  /**
+   * The migration the database schema is on. Null before the first migration ran.
+   */
   migrationRevision: string | null;
   postgisVersion: string | null;
   postgresVersion: string | null;
@@ -549,6 +769,8 @@ export type DatabaseVersionsView = {
 
 /**
  * DecisionGroupView
+ *
+ * Every active decision against one target, as one table row.
  */
 export type DecisionGroupView = {
   city: string | null;
@@ -583,15 +805,22 @@ export type DecisionView = {
 
 /**
  * DefaultMapView
+ *
+ * Where the map opens, from MAP_DEFAULT_VIEW.
  */
 export type DefaultMapView = {
   latitude: number;
   longitude: number;
+  /**
+   * The zoom level, from 0 to 22.
+   */
   zoom: number;
 };
 
 /**
  * DefaultServerLocationView
+ *
+ * This instance's own location, used for any server without a server_locations row.
  */
 export type DefaultServerLocationView = {
   latitude: number;
@@ -620,14 +849,31 @@ export type DropFeedView = {
 
 /**
  * DropListsAboutView
+ *
+ * The state of the Spamhaus DROP lists.
  */
 export type DropListsAboutView = {
+  /**
+   * The copyright line Spamhaus ships with the feeds.
+   */
   copyright: string | null;
   enabled: boolean;
   feeds: Array<DropFeedView>;
+  /**
+   * Whether at least one feed has been fetched.
+   */
   loaded: boolean;
+  /**
+   * True when `updatedAt` is more than 7 days ago.
+   */
   stale: boolean;
+  /**
+   * Spamhaus's terms of use for the DROP lists.
+   */
   termsUrl: string;
+  /**
+   * When the most recent feed fetch succeeded.
+   */
   updatedAt: string | null;
 };
 
@@ -683,6 +929,8 @@ export type DropNetworksResponse = {
 
 /**
  * EmbeddedLocationDTO
+ *
+ * Lightweight location data for embedding in other DTOs.
  */
 export type EmbeddedLocationDto = {
   city?: string | null;
@@ -695,6 +943,10 @@ export type EmbeddedLocationDto = {
 
 /**
  * ErrorEnvelope
+ *
+ * The JSON body of an error response.
+ *
+ * Its keys are snake_case, unlike the camelCase keys of successful responses.
  */
 export type ErrorEnvelope = {
   detail: string;
@@ -703,6 +955,8 @@ export type ErrorEnvelope = {
 
 /**
  * GeoAsnFacet
+ *
+ * One autonomous system present in the data.
  */
 export type GeoAsnFacet = {
   asn: number;
@@ -711,6 +965,8 @@ export type GeoAsnFacet = {
 
 /**
  * GeoCountryFacet
+ *
+ * One country present in the geo data.
  */
 export type GeoCountryFacet = {
   code: string;
@@ -719,6 +975,8 @@ export type GeoCountryFacet = {
 
 /**
  * GeoEventFacets
+ *
+ * Distinct filterable values present in the geo data.
  */
 export type GeoEventFacets = {
   asns: Array<GeoAsnFacet>;
@@ -729,6 +987,8 @@ export type GeoEventFacets = {
 
 /**
  * GeoEventsDataPoint
+ *
+ * Geo events metrics for a single time point.
  */
 export type GeoEventsDataPoint = {
   timestamp: string;
@@ -740,6 +1000,10 @@ export type GeoEventsDataPoint = {
 
 /**
  * GeoEventsTimeSeriesResponse
+ *
+ * Response containing geo events time-series data.
+ *
+ * ``data`` is deliberately default-less (see TimeSeriesResponse).
  */
 export type GeoEventsTimeSeriesResponse = {
   data: Array<GeoEventsDataPoint>;
@@ -750,26 +1014,56 @@ export type GeoEventsTimeSeriesResponse = {
 
 /**
  * GeoIPHealth
+ *
+ * The GeoLite2 databases.
  */
 export type GeoIpHealth = {
+  /**
+   * Whether ASN lookups are on and a GeoLite2 ASN database is loaded.
+   */
   asnAvailable?: boolean;
+  /**
+   * When MaxMind built the ASN database file, as ISO 8601. Null without a file.
+   */
   asnDbBuildDate?: string | null;
+  /**
+   * Whether a usable GeoLite2 City database is loaded.
+   */
   available: boolean;
+  /**
+   * When MaxMind built the City database file, as ISO 8601. Null without a file.
+   */
   dbBuildDate: string | null;
 };
 
 /**
  * GeoIPInfoView
+ *
+ * A GeoLite2 database file.
  */
 export type GeoIpInfoView = {
+  /**
+   * Whole days since `buildDate`.
+   */
   ageDays: number | null;
+  /**
+   * Whether the file exists and opens as a MaxMind database.
+   */
   available: boolean;
+  /**
+   * When MaxMind built the file, from its metadata.
+   */
   buildDate: string | null;
+  /**
+   * Where the file sits on the server.
+   */
   dbPath: string;
 };
 
 /**
  * GeoJSONFeature
+ *
+ * GeoJSON Feature representing a location.
  */
 export type GeoJsonFeature = {
   geometry: GeoJsonPointGeometry;
@@ -779,6 +1073,8 @@ export type GeoJsonFeature = {
 
 /**
  * GeoJSONFeatureCollection
+ *
+ * GeoJSON FeatureCollection for locations with event counts.
  */
 export type GeoJsonFeatureCollection = {
   features: Array<GeoJsonFeature>;
@@ -788,6 +1084,8 @@ export type GeoJsonFeatureCollection = {
 
 /**
  * GeoJSONFeatureProperties
+ *
+ * Properties for a GeoJSON feature representing a location with event count.
  */
 export type GeoJsonFeatureProperties = {
   city: string | null;
@@ -806,6 +1104,8 @@ export type GeoJsonFeatureProperties = {
 
 /**
  * GeoJSONFeatureStats
+ *
+ * Statistics for GeoJSONFeatureCollection.
  */
 export type GeoJsonFeatureStats = {
   cities: number;
@@ -816,6 +1116,12 @@ export type GeoJsonFeatureStats = {
 
 /**
  * GeoJSONPointGeometry
+ *
+ * GeoJSON Point geometry.
+ *
+ * Fields are deliberately default-less: dataclass defaults make them
+ * non-required in OpenAPI, which turns into optional fields in the
+ * generated TS client. The controller always constructs them explicitly.
  */
 export type GeoJsonPointGeometry = {
   coordinates: [number, number];
@@ -824,6 +1130,8 @@ export type GeoJsonPointGeometry = {
 
 /**
  * GeoLogEntry
+ *
+ * One grouped (location, IP) row for the geo-logs table.
  */
 export type GeoLogEntry = {
   asOrganization: string | null;
@@ -845,6 +1153,8 @@ export type GeoLogEntry = {
 
 /**
  * GeoLogPercentChange
+ *
+ * Percent change vs the previous period (None when previous is 0).
  */
 export type GeoLogPercentChange = {
   totalEvents: number | null;
@@ -855,6 +1165,8 @@ export type GeoLogPercentChange = {
 
 /**
  * GeoLogPeriod
+ *
+ * Aggregate geo-event metrics for one period.
  */
 export type GeoLogPeriod = {
   totalEvents: number;
@@ -865,6 +1177,8 @@ export type GeoLogPeriod = {
 
 /**
  * GeoLogSummaryResponse
+ *
+ * Summary stats for the geo-logs stat cards.
  */
 export type GeoLogSummaryResponse = {
   currentPeriod: GeoLogPeriod;
@@ -876,6 +1190,8 @@ export type GeoLogSummaryResponse = {
 
 /**
  * GeoLogTimeSeriesPoint
+ *
+ * One chart bucket.
  */
 export type GeoLogTimeSeriesPoint = {
   timestamp: string;
@@ -885,6 +1201,8 @@ export type GeoLogTimeSeriesPoint = {
 
 /**
  * GeoLogTimeSeriesResponse
+ *
+ * Bucketed geo-event series for the geo-logs chart.
  */
 export type GeoLogTimeSeriesResponse = {
   data: Array<GeoLogTimeSeriesPoint>;
@@ -895,6 +1213,8 @@ export type GeoLogTimeSeriesResponse = {
 
 /**
  * GlobalTopIPsResponse
+ *
+ * Response for global top IPs endpoint.
  */
 export type GlobalTopIpsResponse = {
   topIps?: Array<TopIpdto>;
@@ -913,80 +1233,187 @@ export type GroupedDecisionView = {
 
 /**
  * HeadIdentityView
+ *
+ * The head that answered the request.
  */
 export type HeadIdentityView = {
   appVersion: string;
   instanceName: string;
+  /**
+   * The newest database migration the head's build ships.
+   */
   schemaRevision: string;
 };
 
 /**
  * HealthResponse
+ *
+ * How the app and its parts are doing.
  */
 export type HealthResponse = {
+  /**
+   * Problems that need an operator, critical ones first. Empty when nothing does.
+   */
   advisories?: Array<Advisory>;
   crowdsec: CrowdSecHealth;
   database: DatabaseHealth;
   geoip: GeoIpHealth;
   ingestion: IngestionHealth;
+  /**
+   * `agent` for a process that only tails logs, `full` for one that also serves the API.
+   */
   mode?: "full" | "agent";
+  /**
+   * Agents only. How the wait for the database schema ended, `ready`, `newer` or `timeout`, and `waiting` until it ends. Null in full mode.
+   */
   schemaWait?: string | null;
+  /**
+   * When this process started, as ISO 8601 in UTC.
+   */
   startedAt: string | null;
+  /**
+   * `healthy` when the database answers, the app runs with it, every log source is readable and ingestion is running or turned off. GeoIP, CrowdSec and the advisories never change it.
+   */
   status: "healthy" | "degraded";
+  /**
+   * When this report was built, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * HeartbeatPayload
+ *
+ * The details an instance sends with each heartbeat.
+ *
+ * The 5-minute counts are null until the instance has run for 5 minutes.
  */
 export type HeartbeatPayload = {
+  /**
+   * Records that failed to write in the last 5 minutes.
+   */
   failed5M?: number | null;
+  /**
+   * Database writes that failed in the last 5 minutes.
+   */
   failedBatches5M?: number | null;
+  /**
+   * The instance's health report. `health` on the instance gives it typed.
+   */
   health?: {
     [key: string]: unknown;
   };
+  /**
+   * `configured` when APP_INSTANCE_NAME is set, `fallback` when the name is the default.
+   */
   instanceNameSource?: string;
   jobs?: Array<JobReport>;
   lastError?: LastErrorReport | null;
+  /**
+   * Log lines parsed in the last 5 minutes.
+   */
   lines5M?: number | null;
+  /**
+   * When another process last sent heartbeats under the same instance name.
+   */
   nameConflictAt?: string | null;
+  /**
+   * When the process started, for up to its last 10 starts.
+   */
   recentStarts?: Array<string>;
+  /**
+   * The server names the instance records log lines under.
+   */
   serverNames?: Array<string>;
   sources?: Array<SourceReport>;
+  /**
+   * Records written in the last 5 minutes.
+   */
   written5M?: number | null;
 };
 
 /**
  * HostingAsnEntryView
+ *
+ * One ASN that counts as a hosting provider.
  */
 export type HostingAsnEntryView = {
   asn: number;
+  /**
+   * The organization behind the ASN, as the list names it.
+   */
   entity: string;
 };
 
 /**
  * HypertableStatsView
+ *
+ * Size and row estimates for one of the large time series tables.
  */
 export type HypertableStatsView = {
+  /**
+   * Bytes the compressed chunks take now. Null until a chunk is compressed.
+   */
   afterCompressionBytes: number | null;
+  /**
+   * TimescaleDB's estimate of the row count.
+   */
   approxRows: number | null;
+  /**
+   * Bytes the compressed chunks took before compression. Null until a chunk is compressed.
+   */
   beforeCompressionBytes: number | null;
+  /**
+   * `geo_events`, `access_logs` or `access_log_debug`.
+   */
   name: string;
+  /**
+   * The table's size on disk, indexes included, in bytes.
+   */
   totalBytes: number | null;
 };
 
 /**
  * IngestionHealth
+ *
+ * The log ingestion of this process. The counters start at zero when the process starts.
  */
 export type IngestionHealth = {
+  /**
+   * Database writes that failed. Their records are dropped, not retried.
+   */
   failedBatches?: number;
+  /**
+   * Records lost in the failed writes.
+   */
   failedRecords?: number;
+  /**
+   * When ingestion last parsed a record, as ISO 8601 in UTC. Null before the first one.
+   */
   lastRecordAt: string | null;
+  /**
+   * The labels of the unavailable sources. `unavailableSources` adds the reason for each.
+   */
   missingFiles: Array<string>;
+  /**
+   * Log lines parsed, across all sources.
+   */
   parsedLines: number;
+  /**
+   * Parsed records held in memory until the next database write.
+   */
   pendingRecords: number;
+  /**
+   * Live feed events left out because they were too large to send.
+   */
   publishDropped?: number;
+  /**
+   * Whether the ingestion task is running.
+   */
   running: boolean;
+  /**
+   * `disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.
+   */
   status?: "running" | "degraded" | "disabled";
   unavailableSources?: Array<UnavailableSourceHealth>;
 };
@@ -1006,39 +1433,88 @@ export type IngestionStatsResponse = {
 
 /**
  * InstanceServerLocationView
+ *
+ * Where one server sits on the map.
  */
 export type InstanceServerLocationView = {
+  /**
+   * When the location was detected. Null for an override.
+   */
   detectedAt: string | null;
   latitude: number;
   longitude: number;
   server: string;
+  /**
+   * `auto` when an instance detected it from its public IP, `override` when MAP_SERVER_LOCATIONS sets it.
+   */
   source: string;
 };
 
 /**
  * InstanceView
+ *
+ * One instance as the Agents page shows it.
+ *
+ * `payload` is the last heartbeat as the instance sent it, or null when it does not fit the current
+ * schema. `health` is the health report from that heartbeat in the shape `/health` uses, or null when
+ * it does not fit that shape.
  */
 export type InstanceView = {
   appVersion: string;
+  /**
+   * A random id that changes every time the process starts.
+   */
   bootId: string;
+  /**
+   * False when no heartbeat has arrived for over 3 minutes.
+   */
   checkingIn: boolean;
   health: HealthResponse | null;
+  /**
+   * APP_INSTANCE_NAME, or `head` or `agent` when that is unset.
+   */
   instanceName: string;
+  /**
+   * Whether this is the head that answered the request.
+   */
   isSelf: boolean;
+  /**
+   * When the last heartbeat arrived. Instances send one every 30 seconds.
+   */
   lastSeen: string;
+  /**
+   * `full` for a head, `agent` for a process that only tails logs.
+   */
   mode: string;
   payload: HeartbeatPayload | null;
+  /**
+   * What is wrong with the instance, critical ones first.
+   */
   problems: Array<Advisory>;
+  /**
+   * The newest database migration the instance's build ships.
+   */
   schemaRevision: string;
+  /**
+   * The map locations of the servers this instance records log lines for.
+   */
   serverLocations: Array<InstanceServerLocationView>;
   startedAt: string;
+  /**
+   * The worst severity in `problems`, or `ok` when there are none.
+   */
   status: "ok" | "warning" | "critical";
 };
 
 /**
  * InstancesResponse
+ *
+ * Every instance that sends heartbeats.
  */
 export type InstancesResponse = {
+  /**
+   * The database time that `checkingIn` and the problems were judged at.
+   */
   checkedAt: string;
   head: HeadIdentityView;
   instances: Array<InstanceView>;
@@ -1046,6 +1522,8 @@ export type InstancesResponse = {
 
 /**
  * IpProfileBucketDTO
+ *
+ * One sparkline bucket for the IP inspector.
  */
 export type IpProfileBucketDto = {
   errorHits: number;
@@ -1055,6 +1533,8 @@ export type IpProfileBucketDto = {
 
 /**
  * IpProfileHostDTO
+ *
+ * Hits against one proxied host; ``host`` is null for lines without one.
  */
 export type IpProfileHostDto = {
   errorHits: number;
@@ -1064,6 +1544,8 @@ export type IpProfileHostDto = {
 
 /**
  * IpProfilePathDTO
+ *
+ * One host and path pair this IP requested, with its hit and error counts.
  */
 export type IpProfilePathDto = {
   errorHits: number;
@@ -1074,6 +1556,12 @@ export type IpProfilePathDto = {
 
 /**
  * IpProfileResponse
+ *
+ * Access-log profile of one client IP for the IP inspector sheet.
+ *
+ * An IP with no rows in range comes back zeroed with empty lists, not as a
+ * 404: the sheet still has ban state and other locations to show. Lists
+ * have no defaults (see TopUrlsResponse).
  */
 export type IpProfileResponse = {
   asn: number | null;
@@ -1106,6 +1594,8 @@ export type IpProfileResponse = {
 
 /**
  * IpProfileUserAgentDTO
+ *
+ * One user agent this IP sent, with its hit count.
  */
 export type IpProfileUserAgentDto = {
   hits: number;
@@ -1114,11 +1604,19 @@ export type IpProfileUserAgentDto = {
 
 /**
  * JobReport
+ *
+ * A scheduler job on the instance.
  */
 export type JobReport = {
   id?: string;
+  /**
+   * The error of the last run, cut to 500 characters.
+   */
   lastError?: string | null;
   lastStart?: string | null;
+  /**
+   * `success`, `error` or `missed`.
+   */
   lastStatus?: string | null;
   name?: string;
   nextRunTime?: string | null;
@@ -1126,6 +1624,8 @@ export type JobReport = {
 
 /**
  * LastErrorReport
+ *
+ * The last failed database write on the instance.
  */
 export type LastErrorReport = {
   at?: string | null;
@@ -1134,12 +1634,26 @@ export type LastErrorReport = {
 
 /**
  * LatestReleaseView
+ *
+ * The newest GitHub release above the running version.
  */
 export type LatestReleaseView = {
+  /**
+   * The version in tag style, such as `v0.22.0-dev.4`.
+   */
   displayVersion: string;
+  /**
+   * How many releases are newer than the running version, this one included.
+   */
   newerReleaseCount: number;
+  /**
+   * False when the check stopped paging before it reached the running version, so the count is a minimum.
+   */
   newerReleaseCountExact: boolean;
   publishedAt: string;
+  /**
+   * The release page on GitHub.
+   */
   url: string;
   version: string;
 };
@@ -1229,6 +1743,8 @@ export type ListGeoLocationsGeoLocationResponseBody = {
 
 /**
  * LocationTopIPsResponse
+ *
+ * Response for location top IPs endpoint.
  */
 export type LocationTopIpsResponse = {
   locationId: number;
@@ -1237,17 +1753,36 @@ export type LocationTopIpsResponse = {
 
 /**
  * LogFileView
+ *
+ * A log file on this server.
  */
 export type LogFileView = {
+  /**
+   * Whether the file exists and is readable. Only available files download.
+   */
   available: boolean;
+  /**
+   * `app` for geometrikks.log, `login` for login.log, `access` for a tailed access log.
+   */
   kind: "app" | "login" | "access";
+  /**
+   * Null when the file is missing.
+   */
   modifiedAt: string | null;
+  /**
+   * The file name the download endpoint takes. A second access log with the same file name gets a `.2` suffix, a third `.3`.
+   */
   name: string;
+  /**
+   * The file size in bytes. Zero when the file is missing.
+   */
   sizeBytes: number;
 };
 
 /**
  * LogFilesResponse
+ *
+ * The log files on this server.
  */
 export type LogFilesResponse = {
   files: Array<LogFileView>;
@@ -1255,13 +1790,23 @@ export type LogFilesResponse = {
 
 /**
  * LogRotateResponse
+ *
+ * The log files that rotated.
  */
 export type LogRotateResponse = {
+  /**
+   * Their file names, such as `geometrikks.log`.
+   */
   rotated: Array<string>;
 };
 
 /**
  * LogTailRecord
+ *
+ * One log record.
+ *
+ * An app log record holds the JSON event as GeoMetrikks wrote it, with more keys than these. A login log
+ * record has `timestamp`, `level`, `event`, `logger` and `user`, plus `ip` and `key` when the line has them.
  */
 export type LogTailRecord = {
   event?: string;
@@ -1276,6 +1821,8 @@ export type LogTailRecord = {
 
 /**
  * LogTailResponse
+ *
+ * The newest records of one log, oldest first.
  */
 export type LogTailResponse = {
   records: Array<LogTailRecord>;
@@ -1283,6 +1830,8 @@ export type LogTailResponse = {
 
 /**
  * LoginPayload
+ *
+ * The admin username and password.
  */
 export type LoginPayload = {
   password: string;
@@ -1291,22 +1840,43 @@ export type LoginPayload = {
 
 /**
  * LogoutResponse
+ *
+ * Where the browser goes after logging out.
  */
 export type LogoutResponse = {
+  /**
+   * The identity provider's sign-out URL, set when the session came from OIDC and OIDC_LOGOUT_IDP is on. Null means the login page.
+   */
   redirectTo: string | null;
 };
 
 /**
  * LogparserSettingsView
+ *
+ * The log ingestion settings.
  */
 export type LogparserSettingsView = {
+  /**
+   * The access log files this server tails, from LOGPARSER_LOG_PATHS.
+   */
   logPaths: Array<string>;
+  /**
+   * Whether parsed log lines are written to the database.
+   */
   sendLogs: boolean;
+  /**
+   * Whether every raw line goes to the debug table. When false, only malformed ones do.
+   */
   storeDebugLines: boolean;
 };
 
 /**
  * LokiSourceStats
+ *
+ * One LOKI_QUERIES entry as the ingestion service sees it.
+ *
+ * The selector and the server name describe the operator's log setup, so they
+ * are served here, behind auth, and never on /health.
  */
 export type LokiSourceStats = {
   available: boolean;
@@ -1320,31 +1890,67 @@ export type LokiSourceStats = {
 
 /**
  * MapSettingsView
+ *
+ * The map setup.
  */
 export type MapSettingsView = {
+  /**
+   * The CARTO basemap key from MAP_CARTO_API_KEY, or null. It is no secret, since the browser sends it with every map tile request.
+   */
   cartoApiKey: string | null;
+  /**
+   * Null means the map opens on the server locations, or on the whole world.
+   */
   defaultView: DefaultMapView | null;
+  /**
+   * Where this server sits, in decimal degrees. Null when unknown.
+   */
   serverLatitude: number | null;
+  /**
+   * `configured` when MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE set the location, `external_ip` when GeoMetrikks looked up its own public IP.
+   */
   serverLocationSource: "configured" | "external_ip" | null;
+  /**
+   * Where this server sits, in decimal degrees. Null when unknown.
+   */
   serverLongitude: number | null;
 };
 
 /**
  * OidcOption
+ *
+ * The OIDC single sign-on login.
  */
 export type OidcOption = {
+  /**
+   * The name in the Sign in with button, from OIDC_PROVIDER_NAME. Defaults to SSO.
+   */
   providerName: string;
 };
 
 /**
  * OidcStatus
+ *
+ * The state of OIDC single sign-on, as Settings > Status shows it.
  */
 export type OidcStatus = {
   configured: boolean;
+  /**
+   * The error from the last failed discovery attempt, else null.
+   */
   detail: string | null;
+  /**
+   * Whether reading the issuer's discovery document worked. `pending` means no attempt has finished yet, or OIDC is not configured.
+   */
   discovery: "ok" | "failed" | "pending";
+  /**
+   * Whether logging out also ends the session at the identity provider.
+   */
   idpLogout: boolean;
   issuer: string | null;
+  /**
+   * Whether the username and password login is on.
+   */
   passwordLogin: boolean;
   providerName: string | null;
 };
@@ -1359,6 +1965,8 @@ export type OriginCount = {
 
 /**
  * ParseErrorCount
+ *
+ * A parse_error value and how many debug rows carry it.
  */
 export type ParseErrorCount = {
   count: number;
@@ -1367,6 +1975,8 @@ export type ParseErrorCount = {
 
 /**
  * PercentChange
+ *
+ * Percent change between two periods.
  */
 export type PercentChange = {
   avgRequestTime?: number | null;
@@ -1380,6 +1990,8 @@ export type PercentChange = {
 
 /**
  * PeriodSummary
+ *
+ * Summary statistics for a single period.
  */
 export type PeriodSummary = {
   avgBytesPerRequest: number;
@@ -1401,6 +2013,8 @@ export type PeriodSummary = {
 
 /**
  * RawLineField
+ *
+ * One key from a JSON raw line, flattened for display.
  */
 export type RawLineField = {
   group: "request_header" | "response_header" | "origin_header" | "field";
@@ -1411,6 +2025,8 @@ export type RawLineField = {
 
 /**
  * RawLineFields
+ *
+ * A JSON raw line split into fields, in the order they appear in the line.
  */
 export type RawLineFields = {
   fields: Array<RawLineField>;
@@ -1419,6 +2035,8 @@ export type RawLineFields = {
 
 /**
  * ReadinessResponse
+ *
+ * Whether the app is ready for traffic.
  */
 export type ReadinessResponse = {
   ready: boolean;
@@ -1426,15 +2044,25 @@ export type ReadinessResponse = {
 
 /**
  * ReleaseCheckResponse
+ *
+ * The result of the last check for a newer release. `latest` is null when none is newer.
  */
 export type ReleaseCheckResponse = {
+  /**
+   * When the last successful check ran.
+   */
   checkedAt: string | null;
   latest: LatestReleaseView | null;
+  /**
+   * `off` when this process never checks, `pending` until a check succeeds, then `checked`.
+   */
   status: "off" | "pending" | "checked";
 };
 
 /**
  * ReportAlertDTO
+ *
+ * A CrowdSec detection against the IP inside the window.
  */
 export type ReportAlertDto = {
   createdAt: string;
@@ -1448,6 +2076,8 @@ export type ReportAlertDto = {
 
 /**
  * ReportAlertDecisionDTO
+ *
+ * A decision an alert produced, live or expired.
  */
 export type ReportAlertDecisionDto = {
   duration: string;
@@ -1457,6 +2087,11 @@ export type ReportAlertDecisionDto = {
 
 /**
  * ReportCrowdSec
+ *
+ * Whether CrowdSec data made it into the report.
+ *
+ * ``decisions-only`` means no machine credentials, so no alert history.
+ * ``unavailable`` means the LAPI failed; the report still carries the logs.
  */
 export type ReportCrowdSec = {
   message: string | null;
@@ -1465,6 +2100,8 @@ export type ReportCrowdSec = {
 
 /**
  * ReportDecisionDTO
+ *
+ * An active CrowdSec decision covering the IP.
  */
 export type ReportDecisionDto = {
   duration: string;
@@ -1477,6 +2114,8 @@ export type ReportDecisionDto = {
 
 /**
  * ReportDropNetworkDTO
+ *
+ * The DROP network that holds the IP, with its SBL record id.
  */
 export type ReportDropNetworkDto = {
   cidr: string;
@@ -1485,6 +2124,8 @@ export type ReportDropNetworkDto = {
 
 /**
  * ReportIpDTO
+ *
+ * Everything the report says about one source IP.
  */
 export type ReportIpDto = {
   alerts: Array<ReportAlertDto>;
@@ -1515,6 +2156,8 @@ export type ReportIpDto = {
 
 /**
  * ReportLineDTO
+ *
+ * One access-log line without the operator's vhost or referrer.
  */
 export type ReportLineDto = {
   bytesSent: number | null;
@@ -1528,6 +2171,8 @@ export type ReportLineDto = {
 
 /**
  * ReportPathDTO
+ *
+ * A requested path with its hit and error counts.
  */
 export type ReportPathDto = {
   errorHits: number;
@@ -1537,6 +2182,8 @@ export type ReportPathDto = {
 
 /**
  * ReportPeakDTO
+ *
+ * The IP's busiest hour or UTC day in the window.
  */
 export type ReportPeakDto = {
   hits: number;
@@ -1545,6 +2192,8 @@ export type ReportPeakDto = {
 
 /**
  * ReportTarget
+ *
+ * What the report is about: one IP, or the IPs of one ASN.
  */
 export type ReportTarget = {
   asn: number | null;
@@ -1556,6 +2205,8 @@ export type ReportTarget = {
 
 /**
  * ReportUserAgentDTO
+ *
+ * A user agent the IP sent, with its hit count.
  */
 export type ReportUserAgentDto = {
   hits: number;
@@ -1564,14 +2215,24 @@ export type ReportUserAgentDto = {
 
 /**
  * RuntimeSettingsView
+ *
+ * Where the app runs.
  */
 export type RuntimeSettingsView = {
+  /**
+   * Whether the app runs from the GeoMetrikks container image.
+   */
   container: boolean;
+  /**
+   * The container image tag. Null outside a container.
+   */
   imageTag: string | null;
 };
 
 /**
  * RuntimeVersionsView
+ *
+ * The Python runtime and the versions of key libraries.
  */
 export type RuntimeVersionsView = {
   apschedulerVersion: string | null;
@@ -1581,9 +2242,14 @@ export type RuntimeVersionsView = {
 
 /**
  * SafeSettingsResponse
+ *
+ * The settings the web app reads to set itself up. No credentials appear here.
  */
 export type SafeSettingsResponse = {
   analytics: AnalyticsSettingsView;
+  /**
+   * APP_ENVIRONMENT, one of `development`, `staging` or `production`.
+   */
   environment: string;
   logparser: LogparserSettingsView;
   map: MapSettingsView;
@@ -1602,31 +2268,67 @@ export type ScenarioCount = {
 
 /**
  * SchedulerJobView
+ *
+ * One scheduled job. The last-run fields cover runs since this process started.
  */
 export type SchedulerJobView = {
+  /**
+   * The job id that the run endpoint takes, such as `geoip-refresh`.
+   */
   id: string;
+  /**
+   * How long the last run took, in seconds.
+   */
   lastDurationSeconds: number | null;
+  /**
+   * The error of the last run when it failed.
+   */
   lastError: string | null;
+  /**
+   * When the last run started.
+   */
   lastRunTime: string | null;
+  /**
+   * `missed` means a run came due but could not start in time, so the scheduler skipped it.
+   */
   lastStatus: "success" | "error" | "missed" | null;
   name: string;
+  /**
+   * Null when no next run is scheduled.
+   */
   nextRunTime: string | null;
+  /**
+   * Whether a run is in progress.
+   */
   running: boolean;
+  /**
+   * When the job runs, as APScheduler describes its trigger.
+   */
   trigger: string;
 };
 
 /**
  * SchedulerJobsResponse
+ *
+ * The scheduler and its jobs.
  */
 export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
+  /**
+   * SCHEDULER_ENABLED.
+   */
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
+  /**
+   * `disabled` with SCHEDULER_ENABLED=false. `unavailable` when the app started without its database and has no scheduler.
+   */
   status?: "running" | "disabled" | "unavailable";
 };
 
 /**
  * ServerLocationView
+ *
+ * Where one server sits on the map, auto-detected or overridden.
  */
 export type ServerLocationView = {
   detectedAt: string | null;
@@ -1639,6 +2341,8 @@ export type ServerLocationView = {
 
 /**
  * ServerLocationsResponse
+ *
+ * Every server's map location, plus this instance's own location as the default.
  */
 export type ServerLocationsResponse = {
   default: DefaultServerLocationView | null;
@@ -1647,52 +2351,106 @@ export type ServerLocationsResponse = {
 
 /**
  * SessionUser
+ *
+ * The user of the current browser session.
  */
 export type SessionUser = {
   mode: "session";
+  /**
+   * How the user logged in, with the admin password or through OIDC single sign-on.
+   */
   provider: "password" | "oidc";
   username: string;
 };
 
 /**
  * SettingFieldView
+ *
+ * One setting, or a value worked out at runtime that has no setting of its own.
  */
 export type SettingFieldView = {
+  /**
+   * Where `computedValue` came from, `runtime` or `external_ip`.
+   */
   computedSource?: string | null;
+  /**
+   * The value in effect when GeoMetrikks worked it out at runtime, else null.
+   */
   computedValue?: unknown;
+  /**
+   * The default value. Null when the setting has no fixed default.
+   */
   default: unknown;
   description: string | null;
+  /**
+   * The environment variable that sets it. Null for a value worked out at runtime.
+   */
   envVar: string | null;
   isSecret: boolean;
+  /**
+   * The setting's name inside its section, such as `raw_retention_days`.
+   */
   key: string;
+  /**
+   * The current value. A secret shows as `******` when set and null when not.
+   */
   value: unknown;
 };
 
 /**
  * SettingsSectionView
+ *
+ * A group of settings that share an environment variable prefix.
  */
 export type SettingsSectionView = {
   description: string | null;
   fields: Array<SettingFieldView>;
+  /**
+   * The section key, such as `geoip` or `crowdsec`.
+   */
   name: string;
   title: string;
 };
 
 /**
  * SourceReport
+ *
+ * A log source the instance tails.
  */
 export type SourceReport = {
   available?: boolean;
+  /**
+   * `file` or `loki`.
+   */
   kind?: string;
+  /**
+   * The file path, or the LogQL query of a Loki source.
+   */
   label?: string;
+  /**
+   * The parser's log format, such as `traefik-json`. Null until it is known.
+   */
   logFormat?: string | null;
+  /**
+   * Lines parsed from this source since the instance started.
+   */
   parsedLines?: number;
+  /**
+   * Why the source is unavailable, when it is.
+   */
   reason?: string | null;
+  /**
+   * The server name its log lines are recorded under.
+   */
   serverName?: string;
 };
 
 /**
  * SummaryResponse
+ *
+ * Response containing summary statistics with optional comparison.
+ *
+ * Used for dashboard header cards showing key metrics.
  */
 export type SummaryResponse = {
   currentPeriod: PeriodSummary;
@@ -1704,6 +2462,8 @@ export type SummaryResponse = {
 
 /**
  * SystemSettingsResponse
+ *
+ * Every setting, grouped into sections, with secrets hidden.
  */
 export type SystemSettingsResponse = {
   sections: Array<SettingsSectionView>;
@@ -1711,6 +2471,10 @@ export type SystemSettingsResponse = {
 
 /**
  * TimeSeriesDataPoint
+ *
+ * A single data point in a time-series response.
+ *
+ * Used for charting requests, bandwidth, performance over time.
  */
 export type TimeSeriesDataPoint = {
   avgRequestTime: number | null;
@@ -1731,6 +2495,11 @@ export type TimeSeriesDataPoint = {
 
 /**
  * TimeSeriesResponse
+ *
+ * Response containing time-series data for charts.
+ *
+ * ``data`` is deliberately default-less so it is required in OpenAPI and
+ * non-optional in the generated TS client.
  */
 export type TimeSeriesResponse = {
   data: Array<TimeSeriesDataPoint>;
@@ -1741,6 +2510,8 @@ export type TimeSeriesResponse = {
 
 /**
  * TopAsnDTO
+ *
+ * A single autonomous system with its aggregate metrics.
  */
 export type TopAsnDto = {
   asn: number;
@@ -1752,6 +2523,16 @@ export type TopAsnDto = {
 
 /**
  * TopAsnsResponse
+ *
+ * Top ASNs plus category totals.
+ *
+ * ``categories`` covers every ASN in the range, not only the top N.
+ * ``total_requests`` and ``total_bytes`` count every request, with or
+ * without ASN data; rows without ASN data are absent from ``categories``,
+ * so coverage is measured against these totals. Lists have no defaults
+ * (see TopUrlsResponse). ``drop_asn_count`` counts the DROP-listed ASNs
+ * with traffic in the range, beyond the top N too, and is None while the
+ * ASN DROP list has never downloaded.
  */
 export type TopAsnsResponse = {
   categories: Array<AsnCategoryTotalsDto>;
@@ -1765,6 +2546,10 @@ export type TopAsnsResponse = {
 
 /**
  * TopCitiesResponse
+ *
+ * Response containing top cities by hit count.
+ *
+ * ``items`` is deliberately default-less (see TopUrlsResponse).
  */
 export type TopCitiesResponse = {
   endDate: string;
@@ -1774,6 +2559,8 @@ export type TopCitiesResponse = {
 
 /**
  * TopCityStatsDTO
+ *
+ * A single city with its aggregate metrics.
  */
 export type TopCityStatsDto = {
   city: string;
@@ -1784,6 +2571,8 @@ export type TopCityStatsDto = {
 
 /**
  * TopCountriesResponse
+ *
+ * Response for top countries endpoint.
  */
 export type TopCountriesResponse = {
   topCountries?: Array<TopCountryDto>;
@@ -1791,6 +2580,10 @@ export type TopCountriesResponse = {
 
 /**
  * TopCountriesStatsResponse
+ *
+ * Response containing top countries by hit count.
+ *
+ * ``items`` is deliberately default-less (see TopUrlsResponse).
  */
 export type TopCountriesStatsResponse = {
   endDate: string;
@@ -1800,6 +2593,8 @@ export type TopCountriesStatsResponse = {
 
 /**
  * TopCountryDTO
+ *
+ * Top country with event count.
  */
 export type TopCountryDto = {
   countryCode: string;
@@ -1809,6 +2604,8 @@ export type TopCountryDto = {
 
 /**
  * TopCountryStatsDTO
+ *
+ * A single country with its aggregate metrics.
  */
 export type TopCountryStatsDto = {
   countryCode: string;
@@ -1819,6 +2616,8 @@ export type TopCountryStatsDto = {
 
 /**
  * TopGeoAsn
+ *
+ * Top autonomous system by geo-event count (rows without ASN data excluded).
  */
 export type TopGeoAsn = {
   asn: number;
@@ -1844,6 +2643,8 @@ export type TopGeoCitiesResponse = {
 
 /**
  * TopGeoCity
+ *
+ * Top city by event count (NULL cities excluded).
  */
 export type TopGeoCity = {
   city: string;
@@ -1861,6 +2662,8 @@ export type TopGeoCountriesResponse = {
 
 /**
  * TopGeoCountry
+ *
+ * Top country by event count.
  */
 export type TopGeoCountry = {
   countryCode: string;
@@ -1871,6 +2674,8 @@ export type TopGeoCountry = {
 
 /**
  * TopGeoIp
+ *
+ * Top IP by event count across all locations.
  */
 export type TopGeoIp = {
   asOrganization: string | null;
@@ -1890,6 +2695,8 @@ export type TopGeoIpsResponse = {
 
 /**
  * TopIPDTO
+ *
+ * Top IP address with event count and optional location.
  */
 export type TopIpdto = {
   eventCount: number;
@@ -1899,6 +2706,8 @@ export type TopIpdto = {
 
 /**
  * TopIpDTO
+ *
+ * A single IP address with its aggregate hit metrics.
  */
 export type TopIpDto = {
   city: string | null;
@@ -1911,6 +2720,10 @@ export type TopIpDto = {
 
 /**
  * TopIpsResponse
+ *
+ * Response containing top IPs by hit count.
+ *
+ * ``items`` is deliberately default-less (see TopUrlsResponse).
  */
 export type TopIpsResponse = {
   endDate: string;
@@ -1920,6 +2733,11 @@ export type TopIpsResponse = {
 
 /**
  * TopUrlDTO
+ *
+ * One host and path with its aggregate hit metrics.
+ *
+ * ``host`` is NULL for rows whose log line carried no Host header
+ * (combined-format nginx archives).
  */
 export type TopUrlDto = {
   avgRequestTime: number | null;
@@ -1933,6 +2751,11 @@ export type TopUrlDto = {
 
 /**
  * TopUrlsResponse
+ *
+ * Response containing top URLs by hit count.
+ *
+ * ``items`` is deliberately default-less: a dataclass default makes it
+ * non-required in OpenAPI and therefore optional in the generated TS client.
  */
 export type TopUrlsResponse = {
   endDate: string;
@@ -1942,6 +2765,8 @@ export type TopUrlsResponse = {
 
 /**
  * TopUserAgentDTO
+ *
+ * A single user agent with its hit count.
  */
 export type TopUserAgentDto = {
   hits: number;
@@ -1950,6 +2775,10 @@ export type TopUserAgentDto = {
 
 /**
  * TopUserAgentsResponse
+ *
+ * Response containing top user agents by hit count.
+ *
+ * ``items`` is deliberately default-less (see TopUrlsResponse).
  */
 export type TopUserAgentsResponse = {
   endDate: string;
@@ -1959,10 +2788,21 @@ export type TopUserAgentsResponse = {
 
 /**
  * UnavailableSourceHealth
+ *
+ * A log source that ingestion cannot read right now.
  */
 export type UnavailableSourceHealth = {
+  /**
+   * The source type, `file` or `loki`.
+   */
   kind: string;
+  /**
+   * The file path, or an opaque name such as `loki:1` for a Loki query.
+   */
   label: string;
+  /**
+   * Why the source is unavailable, when known.
+   */
   reason: string | null;
 };
 
@@ -2988,6 +3828,9 @@ export type ApiV1AuthApiKeysCreateApiKeyResponse =
 export type ApiV1AuthApiKeysKeyIdRevokeApiKeyData = {
   body?: never;
   path: {
+    /**
+     * The `id` of the key, from the key list.
+     */
     key_id: string;
   };
   query?: never;
@@ -4711,7 +5554,7 @@ export type ApiV1InstancesInstanceNameDeleteInstanceData = {
   body?: never;
   path: {
     /**
-     * Name of the instance to remove
+     * The `instanceName` from the instance list.
      */
     instance_name: string;
   };
@@ -4780,7 +5623,13 @@ export type ApiV1LogsFilesListFilesResponse =
 export type ApiV1LogsFilesKindNameDownloadData = {
   body?: never;
   path: {
+    /**
+     * `app`, `login` or `access`, as the file list gives it.
+     */
     kind: string;
+    /**
+     * The file's `name` from the file list.
+     */
     name: string;
   };
   query?: never;
@@ -4838,11 +5687,11 @@ export type ApiV1LogsTailTailData = {
   path?: never;
   query?: {
     /**
-     * Number of records to return (capped)
+     * How many lines to read from the end of the log, from 1 to 2000. Values outside that range are clamped. Defaults to 500.
      */
     lines?: number;
     /**
-     * Which log to tail
+     * `app` reads geometrikks.log, `login` reads login.log. Defaults to `app`.
      */
     source?: "app" | "login";
   };
@@ -5113,6 +5962,9 @@ export type ApiV1SystemSchedulerJobsGetSchedulerJobsResponse =
 export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData = {
   body?: never;
   path: {
+    /**
+     * The job's `id` from the job list, such as `geoip-refresh`.
+     */
     job_id: string;
   };
   query?: never;

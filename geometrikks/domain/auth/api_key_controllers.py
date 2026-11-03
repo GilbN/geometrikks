@@ -11,7 +11,7 @@ from litestar import Controller, Request, delete, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import HTTPException, ServiceUnavailableException
 from litestar.openapi.datastructures import ResponseSpec
-from litestar.params import FromPath, JSONBody, SkipValidation
+from litestar.params import JSONBody, PathParameter, SkipValidation
 from litestar.status_codes import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
@@ -46,19 +46,36 @@ _AUTH_DISABLED = ResponseSpec(
 )
 
 
+SCOPE_DESCRIPTION = "`read` allows GET and HEAD requests and the WebSocket feeds. `read_write` also allows writes."
+
+
 class ApiKeyView(msgspec.Struct, kw_only=True, rename="camel"):
-    """A stored key. The key itself is never part of it."""
+    """A stored API key. The key itself is never part of it."""
 
     id: UUID
     name: str
-    scope: ApiKeyScope
-    display_prefix: str
+    scope: Annotated[ApiKeyScope, msgspec.Meta(description=SCOPE_DESCRIPTION)]
+    display_prefix: Annotated[
+        str,
+        msgspec.Meta(description="The first eight characters of the key. They identify it here and in login.log."),
+    ]
     created_at: datetime
-    created_by: str
-    expires_at: datetime | None
-    last_used_at: datetime | None
-    last_used_ip: str | None
-    expired: bool
+    created_by: Annotated[str, msgspec.Meta(description="The username that created the key.")]
+    expires_at: Annotated[datetime | None, msgspec.Meta(description="When the key stops working. Null means never.")]
+    last_used_at: Annotated[
+        datetime | None,
+        msgspec.Meta(
+            description=(
+                "When a request last used the key, or null if none has. It updates at most once a minute "
+                "while the IP stays the same."
+            )
+        ),
+    ]
+    last_used_ip: Annotated[str | None, msgspec.Meta(description="The client IP of the request that last used the key.")]
+    expired: Annotated[
+        bool,
+        msgspec.Meta(description="Whether `expiresAt` has passed. An expired key stays in the list until you revoke it."),
+    ]
 
     @classmethod
     def from_record(cls, api_key_record: ApiKeyRecord, now: datetime) -> ApiKeyView:
@@ -77,29 +94,44 @@ class ApiKeyView(msgspec.Struct, kw_only=True, rename="camel"):
 
 
 class ApiKeyList(msgspec.Struct, rename="camel"):
-    """``available`` is false with APP_AUTH_DISABLED=true, where keys cannot exist."""
+    """Every stored API key, newest first."""
 
-    available: bool
+    available: Annotated[
+        bool, msgspec.Meta(description="False on a server with APP_AUTH_DISABLED=true, where keys cannot exist.")
+    ]
     keys: list[ApiKeyView]
 
 
 class CreateApiKeyPayload(msgspec.Struct, kw_only=True, rename="camel"):
+    """The name, scope and expiry of a new API key."""
+
     name: Annotated[
         str,
         msgspec.Meta(
             min_length=1,
-            description=f"1 to {API_KEY_NAME_MAX_LENGTH} characters once surrounding whitespace is trimmed.",
+            description=(
+                f"1 to {API_KEY_NAME_MAX_LENGTH} characters once surrounding whitespace is trimmed. "
+                "No two keys may share a name, ignoring case."
+            ),
         ),
     ]
-    scope: ApiKeyScope = "read"
-    expires_at: Annotated[datetime, msgspec.Meta(tz=True)] | None = None
+    scope: Annotated[ApiKeyScope, msgspec.Meta(description=f"{SCOPE_DESCRIPTION} Defaults to `read`.")] = "read"
+    expires_at: Annotated[
+        Annotated[datetime, msgspec.Meta(tz=True)] | None,
+        msgspec.Meta(
+            description=(
+                "When the key stops working, as ISO 8601 with a timezone. It must lie in the future. "
+                "Omit it or send null for a key that never expires."
+            )
+        ),
+    ] = None
 
 
 class CreatedApiKey(msgspec.Struct, rename="camel"):
-    """The only response that ever carries the full key."""
+    """A new API key. This response is the only place the full key ever appears."""
 
     api_key: ApiKeyView
-    key: str
+    key: Annotated[str, msgspec.Meta(description="The full key, starting with gmk_. Send it as `Authorization: Bearer <key>`.")]
 
 
 def _store_for(request: Request) -> ApiKeyStore:
@@ -137,6 +169,11 @@ class ApiKeyController(Controller):
 
     @get(
         "/",
+        summary="List API keys",
+        description=(
+            "Returns every key, newest first, with its scope, expiry, and when and from which IP it was last "
+            "used. The key itself never appears after creation. API keys get a 403 here; use a browser session."
+        ),
         responses={HTTP_403_FORBIDDEN: _SESSION_ONLY, HTTP_503_SERVICE_UNAVAILABLE: _STORE_UNAVAILABLE},
     )
     async def list_api_keys(
@@ -157,6 +194,12 @@ class ApiKeyController(Controller):
     @post(
         "/",
         guards=[requires_json_body],
+        summary="Create an API key",
+        description=(
+            "Creates a key and returns it in `key`. This is the only time the full key appears, so store it "
+            "now. A taken name gets a 409, and a name outside 1 to 64 characters or an expiry in the past "
+            "gets a 400. Send the body as `application/json`. API keys get a 403 here; use a browser session."
+        ),
         responses={
             HTTP_403_FORBIDDEN: _SESSION_ONLY,
             HTTP_409_CONFLICT: ResponseSpec(
@@ -197,6 +240,11 @@ class ApiKeyController(Controller):
 
     @delete(
         "/{key_id:uuid}",
+        summary="Revoke an API key",
+        description=(
+            "Deletes the key, so every request that sends it gets a 401 from then on. API keys get a 403 "
+            "here; use a browser session."
+        ),
         responses={
             HTTP_403_FORBIDDEN: _SESSION_ONLY,
             HTTP_404_NOT_FOUND: ResponseSpec(data_container=ErrorEnvelope, description="No key has this id."),
@@ -207,7 +255,7 @@ class ApiKeyController(Controller):
     async def revoke_api_key(
         self,
         request: Request,
-        key_id: FromPath[UUID],
+        key_id: Annotated[UUID, PathParameter(description="The `id` of the key, from the key list.")],
         settings: NamedDependency[SkipValidation[Settings]],
     ) -> None:
         if settings.auth_disabled:
