@@ -2845,11 +2845,16 @@ export const ErrorEnvelopeSchema = {
     "The JSON body of an error response.\n\nIts keys are snake_case, unlike the camelCase keys of successful responses.",
   examples: [
     {
-      status_code: 4966,
-      detail: "IgNZYFcagWptUqCwdERi",
+      status_code: 3674,
+      detail: "YmbpFdWetXVhYOwZjsYx",
+      code: "JhBSnpIXjjOrlCcUmnvi",
     },
   ],
   properties: {
+    code: {
+      examples: ["psxSmwtEmkVBOmIxyHqA"],
+      type: "string",
+    },
     detail: {
       examples: ["bzayzoQbzdXMsvhsvQnj"],
       type: "string",
@@ -2859,7 +2864,7 @@ export const ErrorEnvelopeSchema = {
       type: "integer",
     },
   },
-  required: ["detail", "status_code"],
+  required: ["code", "detail", "status_code"],
   title: "ErrorEnvelope",
   type: "object",
 } as const;

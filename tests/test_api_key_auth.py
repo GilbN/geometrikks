@@ -130,6 +130,7 @@ async def test_unknown_malformed_and_bare_prefix_tokens_are_401(token: str, reas
             res = await client.get("/api/v1/protected", headers=bearer(token))
     assert res.status_code == 401
     assert res.json()["detail"] == "Invalid API key"
+    assert res.json()["code"] == "api_key_invalid"
     [rejection] = rejections(captured_logs)
     assert rejection["user"] == token[:8]
     assert rejection["reason"] == reason
@@ -146,6 +147,7 @@ async def test_expired_key_is_401_and_logs_its_name():
             res = await client.get("/api/v1/protected", headers=bearer(api_key))
     assert res.status_code == 401
     assert res.json()["detail"] == "API key expired"
+    assert res.json()["code"] == "api_key_expired"
     [rejection] = rejections(captured_logs)
     assert rejection["user"] == api_key[:8]
     assert rejection["key"] == "test-curl"
@@ -276,6 +278,7 @@ async def test_read_key_cannot_post():
         res = await client.post("/api/v1/test-write", headers=bearer(api_key))
     assert res.status_code == 403
     assert res.json()["detail"] == "This API key is read-only"
+    assert res.json()["code"] == "api_key_read_only"
 
 
 @pytest.mark.parametrize("method", ["PUT", "PATCH", "DELETE"])
@@ -381,6 +384,7 @@ async def test_store_outage_is_503():
         app.state.session_store_ready = False
         res = await client.get("/api/v1/protected", headers=bearer(api_key))
     assert res.status_code == 503
+    assert res.json()["code"] == "api_keys_unavailable"
 
 
 async def test_repository_outage_is_503():
@@ -391,6 +395,7 @@ async def test_repository_outage_is_503():
         repository.find_error = OSError("connection refused")
         res = await client.get("/api/v1/protected", headers=bearer(api_key))
     assert res.status_code == 503
+    assert res.json()["code"] == "api_keys_unavailable"
 
 
 async def test_missing_store_is_503():
@@ -399,6 +404,7 @@ async def test_missing_store_is_503():
     async with AsyncTestClient(app=app) as client:
         res = await client.get("/api/v1/protected", headers=bearer(UNKNOWN_KEY))
     assert res.status_code == 503
+    assert res.json()["code"] == "api_keys_unavailable"
 
 
 async def test_rejection_lines_are_throttled():

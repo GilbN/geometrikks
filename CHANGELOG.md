@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- API error responses add a stable `code` for scripts to distinguish expired keys, read-only keys, validation failures and unavailable services. HTTP statuses, messages and validation details keep their existing meanings.
+
 - `docs/configuration.md` puts the settings most installs need first: login, database, the logs to read and GeoIP. Each optional feature follows with its own section. The 28 settings for pool sizes, poll intervals, timeouts and log rotation sit in an Advanced tuning section near the end. Almost every install can leave them at their defaults.
 - The abuse report dialog keeps its title and its Download and Copy buttons in place while the rest scrolls, and its preview box is shorter. On a phone the title takes less room and the two buttons sit side by side.
 - The API reference at `/schema` now explains how to authenticate and what every endpoint does, and describes its parameters and response fields.

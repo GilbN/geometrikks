@@ -35,6 +35,24 @@ from geometrikks.services.logfiles import LogTailRecord
 PageItemT = TypeVar("PageItemT")
 
 HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
+
+
+def test_synthesized_validation_responses_document_error_codes(openapi_document: dict[str, Any]):
+    found = 0
+    for path, item in openapi_document["paths"].items():
+        if not path.startswith("/api/"):
+            continue
+        for method, operation in item.items():
+            if method not in HTTP_METHODS:
+                continue
+            response = operation.get("responses", {}).get("400", {})
+            schema = response.get("content", {}).get("application/json", {}).get("schema", {})
+            if schema.get("description") == "Validation Exception":
+                found += 1
+                assert "code" in schema["required"], (method, path)
+                assert schema["properties"]["code"]["type"] == "string"
+                assert schema["examples"][0]["code"] == "validation_failed"
+    assert found > 0
 # Litestar falls back to the handler name, one word with no spaces; a written summary always has one.
 GENERATED_SUMMARY = re.compile(r"\S+")
 

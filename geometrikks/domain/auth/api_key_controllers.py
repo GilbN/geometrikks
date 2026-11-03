@@ -28,7 +28,7 @@ from geometrikks.server import runtime
 from geometrikks.server.api_key_auth import SESSION_ONLY_RESPONSE, SESSION_ONLY_SECURITY, requires_session_user
 from geometrikks.server.api_key_store import API_KEY_NAME_MAX_LENGTH, ApiKeyStore
 from geometrikks.server.auth import AdminUser
-from geometrikks.server.exceptions import ErrorEnvelope
+from geometrikks.server.exceptions import ApiKeysUnavailableError, ErrorEnvelope
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 
 if TYPE_CHECKING:
@@ -149,7 +149,7 @@ class CreatedApiKey(msgspec.Struct, rename="camel"):
 def _store_for(request: Request) -> ApiKeyStore:
     store = runtime.get_api_key_store(request.app)
     if store is None:
-        raise ServiceUnavailableException(detail="API keys are unavailable.")
+        raise ApiKeysUnavailableError(detail="API keys are unavailable.")
     return store
 
 

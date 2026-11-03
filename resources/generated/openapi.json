@@ -2861,11 +2861,18 @@
         "description": "The JSON body of an error response.\n\nIts keys are snake_case, unlike the camelCase keys of successful responses.",
         "examples": [
           {
-            "status_code": 4966,
-            "detail": "IgNZYFcagWptUqCwdERi"
+            "status_code": 3674,
+            "detail": "YmbpFdWetXVhYOwZjsYx",
+            "code": "JhBSnpIXjjOrlCcUmnvi"
           }
         ],
         "properties": {
+          "code": {
+            "examples": [
+              "psxSmwtEmkVBOmIxyHqA"
+            ],
+            "type": "string"
+          },
           "detail": {
             "examples": [
               "bzayzoQbzdXMsvhsvQnj"
@@ -2880,6 +2887,7 @@
           }
         },
         "required": [
+          "code",
           "detail",
           "status_code"
         ],
@@ -7946,7 +7954,7 @@
     }
   },
   "info": {
-    "description": "GeoMetrikks reads your reverse proxy's access logs, looks up where each client IP is, and serves the results through this API. The web app uses the same endpoints.\n\n## Authentication\n\nSend an API key in the `Authorization` header:\n\n```bash\ncurl -H \"Authorization: Bearer gmk_...\" https://geo.example.com/api/v1/stats\n```\n\nCreate keys in the web app under Settings > API keys. GeoMetrikks shows a key once, right after you create it. A logged-in browser sends its `session` cookie instead, so the requests you try on this page work without a key while you are logged in.\n\nEvery path under `/api/` and `/ws/` needs a key or a session. `/health`, `/health/ready`, `/api/v1/auth/login`, `/api/v1/auth/options` and the OIDC login routes `/api/v1/auth/oidc/start` and `/api/v1/auth/oidc/callback` need neither. A server started with `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.\n\n## Scopes\n\nEvery key has one of two scopes.\n\n- **Read** keys can send `GET` and `HEAD` requests and open the WebSocket feeds `/ws/live`, `/ws/crowdsec` and `/ws/logs`. Any other method gets a 403.\n- **Read/write** keys can also ban and unban IPs, ban DROP networks, run a scheduler job, rotate the log files and delete server locations and retired instances.\n\nNo key can list, create or revoke keys, log out, call `/api/v1/auth/me` or read `/api/v1/auth/oidc/status`. Those endpoints answer every key with a 403 and need a browser session.\n\n## Errors\n\nAn error response is a JSON object with the HTTP status and a message:\n\n```json\n{\"status_code\": 404, \"detail\": \"The API key does not exist.\"}\n```\n\nWhen a parameter fails validation, the 400 response adds an `extra` list that names each bad parameter:\n\n```json\n{\n  \"status_code\": 400,\n  \"detail\": \"Validation failed for GET /api/v1/logs/tail?lines=abc\",\n  \"extra\": [{\"message\": \"Expected `int`, got `str`\", \"key\": \"lines\", \"source\": \"query\"}]\n}\n```\n\nError keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one exception to this shape, and its 503 body is `{\"ready\": false}`.\n\nThe status codes mean:\n\n- **400** A parameter or the body failed validation, for example an IP that does not parse, or a CrowdSec request needs a newer LAPI than the one configured.\n- **401** The request carries no session and no key, or the key is malformed, unknown, revoked or expired.\n- **403** A Read key sent a write, a key called an endpoint that needs a browser session, or a CrowdSec ban, unban or alert endpoint reached a server without CrowdSec machine credentials.\n- **404** No route or no resource matches. CrowdSec endpoints other than the status also answer 404 when the CrowdSec integration is off.\n- **409** The request conflicts with the current state, for example a key name that is taken.\n- **415** `POST /api/v1/auth/api-keys` got a body that is not `application/json`.\n- **500** CrowdSec rejected the configured credentials, or the server hit an unexpected error.\n- **502** The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error.\n- **503** The database is unreachable. Checking an API key needs the database, so requests with a key get a 503 until it is back. `/health/ready` also answers 503 on an agent whose startup schema check timed out, even while the database answers.\n\n## Time ranges\n\nMost analytics endpoints and the abuse report take the range as `startDate` and `endDate`. The geo event, geo location, access log, access log debug and CrowdSec banned-location endpoints call it `fromTimestamp` and `toTimestamp`. Send them as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. GeoMetrikks stores times in UTC and returns them in UTC. A response that echoes `startDate` and `endDate` keeps the offset you sent.\n\n`/api/v1/analytics/time-series`, `/api/v1/analytics/geo-time-series` and `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for longer ones, and their `granularity` parameter forces either size. Every response with buckets names the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone such as `Europe/Oslo`. `tz` makes daily buckets local days on ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Those shorter ranges get hourly buckets unless you send `granularity=daily`, and `tz` changes nothing on hourly buckets.\n\n## Pagination\n\nPaged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, `total`, `limit` and `offset`, where `total` counts the matches on every page. `/api/v1/crowdsec/drop-networks` does not follow this shape. It takes `page` and a `pageSize` of at most 100, and answers with `items`, `totalNetworks` and traffic totals, with no `limit` or `offset`. `/api/v1/crowdsec/alerts` pages by cursor. Pass the `nextCursor` of one response as `before` to get the next, older page. Top lists take a `limit` instead and have no pages.\n",
+    "description": "GeoMetrikks reads your reverse proxy's access logs, looks up where each client IP is, and serves the results through this API. The web app uses the same endpoints.\n\n## Authentication\n\nSend an API key in the `Authorization` header:\n\n```bash\ncurl -H \"Authorization: Bearer gmk_...\" https://geo.example.com/api/v1/stats\n```\n\nCreate keys in the web app under Settings > API keys. GeoMetrikks shows a key once, right after you create it. A logged-in browser sends its `session` cookie instead, so the requests you try on this page work without a key while you are logged in.\n\nEvery path under `/api/` and `/ws/` needs a key or a session. `/health`, `/health/ready`, `/api/v1/auth/login`, `/api/v1/auth/options` and the OIDC login routes `/api/v1/auth/oidc/start` and `/api/v1/auth/oidc/callback` need neither. A server started with `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.\n\n## Scopes\n\nEvery key has one of two scopes.\n\n- **Read** keys can send `GET` and `HEAD` requests and open the WebSocket feeds `/ws/live`, `/ws/crowdsec` and `/ws/logs`. Any other method gets a 403.\n- **Read/write** keys can also ban and unban IPs, ban DROP networks, run a scheduler job, rotate the log files and delete server locations and retired instances.\n\nNo key can list, create or revoke keys, log out, call `/api/v1/auth/me` or read `/api/v1/auth/oidc/status`. Those endpoints answer every key with a 403 and need a browser session.\n\n## Errors\n\nAn API error response includes the HTTP status, a message and a stable machine-readable code:\n\n```json\n{\"status_code\": 404, \"detail\": \"The API key does not exist.\", \"code\": \"not_found\"}\n```\n\nWhen a parameter fails validation, the 400 response adds an `extra` list that names each bad parameter:\n\n```json\n{\n  \"status_code\": 400,\n  \"code\": \"validation_failed\",\n  \"detail\": \"Validation failed for GET /api/v1/logs/tail?lines=abc\",\n  \"extra\": [{\"message\": \"Expected `int`, got `str`\", \"key\": \"lines\", \"source\": \"query\"}]\n}\n```\n\nBranch on the HTTP status and `code`, not the wording of `detail`. Unknown codes fall back to the HTTP status. Unexpected internal errors may omit `code`.\n\nKey failures use `api_key_invalid`, `api_key_expired`, `api_key_read_only`, `session_required` or `api_keys_unavailable`. Parameter errors use `validation_failed` or `invalid_request`. Resource errors use `not_found` or `conflict`. CrowdSec failures use `crowdsec_unreachable`, `crowdsec_credentials_rejected` or `crowdsec_unsupported`. Other failures use a code matching the status, such as `not_authenticated`, `forbidden` or `unavailable`.\n\nError keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one exception to this shape, and its 503 body is `{\"ready\": false}`.\n\nThe status codes mean:\n\n- **400** A parameter or the body failed validation, for example an IP that does not parse, or a CrowdSec request needs a newer LAPI than the one configured.\n- **401** The request carries no session and no key, or the key is malformed, unknown, revoked or expired.\n- **403** A Read key sent a write, a key called an endpoint that needs a browser session, or a CrowdSec ban, unban or alert endpoint reached a server without CrowdSec machine credentials.\n- **404** No route or no resource matches. CrowdSec endpoints other than the status also answer 404 when the CrowdSec integration is off.\n- **409** The request conflicts with the current state, for example a key name that is taken.\n- **415** `POST /api/v1/auth/api-keys` got a body that is not `application/json`.\n- **500** CrowdSec rejected the configured credentials, or the server hit an unexpected error.\n- **502** The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error.\n- **503** The database is unreachable. Checking an API key needs the database, so requests with a key get a 503 until it is back. `/health/ready` also answers 503 on an agent whose startup schema check timed out, even while the database answers.\n\n## Time ranges\n\nMost analytics endpoints and the abuse report take the range as `startDate` and `endDate`. The geo event, geo location, access log, access log debug and CrowdSec banned-location endpoints call it `fromTimestamp` and `toTimestamp`. Send them as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. GeoMetrikks stores times in UTC and returns them in UTC. A response that echoes `startDate` and `endDate` keeps the offset you sent.\n\n`/api/v1/analytics/time-series`, `/api/v1/analytics/geo-time-series` and `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for longer ones, and their `granularity` parameter forces either size. Every response with buckets names the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone such as `Europe/Oslo`. `tz` makes daily buckets local days on ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Those shorter ranges get hourly buckets unless you send `granularity=daily`, and `tz` changes nothing on hourly buckets.\n\n## Pagination\n\nPaged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, `total`, `limit` and `offset`, where `total` counts the matches on every page. `/api/v1/crowdsec/drop-networks` does not follow this shape. It takes `page` and a `pageSize` of at most 100, and answers with `items`, `totalNetworks` and traffic totals, with no `limit` or `offset`. `/api/v1/crowdsec/alerts` pages by cursor. Pass the `nextCursor` of one response as `before` to get the next, older page. Top lists take a `limit` instead and have no pages.\n",
     "title": "GeoMetrikks API",
     "version": "1"
   },
@@ -8249,12 +8257,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -8272,7 +8285,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -8371,12 +8385,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -8394,7 +8413,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -8870,12 +8890,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -8893,7 +8918,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -9051,12 +9077,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -9074,7 +9105,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -9200,12 +9232,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -9223,7 +9260,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -9322,12 +9360,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -9345,7 +9388,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -9444,12 +9488,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -9467,7 +9516,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -9693,12 +9743,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -9716,7 +9771,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -9801,12 +9857,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -9824,7 +9885,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -10017,12 +10079,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -10040,7 +10107,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -10233,12 +10301,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -10256,7 +10329,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -10449,12 +10523,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -10472,7 +10551,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -10665,12 +10745,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -10688,7 +10773,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -10881,12 +10967,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -10904,7 +10995,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -11097,12 +11189,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -11120,7 +11217,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -11216,12 +11314,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -11239,7 +11342,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -11330,12 +11434,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -11353,7 +11462,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -11454,12 +11564,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -11477,7 +11592,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -11841,12 +11957,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -11864,7 +11985,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -11958,12 +12080,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -11981,7 +12108,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12033,12 +12161,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12056,7 +12189,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12108,12 +12242,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12131,7 +12270,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12180,12 +12320,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12203,7 +12348,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12398,12 +12544,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12421,7 +12572,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12582,12 +12734,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12605,7 +12762,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12662,12 +12820,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12685,7 +12848,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12750,12 +12914,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12773,7 +12942,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12874,12 +13044,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -12897,7 +13072,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -12994,12 +13170,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -13017,7 +13198,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -13301,12 +13483,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -13324,7 +13511,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -13678,12 +13866,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -13701,7 +13894,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -13961,12 +14155,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -13984,7 +14183,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -14279,12 +14479,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -14302,7 +14507,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -14564,12 +14770,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -14587,7 +14798,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -14849,12 +15061,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -14872,7 +15089,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -15134,12 +15352,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -15157,7 +15380,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -15419,12 +15643,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -15442,7 +15671,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -15535,12 +15765,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -15558,7 +15793,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -15804,12 +16040,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -15827,7 +16068,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -15896,12 +16138,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -15919,7 +16166,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -16040,12 +16288,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -16063,7 +16316,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -16164,12 +16418,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -16187,7 +16446,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -16299,12 +16559,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -16322,7 +16587,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -16401,12 +16667,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -16424,7 +16695,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -16568,12 +16840,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -16591,7 +16868,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -16688,12 +16966,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -16711,7 +16994,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }
@@ -17205,12 +17489,17 @@
                   "description": "Validation Exception",
                   "examples": [
                     {
+                      "code": "validation_failed",
                       "detail": "Bad Request",
                       "extra": {},
                       "status_code": 400
                     }
                   ],
                   "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
                     "detail": {
                       "type": "string"
                     },
@@ -17228,7 +17517,8 @@
                   },
                   "required": [
                     "detail",
-                    "status_code"
+                    "status_code",
+                    "code"
                   ],
                   "type": "object"
                 }

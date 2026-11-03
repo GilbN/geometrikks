@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 import sqlalchemy.exc
-from litestar.exceptions import ServiceUnavailableException
+from geometrikks.server.exceptions import ApiKeysUnavailableError
 
 from geometrikks.domain.auth.api_keys import ApiKeyRecord, ApiKeyScope, generate_api_key, hash_api_key
 from geometrikks.domain.auth.models import ApiKey
@@ -173,12 +173,12 @@ class ApiKeyStore:
 
     async def _call(self, operation: Callable[[], Awaitable[_T]]) -> _T:
         if not self.is_available():
-            raise ServiceUnavailableException(detail="The API key store is unavailable.")
+            raise ApiKeysUnavailableError(detail="The API key store is unavailable.")
         try:
             async with asyncio.timeout(self.timeout):
                 return await operation()
         except _OUTAGE_ERRORS as error:
-            raise ServiceUnavailableException(detail="The API key store is unavailable.") from error
+            raise ApiKeysUnavailableError(detail="The API key store is unavailable.") from error
 
     async def authenticate(self, token: str) -> ApiKeyRecord | None:
         """The stored key for ``token``, expired or not, so the caller can name it when rejecting."""

@@ -1468,6 +1468,7 @@ export type EmbeddedLocationDto = {
  * Its keys are snake_case, unlike the camelCase keys of successful responses.
  */
 export type ErrorEnvelope = {
+  code: string;
   detail: string;
   status_code: number;
 };
@@ -3930,6 +3931,10 @@ export type ApiV1AccessLogDebugListAccessLogDebugErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3989,6 +3994,10 @@ export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4102,6 +4111,10 @@ export type ApiV1AccessLogsListAccessLogsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4186,6 +4199,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4239,6 +4256,10 @@ export type ApiV1AnalyticsIpProfileGetIpProfileErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4288,6 +4309,10 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4337,6 +4362,10 @@ export type ApiV1AnalyticsSummaryGetSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4406,6 +4435,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4451,6 +4484,10 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4517,6 +4554,10 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4582,6 +4623,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4647,6 +4692,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4712,6 +4761,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4777,6 +4830,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4842,6 +4899,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4909,6 +4970,10 @@ export type ApiV1AuthApiKeysCreateApiKeyErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4966,6 +5031,10 @@ export type ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5018,6 +5087,10 @@ export type ApiV1AuthLoginLoginErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5192,6 +5265,10 @@ export type ApiV1CrowdsecAlertsListAlertsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5241,6 +5318,10 @@ export type ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5282,6 +5363,10 @@ export type ApiV1CrowdsecAlertsAlertIdGetAlertErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5322,6 +5407,10 @@ export type ApiV1CrowdsecBanBanErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5358,6 +5447,10 @@ export type ApiV1CrowdsecBanNetworksBanNetworksErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5432,6 +5525,10 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5502,6 +5599,10 @@ export type ApiV1CrowdsecDecisionsListDecisionsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5557,6 +5658,10 @@ export type ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5603,6 +5708,10 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5656,6 +5765,10 @@ export type ApiV1CrowdsecDropNetworksListDropNetworksErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5726,6 +5839,10 @@ export type ApiV1CrowdsecUnbanUnbanErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5816,6 +5933,10 @@ export type ApiV1GeoEventsListGeoEventsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5936,6 +6057,10 @@ export type ApiV1GeoEventsLogsGetGeoLogsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6027,6 +6152,10 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6108,6 +6237,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6185,6 +6318,10 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6262,6 +6399,10 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6339,6 +6480,10 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6416,6 +6561,10 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6461,6 +6610,10 @@ export type ApiV1GeoLocationsListGeoLocationsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6548,6 +6701,10 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6606,6 +6763,10 @@ export type ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6663,6 +6824,10 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6712,6 +6877,10 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6766,6 +6935,10 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6834,6 +7007,10 @@ export type ApiV1InstancesInstanceNameDeleteInstanceErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6908,6 +7085,10 @@ export type ApiV1LogsFilesKindNameDownloadErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6970,6 +7151,10 @@ export type ApiV1LogsTailTailErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -7243,6 +7428,10 @@ export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null

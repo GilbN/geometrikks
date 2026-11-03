@@ -54,14 +54,17 @@ attributes stay snake_case.
   `status_code`, ...); renaming historical log data would misrepresent it.
   OpenAPI documents only the stable record fields.
 
-## Error envelope: Litestar native
+## Error envelope
 
-Errors use Litestar's native HTTP-exception envelope, unchanged:
+API errors use Litestar's HTTP-exception envelope with an added machine-readable `code`:
 
 ```json
-{"status_code": 404, "detail": "Not Found"}
+{"status_code": 404, "detail": "Not Found", "code": "not_found"}
 ```
 
+- `code` is stable and independent of the human-readable `detail`. Clients should use
+  the HTTP status and `code` to decide how to handle an error. Unknown codes should
+  fall back to the HTTP status. Unexpected internal errors may omit `code`.
 - `extra` appears additionally on request-validation errors with the
   per-field breakdown.
 - The envelope keys are the framework's and stay snake_case; the camelCase
@@ -72,6 +75,25 @@ Errors use Litestar's native HTTP-exception envelope, unchanged:
   keep litestar-vite's empty-body behavior. The 404 handler treats the whole
   `/api/` namespace as API surface, matching the auth boundary: an unknown or
   unversioned `/api/` path is an API consumer's mistake and gets JSON.
+
+### Error codes
+
+| Code | Meaning |
+| --- | --- |
+| `api_key_invalid` | The key is malformed, unknown or revoked. |
+| `api_key_expired` | The key has expired. |
+| `api_key_read_only` | The key cannot perform writes. |
+| `session_required` | This operation requires a browser session. |
+| `api_keys_unavailable` | The API key store is unavailable. |
+| `validation_failed` | Request parameters or the body failed framework validation. |
+| `invalid_request` | A supplied value failed domain validation. |
+| `not_authenticated`, `forbidden` | Authentication is missing or access is denied. |
+| `not_found`, `method_not_allowed`, `conflict` | The resource or operation cannot satisfy the request. |
+| `request_too_large`, `unsupported_media_type`, `rate_limited` | The request exceeds a limit or uses an unsupported format. |
+| `unavailable`, `upstream_unavailable` | The app or an upstream service is unavailable. |
+| `crowdsec_unreachable`, `crowdsec_credentials_rejected`, `crowdsec_unsupported` | CrowdSec cannot complete the operation. |
+| `rdap_unavailable` | The registry lookup failed. |
+| `internal_error`, `http_error` | A handled error has no more specific code. |
 
 ## Operation IDs
 

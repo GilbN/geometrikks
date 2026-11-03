@@ -39,10 +39,10 @@ No key can list, create or revoke keys, log out, call `/api/v1/auth/me` or read 
 
 ## Errors
 
-An error response is a JSON object with the HTTP status and a message:
+An API error response includes the HTTP status, a message and a stable machine-readable code:
 
 ```json
-{"status_code": 404, "detail": "The API key does not exist."}
+{"status_code": 404, "detail": "The API key does not exist.", "code": "not_found"}
 ```
 
 When a parameter fails validation, the 400 response adds an `extra` list that names each bad \
@@ -51,10 +51,20 @@ parameter:
 ```json
 {
   "status_code": 400,
+  "code": "validation_failed",
   "detail": "Validation failed for GET /api/v1/logs/tail?lines=abc",
   "extra": [{"message": "Expected `int`, got `str`", "key": "lines", "source": "query"}]
 }
 ```
+
+Branch on the HTTP status and `code`, not the wording of `detail`. Unknown codes fall back to \
+the HTTP status. Unexpected internal errors may omit `code`.
+
+Key failures use `api_key_invalid`, `api_key_expired`, `api_key_read_only`, `session_required` or \
+`api_keys_unavailable`. Parameter errors use `validation_failed` or `invalid_request`. Resource \
+errors use `not_found` or `conflict`. CrowdSec failures use `crowdsec_unreachable`, \
+`crowdsec_credentials_rejected` or `crowdsec_unsupported`. Other failures use a code matching the \
+status, such as `not_authenticated`, `forbidden` or `unavailable`.
 
 Error keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one \
 exception to this shape, and its 503 body is `{"ready": false}`.

@@ -21,6 +21,7 @@ from geometrikks.server.api_key_auth import api_key_scope_guard
 from geometrikks.server.api_key_store import ApiKeyRepository, install_api_key_store
 from geometrikks.server.auth import AuthState, build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.routes import create_api_v1_router
 from geometrikks.server.session_store import install_session_store
 from tests.api_key_support import MemoryApiKeyRepository
@@ -62,6 +63,7 @@ def make_app(
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
         guards=[api_key_scope_guard],
+        exception_handlers=EXCEPTION_HANDLERS,
         plugins=[channels],
         logging_config=logging_config,
     )
@@ -87,6 +89,7 @@ def make_disabled_app(*, extra_handlers: Sequence[Any] = ()) -> Litestar:
         route_handlers=[create_api_v1_router([AuthController]), protected, fake_health, *extra_handlers],
         dependencies={"settings": create_settings_provider(settings)},
         guards=[api_key_scope_guard],
+        exception_handlers=EXCEPTION_HANDLERS,
         logging_config=None,
     )
     app.state.auth_state = None

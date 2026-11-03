@@ -85,7 +85,7 @@ async def test_helper_rejects_an_unknown_sort_field():
     async with AsyncTestClient(app=_helper_app()) as client:
         resp = await client.get("/rows", params={"orderBy": "nope"})
     assert resp.status_code == 400
-    assert resp.json() == {"status_code": 400, "detail": "Cannot sort by 'nope'"}
+    assert resp.json() == {"status_code": 400, "detail": "Cannot sort by 'nope'", "code": "invalid_request"}
 
 
 def _hermetic_app() -> Litestar:
@@ -100,7 +100,7 @@ async def test_unknown_sort_field_is_a_400(path: str, field: str):
     async with AsyncTestClient(app=_hermetic_app()) as client:
         resp = await client.get(path, params={"orderBy": field})
     assert resp.status_code == 400
-    assert resp.json() == {"status_code": 400, "detail": f"Cannot sort by {field!r}"}
+    assert resp.json() == {"status_code": 400, "detail": f"Cannot sort by {field!r}", "code": "invalid_request"}
 
 
 @pytest.fixture
