@@ -834,17 +834,19 @@ Keys start with `gmk_`. Send one in the `Authorization` header:
 curl -H "Authorization: Bearer gmk_..." https://geo.example.com/api/v1/stats
 ```
 
-The WebSocket feeds take the same header, so a script can open `/ws/live`
-with a key. Browsers cannot set headers on a WebSocket, so the web app
+The WebSocket feeds take the same header, so a script can open `/ws/live`,
+`/ws/crowdsec` or `/ws/logs` with a key. Browsers cannot set headers on a WebSocket, so the web app
 keeps using its session cookie.
 
 A key has one of two scopes. A Read key can make `GET` and `HEAD` requests
-and open the WebSocket feeds. Any other request gets a 403, so a Read key
+and open the WebSocket feeds. Any other method gets a 403, so a Read key
 cannot ban or unban IPs, ban DROP networks, run a scheduler job now, rotate
-the log file, or delete a server location or a retired agent instance. A
+the log files, or delete a server location or a retired agent instance. A
 Read/write key can do all of that. No key can list, create or revoke keys,
-log out, or ask who is logged in. Those endpoints answer every key with a
-403, so managing keys takes a browser login.
+log out, ask who is logged in, or read the OIDC status. Those endpoints
+answer every key with a 403, so managing keys takes a browser login. The
+login endpoints and `OPTIONS` requests never check a key, so sending one
+there changes nothing.
 
 A request with an unknown, revoked or expired key gets a 401. The list
 under Settings > API keys shows each key's scope, expiry, and when and from
