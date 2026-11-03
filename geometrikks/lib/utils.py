@@ -24,7 +24,9 @@ class GeoIPInfoView(msgspec.Struct, rename="camel"):
     available: Annotated[bool, msgspec.Meta(description="Whether the file exists and opens as a MaxMind database.")]
     db_path: Annotated[
         str,
-        msgspec.Meta(description="The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there."),
+        msgspec.Meta(
+            description="The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there."
+        ),
     ]
     build_date: Annotated[datetime | None, msgspec.Meta(description="When MaxMind built the file, from its metadata.")]
     age_days: Annotated[int | None, msgspec.Meta(description="Whole days since `buildDate`.")]

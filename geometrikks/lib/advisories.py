@@ -38,7 +38,9 @@ class Advisory(msgspec.Struct, rename="camel"):
     detail: Annotated[str | None, msgspec.Meta(description="What the problem means and how to fix it.")] = None
     remedy: Annotated[
         str | None,
-        msgspec.Meta(description="The settings, command or short instruction that fixes the problem, when there is one."),
+        msgspec.Meta(
+            description="The settings, command or short instruction that fixes the problem, when there is one."
+        ),
     ] = None
     docs_url: Annotated[str | None, msgspec.Meta(description="A link to the documentation for this problem.")] = None
 

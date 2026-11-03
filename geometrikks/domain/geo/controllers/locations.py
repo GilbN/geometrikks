@@ -13,6 +13,7 @@ from litestar.status_codes import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.geo.controllers.events import GEO_WHOLE_BUCKETS_NOTE
 from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.services import GeoLocationService
 from geometrikks.domain.geo.dtos import (
@@ -101,8 +102,8 @@ class GeoLocationController(Controller):
         summary="Get the locations with events as GeoJSON",
         description=(
             "Returns a GeoJSON FeatureCollection with one point per location that had events in the range, "
-            "busiest first, and totals in `stats`. Ranges over 24 hours read the location aggregates and count "
-            "from the start of the hour or UTC day holding `fromTimestamp`. An IP or ASN filter reads the raw "
+            "busiest first, and totals in `stats`. Ranges over 24 hours read the location aggregates, which "
+            f"{GEO_WHOLE_BUCKETS_NOTE}. An IP or ASN filter reads the raw "
             "rows instead, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. A server "
             "filter does the same on a database whose location aggregates predate server tracking."
         ),
@@ -259,7 +260,10 @@ class GeoLocationController(Controller):
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
-        server: Annotated[str, PathParameter(description="The server name, as `/api/v1/geo-locations/server-locations` lists it.")],
+        server: Annotated[
+            str,
+            PathParameter(description="The server name, as `/api/v1/geo-locations/server-locations` lists it."),
+        ],
     ) -> None:
         user = request.scope.get("user")
         await remove_server_location(db_session, server, actor=str(user) if user else "unknown")
@@ -271,7 +275,8 @@ class GeoLocationController(Controller):
         description=(
             "Returns client IPs, each with the location where it had the most events in the range. The ranking "
             "and `eventCount` use that one location's events only, so an IP spread over several locations "
-            "ranks lower than its total suggests."
+            "ranks lower than its total suggests. The server ranks `limit` times 10 location and IP pairs "
+            "before it drops repeated IPs, so the list can hold fewer than `limit` IPs while more exist."
         ),
     )
     async def get_global_top_ips(
@@ -326,7 +331,9 @@ class GeoLocationController(Controller):
         geo_location_service: NamedDependency[GeoLocationService],
         location_id: Annotated[
             int,
-            PathParameter(description="The location's `id`, from `/api/v1/geo-locations` or a GeoJSON feature's `properties.id`."),
+            PathParameter(
+                description="The location's `id`, from `/api/v1/geo-locations` or a GeoJSON feature's `properties.id`."
+            ),
         ],
         from_timestamp: FromTimestamp,
         to_timestamp: ToTimestamp,
@@ -356,9 +363,9 @@ class GeoLocationController(Controller):
         return_dto=None,
         summary="List the countries with the most events, unfiltered",
         description=(
-            "Returns countries ordered by event count. Ranges over 24 hours read the location aggregates and "
-            "count from the start of the hour or UTC day holding `fromTimestamp`. `/api/v1/geo-events/top-countries` "
-            "also counts unique IPs and takes filters."
+            "Returns countries ordered by event count. Ranges over 24 hours read the location aggregates, which "
+            f"{GEO_WHOLE_BUCKETS_NOTE}. `/api/v1/geo-events/top-countries` also counts unique IPs and takes "
+            "filters."
         ),
     )
     async def get_top_countries(

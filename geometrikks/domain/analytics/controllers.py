@@ -169,9 +169,13 @@ def _resolve_chart_granularity(
 
 RAW_RETENTION_NOTE = "which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default"
 FILTERED_RAW_NOTE = f"A country, city or IP filter makes it read the raw access log rows, {RAW_RETENTION_NOTE}."
+WHOLE_BUCKETS_NOTE = (
+    "count whole hours or UTC days, from the one that holds `startDate` through the last one that starts "
+    "before `endDate`"
+)
 AGGREGATE_EDGE_NOTE = (
-    "Ranges over 24 hours read the hourly aggregates, or the daily ones above 30 days, and count from the "
-    "start of the hour or UTC day that holds `startDate`."
+    "Ranges over 24 hours read the hourly aggregates, or the daily ones above 30 days. Those reads "
+    f"{WHOLE_BUCKETS_NOTE}."
 )
 
 
@@ -193,8 +197,8 @@ class AnalyticsController(Controller):
         summary="Get the traffic summary for a time range",
         description=(
             "Returns request, byte, status class, latency and geo event totals for the range. With "
-            "`comparePrevious` it adds the period of the same length that ends just before `startDate`, and "
-            "both comparison fields stay null when that period has no data. "
+            "`comparePrevious` it adds the period of the same length that ends just before `startDate`, which "
+            "stays null unless the range and that period each have requests or geo events. "
             f"{AGGREGATE_EDGE_NOTE} The unique IP and country counts are then estimates, and "
             "`/api/v1/analytics/live-summary` gives exact figures."
         ),
@@ -455,10 +459,10 @@ class AnalyticsController(Controller):
         "/time-series/cumulative",
         summary="Get running totals of requests, events and bytes",
         description=(
-            "Returns one point per bucket with the requests, geo events and bytes sent so far in the range, "
-            "oldest first. Buckets are hours for ranges up to 30 days and UTC days above. `granularity` reads "
-            "`raw` for ranges up to 24 hours, which are hourly buckets counted from the raw rows. Hours or days "
-            "without traffic have no point."
+            "Returns one point per bucket with the requests, geo events and bytes sent so far, oldest first. "
+            "Buckets are hours for ranges up to 30 days and UTC days above, and hours or days without traffic "
+            "have no point. Ranges up to 24 hours count the raw rows of the exact range, and `granularity` reads "
+            f"`raw` for them. Longer ranges read the aggregates, which {WHOLE_BUCKETS_NOTE}."
         ),
     )
     async def get_cumulative_time_series(
@@ -505,8 +509,9 @@ class AnalyticsController(Controller):
         summary="Get request metrics per hour or day",
         description=(
             "Returns requests, bytes, status classes, error rate and latency for each bucket that has "
-            "requests, oldest first. Without filters it reads the hourly or daily aggregates. "
-            f"{FILTERED_RAW_NOTE} On that filtered path `tz` applies to ranges of any length. "
+            "requests, oldest first. Without filters it reads the hourly or daily aggregates at any range "
+            f"length, and those reads {WHOLE_BUCKETS_NOTE}. "
+            f"{FILTERED_RAW_NOTE} On that filtered path `tz` sets local days at any range length. "
             "`totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series."
         ),
     )
@@ -575,7 +580,8 @@ class AnalyticsController(Controller):
         summary="Get geo event counts per hour or day",
         description=(
             "Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest "
-            "first. It reads the hourly or daily aggregates, so the unique counts are estimates."
+            "first. It reads the hourly or daily aggregates at any range length, so the unique counts are "
+            f"estimates, and those reads {WHOLE_BUCKETS_NOTE}."
         ),
     )
     async def get_geo_time_series(
@@ -684,8 +690,8 @@ class AnalyticsController(Controller):
         summary="List the networks that send the most requests",
         description=(
             "Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN "
-            "in the range, not only the top `limit`, and `totalRequests` and `totalBytes` count every request, "
-            "so the traffic without ASN data is what the categories leave over. "
+            "in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so "
+            "requests without ASN data count in them but in no category. "
             f"{FILTERED_RAW_NOTE}"
         ),
     )
@@ -771,8 +777,9 @@ class AnalyticsController(Controller):
         "/top-ips",
         summary="List the client IPs with the most requests",
         description=(
-            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. The "
-            "filters work on ranges of any length."
+            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A "
+            "filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past "
+            "ANALYTICS_RAW_RETENTION_DAYS."
         ),
     )
     async def get_top_ips(
@@ -866,8 +873,9 @@ class AnalyticsController(Controller):
         description=(
             "Returns totals, status classes, latency, first and last seen, the top 5 hosts and paths, the top 3 "
             "user agents and a hit series for one client IP. The series has hourly buckets for ranges up to 7 "
-            "days and daily buckets above, and `tz` applies to ranges of any length. It reads the raw rows, "
-            f"{RAW_RETENTION_NOTE}. An IP without requests in the range gets zero request counts and empty lists, not a 404."
+            "days and daily buckets above, and `tz` sets local days at any range length. It reads the raw rows, "
+            f"{RAW_RETENTION_NOTE}. An IP without requests in the range gets zero request counts and empty lists, not "
+            "a 404."
         ),
     )
     async def get_ip_profile(
@@ -878,7 +886,10 @@ class AnalyticsController(Controller):
         end_date: EndDate,
         ip_address: Annotated[
             str,
-            QueryParameter(name="ipAddress", description="The client IP to profile. A value that is not an IP gets a 400."),
+            QueryParameter(
+                name="ipAddress",
+                description="The client IP to profile. A value that is not an IP gets a 400.",
+            ),
         ],
         tz: Timezone = None,
     ) -> IpProfileResponse:

@@ -68,7 +68,9 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     ]
     missing_files: Annotated[
         list[str],
-        msgspec.Meta(description="The labels of the unavailable sources. `unavailableSources` adds the reason for each."),
+        msgspec.Meta(
+            description="The labels of the unavailable sources. `unavailableSources` adds the reason for each."
+        ),
     ]
     last_record_at: Annotated[
         str | None,
@@ -89,7 +91,9 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     ] = 0
     failed_batches: Annotated[
         int,
-        msgspec.Meta(description="Database writes that failed. GeoMetrikks drops their records and does not retry them."),
+        msgspec.Meta(
+            description="Database writes that failed. GeoMetrikks drops their records and does not retry them."
+        ),
     ] = 0
     failed_records: Annotated[int, msgspec.Meta(description="Records lost in the failed writes.")] = 0
     # Additive: richer than missing_files, which keeps the labels for older clients.
@@ -171,7 +175,9 @@ class HealthResponse(msgspec.Struct, rename="camel"):
     # and "waiting" in an agent that has not recorded a result yet.
     mode: Annotated[
         Literal["full", "agent"],
-        msgspec.Meta(description="`agent` for a process that only tails logs, `full` for one that also serves the API."),
+        msgspec.Meta(
+            description="`agent` for a process that only tails logs, `full` for one that also serves the API."
+        ),
     ] = "full"
     schema_wait: Annotated[
         str | None,
@@ -694,7 +700,8 @@ async def health(
         "Answers 200 with `ready` true when `SELECT 1` against the database returns within two seconds, and "
         "503 with `ready` false otherwise. The head runs the query on every request, so a ready app goes back "
         "to 503 when the database drops. An agent answers 503 without querying until its startup schema check "
-        "passes, then queries like the head, and one whose check timed out stays at 503 until it restarts. "
+        "passes. After that it queries like the head, and an agent whose check timed out stays at 503 until "
+        "it restarts. "
         "No credentials needed."
     ),
     responses={

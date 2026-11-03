@@ -87,17 +87,18 @@ event, geo location, access log, access log debug and CrowdSec banned-location e
 `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for \
 longer ones, and their `granularity` parameter forces either size. Every response with buckets names \
 the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone \
-such as `Europe/Oslo`. `tz` shifts ranges of 30 days or less to local days, and longer ranges keep \
-UTC days unless the endpoint's description says otherwise.
+such as `Europe/Oslo`. `tz` makes daily buckets local days on ranges of 30 days or less, and longer \
+ranges keep UTC days unless the endpoint's description says otherwise. Those shorter ranges get hourly \
+buckets unless you send `granularity=daily`, and `tz` changes nothing on hourly buckets.
 
 ## Pagination
 
 Paged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, \
 `total`, `limit` and `offset`, where `total` counts the matches on every page. \
-`/api/v1/crowdsec/drop-networks` is different. It takes `page` and a `pageSize` of at most 100, and \
-answers with `items`, `totalNetworks` and traffic totals, with no `limit` or `offset`. \
-`/api/v1/crowdsec/alerts` pages by cursor, so pass the `nextCursor` of one response as `before` to get the next, older page. \
-Top lists take a `limit` instead and have no pages.
+`/api/v1/crowdsec/drop-networks` does not follow this shape. It takes `page` and a `pageSize` of at \
+most 100, and answers with `items`, `totalNetworks` and traffic totals, with no `limit` or `offset`. \
+`/api/v1/crowdsec/alerts` pages by cursor. Pass the `nextCursor` of one response as `before` to get \
+the next, older page. Top lists take a `limit` instead and have no pages.
 """
 
 API_TAGS: list[Tag] = [
@@ -174,6 +175,8 @@ API_TAGS: list[Tag] = [
     ),
     Tag(
         name="Health",
-        description="Liveness and readiness probes for Docker, load balancers and orchestrators. No credentials needed.",
+        description=(
+            "Liveness and readiness probes for Docker, load balancers and orchestrators. No credentials needed."
+        ),
     ),
 ]

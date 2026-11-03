@@ -48,10 +48,15 @@ _SECTION_TITLES = {
 class SettingFieldView(msgspec.Struct, rename="camel"):
     """One setting, or a value worked out at runtime that has no setting of its own."""
 
-    key: Annotated[str, msgspec.Meta(description="The setting's name inside its section, such as `raw_retention_days`.")]
+    key: Annotated[
+        str,
+        msgspec.Meta(description="The setting's name inside its section, such as `raw_retention_days`."),
+    ]
     value: Annotated[
         Any,
-        msgspec.Meta(description=f"The current value. A secret shows as `{SECRET_PLACEHOLDER}` when set and null when not."),
+        msgspec.Meta(
+            description=f"The current value. A secret shows as `{SECRET_PLACEHOLDER}` when set and null when not."
+        ),
     ]
     default: Annotated[
         Any, msgspec.Meta(description="The default value. Null when the setting has no fixed default.")

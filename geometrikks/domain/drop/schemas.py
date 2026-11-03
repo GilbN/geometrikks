@@ -13,33 +13,56 @@ FEED_ORDER = ("v4", "v6", "asn")
 
 
 class DropNetworkView(msgspec.Struct, rename="camel"):
+    """A network on the DROP list."""
+
     cidr: str
-    sbl_id: str
+    sbl_id: Annotated[str, msgspec.Meta(description="The Spamhaus SBL record id of the listing, such as `SBL123456`.")]
 
 
 class DropAsnView(msgspec.Struct, rename="camel"):
+    """An autonomous system on the ASN-DROP list."""
+
     asn: int
-    name: str | None
+    name: Annotated[str | None, msgspec.Meta(description="The AS name the list gives.")]
 
 
 class DropFeedView(msgspec.Struct, rename="camel"):
-    feed: str
-    record_count: int | None
-    upstream_timestamp: datetime | None
-    fetched_at: datetime | None
-    checked_at: datetime | None
-    last_error: str | None
+    """The download state of one DROP feed."""
+
+    feed: Annotated[
+        str, msgspec.Meta(description="`v4` and `v6` for the network lists, `asn` for the ASN-DROP list.")
+    ]
+    record_count: Annotated[
+        int | None, msgspec.Meta(description="The record count the feed states. Null before the first download.")
+    ]
+    upstream_timestamp: Annotated[
+        datetime | None, msgspec.Meta(description="When Spamhaus generated the feed GeoMetrikks holds.")
+    ]
+    fetched_at: Annotated[datetime | None, msgspec.Meta(description="When a download of the feed last worked.")]
+    checked_at: Annotated[
+        datetime | None,
+        msgspec.Meta(description="When GeoMetrikks last tried to download the feed, whether or not it worked."),
+    ]
+    last_error: Annotated[
+        str | None,
+        msgspec.Meta(description="Why the last download failed. Null once a download works."),
+    ]
 
 
 class DropListsResponse(msgspec.Struct, rename="camel"):
-    enabled: bool
-    loaded: bool
-    updated_at: datetime | None
-    stale: bool
-    copyright: str | None
-    networks: list[DropNetworkView]
-    asns: list[DropAsnView]
-    feeds: list[DropFeedView]
+    """The Spamhaus DROP lists and the state of each feed."""
+
+    enabled: Annotated[bool, msgspec.Meta(description="False with DROP_ENABLED=false.")]
+    loaded: Annotated[bool, msgspec.Meta(description="Whether at least one feed has been fetched.")]
+    updated_at: Annotated[datetime | None, msgspec.Meta(description="When the most recent feed fetch succeeded.")]
+    stale: Annotated[bool, msgspec.Meta(description="True when `updatedAt` is more than 7 days ago.")]
+    copyright: Annotated[str | None, msgspec.Meta(description="The copyright line Spamhaus ships with the feeds.")]
+    networks: Annotated[list[DropNetworkView], msgspec.Meta(description="Sorted by CIDR.")]
+    asns: Annotated[list[DropAsnView], msgspec.Meta(description="Sorted by ASN.")]
+    feeds: Annotated[
+        list[DropFeedView],
+        msgspec.Meta(description="In the order `v4`, `v6`, `asn`, and only the feeds GeoMetrikks has tried."),
+    ]
 
 
 class DropListsAboutView(msgspec.Struct, rename="camel"):

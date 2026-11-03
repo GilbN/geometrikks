@@ -60,9 +60,15 @@ class ChangelogRelease(msgspec.Struct, rename="camel"):
     """One release in the changelog."""
 
     version: Annotated[str, msgspec.Meta(description="The version, or `Unreleased` for changes not released yet.")]
-    date: Annotated[date | None, msgspec.Meta(description="The release date. Null when the heading has none, as for Unreleased.")]
+    date: Annotated[
+        date | None,
+        msgspec.Meta(description="The release date. Null when the heading has none, as for Unreleased."),
+    ]
     unreleased: bool
-    url: Annotated[str | None, msgspec.Meta(description="The release's tag or compare page, when the changelog links one.")]
+    url: Annotated[
+        str | None,
+        msgspec.Meta(description="The release's tag or compare page, when the changelog links one."),
+    ]
     sections: list[ChangelogSection]
 
 

@@ -73,6 +73,11 @@ class DocumentedDataclass:
     value: int
 
 
+@dataclass
+class UndocumentedDataclass:
+    value: int
+
+
 class ExplicitlyDescribedStruct(msgspec.Struct):
     """The docstring that must not replace the explicit description."""
 
@@ -118,6 +123,11 @@ async def dataclass_handler() -> DocumentedDataclass:
     return DocumentedDataclass(value=1)
 
 
+@get("/undocumented-dataclass")
+async def undocumented_dataclass_handler() -> UndocumentedDataclass:
+    return UndocumentedDataclass(value=1)
+
+
 @get("/offset-page")
 async def offset_page_handler() -> OffsetPagination[NestedStruct]:
     return OffsetPagination(items=[NestedStruct(value=1)], limit=1, offset=0, total=1)
@@ -131,7 +141,15 @@ async def explicit_handler() -> ExplicitlyDescribedStruct:
 @pytest.fixture
 def plugin_document() -> dict[str, Any]:
     app = Litestar(
-        route_handlers=[child_handler, nesting_handler, page_handler, record_handler, dataclass_handler, offset_page_handler],
+        route_handlers=[
+            child_handler,
+            nesting_handler,
+            page_handler,
+            record_handler,
+            dataclass_handler,
+            undocumented_dataclass_handler,
+            offset_page_handler,
+        ],
         plugins=DOCSTRING_SCHEMA_PLUGINS,
         openapi_config=OpenAPIConfig(title="plugin test", version="1"),
     )
@@ -187,8 +205,14 @@ def test_dataclass_gets_its_docstring(plugin_components: dict[str, Any]):
     assert plugin_components["DocumentedDataclass"]["description"] == "The dataclass's docstring."
 
 
+def test_dataclass_without_a_docstring_gets_no_description(plugin_components: dict[str, Any]):
+    assert (UndocumentedDataclass.__doc__ or "").startswith("UndocumentedDataclass(value")
+    assert "description" not in plugin_components["UndocumentedDataclass"]
+
+
 def test_offset_page_stays_inline_with_a_user_facing_description(plugin_document: dict[str, Any]):
-    schema = plugin_document["paths"]["/offset-page"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    response = plugin_document["paths"]["/offset-page"]["get"]["responses"]["200"]
+    schema = response["content"]["application/json"]["schema"]
     assert "$ref" not in schema
     assert schema["description"] == OFFSET_PAGE_DESCRIPTION
     assert set(schema["properties"]) == {"items", "limit", "offset", "total"}

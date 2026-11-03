@@ -20,11 +20,16 @@ EchoedEnd = Annotated[str, msgspec.Meta(description="The request's `endDate`, ec
 ErrorRate = Annotated[
     float, msgspec.Meta(description="The share of requests with a 4xx or 5xx status, from 0 to 1.")
 ]
+OLD_AGGREGATE_TIMING_NOTE = (
+    "Aggregated buckets older than the raw retention window may predate that rule. Those still count "
+    "upgrades and status 0 lines, and the oldest count every request, timed or not."
+)
 TimedRequests = Annotated[
     int,
     msgspec.Meta(
         description=(
-            "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count."
+            "Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. "
+            f"{OLD_AGGREGATE_TIMING_NOTE}"
         )
     ),
 ]
@@ -34,8 +39,8 @@ ErrorHits = Annotated[int, msgspec.Meta(description="Hits with a status of 400 o
 class TimeSeriesDataPoint(msgspec.Struct, rename="camel"):
     """Request metrics for one bucket.
 
-    Request times are in seconds and cover the timed requests only. Each one is null when the bucket has
-    no timed requests. Without a filter, the percentiles are estimates.
+    Request times are in seconds and cover the requests `timedRequests` counts. Each one is null when the
+    bucket has none. Without a filter, the percentiles are estimates.
     """
 
     timestamp: BucketStart
@@ -130,7 +135,7 @@ class GeoEventsTimeSeriesResponse(msgspec.Struct, rename="camel"):
 class PeriodSummary(msgspec.Struct, rename="camel"):
     """Request and geo event totals for one period.
 
-    Request times are in seconds over the timed requests, and null when none was timed.
+    Request times are in seconds over the requests `timedRequests` counts, and null when it is 0.
     """
 
     total_requests: int
@@ -191,7 +196,12 @@ class SummaryResponse(msgspec.Struct, rename="camel"):
     current_period: PeriodSummary
     previous_period: Annotated[
         PeriodSummary | None,
-        msgspec.Meta(description="Null unless `comparePrevious` is true and the previous period has data."),
+        msgspec.Meta(
+            description=(
+                "Null unless `comparePrevious` is true and the range and the previous period each have requests "
+                "or geo events."
+            )
+        ),
     ] = None
     percent_changes: Annotated[
         PercentChange | None,
@@ -220,7 +230,11 @@ class StatusDistributionResponse(msgspec.Struct, rename="camel"):
 
 
 class CumulativeDataPoint(msgspec.Struct, rename="camel"):
-    """Running totals from the start of the range through the end of one bucket."""
+    """Running totals through the end of one bucket.
+
+    Ranges up to 24 hours count from `startDate`. Longer ranges count from the start of the hour or UTC
+    day that holds it.
+    """
 
     timestamp: BucketStart
     cumulative_geo_events: int
@@ -251,17 +265,28 @@ class TopUrlDTO(msgspec.Struct, rename="camel"):
     host: Annotated[
         str | None,
         msgspec.Meta(
-            description="The Host header of the requests. Null when the log line carries none, as in nginx's combined format."
+            description=(
+                "The Host header of the requests. Null when the log line carries none, as in nginx's combined format."
+            )
         ),
     ]
     url: Annotated[str, msgspec.Meta(description="The request target, query string included.")]
     hits: int
     error_hits: ErrorHits
     total_bytes: int
-    timed_hits: Annotated[int, msgspec.Meta(description="Hits with a measured request time.")]
+    timed_hits: Annotated[
+        int,
+        msgspec.Meta(
+            description=(
+                "Hits with a measured request time, leaving out WebSocket upgrades and status 0 lines. "
+                "Aggregated buckets older than the raw retention window may predate that rule. Those still "
+                "count upgrades and status 0 lines, and the oldest count every hit, timed or not."
+            )
+        ),
+    ]
     avg_request_time: Annotated[
         float | None,
-        msgspec.Meta(description="The mean request time in seconds over the timed hits. Null when none was timed."),
+        msgspec.Meta(description="The mean request time in seconds over the `timedHits`. Null when it is 0."),
     ]
 
 
@@ -467,8 +492,14 @@ class IpProfileResponse(msgspec.Struct, rename="camel"):
     timed_requests: TimedRequests
     avg_request_time: float | None
     p95_request_time: float | None
-    first_seen: Annotated[str | None, msgspec.Meta(description="The IP's first request in the range, as ISO 8601 in UTC.")]
-    last_seen: Annotated[str | None, msgspec.Meta(description="The IP's last request in the range, as ISO 8601 in UTC.")]
+    first_seen: Annotated[
+        str | None,
+        msgspec.Meta(description="The IP's first request in the range, as ISO 8601 in UTC."),
+    ]
+    last_seen: Annotated[
+        str | None,
+        msgspec.Meta(description="The IP's last request in the range, as ISO 8601 in UTC."),
+    ]
     distinct_paths: Annotated[int, msgspec.Meta(description="How many different request targets the IP sent.")]
     malformed_requests: Annotated[
         int,
@@ -479,7 +510,10 @@ class IpProfileResponse(msgspec.Struct, rename="camel"):
             )
         ),
     ]
-    asn: Annotated[int | None, msgspec.Meta(description="The ASN of the IP's newest request in the range that had one.")]
+    asn: Annotated[
+        int | None,
+        msgspec.Meta(description="The ASN of the IP's newest request in the range that had one."),
+    ]
     asn_organization: AsnOrganization
     asn_category: Annotated[
         AsnCategory | None, msgspec.Meta(description=f"{ASN_CATEGORY_DESCRIPTION} Null without ASN data.")

@@ -65,7 +65,9 @@ class SchedulerJobView(msgspec.Struct, rename="camel"):
     last_duration_seconds: Annotated[float | None, msgspec.Meta(description="How long the last run took, in seconds.")]
     last_status: Annotated[
         JobStatus | None,
-        msgspec.Meta(description="`missed` means a run came due but could not start in time, so the scheduler skipped it."),
+        msgspec.Meta(
+            description="`missed` means a run came due but could not start in time, so the scheduler skipped it."
+        ),
     ]
     last_error: Annotated[str | None, msgspec.Meta(description="The error of the last run when it failed.")]
 
@@ -238,7 +240,9 @@ class LatestReleaseView(msgspec.Struct, rename="camel"):
     newer_release_count_exact: Annotated[
         bool,
         msgspec.Meta(
-            description="False when the check stopped paging before it reached the running version, so the count is a minimum."
+            description=(
+                "False when the check stopped paging before it reached the running version, so the count is a minimum."
+            )
         ),
     ]
 
@@ -330,12 +334,17 @@ class HypertableStatsView(msgspec.Struct, rename="camel"):
 
     name: Annotated[str, msgspec.Meta(description="`geo_events`, `access_logs` or `access_log_debug`.")]
     approx_rows: Annotated[int | None, msgspec.Meta(description="TimescaleDB's estimate of the row count.")]
-    total_bytes: Annotated[int | None, msgspec.Meta(description="The table's size on disk, indexes included, in bytes.")]
+    total_bytes: Annotated[
+        int | None,
+        msgspec.Meta(description="The table's size on disk, indexes included, in bytes."),
+    ]
     # Compression stats; nulls until the compression policy has compressed
     # at least one chunk.
     before_compression_bytes: Annotated[
         int | None,
-        msgspec.Meta(description="Bytes the compressed chunks took before compression. Null until a chunk is compressed."),
+        msgspec.Meta(
+            description="Bytes the compressed chunks took before compression. Null until a chunk is compressed."
+        ),
     ]
     after_compression_bytes: Annotated[
         int | None,

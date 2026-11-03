@@ -77,8 +77,10 @@ class GeoJSONFeatureProperties(msgspec.Struct, rename="camel"):
         datetime | None,
         msgspec.Meta(
             description=(
-                "The newest event at this location, whatever the range. A scheduler job updates it, so it can "
-                "lag by a few minutes. Null until the job first runs for the location."
+                "The newest event at this location, whatever the range. A scheduler job on the head updates it "
+                "every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default, so it lags by up to "
+                "that long. Null until the job first runs for the location, and always null with "
+                "SCHEDULER_ENABLED=false."
             )
         ),
     ]

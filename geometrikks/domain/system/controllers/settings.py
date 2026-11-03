@@ -23,7 +23,10 @@ from geometrikks.services.geoip.self_location import SelfLocation, SelfLocationS
 class LogparserSettingsView(msgspec.Struct, rename="camel"):
     """The log ingestion settings."""
 
-    log_paths: Annotated[list[str], msgspec.Meta(description="The access log files this server tails, from LOGPARSER_LOG_PATHS.")]
+    log_paths: Annotated[
+        list[str],
+        msgspec.Meta(description="The access log files this server tails, from LOGPARSER_LOG_PATHS."),
+    ]
     send_logs: Annotated[
         bool,
         msgspec.Meta(
@@ -45,7 +48,8 @@ class AnalyticsSettingsView(msgspec.Struct, rename="camel"):
     raw_retention_days: Annotated[int, msgspec.Meta(description="Days to keep raw geo events and access log lines.")]
     debug_retention_days: Annotated[int, msgspec.Meta(description="Days to keep the access log debug lines.")]
     hourly_retention_days: Annotated[
-        int, msgspec.Meta(description="Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever.")
+        int,
+        msgspec.Meta(description="Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever."),
     ]
     compression_after_days: Annotated[
         int, msgspec.Meta(description="The age in days at which TimescaleDB compresses stored data.")

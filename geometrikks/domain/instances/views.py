@@ -65,7 +65,10 @@ class InstanceView(msgspec.Struct, rename="camel", kw_only=True):
         Literal["ok", "warning", "critical"],
         msgspec.Meta(description="The worst severity in `problems`, or `ok` when there are none."),
     ]
-    problems: Annotated[list[Advisory], msgspec.Meta(description="What is wrong with the instance, critical ones first.")]
+    problems: Annotated[
+        list[Advisory],
+        msgspec.Meta(description="What is wrong with the instance, critical ones first."),
+    ]
     payload: HeartbeatPayload | None
     health: HealthResponse | None
     server_locations: Annotated[
@@ -89,5 +92,10 @@ class InstancesResponse(msgspec.Struct, rename="camel", kw_only=True):
     instances: list[InstanceView]
     checked_at: Annotated[
         datetime,
-        msgspec.Meta(description="The database time GeoMetrikks compared each heartbeat against to set `checkingIn` and the problems."),
+        msgspec.Meta(
+            description=(
+                "The database time when GeoMetrikks built this list. It measures each heartbeat's age from it "
+                "to set `checkingIn` and the problems."
+            )
+        ),
     ]

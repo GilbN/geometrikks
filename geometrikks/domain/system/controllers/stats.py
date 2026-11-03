@@ -28,8 +28,10 @@ class LokiSourceStats(msgspec.Struct, rename="camel"):
             )
         ),
     ]
-    server: Annotated[str, msgspec.Meta(description="The server name this query's lines are stored under.")]
-    available: Annotated[bool, msgspec.Meta(description="False while Loki cannot be reached or rejects the query.")]
+    server: Annotated[str, msgspec.Meta(description="The server name GeoMetrikks stores this query's lines under.")]
+    available: Annotated[
+        bool, msgspec.Meta(description="False while GeoMetrikks cannot reach Loki or Loki rejects the query.")
+    ]
     reason: Annotated[
         str | None,
         msgspec.Meta(description="`unreachable` or `rejected` while the source is unavailable, otherwise null."),
@@ -55,11 +57,16 @@ class IngestionStatsResponse(msgspec.Struct, rename="camel"):
         int, msgspec.Meta(description="Parsed records held in memory until the next database write.")
     ]
     total_ignored_lines: Annotated[
-        int, msgspec.Meta(description="Log lines dropped because the client IP is in LOGPARSER_IGNORE_IPS.")
+        int, msgspec.Meta(description="Log lines GeoMetrikks dropped because the client IP is in LOGPARSER_IGNORE_IPS.")
     ]
-    total_processed: Annotated[int, msgspec.Meta(description="Parsed records that ingestion has passed to a database write.")]
+    total_processed: Annotated[
+        int, msgspec.Meta(description="Parsed records that ingestion has passed to a database write.")
+    ]
     is_running: Annotated[
-        bool, msgspec.Meta(description="False when ingestion is turned off, failed to start or has stopped.")
+        bool,
+        msgspec.Meta(
+            description="False when LOGPARSER_ENABLED is false, or when ingestion failed to start or stopped."
+        ),
     ]
     loki_sources: list[LokiSourceStats] = msgspec.field(default_factory=list)
 

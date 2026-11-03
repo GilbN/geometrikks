@@ -157,15 +157,18 @@ export const AboutResponseSchema = {
 
 export const AbuseContactResponseSchema = {
   description:
-    "RDAP answer for an IP or AS number: the holder and its abuse contact.",
+    "The network or AS record that holds an IP or AS number, with its abuse contact, from RDAP.",
   properties: {
     abuseEmails: {
+      description:
+        "Addresses of the abuse contact. Empty when the registry lists none.",
       items: {
         type: "string",
       },
       type: "array",
     },
     abuseName: {
+      description: "The abuse contact's name.",
       oneOf: [
         {
           type: "string",
@@ -176,12 +179,15 @@ export const AbuseContactResponseSchema = {
       ],
     },
     cidrs: {
+      description:
+        "The prefixes that make up the network, when the registry lists them.",
       items: {
         type: "string",
       },
       type: "array",
     },
     country: {
+      description: "The country code the registry gives.",
       oneOf: [
         {
           type: "string",
@@ -192,6 +198,7 @@ export const AbuseContactResponseSchema = {
       ],
     },
     endAddress: {
+      description: "The last address of the network.",
       oneOf: [
         {
           type: "string",
@@ -202,6 +209,7 @@ export const AbuseContactResponseSchema = {
       ],
     },
     handle: {
+      description: "The registry's handle for the record.",
       oneOf: [
         {
           type: "string",
@@ -216,6 +224,7 @@ export const AbuseContactResponseSchema = {
       type: "string",
     },
     name: {
+      description: "The record's name, such as the network name.",
       oneOf: [
         {
           type: "string",
@@ -226,15 +235,19 @@ export const AbuseContactResponseSchema = {
       ],
     },
     query: {
+      description: "The IP as looked up, or the AS number as `AS13335`.",
       type: "string",
     },
     rdapUrl: {
+      description: "The RDAP URL that gave the record.",
       type: "string",
     },
     registry: {
+      description: "The host name of the registry that answered.",
       type: "string",
     },
     startAddress: {
+      description: "The first address of the network.",
       oneOf: [
         {
           type: "string",
@@ -264,44 +277,56 @@ export const AbuseContactResponseSchema = {
 } as const;
 
 export const AbuseReportResponseSchema = {
-  description:
-    "Evidence for an abuse report, in UTC, with the operator's names removed.\n\n``ipCount``, ``totalRequests`` and ``status4xx`` cover every IP of the\ntarget in the window; ``ips`` holds the busiest ``maxIps`` of them. ``redactions``\ncounts the operator names and addresses scrubbed from paths and user agents.",
+  description: "Evidence for an abuse report, with every time in UTC.",
   properties: {
     crowdsec: {
       $ref: "#/components/schemas/ReportCrowdSec",
     },
     endDate: {
+      description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
     },
     generatedAt: {
+      description: "When GeoMetrikks built the report, as ISO 8601 in UTC.",
       type: "string",
     },
     granularity: {
+      description:
+        "The bucket size of each `peak`. `hourly` for ranges up to 7 days, `daily` above.",
       enum: ["hourly", "daily"],
       type: "string",
     },
     ipCount: {
+      description:
+        "The IPs of the target that sent requests in the range, which can be more than `ips` holds. 0 or 1 for an IP report.",
       type: "integer",
     },
     ips: {
+      description:
+        "For an ASN report, its busiest IPs, at most `maxIps`. An IP report has one entry, with zero counts when the IP sent nothing.",
       items: {
         $ref: "#/components/schemas/ReportIpDTO",
       },
       type: "array",
     },
     redactions: {
+      description:
+        "How many names, addresses and credential values became `[redacted]`.",
       type: "integer",
     },
     startDate: {
+      description: "The request's `startDate`, echoed as ISO 8601.",
       type: "string",
     },
     status4xx: {
+      description: "Those requests that got a 4xx status.",
       type: "integer",
     },
     target: {
       $ref: "#/components/schemas/ReportTarget",
     },
     totalRequests: {
+      description: "Requests from every IP of the target in the range.",
       type: "integer",
     },
   },
@@ -324,9 +349,10 @@ export const AbuseReportResponseSchema = {
 
 export const AccessLogDebugEntrySchema = {
   description:
-    "One debug row with its access-log context, flattened for the table.\n\nThe context fields are read straight off access_log_debug, where ingestion\ndenormalized them; nothing here joins access_logs. They are None when the\nraw line never parsed into an access_logs row (access_log_id is a soft\nreference; no FK on hypertables).",
+    "One stored raw log line, with the fields of the access log line it produced.\n\nThe access log fields are copies made when GeoMetrikks stored the line. They are null when the line\ndid not parse into an access log line.",
   properties: {
     accessLogId: {
+      description: "The `id` of the access log line this line produced.",
       oneOf: [
         {
           type: "integer",
@@ -367,6 +393,7 @@ export const AccessLogDebugEntrySchema = {
       ],
     },
     createdAt: {
+      description: "When GeoMetrikks stored the line, in UTC.",
       format: "date-time",
       type: "string",
     },
@@ -394,9 +421,13 @@ export const AccessLogDebugEntrySchema = {
       ],
     },
     isMalformed: {
+      description:
+        "True for a line that did not match the log format or a probe, such as a TLS handshake sent to the HTTP port.",
       type: "boolean",
     },
     logFormat: {
+      description:
+        "The log format that read the line. Null on lines stored before GeoMetrikks recorded it.",
       oneOf: [
         {
           type: "string",
@@ -417,6 +448,8 @@ export const AccessLogDebugEntrySchema = {
       ],
     },
     parseError: {
+      description:
+        "Why the line counts as malformed. Null for a well-formed line.",
       oneOf: [
         {
           type: "string",
@@ -427,6 +460,8 @@ export const AccessLogDebugEntrySchema = {
       ],
     },
     rawFields: {
+      description:
+        "The line split into its keys when it is a JSON object. Null for any other line.",
       oneOf: [
         {
           $ref: "#/components/schemas/RawLineFields",
@@ -437,6 +472,7 @@ export const AccessLogDebugEntrySchema = {
       ],
     },
     rawLine: {
+      description: "The line as the log had it, with null bytes replaced.",
       type: "string",
     },
     statusCode: {
@@ -450,6 +486,7 @@ export const AccessLogDebugEntrySchema = {
       ],
     },
     timestamp: {
+      description: "The request time from the line, in UTC.",
       oneOf: [
         {
           format: "date-time",
@@ -487,13 +524,15 @@ export const AccessLogDebugEntrySchema = {
 } as const;
 
 export const AccessLogDebugStatsSchema = {
-  description:
-    "Aggregates for the debug-logs stat cards, scoped to a time range.",
+  description: "Counts of the raw log lines stored in a time range.",
   properties: {
     malformed: {
+      description: "Stored lines in the range that count as malformed.",
       type: "integer",
     },
     topParseError: {
+      description:
+        "The parse error the most lines carry, with ties going to the first in alphabetical order. Null when no line in the range has one.",
       oneOf: [
         {
           $ref: "#/components/schemas/ParseErrorCount",
@@ -504,6 +543,7 @@ export const AccessLogDebugStatsSchema = {
       ],
     },
     total: {
+      description: "Stored lines in the range.",
       type: "integer",
     },
   },
@@ -513,7 +553,7 @@ export const AccessLogDebugStatsSchema = {
 } as const;
 
 export const AccessLogFacetsSchema = {
-  description: "Distinct filterable values present in the access-log data.",
+  description: "The values the access log filters can take, each list sorted.",
   properties: {
     cities: {
       items: {
@@ -522,24 +562,29 @@ export const AccessLogFacetsSchema = {
       type: "array",
     },
     countries: {
+      description: "Sorted by name.",
       items: {
         $ref: "#/components/schemas/CountryFacet",
       },
       type: "array",
     },
     hosts: {
+      description: "The Host header values the lines carry.",
       items: {
         type: "string",
       },
       type: "array",
     },
     logFormats: {
+      description:
+        "The log formats the lines were read with, such as `nginx` or `traefik-json`.",
       items: {
         type: "string",
       },
       type: "array",
     },
     servers: {
+      description: "The server names that recorded access logs.",
       items: {
         type: "string",
       },
@@ -608,6 +653,8 @@ export const AdvisorySchema = {
 } as const;
 
 export const AlertContextViewSchema = {
+  description:
+    "One context key the scenario recorded, with every value it saw.",
   properties: {
     key: {
       type: "string",
@@ -625,14 +672,18 @@ export const AlertContextViewSchema = {
 } as const;
 
 export const AlertDecisionViewSchema = {
+  description: "A decision an alert made, still in force or expired.",
   properties: {
     duration: {
+      description:
+        "The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired.",
       type: "string",
     },
     expired: {
       type: "boolean",
     },
     id: {
+      description: "The LAPI's decision id.",
       oneOf: [
         {
           type: "integer",
@@ -643,6 +694,8 @@ export const AlertDecisionViewSchema = {
       ],
     },
     origin: {
+      description:
+        "Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here.",
       type: "string",
     },
     scenario: {
@@ -652,9 +705,13 @@ export const AlertDecisionViewSchema = {
       type: "string",
     },
     simulated: {
+      description:
+        "True when CrowdSec ran the scenario in simulation mode and enforces nothing.",
       type: "boolean",
     },
     type: {
+      description:
+        "The remediation, `ban`, `captcha` or a name a bouncer defines.",
       type: "string",
     },
     value: {
@@ -677,11 +734,15 @@ export const AlertDecisionViewSchema = {
 } as const;
 
 export const AlertDetailViewSchema = {
+  description:
+    "One CrowdSec alert with its context, stored events and decisions.",
   properties: {
     activeDecisionCount: {
+      description: "The decisions still in force.",
       type: "integer",
     },
     asName: {
+      description: "The source's network name, as the LAPI gives it.",
       oneOf: [
         {
           type: "string",
@@ -692,6 +753,7 @@ export const AlertDetailViewSchema = {
       ],
     },
     asNumber: {
+      description: "The source's AS number, as the LAPI gives it.",
       oneOf: [
         {
           type: "string",
@@ -718,6 +780,8 @@ export const AlertDetailViewSchema = {
       ],
     },
     countryName: {
+      description:
+        "From GeoMetrikks' own traffic or its GeoIP database. The LAPI sends only a code.",
       oneOf: [
         {
           type: "string",
@@ -728,12 +792,16 @@ export const AlertDetailViewSchema = {
       ],
     },
     createdAt: {
+      description: "When the LAPI stored the alert, as RFC 3339.",
       type: "string",
     },
     decisionCount: {
+      description: "The decisions the alert made, expired ones included.",
       type: "integer",
     },
     decisionTypes: {
+      description:
+        "Each decision type once, in the order the LAPI lists the decisions.",
       items: {
         type: "string",
       },
@@ -746,15 +814,19 @@ export const AlertDetailViewSchema = {
       type: "array",
     },
     events: {
+      description:
+        "A sample of the events. The LAPI keeps fewer than `eventsCount` on busy alerts.",
       items: {
         $ref: "#/components/schemas/AlertEventView",
       },
       type: "array",
     },
     eventsCount: {
+      description: "How many events set off the scenario.",
       type: "integer",
     },
     id: {
+      description: "The LAPI's alert id.",
       oneOf: [
         {
           type: "integer",
@@ -765,6 +837,8 @@ export const AlertDetailViewSchema = {
       ],
     },
     kind: {
+      description:
+        "Where the alert came from, such as `crowdsec` for a log scenario, `waf` or `bot-detection`. Null from a LAPI that predates the field.",
       oneOf: [
         {
           type: "string",
@@ -775,6 +849,7 @@ export const AlertDetailViewSchema = {
       ],
     },
     machineId: {
+      description: "The CrowdSec machine that sent the alert.",
       oneOf: [
         {
           type: "string",
@@ -788,6 +863,7 @@ export const AlertDetailViewSchema = {
       type: "string",
     },
     range: {
+      description: "The source's network as a CIDR, as the LAPI gives it.",
       oneOf: [
         {
           type: "string",
@@ -801,12 +877,15 @@ export const AlertDetailViewSchema = {
       type: "string",
     },
     scope: {
+      description: "What `value` holds, such as `Ip` or `Range`.",
       type: "string",
     },
     simulated: {
+      description: "True when CrowdSec ran the scenario in simulation mode.",
       type: "boolean",
     },
     startAt: {
+      description: "When the first event happened.",
       oneOf: [
         {
           type: "string",
@@ -817,6 +896,7 @@ export const AlertDetailViewSchema = {
       ],
     },
     stopAt: {
+      description: "When the last event happened.",
       oneOf: [
         {
           type: "string",
@@ -827,6 +907,7 @@ export const AlertDetailViewSchema = {
       ],
     },
     value: {
+      description: "The source the alert is about, such as an IP.",
       type: "string",
     },
   },
@@ -860,14 +941,18 @@ export const AlertDetailViewSchema = {
 } as const;
 
 export const AlertEventViewSchema = {
+  description: "One event the LAPI kept for an alert.",
   properties: {
     meta: {
       additionalProperties: {
         type: "string",
       },
+      description:
+        "The event's metadata, such as the log type and the source IP.",
       type: "object",
     },
     timestamp: {
+      description: "When the event happened, usually as RFC 3339.",
       type: "string",
     },
   },
@@ -877,6 +962,7 @@ export const AlertEventViewSchema = {
 } as const;
 
 export const AlertPageViewSchema = {
+  description: "One page of CrowdSec alerts, newest first.",
   properties: {
     alerts: {
       items: {
@@ -885,6 +971,8 @@ export const AlertPageViewSchema = {
       type: "array",
     },
     nextCursor: {
+      description:
+        "Pass it as `before` to get the next, older page. Null on the last page.",
       oneOf: [
         {
           type: "string",
@@ -901,11 +989,14 @@ export const AlertPageViewSchema = {
 } as const;
 
 export const AlertViewSchema = {
+  description: "One CrowdSec alert, a scenario that fired against a source.",
   properties: {
     activeDecisionCount: {
+      description: "The decisions still in force.",
       type: "integer",
     },
     asName: {
+      description: "The source's network name, as the LAPI gives it.",
       oneOf: [
         {
           type: "string",
@@ -926,6 +1017,8 @@ export const AlertViewSchema = {
       ],
     },
     countryName: {
+      description:
+        "From GeoMetrikks' own traffic or its GeoIP database. The LAPI sends only a code.",
       oneOf: [
         {
           type: "string",
@@ -936,21 +1029,27 @@ export const AlertViewSchema = {
       ],
     },
     createdAt: {
+      description: "When the LAPI stored the alert, as RFC 3339.",
       type: "string",
     },
     decisionCount: {
+      description: "The decisions the alert made, expired ones included.",
       type: "integer",
     },
     decisionTypes: {
+      description:
+        "Each decision type once, in the order the LAPI lists the decisions.",
       items: {
         type: "string",
       },
       type: "array",
     },
     eventsCount: {
+      description: "How many events set off the scenario.",
       type: "integer",
     },
     id: {
+      description: "The LAPI's alert id.",
       oneOf: [
         {
           type: "integer",
@@ -961,6 +1060,8 @@ export const AlertViewSchema = {
       ],
     },
     kind: {
+      description:
+        "Where the alert came from, such as `crowdsec` for a log scenario, `waf` or `bot-detection`. Null from a LAPI that predates the field.",
       oneOf: [
         {
           type: "string",
@@ -971,6 +1072,7 @@ export const AlertViewSchema = {
       ],
     },
     machineId: {
+      description: "The CrowdSec machine that sent the alert.",
       oneOf: [
         {
           type: "string",
@@ -987,9 +1089,11 @@ export const AlertViewSchema = {
       type: "string",
     },
     scope: {
+      description: "What `value` holds, such as `Ip` or `Range`.",
       type: "string",
     },
     value: {
+      description: "The source the alert is about, such as an IP.",
       type: "string",
     },
   },
@@ -1260,11 +1364,16 @@ export const AuthOptionsSchema = {
 } as const;
 
 export const BanNetworkResultSchema = {
+  description: "What happened to one network.",
   properties: {
     alreadyBanned: {
+      description:
+        "True when the network held a ban already, and GeoMetrikks left it alone.",
       type: "boolean",
     },
     error: {
+      description:
+        "Why the network is not banned, such as `Not on the DROP list` or the LAPI's error. It starts with `not attempted` when the run stopped before this network.",
       oneOf: [
         {
           type: "string",
@@ -1275,9 +1384,11 @@ export const BanNetworkResultSchema = {
       ],
     },
     network: {
+      description: "The network as a CIDR, or as sent when it does not parse.",
       type: "string",
     },
     ok: {
+      description: "True when the network is banned now.",
       type: "boolean",
     },
   },
@@ -1288,16 +1399,22 @@ export const BanNetworkResultSchema = {
 
 export const BanNetworksRequestSchema = {
   description:
-    "Ban DROP networks: name them, or ask for every unbanned one with traffic.\n\nExactly one of ``networks`` and ``all_unbanned_days`` must be set.",
+    "The DROP networks to ban, by name or as every unbanned network with traffic.\n\nSet exactly one of `networks` and `allUnbannedDays`, or the request gets a 400.",
   properties: {
     allUnbannedDays: {
+      description:
+        "Ban every DROP network that sent traffic in this many days and has no ban, `7`, `30` or `90`.",
       enum: [7, 30, 90, null],
       type: ["integer", "null"],
     },
     duration: {
+      description:
+        "How long each ban lasts, such as `4h`, `30m`, `7d` or `1d12h`.",
       type: "string",
     },
     networks: {
+      description:
+        "The networks to ban, as CIDRs from the DROP list, at most 1000. A network named twice gets one result.",
       maxItems: 1000,
       oneOf: [
         {
@@ -1318,8 +1435,11 @@ export const BanNetworksRequestSchema = {
 } as const;
 
 export const BanNetworksResponseSchema = {
+  description: "The outcome for each network.",
   properties: {
     leftOut: {
+      description:
+        "With `allUnbannedDays`, the unbanned networks past the first 1000, which this run did not try. 0 otherwise.",
       type: "integer",
     },
     results: {
@@ -1335,8 +1455,11 @@ export const BanNetworksResponseSchema = {
 } as const;
 
 export const BanRequestSchema = {
+  description: "What to ban, for how long and why.",
   properties: {
     duration: {
+      description:
+        "How long the decision lasts, such as `4h`, `30m`, `7d` or `1d12h`. Defaults to CROWDSEC_DEFAULT_BAN_DURATION, 4h by default.",
       oneOf: [
         {
           type: "string",
@@ -1347,9 +1470,13 @@ export const BanRequestSchema = {
       ],
     },
     ip: {
+      description:
+        "An IP, or a range in CIDR form such as `203.0.113.0/24`. A /32 or /128 becomes an IP decision.",
       type: "string",
     },
     reason: {
+      description:
+        "The reason the decision carries. Defaults to `manual ban from GeoMetrikks`, or `manual captcha from GeoMetrikks` for a captcha.",
       oneOf: [
         {
           type: "string",
@@ -1361,6 +1488,7 @@ export const BanRequestSchema = {
     },
     type: {
       default: "ban",
+      description: "`ban` or `captcha`. Defaults to `ban`.",
       enum: ["ban", "captcha"],
       type: "string",
     },
@@ -1371,13 +1499,14 @@ export const BanRequestSchema = {
 } as const;
 
 export const BannedIpSchema = {
-  description:
-    "One badge entry: an IP under a decision and the type worth showing.",
+  description: "An IP under an active decision.",
   properties: {
     ip: {
       type: "string",
     },
     type: {
+      description:
+        "The strongest decision type on it. `ban` beats `captcha`, and other names a bouncer defines come after both, in alphabetical order.",
       type: "string",
     },
   },
@@ -1387,6 +1516,8 @@ export const BannedIpSchema = {
 } as const;
 
 export const BannedMapCollectionSchema = {
+  description:
+    "A GeoJSON FeatureCollection of the IPs under an active decision.\n\nIPs at the same coordinates share one feature, and the features are sorted by longitude, then latitude.",
   properties: {
     features: {
       items: {
@@ -1408,11 +1539,13 @@ export const BannedMapCollectionSchema = {
 } as const;
 
 export const BannedMapFeatureSchema = {
+  description: "A GeoJSON feature for the IPs that share one point.",
   properties: {
     geometry: {
       $ref: "#/components/schemas/GeoJSONPointGeometry",
     },
     id: {
+      description: "The same as `properties.groupId`.",
       type: "string",
     },
     properties: {
@@ -1429,6 +1562,7 @@ export const BannedMapFeatureSchema = {
 } as const;
 
 export const BannedMapIpSchema = {
+  description: "An IP under an active decision, at one place on the map.",
   properties: {
     city: {
       oneOf: [
@@ -1451,12 +1585,14 @@ export const BannedMapIpSchema = {
       ],
     },
     eventCount: {
+      description: "The IP's geo events in the window, at every location.",
       type: "integer",
     },
     ip: {
       type: "string",
     },
     locationId: {
+      description: "The location's `id`, as `/api/v1/geo-locations` lists it.",
       type: "integer",
     },
   },
@@ -1466,14 +1602,17 @@ export const BannedMapIpSchema = {
 } as const;
 
 export const BannedMapPropertiesSchema = {
+  description: "The IPs at one point.",
   properties: {
     bannedIps: {
+      description: "The most events first.",
       items: {
         $ref: "#/components/schemas/BannedMapIp",
       },
       type: "array",
     },
     groupId: {
+      description: "The point's coordinates as `longitude,latitude`.",
       type: "string",
     },
     ipCount: {
@@ -1486,8 +1625,7 @@ export const BannedMapPropertiesSchema = {
 } as const;
 
 export const BannedMapStatsSchema = {
-  description:
-    "Totals over the mapped IPs, computed from the same list the features carry.",
+  description: "Totals over the IPs on the map.",
   properties: {
     cities: {
       type: "integer",
@@ -1496,12 +1634,14 @@ export const BannedMapStatsSchema = {
       type: "integer",
     },
     events: {
+      description: "The geo events of every IP on the map, added up.",
       type: "integer",
     },
     ips: {
       type: "integer",
     },
     locations: {
+      description: "The number of points, which is the number of features.",
       type: "integer",
     },
   },
@@ -1512,9 +1652,11 @@ export const BannedMapStatsSchema = {
 
 export const BannedRangeViewSchema = {
   description:
-    "A CIDR under an active ban and the strongest type on it.\n\nA single-address DROP network, banned as an Ip decision, appears as its /32 or /128.",
+    "A range under an active decision.\n\nA single-address DROP network is banned as an `Ip` decision, and it shows as its /32 or /128.",
   properties: {
     expiresAt: {
+      description:
+        "When the decision with that type ends, the later one when two have the same type. Null when the LAPI's time left does not parse.",
       oneOf: [
         {
           format: "date-time",
@@ -1526,9 +1668,12 @@ export const BannedRangeViewSchema = {
       ],
     },
     type: {
+      description:
+        "The strongest decision type on it. `ban` beats `captcha`, and other names a bouncer defines come after both, in alphabetical order.",
       type: "string",
     },
     value: {
+      description: "The range as a CIDR, such as `203.0.113.0/24`.",
       type: "string",
     },
   },
@@ -1639,12 +1784,14 @@ export const ChangelogSectionSchema = {
 } as const;
 
 export const CountryFacetSchema = {
-  description: "One country present in the access-log data.",
+  description: "A country that appears in the access logs.",
   properties: {
     code: {
+      description: "The two-letter ISO 3166-1 code, such as `NO`.",
       type: "string",
     },
     name: {
+      description: "The country name, or the code when GeoIP gave no name.",
       type: "string",
     },
   },
@@ -1732,14 +1879,17 @@ export const CrowdSecHealthSchema = {
 } as const;
 
 export const CrowdSecStatsResponseSchema = {
+  description: "Counts of the active CrowdSec decisions across every origin.",
   properties: {
     byOrigin: {
+      description: "Every origin, the most decisions first.",
       items: {
         $ref: "#/components/schemas/OriginCount",
       },
       type: "array",
     },
     topScenarios: {
+      description: "The ten scenarios with the most decisions, the most first.",
       items: {
         $ref: "#/components/schemas/ScenarioCount",
       },
@@ -1755,18 +1905,27 @@ export const CrowdSecStatsResponseSchema = {
 } as const;
 
 export const CrowdSecStatusResponseSchema = {
+  description: "Whether the CrowdSec integration is on and what it can do.",
   properties: {
     enabled: {
+      description:
+        "True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set. Always false on an agent.",
       type: "boolean",
     },
     lapiReachable: {
+      description:
+        "Whether the LAPI answered the last decision stream poll. Before the first poll, or with no poller, GeoMetrikks asks the LAPI during this request.",
       type: "boolean",
     },
     liveUpdates: {
       default: false,
+      description:
+        "Whether `/ws/crowdsec` streams decision changes. False when the scheduler is off or the server runs without its database.",
       type: "boolean",
     },
     writeEnabled: {
+      description:
+        "True when CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD are set too. Banning, unbanning and the alert endpoints need them. This does not test the credentials.",
       type: "boolean",
     },
   },
@@ -1777,7 +1936,7 @@ export const CrowdSecStatusResponseSchema = {
 
 export const CumulativeDataPointSchema = {
   description:
-    "Running totals from the start of the range through the end of one bucket.",
+    "Running totals through the end of one bucket.\n\nRanges up to 24 hours count from `startDate`. Longer ranges count from the start of the hour or UTC\nday that holds it.",
   properties: {
     cumulativeAccessLogs: {
       type: "integer",
@@ -1994,7 +2153,8 @@ export const DatabaseVersionsViewSchema = {
 } as const;
 
 export const DecisionGroupViewSchema = {
-  description: "Every active decision against one target, as one table row.",
+  description:
+    "Every active decision on one target, as one row.\n\nCrowdSec makes one decision per scenario, so an IP that set off three scenarios holds three.",
   properties: {
     city: {
       oneOf: [
@@ -2017,6 +2177,8 @@ export const DecisionGroupViewSchema = {
       ],
     },
     countryName: {
+      description:
+        "From GeoMetrikks' own traffic, else from its GeoIP database. Null for non-IP scopes.",
       oneOf: [
         {
           type: "string",
@@ -2030,24 +2192,32 @@ export const DecisionGroupViewSchema = {
       type: "integer",
     },
     decisions: {
+      description: "Longest time left first.",
       items: {
         $ref: "#/components/schemas/GroupedDecisionView",
       },
       type: "array",
     },
     duration: {
+      description:
+        "The longest time left among the decisions, as a Go duration such as `3h59m12s`.",
       type: "string",
     },
     ip: {
+      description:
+        "What the decision targets. An IP for scope `Ip`, a CIDR for `Range`, and a country code or AS number for other scopes.",
       type: "string",
     },
     origins: {
+      description: "Each origin once, in the order of `decisions`.",
       items: {
         type: "string",
       },
       type: "array",
     },
     requestCount24h: {
+      description:
+        "Requests from the IP in the access logs over the last 24 hours. Null for scopes other than `Ip`.",
       oneOf: [
         {
           type: "integer",
@@ -2058,9 +2228,12 @@ export const DecisionGroupViewSchema = {
       ],
     },
     scope: {
+      description: "What `ip` holds, such as `Ip`, `Range`, `Country` or `AS`.",
       type: "string",
     },
     type: {
+      description:
+        "The strongest remediation among the decisions. `ban` beats `captcha`, which beats the rest.",
       type: "string",
     },
   },
@@ -2082,6 +2255,7 @@ export const DecisionGroupViewSchema = {
 } as const;
 
 export const DecisionViewSchema = {
+  description: "One active CrowdSec decision.",
   properties: {
     city: {
       oneOf: [
@@ -2104,6 +2278,8 @@ export const DecisionViewSchema = {
       ],
     },
     countryName: {
+      description:
+        "From GeoMetrikks' own traffic, else from its GeoIP database. Null for non-IP scopes.",
       oneOf: [
         {
           type: "string",
@@ -2114,9 +2290,12 @@ export const DecisionViewSchema = {
       ],
     },
     duration: {
+      description:
+        "The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired.",
       type: "string",
     },
     id: {
+      description: "The LAPI's decision id.",
       oneOf: [
         {
           type: "integer",
@@ -2127,12 +2306,18 @@ export const DecisionViewSchema = {
       ],
     },
     ip: {
+      description:
+        "What the decision targets. An IP for scope `Ip`, a CIDR for `Range`, and a country code or AS number for other scopes.",
       type: "string",
     },
     origin: {
+      description:
+        "Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here.",
       type: "string",
     },
     requestCount24h: {
+      description:
+        "Requests from the IP in the access logs over the last 24 hours. Null for scopes other than `Ip`.",
       oneOf: [
         {
           type: "integer",
@@ -2143,12 +2328,17 @@ export const DecisionViewSchema = {
       ],
     },
     scenario: {
+      description:
+        "The scenario that raised the decision, or the reason a person gave for a manual one.",
       type: "string",
     },
     scope: {
+      description: "What `ip` holds, such as `Ip`, `Range`, `Country` or `AS`.",
       type: "string",
     },
     type: {
+      description:
+        "The remediation, `ban`, `captcha` or a name a bouncer defines.",
       type: "string",
     },
   },
@@ -2205,11 +2395,13 @@ export const DefaultServerLocationViewSchema = {
 } as const;
 
 export const DropAsnViewSchema = {
+  description: "An autonomous system on the ASN-DROP list.",
   properties: {
     asn: {
       type: "integer",
     },
     name: {
+      description: "The AS name the list gives.",
       oneOf: [
         {
           type: "string",
@@ -2226,8 +2418,11 @@ export const DropAsnViewSchema = {
 } as const;
 
 export const DropFeedViewSchema = {
+  description: "The download state of one DROP feed.",
   properties: {
     checkedAt: {
+      description:
+        "When GeoMetrikks last tried to download the feed, whether or not it worked.",
       oneOf: [
         {
           format: "date-time",
@@ -2239,9 +2434,12 @@ export const DropFeedViewSchema = {
       ],
     },
     feed: {
+      description:
+        "`v4` and `v6` for the network lists, `asn` for the ASN-DROP list.",
       type: "string",
     },
     fetchedAt: {
+      description: "When a download of the feed last worked.",
       oneOf: [
         {
           format: "date-time",
@@ -2253,6 +2451,7 @@ export const DropFeedViewSchema = {
       ],
     },
     lastError: {
+      description: "Why the last download failed. Null once a download works.",
       oneOf: [
         {
           type: "string",
@@ -2263,6 +2462,8 @@ export const DropFeedViewSchema = {
       ],
     },
     recordCount: {
+      description:
+        "The record count the feed states. Null before the first download.",
       oneOf: [
         {
           type: "integer",
@@ -2273,6 +2474,7 @@ export const DropFeedViewSchema = {
       ],
     },
     upstreamTimestamp: {
+      description: "When Spamhaus generated the feed GeoMetrikks holds.",
       oneOf: [
         {
           format: "date-time",
@@ -2358,14 +2560,17 @@ export const DropListsAboutViewSchema = {
 } as const;
 
 export const DropListsResponseSchema = {
+  description: "The Spamhaus DROP lists and the state of each feed.",
   properties: {
     asns: {
+      description: "Sorted by ASN.",
       items: {
         $ref: "#/components/schemas/DropAsnView",
       },
       type: "array",
     },
     copyright: {
+      description: "The copyright line Spamhaus ships with the feeds.",
       oneOf: [
         {
           type: "string",
@@ -2376,27 +2581,34 @@ export const DropListsResponseSchema = {
       ],
     },
     enabled: {
+      description: "False with DROP_ENABLED=false.",
       type: "boolean",
     },
     feeds: {
+      description:
+        "In the order `v4`, `v6`, `asn`, and only the feeds GeoMetrikks has tried.",
       items: {
         $ref: "#/components/schemas/DropFeedView",
       },
       type: "array",
     },
     loaded: {
+      description: "Whether at least one feed has been fetched.",
       type: "boolean",
     },
     networks: {
+      description: "Sorted by CIDR.",
       items: {
         $ref: "#/components/schemas/DropNetworkView",
       },
       type: "array",
     },
     stale: {
+      description: "True when `updatedAt` is more than 7 days ago.",
       type: "boolean",
     },
     updatedAt: {
+      description: "When the most recent feed fetch succeeded.",
       oneOf: [
         {
           format: "date-time",
@@ -2423,8 +2635,10 @@ export const DropListsResponseSchema = {
 } as const;
 
 export const DropNetworkTrafficViewSchema = {
+  description: "One DROP network with the traffic it sent in the window.",
   properties: {
     asOrg: {
+      description: "The name the logs give most often for that ASN.",
       oneOf: [
         {
           type: "string",
@@ -2435,6 +2649,8 @@ export const DropNetworkTrafficViewSchema = {
       ],
     },
     asn: {
+      description:
+        "The ASN most of the network's requests came from. Null when the raw lines have aged out or carry no ASN.",
       oneOf: [
         {
           type: "integer",
@@ -2448,6 +2664,8 @@ export const DropNetworkTrafficViewSchema = {
       type: "string",
     },
     decision: {
+      description:
+        "The active decision on the network. Null when it has none or the LAPI did not answer.",
       oneOf: [
         {
           $ref: "#/components/schemas/BannedRangeView",
@@ -2458,12 +2676,16 @@ export const DropNetworkTrafficViewSchema = {
       ],
     },
     hits: {
+      description: "Requests from the network in the window.",
       type: "integer",
     },
     ips: {
+      description: "Distinct client IPs in the network that sent them.",
       type: "integer",
     },
     lastSeen: {
+      description:
+        "The newest request from the network. Once its raw lines have aged out, the start of the newest hour or UTC day with traffic.",
       oneOf: [
         {
           format: "date-time",
@@ -2475,6 +2697,8 @@ export const DropNetworkTrafficViewSchema = {
       ],
     },
     sblId: {
+      description:
+        "The Spamhaus SBL record id of the listing, such as `SBL123456`.",
       type: "string",
     },
   },
@@ -2493,11 +2717,14 @@ export const DropNetworkTrafficViewSchema = {
 } as const;
 
 export const DropNetworkViewSchema = {
+  description: "A network on the DROP list.",
   properties: {
     cidr: {
       type: "string",
     },
     sblId: {
+      description:
+        "The Spamhaus SBL record id of the listing, such as `SBL123456`.",
       type: "string",
     },
   },
@@ -2507,32 +2734,45 @@ export const DropNetworkViewSchema = {
 } as const;
 
 export const DropNetworksResponseSchema = {
+  description:
+    "One page of DROP networks with traffic, with totals over every network.",
   properties: {
     bannedNetworks: {
+      description:
+        "Networks with traffic that hold an active decision. 0 when the LAPI did not answer.",
       type: "integer",
     },
     days: {
+      description: "The window in days, as requested.",
       type: "integer",
     },
     decisionsAvailable: {
+      description:
+        "False when the LAPI did not answer. Every `decision` is null then.",
       type: "boolean",
     },
     items: {
+      description: "The most requests first.",
       items: {
         $ref: "#/components/schemas/DropNetworkTrafficView",
       },
       type: "array",
     },
     loaded: {
+      description:
+        "False until a DROP network list has been downloaded, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.",
       type: "boolean",
     },
     totalHits: {
+      description: "Requests from those networks.",
       type: "integer",
     },
     totalIps: {
+      description: "Distinct client IPs in those networks.",
       type: "integer",
     },
     totalNetworks: {
+      description: "DROP networks with traffic in the window.",
       type: "integer",
     },
   },
@@ -2921,7 +3161,7 @@ export const GeoJSONFeaturePropertiesSchema = {
     },
     lastHit: {
       description:
-        "The newest event at this location, whatever the range. A scheduler job updates it, so it can lag by a few minutes. Null until the job first runs for the location.",
+        "The newest event at this location, whatever the range. A scheduler job on the head updates it every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default, so it lags by up to that long. Null until the job first runs for the location, and always null with SCHEDULER_ENABLED=false.",
       oneOf: [
         {
           format: "date-time",
@@ -3365,11 +3605,15 @@ export const GlobalTopIPsResponseSchema = {
 } as const;
 
 export const GroupedDecisionViewSchema = {
+  description: "One of the decisions on a target.",
   properties: {
     duration: {
+      description:
+        "The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired.",
       type: "string",
     },
     id: {
+      description: "The LAPI's decision id.",
       oneOf: [
         {
           type: "integer",
@@ -3380,12 +3624,16 @@ export const GroupedDecisionViewSchema = {
       ],
     },
     origin: {
+      description:
+        "Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here.",
       type: "string",
     },
     scenario: {
       type: "string",
     },
     type: {
+      description:
+        "The remediation, `ban`, `captcha` or a name a bouncer defines.",
       type: "string",
     },
   },
@@ -3774,7 +4022,7 @@ export const IngestionStatsResponseSchema = {
   properties: {
     isRunning: {
       description:
-        "False when ingestion is turned off, failed to start or has stopped.",
+        "False when LOGPARSER_ENABLED is false, or when ingestion failed to start or stopped.",
       type: "boolean",
     },
     lokiSources: {
@@ -3785,7 +4033,7 @@ export const IngestionStatsResponseSchema = {
     },
     totalIgnoredLines: {
       description:
-        "Log lines dropped because the client IP is in LOGPARSER_IGNORE_IPS.",
+        "Log lines GeoMetrikks dropped because the client IP is in LOGPARSER_IGNORE_IPS.",
       type: "integer",
     },
     totalParsedLines: {
@@ -3965,7 +4213,7 @@ export const InstancesResponseSchema = {
   properties: {
     checkedAt: {
       description:
-        "The database time GeoMetrikks compared each heartbeat against to set `checkingIn` and the problems.",
+        "The database time when GeoMetrikks built this list. It measures each heartbeat's age from it to set `checkingIn` and the problems.",
       format: "date-time",
       type: "string",
     },
@@ -4215,7 +4463,7 @@ export const IpProfileResponseSchema = {
     },
     timedRequests: {
       description:
-        "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.",
+        "Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every request, timed or not.",
       type: "integer",
     },
     totalBytes: {
@@ -5050,7 +5298,8 @@ export const LokiSourceStatsSchema = {
   description: "One query from LOKI_QUERIES and how ingestion is reading it.",
   properties: {
     available: {
-      description: "False while Loki cannot be reached or rejects the query.",
+      description:
+        "False while GeoMetrikks cannot reach Loki or Loki rejects the query.",
       type: "boolean",
     },
     label: {
@@ -5091,7 +5340,8 @@ export const LokiSourceStatsSchema = {
       ],
     },
     server: {
-      description: "The server name this query's lines are stored under.",
+      description:
+        "The server name GeoMetrikks stores this query's lines under.",
       type: "string",
     },
   },
@@ -5260,6 +5510,7 @@ export const OidcStatusSchema = {
 } as const;
 
 export const OriginCountSchema = {
+  description: "The number of active decisions from one origin.",
   properties: {
     count: {
       type: "integer",
@@ -5274,7 +5525,7 @@ export const OriginCountSchema = {
 } as const;
 
 export const ParseErrorCountSchema = {
-  description: "A parse_error value and how many debug rows carry it.",
+  description: "A parse error and how many stored lines carry it.",
   properties: {
     count: {
       type: "integer",
@@ -5376,7 +5627,7 @@ export const PercentChangeSchema = {
 
 export const PeriodSummarySchema = {
   description:
-    "Request and geo event totals for one period.\n\nRequest times are in seconds over the timed requests, and null when none was timed.",
+    "Request and geo event totals for one period.\n\nRequest times are in seconds over the requests `timedRequests` counts, and null when it is 0.",
   properties: {
     avgBytesPerRequest: {
       type: "number",
@@ -5425,7 +5676,7 @@ export const PeriodSummarySchema = {
     },
     timedRequests: {
       description:
-        "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.",
+        "Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every request, timed or not.",
       type: "integer",
     },
     totalBytesSent: {
@@ -5469,16 +5720,22 @@ export const PeriodSummarySchema = {
 } as const;
 
 export const RawLineFieldSchema = {
-  description: "One key from a JSON raw line, flattened for display.",
+  description: "One key of a JSON log line.",
   properties: {
     group: {
+      description:
+        "`request_header`, `response_header` or `origin_header` for a header the proxy logged, and `field` for any other key.",
       enum: ["request_header", "response_header", "origin_header", "field"],
       type: "string",
     },
     key: {
+      description:
+        "The key, with dots between the levels of a nested key. A header key is the header name without its prefix, such as `User-Agent`.",
       type: "string",
     },
     storedAs: {
+      description:
+        "The access log field this key fills, as a label such as `IP address`. Null when GeoMetrikks does not store the key.",
       oneOf: [
         {
           type: "string",
@@ -5489,6 +5746,8 @@ export const RawLineFieldSchema = {
       ],
     },
     value: {
+      description:
+        "The value as text. A list of strings is joined with commas, and other values are compact JSON.",
       type: "string",
     },
   },
@@ -5499,7 +5758,7 @@ export const RawLineFieldSchema = {
 
 export const RawLineFieldsSchema = {
   description:
-    "A JSON raw line split into fields, in the order they appear in the line.",
+    "A JSON log line split into its keys, in the order they appear in the line.",
   properties: {
     fields: {
       items: {
@@ -5508,6 +5767,8 @@ export const RawLineFieldsSchema = {
       type: "array",
     },
     format: {
+      description:
+        "The JSON log format that read the line into its access log line, such as `traefik-json`. Null when the line produced no access log line or no JSON format accepts it, and then no field has `storedAs`.",
       oneOf: [
         {
           type: "string",
@@ -5574,9 +5835,10 @@ export const ReleaseCheckResponseSchema = {
 } as const;
 
 export const ReportAlertDTOSchema = {
-  description: "A CrowdSec detection against the IP inside the window.",
+  description: "A CrowdSec alert on the IP whose activity overlaps the range.",
   properties: {
     createdAt: {
+      description: "When the LAPI stored the alert, as RFC 3339.",
       type: "string",
     },
     decisions: {
@@ -5589,6 +5851,8 @@ export const ReportAlertDTOSchema = {
       type: "integer",
     },
     kind: {
+      description:
+        "Where the alert came from, such as `crowdsec` or `waf`. Null from a LAPI that predates the field.",
       oneOf: [
         {
           type: "string",
@@ -5599,9 +5863,12 @@ export const ReportAlertDTOSchema = {
       ],
     },
     scenario: {
+      description:
+        "The scenario that fired, or `manual` for an alert a person made.",
       type: "string",
     },
     startAt: {
+      description: "When the first event happened.",
       oneOf: [
         {
           type: "string",
@@ -5612,6 +5879,7 @@ export const ReportAlertDTOSchema = {
       ],
     },
     stopAt: {
+      description: "When the last event happened.",
       oneOf: [
         {
           type: "string",
@@ -5636,9 +5904,11 @@ export const ReportAlertDTOSchema = {
 } as const;
 
 export const ReportAlertDecisionDTOSchema = {
-  description: "A decision an alert produced, live or expired.",
+  description: "A decision an alert made, still in force or expired.",
   properties: {
     duration: {
+      description:
+        "The time left, as a Go duration such as `3h59m12s`. Negative once it has expired.",
       type: "string",
     },
     expired: {
@@ -5654,10 +5924,11 @@ export const ReportAlertDecisionDTOSchema = {
 } as const;
 
 export const ReportCrowdSecSchema = {
-  description:
-    "Whether CrowdSec data made it into the report.\n\n``decisions-only`` means no machine credentials, so no alert history.\n``unavailable`` means the LAPI failed; the report still carries the logs.",
+  description: "How much CrowdSec data the report holds.",
   properties: {
     message: {
+      description:
+        "Says what is missing and why. Null for `ok` and `disabled`.",
       oneOf: [
         {
           type: "string",
@@ -5668,6 +5939,8 @@ export const ReportCrowdSecSchema = {
       ],
     },
     status: {
+      description:
+        "`ok` with decisions and alerts, `decisions-only` without machine credentials, `disabled` with the integration off, and `unavailable` when the LAPI did not answer. The access log evidence is there in every case.",
       enum: ["disabled", "ok", "decisions-only", "unavailable"],
       type: "string",
     },
@@ -5678,15 +5951,20 @@ export const ReportCrowdSecSchema = {
 } as const;
 
 export const ReportDecisionDTOSchema = {
-  description: "An active CrowdSec decision covering the IP.",
+  description:
+    "An active CrowdSec decision on the IP, or on a range that holds it.",
   properties: {
     duration: {
+      description:
+        "The time left, as a Go duration such as `3h59m12s`. Negative once it has expired.",
       type: "string",
     },
     origin: {
       type: "string",
     },
     scenario: {
+      description:
+        "The scenario that made the decision, or `manual` for a decision a person made.",
       type: "string",
     },
     scope: {
@@ -5705,12 +5983,14 @@ export const ReportDecisionDTOSchema = {
 } as const;
 
 export const ReportDropNetworkDTOSchema = {
-  description: "The DROP network that holds the IP, with its SBL record id.",
+  description: "The Spamhaus DROP network that holds the IP.",
   properties: {
     cidr: {
       type: "string",
     },
     sblId: {
+      description:
+        "The Spamhaus SBL record id of the listing, such as `SBL123456`.",
       type: "string",
     },
   },
@@ -5720,18 +6000,22 @@ export const ReportDropNetworkDTOSchema = {
 } as const;
 
 export const ReportIpDTOSchema = {
-  description: "Everything the report says about one source IP.",
+  description: "What the report says about one source IP.",
   properties: {
     alerts: {
+      description: "Oldest first. Empty unless `crowdsec.status` is `ok`.",
       items: {
         $ref: "#/components/schemas/ReportAlertDTO",
       },
       type: "array",
     },
     alertsTruncated: {
+      description:
+        "True when the LAPI hit the alert limit, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range are missing.",
       type: "boolean",
     },
     asn: {
+      description: "The ASN from the IP's newest line with ASN data.",
       oneOf: [
         {
           type: "integer",
@@ -5742,6 +6026,7 @@ export const ReportIpDTOSchema = {
       ],
     },
     asnDrop: {
+      description: "True when the IP's ASN is on the Spamhaus ASN-DROP list.",
       type: "boolean",
     },
     asnOrganization: {
@@ -5775,15 +6060,19 @@ export const ReportIpDTOSchema = {
       ],
     },
     decisions: {
+      description:
+        "The decisions active now, whatever the range. Empty when `crowdsec.status` is `disabled` or `unavailable`.",
       items: {
         $ref: "#/components/schemas/ReportDecisionDTO",
       },
       type: "array",
     },
     distinctPaths: {
+      description: "Distinct URLs the IP requested.",
       type: "integer",
     },
     dropNetwork: {
+      description: "Null when no DROP network holds the IP.",
       oneOf: [
         {
           $ref: "#/components/schemas/ReportDropNetworkDTO",
@@ -5794,6 +6083,7 @@ export const ReportIpDTOSchema = {
       ],
     },
     firstSeen: {
+      description: "The first request in the range, as ISO 8601 in UTC.",
       oneOf: [
         {
           type: "string",
@@ -5807,6 +6097,7 @@ export const ReportIpDTOSchema = {
       type: "string",
     },
     lastSeen: {
+      description: "The last request in the range, as ISO 8601 in UTC.",
       oneOf: [
         {
           type: "string",
@@ -5817,21 +6108,26 @@ export const ReportIpDTOSchema = {
       ],
     },
     lines: {
+      description: "The newest `linesPerIp` lines, oldest first.",
       items: {
         $ref: "#/components/schemas/ReportLineDTO",
       },
       type: "array",
     },
     malformedRequests: {
+      description:
+        "Malformed lines from the IP that GeoMetrikks stored in the range. These go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.",
       type: "integer",
     },
     paths: {
+      description: "The ten most requested paths, the most first.",
       items: {
         $ref: "#/components/schemas/ReportPathDTO",
       },
       type: "array",
     },
     peak: {
+      description: "Null when the IP sent no requests.",
       oneOf: [
         {
           $ref: "#/components/schemas/ReportPeakDTO",
@@ -5854,12 +6150,14 @@ export const ReportIpDTOSchema = {
       type: "integer",
     },
     totalBytes: {
+      description: "The response bytes the server sent the IP.",
       type: "integer",
     },
     totalRequests: {
       type: "integer",
     },
     userAgents: {
+      description: "The three most sent user agents, the most first.",
       items: {
         $ref: "#/components/schemas/ReportUserAgentDTO",
       },
@@ -5897,7 +6195,8 @@ export const ReportIpDTOSchema = {
 } as const;
 
 export const ReportLineDTOSchema = {
-  description: "One access-log line without the operator's vhost or referrer.",
+  description:
+    "One access log line, without the Host header, server name, referrer or remote user.",
   properties: {
     bytesSent: {
       oneOf: [
@@ -5940,6 +6239,7 @@ export const ReportLineDTOSchema = {
       ],
     },
     timestamp: {
+      description: "The request time, as ISO 8601 in UTC.",
       type: "string",
     },
     url: {
@@ -5977,9 +6277,10 @@ export const ReportLineDTOSchema = {
 } as const;
 
 export const ReportPathDTOSchema = {
-  description: "A requested path with its hit and error counts.",
+  description: "A path the IP requested.",
   properties: {
     errorHits: {
+      description: "Requests that got a status of 400 or more.",
       type: "integer",
     },
     hits: {
@@ -5995,12 +6296,13 @@ export const ReportPathDTOSchema = {
 } as const;
 
 export const ReportPeakDTOSchema = {
-  description: "The IP's busiest hour or UTC day in the window.",
+  description: "The IP's busiest hour, or UTC day on ranges over 7 days.",
   properties: {
     hits: {
       type: "integer",
     },
     timestamp: {
+      description: "The start of the hour or day, as ISO 8601 in UTC.",
       type: "string",
     },
   },
@@ -6010,9 +6312,11 @@ export const ReportPeakDTOSchema = {
 } as const;
 
 export const ReportTargetSchema = {
-  description: "What the report is about: one IP, or the IPs of one ASN.",
+  description: "What the report is about, one IP or the IPs of one ASN.",
   properties: {
     asn: {
+      description:
+        "The ASN. For an IP report, the one its newest line with ASN data names.",
       oneOf: [
         {
           type: "integer",
@@ -6023,6 +6327,7 @@ export const ReportTargetSchema = {
       ],
     },
     asnDrop: {
+      description: "True when the ASN is on the Spamhaus ASN-DROP list.",
       type: "boolean",
     },
     asnOrganization: {
@@ -6036,6 +6341,7 @@ export const ReportTargetSchema = {
       ],
     },
     ipAddress: {
+      description: "The IP. Null for an ASN report.",
       oneOf: [
         {
           type: "string",
@@ -6056,7 +6362,7 @@ export const ReportTargetSchema = {
 } as const;
 
 export const ReportUserAgentDTOSchema = {
-  description: "A user agent the IP sent, with its hit count.",
+  description: "A user agent the IP sent, with how often.",
   properties: {
     hits: {
       type: "integer",
@@ -6168,6 +6474,7 @@ export const SafeSettingsResponseSchema = {
 } as const;
 
 export const ScenarioCountSchema = {
+  description: "The number of decisions or alerts from one scenario.",
   properties: {
     count: {
       type: "integer",
@@ -6581,7 +6888,7 @@ export const SummaryResponseSchema = {
     },
     previousPeriod: {
       description:
-        "Null unless `comparePrevious` is true and the previous period has data.",
+        "Null unless `comparePrevious` is true and the range and the previous period each have requests or geo events.",
       oneOf: [
         {
           $ref: "#/components/schemas/PeriodSummary",
@@ -6618,7 +6925,7 @@ export const SystemSettingsResponseSchema = {
 
 export const TimeSeriesDataPointSchema = {
   description:
-    "Request metrics for one bucket.\n\nRequest times are in seconds and cover the timed requests only. Each one is null when the bucket has\nno timed requests. Without a filter, the percentiles are estimates.",
+    "Request metrics for one bucket.\n\nRequest times are in seconds and cover the requests `timedRequests` counts. Each one is null when the\nbucket has none. Without a filter, the percentiles are estimates.",
   properties: {
     avgRequestTime: {
       oneOf: [
@@ -6679,7 +6986,7 @@ export const TimeSeriesDataPointSchema = {
     },
     timedRequests: {
       description:
-        "Requests with a measured request time. WebSocket upgrades and status 0 lines do not count.",
+        "Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every request, timed or not.",
       type: "integer",
     },
     timestamp: {
@@ -7319,7 +7626,7 @@ export const TopUrlDTOSchema = {
   properties: {
     avgRequestTime: {
       description:
-        "The mean request time in seconds over the timed hits. Null when none was timed.",
+        "The mean request time in seconds over the `timedHits`. Null when it is 0.",
       oneOf: [
         {
           type: "number",
@@ -7349,7 +7656,8 @@ export const TopUrlDTOSchema = {
       ],
     },
     timedHits: {
-      description: "Hits with a measured request time.",
+      description:
+        "Hits with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every hit, timed or not.",
       type: "integer",
     },
     totalBytes: {
@@ -7464,8 +7772,10 @@ export const UnavailableSourceHealthSchema = {
 } as const;
 
 export const UnbanRequestSchema = {
+  description: "What to unban.",
   properties: {
     ip: {
+      description: "An IP, or a range in CIDR form such as `203.0.113.0/24`.",
       type: "string",
     },
   },
@@ -7475,6 +7785,7 @@ export const UnbanRequestSchema = {
 } as const;
 
 export const UnbanResponseSchema = {
+  description: "How many decisions the unban deleted.",
   properties: {
     deleted: {
       type: "integer",

@@ -23,7 +23,7 @@ from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
-from litestar.params import FromPath, JSONBody, QueryParameter, SkipValidation
+from litestar.params import JSONBody, PathParameter, QueryParameter, SkipValidation
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.status_codes import (
     HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
@@ -104,9 +104,19 @@ MAX_ALERT_SCENARIOS = 5
 SCENARIO_SAMPLE_SIZE = 500
 
 ALERT_KIND_DESCRIPTION = (
-    "Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, "
-    "or bot for everything the AppSec bot challenge produces"
+    "Keep only alerts of one kind, `crowdsec`, `waf`, `bot-detection`, `capi`, `papi` or `cscli`. `bot` "
+    "keeps everything the AppSec bot challenge produces. Needs CrowdSec 1.7 or newer, and an older LAPI "
+    "gets a 400."
 )
+SINCE_DESCRIPTION = (
+    "Keep only alerts that started within this long before now, as a Go duration of hours, minutes and "
+    "seconds such as `24h` or `1h30m`."
+)
+MACHINE_CREDENTIALS_NOTE = (
+    "Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and "
+    "CROWDSEC_MACHINE_PASSWORD."
+)
+WRITE_NOTE = "Needs a Read/write API key or a browser session."
 
 
 # Go duration string as the LAPI accepts it, e.g. "4h", "30m", "1h30m".
@@ -129,147 +139,308 @@ _bulk_ban_clock: Callable[[], float] = time.monotonic
 logger = get_logger(__name__)
 
 
+GoDurationLeft = Annotated[
+    str,
+    msgspec.Meta(
+        description="The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired."
+    ),
+]
+DecisionTarget = Annotated[
+    str,
+    msgspec.Meta(
+        description=(
+            "What the decision targets. An IP for scope `Ip`, a CIDR for `Range`, and a country code or AS number "
+            "for other scopes."
+        )
+    ),
+]
+DecisionTypeName = Annotated[
+    str, msgspec.Meta(description="The remediation, `ban`, `captcha` or a name a bouncer defines.")
+]
+DecisionOrigin = Annotated[
+    str,
+    msgspec.Meta(
+        description=(
+            "Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the "
+            "command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here."
+        )
+    ),
+]
+StoredCountryName = Annotated[
+    str | None,
+    msgspec.Meta(description="From GeoMetrikks' own traffic, else from its GeoIP database. Null for non-IP scopes."),
+]
+RequestCount24h = Annotated[
+    int | None,
+    msgspec.Meta(
+        description=(
+            "Requests from the IP in the access logs over the last 24 hours. Null for scopes other than `Ip`."
+        )
+    ),
+]
+
+
 class CrowdSecStatusResponse(msgspec.Struct, rename="camel"):
-    enabled: bool
-    write_enabled: bool
-    lapi_reachable: bool
-    # False while DB-degraded or scheduler-disabled mode omits the poller.
-    live_updates: bool = False
+    """Whether the CrowdSec integration is on and what it can do."""
+
+    enabled: Annotated[
+        bool,
+        msgspec.Meta(
+            description="True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set. Always false on an agent."
+        ),
+    ]
+    write_enabled: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "True when CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD are set too. Banning, unbanning and "
+                "the alert endpoints need them. This does not test the credentials."
+            )
+        ),
+    ]
+    lapi_reachable: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "Whether the LAPI answered the last decision stream poll. Before the first poll, or with no "
+                "poller, GeoMetrikks asks the LAPI during this request."
+            )
+        ),
+    ]
+    live_updates: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "Whether `/ws/crowdsec` streams decision changes. False when the scheduler is off or the server "
+                "runs without its database."
+            )
+        ),
+    ] = False
 
 
 class DecisionView(msgspec.Struct, rename="camel"):
-    id: int | None
-    ip: str  # Decision value; a CIDR/country/AS number for non-Ip scopes
-    type: str
-    scope: str
-    origin: str
-    scenario: str
-    duration: str
-    # enrichment from GeoMetrikks' own data (None for non-Ip scopes):
+    """One active CrowdSec decision."""
+
+    id: Annotated[int | None, msgspec.Meta(description="The LAPI's decision id.")]
+    ip: DecisionTarget
+    type: DecisionTypeName
+    scope: Annotated[str, msgspec.Meta(description="What `ip` holds, such as `Ip`, `Range`, `Country` or `AS`.")]
+    origin: DecisionOrigin
+    scenario: Annotated[
+        str,
+        msgspec.Meta(
+            description="The scenario that raised the decision, or the reason a person gave for a manual one."
+        ),
+    ]
+    duration: GoDurationLeft
     country_code: str | None
-    country_name: str | None
+    country_name: StoredCountryName
     city: str | None
-    request_count_24h: int | None = msgspec.field(name="requestCount24h")
+    request_count_24h: RequestCount24h = msgspec.field(name="requestCount24h")
 
 
 class GroupedDecisionView(msgspec.Struct, rename="camel"):
-    id: int | None
-    type: str
-    origin: str
+    """One of the decisions on a target."""
+
+    id: Annotated[int | None, msgspec.Meta(description="The LAPI's decision id.")]
+    type: DecisionTypeName
+    origin: DecisionOrigin
     scenario: str
-    duration: str
+    duration: GoDurationLeft
 
 
 class DecisionGroupView(msgspec.Struct, rename="camel"):
-    """Every active decision against one target, as one table row."""
+    """Every active decision on one target, as one row.
 
-    ip: str  # Decision value; a CIDR/country/AS number for non-Ip scopes
-    scope: str
-    type: str  # strongest remediation in the group
-    duration: str  # longest time left in the group
-    origins: list[str]
+    CrowdSec makes one decision per scenario, so an IP that set off three scenarios holds three.
+    """
+
+    ip: DecisionTarget
+    scope: Annotated[str, msgspec.Meta(description="What `ip` holds, such as `Ip`, `Range`, `Country` or `AS`.")]
+    type: Annotated[
+        str,
+        msgspec.Meta(
+            description="The strongest remediation among the decisions. `ban` beats `captcha`, which beats the rest."
+        ),
+    ]
+    duration: Annotated[
+        str,
+        msgspec.Meta(
+            description="The longest time left among the decisions, as a Go duration such as `3h59m12s`."
+        ),
+    ]
+    origins: Annotated[list[str], msgspec.Meta(description="Each origin once, in the order of `decisions`.")]
     decision_count: int
-    decisions: list[GroupedDecisionView]  # longest-lived first
-    # From GeoMetrikks' own traffic. None for non-Ip scopes.
+    decisions: Annotated[list[GroupedDecisionView], msgspec.Meta(description="Longest time left first.")]
     country_code: str | None
-    country_name: str | None
+    country_name: StoredCountryName
     city: str | None
-    request_count_24h: int | None = msgspec.field(name="requestCount24h")
+    request_count_24h: RequestCount24h = msgspec.field(name="requestCount24h")
 
 
 class OriginCount(msgspec.Struct, rename="camel"):
+    """The number of active decisions from one origin."""
+
     origin: str
     count: int
 
 
 class ScenarioCount(msgspec.Struct, rename="camel"):
+    """The number of decisions or alerts from one scenario."""
+
     scenario: str
     count: int
 
 
 class CrowdSecStatsResponse(msgspec.Struct, rename="camel"):
+    """Counts of the active CrowdSec decisions across every origin."""
+
     total: int
-    by_origin: list[OriginCount]
-    top_scenarios: list[ScenarioCount]
+    by_origin: Annotated[list[OriginCount], msgspec.Meta(description="Every origin, the most decisions first.")]
+    top_scenarios: Annotated[
+        list[ScenarioCount], msgspec.Meta(description="The ten scenarios with the most decisions, the most first.")
+    ]
 
 
 class AlertView(msgspec.Struct, rename="camel"):
-    id: int | None
+    """One CrowdSec alert, a scenario that fired against a source."""
+
+    id: Annotated[int | None, msgspec.Meta(description="The LAPI's alert id.")]
     scenario: str
-    # Alert origin: crowdsec for log scenarios, waf, bot-detection, ...
-    # None from LAPIs that predate the field.
-    kind: str | None
+    kind: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "Where the alert came from, such as `crowdsec` for a log scenario, `waf` or `bot-detection`. Null "
+                "from a LAPI that predates the field."
+            )
+        ),
+    ]
     message: str
-    events_count: int
-    created_at: str
-    machine_id: str | None
-    scope: str
-    value: str
+    events_count: Annotated[int, msgspec.Meta(description="How many events set off the scenario.")]
+    created_at: Annotated[str, msgspec.Meta(description="When the LAPI stored the alert, as RFC 3339.")]
+    machine_id: Annotated[
+        str | None, msgspec.Meta(description="The CrowdSec machine that sent the alert.")
+    ]
+    scope: Annotated[str, msgspec.Meta(description="What `value` holds, such as `Ip` or `Range`.")]
+    value: Annotated[str, msgspec.Meta(description="The source the alert is about, such as an IP.")]
     country_code: str | None
-    # Only set from GeoMetrikks' own traffic; the LAPI supplies a bare code.
-    country_name: str | None
-    as_name: str | None
-    decision_count: int
-    # decision_count includes expired decisions, which alerts keep.
-    active_decision_count: int
-    # Distinct decision types, in the order the LAPI lists them.
-    decision_types: list[str]
+    country_name: Annotated[
+        str | None,
+        msgspec.Meta(description="From GeoMetrikks' own traffic or its GeoIP database. The LAPI sends only a code."),
+    ]
+    as_name: Annotated[str | None, msgspec.Meta(description="The source's network name, as the LAPI gives it.")]
+    decision_count: Annotated[
+        int, msgspec.Meta(description="The decisions the alert made, expired ones included.")
+    ]
+    active_decision_count: Annotated[int, msgspec.Meta(description="The decisions still in force.")]
+    decision_types: Annotated[
+        list[str],
+        msgspec.Meta(description="Each decision type once, in the order the LAPI lists the decisions."),
+    ]
 
 
 class AlertPageView(msgspec.Struct, rename="camel"):
+    """One page of CrowdSec alerts, newest first."""
+
     alerts: list[AlertView]
-    # Pass back as ``before`` for the next page; None on the last page.
-    next_cursor: str | None
+    next_cursor: Annotated[
+        str | None,
+        msgspec.Meta(description="Pass it as `before` to get the next, older page. Null on the last page."),
+    ]
 
 
 class AlertDecisionView(msgspec.Struct, rename="camel"):
-    id: int | None
-    type: str
+    """A decision an alert made, still in force or expired."""
+
+    id: Annotated[int | None, msgspec.Meta(description="The LAPI's decision id.")]
+    type: DecisionTypeName
     scope: str
     value: str
-    origin: str
+    origin: DecisionOrigin
     scenario: str
-    duration: str
+    duration: GoDurationLeft
     expired: bool
-    simulated: bool
+    simulated: Annotated[
+        bool, msgspec.Meta(description="True when CrowdSec ran the scenario in simulation mode and enforces nothing.")
+    ]
 
 
 class AlertContextView(msgspec.Struct, rename="camel"):
+    """One context key the scenario recorded, with every value it saw."""
+
     key: str
     values: list[str]
 
 
 class AlertEventView(msgspec.Struct, rename="camel"):
-    timestamp: str
-    meta: dict[str, str]
+    """One event the LAPI kept for an alert."""
+
+    timestamp: Annotated[str, msgspec.Meta(description="When the event happened, usually as RFC 3339.")]
+    meta: Annotated[
+        dict[str, str], msgspec.Meta(description="The event's metadata, such as the log type and the source IP.")
+    ]
 
 
 class AlertDetailView(AlertView, rename="camel"):
-    simulated: bool
-    start_at: str | None
-    stop_at: str | None
-    as_number: str | None
-    range: str | None
+    """One CrowdSec alert with its context, stored events and decisions."""
+
+    simulated: Annotated[
+        bool, msgspec.Meta(description="True when CrowdSec ran the scenario in simulation mode.")
+    ]
+    start_at: Annotated[str | None, msgspec.Meta(description="When the first event happened.")]
+    stop_at: Annotated[str | None, msgspec.Meta(description="When the last event happened.")]
+    as_number: Annotated[str | None, msgspec.Meta(description="The source's AS number, as the LAPI gives it.")]
+    range: Annotated[str | None, msgspec.Meta(description="The source's network as a CIDR, as the LAPI gives it.")]
     context: list[AlertContextView]
-    # The LAPI stores a capped sample, fewer events than events_count.
-    events: list[AlertEventView]
+    events: Annotated[
+        list[AlertEventView],
+        msgspec.Meta(description="A sample of the events. The LAPI keeps fewer than `eventsCount` on busy alerts."),
+    ]
     decisions: list[AlertDecisionView]
 
 
 class BanRequest(msgspec.Struct, rename="camel"):
-    # An IP, or a range in CIDR form.
-    ip: str
-    duration: str | None = None
-    reason: str | None = None
-    type: DecisionType = "ban"
+    """What to ban, for how long and why."""
+
+    ip: Annotated[
+        str,
+        msgspec.Meta(
+            description=(
+                "An IP, or a range in CIDR form such as `203.0.113.0/24`. A /32 or /128 becomes an IP decision."
+            )
+        ),
+    ]
+    duration: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "How long the decision lasts, such as `4h`, `30m`, `7d` or `1d12h`. Defaults to "
+                "CROWDSEC_DEFAULT_BAN_DURATION, 4h by default."
+            )
+        ),
+    ] = None
+    reason: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "The reason the decision carries. Defaults to `manual ban from GeoMetrikks`, or "
+                "`manual captcha from GeoMetrikks` for a captcha."
+            )
+        ),
+    ] = None
+    type: Annotated[DecisionType, msgspec.Meta(description="`ban` or `captcha`. Defaults to `ban`.")] = "ban"
 
 
 class UnbanRequest(msgspec.Struct, rename="camel"):
-    # An IP, or a range in CIDR form.
-    ip: str
+    """What to unban."""
+
+    ip: Annotated[str, msgspec.Meta(description="An IP, or a range in CIDR form such as `203.0.113.0/24`.")]
 
 
 class UnbanResponse(msgspec.Struct, rename="camel"):
+    """How many decisions the unban deleted."""
+
     deleted: int
 
 
@@ -582,7 +753,15 @@ class CrowdSecController(Controller):
         "drop_traffic_repo": Provide(provide_drop_traffic_repo),
     }
 
-    @get("/status")
+    @get(
+        "/status",
+        summary="Get the CrowdSec integration status",
+        description=(
+            "Returns whether the integration is on, whether bans and alerts are available, whether the LAPI "
+            "answers and whether `/ws/crowdsec` streams changes. Unlike the other CrowdSec endpoints, it answers "
+            "while the integration is off, with every field false."
+        ),
+    )
     async def get_status(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -609,23 +788,41 @@ class CrowdSecController(Controller):
             live_updates=crowdsec_poller is not None,
         )
 
-    @get("/decisions")
+    @get(
+        "/decisions",
+        summary="List active CrowdSec decisions, one row per target",
+        description=(
+            "Returns the active decisions grouped by target, in the order the LAPI lists them, paged with "
+            "`currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and "
+            "24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP "
+            "database fills in the place for an IP the logs do not locate."
+        ),
+    )
     async def list_decisions(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         limit_offset: NamedDependency[filters.LimitOffset],
-        origins: Annotated[str | None, QueryParameter(required=False)] = None,
+        origins: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                description=(
+                    "A comma-separated list of origins to keep, such as `crowdsec,cscli,CAPI`. Defaults to "
+                    f"`{DEFAULT_ORIGINS}`, which leaves out the blocklists. An IP or CIDR in `q` ignores it."
+                ),
+            ),
+        ] = None,
         q: Annotated[
             str | None,
             QueryParameter(
                 required=False,
                 max_length=200,
                 description=(
-                    "Search. An IP or CIDR matches decisions on addresses inside it and "
-                    "ranges that hold it, across every origin. Other text matches the "
-                    "start of the target or any part of a scenario name."
+                    "Search, up to 200 characters. An IP or CIDR matches decisions on addresses inside it and "
+                    "ranges that hold it, across every origin. Other text matches the start of the target or "
+                    "any part of a scenario name, ignoring case."
                 ),
             ),
         ] = None,
@@ -664,11 +861,21 @@ class CrowdSecController(Controller):
             total=len(groups),
         )
 
-    @get("/decisions/lookup")
+    @get(
+        "/decisions/lookup",
+        summary="List the active decisions that cover one IP",
+        description=(
+            "Returns every active decision on the IP, from any origin, including Range decisions that hold it. "
+            "This endpoint does not look up places, so the country and city fields are null and "
+            "`requestCount24h` is 0 on `Ip` decisions."
+        ),
+    )
     async def lookup_decisions(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
-        ip: Annotated[str, QueryParameter(description="IP address to look up")],
+        ip: Annotated[
+            str, QueryParameter(description="The IP to look up. A value that is not an IP gets a 400.")
+        ],
     ) -> list[DecisionView]:
         """Decisions for one IP (log-row and map popovers, banned badges).
 
@@ -679,7 +886,15 @@ class CrowdSecController(Controller):
         decisions = await service.get_decisions_for_ip(ip)
         return [_to_view(d, None) for d in decisions]
 
-    @get("/banned-ips")
+    @get(
+        "/banned-ips",
+        summary="List every IP under an active decision",
+        description=(
+            "Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision "
+            "type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range "
+            "decisions."
+        ),
+    )
     async def list_banned_ips(
         self, crowdsec: NamedDependency[CrowdSecService | None]
     ) -> list[BannedIp]:
@@ -702,7 +917,15 @@ class CrowdSecController(Controller):
             winners[ip] = decision_winner(winners.get(ip), decision.type)
         return [BannedIp(ip=ip, type=kind) for ip, kind in winners.items()]
 
-    @get("/banned-ranges")
+    @get(
+        "/banned-ranges",
+        summary="List every range under an active decision",
+        description=(
+            "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision "
+            "type on it and when that decision ends. A single-address DROP network is banned as an `Ip` "
+            "decision, so it shows as its /32 or /128 while that decision lasts."
+        ),
+    )
     async def list_banned_ranges(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -716,15 +939,34 @@ class CrowdSecController(Controller):
         service = _require_service(crowdsec)
         return list((await _active_banned_ranges(service, drop_snapshot)).values())
 
-    @get("/drop-networks")
+    @get(
+        "/drop-networks",
+        summary="List the traffic from DROP networks, with their bans",
+        description=(
+            "Returns each Spamhaus DROP network that sent requests in the window, busiest first, with the Range "
+            "decision on it. The totals cover every network with traffic, not only the page. A client inside "
+            "nested networks counts under the narrowest one. When the LAPI does not answer, you still get the "
+            "traffic, with every `decision` null and `decisionsAvailable` false."
+        ),
+    )
     async def list_drop_networks(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         drop_traffic_repo: NamedDependency[SkipValidation[DropTrafficRepository]],
-        days: Annotated[Literal[7, 30, 90], QueryParameter(description="Look-back window in days")] = 30,
-        page: Annotated[int, QueryParameter(ge=1)] = 1,
-        page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, le=100)] = 25,
+        days: Annotated[
+            Literal[7, 30, 90],
+            QueryParameter(description="The window in days, ending now. `7`, `30` or `90`. Defaults to 30."),
+        ] = 30,
+        page: Annotated[
+            int, QueryParameter(ge=1, description="The page to return, counted from 1. Defaults to 1.")
+        ] = 1,
+        page_size: Annotated[
+            int,
+            QueryParameter(
+                name="pageSize", ge=1, le=100, description="Networks per page, from 1 to 100. Defaults to 25."
+            ),
+        ] = 25,
     ) -> DropNetworksResponse:
         """Traffic from DROP-listed networks, busiest first, with each network's Range decision.
 
@@ -775,13 +1017,39 @@ class CrowdSecController(Controller):
             items=items,
         )
 
-    @get("/banned-locations")
+    @get(
+        "/banned-locations",
+        summary="Map the IPs under an active decision as GeoJSON",
+        description=(
+            "Returns one GeoJSON point per place, listing the IPs that hold an active `Ip` decision of any "
+            "origin and type and sent geo events from there in the window. The map shows current decisions, not "
+            "ban history, and leaves out Range decisions and IPs without events in the window. Windows over 24 "
+            "hours read the per-IP aggregates and place each IP at its location in the newest bucket, the "
+            "busiest one on a tie."
+        ),
+    )
     async def list_banned_locations(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
-        from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
-        to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
+        from_timestamp: Annotated[
+            datetime | None,
+            QueryParameter(
+                name="fromTimestamp",
+                description=(
+                    "Start of the window, inclusive, as ISO 8601 with a timezone. Defaults to 30 days before now."
+                ),
+                required=False,
+            ),
+        ] = None,
+        to_timestamp: Annotated[
+            datetime | None,
+            QueryParameter(
+                name="toTimestamp",
+                description="End of the window, exclusive, as ISO 8601 with a timezone. Defaults to now.",
+                required=False,
+            ),
+        ] = None,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
         server_in: ServerIn = None,
@@ -802,6 +1070,13 @@ class CrowdSecController(Controller):
 
     @get(
         "/alerts",
+        summary="List CrowdSec alerts, newest first",
+        description=(
+            "Returns one page of the LAPI's alert history, newest first, without the community blocklist "
+            "pulls. Pass the `nextCursor` of one page as `before` to get the next, older one. An IP source "
+            "without a country from the LAPI gets its place from GeoMetrikks' own traffic, then from the GeoIP "
+            f"database. {MACHINE_CREDENTIALS_NOTE}"
+        ),
         responses={
             HTTP_409_CONFLICT: ResponseSpec(
                 data_container=ErrorEnvelope,
@@ -818,20 +1093,32 @@ class CrowdSecController(Controller):
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         settings: NamedDependency[SkipValidation[Settings]],
-        limit: Annotated[int, QueryParameter(ge=1, le=500, required=False)] = 50,
-        ip: Annotated[str | None, QueryParameter(required=False)] = None,
+        limit: Annotated[
+            int,
+            QueryParameter(ge=1, le=500, required=False, description="Alerts per page, from 1 to 500. Defaults to 50."),
+        ] = 50,
+        ip: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                description=(
+                    "Keep only alerts whose source is this IP or that hold a decision covering it. A value that "
+                    "is not an IP gets a 400."
+                ),
+            ),
+        ] = None,
         scenarios: Annotated[
             list[str] | None,
             QueryParameter(
                 name="scenario",
                 required=False,
-                description=f"Filter to these scenarios. Repeat the parameter for several, at most {MAX_ALERT_SCENARIOS}.",
+                description=(
+                    "Keep only these scenarios, such as `crowdsecurity/http-probing`. Repeat the parameter for "
+                    f"more than one, at most {MAX_ALERT_SCENARIOS}. With `kind=bot` it gets a 400."
+                ),
             ),
         ] = None,
-        since: Annotated[
-            str | None,
-            QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
-        ] = None,
+        since: Annotated[str | None, QueryParameter(required=False, description=SINCE_DESCRIPTION)] = None,
         kind: Annotated[
             str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
         ] = None,
@@ -841,8 +1128,8 @@ class CrowdSecController(Controller):
                 name="hasActiveDecision",
                 required=False,
                 description=(
-                    "true keeps alerts with a decision still in force; "
-                    "false keeps alerts that never had one"
+                    "`true` keeps alerts with a decision still in force, and `false` keeps alerts that never "
+                    "had one."
                 ),
             ),
         ] = None,
@@ -850,7 +1137,10 @@ class CrowdSecController(Controller):
             str | None,
             QueryParameter(
                 required=False,
-                description="Cursor from nextCursor; returns alerts older than it",
+                description=(
+                    "The `nextCursor` of the previous page, to get the alerts older than it. A malformed cursor "
+                    "gets a 400."
+                ),
             ),
         ] = None,
     ) -> AlertPageView:
@@ -906,15 +1196,20 @@ class CrowdSecController(Controller):
             next_cursor=page.next_cursor,
         )
 
-    @get("/alerts/scenarios")
+    @get(
+        "/alerts/scenarios",
+        summary="Count the scenarios among recent CrowdSec alerts",
+        description=(
+            f"Returns the scenarios among the newest {SCENARIO_SAMPLE_SIZE} alerts that match `since` and `kind`, "
+            "with how many of those alerts each one has, the most first. Scenarios with the same count sort by "
+            f"name. {MACHINE_CREDENTIALS_NOTE}"
+        ),
+    )
     async def list_alert_scenarios(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         settings: NamedDependency[SkipValidation[Settings]],
-        since: Annotated[
-            str | None,
-            QueryParameter(required=False, description="Go duration lookback, e.g. 24h"),
-        ] = None,
+        since: Annotated[str | None, QueryParameter(required=False, description=SINCE_DESCRIPTION)] = None,
         kind: Annotated[
             str | None, QueryParameter(required=False, description=ALERT_KIND_DESCRIPTION)
         ] = None,
@@ -941,6 +1236,11 @@ class CrowdSecController(Controller):
 
     @get(
         "/alerts/{alert_id:int}",
+        summary="Get one CrowdSec alert",
+        description=(
+            "Returns the alert with its context, the events the LAPI kept and its decisions, expired ones "
+            f"included. {MACHINE_CREDENTIALS_NOTE}"
+        ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
                 data_container=ErrorEnvelope, description="The LAPI holds no alert with this id."
@@ -953,7 +1253,7 @@ class CrowdSecController(Controller):
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         settings: NamedDependency[SkipValidation[Settings]],
-        alert_id: FromPath[int],
+        alert_id: Annotated[int, PathParameter(description="The alert's `id`.")],
     ) -> AlertDetailView:
         """One alert with its context, stored events and decisions."""
         service = _require_write(crowdsec, settings)
@@ -965,6 +1265,12 @@ class CrowdSecController(Controller):
 
     @get(
         "/decisions/{decision_id:int}/alert",
+        summary="Get the CrowdSec alert behind a decision",
+        description=(
+            "Returns the alert that made the decision, in the same shape as `/alerts/{alert_id}`. The LAPI "
+            "finds alerts by IP only, so pass the decision's IP too. Blocklist decisions have no alert and get "
+            f"a 404. {MACHINE_CREDENTIALS_NOTE}"
+        ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
                 data_container=ErrorEnvelope,
@@ -978,8 +1284,11 @@ class CrowdSecController(Controller):
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         settings: NamedDependency[SkipValidation[Settings]],
-        decision_id: FromPath[int],
-        ip: Annotated[str, QueryParameter(description="The decision's IP address")],
+        decision_id: Annotated[int, PathParameter(description="The decision's `id`, as `/decisions` lists it.")],
+        ip: Annotated[
+            str,
+            QueryParameter(description="The IP the decision targets. A value that is not an IP gets a 400."),
+        ],
     ) -> AlertDetailView:
         """The alert that produced one decision.
 
@@ -1002,7 +1311,16 @@ class CrowdSecController(Controller):
                     return await _alert_detail(alert, enrichment_repo, geoip)
         raise NotFoundException(detail=f"No CrowdSec alert holds decision {decision_id}")
 
-    @post("/ban", status_code=HTTP_204_NO_CONTENT)
+    @post(
+        "/ban",
+        status_code=HTTP_204_NO_CONTENT,
+        summary="Ban an IP or range through CrowdSec",
+        description=(
+            "Creates a `ban` or `captcha` decision with origin `geometrikks` on one IP or CIDR, and answers 204 "
+            "with no body. The bouncers attached to the LAPI enforce it. A CIDR that covers every address gets a "
+            f"400. {MACHINE_CREDENTIALS_NOTE} {WRITE_NOTE}"
+        ),
+    )
     async def ban(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -1031,7 +1349,19 @@ class CrowdSecController(Controller):
             reason,
         )
 
-    @post("/ban-networks", status_code=HTTP_200_OK)
+    @post(
+        "/ban-networks",
+        status_code=HTTP_200_OK,
+        summary="Ban Spamhaus DROP networks through CrowdSec",
+        description=(
+            "Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in "
+            f"that many days and has no ban, busiest first and at most {MAX_BULK_BAN_NETWORKS}. Each network gets "
+            "one result, and a named network that is already banned comes back ok without a second ban, so a "
+            f"retry is safe. After {BULK_BAN_UNREACHABLE_LIMIT} unreachable LAPI answers in a row or "
+            f"{BULK_BAN_TIME_LIMIT_SECONDS} seconds, the rest come back with an error that starts with "
+            f"`not attempted`. {MACHINE_CREDENTIALS_NOTE} {WRITE_NOTE}"
+        ),
+    )
     async def ban_networks(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -1171,7 +1501,16 @@ class CrowdSecController(Controller):
             )
         return BanNetworksResponse(results=ban_results, left_out=left_out)
 
-    @post("/unban", status_code=HTTP_200_OK)
+    @post(
+        "/unban",
+        status_code=HTTP_200_OK,
+        summary="Unban an IP or range through CrowdSec",
+        description=(
+            "Deletes every active decision on exactly that IP or range, from any origin, and returns how many it "
+            "deleted. An IP keeps a Range decision that covers it, so unban the range for that. "
+            f"{MACHINE_CREDENTIALS_NOTE} {WRITE_NOTE}"
+        ),
+    )
     async def unban(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
@@ -1192,7 +1531,14 @@ class CrowdSecController(Controller):
         )
         return UnbanResponse(deleted=deleted)
 
-    @get("/stats")
+    @get(
+        "/stats",
+        summary="Count the active CrowdSec decisions by origin and scenario",
+        description=(
+            "Returns how many decisions are active across every origin, blocklists included, with the count per "
+            "origin and the ten scenarios with the most decisions."
+        ),
+    )
     async def get_stats(
         self, crowdsec: NamedDependency[CrowdSecService | None]
     ) -> CrowdSecStatsResponse:

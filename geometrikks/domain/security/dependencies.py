@@ -61,8 +61,15 @@ def provide_geoip_locator(
 
 
 def provide_limit_offset_pagination(
-    current_page: Annotated[int, QueryParameter(name="currentPage", ge=1, required=False)] = 1,
-    page_size: Annotated[int, QueryParameter(name="pageSize", ge=1, required=False)] = 10,
+    current_page: Annotated[
+        int,
+        QueryParameter(
+            name="currentPage", ge=1, required=False, description="The page to return, counted from 1. Defaults to 1."
+        ),
+    ] = 1,
+    page_size: Annotated[
+        int, QueryParameter(name="pageSize", ge=1, required=False, description="Rows per page. Defaults to 10.")
+    ] = 10,
 ) -> filters.LimitOffset:
     """Add offset/limit pagination.
 

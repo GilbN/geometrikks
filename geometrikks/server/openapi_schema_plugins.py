@@ -8,6 +8,7 @@ module, so tests/test_openapi_docs.py fails if an upgrade moves or changes them.
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 from typing import TYPE_CHECKING
 
@@ -26,11 +27,23 @@ if TYPE_CHECKING:
 
 
 def own_docstring(model: type) -> str | None:
-    """The docstring written on ``model`` itself, never the one msgspec.Struct carries."""
+    """The docstring written on ``model`` itself, never the one msgspec.Struct carries.
+
+    A dataclass without a docstring carries its signature, such as ``Page(items: list)``, and gets None.
+    """
     docstring = model.__dict__.get("__doc__")
-    if not isinstance(docstring, str):
+    if not isinstance(docstring, str) or docstring == _dataclass_signature_doc(model):
         return None
     return inspect.cleandoc(docstring) or None
+
+
+def _dataclass_signature_doc(model: type) -> str | None:
+    if not dataclasses.is_dataclass(model):
+        return None
+    try:
+        return model.__name__ + str(inspect.signature(model)).replace(" -> None", "")
+    except (TypeError, ValueError):
+        return None
 
 
 def _describe(schema: Schema, field_definition: FieldDefinition) -> Schema:

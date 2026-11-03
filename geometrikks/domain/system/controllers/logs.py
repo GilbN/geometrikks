@@ -43,7 +43,9 @@ class LogFileView(msgspec.Struct, rename="camel"):
     modified_at: Annotated[datetime | None, msgspec.Meta(description="Null when the file is missing.")]
     available: Annotated[
         bool,
-        msgspec.Meta(description="Whether the file exists and is readable. The download endpoint serves only available files."),
+        msgspec.Meta(
+            description="Whether the file exists and is readable. The download endpoint serves only available files."
+        ),
     ]
 
 

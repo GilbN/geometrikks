@@ -76,10 +76,15 @@ class ApiKeyView(msgspec.Struct, kw_only=True, rename="camel"):
             )
         ),
     ]
-    last_used_ip: Annotated[str | None, msgspec.Meta(description="The client IP of the request that last used the key.")]
+    last_used_ip: Annotated[
+        str | None,
+        msgspec.Meta(description="The client IP of the request that last used the key."),
+    ]
     expired: Annotated[
         bool,
-        msgspec.Meta(description="Whether `expiresAt` has passed. An expired key stays in the list until you revoke it."),
+        msgspec.Meta(
+            description="Whether `expiresAt` has passed. An expired key stays in the list until you revoke it."
+        ),
     ]
 
     @classmethod
@@ -136,7 +141,10 @@ class CreatedApiKey(msgspec.Struct, rename="camel"):
     """A new API key. This response is the only place the full key ever appears."""
 
     api_key: ApiKeyView
-    key: Annotated[str, msgspec.Meta(description="The full key, starting with gmk_. Send it as `Authorization: Bearer <key>`.")]
+    key: Annotated[
+        str,
+        msgspec.Meta(description="The full key, starting with gmk_. Send it as `Authorization: Bearer <key>`."),
+    ]
 
 
 def _store_for(request: Request) -> ApiKeyStore:
@@ -202,8 +210,8 @@ class ApiKeyController(Controller):
         summary="Create an API key",
         description=(
             "Creates a key and returns it in `key`. This is the only time the full key appears, so store it "
-            "now. A taken name gets a 409, and a name outside 1 to "
-            f"{API_KEY_NAME_MAX_LENGTH} characters or an expiry in the past gets a 400. Send the body as "
+            "now. A taken name gets a 409, and a name outside "
+            f"1 to {API_KEY_NAME_MAX_LENGTH} characters or an expiry in the past gets a 400. Send the body as "
             "`application/json`. API keys get a 403 here; use a browser session."
         ),
         responses={

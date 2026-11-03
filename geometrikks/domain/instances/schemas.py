@@ -38,7 +38,10 @@ class SourceReport(msgspec.Struct, rename="camel", kw_only=True):
     ] = None
     available: bool = True
     reason: Annotated[str | None, msgspec.Meta(description="Why the source is unavailable, when it is.")] = None
-    parsed_lines: Annotated[int, msgspec.Meta(description="Lines parsed from this source since the instance started.")] = 0
+    parsed_lines: Annotated[
+        int,
+        msgspec.Meta(description="Lines parsed from this source since the instance started."),
+    ] = 0
 
 
 class JobReport(msgspec.Struct, rename="camel", kw_only=True):
@@ -69,12 +72,20 @@ class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
 
     health: Annotated[
         dict[str, Any],
-        msgspec.Meta(description="The instance's health report as raw JSON. The instance's `health` field holds the same report with a schema."),
+        msgspec.Meta(
+            description=(
+                "The instance's health report as raw JSON. The instance's `health` field holds the same report with a "
+                "schema."
+            )
+        ),
     ] = {}
     jobs: list[JobReport] = []
     last_error: LastErrorReport | None = None
     lines_5m: Annotated[int | None, msgspec.Meta(description="Log lines parsed in the last 5 minutes.")] = None
-    failed_5m: Annotated[int | None, msgspec.Meta(description="Records that failed to write in the last 5 minutes.")] = None
+    failed_5m: Annotated[
+        int | None,
+        msgspec.Meta(description="Records that failed to write in the last 5 minutes."),
+    ] = None
     written_5m: Annotated[int | None, msgspec.Meta(description="Records written in the last 5 minutes.")] = None
     failed_batches_5m: Annotated[
         int | None, msgspec.Meta(description="Database writes that failed in the last 5 minutes.")
@@ -92,7 +103,9 @@ class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
     sources: list[SourceReport] = []
     instance_name_source: Annotated[
         str,
-        msgspec.Meta(description="`configured` when APP_INSTANCE_NAME is set, `fallback` when the name is the default."),
+        msgspec.Meta(
+            description="`configured` when APP_INSTANCE_NAME is set, `fallback` when the name is the default."
+        ),
     ] = "fallback"
 
 

@@ -164,6 +164,10 @@ def _resolve_chart_granularity(
     return granularity
 
 
+GEO_WHOLE_BUCKETS_NOTE = (
+    "count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts "
+    "before `toTimestamp`"
+)
 SERVER_FILTER_RAW_NOTE = (
     "A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
 )
@@ -206,9 +210,9 @@ class GeoEventController(Controller):
         summary="List geo events",
         description=(
             "Returns one event per logged request whose client IP has a GeoIP location, newest first, with "
-            "the location embedded. Page with `currentPage` and `pageSize`, 50 by default, and sort with "
-            "`orderBy`, a snake_case field name such as `timestamp`, and `sortOrder`. `fromTimestamp` and "
-            "`toTimestamp` are optional here, and both ends of the range are inclusive."
+            "the location embedded. Page with `currentPage` and `pageSize`, 50 by default. Sort with `orderBy` "
+            "and `sortOrder`, where `orderBy` takes a snake_case field name such as `timestamp`. "
+            "`fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive."
         ),
     )
     async def list_geo_events(
@@ -243,13 +247,20 @@ class GeoEventController(Controller):
         current_page: Annotated[
             int,
             QueryParameter(
-                name="currentPage", description="The page to return, counted from 1. Defaults to 1.", ge=1, required=False
+                name="currentPage",
+                description="The page to return, counted from 1. Defaults to 1.",
+                ge=1,
+                required=False,
             ),
         ] = 1,
         page_size: Annotated[
             int,
             QueryParameter(
-                name="pageSize", description="Rows per page, from 1 to 500. Defaults to 50.", ge=1, le=500, required=False
+                name="pageSize",
+                description="Rows per page, from 1 to 500. Defaults to 50.",
+                ge=1,
+                le=500,
+                required=False,
             ),
         ] = 50,
         order_by: Annotated[
@@ -292,8 +303,8 @@ class GeoEventController(Controller):
             "Returns the event count and the unique IPs, countries and cities for the range. With "
             "`comparePrevious` it adds the period of the same length that ends at `fromTimestamp`, and both "
             "comparison fields stay null when that period has no events. Unfiltered ranges over 24 hours read "
-            "the hourly or daily aggregates, so they count from the start of the hour or UTC day holding "
-            f"`fromTimestamp` and the unique counts are estimates. {SERVER_FILTER_RAW_NOTE}"
+            f"the hourly or daily aggregates, which {GEO_WHOLE_BUCKETS_NOTE}, and their unique counts are "
+            f"estimates. {SERVER_FILTER_RAW_NOTE}"
         ),
     )
     async def get_geo_log_summary(
@@ -348,9 +359,10 @@ class GeoEventController(Controller):
         summary="Get geo events and unique IPs per hour or day",
         description=(
             "Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges "
-            "over 24 hours read the aggregates, where unique IPs are estimates. A server filter reads the raw "
-            "rows, and so does any other filter with hourly buckets on a range over 30 days. Those raw reads "
-            "apply `tz` to ranges of any length and go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
+            f"over 24 hours read the aggregates, which {GEO_WHOLE_BUCKETS_NOTE}, and their unique IPs are "
+            "estimates. A server filter reads the raw rows, and so does any other filter with hourly buckets on "
+            "a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, "
+            "and a server filter with daily buckets applies `tz` at any range length."
         ),
     )
     async def get_geo_log_time_series(

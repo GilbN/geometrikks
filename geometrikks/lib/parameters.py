@@ -13,14 +13,23 @@ from typing import Annotated, Literal
 from litestar.openapi.spec import Example
 from litestar.params import QueryParameter
 
-_RANGE_START = "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`."
-_RANGE_END = "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`."
-_REPEAT = "Repeat the parameter to pass more than one."
+_WHOLE_BUCKETS = (
+    "Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in "
+    "counts in full"
+)
+_RANGE_START = (
+    f"Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. {_WHOLE_BUCKETS}."
+)
+_RANGE_END = (
+    "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. "
+    f"{_WHOLE_BUCKETS} unless it starts exactly here."
+)
+REPEAT_NOTE = "Repeat the parameter to pass more than one."
 _IP_CHECK = "A value that is not an IP gets a 400."
 COUNTRY_FILTER_DESCRIPTION = (
-    f"Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. {_REPEAT}"
+    f"Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. {REPEAT_NOTE}"
 )
-CITY_FILTER_DESCRIPTION = f"Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. {_REPEAT}"
+CITY_FILTER_DESCRIPTION = f"Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. {REPEAT_NOTE}"
 
 FromTimestamp = Annotated[
     datetime,
@@ -66,7 +75,8 @@ Timezone = Annotated[
         description=(
             "An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for "
             "ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says "
-            "otherwise. Hourly buckets ignore it, and an unknown zone gets a 400. Defaults to UTC."
+            "otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An "
+            "unknown zone gets a 400. Defaults to UTC."
         ),
         examples=[Example(value="Europe/Oslo")],
         required=False,
@@ -115,40 +125,69 @@ CityFilter = Annotated[
 
 IpAddressFilter = Annotated[
     list[str] | None,
-    QueryParameter(name="ipAddress", description=f"Keep only these client IPs. {_REPEAT} {_IP_CHECK}", required=False),
+    QueryParameter(
+        name="ipAddress",
+        description=f"Keep only these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        required=False,
+    ),
 ]
 
 IpAddressExcludeFilter = Annotated[
     list[str] | None,
-    QueryParameter(name="ipAddressNotIn", description=f"Leave out these client IPs. {_REPEAT} {_IP_CHECK}", required=False),
+    QueryParameter(
+        name="ipAddressNotIn",
+        description=f"Leave out these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        required=False,
+    ),
 ]
 
 # camelCase-named variants used by the geo endpoints.
 IpAddressIn = Annotated[
     list[str] | None,
-    QueryParameter(name="ipAddressIn", description=f"Keep only these client IPs. {_REPEAT} {_IP_CHECK}", required=False),
+    QueryParameter(
+        name="ipAddressIn",
+        description=f"Keep only these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        required=False,
+    ),
 ]
 
 IpAddressNotIn = Annotated[
     list[str] | None,
-    QueryParameter(name="ipAddressNotIn", description=f"Leave out these client IPs. {_REPEAT} {_IP_CHECK}", required=False),
+    QueryParameter(
+        name="ipAddressNotIn",
+        description=f"Leave out these client IPs. {REPEAT_NOTE} {_IP_CHECK}",
+        required=False,
+    ),
 ]
 
 ServerIn = Annotated[
     list[str] | None,
-    QueryParameter(name="serverIn", description=f"Keep only rows recorded under these server names. {_REPEAT}", required=False),
+    QueryParameter(
+        name="serverIn",
+        description=f"Keep only rows recorded under these server names. {REPEAT_NOTE}",
+        required=False,
+    ),
 ]
 
 ServerNotIn = Annotated[
     list[str] | None,
-    QueryParameter(name="serverNotIn", description=f"Leave out rows recorded under these server names. {_REPEAT}", required=False),
+    QueryParameter(
+        name="serverNotIn",
+        description=(
+            f"Leave out rows recorded under these server names. {REPEAT_NOTE} Rows without a server name stay in."
+        ),
+        required=False,
+    ),
 ]
 
 AsnIn = Annotated[
     list[int] | None,
     QueryParameter(
         name="asnIn",
-        description=f"Keep only these autonomous system numbers, such as `13335`. {_REPEAT} Rows without ASN data are left out.",
+        description=(
+            f"Keep only these autonomous system numbers, such as `13335`. {REPEAT_NOTE} Rows without ASN data are left "
+            "out."
+        ),
         required=False,
     ),
 ]
@@ -157,7 +196,7 @@ AsnNotIn = Annotated[
     list[int] | None,
     QueryParameter(
         name="asnNotIn",
-        description=f"Leave out these autonomous system numbers. {_REPEAT} Rows without ASN data stay in.",
+        description=f"Leave out these autonomous system numbers. {REPEAT_NOTE} Rows without ASN data stay in.",
         required=False,
     ),
 ]
