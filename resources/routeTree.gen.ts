@@ -23,6 +23,7 @@ import { Route as SignedOutRouteImport } from './routes/signed-out'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as SettingsAgentsRouteImport } from './routes/settings/agents'
+import { Route as SettingsApiKeysRouteImport } from './routes/settings/api-keys'
 import { Route as SettingsAppearanceRouteImport } from './routes/settings/appearance'
 import { Route as SettingsChangelogRouteImport } from './routes/settings/changelog'
 import { Route as SettingsEnvironmentRouteImport } from './routes/settings/environment'
@@ -100,6 +101,11 @@ const SettingsAgentsRoute = SettingsAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsApiKeysRoute = SettingsApiKeysRouteImport.update({
+  id: '/api-keys',
+  path: '/api-keys',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
   id: '/appearance',
   path: '/appearance',
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/agents': typeof SettingsAgentsRoute
+  '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/agents': typeof SettingsAgentsRoute
+  '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/signed-out': typeof SignedOutRoute
   '/settings/about': typeof SettingsAboutRoute
   '/settings/agents': typeof SettingsAgentsRoute
+  '/settings/api-keys': typeof SettingsApiKeysRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/signed-out'
     | '/settings/about'
     | '/settings/agents'
+    | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/changelog'
     | '/settings/environment'
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
     | '/signed-out'
     | '/settings/about'
     | '/settings/agents'
+    | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/changelog'
     | '/settings/environment'
@@ -256,6 +267,7 @@ export interface FileRouteTypes {
     | '/signed-out'
     | '/settings/about'
     | '/settings/agents'
+    | '/settings/api-keys'
     | '/settings/appearance'
     | '/settings/changelog'
     | '/settings/environment'
@@ -379,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsAgentsRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/api-keys': {
+      id: '/settings/api-keys'
+      path: '/api-keys'
+      fullPath: '/settings/api-keys'
+      preLoaderRoute: typeof SettingsApiKeysRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/appearance': {
       id: '/settings/appearance'
       path: '/appearance'
@@ -427,6 +446,7 @@ declare module '@tanstack/react-router' {
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
   SettingsAgentsRoute: typeof SettingsAgentsRoute
+  SettingsApiKeysRoute: typeof SettingsApiKeysRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
   SettingsChangelogRoute: typeof SettingsChangelogRoute
   SettingsEnvironmentRoute: typeof SettingsEnvironmentRoute
@@ -439,6 +459,7 @@ interface SettingsRouteChildren {
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
   SettingsAgentsRoute: SettingsAgentsRoute,
+  SettingsApiKeysRoute: SettingsApiKeysRoute,
   SettingsAppearanceRoute: SettingsAppearanceRoute,
   SettingsChangelogRoute: SettingsChangelogRoute,
   SettingsEnvironmentRoute: SettingsEnvironmentRoute,

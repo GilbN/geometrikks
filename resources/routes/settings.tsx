@@ -10,6 +10,7 @@ const tabs = [
   { to: "/settings/status", label: "Status" },
   { to: "/settings/agents", label: "Agents" },
   { to: "/settings/environment", label: "Environment" },
+  { to: "/settings/api-keys", label: "API keys" },
   { to: "/settings/scheduler", label: "Scheduler" },
   { to: "/settings/logs", label: "Logs" },
   { to: "/settings/appearance", label: "Appearance" },

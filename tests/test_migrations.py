@@ -43,6 +43,7 @@ INSTANCE_HEARTBEATS_REVISION = "3f8a6c1d9b72"
 AUTH_SESSIONS_REVISION = "a41d7e6c2b95"
 DEBUG_LOG_FORMAT_REVISION = "c5e2a9f7d813"
 DROP_LISTS_REVISION = "d7b3e1a94c60"
+API_KEYS_REVISION = "47b5f6c769ad"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -173,6 +174,11 @@ def test_drop_lists_revision_is_rerun_safe() -> None:
     assert "DROP TABLE IF EXISTS drop_list_state" in source
     assert "DROP TABLE IF EXISTS drop_asns" in source
     assert "DROP TABLE IF EXISTS drop_networks" in source
+
+
+def test_api_keys_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(API_KEYS_REVISION)
+    assert revision.down_revision == DROP_LISTS_REVISION
 
 
 def test_revisions_parse_and_chain() -> None:

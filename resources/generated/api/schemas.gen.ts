@@ -1008,6 +1008,98 @@ export const AnalyticsSettingsViewSchema = {
   type: "object",
 } as const;
 
+export const ApiKeyListSchema = {
+  properties: {
+    available: {
+      type: "boolean",
+    },
+    keys: {
+      items: {
+        $ref: "#/components/schemas/ApiKeyView",
+      },
+      type: "array",
+    },
+  },
+  required: ["available", "keys"],
+  title: "ApiKeyList",
+  type: "object",
+} as const;
+
+export const ApiKeyViewSchema = {
+  properties: {
+    createdAt: {
+      format: "date-time",
+      type: "string",
+    },
+    createdBy: {
+      type: "string",
+    },
+    displayPrefix: {
+      type: "string",
+    },
+    expired: {
+      type: "boolean",
+    },
+    expiresAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    id: {
+      format: "uuid",
+      type: "string",
+    },
+    lastUsedAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastUsedIp: {
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      type: "string",
+    },
+    scope: {
+      enum: ["read", "read_write"],
+      type: "string",
+    },
+  },
+  required: [
+    "createdAt",
+    "createdBy",
+    "displayPrefix",
+    "expired",
+    "expiresAt",
+    "id",
+    "lastUsedAt",
+    "lastUsedIp",
+    "name",
+    "scope",
+  ],
+  title: "ApiKeyView",
+  type: "object",
+} as const;
+
 export const AsnCategoryTotalsDTOSchema = {
   properties: {
     category: {
@@ -1472,6 +1564,49 @@ export const CountryFacetSchema = {
   },
   required: ["code", "name"],
   title: "CountryFacet",
+  type: "object",
+} as const;
+
+export const CreateApiKeyPayloadSchema = {
+  properties: {
+    expiresAt: {
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    name: {
+      description: "1 to 64 characters once surrounding whitespace is trimmed.",
+      minLength: 1,
+      type: "string",
+    },
+    scope: {
+      default: "read",
+      enum: ["read", "read_write"],
+      type: "string",
+    },
+  },
+  required: ["name"],
+  title: "CreateApiKeyPayload",
+  type: "object",
+} as const;
+
+export const CreatedApiKeySchema = {
+  properties: {
+    apiKey: {
+      $ref: "#/components/schemas/ApiKeyView",
+    },
+    key: {
+      type: "string",
+    },
+  },
+  required: ["apiKey", "key"],
+  title: "CreatedApiKey",
   type: "object",
 } as const;
 
@@ -4429,6 +4564,9 @@ export const LogTailRecordSchema = {
       type: "string",
     },
     ip: {
+      type: "string",
+    },
+    key: {
       type: "string",
     },
     level: {

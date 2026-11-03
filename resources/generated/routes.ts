@@ -15,11 +15,15 @@ export const CSRF_HEADER_NAME = 'x-csrftoken';
 /** RFC 3339 date-time string */
 export type DateTime = string;
 
+/** UUID v4 string */
+export type UUID = string;
+
 
 /** All available route names */
 export type RouteName =
   | 'ban'
   | 'ban_networks'
+  | 'create_api_key'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
@@ -69,6 +73,7 @@ export type RouteName =
   | 'list_access_logs'
   | 'list_alert_scenarios'
   | 'list_alerts'
+  | 'list_api_keys'
   | 'list_banned_ips'
   | 'list_banned_locations'
   | 'list_banned_ranges'
@@ -88,6 +93,7 @@ export type RouteName =
   | 'openapi.json'
   | 'options'
   | 'read_settings'
+  | 'revoke_api_key'
   | 'rotate'
   | 'run_scheduler_job'
   | 'server_locations'
@@ -100,6 +106,7 @@ export type RouteName =
 export interface RoutePathParams {
   'ban': Record<string, never>;
   'ban_networks': Record<string, never>;
+  'create_api_key': Record<string, never>;
   'delete_instance': {
     instance_name: string;
   };
@@ -162,6 +169,7 @@ export interface RoutePathParams {
   'list_access_logs': Record<string, never>;
   'list_alert_scenarios': Record<string, never>;
   'list_alerts': Record<string, never>;
+  'list_api_keys': Record<string, never>;
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': Record<string, never>;
   'list_banned_ranges': Record<string, never>;
@@ -181,6 +189,9 @@ export interface RoutePathParams {
   'openapi.json': Record<string, never>;
   'options': Record<string, never>;
   'read_settings': Record<string, never>;
+  'revoke_api_key': {
+    key_id: UUID;
+  };
   'rotate': Record<string, never>;
   'run_scheduler_job': {
     job_id: string;
@@ -196,6 +207,7 @@ export interface RoutePathParams {
 export interface RouteQueryParams {
   'ban': Record<string, never>;
   'ban_networks': Record<string, never>;
+  'create_api_key': Record<string, never>;
   'delete_instance': Record<string, never>;
   'delete_server_location': Record<string, never>;
   'download': Record<string, never>;
@@ -485,6 +497,7 @@ export interface RouteQueryParams {
     scenario?: string[];
     since?: string;
   };
+  'list_api_keys': Record<string, never>;
   'list_banned_ips': Record<string, never>;
   'list_banned_locations': {
     city?: string[];
@@ -538,6 +551,7 @@ export interface RouteQueryParams {
   'openapi.json': Record<string, never>;
   'options': Record<string, never>;
   'read_settings': Record<string, never>;
+  'revoke_api_key': Record<string, never>;
   'rotate': Record<string, never>;
   'run_scheduler_job': Record<string, never>;
   'server_locations': Record<string, never>;
@@ -568,6 +582,13 @@ export const routeDefinitions = {
   },
   'ban_networks': {
     path: '/api/v1/crowdsec/ban-networks',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'create_api_key': {
+    path: '/api/v1/auth/api-keys',
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
@@ -916,6 +937,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: ['before', 'hasActiveDecision', 'ip', 'kind', 'limit', 'scenario', 'since'] as const,
   },
+  'list_api_keys': {
+    path: '/api/v1/auth/api-keys',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'list_banned_ips': {
     path: '/api/v1/crowdsec/banned-ips',
     methods: ['GET'] as const,
@@ -1047,6 +1075,13 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'revoke_api_key': {
+    path: '/api/v1/auth/api-keys/{key_id}',
+    methods: ['DELETE'] as const,
+    method: 'delete',
+    pathParams: ['key_id'] as const,
     queryParams: [] as const,
   },
   'rotate': {

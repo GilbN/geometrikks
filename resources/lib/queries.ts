@@ -47,6 +47,10 @@ import {
   fetchHealth,
   fetchMe,
   fetchOidcStatus,
+  fetchApiKeys,
+  createApiKey,
+  revokeApiKey,
+  type CreateApiKeyPayload,
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
@@ -122,6 +126,8 @@ export const queryKeys = {
   auth: {
     me: ["auth", "me"] as const,
     oidcStatus: ["auth", "oidc-status"] as const,
+    apiKeys: ["auth", "api-keys"] as const,
+    createApiKey: ["auth", "api-keys", "create"] as const,
   },
   system: {
     settings: ["system", "settings"] as const,
@@ -449,6 +455,39 @@ export function useOidcStatus() {
     queryFn: fetchOidcStatus,
     staleTime: 60_000,
     refetchInterval: 30_000,
+  })
+}
+
+export function useApiKeys() {
+  return useQuery({
+    queryKey: queryKeys.auth.apiKeys,
+    queryFn: fetchApiKeys,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useCreateApiKey() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationKey: queryKeys.auth.createApiKey,
+    mutationFn: (payload: CreateApiKeyPayload) => createApiKey(payload),
+    // The response holds the full key. With gcTime 0 and a reset() from the
+    // caller once it has the key, no cache keeps it after the reveal.
+    gcTime: 0,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.auth.apiKeys })
+    },
+  })
+}
+
+export function useRevokeApiKey() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (keyId: string) => revokeApiKey(keyId),
+    // Settled, as in useDeleteInstance: a 404 means another tab already revoked it.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.auth.apiKeys })
+    },
   })
 }
 

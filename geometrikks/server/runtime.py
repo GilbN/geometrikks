@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
     from geometrikks.domain.instances.heartbeat import HeartbeatWriter
     from geometrikks.domain.instances.monitor import InstanceMonitor
+    from geometrikks.server.api_key_store import ApiKeyStore
     from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
     from geometrikks.services.crowdsec import CrowdSecService
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
@@ -134,6 +135,11 @@ def is_session_store_ready(app: Litestar, *, default: bool = True) -> bool:
     or ingestion leaves this True and ``db_available`` False.
     """
     return bool(getattr(app.state, "session_store_ready", default))
+
+
+def get_api_key_store(app: Litestar) -> ApiKeyStore | None:
+    """None until install_api_key_store has run."""
+    return getattr(app.state, "api_key_store", None)
 
 
 def get_channels_backend(app: Litestar) -> DegradedTolerantAsyncPgBackend | None:

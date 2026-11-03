@@ -23,8 +23,11 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
 
 _LOGIN_LINE_RE = re.compile(
-    r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)$'
+    r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)'
+    r'(?: key="(?P<key>[^"]*)")?$'
 )
+
+_WARNING_LOGIN_EVENTS = frozenset({"login_failed", "api_key_rejected"})
 
 LogFileKind = Literal["app", "login", "access"]
 
@@ -45,6 +48,7 @@ class LogTailRecord(TypedDict, total=False):
     exception: str
     user: str
     ip: str
+    key: str
 
 
 @dataclass
@@ -140,13 +144,16 @@ class LogFilesService:
             ip = match.group("ip")
             record: LogTailRecord = {
                 "timestamp": match.group("timestamp"),
-                "level": "warning" if event == "login_failed" else "info",
+                "level": "warning" if event in _WARNING_LOGIN_EVENTS else "info",
                 "event": event,
                 "logger": LOGIN_LOGGER_NAME,
                 "user": match.group("user"),
             }
             if ip != "-":
                 record["ip"] = ip
+            key_name = match.group("key")
+            if key_name is not None:
+                record["key"] = key_name
             records.append(record)
         return records
 

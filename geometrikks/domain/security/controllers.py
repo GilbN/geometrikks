@@ -71,6 +71,8 @@ from geometrikks.domain.security.schemas import (
 )
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
 from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, ServerIn
+from geometrikks.server.api_key_auth import ApiKeyPrincipal
+from geometrikks.server.auth import AdminUser
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import (
@@ -554,9 +556,13 @@ class _PendingNetworkBan:
 
 
 def _actor(request: Request) -> str:
-    """Session username for the audit log; 'unknown' in auth-disabled mode."""
+    """The actor named in the audit log, or 'unknown' with auth disabled."""
     user = request.scope.get("user")
-    return str(user) if user else "unknown"
+    if isinstance(user, AdminUser):
+        return user.username
+    if isinstance(user, ApiKeyPrincipal):
+        return f"api-key:{user.name}"
+    return "unknown"
 
 
 class CrowdSecController(Controller):

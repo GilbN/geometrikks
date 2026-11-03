@@ -27,6 +27,9 @@ import {
   apiV1AnalyticsIpProfileGetIpProfile,
   apiV1ReportsAbuseGetAbuseReport,
   apiV1ReportsAbuseContactGetAbuseContact,
+  apiV1AuthApiKeysListApiKeys,
+  apiV1AuthApiKeysCreateApiKey,
+  apiV1AuthApiKeysKeyIdRevokeApiKey,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
@@ -64,6 +67,10 @@ import type {
   InstancesResponse,
   RawLineFields,
   DropListsResponse,
+  ApiKeyList,
+  ApiKeyView,
+  CreateApiKeyPayload,
+  CreatedApiKey,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -80,6 +87,10 @@ export type {
   AuthOptions,
   OidcStatus,
   LogoutResponse,
+  ApiKeyList,
+  ApiKeyView,
+  CreateApiKeyPayload,
+  CreatedApiKey,
 }
 
 // Create axios instance with base configuration
@@ -143,6 +154,21 @@ export async function fetchOidcStatus(): Promise<OidcStatus> {
 export async function fetchMe(): Promise<MeResponse> {
   const { data } = await api.get<MeResponse>("/auth/me")
   return data
+}
+
+export async function fetchApiKeys(): Promise<ApiKeyList> {
+  const { data } = await apiV1AuthApiKeysListApiKeys({ throwOnError: true })
+  return data
+}
+
+/** The response is the only place the full key ever appears. */
+export async function createApiKey(payload: CreateApiKeyPayload): Promise<CreatedApiKey> {
+  const { data } = await apiV1AuthApiKeysCreateApiKey({ body: payload, throwOnError: true })
+  return data
+}
+
+export async function revokeApiKey(keyId: string): Promise<void> {
+  await apiV1AuthApiKeysKeyIdRevokeApiKey({ path: { key_id: keyId }, throwOnError: true })
 }
 
 // ============================================================================

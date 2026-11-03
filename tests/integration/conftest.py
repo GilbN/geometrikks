@@ -220,3 +220,11 @@ async def clean_auth_sessions(pg_engine: AsyncEngine):
     async with pg_engine.begin() as conn:
         await conn.execute(text("DELETE FROM auth_sessions"))
     yield
+
+
+@pytest.fixture()
+async def clean_api_keys(pg_engine: AsyncEngine):
+    """Clear api_keys before each test that requests this fixture."""
+    async with pg_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM api_keys"))
+    yield

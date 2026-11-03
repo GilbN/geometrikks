@@ -234,6 +234,30 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * ApiKeyList
+ */
+export type ApiKeyList = {
+  available: boolean;
+  keys: Array<ApiKeyView>;
+};
+
+/**
+ * ApiKeyView
+ */
+export type ApiKeyView = {
+  createdAt: string;
+  createdBy: string;
+  displayPrefix: string;
+  expired: boolean;
+  expiresAt: string | null;
+  id: string;
+  lastUsedAt: string | null;
+  lastUsedIp: string | null;
+  name: string;
+  scope: "read" | "read_write";
+};
+
+/**
  * AsnCategoryTotalsDTO
  */
 export type AsnCategoryTotalsDto = {
@@ -421,6 +445,26 @@ export type ChangelogSection = {
 export type CountryFacet = {
   code: string;
   name: string;
+};
+
+/**
+ * CreateApiKeyPayload
+ */
+export type CreateApiKeyPayload = {
+  expiresAt?: string | null;
+  /**
+   * 1 to 64 characters once surrounding whitespace is trimmed.
+   */
+  name: string;
+  scope?: "read" | "read_write";
+};
+
+/**
+ * CreatedApiKey
+ */
+export type CreatedApiKey = {
+  apiKey: ApiKeyView;
+  key: string;
 };
 
 /**
@@ -1223,6 +1267,7 @@ export type LogTailRecord = {
   event?: string;
   exception?: string;
   ip?: string;
+  key?: string;
   level?: string;
   logger?: string;
   timestamp?: string;
@@ -2856,6 +2901,143 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses = {
 
 export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponse =
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses[keyof ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses];
+
+export type ApiV1AuthApiKeysListApiKeysData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/api-keys";
+};
+
+export type ApiV1AuthApiKeysListApiKeysErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+  /**
+   * The API key store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthApiKeysListApiKeysError =
+  ApiV1AuthApiKeysListApiKeysErrors[keyof ApiV1AuthApiKeysListApiKeysErrors];
+
+export type ApiV1AuthApiKeysListApiKeysResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ApiKeyList;
+};
+
+export type ApiV1AuthApiKeysListApiKeysResponse =
+  ApiV1AuthApiKeysListApiKeysResponses[keyof ApiV1AuthApiKeysListApiKeysResponses];
+
+export type ApiV1AuthApiKeysCreateApiKeyData = {
+  body: CreateApiKeyPayload;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/api-keys";
+};
+
+export type ApiV1AuthApiKeysCreateApiKeyErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+  /**
+   * A key with this name exists, ignoring case, or APP_AUTH_DISABLED=true.
+   */
+  409: ErrorEnvelope;
+  /**
+   * The body is not sent as application/json.
+   */
+  415: ErrorEnvelope;
+  /**
+   * The API key store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthApiKeysCreateApiKeyError =
+  ApiV1AuthApiKeysCreateApiKeyErrors[keyof ApiV1AuthApiKeysCreateApiKeyErrors];
+
+export type ApiV1AuthApiKeysCreateApiKeyResponses = {
+  /**
+   * Document created, URL follows
+   */
+  201: CreatedApiKey;
+};
+
+export type ApiV1AuthApiKeysCreateApiKeyResponse =
+  ApiV1AuthApiKeysCreateApiKeyResponses[keyof ApiV1AuthApiKeysCreateApiKeyResponses];
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyData = {
+  body?: never;
+  path: {
+    key_id: string;
+  };
+  query?: never;
+  url: "/api/v1/auth/api-keys/{key_id}";
+};
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+  /**
+   * No key has this id.
+   */
+  404: ErrorEnvelope;
+  /**
+   * APP_AUTH_DISABLED=true, where API keys cannot exist.
+   */
+  409: ErrorEnvelope;
+  /**
+   * The API key store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyError =
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors[keyof ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors];
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponse =
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses[keyof ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses];
 
 export type ApiV1AuthLoginLoginData = {
   body: LoginPayload;
