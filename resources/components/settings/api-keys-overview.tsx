@@ -139,7 +139,7 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
 
 const LEAVE_REVEAL_TITLE = "Leave without the key?"
 const LEAVE_REVEAL_TEXT =
-  "The key is shown only once. If you leave now, you will have to revoke it and create a new one."
+  "GeoMetrikks shows the key only once. If you leave now, you will have to revoke it and create a new one."
 
 function LeaveRevealConfirm({ open, onStay, onLeave }: { open: boolean; onStay: () => void; onLeave: () => void }) {
   return (
@@ -239,7 +239,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
   }
   const askingToLeave = leaveBlocker.status === "blocked" && created !== null
   const stayOnReveal = () => leaveBlocker.reset?.()
-  // Done while the leave question is up answers it: the user has the key and asked to go.
+  // Done while the leave question is up counts as Leave, since the user has the key and asked to go.
   const finishReveal = () => (askingToLeave ? leaveReveal() : setOpen(false))
   const strandedBlock = leaveBlocker.status === "blocked" && created === null
   useEffect(() => {

@@ -267,8 +267,8 @@ export function ApiKeyReveal({
     keyField.setSelectionRange(0, keyField.value.length)
   }
 
-  // The form that had focus is gone; the copy control takes it, and moves
-  // with the layout when the host is narrow.
+  // The form that had focus is gone, so the copy control takes focus. It
+  // moves with the layout when the host is narrow.
   useEffect(() => {
     if (!manualCopy) copyButtonRef.current?.focus()
   }, [compact, manualCopy])

@@ -1,4 +1,4 @@
-"""API key material: generation, hashing, format checks and the stored record."""
+"""Generating, hashing and checking API keys, and the record stored for each."""
 
 from __future__ import annotations
 

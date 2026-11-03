@@ -220,7 +220,7 @@ class ApiKeyStore:
         """Store when and from where ``record`` was last used. A failed write never fails the request."""
         now = self.clock()
         # Requests that authenticated before an earlier touch committed all carry the same
-        # stale record, so the last touch this process started is checked as well.
+        # stale record, so this also checks the last touch this process started.
         for last_used_at, last_used_ip in (
             (record.last_used_at, record.last_used_ip),
             self._last_touch_by_key.get(record.id, (None, None)),
@@ -236,7 +236,7 @@ class ApiKeyStore:
     def should_log_rejection(self, display_prefix: str, ip: str | None) -> bool:
         """True at most once a minute per (display prefix, IP), so a stale key polling does not flood the log."""
         now = self.clock()
-        # Entries are only ever added at the back with the current time, so the oldest is first.
+        # New entries go at the back with the current time, so the oldest is always first.
         while self._rejections_logged_at:
             oldest_rejection, logged_at = next(iter(self._rejections_logged_at.items()))
             if now - logged_at < REJECTION_LOG_INTERVAL:

@@ -18,7 +18,7 @@ class AuthSession(StoreModelMixin):
 
 
 class ApiKey(base.UUIDBase):
-    """A named bearer key. Only its SHA-256 is stored; the key itself is shown once."""
+    """A named bearer key. The table stores only its SHA-256, and the UI shows the key once."""
 
     __tablename__ = "api_keys"
     __table_args__ = (Index("ix_api_keys_key_hash", "key_hash", unique=True),)

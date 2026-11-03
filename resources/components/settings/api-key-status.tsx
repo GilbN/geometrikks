@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { StatusLed } from "@/components/settings/status-led"
 import { scopeLabel, type UsageTone } from "@/components/settings/api-keys-logic"
 
-/** Live glows green and stale amber, like the other status dots; idle is a plain grey dot. */
+/** Live glows green and stale amber, like the other status dots. Idle is a plain grey dot. */
 export function UsageDot({ tone }: { tone: UsageTone }) {
   if (tone === "live") return <StatusLed tone="emerald" />
   if (tone === "stale") return <StatusLed tone="amber" />

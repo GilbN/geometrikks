@@ -37,7 +37,7 @@ export function SettingsPage({
           subtitle={subtitle}
           actions={actions}
           subtitleOnPhone={subtitleOnPhone}
-          // The band's own margin is lost while it is `display: contents`.
+          // The band loses its own margin while it is `display: contents`.
           className={cn(!toolbar && "max-md:mb-4")}
         />
         {toolbar}

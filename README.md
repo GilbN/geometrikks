@@ -728,8 +728,8 @@ APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (se
 ![Login](/data/screenshots/login.png)
 
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
-under `/api/` and `/ws/` requires a session or an [API key](#api-keys); the
-web app's static files (you need them to reach the login page), `/health`,
+under `/api/` and `/ws/` requires a session or an [API key](#api-keys). The
+web app's static files, which the login page needs, `/health`,
 `/health/ready` and `/schema` stay open. GeoMetrikks keeps sessions in the
 database, so restarts and updates don't log anyone out. A login lasts
 `APP_SESSION_MAX_AGE_DAYS` days, 7 by default. The clock starts when you
@@ -835,8 +835,8 @@ curl -H "Authorization: Bearer gmk_..." https://geo.example.com/api/v1/stats
 ```
 
 The WebSocket feeds take the same header, so a script can open `/ws/live`,
-`/ws/crowdsec` or `/ws/logs` with a key. Browsers cannot set headers on a WebSocket, so the web app
-keeps using its session cookie.
+`/ws/crowdsec` or `/ws/logs` with a key. Browsers cannot set headers on a
+WebSocket, so the web app keeps using its session cookie.
 
 A key has one of two scopes. A Read key can make `GET` and `HEAD` requests
 and open the WebSocket feeds. Any other method gets a 403, so a Read key

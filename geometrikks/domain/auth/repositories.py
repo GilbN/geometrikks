@@ -17,7 +17,7 @@ class ApiKeyTableRepository(SQLAlchemyAsyncRepository[ApiKey]):
     model_type = ApiKey
 
     async def set_last_used(self, key_id: UUID, *, at: datetime, ip: str | None) -> None:
-        """One UPDATE, so a key revoked in the meantime is simply not touched."""
+        """One UPDATE, so touching a key revoked in the meantime changes nothing and raises nothing."""
         await self.session.execute(update(ApiKey).where(ApiKey.id == key_id).values(last_used_at=at, last_used_ip=ip))
 
     async def delete_returning(self, key_id: UUID) -> ApiKey | None:

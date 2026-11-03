@@ -172,7 +172,7 @@ function ApiKeyDetail({
   )
 }
 
-/** Revoke, confirmed in place: vaul bundles its own Radix Dialog, which keeps
+/** Revoke confirms in place. vaul bundles its own Radix Dialog, which keeps
  *  focus out of an AlertDialog opened from inside the drawer. */
 function RevokeInDrawer({
   apiKey,

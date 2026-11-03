@@ -556,7 +556,7 @@ class _PendingNetworkBan:
 
 
 def _actor(request: Request) -> str:
-    """Who to name in the audit log; 'unknown' in auth-disabled mode."""
+    """The actor named in the audit log, or 'unknown' with auth disabled."""
     user = request.scope.get("user")
     if isinstance(user, AdminUser):
         return user.username
