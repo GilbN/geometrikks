@@ -293,7 +293,7 @@ async def create_scheduler(
     """Create and configure the APScheduler instance.
 
     Scheduled Jobs (mode="full"):
-    - Location last_hit refresh: Every 5 minutes (configurable)
+    - Location last_hit refresh: every 10 minutes by default (SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES)
     - Full CAGG refresh: Every 6 hours (catches up any missed data)
     - GeoLite2 refresh: weekly by default
     - Proxy peer scan: every 5 minutes, when APP_PROXY_ADVISORY is on
@@ -330,7 +330,7 @@ async def create_scheduler(
         return scheduler
 
     if mode != "agent":
-        # Location last_hit refresh (default: every 5 minutes)
+        # Location last_hit refresh (default: every 10 minutes)
         # This updates the regular geo_locations table with data from the geo_events hypertable
         scheduler.add_job(
             refresh_location_last_hits_job,

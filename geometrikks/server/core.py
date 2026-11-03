@@ -14,6 +14,9 @@ from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
 from geometrikks.server.api_key_auth import api_key_scope_guard
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+from geometrikks.server.openapi_docs import API_INTRO, API_TAGS
+from geometrikks.server.openapi_render import LiveRangeExamplesJsonPlugin
+from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS
 from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.logging import get_logger
@@ -101,9 +104,10 @@ def create_app(
         openapi_config = OpenAPIConfig(
             title=settings.name,
             version=API_VERSION,
-            description=settings.description,
+            description=API_INTRO,
+            tags=API_TAGS,
             create_examples=False,
-            render_plugins=[ScalarRenderPlugin()],
+            render_plugins=[ScalarRenderPlugin(), LiveRangeExamplesJsonPlugin()],
         )
 
     compression_config = CompressionConfig(
@@ -125,9 +129,10 @@ def create_app(
     app = Litestar(
         debug=settings.debug,
         route_handlers=route_handlers,
-        plugins=plugins.create_plugins(
-            settings, db_config=db_config, include_vite=not settings.is_agent
-        ),
+        plugins=[
+            *plugins.create_plugins(settings, db_config=db_config, include_vite=not settings.is_agent),
+            *DOCSTRING_SCHEMA_PLUGINS,
+        ],
         dependencies=dependency_map,
         openapi_config=openapi_config,
         compression_config=compression_config,

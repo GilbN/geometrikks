@@ -25,11 +25,11 @@ from geometrikks.services.rdap import RdapUnavailableError
 logger = get_logger(__name__)
 
 
+# Litestar's native envelope keeps snake_case keys (docs/api-conventions.md).
 class ErrorEnvelope(msgspec.Struct):
-    """The public error shape, for documenting non-2xx responses in OpenAPI.
+    """The JSON body of an error response.
 
-    Keys stay snake_case: this is Litestar's native envelope, not a camelCase
-    success payload (docs/api-conventions.md).
+    Its keys are snake_case, unlike the camelCase keys of successful responses.
     """
 
     status_code: int

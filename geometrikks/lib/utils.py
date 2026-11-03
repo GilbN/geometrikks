@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 from pathlib import Path
+from typing import Annotated
 
 
 import msgspec
@@ -18,10 +19,17 @@ logger = get_logger(__name__)
 
 
 class GeoIPInfoView(msgspec.Struct, rename="camel"):
-    available: bool
-    db_path: str
-    build_date: datetime | None
-    age_days: int | None
+    """A GeoLite2 database file."""
+
+    available: Annotated[bool, msgspec.Meta(description="Whether the file exists and opens as a MaxMind database.")]
+    db_path: Annotated[
+        str,
+        msgspec.Meta(
+            description="The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there."
+        ),
+    ]
+    build_date: Annotated[datetime | None, msgspec.Meta(description="When MaxMind built the file, from its metadata.")]
+    age_days: Annotated[int | None, msgspec.Meta(description="Whole days since `buildDate`.")]
 
 def retries_disabled() -> bool:
     """Whether retry loops should collapse to a single attempt (test hook)."""

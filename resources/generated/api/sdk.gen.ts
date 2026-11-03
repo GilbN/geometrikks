@@ -234,7 +234,9 @@ export type Options<
 };
 
 /**
- * ListAccessLogDebug
+ * List stored raw log lines
+ *
+ * Returns stored raw log lines, newest first, each with the access log line it produced, paged with `currentPage` and `pageSize`, 50 by default. `fromTimestamp` and `toTimestamp` filter on when GeoMetrikks stored the line, inclusive at both ends, and `searchString` matches part of the raw line or the parse error, ignoring case unless `searchIgnoreCase` is false. Lines go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.
  */
 export const apiV1AccessLogDebugListAccessLogDebug = <
   ThrowOnError extends boolean = false,
@@ -263,9 +265,9 @@ export const apiV1AccessLogDebugListAccessLogDebug = <
   });
 
 /**
- * GetAccessLogDebugStats
+ * Count the stored raw log lines in a time range
  *
- * Aggregate debug-line stats for the stat cards.
+ * Returns how many lines GeoMetrikks stored in the range, how many of them are malformed, and the most common parse error. The range filters on when GeoMetrikks stored each line, inclusive at both ends, and leaving out both ends counts every stored line. The list filters do not apply here.
  */
 export const apiV1AccessLogDebugStatsGetAccessLogDebugStats = <
   ThrowOnError extends boolean = false,
@@ -297,7 +299,9 @@ export const apiV1AccessLogDebugStatsGetAccessLogDebugStats = <
   });
 
 /**
- * ListAccessLogs
+ * List access log lines
+ *
+ * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize`, 50 by default. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. `orderBy` takes a snake_case field name such as `status_code`, and a sort by `request_time` or `upstream_response_time` puts lines without a timing last. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AccessLogsListAccessLogs = <
   ThrowOnError extends boolean = false,
@@ -326,7 +330,9 @@ export const apiV1AccessLogsListAccessLogs = <
   });
 
 /**
- * GetAccessLogFacets
+ * List the filter values in the access logs
+ *
+ * Returns every country, city, host, server name and log format the access logs hold, to fill the list filters. It reads the daily aggregates, so values stay listed after their raw lines are gone.
  */
 export const apiV1AccessLogsFacetsGetAccessLogFacets = <
   ThrowOnError extends boolean = false,
@@ -355,9 +361,9 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
   });
 
 /**
- * GetGeoTimeSeries
+ * Get geo event counts per hour or day
  *
- * Per-bucket geo-event metrics for charts.
+ * Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest first. It reads the hourly or daily aggregates at any range length, so the unique counts are estimates, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`.
  */
 export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -389,9 +395,9 @@ export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   });
 
 /**
- * GetIpProfile
+ * Get the access log profile of one IP
  *
- * Access-log profile of one client IP for the IP inspector (raw scan bounded to one indexed IP).
+ * Returns totals, status classes, latency, first and last seen, the top 5 hosts and paths, the top 3 user agents and a hit series for one client IP. The series has hourly buckets for ranges up to 7 days and daily buckets above, and `tz` sets local days at any range length. It reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. An IP without requests in the range gets zero request counts and empty lists, not a 404.
  */
 export const apiV1AnalyticsIpProfileGetIpProfile = <
   ThrowOnError extends boolean = false,
@@ -420,9 +426,9 @@ export const apiV1AnalyticsIpProfileGetIpProfile = <
   });
 
 /**
- * GetLiveSummary
+ * Get the exact traffic summary from the raw rows
  *
- * Get live summary statistics by querying raw data tables.
+ * Returns the same figures as `/api/v1/analytics/summary`, counted from the raw access log and geo event rows of the exact range, so the unique counts are exact. It gets slower as the range grows, and the raw rows go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. `percentChanges.malformedRate` is always null here.
  */
 export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
   ThrowOnError extends boolean = false,
@@ -451,9 +457,9 @@ export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
   });
 
 /**
- * GetSummary
+ * Get the traffic summary for a time range
  *
- * Get summary statistics for dashboard header cards.
+ * Returns request, byte, status class, latency and geo event totals for the range. With `comparePrevious` it adds the period of the same length that ends just before `startDate`, which stays null unless the range and that period each have requests or geo events. Ranges over 24 hours read the hourly aggregates, or the daily ones above 30 days. Those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. The unique IP and country counts are then estimates, and `/api/v1/analytics/live-summary` gives exact figures.
  */
 export const apiV1AnalyticsSummaryGetSummary = <
   ThrowOnError extends boolean = false,
@@ -482,9 +488,9 @@ export const apiV1AnalyticsSummaryGetSummary = <
   });
 
 /**
- * GetTimeSeries
+ * Get request metrics per hour or day
  *
- * Per-bucket access-log metrics for charts.
+ * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
  */
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -513,9 +519,9 @@ export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   });
 
 /**
- * GetCumulativeTimeSeries
+ * Get running totals of requests, events and bytes
  *
- * Get cumulative time series data for area charts.
+ * Returns one point per bucket with the requests, geo events and bytes sent so far, oldest first. Buckets are hours for ranges up to 30 days and UTC days above, and hours or days without traffic have no point. Ranges up to 24 hours count the raw rows of the exact range, and `granularity` reads `raw` for them. Longer ranges read the aggregates, which count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`.
  */
 export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -547,9 +553,9 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   });
 
 /**
- * GetTopAsns
+ * List the networks that send the most requests
  *
- * Top ASNs by hits with hosting-vs-other totals (CAGG-served above 24h; filters force a raw scan).
+ * Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
@@ -578,9 +584,9 @@ export const apiV1AnalyticsTopAsnsGetTopAsns = <
   });
 
 /**
- * GetTopCities
+ * List the cities with the most requests
  *
- * Top cities by hits (CAGG-served above 24h, filters included).
+ * Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one.
  */
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
@@ -609,9 +615,9 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
   });
 
 /**
- * GetTopCountries
+ * List the countries with the most requests
  *
- * Top countries by hits (CAGG-served above 24h, filters included).
+ * Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out.
  */
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -640,9 +646,9 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
   });
 
 /**
- * GetTopIps
+ * List the client IPs with the most requests
  *
- * Top client IPs by hits (CAGG-served above 24h, filters included).
+ * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS.
  */
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
@@ -671,9 +677,9 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
   });
 
 /**
- * GetTopUrls
+ * List the most requested URLs
  *
- * Top URLs by hits (CAGG-served above 24h; filters force a raw scan).
+ * Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
@@ -702,9 +708,9 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
   });
 
 /**
- * GetTopUserAgents
+ * List the most common user agents
  *
- * Top user agents by hits (CAGG-served above 24h; filters force a raw scan).
+ * Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,
@@ -736,7 +742,9 @@ export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   });
 
 /**
- * ListApiKeys
+ * List API keys
+ *
+ * Returns every key, newest first, with its scope, expiry, and when and from which IP it was last used. The key itself never appears after creation. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthApiKeysListApiKeys = <
   ThrowOnError extends boolean = false,
@@ -764,7 +772,9 @@ export const apiV1AuthApiKeysListApiKeys = <
   });
 
 /**
- * CreateApiKey
+ * Create an API key
+ *
+ * Creates a key and returns it in `key`. This is the only time the full key appears, so store it now. A taken name gets a 409, and a name outside 1 to 64 characters or an expiry in the past gets a 400. Send the body as `application/json`. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthApiKeysCreateApiKey = <
   ThrowOnError extends boolean = false,
@@ -796,7 +806,9 @@ export const apiV1AuthApiKeysCreateApiKey = <
   });
 
 /**
- * RevokeApiKey
+ * Revoke an API key
+ *
+ * Deletes the key, so every request that sends it gets a 401 from then on. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
   ThrowOnError extends boolean = false,
@@ -824,7 +836,9 @@ export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
   });
 
 /**
- * Login
+ * Log in with the admin username and password
+ *
+ * Checks the admin username and password, starts a browser session and sets its cookie. Wrong credentials get a 401, and so does every attempt while password login is off because only OIDC is set up. A 503 means the database is down and nobody can log in. With APP_AUTH_DISABLED=true it checks nothing and answers with `mode` set to `disabled`.
  */
 export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
   options: Options<ApiV1AuthLoginLoginData, ThrowOnError>,
@@ -838,14 +852,6 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
     ApiV1AuthLoginLoginErrors,
     ThrowOnError
   >({
-    security: [
-      {
-        in: "cookie",
-        name: "session",
-        type: "apiKey",
-      },
-      { scheme: "bearer", type: "http" },
-    ],
     url: "/api/v1/auth/login",
     ...options,
     headers: {
@@ -855,7 +861,9 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Logout
+ * Log out and end the browser session
+ *
+ * Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the identity provider's sign-out URL, as long as the provider lists an end_session_endpoint. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
@@ -877,7 +885,9 @@ export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Me
+ * Get the logged-in user
+ *
+ * Returns the username and how the user logged in. A request without a session gets a 401. With APP_AUTH_DISABLED=true it answers with `mode` set to `disabled`. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthMeMeData, ThrowOnError>,
@@ -899,7 +909,9 @@ export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * OidcStatus
+ * Get the OIDC single sign-on status
+ *
+ * Reports whether OIDC is configured, whether discovery against the issuer worked and the last discovery error. It also says whether password login and identity provider logout are on. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthOidcStatusOidcStatus = <
   ThrowOnError extends boolean = false,
@@ -927,7 +939,9 @@ export const apiV1AuthOidcStatusOidcStatus = <
   });
 
 /**
- * Options
+ * List the login methods this server offers
+ *
+ * Says whether password login is on and, when OIDC single sign-on is set up, gives the provider's name. It needs no credentials, so the login page can call it first. With APP_AUTH_DISABLED=true both are off.
  */
 export const apiV1AuthOptionsOptions = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthOptionsOptionsData, ThrowOnError>,
@@ -936,21 +950,12 @@ export const apiV1AuthOptionsOptions = <ThrowOnError extends boolean = false>(
     ApiV1AuthOptionsOptionsResponses,
     unknown,
     ThrowOnError
-  >({
-    security: [
-      {
-        in: "cookie",
-        name: "session",
-        type: "apiKey",
-      },
-      { scheme: "bearer", type: "http" },
-    ],
-    url: "/api/v1/auth/options",
-    ...options,
-  });
+  >({ url: "/api/v1/auth/options", ...options });
 
 /**
- * ListAlerts
+ * List CrowdSec alerts, newest first
+ *
+ * Returns one page of the LAPI's alert history, newest first, without the community blocklist pulls. Pass the `nextCursor` of one page as `before` to get the next, older one. An IP source without a country from the LAPI gets its place from GeoMetrikks' own traffic, then from the GeoIP database. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.
  */
 export const apiV1CrowdsecAlertsListAlerts = <
   ThrowOnError extends boolean = false,
@@ -979,7 +984,9 @@ export const apiV1CrowdsecAlertsListAlerts = <
   });
 
 /**
- * ListAlertScenarios
+ * Count the scenarios among recent CrowdSec alerts
+ *
+ * Returns the scenarios among the newest 500 alerts that match `since` and `kind`, with how many of those alerts each one has, the most first. Scenarios with the same count sort by name. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.
  */
 export const apiV1CrowdsecAlertsScenariosListAlertScenarios = <
   ThrowOnError extends boolean = false,
@@ -1011,7 +1018,9 @@ export const apiV1CrowdsecAlertsScenariosListAlertScenarios = <
   });
 
 /**
- * GetAlert
+ * Get one CrowdSec alert
+ *
+ * Returns the alert with its context, the events the LAPI kept and its decisions, expired ones included. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.
  */
 export const apiV1CrowdsecAlertsAlertIdGetAlert = <
   ThrowOnError extends boolean = false,
@@ -1040,7 +1049,9 @@ export const apiV1CrowdsecAlertsAlertIdGetAlert = <
   });
 
 /**
- * Ban
+ * Ban an IP or range through CrowdSec
+ *
+ * Creates a `ban` or `captcha` decision with origin `geometrikks` on one IP or CIDR, and answers 204 with no body. The bouncers attached to the LAPI enforce it. A CIDR that covers every address gets a 400. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.
  */
 export const apiV1CrowdsecBanBan = <ThrowOnError extends boolean = false>(
   options: Options<ApiV1CrowdsecBanBanData, ThrowOnError>,
@@ -1071,7 +1082,9 @@ export const apiV1CrowdsecBanBan = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * BanNetworks
+ * Ban Spamhaus DROP networks through CrowdSec
+ *
+ * Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in that many days and has no active decision, busiest first and at most 1000. A network with an active decision of any type, a captcha included, keeps it and gets no ban, and a named one comes back ok with `alreadyBanned`, so a retry is safe. After 3 unreachable LAPI answers in a row or 120 seconds, the rest come back with an error that starts with `not attempted`. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.
  */
 export const apiV1CrowdsecBanNetworksBanNetworks = <
   ThrowOnError extends boolean = false,
@@ -1104,7 +1117,9 @@ export const apiV1CrowdsecBanNetworksBanNetworks = <
   });
 
 /**
- * ListBannedIps
+ * List every IP under an active decision
+ *
+ * Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions.
  */
 export const apiV1CrowdsecBannedIpsListBannedIps = <
   ThrowOnError extends boolean = false,
@@ -1133,7 +1148,9 @@ export const apiV1CrowdsecBannedIpsListBannedIps = <
   });
 
 /**
- * ListBannedLocations
+ * Map the IPs under an active decision as GeoJSON
+ *
+ * Returns one GeoJSON point per place, listing the IPs that hold an active `Ip` decision of any origin and type and sent geo events from there in the window. The map shows current decisions, not ban history, and leaves out Range decisions and IPs without events in the window. Each IP shows at one place. Windows up to 24 hours, and any window with `serverIn`, read the raw rows and use the place of the IP's newest event. Longer windows read the per-IP aggregates and use its place in the newest bucket, the busiest one on a tie.
  */
 export const apiV1CrowdsecBannedLocationsListBannedLocations = <
   ThrowOnError extends boolean = false,
@@ -1165,7 +1182,9 @@ export const apiV1CrowdsecBannedLocationsListBannedLocations = <
   });
 
 /**
- * ListBannedRanges
+ * List every range under an active decision
+ *
+ * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.
  */
 export const apiV1CrowdsecBannedRangesListBannedRanges = <
   ThrowOnError extends boolean = false,
@@ -1197,7 +1216,9 @@ export const apiV1CrowdsecBannedRangesListBannedRanges = <
   });
 
 /**
- * ListDecisions
+ * List active CrowdSec decisions, one row per target
+ *
+ * Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate.
  */
 export const apiV1CrowdsecDecisionsListDecisions = <
   ThrowOnError extends boolean = false,
@@ -1226,7 +1247,9 @@ export const apiV1CrowdsecDecisionsListDecisions = <
   });
 
 /**
- * LookupDecisions
+ * List the active decisions that cover one IP
+ *
+ * Returns every active decision on the IP, from any origin, including Range decisions that hold it. This endpoint does not look up places, so the country and city fields are null and `requestCount24h` is 0 on `Ip` decisions.
  */
 export const apiV1CrowdsecDecisionsLookupLookupDecisions = <
   ThrowOnError extends boolean = false,
@@ -1258,7 +1281,9 @@ export const apiV1CrowdsecDecisionsLookupLookupDecisions = <
   });
 
 /**
- * GetDecisionAlert
+ * Get the CrowdSec alert behind a decision
+ *
+ * Returns the alert that made the decision, in the same shape as `/alerts/{alert_id}`. The LAPI finds alerts by IP only, so pass the decision's IP too. This endpoint does not search the community blocklist alerts, so a blocklist decision gets a 404. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.
  */
 export const apiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert = <
   ThrowOnError extends boolean = false,
@@ -1290,7 +1315,9 @@ export const apiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert = <
   });
 
 /**
- * ListDropNetworks
+ * List the traffic from DROP networks, with their bans
+ *
+ * Returns each Spamhaus DROP network that sent requests in the window, busiest first, with the Range decision on it. The totals cover every network with traffic, not only the page. A client inside nested networks counts under the narrowest one. When the LAPI does not answer, you still get the traffic, with every `decision` null and `decisionsAvailable` false.
  */
 export const apiV1CrowdsecDropNetworksListDropNetworks = <
   ThrowOnError extends boolean = false,
@@ -1322,7 +1349,9 @@ export const apiV1CrowdsecDropNetworksListDropNetworks = <
   });
 
 /**
- * GetStats
+ * Count the active CrowdSec decisions by origin and scenario
+ *
+ * Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions.
  */
 export const apiV1CrowdsecStatsGetStats = <
   ThrowOnError extends boolean = false,
@@ -1347,7 +1376,9 @@ export const apiV1CrowdsecStatsGetStats = <
   });
 
 /**
- * GetStatus
+ * Get the CrowdSec integration status
+ *
+ * Returns whether the integration is on, whether bans and alerts are available, whether the LAPI answers and whether `/ws/crowdsec` streams changes. Unlike the other CrowdSec endpoints, it answers while the integration is off, with every field false.
  */
 export const apiV1CrowdsecStatusGetStatus = <
   ThrowOnError extends boolean = false,
@@ -1376,7 +1407,9 @@ export const apiV1CrowdsecStatusGetStatus = <
   });
 
 /**
- * Unban
+ * Unban an IP or range through CrowdSec
+ *
+ * Deletes every active decision on exactly that IP or range, from any origin, and returns how many it deleted. An IP keeps a Range decision that covers it, so unban the range for that. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.
  */
 export const apiV1CrowdsecUnbanUnban = <ThrowOnError extends boolean = false>(
   options: Options<ApiV1CrowdsecUnbanUnbanData, ThrowOnError>,
@@ -1407,9 +1440,9 @@ export const apiV1CrowdsecUnbanUnban = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * GetDropLists
+ * List the Spamhaus DROP networks and ASNs
  *
- * Listed DROP networks and ASNs, with the state of each feed.
+ * Returns every network and ASN on the Spamhaus DROP lists, with the download state of each feed. The scheduler downloads the lists every DROP_REFRESH_HOURS hours, 24 by default. With DROP_ENABLED=false the lists are empty and `enabled` is false. The answer carries `Cache-Control: private, max-age=300`.
  */
 export const apiV1DropListsGetDropLists = <
   ThrowOnError extends boolean = false,
@@ -1434,7 +1467,9 @@ export const apiV1DropListsGetDropLists = <
   });
 
 /**
- * ListGeoEvents
+ * List geo events
+ *
+ * Returns one event per logged request whose client IP has a GeoIP location, newest first, with the location embedded. Page with `currentPage` and `pageSize`, 50 by default. Sort with `orderBy` and `sortOrder`, where `orderBy` takes a snake_case field name such as `timestamp`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive.
  */
 export const apiV1GeoEventsListGeoEvents = <
   ThrowOnError extends boolean = false,
@@ -1463,9 +1498,9 @@ export const apiV1GeoEventsListGeoEvents = <
   });
 
 /**
- * GetGeoLogFacets
+ * List the values the geo event filters accept
  *
- * Distinct filterable values for dropdowns.
+ * Returns every country, city, server and ASN in the stored data, to fill filter dropdowns. It takes no time range, and the values outlast the raw retention.
  */
 export const apiV1GeoEventsFacetsGetGeoLogFacets = <
   ThrowOnError extends boolean = false,
@@ -1494,9 +1529,9 @@ export const apiV1GeoEventsFacetsGetGeoLogFacets = <
   });
 
 /**
- * GetGeoLogs
+ * List geo events grouped by location and IP
  *
- * Geo events grouped by (location, IP) with counts.
+ * Returns one row per location and IP pair with its event count, last event, ASN and the servers that recorded it, paged with `currentPage` and `pageSize`. Rows with a null sort value come last in both directions. Ranges over 24 hours read the per-IP aggregates, so `lastSeen` can be the start of the hour or UTC day of the last event. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsLogsGetGeoLogs = <
   ThrowOnError extends boolean = false,
@@ -1525,9 +1560,9 @@ export const apiV1GeoEventsLogsGetGeoLogs = <
   });
 
 /**
- * GetGeoLogSummary
+ * Get geo event totals for a time range
  *
- * Aggregate geo-event stats for the stat cards.
+ * Returns the event count and the unique IPs, countries and cities for the range. With `comparePrevious` it adds the period of the same length that ends at `fromTimestamp`, and both comparison fields stay null when that period has no events. Unfiltered ranges over 24 hours read the hourly or daily aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique counts are estimates. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsSummaryGetGeoLogSummary = <
   ThrowOnError extends boolean = false,
@@ -1556,9 +1591,9 @@ export const apiV1GeoEventsSummaryGetGeoLogSummary = <
   });
 
 /**
- * GetGeoLogTimeSeries
+ * Get geo events and unique IPs per hour or day
  *
- * Per-bucket geo-event totals for the chart.
+ * Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique IPs are estimates. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `fromTimestamp` and run through the last hour that starts before `toTimestamp`. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.
  */
 export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -1590,9 +1625,9 @@ export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
   });
 
 /**
- * GetGeoLogTopAsns
+ * List the networks with the most geo events
  *
- * Top autonomous systems by geo-event count.
+ * Returns autonomous systems ordered by event count, with the distinct IPs and the category of each. Events without ASN data are left out. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopAsnsGetGeoLogTopAsns = <
   ThrowOnError extends boolean = false,
@@ -1621,9 +1656,9 @@ export const apiV1GeoEventsTopAsnsGetGeoLogTopAsns = <
   });
 
 /**
- * GetGeoLogTopCities
+ * List the cities with the most geo events
  *
- * Top cities by geo-event count.
+ * Returns cities ordered by event count, with the distinct IPs from each. Events without a city are left out, and cities with the same name in different countries count as one. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopCitiesGetGeoLogTopCities = <
   ThrowOnError extends boolean = false,
@@ -1652,9 +1687,9 @@ export const apiV1GeoEventsTopCitiesGetGeoLogTopCities = <
   });
 
 /**
- * GetGeoLogTopCountries
+ * List the countries with the most geo events
  *
- * Top countries by geo-event count.
+ * Returns countries ordered by event count, with the distinct IPs from each. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopCountriesGetGeoLogTopCountries = <
   ThrowOnError extends boolean = false,
@@ -1686,9 +1721,9 @@ export const apiV1GeoEventsTopCountriesGetGeoLogTopCountries = <
   });
 
 /**
- * GetGeoLogTopIps
+ * List the IPs with the most geo events
  *
- * Top IPs by geo-event count.
+ * Returns client IPs ordered by event count across every location, with a country, city and ASN. For an IP seen in several locations, `countryCode` and `city` each show one of them. A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
   ThrowOnError extends boolean = false,
@@ -1717,7 +1752,9 @@ export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
   });
 
 /**
- * ListGeoLocations
+ * List the stored locations
+ *
+ * Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`, 10 by default. It takes no time range or filters. Pass an item's `id` to `/api/v1/geo-locations/{location_id}/top-ips`.
  */
 export const apiV1GeoLocationsListGeoLocations = <
   ThrowOnError extends boolean = false,
@@ -1746,9 +1783,9 @@ export const apiV1GeoLocationsListGeoLocations = <
   });
 
 /**
- * GetGeojson
+ * Get the locations with events as GeoJSON
  *
- * Get all locations with event counts as GeoJSON FeatureCollection.
+ * Returns a GeoJSON FeatureCollection with one point per location that had events in the range, busiest first, and totals in `stats`. Ranges over 24 hours read the location aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`. An IP or ASN filter reads the raw rows instead, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. A server filter does the same on a database whose location aggregates predate server tracking.
  */
 export const apiV1GeoLocationsGeojsonGetGeojson = <
   ThrowOnError extends boolean = false,
@@ -1777,9 +1814,9 @@ export const apiV1GeoLocationsGeojsonGetGeojson = <
   });
 
 /**
- * ServerLocations
+ * Get the map location of every server
  *
- * Where each server sits on the map.
+ * Returns the location recorded for each server, and this instance's own location in `default`. The map puts a server without a recorded location at `default`.
  */
 export const apiV1GeoLocationsServerLocationsServerLocations = <
   ThrowOnError extends boolean = false,
@@ -1811,9 +1848,9 @@ export const apiV1GeoLocationsServerLocationsServerLocations = <
   });
 
 /**
- * DeleteServerLocation
+ * Remove a retired server's location
  *
- * Remove a retired server's auto-detected location. Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here.
+ * Deletes the auto-detected location of a server you no longer run and answers 204. If the server's instance still runs, it records the location again at its next location refresh. A location that MAP_SERVER_LOCATIONS pins gets a 409. Needs a Read/write API key or a browser session.
  */
 export const apiV1GeoLocationsServerLocationsDeleteServerLocation = <
   ThrowOnError extends boolean = false,
@@ -1845,9 +1882,9 @@ export const apiV1GeoLocationsServerLocationsDeleteServerLocation = <
   });
 
 /**
- * GetTopCountries
+ * List the countries with the most events, unfiltered
  *
- * Get top countries by event count.
+ * Returns countries ordered by event count. Ranges over 24 hours read the location aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`. `/api/v1/geo-events/top-countries` also counts unique IPs and takes filters.
  */
 export const apiV1GeoLocationsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -1879,9 +1916,9 @@ export const apiV1GeoLocationsTopCountriesGetTopCountries = <
   });
 
 /**
- * GetGlobalTopIps
+ * List the busiest IPs with their main location
  *
- * Get global top IPs by event count with their primary locations.
+ * Returns client IPs, each with the location where it had the most events in the range. The ranking and `eventCount` use that one location's events only, so an IP spread over several locations ranks lower than its total suggests. The server ranks `limit` times 10 location and IP pairs before it drops repeated IPs, so the list can hold fewer than `limit` IPs while more exist.
  */
 export const apiV1GeoLocationsTopIpsGetGlobalTopIps = <
   ThrowOnError extends boolean = false,
@@ -1910,9 +1947,9 @@ export const apiV1GeoLocationsTopIpsGetGlobalTopIps = <
   });
 
 /**
- * GetLocationTopIps
+ * List the busiest IPs at one location
  *
- * Get top IPs for a specific location.
+ * Returns the client IPs with the most events at the location in the range, most first. The items carry no `location`. An unknown `location_id` gets an empty list.
  */
 export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
   ThrowOnError extends boolean = false,
@@ -1944,9 +1981,9 @@ export const apiV1GeoLocationsLocationIdTopIpsGetLocationTopIps = <
   });
 
 /**
- * ListInstances
+ * List the head and the agents that send heartbeats
  *
- * List the head and every agent that reports a heartbeat, the head first, with a status and a list of problems for each.
+ * Lists every instance that sends heartbeats, with a status and the problems found for each. The head that answers comes first, then the rest with critical problems first. An instance silent for over 3 minutes shows `checkingIn` false. A 503 means the app runs without its database.
  */
 export const apiV1InstancesListInstances = <
   ThrowOnError extends boolean = false,
@@ -1975,9 +2012,9 @@ export const apiV1InstancesListInstances = <
   });
 
 /**
- * DeleteInstance
+ * Remove a retired instance from the list
  *
- * Remove a retired instance from the list. An instance that is still running reappears at its next heartbeat. The head cannot remove itself.
+ * Removes the instance from the list. An instance that is still running reappears at its next heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a browser session.
  */
 export const apiV1InstancesInstanceNameDeleteInstance = <
   ThrowOnError extends boolean = false,
@@ -2006,7 +2043,9 @@ export const apiV1InstancesInstanceNameDeleteInstance = <
   });
 
 /**
- * ListFiles
+ * List the log files you can download
+ *
+ * Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` false. With LOGPARSER_ENABLED=false the list has no access logs.
  */
 export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsFilesListFilesData, ThrowOnError>,
@@ -2029,7 +2068,9 @@ export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Download
+ * Download a log file
+ *
+ * Sends the file as an attachment, as gzip for a `.gz` archive and as plain text otherwise. You can download only a file the file list shows as available. Anything else gets a 404.
  */
 export const apiV1LogsFilesKindNameDownload = <
   ThrowOnError extends boolean = false,
@@ -2058,7 +2099,9 @@ export const apiV1LogsFilesKindNameDownload = <
   });
 
 /**
- * Rotate
+ * Rotate the app and login logs now
+ *
+ * Starts fresh log files and gzips the old ones into archives. It skips a log that is empty. Returns the names of the files that rotated. Needs a Read/write API key or a browser session.
  */
 export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsRotateRotateData, ThrowOnError>,
@@ -2081,7 +2124,9 @@ export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Tail
+ * Get the newest app or login log records
+ *
+ * Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. It skips lines that do not parse, so fewer records can come back. App log records keep every key the event carried, so expect more keys than the schema lists.
  */
 export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsTailTailData, ThrowOnError>,
@@ -2108,9 +2153,9 @@ export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * GetAbuseReport
+ * Build an abuse report for an IP or an ASN
  *
- * Evidence for an abuse report on one IP or the busiest IPs of an ASN (raw scan).
+ * Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: request counts, the busiest hour or day, the top paths and user agents, the newest log lines and CrowdSec data. Times are in UTC, and the raw access logs it reads go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server name, referrer and remote user of each line, and the machine name and message of each alert. Your host names and public addresses become `[redacted]` in URLs and user agents. In a query string, the whole value of a parameter that names one of your hosts or carries a credential, such as `token` or `api_key`, also becomes `[redacted]`.
  */
 export const apiV1ReportsAbuseGetAbuseReport = <
   ThrowOnError extends boolean = false,
@@ -2139,9 +2184,9 @@ export const apiV1ReportsAbuseGetAbuseReport = <
   });
 
 /**
- * GetAbuseContact
+ * Look up the abuse contact for an IP or an ASN
  *
- * RDAP lookup of the network or AS holding an address, with its abuse contact.
+ * Asks the RDAP registry that holds the IP or AS number for its network or AS record and the abuse contact on it. Only the queried address or number leaves the server, and GeoMetrikks caches each answer for up to 24 hours. A private or reserved address gets a 400.
  */
 export const apiV1ReportsAbuseContactGetAbuseContact = <
   ThrowOnError extends boolean = false,
@@ -2170,7 +2215,9 @@ export const apiV1ReportsAbuseContactGetAbuseContact = <
   });
 
 /**
- * ReadSettings
+ * Get the settings the web app needs
+ *
+ * Returns the app name and version, the retention days, the access log paths and the map setup. Use `/api/v1/system/settings` for every setting with its environment variable.
  */
 export const apiV1SettingsReadSettings = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SettingsReadSettingsData, ThrowOnError>,
@@ -2193,7 +2240,9 @@ export const apiV1SettingsReadSettings = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * Stats
+ * Get the log ingestion counters
+ *
+ * Returns the line and record counters of this process, and the state of each Loki query in LOKI_QUERIES. The counters start at zero when the process starts. Without an ingestion service, as with LOGPARSER_ENABLED=false, every counter is 0, `isRunning` is false and `lokiSources` is empty.
  */
 export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1StatsStatsData, ThrowOnError>,
@@ -2216,7 +2265,9 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * GetAbout
+ * Get version, runtime and database details
+ *
+ * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.
  */
 export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SystemAboutGetAboutData, ThrowOnError>,
@@ -2239,7 +2290,9 @@ export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   });
 
 /**
- * GetAsnClassification
+ * List the ASNs that count as hosting providers
+ *
+ * Returns the bundled list that puts an ASN in the hosting category on the ASN views, with its source and license. The whole list comes in one response.
  */
 export const apiV1SystemAsnClassificationGetAsnClassification = <
   ThrowOnError extends boolean = false,
@@ -2271,7 +2324,9 @@ export const apiV1SystemAsnClassificationGetAsnClassification = <
   });
 
 /**
- * GetChangelog
+ * List the releases in the changelog
+ *
+ * Returns every release in the bundled CHANGELOG.md, newest first, with its sections and entries. Entry text keeps its inline markdown. The list is empty when the install has no changelog.
  */
 export const apiV1SystemChangelogGetChangelog = <
   ThrowOnError extends boolean = false,
@@ -2300,7 +2355,9 @@ export const apiV1SystemChangelogGetChangelog = <
   });
 
 /**
- * GetDatabaseInfo
+ * Get the database size, retention and table stats
+ *
+ * Returns the database size, the PostgreSQL and TimescaleDB versions, the retention days, and row and size estimates for the geo_events, access_logs and access_log_debug tables. With the database unreachable it still answers 200, with `reachable` false and the stats null or empty.
  */
 export const apiV1SystemDatabaseGetDatabaseInfo = <
   ThrowOnError extends boolean = false,
@@ -2329,7 +2386,9 @@ export const apiV1SystemDatabaseGetDatabaseInfo = <
   });
 
 /**
- * GetReleaseCheck
+ * Get the newest release above the running version
+ *
+ * Reports the last check against GitHub Releases. `status` is `off` with APP_UPDATE_CHECK=false, with SCHEDULER_ENABLED=false, on agents and on local builds. This endpoint never calls GitHub itself.
  */
 export const apiV1SystemReleaseCheckGetReleaseCheck = <
   ThrowOnError extends boolean = false,
@@ -2358,7 +2417,9 @@ export const apiV1SystemReleaseCheckGetReleaseCheck = <
   });
 
 /**
- * GetSchedulerJobs
+ * List the scheduler jobs
+ *
+ * Returns every scheduled job with its trigger, its next run and the outcome of its last run since this process started.
  */
 export const apiV1SystemSchedulerJobsGetSchedulerJobs = <
   ThrowOnError extends boolean = false,
@@ -2387,7 +2448,9 @@ export const apiV1SystemSchedulerJobsGetSchedulerJobs = <
   });
 
 /**
- * RunSchedulerJob
+ * Run a scheduler job now
+ *
+ * Moves the job's next run to now and answers 202 right away, before the job finishes. A job that is already running does not start a second time, and an interval job counts its next run from this one. An unknown job id gets a 404, and so does every id while this process has no scheduler. Needs a Read/write API key or a browser session.
  */
 export const apiV1SystemSchedulerJobsJobIdRunRunSchedulerJob = <
   ThrowOnError extends boolean = false,
@@ -2419,7 +2482,9 @@ export const apiV1SystemSchedulerJobsJobIdRunRunSchedulerJob = <
   });
 
 /**
- * GetSystemSettings
+ * Get every setting with its environment variable
+ *
+ * Returns the whole configuration in sections, with each setting's value, default, description and environment variable. A secret that is set shows as `******` and one that is not shows as null. Some rows add a value worked out at runtime, such as the auto-detected server location.
  */
 export const apiV1SystemSettingsGetSystemSettings = <
   ThrowOnError extends boolean = false,
@@ -2448,28 +2513,21 @@ export const apiV1SystemSettingsGetSystemSettings = <
   });
 
 /**
- * Health
+ * Check that the app is up and how its parts are doing
+ *
+ * Answers 200 whenever the process serves requests, so Docker and load balancers can use it as a liveness probe. Read `status` and the component objects to find a problem, and `advisories` for what needs fixing. No credentials needed.
  */
 export const healthHealth = <ThrowOnError extends boolean = false>(
   options?: Options<HealthHealthData, ThrowOnError>,
 ): RequestResult<HealthHealthResponses, unknown, ThrowOnError> =>
   (options?.client ?? client).get<HealthHealthResponses, unknown, ThrowOnError>(
-    {
-      security: [
-        {
-          in: "cookie",
-          name: "session",
-          type: "apiKey",
-        },
-        { scheme: "bearer", type: "http" },
-      ],
-      url: "/health",
-      ...options,
-    },
+    { url: "/health", ...options },
   );
 
 /**
- * HealthReady
+ * Check that the app is ready for traffic
+ *
+ * Answers 200 with `ready` true when `SELECT 1` against the database returns within two seconds, and 503 with `ready` false otherwise. The head runs the query on every request, so a ready app goes back to 503 when the database drops. An agent answers 503 without querying until its startup schema check passes. After that it queries like the head, and an agent whose check timed out stays at 503 until it restarts. No credentials needed.
  */
 export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
   options?: Options<HealthReadyHealthReadyData, ThrowOnError>,
@@ -2482,15 +2540,4 @@ export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
     HealthReadyHealthReadyResponses,
     HealthReadyHealthReadyErrors,
     ThrowOnError
-  >({
-    security: [
-      {
-        in: "cookie",
-        name: "session",
-        type: "apiKey",
-      },
-      { scheme: "bearer", type: "http" },
-    ],
-    url: "/health/ready",
-    ...options,
-  });
+  >({ url: "/health/ready", ...options });

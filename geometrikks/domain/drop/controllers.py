@@ -19,7 +19,13 @@ class DropController(Controller):
 
     @get(
         "/lists",
-        description="Listed DROP networks and ASNs, with the state of each feed.",
+        summary="List the Spamhaus DROP networks and ASNs",
+        description=(
+            "Returns every network and ASN on the Spamhaus DROP lists, with the download state of each feed. "
+            "The scheduler downloads the lists every DROP_REFRESH_HOURS hours, 24 by default. With "
+            "DROP_ENABLED=false the lists are empty and `enabled` is false. The answer carries "
+            "`Cache-Control: private, max-age=300`."
+        ),
         response_headers={"Cache-Control": "private, max-age=300"},
     )
     async def get_drop_lists(

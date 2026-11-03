@@ -37,6 +37,9 @@ login_logger = get_logger(LOGIN_LOGGER_NAME)
 API_KEY_SECURITY_SCHEME = "apiKey"
 SESSION_COOKIE_SECURITY_SCHEME = "sessionCookie"
 SESSION_ONLY_SECURITY: list[SecurityRequirement] = [{SESSION_COOKIE_SECURITY_SCHEME: []}]
+# Litestar drops an empty handler list and the global requirement applies again.
+# An empty requirement object is OpenAPI's way to say no credentials.
+NO_CREDENTIALS_SECURITY: list[SecurityRequirement] = [{}]
 READ_ONLY_METHODS = frozenset({"GET", "HEAD"})
 
 RejectionReason = Literal["malformed", "unknown", "expired"]

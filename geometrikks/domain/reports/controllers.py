@@ -52,11 +52,20 @@ MAX_ASN = 4_294_967_295
 
 IpAddressParam = Annotated[
     str | None,
-    QueryParameter(name="ipAddress", required=False, description="The IP to report on"),
+    QueryParameter(
+        name="ipAddress",
+        required=False,
+        description="The IP, IPv4 or IPv6. Pass this or `asn`, not both. A value that is not an IP gets a 400.",
+    ),
 ]
 AsnParam = Annotated[
     int | None,
-    QueryParameter(required=False, ge=0, le=MAX_ASN, description="The AS number whose IPs to report on"),
+    QueryParameter(
+        required=False,
+        ge=0,
+        le=MAX_ASN,
+        description=f"The AS number, from 0 to {MAX_ASN}, such as `13335`. Pass this or `ipAddress`, not both.",
+    ),
 ]
 
 
@@ -203,7 +212,17 @@ class ReportsController(Controller):
 
     @get(
         "/abuse",
-        description="Evidence for an abuse report on one IP or the busiest IPs of an ASN (raw scan).",
+        summary="Build an abuse report for an IP or an ASN",
+        description=(
+            "Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: "
+            "request counts, the busiest hour or day, the top paths and user agents, the newest log lines and "
+            "CrowdSec data. Times are in UTC, and the raw access logs it reads go back "
+            "ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server "
+            "name, referrer and remote user of each line, and the machine name and message of each alert. Your "
+            "host names and public addresses become `[redacted]` in URLs and user agents. In a query string, the "
+            "whole value of a parameter that names one of your hosts or carries a credential, such as `token` or "
+            "`api_key`, also becomes `[redacted]`."
+        ),
         responses={
             HTTP_400_BAD_REQUEST: ResponseSpec(
                 data_container=ErrorEnvelope, description="Neither or both of ipAddress and asn."
@@ -222,11 +241,21 @@ class ReportsController(Controller):
         asn: AsnParam = None,
         max_ips: Annotated[
             int,
-            QueryParameter(name="maxIps", ge=1, le=100, description="Busiest IPs to include for an ASN"),
+            QueryParameter(
+                name="maxIps",
+                ge=1,
+                le=100,
+                description="With `asn`, how many of its busiest IPs to report on, from 1 to 100. Defaults to 25.",
+            ),
         ] = 25,
         lines_per_ip: Annotated[
             int,
-            QueryParameter(name="linesPerIp", ge=0, le=500, description="Newest log lines per IP"),
+            QueryParameter(
+                name="linesPerIp",
+                ge=0,
+                le=500,
+                description="How many of each IP's newest log lines to include, from 0 to 500. Defaults to 20.",
+            ),
         ] = 20,
     ) -> AbuseReportResponse:
         """Per-IP totals, behavior, paths, user agents, log lines and CrowdSec
@@ -304,7 +333,12 @@ class ReportsController(Controller):
 
     @get(
         "/abuse-contact",
-        description="RDAP lookup of the network or AS holding an address, with its abuse contact.",
+        summary="Look up the abuse contact for an IP or an ASN",
+        description=(
+            "Asks the RDAP registry that holds the IP or AS number for its network or AS record and the abuse "
+            "contact on it. Only the queried address or number leaves the server, and GeoMetrikks caches each "
+            "answer for up to 24 hours. A private or reserved address gets a 400."
+        ),
         responses={
             HTTP_400_BAD_REQUEST: ResponseSpec(
                 data_container=ErrorEnvelope,

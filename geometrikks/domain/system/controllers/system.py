@@ -11,12 +11,12 @@ import platform
 import msgspec
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as dist_version
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 from litestar import Controller, Litestar, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
-from litestar.params import FromPath, SkipValidation
+from litestar.params import PathParameter, SkipValidation
 from litestar.status_codes import HTTP_202_ACCEPTED
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
@@ -52,85 +52,147 @@ logger = get_logger(__name__)
 
 
 class SchedulerJobView(msgspec.Struct, rename="camel"):
-    id: str
+    """One scheduled job. The last-run fields cover runs since this process started."""
+
+    id: Annotated[str, msgspec.Meta(description="The job id that the run endpoint takes, such as `geoip-refresh`.")]
     name: str
-    trigger: str
-    next_run_time: datetime | None
-    running: bool
-    last_run_time: datetime | None
-    last_duration_seconds: float | None
-    last_status: JobStatus | None
-    last_error: str | None
+    trigger: Annotated[str, msgspec.Meta(description="When the job runs, as APScheduler describes its trigger.")]
+    next_run_time: Annotated[
+        datetime | None, msgspec.Meta(description="Null when no next run is scheduled.")
+    ]
+    running: Annotated[bool, msgspec.Meta(description="Whether a run is in progress.")]
+    last_run_time: Annotated[datetime | None, msgspec.Meta(description="When the last run started.")]
+    last_duration_seconds: Annotated[float | None, msgspec.Meta(description="How long the last run took, in seconds.")]
+    last_status: Annotated[
+        JobStatus | None,
+        msgspec.Meta(
+            description="`missed` means a run came due but could not start in time, so the scheduler skipped it."
+        ),
+    ]
+    last_error: Annotated[str | None, msgspec.Meta(description="The error of the last run when it failed.")]
 
 
 SchedulerStatus = Literal["running", "disabled", "unavailable"]
 
 
 class SchedulerJobsResponse(msgspec.Struct, rename="camel"):
-    scheduler_enabled: bool
+    """The scheduler and its jobs."""
+
+    scheduler_enabled: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "Whether the scheduler is turned on in this process. False with SCHEDULER_ENABLED=false and "
+                "whenever the process has no scheduler, such as after a start without the database."
+            )
+        ),
+    ]
     scheduler_running: bool
     jobs: list[SchedulerJobView]
     # "unavailable" means DB-degraded mode never started the scheduler.
-    status: SchedulerStatus = "running"
+    status: Annotated[
+        SchedulerStatus,
+        msgspec.Meta(
+            description=(
+                "`disabled` with SCHEDULER_ENABLED=false. `unavailable` when the app started without its "
+                "database and has no scheduler."
+            )
+        ),
+    ] = "running"
 
 
 REPO_URL = "https://github.com/GilbN/geometrikks"
 
 
 class AboutAppView(msgspec.Struct, rename="camel"):
+    """The running app."""
+
     name: str
     version: str
-    environment: str
-    container: bool
-    image_tag: str | None
-    started_at: datetime | None
+    environment: Annotated[
+        str, msgspec.Meta(description="APP_ENVIRONMENT, one of `development`, `staging` or `production`.")
+    ]
+    container: Annotated[bool, msgspec.Meta(description="Whether the app runs from the GeoMetrikks container image.")]
+    image_tag: Annotated[str | None, msgspec.Meta(description="The container image tag. Null outside a container.")]
+    started_at: Annotated[datetime | None, msgspec.Meta(description="When this process started.")]
     # Changes whenever the shipped changelog does; the UI keys "new since
     # you last looked" on it. None when the install has no changelog.
-    changelog_digest: str | None
-    commit: str | None
+    changelog_digest: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "A short hash of the bundled CHANGELOG.md that changes whenever the changelog does. "
+                "Null when the install has no changelog."
+            )
+        ),
+    ]
+    commit: Annotated[str | None, msgspec.Meta(description="The git commit the app was built from, when known.")]
 
 
 class RuntimeVersionsView(msgspec.Struct, rename="camel"):
+    """The Python runtime and the versions of key libraries."""
+
     python_version: str
     litestar_version: str | None
     apscheduler_version: str | None
 
 
 class DatabaseVersionsView(msgspec.Struct, rename="camel"):
+    """The database server, its extensions and the schema version.
+
+    Everything except `migrationHead` is null when the database is unreachable.
+    """
+
     postgres_version: str | None
     timescaledb_version: str | None
     postgis_version: str | None
     # The alembic revision the database is on versus the one this build
     # ships. They only differ after a degraded start, a rollback, or an
     # agent running behind a newer head.
-    migration_revision: str | None
-    migration_name: str | None
-    migration_head: str
+    migration_revision: Annotated[
+        str | None,
+        msgspec.Meta(description="The migration the database schema is on. Null before the first migration ran."),
+    ]
+    migration_name: Annotated[
+        str | None, msgspec.Meta(description="The title of that migration, when this build knows it.")
+    ]
+    migration_head: Annotated[
+        str,
+        msgspec.Meta(
+            description=(
+                "The newest migration this build ships. It differs from `migrationRevision` only after a start "
+                "without the database, a rollback, or on an agent older than the head."
+            )
+        ),
+    ]
 
 
 class AboutLinksView(msgspec.Struct, rename="camel"):
+    """Links to the GeoMetrikks repository and its issue tracker."""
+
     repository: str
     issues: str
 
 
 class AsnClassificationView(msgspec.Struct, rename="camel"):
-    """Provenance of the hosting/other categorization on the ASN views.
-
-    Read from the vendored dataset, so the About page matches what ships.
-    """
+    """The bundled list of hosting ASNs that sorts ASNs into hosting and other."""
 
     dataset: str
-    entries: int
+    entries: Annotated[int, msgspec.Meta(description="How many ASNs the list holds.")]
     license: str
     source_url: str
 
 
 class HostingAsnEntryView(msgspec.Struct, rename="camel"):
+    """One ASN that counts as a hosting provider."""
+
     asn: int
-    entity: str
+    entity: Annotated[str, msgspec.Meta(description="The organization behind the ASN, as the list names it.")]
 
 
 class AsnClassificationListResponse(msgspec.Struct, rename="camel"):
+    """The bundled list of hosting ASNs, with its source and license."""
+
     dataset: str
     source_url: str
     license: str
@@ -138,6 +200,12 @@ class AsnClassificationListResponse(msgspec.Struct, rename="camel"):
 
 
 class AboutResponse(msgspec.Struct, rename="camel"):
+    """Version, runtime and database details for the About page.
+
+    `geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null
+    with DROP_ENABLED=false, or when the database cannot answer.
+    """
+
     app: AboutAppView
     runtime: RuntimeVersionsView
     database: DatabaseVersionsView
@@ -145,7 +213,10 @@ class AboutResponse(msgspec.Struct, rename="camel"):
     links: AboutLinksView
     # asn_enabled distinguishes a disabled feature from a missing database.
     geoip_asn: GeoIPInfoView | None = None
-    geoip_asn_enabled: bool = False
+    geoip_asn_enabled: Annotated[
+        bool,
+        msgspec.Meta(description="Whether ASN lookups are on. With it false, `geoipAsn` may still describe a file."),
+    ] = False
     asn_classification: AsnClassificationView | None = None
     # None when DROP_ENABLED is off.
     drop_lists: DropListsAboutView | None = None
@@ -155,22 +226,40 @@ ReleaseCheckStatus = Literal["off", "pending", "checked"]
 
 
 class LatestReleaseView(msgspec.Struct, rename="camel"):
+    """The newest GitHub release above the running version."""
+
     version: str
-    display_version: str
-    url: str
+    display_version: Annotated[str, msgspec.Meta(description="The version in tag style, such as `v0.22.0-dev.4`.")]
+    url: Annotated[str, msgspec.Meta(description="The release page on GitHub.")]
     published_at: datetime
     # Releases above the running version, this one included.
-    newer_release_count: int
+    newer_release_count: Annotated[
+        int, msgspec.Meta(description="How many releases are newer than the running version, this one included.")
+    ]
     # False when the release check stopped paging before reaching the running version.
-    newer_release_count_exact: bool
+    newer_release_count_exact: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "False when the check stopped paging before it reached the running version, so the count is a minimum."
+            )
+        ),
+    ]
 
 
 class ReleaseCheckResponse(msgspec.Struct, rename="camel"):
+    """The result of the last check for a newer release. `latest` is null when none is newer."""
+
     # "off": this process never checks. "pending": no successful check yet.
-    status: ReleaseCheckStatus
+    status: Annotated[
+        ReleaseCheckStatus,
+        msgspec.Meta(
+            description="`off` when this process never checks, `pending` until a check succeeds, then `checked`."
+        ),
+    ]
     # Only a release newer than the running version, else None.
     latest: LatestReleaseView | None
-    checked_at: datetime | None
+    checked_at: Annotated[datetime | None, msgspec.Meta(description="When the last successful check ran.")]
 
 
 def _dist_version(name: str) -> str | None:
@@ -241,23 +330,40 @@ async def _migration_revision(conn: AsyncConnection) -> str | None:
 
 
 class HypertableStatsView(msgspec.Struct, rename="camel"):
-    name: str
-    approx_rows: int | None
-    total_bytes: int | None
+    """Size and row estimates for one of the large time series tables."""
+
+    name: Annotated[str, msgspec.Meta(description="`geo_events`, `access_logs` or `access_log_debug`.")]
+    approx_rows: Annotated[int | None, msgspec.Meta(description="TimescaleDB's estimate of the row count.")]
+    total_bytes: Annotated[
+        int | None,
+        msgspec.Meta(description="The table's size on disk, indexes included, in bytes."),
+    ]
     # Compression stats; nulls until the compression policy has compressed
     # at least one chunk.
-    before_compression_bytes: int | None
-    after_compression_bytes: int | None
+    before_compression_bytes: Annotated[
+        int | None,
+        msgspec.Meta(
+            description="Bytes the compressed chunks took before compression. Null until a chunk is compressed."
+        ),
+    ]
+    after_compression_bytes: Annotated[
+        int | None,
+        msgspec.Meta(description="Bytes the compressed chunks take now. Null until a chunk is compressed."),
+    ]
 
 
 class DatabaseInfoResponse(msgspec.Struct, rename="camel"):
+    """Database size, versions, retention and table stats for the Status page."""
+
     reachable: bool
-    size_bytes: int | None
+    size_bytes: Annotated[int | None, msgspec.Meta(description="The whole database on disk, in bytes.")]
     postgres_version: str | None
     timescaledb_version: str | None
-    retention_days: int
-    debug_retention_days: int
-    hypertables: list[HypertableStatsView]
+    retention_days: Annotated[int, msgspec.Meta(description="Days to keep raw geo events and access log lines.")]
+    debug_retention_days: Annotated[int, msgspec.Meta(description="Days to keep the access log debug lines.")]
+    hypertables: Annotated[
+        list[HypertableStatsView], msgspec.Meta(description="Empty when the database is unreachable.")
+    ]
 
 
 HYPERTABLE_NAMES = ("geo_events", "access_logs", "access_log_debug")
@@ -367,7 +473,15 @@ class SystemController(Controller):
     path = "/system"
     tags = ["System"]
 
-    @get("/settings")
+    @get(
+        "/settings",
+        summary="Get every setting with its environment variable",
+        description=(
+            "Returns the whole configuration in sections, with each setting's value, default, description "
+            "and environment variable. A secret that is set shows as `******` and one that is not shows as "
+            "null. Some rows add a value worked out at runtime, such as the auto-detected server location."
+        ),
+    )
     async def get_system_settings(
         self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
     ) -> SystemSettingsResponse:
@@ -379,7 +493,16 @@ class SystemController(Controller):
         overlay = _computed_settings_overlay(settings, request.app)
         return build_settings_overview(settings, computed=overlay)
 
-    @get("/about")
+    @get(
+        "/about",
+        summary="Get version, runtime and database details",
+        description=(
+            "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB "
+            "and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP "
+            "lists. When the database is unreachable, every database field is null except `migrationHead`, "
+            "the newest migration this build ships."
+        ),
+    )
     async def get_about(
         self,
         request: Request,
@@ -418,7 +541,14 @@ class SystemController(Controller):
             drop_lists=await _drop_lists_about(db_engine, enabled=s.drop.enabled),
         )
 
-    @get("/asn-classification")
+    @get(
+        "/asn-classification",
+        summary="List the ASNs that count as hosting providers",
+        description=(
+            "Returns the bundled list that puts an ASN in the hosting category on the ASN views, with its "
+            "source and license. The whole list comes in one response."
+        ),
+    )
     async def get_asn_classification(self) -> AsnClassificationListResponse:
         """The vendored hosting-ASN list behind the category badges.
 
@@ -435,12 +565,27 @@ class SystemController(Controller):
             ],
         )
 
-    @get("/changelog")
+    @get(
+        "/changelog",
+        summary="List the releases in the changelog",
+        description=(
+            "Returns every release in the bundled CHANGELOG.md, newest first, with its sections and entries. "
+            "Entry text keeps its inline markdown. The list is empty when the install has no changelog."
+        ),
+    )
     async def get_changelog(self) -> changelog.ChangelogResponse:
         """Every release in CHANGELOG.md, newest first, for the Changelog page."""
         return changelog.ChangelogResponse(releases=changelog.read_changelog().releases)
 
-    @get("/release-check")
+    @get(
+        "/release-check",
+        summary="Get the newest release above the running version",
+        description=(
+            "Reports the last check against GitHub Releases. `status` is `off` with APP_UPDATE_CHECK=false, "
+            "with SCHEDULER_ENABLED=false, on agents and on local builds. This endpoint never calls GitHub "
+            "itself."
+        ),
+    )
     async def get_release_check(
         self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
     ) -> ReleaseCheckResponse:
@@ -466,7 +611,15 @@ class SystemController(Controller):
             checked_at=release_checker.checked_at,
         )
 
-    @get("/database")
+    @get(
+        "/database",
+        summary="Get the database size, retention and table stats",
+        description=(
+            "Returns the database size, the PostgreSQL and TimescaleDB versions, the retention days, and row "
+            "and size estimates for the geo_events, access_logs and access_log_debug tables. With the "
+            "database unreachable it still answers 200, with `reachable` false and the stats null or empty."
+        ),
+    )
     async def get_database_info(
         self,
         settings: NamedDependency[SkipValidation[Settings]],
@@ -491,7 +644,14 @@ class SystemController(Controller):
             hypertables=hypertables,
         )
 
-    @get("/scheduler/jobs")
+    @get(
+        "/scheduler/jobs",
+        summary="List the scheduler jobs",
+        description=(
+            "Returns every scheduled job with its trigger, its next run and the outcome of its last run since "
+            "this process started."
+        ),
+    )
     async def get_scheduler_jobs(
         self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
     ) -> SchedulerJobsResponse:
@@ -512,8 +672,22 @@ class SystemController(Controller):
             status="running" if settings.scheduler.enabled else "disabled",
         )
 
-    @post("/scheduler/jobs/{job_id:str}/run", status_code=HTTP_202_ACCEPTED)
-    async def run_scheduler_job(self, request: Request, job_id: FromPath[str]) -> SchedulerJobView:
+    @post(
+        "/scheduler/jobs/{job_id:str}/run",
+        status_code=HTTP_202_ACCEPTED,
+        summary="Run a scheduler job now",
+        description=(
+            "Moves the job's next run to now and answers 202 right away, before the job finishes. A job that "
+            "is already running does not start a second time, and an interval job counts its next run from "
+            "this one. An unknown job id gets a 404, and so does every id while this process has no "
+            "scheduler. Needs a Read/write API key or a browser session."
+        ),
+    )
+    async def run_scheduler_job(
+        self,
+        request: Request,
+        job_id: Annotated[str, PathParameter(description="The job's `id` from the job list, such as `geoip-refresh`.")],
+    ) -> SchedulerJobView:
         """Trigger a job ASAP by moving its next_run_time to now.
 
         The scheduler executes it through its normal machinery, so

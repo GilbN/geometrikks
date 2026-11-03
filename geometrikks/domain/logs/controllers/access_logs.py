@@ -24,13 +24,39 @@ from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.sorting import nulls_last_for_timings
-from geometrikks.lib.parameters import ServerIn, ServerNotIn
+from geometrikks.lib.parameters import (
+    range_end_examples,
+    range_start_examples,
+    CITY_FILTER_DESCRIPTION,
+    COUNTRY_FILTER_DESCRIPTION,
+    IpAddressIn,
+    IpAddressNotIn,
+    REPEAT_NOTE,
+    ServerIn,
+    ServerNotIn,
+)
 from geometrikks.lib.validation import validate_ip_addresses
 
 
 def provide_access_log_time_window(
-    from_timestamp: Annotated[datetime | None, QueryParameter(name="fromTimestamp", required=False)] = None,
-    to_timestamp: Annotated[datetime | None, QueryParameter(name="toTimestamp", required=False)] = None,
+    from_timestamp: Annotated[
+        datetime | None,
+        QueryParameter(
+            name="fromTimestamp",
+            description="Keep only lines logged at or after this time, as ISO 8601 with a timezone.",
+            required=False,
+            examples=range_start_examples(),
+        ),
+    ] = None,
+    to_timestamp: Annotated[
+        datetime | None,
+        QueryParameter(
+            name="toTimestamp",
+            description="Keep only lines logged at or before this time, as ISO 8601 with a timezone.",
+            required=False,
+            examples=range_end_examples(),
+        ),
+    ] = None,
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on the ``timestamp`` column.
 
@@ -49,17 +75,61 @@ def provide_access_log_time_window(
 
 
 def provide_access_log_in_filters(
-    method_in: Annotated[list[str] | None, QueryParameter(name="methodIn", required=False)] = None,
-    ip_address_in: Annotated[list[str] | None, QueryParameter(name="ipAddressIn", required=False)] = None,
-    city_in: Annotated[list[str] | None, QueryParameter(name="cityIn", required=False)] = None,
-    country_code_in: Annotated[list[str] | None, QueryParameter(name="countryCodeIn", required=False)] = None,
-    status_in: Annotated[list[int] | None, QueryParameter(name="statusIn", required=False)] = None,
-    ip_address_not_in: Annotated[list[str] | None, QueryParameter(name="ipAddressNotIn", required=False)] = None,
-    host_in: Annotated[list[str] | None, QueryParameter(name="hostIn", required=False)] = None,
-    host_not_in: Annotated[list[str] | None, QueryParameter(name="hostNotIn", required=False)] = None,
+    method_in: Annotated[
+        list[str] | None,
+        QueryParameter(
+            name="methodIn",
+            description=f"Keep only these HTTP methods, matched exactly, such as `GET`. {REPEAT_NOTE}",
+            required=False,
+        ),
+    ] = None,
+    ip_address_in: IpAddressIn = None,
+    city_in: Annotated[
+        list[str] | None, QueryParameter(name="cityIn", description=CITY_FILTER_DESCRIPTION, required=False)
+    ] = None,
+    country_code_in: Annotated[
+        list[str] | None,
+        QueryParameter(name="countryCodeIn", description=COUNTRY_FILTER_DESCRIPTION, required=False),
+    ] = None,
+    status_in: Annotated[
+        list[int] | None,
+        QueryParameter(
+            name="statusIn",
+            description=f"Keep only these HTTP status codes, such as `404`. {REPEAT_NOTE}",
+            required=False,
+        ),
+    ] = None,
+    ip_address_not_in: IpAddressNotIn = None,
+    host_in: Annotated[
+        list[str] | None,
+        QueryParameter(
+            name="hostIn",
+            description=f"Keep only these Host header values, matched exactly, such as `example.com`. {REPEAT_NOTE}",
+            required=False,
+        ),
+    ] = None,
+    host_not_in: Annotated[
+        list[str] | None,
+        QueryParameter(
+            name="hostNotIn",
+            description=(
+                f"Leave out these Host header values, matched exactly. {REPEAT_NOTE} Lines without a host stay in."
+            ),
+            required=False,
+        ),
+    ] = None,
     server_in: ServerIn = None,
     server_not_in: ServerNotIn = None,
-    log_format_in: Annotated[list[str] | None, QueryParameter(name="logFormatIn", required=False)] = None,
+    log_format_in: Annotated[
+        list[str] | None,
+        QueryParameter(
+            name="logFormatIn",
+            description=(
+                f"Keep only lines read with these log formats, as `/facets` lists them, such as `nginx`. {REPEAT_NOTE}"
+            ),
+            required=False,
+        ),
+    ] = None,
 ) -> list[FilterTypes]:
     """Include/exclude matches on method / IP / city / country / status / host / server / log format.
 
@@ -154,7 +224,17 @@ class AccessLogController(Controller):
         "in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
     }
 
-    @get("/")
+    @get(
+        "/",
+        summary="List access log lines",
+        description=(
+            "Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize`, 50 by "
+            "default. `searchString` matches part of the URL, referrer or user agent, ignoring case unless "
+            "`searchIgnoreCase` is false. `orderBy` takes a snake_case field name such as `status_code`, and a "
+            "sort by `request_time` or `upstream_response_time` puts lines without a timing last. Timings are in "
+            "seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
+        ),
+    )
     async def list_access_logs(
         self,
         access_log_service: NamedDependency[AccessLogService],
@@ -167,7 +247,15 @@ class AccessLogController(Controller):
         results, total = await access_log_service.get_many_and_count(*all_filters)
         return access_log_service.to_schema(results, total, filters=all_filters)
 
-    @get("/facets", return_dto=None)
+    @get(
+        "/facets",
+        return_dto=None,
+        summary="List the filter values in the access logs",
+        description=(
+            "Returns every country, city, host, server name and log format the access logs hold, to fill the "
+            "list filters. It reads the daily aggregates, so values stay listed after their raw lines are gone."
+        ),
+    )
     async def get_access_log_facets(
         self,
         access_log_service: NamedDependency[AccessLogService],
