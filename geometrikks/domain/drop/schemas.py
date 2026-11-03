@@ -53,7 +53,7 @@ class DropListsResponse(msgspec.Struct, rename="camel"):
     """The Spamhaus DROP lists and the state of each feed."""
 
     enabled: Annotated[bool, msgspec.Meta(description="False with DROP_ENABLED=false.")]
-    loaded: Annotated[bool, msgspec.Meta(description="Whether at least one feed has been fetched.")]
+    loaded: Annotated[bool, msgspec.Meta(description="True once GeoMetrikks has downloaded at least one feed.")]
     updated_at: Annotated[datetime | None, msgspec.Meta(description="When the most recent feed fetch succeeded.")]
     stale: Annotated[bool, msgspec.Meta(description="True when `updatedAt` is more than 7 days ago.")]
     copyright: Annotated[str | None, msgspec.Meta(description="The copyright line Spamhaus ships with the feeds.")]
@@ -69,7 +69,7 @@ class DropListsAboutView(msgspec.Struct, rename="camel"):
     """The state of the Spamhaus DROP lists."""
 
     enabled: bool
-    loaded: Annotated[bool, msgspec.Meta(description="Whether at least one feed has been fetched.")]
+    loaded: Annotated[bool, msgspec.Meta(description="True once GeoMetrikks has downloaded at least one feed.")]
     updated_at: Annotated[datetime | None, msgspec.Meta(description="When the most recent feed fetch succeeded.")]
     stale: Annotated[bool, msgspec.Meta(description="True when `updatedAt` is more than 7 days ago.")]
     copyright: Annotated[str | None, msgspec.Meta(description="The copyright line Spamhaus ships with the feeds.")]

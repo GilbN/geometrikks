@@ -312,7 +312,7 @@
             "type": "array"
           },
           "redactions": {
-            "description": "How many names, addresses and credential values became `[redacted]`.",
+            "description": "How many host names, addresses and query values became `[redacted]`.",
             "type": "integer"
           },
           "startDate": {
@@ -420,7 +420,7 @@
             ]
           },
           "isMalformed": {
-            "description": "True for a line that did not match the log format or a probe, such as a TLS handshake sent to the HTTP port.",
+            "description": "True for a line that did not match the log format, or that looks like a probe such as a TLS handshake sent to the HTTP port.",
             "type": "boolean"
           },
           "logFormat": {
@@ -456,7 +456,7 @@
             ]
           },
           "rawFields": {
-            "description": "The line split into its keys when it is a JSON object. Null for any other line.",
+            "description": "The line split into its keys when it is a JSON object. Null for any other line, and for an object nested more than six levels deep or with more than 200 keys.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/RawLineFields"
@@ -1373,7 +1373,7 @@
         "description": "What happened to one network.",
         "properties": {
           "alreadyBanned": {
-            "description": "True when the network held a ban already, and GeoMetrikks left it alone.",
+            "description": "True when the network already had an active decision of any type, a captcha included, and GeoMetrikks left it alone.",
             "type": "boolean"
           },
           "error": {
@@ -1409,7 +1409,7 @@
         "description": "The DROP networks to ban, by name or as every unbanned network with traffic.\n\nSet exactly one of `networks` and `allUnbannedDays`, or the request gets a 400.",
         "properties": {
           "allUnbannedDays": {
-            "description": "Ban every DROP network that sent traffic in this many days and has no ban, `7`, `30` or `90`.",
+            "description": "Ban every DROP network that sent traffic in this many days and has no active decision of any type, `7`, `30` or `90`.",
             "enum": [
               7,
               30,
@@ -1451,7 +1451,7 @@
         "description": "The outcome for each network.",
         "properties": {
           "leftOut": {
-            "description": "With `allUnbannedDays`, the unbanned networks past the first 1000, which this run did not try. 0 otherwise.",
+            "description": "With `allUnbannedDays`, the networks without a decision past the first 1000, which this run did not try. 0 otherwise.",
             "type": "integer"
           },
           "results": {
@@ -1686,7 +1686,7 @@
         "type": "object"
       },
       "BannedRangeView": {
-        "description": "A range under an active decision.\n\nA single-address DROP network is banned as an `Ip` decision, and it shows as its /32 or /128.",
+        "description": "A range under an active decision.\n\nGeoMetrikks bans a single-address DROP network with an `Ip` decision, and that network shows as its /32 or /128.",
         "properties": {
           "expiresAt": {
             "description": "When the decision with that type ends, the later one when two have the same type. Null when the LAPI's time left does not parse.",
@@ -2356,7 +2356,7 @@
             ]
           },
           "scenario": {
-            "description": "The scenario that raised the decision, or the reason a person gave for a manual one.",
+            "description": "The scenario that raised the decision. A manual decision holds its reason instead, and one made in GeoMetrikks reads like `geometrikks/manual-ban: spam`.",
             "type": "string"
           },
           "scope": {
@@ -2549,7 +2549,7 @@
             "type": "array"
           },
           "loaded": {
-            "description": "Whether at least one feed has been fetched.",
+            "description": "True once GeoMetrikks has downloaded at least one feed.",
             "type": "boolean"
           },
           "stale": {
@@ -2618,7 +2618,7 @@
             "type": "array"
           },
           "loaded": {
-            "description": "Whether at least one feed has been fetched.",
+            "description": "True once GeoMetrikks has downloaded at least one feed.",
             "type": "boolean"
           },
           "networks": {
@@ -2776,7 +2776,7 @@
             "type": "array"
           },
           "loaded": {
-            "description": "False until a DROP network list has been downloaded, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.",
+            "description": "False until GeoMetrikks downloads a DROP network list, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.",
             "type": "boolean"
           },
           "totalHits": {
@@ -3196,7 +3196,7 @@
             "type": "integer"
           },
           "lastHit": {
-            "description": "The newest event at this location, whatever the range. A scheduler job on the head updates it every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default, so it lags by up to that long. Null until the job first runs for the location, and always null with SCHEDULER_ENABLED=false.",
+            "description": "The newest event at this location, whatever the range. A scheduler job on the head moves it forward every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default. Null until the job first runs for the location. It keeps its last value while SCHEDULER_ENABLED=false or while the job fails.",
             "oneOf": [
               {
                 "format": "date-time",
@@ -5794,7 +5794,7 @@
             ]
           },
           "value": {
-            "description": "The value as text. A list of strings is joined with commas, and other values are compact JSON.",
+            "description": "The value as text. GeoMetrikks joins a list of strings with commas and writes other values as compact JSON.",
             "type": "string"
           }
         },
@@ -6074,7 +6074,7 @@
             "type": "array"
           },
           "alertsTruncated": {
-            "description": "True when the LAPI hit the alert limit, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range are missing.",
+            "description": "True when the LAPI returned as many alerts as the limit allows, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range may be missing.",
             "type": "boolean"
           },
           "asn": {
@@ -8887,14 +8887,14 @@
     "/api/v1/analytics/geo-time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest first. It reads the hourly or daily aggregates at any range length, so the unique counts are estimates, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`.",
+        "description": "Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest first. It reads the hourly or daily aggregates at any range length, so the unique counts are estimates, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead, from the local midnight that starts the day holding `startDate` through the last hour that starts before `endDate`.",
         "operationId": "ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -8904,7 +8904,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -8916,7 +8916,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -8926,7 +8926,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -9051,7 +9051,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -9061,7 +9061,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -9073,7 +9073,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -9083,7 +9083,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -9200,7 +9200,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -9210,7 +9210,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -9222,7 +9222,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -9232,7 +9232,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -9322,7 +9322,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -9332,7 +9332,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -9344,7 +9344,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -9354,7 +9354,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -9437,14 +9437,14 @@
     "/api/v1/analytics/time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
+        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead, from the local midnight that starts the day holding `startDate` through the last hour that starts before `endDate`. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
         "operationId": "ApiV1AnalyticsTimeSeriesGetTimeSeries",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -9454,7 +9454,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -9466,7 +9466,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -9476,7 +9476,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -9693,7 +9693,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -9703,7 +9703,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -9715,7 +9715,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -9725,7 +9725,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -9801,7 +9801,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -9811,7 +9811,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -9823,7 +9823,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -9833,7 +9833,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -10017,7 +10017,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -10027,7 +10027,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -10039,7 +10039,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -10049,7 +10049,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -10233,7 +10233,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -10243,7 +10243,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -10255,7 +10255,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -10265,7 +10265,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -10449,7 +10449,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -10459,7 +10459,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -10471,7 +10471,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -10481,7 +10481,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -10665,7 +10665,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -10675,7 +10675,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -10687,7 +10687,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -10697,7 +10697,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -10881,7 +10881,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -10891,7 +10891,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -10903,7 +10903,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -10913,7 +10913,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -11677,12 +11677,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "`true` keeps alerts with a decision still in force, and `false` keeps alerts that never had one.",
+            "description": "`true` keeps alerts with a decision still in force, and `false` keeps alerts that hold no decision, active or expired.",
             "in": "query",
             "name": "hasActiveDecision",
             "required": false,
             "schema": {
-              "description": "`true` keeps alerts with a decision still in force, and `false` keeps alerts that never had one.",
+              "description": "`true` keeps alerts with a decision still in force, and `false` keeps alerts that hold no decision, active or expired.",
               "oneOf": [
                 {
                   "type": "boolean"
@@ -12041,7 +12041,7 @@
     "/api/v1/crowdsec/ban-networks": {
       "post": {
         "deprecated": false,
-        "description": "Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in that many days and has no ban, busiest first and at most 1000. Each network gets one result, and a named network that is already banned comes back ok without a second ban, so a retry is safe. After 3 unreachable LAPI answers in a row or 120 seconds, the rest come back with an error that starts with `not attempted`. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.",
+        "description": "Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in that many days and has no decision, busiest first and at most 1000. A network with an active decision of any type, a captcha included, keeps it and gets no ban, and a named one comes back ok with `alreadyBanned`, so a retry is safe. After 3 unreachable LAPI answers in a row or 120 seconds, the rest come back with an error that starts with `not attempted`. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.",
         "operationId": "ApiV1CrowdsecBanNetworksBanNetworks",
         "requestBody": {
           "content": {
@@ -12140,7 +12140,7 @@
     "/api/v1/crowdsec/banned-locations": {
       "get": {
         "deprecated": false,
-        "description": "Returns one GeoJSON point per place, listing the IPs that hold an active `Ip` decision of any origin and type and sent geo events from there in the window. The map shows current decisions, not ban history, and leaves out Range decisions and IPs without events in the window. Windows over 24 hours read the per-IP aggregates and place each IP at its location in the newest bucket, the busiest one on a tie.",
+        "description": "Returns one GeoJSON point per place, listing the IPs that hold an active `Ip` decision of any origin and type and sent geo events from there in the window. The map shows current decisions, not ban history, and leaves out Range decisions and IPs without events in the window. Each IP shows at one place. Windows up to 24 hours, and any window with `serverIn`, read the raw rows and use the place of the IP's newest event. Longer windows read the per-IP aggregates and use its place in the newest bucket, the busiest one on a tie.",
         "operationId": "ApiV1CrowdsecBannedLocationsListBannedLocations",
         "parameters": [
           {
@@ -12315,7 +12315,7 @@
     "/api/v1/crowdsec/banned-ranges": {
       "get": {
         "deprecated": false,
-        "description": "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. A single-address DROP network is banned as an `Ip` decision, so it shows as its /32 or /128 while that decision lasts.",
+        "description": "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.",
         "operationId": "ApiV1CrowdsecBannedRangesListBannedRanges",
         "responses": {
           "200": {
@@ -12578,7 +12578,7 @@
     "/api/v1/crowdsec/decisions/{decision_id}/alert": {
       "get": {
         "deprecated": false,
-        "description": "Returns the alert that made the decision, in the same shape as `/alerts/{alert_id}`. The LAPI finds alerts by IP only, so pass the decision's IP too. Blocklist decisions have no alert and get a 404. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.",
+        "description": "Returns the alert that made the decision, in the same shape as `/alerts/{alert_id}`. The LAPI finds alerts by IP only, so pass the decision's IP too. This endpoint does not search the community blocklist alerts, so a blocklist decision gets a 404. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD.",
         "operationId": "ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlert",
         "parameters": [
           {
@@ -12664,7 +12664,7 @@
                 }
               }
             },
-            "description": "No alert holds this decision, as with blocklist decisions."
+            "description": "None of the IP's alerts holds the decision. A blocklist decision always gets this."
           }
         },
         "summary": "Get the CrowdSec alert behind a decision",
@@ -13398,7 +13398,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -13408,7 +13408,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -13420,7 +13420,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -13430,7 +13430,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -13751,7 +13751,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -13761,7 +13761,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -13773,7 +13773,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -13783,7 +13783,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -13866,7 +13866,7 @@
     "/api/v1/geo-events/time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique IPs are estimates. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.",
+        "description": "Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique IPs are estimates. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead, from the local midnight that starts the day holding `fromTimestamp` through the last hour that starts before `toTimestamp`. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.",
         "operationId": "ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeries",
         "parameters": [
           {
@@ -14034,7 +14034,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -14044,7 +14044,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -14056,7 +14056,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -14066,7 +14066,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -14352,7 +14352,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -14362,7 +14362,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -14374,7 +14374,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -14384,7 +14384,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -14637,7 +14637,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -14647,7 +14647,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -14659,7 +14659,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -14669,7 +14669,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -14922,7 +14922,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -14932,7 +14932,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -14944,7 +14944,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -14954,7 +14954,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -15207,7 +15207,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -15217,7 +15217,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -15229,7 +15229,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -15239,7 +15239,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -15442,7 +15442,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -15452,7 +15452,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -15464,7 +15464,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -15474,7 +15474,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -15823,7 +15823,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -15833,7 +15833,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -15845,7 +15845,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -15855,7 +15855,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -15947,7 +15947,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -15957,7 +15957,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -15969,7 +15969,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -15979,7 +15979,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -16082,7 +16082,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -16092,7 +16092,7 @@
             "name": "fromTimestamp",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -16104,7 +16104,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -16114,7 +16114,7 @@
             "name": "toTimestamp",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],
@@ -16588,14 +16588,14 @@
     "/api/v1/reports/abuse": {
       "get": {
         "deprecated": false,
-        "description": "Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: request counts, the busiest hour or day, the top paths and user agents, the newest log lines and CrowdSec data. Times are in UTC, and the raw access logs it reads go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server name, referrer and remote user of each line, and the machine name and message of each alert. Your host names, public addresses and credential values in paths and user agents become `[redacted]`.",
+        "description": "Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: request counts, the busiest hour or day, the top paths and user agents, the newest log lines and CrowdSec data. Times are in UTC, and the raw access logs it reads go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server name, referrer and remote user of each line, and the machine name and message of each alert. Your host names and public addresses become `[redacted]` in URLs and user agents. In a query string, so does the whole value of a parameter that names one of your hosts or carries a credential, such as `token` or `api_key`.",
         "operationId": "ApiV1ReportsAbuseGetAbuseReport",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+            "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
                 "value": "2024-01-01T00:00:00Z"
@@ -16605,7 +16605,7 @@
             "name": "startDate",
             "required": true,
             "schema": {
-              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.",
+              "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
                 "2024-01-01T00:00:00Z"
               ],
@@ -16617,7 +16617,7 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+            "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
                 "value": "2024-12-31T23:59:59Z"
@@ -16627,7 +16627,7 @@
             "name": "endDate",
             "required": true,
             "schema": {
-              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.",
+              "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
                 "2024-12-31T23:59:59Z"
               ],

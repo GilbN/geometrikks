@@ -121,7 +121,7 @@ class DropNetworkOrigin:
 class BannedRangeView(msgspec.Struct, rename="camel"):
     """A range under an active decision.
 
-    A single-address DROP network is banned as an `Ip` decision, and it shows as its /32 or /128.
+    GeoMetrikks bans a single-address DROP network with an `Ip` decision, and that network shows as its /32 or /128.
     """
 
     value: Annotated[str, msgspec.Meta(description="The range as a CIDR, such as `203.0.113.0/24`.")]
@@ -181,7 +181,7 @@ class DropNetworksResponse(msgspec.Struct, rename="camel"):
         bool,
         msgspec.Meta(
             description=(
-                "False until a DROP network list has been downloaded, and always with DROP_ENABLED=false. Every "
+                "False until GeoMetrikks downloads a DROP network list, and always with DROP_ENABLED=false. Every "
                 "count is 0 and `items` is empty then."
             )
         ),
@@ -230,7 +230,8 @@ class BanNetworksRequest(msgspec.Struct, rename="camel"):
         Literal[7, 30, 90] | None,
         msgspec.Meta(
             description=(
-                "Ban every DROP network that sent traffic in this many days and has no ban, `7`, `30` or `90`."
+                "Ban every DROP network that sent traffic in this many days and has no active decision of any "
+                "type, `7`, `30` or `90`."
             )
         ),
     ] = None
@@ -251,7 +252,13 @@ class BanNetworkResult(msgspec.Struct, rename="camel"):
         ),
     ]
     already_banned: Annotated[
-        bool, msgspec.Meta(description="True when the network held a ban already, and GeoMetrikks left it alone.")
+        bool,
+        msgspec.Meta(
+            description=(
+                "True when the network already had an active decision of any type, a captcha included, and "
+                "GeoMetrikks left it alone."
+            )
+        ),
     ]
 
 
@@ -263,8 +270,8 @@ class BanNetworksResponse(msgspec.Struct, rename="camel"):
         int,
         msgspec.Meta(
             description=(
-                f"With `allUnbannedDays`, the unbanned networks past the first {MAX_BULK_BAN_NETWORKS}, which this "
-                "run did not try. 0 otherwise."
+                f"With `allUnbannedDays`, the networks without a decision past the first {MAX_BULK_BAN_NETWORKS}, "
+                "which this run did not try. 0 otherwise."
             )
         ),
     ]

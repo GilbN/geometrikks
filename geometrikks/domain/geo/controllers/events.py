@@ -46,7 +46,9 @@ from geometrikks.lib.parameters import (
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
+    GEO_WHOLE_BUCKETS_NOTE,
     Timezone,
+    local_days_edge_note,
 )
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses, validate_timezone
@@ -164,10 +166,6 @@ def _resolve_chart_granularity(
     return granularity
 
 
-GEO_WHOLE_BUCKETS_NOTE = (
-    "count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts "
-    "before `toTimestamp`"
-)
 SERVER_FILTER_RAW_NOTE = (
     "A server filter reads the raw rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
 )
@@ -360,9 +358,10 @@ class GeoEventController(Controller):
         description=(
             "Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges "
             f"over 24 hours read the aggregates, which {GEO_WHOLE_BUCKETS_NOTE}, and their unique IPs are "
-            "estimates. A server filter reads the raw rows, and so does any other filter with hourly buckets on "
-            "a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, "
-            "and a server filter with daily buckets applies `tz` at any range length."
+            f"estimates. {local_days_edge_note('fromTimestamp', 'toTimestamp')} A server filter reads the raw "
+            "rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back "
+            "only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets "
+            "applies `tz` at any range length."
         ),
     )
     async def get_geo_log_time_series(

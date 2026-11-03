@@ -311,7 +311,7 @@ export const AbuseReportResponseSchema = {
     },
     redactions: {
       description:
-        "How many names, addresses and credential values became `[redacted]`.",
+        "How many host names, addresses and query values became `[redacted]`.",
       type: "integer",
     },
     startDate: {
@@ -422,7 +422,7 @@ export const AccessLogDebugEntrySchema = {
     },
     isMalformed: {
       description:
-        "True for a line that did not match the log format or a probe, such as a TLS handshake sent to the HTTP port.",
+        "True for a line that did not match the log format, or that looks like a probe such as a TLS handshake sent to the HTTP port.",
       type: "boolean",
     },
     logFormat: {
@@ -461,7 +461,7 @@ export const AccessLogDebugEntrySchema = {
     },
     rawFields: {
       description:
-        "The line split into its keys when it is a JSON object. Null for any other line.",
+        "The line split into its keys when it is a JSON object. Null for any other line, and for an object nested more than six levels deep or with more than 200 keys.",
       oneOf: [
         {
           $ref: "#/components/schemas/RawLineFields",
@@ -1368,7 +1368,7 @@ export const BanNetworkResultSchema = {
   properties: {
     alreadyBanned: {
       description:
-        "True when the network held a ban already, and GeoMetrikks left it alone.",
+        "True when the network already had an active decision of any type, a captcha included, and GeoMetrikks left it alone.",
       type: "boolean",
     },
     error: {
@@ -1403,7 +1403,7 @@ export const BanNetworksRequestSchema = {
   properties: {
     allUnbannedDays: {
       description:
-        "Ban every DROP network that sent traffic in this many days and has no ban, `7`, `30` or `90`.",
+        "Ban every DROP network that sent traffic in this many days and has no active decision of any type, `7`, `30` or `90`.",
       enum: [7, 30, 90, null],
       type: ["integer", "null"],
     },
@@ -1439,7 +1439,7 @@ export const BanNetworksResponseSchema = {
   properties: {
     leftOut: {
       description:
-        "With `allUnbannedDays`, the unbanned networks past the first 1000, which this run did not try. 0 otherwise.",
+        "With `allUnbannedDays`, the networks without a decision past the first 1000, which this run did not try. 0 otherwise.",
       type: "integer",
     },
     results: {
@@ -1652,7 +1652,7 @@ export const BannedMapStatsSchema = {
 
 export const BannedRangeViewSchema = {
   description:
-    "A range under an active decision.\n\nA single-address DROP network is banned as an `Ip` decision, and it shows as its /32 or /128.",
+    "A range under an active decision.\n\nGeoMetrikks bans a single-address DROP network with an `Ip` decision, and that network shows as its /32 or /128.",
   properties: {
     expiresAt: {
       description:
@@ -2329,7 +2329,7 @@ export const DecisionViewSchema = {
     },
     scenario: {
       description:
-        "The scenario that raised the decision, or the reason a person gave for a manual one.",
+        "The scenario that raised the decision. A manual decision holds its reason instead, and one made in GeoMetrikks reads like `geometrikks/manual-ban: spam`.",
       type: "string",
     },
     scope: {
@@ -2522,7 +2522,7 @@ export const DropListsAboutViewSchema = {
       type: "array",
     },
     loaded: {
-      description: "Whether at least one feed has been fetched.",
+      description: "True once GeoMetrikks has downloaded at least one feed.",
       type: "boolean",
     },
     stale: {
@@ -2593,7 +2593,7 @@ export const DropListsResponseSchema = {
       type: "array",
     },
     loaded: {
-      description: "Whether at least one feed has been fetched.",
+      description: "True once GeoMetrikks has downloaded at least one feed.",
       type: "boolean",
     },
     networks: {
@@ -2760,7 +2760,7 @@ export const DropNetworksResponseSchema = {
     },
     loaded: {
       description:
-        "False until a DROP network list has been downloaded, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.",
+        "False until GeoMetrikks downloads a DROP network list, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.",
       type: "boolean",
     },
     totalHits: {
@@ -3161,7 +3161,7 @@ export const GeoJSONFeaturePropertiesSchema = {
     },
     lastHit: {
       description:
-        "The newest event at this location, whatever the range. A scheduler job on the head updates it every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default, so it lags by up to that long. Null until the job first runs for the location, and always null with SCHEDULER_ENABLED=false.",
+        "The newest event at this location, whatever the range. A scheduler job on the head moves it forward every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default. Null until the job first runs for the location. It keeps its last value while SCHEDULER_ENABLED=false or while the job fails.",
       oneOf: [
         {
           format: "date-time",
@@ -5747,7 +5747,7 @@ export const RawLineFieldSchema = {
     },
     value: {
       description:
-        "The value as text. A list of strings is joined with commas, and other values are compact JSON.",
+        "The value as text. GeoMetrikks joins a list of strings with commas and writes other values as compact JSON.",
       type: "string",
     },
   },
@@ -6011,7 +6011,7 @@ export const ReportIpDTOSchema = {
     },
     alertsTruncated: {
       description:
-        "True when the LAPI hit the alert limit, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range are missing.",
+        "True when the LAPI returned as many alerts as the limit allows, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range may be missing.",
       type: "boolean",
     },
     asn: {

@@ -219,7 +219,9 @@ class ReportsController(Controller):
             "CrowdSec data. Times are in UTC, and the raw access logs it reads go back "
             "ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server "
             "name, referrer and remote user of each line, and the machine name and message of each alert. Your "
-            "host names, public addresses and credential values in paths and user agents become `[redacted]`."
+            "host names and public addresses become `[redacted]` in URLs and user agents. In a query string, so "
+            "does the whole value of a parameter that names one of your hosts or carries a credential, such as "
+            "`token` or `api_key`."
         ),
         responses={
             HTTP_400_BAD_REQUEST: ResponseSpec(

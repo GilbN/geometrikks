@@ -152,7 +152,7 @@ export type AbuseReportResponse = {
    */
   ips: Array<ReportIpDto>;
   /**
-   * How many names, addresses and credential values became `[redacted]`.
+   * How many host names, addresses and query values became `[redacted]`.
    */
   redactions: number;
   /**
@@ -194,7 +194,7 @@ export type AccessLogDebugEntry = {
   id: number;
   ipAddress?: string | null;
   /**
-   * True for a line that did not match the log format or a probe, such as a TLS handshake sent to the HTTP port.
+   * True for a line that did not match the log format, or that looks like a probe such as a TLS handshake sent to the HTTP port.
    */
   isMalformed: boolean;
   /**
@@ -207,7 +207,7 @@ export type AccessLogDebugEntry = {
    */
   parseError?: string | null;
   /**
-   * The line split into its keys when it is a JSON object. Null for any other line.
+   * The line split into its keys when it is a JSON object. Null for any other line, and for an object nested more than six levels deep or with more than 200 keys.
    */
   rawFields?: RawLineFields | null;
   /**
@@ -660,7 +660,7 @@ export type AuthOptions = {
  */
 export type BanNetworkResult = {
   /**
-   * True when the network held a ban already, and GeoMetrikks left it alone.
+   * True when the network already had an active decision of any type, a captcha included, and GeoMetrikks left it alone.
    */
   alreadyBanned: boolean;
   /**
@@ -686,7 +686,7 @@ export type BanNetworkResult = {
  */
 export type BanNetworksRequest = {
   /**
-   * Ban every DROP network that sent traffic in this many days and has no ban, `7`, `30` or `90`.
+   * Ban every DROP network that sent traffic in this many days and has no active decision of any type, `7`, `30` or `90`.
    */
   allUnbannedDays?: 7 | 30 | 90 | null;
   /**
@@ -706,7 +706,7 @@ export type BanNetworksRequest = {
  */
 export type BanNetworksResponse = {
   /**
-   * With `allUnbannedDays`, the unbanned networks past the first 1000, which this run did not try. 0 otherwise.
+   * With `allUnbannedDays`, the networks without a decision past the first 1000, which this run did not try. 0 otherwise.
    */
   leftOut: number;
   results: Array<BanNetworkResult>;
@@ -837,7 +837,7 @@ export type BannedMapStats = {
  *
  * A range under an active decision.
  *
- * A single-address DROP network is banned as an `Ip` decision, and it shows as its /32 or /128.
+ * GeoMetrikks bans a single-address DROP network with an `Ip` decision, and that network shows as its /32 or /128.
  */
 export type BannedRangeView = {
   /**
@@ -1199,7 +1199,7 @@ export type DecisionView = {
    */
   requestCount24h: number | null;
   /**
-   * The scenario that raised the decision, or the reason a person gave for a manual one.
+   * The scenario that raised the decision. A manual decision holds its reason instead, and one made in GeoMetrikks reads like `geometrikks/manual-ban: spam`.
    */
   scenario: string;
   /**
@@ -1294,7 +1294,7 @@ export type DropListsAboutView = {
   enabled: boolean;
   feeds: Array<DropFeedView>;
   /**
-   * Whether at least one feed has been fetched.
+   * True once GeoMetrikks has downloaded at least one feed.
    */
   loaded: boolean;
   /**
@@ -1334,7 +1334,7 @@ export type DropListsResponse = {
    */
   feeds: Array<DropFeedView>;
   /**
-   * Whether at least one feed has been fetched.
+   * True once GeoMetrikks has downloaded at least one feed.
    */
   loaded: boolean;
   /**
@@ -1424,7 +1424,7 @@ export type DropNetworksResponse = {
    */
   items: Array<DropNetworkTrafficView>;
   /**
-   * False until a DROP network list has been downloaded, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.
+   * False until GeoMetrikks downloads a DROP network list, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.
    */
   loaded: boolean;
   /**
@@ -1655,7 +1655,7 @@ export type GeoJsonFeatureProperties = {
    */
   id: number;
   /**
-   * The newest event at this location, whatever the range. A scheduler job on the head updates it every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default, so it lags by up to that long. Null until the job first runs for the location, and always null with SCHEDULER_ENABLED=false.
+   * The newest event at this location, whatever the range. A scheduler job on the head moves it forward every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default. Null until the job first runs for the location. It keeps its last value while SCHEDULER_ENABLED=false or while the job fails.
    */
   lastHit: string | null;
   postalCode: string | null;
@@ -2807,7 +2807,7 @@ export type RawLineField = {
    */
   storedAs?: string | null;
   /**
-   * The value as text. A list of strings is joined with commas, and other values are compact JSON.
+   * The value as text. GeoMetrikks joins a list of strings with commas and writes other values as compact JSON.
    */
   value: string;
 };
@@ -2955,7 +2955,7 @@ export type ReportIpDto = {
    */
   alerts: Array<ReportAlertDto>;
   /**
-   * True when the LAPI hit the alert limit, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range are missing.
+   * True when the LAPI returned as many alerts as the limit allows, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range may be missing.
    */
   alertsTruncated: boolean;
   /**
@@ -4148,11 +4148,11 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4201,11 +4201,11 @@ export type ApiV1AnalyticsIpProfileGetIpProfileData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4254,11 +4254,11 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4303,11 +4303,11 @@ export type ApiV1AnalyticsSummaryGetSummaryData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4352,11 +4352,11 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4421,11 +4421,11 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
   };
@@ -4467,11 +4467,11 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4532,11 +4532,11 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4597,11 +4597,11 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4662,11 +4662,11 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4727,11 +4727,11 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -4792,11 +4792,11 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
@@ -5121,7 +5121,7 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
      */
     kind?: string | null;
     /**
-     * `true` keeps alerts with a decision still in force, and `false` keeps alerts that never had one.
+     * `true` keeps alerts with a decision still in force, and `false` keeps alerts that hold no decision, active or expired.
      */
     hasActiveDecision?: boolean | null;
     /**
@@ -5558,7 +5558,7 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
     status_code: number;
   };
   /**
-   * No alert holds this decision, as with blocklist decisions.
+   * None of the IP's alerts holds the decision. A blocklist decision always gets this.
    */
   404: ErrorEnvelope;
 };
@@ -5843,11 +5843,11 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -5946,11 +5946,11 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6023,11 +6023,11 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6104,11 +6104,11 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6181,11 +6181,11 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6258,11 +6258,11 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6335,11 +6335,11 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6437,11 +6437,11 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6576,11 +6576,11 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6625,11 +6625,11 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6679,11 +6679,11 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData = {
   };
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
@@ -6932,11 +6932,11 @@ export type ApiV1ReportsAbuseGetAbuseReportData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in counts in full unless it starts exactly here.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**

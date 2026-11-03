@@ -65,6 +65,7 @@ from geometrikks.lib.parameters import (
     IpAddressFilter,
     StartDate,
     Timezone,
+    local_days_edge_note,
 )
 from geometrikks.lib.validation import validate_ip_address, validate_ip_addresses, validate_timezone
 
@@ -510,7 +511,7 @@ class AnalyticsController(Controller):
         description=(
             "Returns requests, bytes, status classes, error rate and latency for each bucket that has "
             "requests, oldest first. Without filters it reads the hourly or daily aggregates at any range "
-            f"length, and those reads {WHOLE_BUCKETS_NOTE}. "
+            f"length, and those reads {WHOLE_BUCKETS_NOTE}. {local_days_edge_note('startDate', 'endDate')} "
             f"{FILTERED_RAW_NOTE} On that filtered path `tz` sets local days at any range length. "
             "`totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series."
         ),
@@ -581,7 +582,7 @@ class AnalyticsController(Controller):
         description=(
             "Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest "
             "first. It reads the hourly or daily aggregates at any range length, so the unique counts are "
-            f"estimates, and those reads {WHOLE_BUCKETS_NOTE}."
+            f"estimates, and those reads {WHOLE_BUCKETS_NOTE}. {local_days_edge_note('startDate', 'endDate')}"
         ),
     )
     async def get_geo_time_series(

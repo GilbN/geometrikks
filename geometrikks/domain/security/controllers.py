@@ -229,7 +229,10 @@ class DecisionView(msgspec.Struct, rename="camel"):
     scenario: Annotated[
         str,
         msgspec.Meta(
-            description="The scenario that raised the decision, or the reason a person gave for a manual one."
+            description=(
+                "The scenario that raised the decision. A manual decision holds its reason instead, and one made "
+                "in GeoMetrikks reads like `geometrikks/manual-ban: spam`."
+            )
         ),
     ]
     duration: GoDurationLeft
@@ -922,8 +925,8 @@ class CrowdSecController(Controller):
         summary="List every range under an active decision",
         description=(
             "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision "
-            "type on it and when that decision ends. A single-address DROP network is banned as an `Ip` "
-            "decision, so it shows as its /32 or /128 while that decision lasts."
+            "type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an "
+            "`Ip` decision, so that network shows as its /32 or /128 while the decision lasts."
         ),
     )
     async def list_banned_ranges(
@@ -1023,9 +1026,10 @@ class CrowdSecController(Controller):
         description=(
             "Returns one GeoJSON point per place, listing the IPs that hold an active `Ip` decision of any "
             "origin and type and sent geo events from there in the window. The map shows current decisions, not "
-            "ban history, and leaves out Range decisions and IPs without events in the window. Windows over 24 "
-            "hours read the per-IP aggregates and place each IP at its location in the newest bucket, the "
-            "busiest one on a tie."
+            "ban history, and leaves out Range decisions and IPs without events in the window. Each IP shows at "
+            "one place. Windows up to 24 hours, and any window with `serverIn`, read the raw rows and use the "
+            "place of the IP's newest event. Longer windows read the per-IP aggregates and use its place in the "
+            "newest bucket, the busiest one on a tie."
         ),
     )
     async def list_banned_locations(
@@ -1128,8 +1132,8 @@ class CrowdSecController(Controller):
                 name="hasActiveDecision",
                 required=False,
                 description=(
-                    "`true` keeps alerts with a decision still in force, and `false` keeps alerts that never "
-                    "had one."
+                    "`true` keeps alerts with a decision still in force, and `false` keeps alerts that hold no "
+                    "decision, active or expired."
                 ),
             ),
         ] = None,
@@ -1268,13 +1272,13 @@ class CrowdSecController(Controller):
         summary="Get the CrowdSec alert behind a decision",
         description=(
             "Returns the alert that made the decision, in the same shape as `/alerts/{alert_id}`. The LAPI "
-            "finds alerts by IP only, so pass the decision's IP too. Blocklist decisions have no alert and get "
-            f"a 404. {MACHINE_CREDENTIALS_NOTE}"
+            "finds alerts by IP only, so pass the decision's IP too. This endpoint does not search the "
+            f"community blocklist alerts, so a blocklist decision gets a 404. {MACHINE_CREDENTIALS_NOTE}"
         ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
                 data_container=ErrorEnvelope,
-                description="No alert holds this decision, as with blocklist decisions.",
+                description="None of the IP's alerts holds the decision. A blocklist decision always gets this.",
             ),
         },
     )
@@ -1355,10 +1359,11 @@ class CrowdSecController(Controller):
         summary="Ban Spamhaus DROP networks through CrowdSec",
         description=(
             "Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in "
-            f"that many days and has no ban, busiest first and at most {MAX_BULK_BAN_NETWORKS}. Each network gets "
-            "one result, and a named network that is already banned comes back ok without a second ban, so a "
-            f"retry is safe. After {BULK_BAN_UNREACHABLE_LIMIT} unreachable LAPI answers in a row or "
-            f"{BULK_BAN_TIME_LIMIT_SECONDS} seconds, the rest come back with an error that starts with "
+            f"that many days and has no decision, busiest first and at most {MAX_BULK_BAN_NETWORKS}. A network "
+            "with an active decision of any type, a captcha included, keeps it and gets no ban, and a named one "
+            "comes back ok with `alreadyBanned`, so a retry is safe. After "
+            f"{BULK_BAN_UNREACHABLE_LIMIT} unreachable LAPI answers in a row or {BULK_BAN_TIME_LIMIT_SECONDS} "
+            "seconds, the rest come back with an error that starts with "
             f"`not attempted`. {MACHINE_CREDENTIALS_NOTE} {WRITE_NOTE}"
         ),
     )

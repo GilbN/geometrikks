@@ -168,8 +168,8 @@ class ReportIpDTO(msgspec.Struct, rename="camel"):
         bool,
         msgspec.Meta(
             description=(
-                "True when the LAPI hit the alert limit, 1000 for an IP report and 100 per IP for an ASN report, "
-                "so older alerts in the range are missing."
+                "True when the LAPI returned as many alerts as the limit allows, 1000 for an IP report and 100 "
+                "per IP for an ASN report, so older alerts in the range may be missing."
             )
         ),
     ]
@@ -225,7 +225,7 @@ class AbuseReportResponse(msgspec.Struct, rename="camel"):
         int, msgspec.Meta(description="Those requests that got a 4xx status.")
     ] = msgspec.field(name="status4xx")
     redactions: Annotated[
-        int, msgspec.Meta(description="How many names, addresses and credential values became `[redacted]`.")
+        int, msgspec.Meta(description="How many host names, addresses and query values became `[redacted]`.")
     ]
     crowdsec: ReportCrowdSec
     ips: Annotated[

@@ -13,7 +13,6 @@ from litestar.status_codes import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
-from geometrikks.domain.geo.controllers.events import GEO_WHOLE_BUCKETS_NOTE
 from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.services import GeoLocationService
 from geometrikks.domain.geo.dtos import (
@@ -44,6 +43,7 @@ from geometrikks.lib.parameters import (
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
+    GEO_WHOLE_BUCKETS_NOTE,
 )
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses

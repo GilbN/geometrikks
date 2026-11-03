@@ -46,7 +46,8 @@ class RawLineField(msgspec.Struct, rename="camel", kw_only=True):
         str,
         msgspec.Meta(
             description=(
-                "The value as text. A list of strings is joined with commas, and other values are compact JSON."
+                "The value as text. GeoMetrikks joins a list of strings with commas and writes other values as "
+                "compact JSON."
             )
         ),
     ]
@@ -100,8 +101,8 @@ class AccessLogDebugEntry(msgspec.Struct, rename="camel"):
         bool,
         msgspec.Meta(
             description=(
-                "True for a line that did not match the log format or a probe, such as a TLS handshake sent to "
-                "the HTTP port."
+                "True for a line that did not match the log format, or that looks like a probe such as a TLS "
+                "handshake sent to the HTTP port."
             )
         ),
     ]
@@ -129,7 +130,12 @@ class AccessLogDebugEntry(msgspec.Struct, rename="camel"):
     user_agent: str | None = None
     raw_fields: Annotated[
         RawLineFields | None,
-        msgspec.Meta(description="The line split into its keys when it is a JSON object. Null for any other line."),
+        msgspec.Meta(
+            description=(
+                "The line split into its keys when it is a JSON object. Null for any other line, and for an "
+                "object nested more than six levels deep or with more than 200 keys."
+            )
+        ),
     ] = None
 
 

@@ -13,17 +13,23 @@ from typing import Annotated, Literal
 from litestar.openapi.spec import Example
 from litestar.params import QueryParameter
 
-_WHOLE_BUCKETS = (
-    "Where the description says the endpoint counts whole hours or UTC days, the hour or day this falls in "
-    "counts in full"
+_RANGE_START = "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`."
+_RANGE_END = "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`."
+GEO_WHOLE_BUCKETS_NOTE = (
+    "count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts "
+    "before `toTimestamp`"
 )
-_RANGE_START = (
-    f"Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. {_WHOLE_BUCKETS}."
-)
-_RANGE_END = (
-    "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. "
-    f"{_WHOLE_BUCKETS} unless it starts exactly here."
-)
+
+
+def local_days_edge_note(start_name: str, end_name: str) -> str:
+    """The bucket edges of an aggregate read with daily buckets in a non-UTC zone."""
+    return (
+        f"With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count "
+        f"local days instead, from the local midnight that starts the day holding `{start_name}` through the "
+        f"last hour that starts before `{end_name}`."
+    )
+
+
 REPEAT_NOTE = "Repeat the parameter to pass more than one."
 _IP_CHECK = "A value that is not an IP gets a 400."
 COUNTRY_FILTER_DESCRIPTION = (
