@@ -35,7 +35,8 @@ from geometrikks.services.logfiles import LogTailRecord
 PageItemT = TypeVar("PageItemT")
 
 HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
-GENERATED_SUMMARY = re.compile(r"[A-Z][A-Za-z]+")
+# Litestar falls back to the handler name, one word with no spaces; a written summary always has one.
+GENERATED_SUMMARY = re.compile(r"\S+")
 
 # advanced_alchemy's create_service_dependencies builds these filter parameters and takes no
 # descriptions, so each endpoint's description explains them instead.
@@ -379,7 +380,7 @@ def test_intro_covers_auth_scopes_errors_and_time(openapi_document: dict[str, An
 
 
 def test_every_tag_an_operation_uses_has_a_description(openapi_document: dict[str, Any]):
-    described_tags = {tag["name"]: tag.get("description") for tag in openapi_document["tags"]}
+    described_tags = {tag["name"]: (tag.get("description") or "").strip() for tag in openapi_document["tags"]}
     used_tags = {
         tag_name
         for path_item in openapi_document["paths"].values()
@@ -388,6 +389,13 @@ def test_every_tag_an_operation_uses_has_a_description(openapi_document: dict[st
         for tag_name in operation.get("tags", [])
     }
     assert all(described_tags.get(tag_name) for tag_name in used_tags), used_tags - set(described_tags)
+
+
+def test_every_operation_has_a_tag(openapi_document: dict[str, Any]):
+    untagged = [
+        (method, path) for method, path, operation in _operations(openapi_document) if not operation.get("tags")
+    ]
+    assert untagged == []
 
 
 def test_every_described_tag_is_in_use(openapi_document: dict[str, Any]):

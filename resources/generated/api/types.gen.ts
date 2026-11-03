@@ -207,7 +207,7 @@ export type AccessLogDebugEntry = {
    */
   parseError?: string | null;
   /**
-   * The line split into its keys when it is a JSON object. Null for any other line, and for an object nested more than six levels deep or with more than 200 keys.
+   * The line split into its keys when it is a JSON object. Null for any other line, and for an object with key paths more than six levels deep or more than 200 flattened fields.
    */
   rawFields?: RawLineFields | null;
   /**

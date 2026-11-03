@@ -363,7 +363,7 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
 /**
  * Get geo event counts per hour or day
  *
- * Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest first. It reads the hourly or daily aggregates at any range length, so the unique counts are estimates, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead, from the local midnight that starts the day holding `startDate` through the last hour that starts before `endDate`.
+ * Returns geo events and unique IPs, countries and cities for each bucket that has events, oldest first. It reads the hourly or daily aggregates at any range length, so the unique counts are estimates, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`.
  */
 export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -490,7 +490,7 @@ export const apiV1AnalyticsSummaryGetSummary = <
 /**
  * Get request metrics per hour or day
  *
- * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead, from the local midnight that starts the day holding `startDate` through the last hour that starts before `endDate`. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
+ * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
  */
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -1084,7 +1084,7 @@ export const apiV1CrowdsecBanBan = <ThrowOnError extends boolean = false>(
 /**
  * Ban Spamhaus DROP networks through CrowdSec
  *
- * Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in that many days and has no decision, busiest first and at most 1000. A network with an active decision of any type, a captcha included, keeps it and gets no ban, and a named one comes back ok with `alreadyBanned`, so a retry is safe. After 3 unreachable LAPI answers in a row or 120 seconds, the rest come back with an error that starts with `not attempted`. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.
+ * Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in that many days and has no active decision, busiest first and at most 1000. A network with an active decision of any type, a captcha included, keeps it and gets no ban, and a named one comes back ok with `alreadyBanned`, so a retry is safe. After 3 unreachable LAPI answers in a row or 120 seconds, the rest come back with an error that starts with `not attempted`. Answers 403 when the server has no CrowdSec machine credentials, CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD. Needs a Read/write API key or a browser session.
  */
 export const apiV1CrowdsecBanNetworksBanNetworks = <
   ThrowOnError extends boolean = false,
@@ -1593,7 +1593,7 @@ export const apiV1GeoEventsSummaryGetGeoLogSummary = <
 /**
  * Get geo events and unique IPs per hour or day
  *
- * Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique IPs are estimates. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead, from the local midnight that starts the day holding `fromTimestamp` through the last hour that starts before `toTimestamp`. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.
+ * Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique IPs are estimates. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `fromTimestamp` and run through the last hour that starts before `toTimestamp`. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.
  */
 export const apiV1GeoEventsTimeSeriesGetGeoLogTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -2155,7 +2155,7 @@ export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
 /**
  * Build an abuse report for an IP or an ASN
  *
- * Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: request counts, the busiest hour or day, the top paths and user agents, the newest log lines and CrowdSec data. Times are in UTC, and the raw access logs it reads go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server name, referrer and remote user of each line, and the machine name and message of each alert. Your host names and public addresses become `[redacted]` in URLs and user agents. In a query string, so does the whole value of a parameter that names one of your hosts or carries a credential, such as `token` or `api_key`.
+ * Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: request counts, the busiest hour or day, the top paths and user agents, the newest log lines and CrowdSec data. Times are in UTC, and the raw access logs it reads go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server name, referrer and remote user of each line, and the machine name and message of each alert. Your host names and public addresses become `[redacted]` in URLs and user agents. In a query string, the whole value of a parameter that names one of your hosts or carries a credential, such as `token` or `api_key`, also becomes `[redacted]`.
  */
 export const apiV1ReportsAbuseGetAbuseReport = <
   ThrowOnError extends boolean = false,

@@ -1359,7 +1359,7 @@ class CrowdSecController(Controller):
         summary="Ban Spamhaus DROP networks through CrowdSec",
         description=(
             "Bans the DROP networks you name, or with `allUnbannedDays` every DROP network that sent traffic in "
-            f"that many days and has no decision, busiest first and at most {MAX_BULK_BAN_NETWORKS}. A network "
+            f"that many days and has no active decision, busiest first and at most {MAX_BULK_BAN_NETWORKS}. A network "
             "with an active decision of any type, a captcha included, keeps it and gets no ban, and a named one "
             "comes back ok with `alreadyBanned`, so a retry is safe. After "
             f"{BULK_BAN_UNREACHABLE_LIMIT} unreachable LAPI answers in a row or {BULK_BAN_TIME_LIMIT_SECONDS} "

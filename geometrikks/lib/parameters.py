@@ -24,9 +24,9 @@ GEO_WHOLE_BUCKETS_NOTE = (
 def local_days_edge_note(start_name: str, end_name: str) -> str:
     """The bucket edges of an aggregate read with daily buckets in a non-UTC zone."""
     return (
-        f"With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count "
-        f"local days instead, from the local midnight that starts the day holding `{start_name}` through the "
-        f"last hour that starts before `{end_name}`."
+        "With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count "
+        "local days instead. They start at the local midnight of the day holding "
+        f"`{start_name}` and run through the last hour that starts before `{end_name}`."
     )
 
 
