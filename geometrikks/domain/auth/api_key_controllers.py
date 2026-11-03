@@ -25,7 +25,7 @@ from geometrikks.domain.auth.api_keys import ApiKeyRecord, ApiKeyScope
 from geometrikks.domain.exceptions import DomainConflictError
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.api_key_auth import SESSION_ONLY_SECURITY, requires_session_user
+from geometrikks.server.api_key_auth import SESSION_ONLY_RESPONSE, SESSION_ONLY_SECURITY, requires_session_user
 from geometrikks.server.api_key_store import API_KEY_NAME_MAX_LENGTH, ApiKeyStore
 from geometrikks.server.auth import AdminUser
 from geometrikks.server.exceptions import ErrorEnvelope
@@ -39,7 +39,6 @@ login_logger = get_logger(LOGIN_LOGGER_NAME)
 
 AUTH_DISABLED_DETAIL = "API keys need the built-in login. With APP_AUTH_DISABLED=true the API is already open."
 
-_SESSION_ONLY = ResponseSpec(data_container=ErrorEnvelope, description="The request used an API key.")
 _STORE_UNAVAILABLE = ResponseSpec(data_container=ErrorEnvelope, description="The API key store is unavailable.")
 _AUTH_DISABLED = ResponseSpec(
     data_container=ErrorEnvelope, description="APP_AUTH_DISABLED=true, where API keys cannot exist."
@@ -187,7 +186,7 @@ class ApiKeyController(Controller):
             "Returns every key, newest first, with its scope, expiry, and when and from which IP it was last "
             "used. The key itself never appears after creation. API keys get a 403 here; use a browser session."
         ),
-        responses={HTTP_403_FORBIDDEN: _SESSION_ONLY, HTTP_503_SERVICE_UNAVAILABLE: _STORE_UNAVAILABLE},
+        responses={HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE, HTTP_503_SERVICE_UNAVAILABLE: _STORE_UNAVAILABLE},
     )
     async def list_api_keys(
         self,
@@ -215,7 +214,7 @@ class ApiKeyController(Controller):
             "`application/json`. API keys get a 403 here; use a browser session."
         ),
         responses={
-            HTTP_403_FORBIDDEN: _SESSION_ONLY,
+            HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE,
             HTTP_409_CONFLICT: ResponseSpec(
                 data_container=ErrorEnvelope,
                 description="A key with this name exists, ignoring case, or APP_AUTH_DISABLED=true.",
@@ -260,7 +259,7 @@ class ApiKeyController(Controller):
             "here; use a browser session."
         ),
         responses={
-            HTTP_403_FORBIDDEN: _SESSION_ONLY,
+            HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE,
             HTTP_404_NOT_FOUND: ResponseSpec(data_container=ErrorEnvelope, description="No key has this id."),
             HTTP_409_CONFLICT: _AUTH_DISABLED,
             HTTP_503_SERVICE_UNAVAILABLE: _STORE_UNAVAILABLE,

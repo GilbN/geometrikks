@@ -11484,6 +11484,26 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Wrong credentials, or password login is off because only OIDC is set up."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The database is down, so nobody can log in."
           }
         },
         "security": [
@@ -11511,6 +11531,16 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
           }
         },
         "security": [
@@ -11547,6 +11577,26 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request has no session."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
           }
         },
         "security": [
@@ -11576,6 +11626,16 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
           }
         },
         "security": [

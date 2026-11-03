@@ -357,6 +357,28 @@ def test_operations_without_auth_advertise_no_credentials(
     assert openapi_document["paths"][path][method]["security"] == [{}]
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "status"),
+    [
+        ("post", "/api/v1/auth/login", "401"),
+        ("post", "/api/v1/auth/login", "503"),
+        ("get", "/api/v1/auth/me", "401"),
+        ("get", "/api/v1/auth/me", "403"),
+        ("post", "/api/v1/auth/logout", "403"),
+        ("get", "/api/v1/auth/oidc/status", "403"),
+        ("get", "/api/v1/auth/api-keys", "403"),
+        ("post", "/api/v1/auth/api-keys", "403"),
+        ("delete", "/api/v1/auth/api-keys/{key_id}", "403"),
+    ],
+)
+def test_auth_routes_declare_the_errors_their_descriptions_name(
+    openapi_document: dict[str, Any], method: str, path: str, status: str
+):
+    response = openapi_document["paths"][path][method]["responses"][status]
+    assert response["description"].strip()
+    assert response["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/ErrorEnvelope"
+
+
 @pytest.mark.parametrize("route_handler", [AuthController.oidc_start, AuthController.oidc_callback])
 def test_hidden_oidc_routes_declare_no_credentials(route_handler: Any):
     assert route_handler.security == NO_CREDENTIALS_SECURITY

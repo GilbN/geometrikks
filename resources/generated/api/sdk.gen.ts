@@ -69,10 +69,13 @@ import type {
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
   ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutErrors,
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
+  ApiV1AuthMeMeErrors,
   ApiV1AuthMeMeResponses,
   ApiV1AuthOidcStatusOidcStatusData,
+  ApiV1AuthOidcStatusOidcStatusErrors,
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
@@ -867,10 +870,14 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
  */
 export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
-): RequestResult<ApiV1AuthLogoutLogoutResponses, unknown, ThrowOnError> =>
+): RequestResult<
+  ApiV1AuthLogoutLogoutResponses,
+  ApiV1AuthLogoutLogoutErrors,
+  ThrowOnError
+> =>
   (options?.client ?? client).post<
     ApiV1AuthLogoutLogoutResponses,
-    unknown,
+    ApiV1AuthLogoutLogoutErrors,
     ThrowOnError
   >({
     security: [
@@ -891,10 +898,10 @@ export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
  */
 export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthMeMeData, ThrowOnError>,
-): RequestResult<ApiV1AuthMeMeResponses, unknown, ThrowOnError> =>
+): RequestResult<ApiV1AuthMeMeResponses, ApiV1AuthMeMeErrors, ThrowOnError> =>
   (options?.client ?? client).get<
     ApiV1AuthMeMeResponses,
-    unknown,
+    ApiV1AuthMeMeErrors,
     ThrowOnError
   >({
     security: [
@@ -919,12 +926,12 @@ export const apiV1AuthOidcStatusOidcStatus = <
   options?: Options<ApiV1AuthOidcStatusOidcStatusData, ThrowOnError>,
 ): RequestResult<
   ApiV1AuthOidcStatusOidcStatusResponses,
-  unknown,
+  ApiV1AuthOidcStatusOidcStatusErrors,
   ThrowOnError
 > =>
   (options?.client ?? client).get<
     ApiV1AuthOidcStatusOidcStatusResponses,
-    unknown,
+    ApiV1AuthOidcStatusOidcStatusErrors,
     ThrowOnError
   >({
     security: [

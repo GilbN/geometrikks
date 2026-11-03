@@ -10,14 +10,26 @@ from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotAuthorizedException, NotFoundException
 from litestar.params import JSONBody, QueryParameter, SkipValidation
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.response import Redirect
-from litestar.status_codes import HTTP_200_OK
+from litestar.status_codes import (
+    HTTP_200_OK,
+    HTTP_401_UNAUTHORIZED,
+    HTTP_403_FORBIDDEN,
+    HTTP_503_SERVICE_UNAVAILABLE,
+)
 
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY, SESSION_ONLY_SECURITY, requires_session_user
+from geometrikks.server.api_key_auth import (
+    NO_CREDENTIALS_SECURITY,
+    SESSION_ONLY_RESPONSE,
+    SESSION_ONLY_SECURITY,
+    requires_session_user,
+)
 from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
+from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
     OidcForbidden,
@@ -143,6 +155,15 @@ class AuthController(Controller):
             "only OIDC is set up. A 503 means the database is down and nobody can log in. With "
             "APP_AUTH_DISABLED=true it checks nothing and answers with `mode` set to `disabled`."
         ),
+        responses={
+            HTTP_401_UNAUTHORIZED: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="Wrong credentials, or password login is off because only OIDC is set up.",
+            ),
+            HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(
+                data_container=ErrorEnvelope, description="The database is down, so nobody can log in."
+            ),
+        },
     )
     async def login(
         self,
@@ -186,6 +207,7 @@ class AuthController(Controller):
             "identity provider's sign-out URL, as long as the provider lists an end_session_endpoint. "
             "API keys get a 403 here; use a browser session."
         ),
+        responses={HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE},
     )
     async def logout(
         self,
@@ -224,6 +246,10 @@ class AuthController(Controller):
             "With APP_AUTH_DISABLED=true it answers with `mode` set to `disabled`. API keys get a 403 here; "
             "use a browser session."
         ),
+        responses={
+            HTTP_401_UNAUTHORIZED: ResponseSpec(data_container=ErrorEnvelope, description="The request has no session."),
+            HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE,
+        },
     )
     async def me(
         self,
@@ -267,6 +293,7 @@ class AuthController(Controller):
             "discovery error. It also says whether password login and identity provider logout are on. "
             "API keys get a 403 here; use a browser session."
         ),
+        responses={HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE},
     )
     async def oidc_status(
         self,

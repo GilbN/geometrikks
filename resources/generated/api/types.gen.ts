@@ -5027,6 +5027,14 @@ export type ApiV1AuthLoginLoginErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * Wrong credentials, or password login is off because only OIDC is set up.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The database is down, so nobody can log in.
+   */
+  503: ErrorEnvelope;
 };
 
 export type ApiV1AuthLoginLoginError =
@@ -5049,6 +5057,16 @@ export type ApiV1AuthLogoutLogoutData = {
   url: "/api/v1/auth/logout";
 };
 
+export type ApiV1AuthLogoutLogoutErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthLogoutLogoutError =
+  ApiV1AuthLogoutLogoutErrors[keyof ApiV1AuthLogoutLogoutErrors];
+
 export type ApiV1AuthLogoutLogoutResponses = {
   /**
    * Request fulfilled, document follows
@@ -5066,6 +5084,19 @@ export type ApiV1AuthMeMeData = {
   url: "/api/v1/auth/me";
 };
 
+export type ApiV1AuthMeMeErrors = {
+  /**
+   * The request has no session.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthMeMeError = ApiV1AuthMeMeErrors[keyof ApiV1AuthMeMeErrors];
+
 export type ApiV1AuthMeMeResponses = {
   /**
    * Request fulfilled, document follows
@@ -5082,6 +5113,16 @@ export type ApiV1AuthOidcStatusOidcStatusData = {
   query?: never;
   url: "/api/v1/auth/oidc/status";
 };
+
+export type ApiV1AuthOidcStatusOidcStatusErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthOidcStatusOidcStatusError =
+  ApiV1AuthOidcStatusOidcStatusErrors[keyof ApiV1AuthOidcStatusOidcStatusErrors];
 
 export type ApiV1AuthOidcStatusOidcStatusResponses = {
   /**
