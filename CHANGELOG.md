@@ -9,14 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Each source in the instances API reports `lastReadAt` and `lastParsedAt`, so monitoring can detect a quiet source while other sources keep producing records. The timestamps distinguish new lines from parsed records and arrive with the instance's heartbeat. The Agents page shows both times for each source.
-- Access-log scripts can poll overlapping windows with `window=10m`. Range headers let later pages reuse the same bounds. The API docs explain client deduplication and the limits for late records, imports and backfills.
-- Dashboards can fetch traffic, instance health, local ingestion status and active CrowdSec decisions with `GET /api/v1/integration/summary?window=24h`. Sections report unavailable data explicitly, and freshness fields distinguish log time, parser activity and heartbeats.
-- Scripts can test credentials with `GET /api/v1/auth/connection`. It returns the app/API version, authentication mode, configured features and the current key's name, scope and expiry. Auth-disabled servers say so explicitly instead of claiming a supplied key was validated.
-- Analytics API endpoints accept relative windows such as `window=24h` instead of explicit dates. Responses include the resolved bounds. Windows support whole minutes, hours or days, up to 365 days.
+- Scripts and dashboards can use API keys to call GeoMetrikks without logging in.
+  - Create keys under Settings > API keys and send one as `Authorization: Bearer gmk_...`. A Read key can view data and open the live feeds, and a Read/write key can also ban, unban, run scheduler jobs and delete data. A key can have an expiry date. The list shows when and from which IP each key was last used, and GeoMetrikks shows a key only once, when you create it. A CrowdSec ban sent with a key names it in the app log, as in `api-key:homepage`.
+  - Test credentials with `GET /api/v1/auth/connection`. It returns the app/API version, authentication mode, configured features and the current key's name, scope and expiry. Auth-disabled servers say so explicitly instead of claiming a supplied key was validated.
+  - Fetch traffic, instance health, local ingestion status and active CrowdSec decisions with `GET /api/v1/integration/summary?window=24h`. Sections report unavailable data explicitly, and freshness fields distinguish log time, parser activity and heartbeats. Each source in the instances API also reports `lastReadAt` and `lastParsedAt` with its instance's heartbeat, so monitoring can detect a quiet source while others keep producing records. The Agents page shows both times for each source.
+  - Analytics endpoints accept relative windows such as `window=24h` instead of explicit dates. Responses include the resolved bounds. Windows support whole minutes, hours or days, up to 365 days. Explicit ranges must include a timezone and have a start before their end. Missing bounds and mixed relative and explicit ranges return 400 with `code: invalid_range`.
+  - Access-log scripts can poll overlapping windows with `window=10m`. Range headers let later pages reuse the same bounds.
+  - Paged lists cap `pageSize`. `/api/v1/access-logs` and `/api/v1/access-log-debug` take up to 1000 rows a page, and `/api/v1/geo-events`, `/api/v1/geo-locations` and `/api/v1/crowdsec/decisions` take up to 500. A larger page gets a 400. `/api/v1/geo-events` and `/api/v1/access-logs` also answer 400 for an `orderBy` field they cannot sort by. They used to answer 500.
+  - API error responses add a stable `code` for scripts to distinguish expired keys, read-only keys, validation failures and unavailable services. HTTP statuses, messages and validation details keep their existing meanings.
+  - The API reference at `/schema` explains how to authenticate and what every endpoint does, and describes its parameters, response fields and supported sort fields. The API docs also explain client deduplication when polling and the limits for late records, imports and backfills.
 - The details of a JSON debug line open on a Fields view with one row per key. Request and response headers come first, without Traefik's `request_` and `downstream_` prefixes, so a custom header your app sends sits at the top instead of somewhere in one long line. The keys GeoMetrikks drops follow, then the ones it stores, each tagged with the access-log column it fills. Nested keys show as dotted paths such as `request.tls.version`. The Raw tab shows the line as logged, and Copy still copies it. A line nested more than six levels deep or with more than 200 keys shows only the Raw tab, since no reverse proxy writes lines like that.
 - Debug Logs has a Source format column, which you turn on under Columns. A debug line's details also name the format that parsed it. Lines captured before this update show none.
-- API keys let scripts and dashboards call the API without logging in. Create them under Settings > API keys and send one as `Authorization: Bearer gmk_...`. A Read key can view data and open the live feeds, and a Read/write key can also ban, unban, run scheduler jobs and delete data. A key can have an expiry date. The list shows when and from which IP each key was last used, and GeoMetrikks shows a key only once, when you create it.
 - GeoMetrikks downloads the DROP lists of hijacked, spam and cybercrime networks once a day.
   - Top ASNs on Analytics and Geo Logs badge these networks DROP in red. Traffic origin on Analytics gives them their own row and a red segment at the start of the bar. The hosting share there and on the dashboard leaves them out. The dashboard has a Spamhaus DROP card with their share of your requests and how many listed ASNs sent them. A help button on it and on the Hosting Traffic card says what each card counts.
   - An IP inside a listed network gets a dashed red outline in tables and in the IP lists of map popups. When CrowdSec has a decision on the IP, the outline goes around the decision's color. Hover over it to see which DROP entry lists it. A map popup about one IP adds a Listed on row with the entry instead. Record sheets, the IP menu and the IP inspector show the same entry on a red DROP badge, and the inspector flags the address. In record sheets, the IP inspector, map popups and the Security page's DROP list, the entry links to its record on check.spamhaus.org. With CrowdSec machine credentials set, the IP menu can also ban the whole DROP network, right under Ban IP. The ban names the DROP entry as its reason. The same item unbans the network later.
@@ -26,22 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Analytics ranges must include a timezone and have a start before their end. Missing bounds and mixed relative and explicit ranges return 400 with `code: invalid_range`.
-
-- API error responses add a stable `code` for scripts to distinguish expired keys, read-only keys, validation failures and unavailable services. HTTP statuses, messages and validation details keep their existing meanings.
-
 - `docs/configuration.md` puts the settings most installs need first: login, database, the logs to read and GeoIP. Each optional feature follows with its own section. The 28 settings for pool sizes, poll intervals, timeouts and log rotation sit in an Advanced tuning section near the end. Almost every install can leave them at their defaults.
 - The abuse report dialog keeps its title and its Download and Copy buttons in place while the rest scrolls, and its preview box is shorter. On a phone the title takes less room and the two buttons sit side by side.
-- The API reference at `/schema` now explains how to authenticate and what every endpoint does, and describes its parameters and response fields.
-- The paged API lists cap `pageSize`. `/api/v1/access-logs` and `/api/v1/access-log-debug` take up to 1000 rows a page, and `/api/v1/geo-events`, `/api/v1/geo-locations` and `/api/v1/crowdsec/decisions` take up to 500. A larger page gets a 400.
 
 ### Fixed
 
 - Startup no longer logs `` `uuid-utils` not installed, falling back to `uuid4` for UUID v7 generation. ``
-- CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`. A ban sent with an API key names the key, as in `api-key:homepage`.
+- CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`.
 - In a record sheet, a long ban reason wraps with the time left at its end. The time left used to sit beside the reason's first line while the rest of the reason wrapped underneath.
 - On a phone, a long IPv6 address in the abuse report's title wraps onto a second line. It used to make the dialog scroll sideways.
-- `/api/v1/geo-events` and `/api/v1/access-logs` answer 400 for an `orderBy` field they cannot sort by, and the API reference lists the fields each one takes. They used to answer 500.
 
 ## [0.23.0] - 2026-10-31
 
