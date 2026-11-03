@@ -70,7 +70,13 @@ from geometrikks.domain.security.schemas import (
     MAX_BULK_BAN_NETWORKS,
 )
 from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
-from geometrikks.lib.parameters import CountryCodeFilter, CityFilter, ServerIn
+from geometrikks.lib.parameters import (
+    CityFilter,
+    CountryCodeFilter,
+    ServerIn,
+    range_end_examples,
+    range_start_examples,
+)
 from geometrikks.server.api_key_auth import ApiKeyPrincipal
 from geometrikks.server.auth import AdminUser
 from geometrikks.server.exceptions import ErrorEnvelope
@@ -1044,6 +1050,7 @@ class CrowdSecController(Controller):
                     "Start of the window, inclusive, as ISO 8601 with a timezone. Defaults to 30 days before now."
                 ),
                 required=False,
+                examples=range_start_examples(),
             ),
         ] = None,
         to_timestamp: Annotated[
@@ -1052,6 +1059,7 @@ class CrowdSecController(Controller):
                 name="toTimestamp",
                 description="End of the window, exclusive, as ISO 8601 with a timezone. Defaults to now.",
                 required=False,
+                examples=range_end_examples(),
             ),
         ] = None,
         country_code: CountryCodeFilter = None,

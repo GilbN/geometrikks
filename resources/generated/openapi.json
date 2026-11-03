@@ -8029,11 +8029,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2026-11-01T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "fromTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-01T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -8050,11 +8058,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2026-11-02T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "toTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-02T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -8277,11 +8293,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2026-11-01T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "fromTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-01T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -8298,11 +8322,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2026-11-02T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "toTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-02T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -8491,11 +8523,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only lines logged at or after this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2026-11-01T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "fromTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only lines logged at or after this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-01T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -8512,11 +8552,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only lines logged at or before this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2026-11-02T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "toTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only lines logged at or before this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-02T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -8897,7 +8945,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -8906,7 +8954,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -8919,7 +8967,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -8928,7 +8976,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9054,7 +9102,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -9063,7 +9111,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9076,7 +9124,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -9085,7 +9133,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9203,7 +9251,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -9212,7 +9260,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9225,7 +9273,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -9234,7 +9282,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9325,7 +9373,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -9334,7 +9382,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9347,7 +9395,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -9356,7 +9404,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9447,7 +9495,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -9456,7 +9504,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9469,7 +9517,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -9478,7 +9526,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9696,7 +9744,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -9705,7 +9753,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9718,7 +9766,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -9727,7 +9775,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9804,7 +9852,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -9813,7 +9861,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -9826,7 +9874,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -9835,7 +9883,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10020,7 +10068,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -10029,7 +10077,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10042,7 +10090,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -10051,7 +10099,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10236,7 +10284,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -10245,7 +10293,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10258,7 +10306,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -10267,7 +10315,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10452,7 +10500,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -10461,7 +10509,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10474,7 +10522,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -10483,7 +10531,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10668,7 +10716,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -10677,7 +10725,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10690,7 +10738,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -10699,7 +10747,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10884,7 +10932,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -10893,7 +10941,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -10906,7 +10954,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -10915,7 +10963,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -12148,11 +12196,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Start of the window, inclusive, as ISO 8601 with a timezone. Defaults to 30 days before now.",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2026-11-01T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "fromTimestamp",
             "required": false,
             "schema": {
               "description": "Start of the window, inclusive, as ISO 8601 with a timezone. Defaults to 30 days before now.",
+              "examples": [
+                "2026-11-01T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -12169,11 +12225,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "End of the window, exclusive, as ISO 8601 with a timezone. Defaults to now.",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2026-11-02T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "toTimestamp",
             "required": false,
             "schema": {
               "description": "End of the window, exclusive, as ISO 8601 with a timezone. Defaults to now.",
+              "examples": [
+                "2026-11-02T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -13018,11 +13082,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only events at or after this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "from_timestamp-example-1": {
+                "value": "2026-11-01T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "fromTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only events at or after this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-01T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -13039,11 +13111,19 @@
             "allowReserved": false,
             "deprecated": false,
             "description": "Keep only events at or before this time, as ISO 8601 with a timezone.",
+            "examples": {
+              "to_timestamp-example-1": {
+                "value": "2026-11-02T00:00:00Z"
+              }
+            },
             "in": "query",
             "name": "toTimestamp",
             "required": false,
             "schema": {
               "description": "Keep only events at or before this time, as ISO 8601 with a timezone.",
+              "examples": [
+                "2026-11-02T00:00:00Z"
+              ],
               "oneOf": [
                 {
                   "format": "date-time",
@@ -13401,7 +13481,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -13410,7 +13490,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -13423,7 +13503,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -13432,7 +13512,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -13754,7 +13834,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -13763,7 +13843,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -13776,7 +13856,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -13785,7 +13865,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14037,7 +14117,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -14046,7 +14126,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14059,7 +14139,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -14068,7 +14148,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14355,7 +14435,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -14364,7 +14444,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14377,7 +14457,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -14386,7 +14466,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14640,7 +14720,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -14649,7 +14729,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14662,7 +14742,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -14671,7 +14751,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14925,7 +15005,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -14934,7 +15014,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -14947,7 +15027,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -14956,7 +15036,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15210,7 +15290,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -15219,7 +15299,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15232,7 +15312,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -15241,7 +15321,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15445,7 +15525,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -15454,7 +15534,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15467,7 +15547,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -15476,7 +15556,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15826,7 +15906,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -15835,7 +15915,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15848,7 +15928,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -15857,7 +15937,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15950,7 +16030,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -15959,7 +16039,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -15972,7 +16052,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -15981,7 +16061,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -16085,7 +16165,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -16094,7 +16174,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -16107,7 +16187,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "to_timestamp-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -16116,7 +16196,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -16598,7 +16678,7 @@
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "start_date-example-1": {
-                "value": "2024-01-01T00:00:00Z"
+                "value": "2026-11-01T00:00:00Z"
               }
             },
             "in": "query",
@@ -16607,7 +16687,7 @@
             "schema": {
               "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
               "examples": [
-                "2024-01-01T00:00:00Z"
+                "2026-11-01T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"
@@ -16620,7 +16700,7 @@
             "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
             "examples": {
               "end_date-example-1": {
-                "value": "2024-12-31T23:59:59Z"
+                "value": "2026-11-02T00:00:00Z"
               }
             },
             "in": "query",
@@ -16629,7 +16709,7 @@
             "schema": {
               "description": "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.",
               "examples": [
-                "2024-12-31T23:59:59Z"
+                "2026-11-02T00:00:00Z"
               ],
               "format": "date-time",
               "type": "string"

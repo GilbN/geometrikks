@@ -25,6 +25,8 @@ from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.sorting import nulls_last_for_timings
 from geometrikks.lib.parameters import (
+    range_end_examples,
+    range_start_examples,
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
     IpAddressIn,
@@ -43,6 +45,7 @@ def provide_access_log_time_window(
             name="fromTimestamp",
             description="Keep only lines logged at or after this time, as ISO 8601 with a timezone.",
             required=False,
+            examples=range_start_examples(),
         ),
     ] = None,
     to_timestamp: Annotated[
@@ -51,6 +54,7 @@ def provide_access_log_time_window(
             name="toTimestamp",
             description="Keep only lines logged at or before this time, as ISO 8601 with a timezone.",
             required=False,
+            examples=range_end_examples(),
         ),
     ] = None,
 ) -> list[FilterTypes]:

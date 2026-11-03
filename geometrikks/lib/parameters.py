@@ -13,8 +13,22 @@ from typing import Annotated, Literal
 from litestar.openapi.spec import Example
 from litestar.params import QueryParameter
 
-_RANGE_START = "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`."
-_RANGE_END = "End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`."
+# LiveRangeExamplesJsonPlugin swaps these two strings for the last 24 hours in the served
+# /schema/openapi.json, so they must stay unique and must not appear as real data in the schema.
+EXAMPLE_RANGE_START = "2026-11-01T00:00:00Z"
+EXAMPLE_RANGE_END = "2026-11-02T00:00:00Z"
+
+
+def range_start_examples() -> list[Example]:
+    return [Example(value=EXAMPLE_RANGE_START)]
+
+
+def range_end_examples() -> list[Example]:
+    return [Example(value=EXAMPLE_RANGE_END)]
+
+
+_RANGE_START = f"Start of the range, inclusive, as ISO 8601 with a timezone, such as `{EXAMPLE_RANGE_START}`."
+_RANGE_END = f"End of the range, exclusive, as ISO 8601 with a timezone, such as `{EXAMPLE_RANGE_END}`."
 GEO_WHOLE_BUCKETS_NOTE = (
     "count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts "
     "before `toTimestamp`"
@@ -42,7 +56,7 @@ FromTimestamp = Annotated[
     QueryParameter(
         name="fromTimestamp",
         description=_RANGE_START,
-        examples=[Example(value="2024-01-01T00:00:00Z")],
+        examples=range_start_examples(),
     ),
 ]
 
@@ -51,7 +65,7 @@ ToTimestamp = Annotated[
     QueryParameter(
         name="toTimestamp",
         description=_RANGE_END,
-        examples=[Example(value="2024-12-31T23:59:59Z")],
+        examples=range_end_examples(),
     ),
 ]
 
@@ -61,7 +75,7 @@ StartDate = Annotated[
     QueryParameter(
         name="startDate",
         description=_RANGE_START,
-        examples=[Example(value="2024-01-01T00:00:00Z")],
+        examples=range_start_examples(),
     ),
 ]
 
@@ -70,7 +84,7 @@ EndDate = Annotated[
     QueryParameter(
         name="endDate",
         description=_RANGE_END,
-        examples=[Example(value="2024-12-31T23:59:59Z")],
+        examples=range_end_examples(),
     ),
 ]
 

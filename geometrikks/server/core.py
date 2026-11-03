@@ -15,6 +15,7 @@ from geometrikks.server import plugins
 from geometrikks.server.api_key_auth import api_key_scope_guard
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.openapi_docs import API_INTRO, API_TAGS
+from geometrikks.server.openapi_render import LiveRangeExamplesJsonPlugin
 from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS
 from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
@@ -106,7 +107,7 @@ def create_app(
             description=API_INTRO,
             tags=API_TAGS,
             create_examples=False,
-            render_plugins=[ScalarRenderPlugin()],
+            render_plugins=[ScalarRenderPlugin(), LiveRangeExamplesJsonPlugin()],
         )
 
     compression_config = CompressionConfig(

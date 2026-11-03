@@ -13,7 +13,13 @@ from advanced_alchemy.service import OffsetPagination
 
 from geometrikks.domain.logs.schemas import AccessLogDebugEntry, AccessLogDebugStats
 from geometrikks.domain.logs.services import DEBUG_SORT_COLUMNS, AccessLogDebugService
-from geometrikks.lib.parameters import CITY_FILTER_DESCRIPTION, COUNTRY_FILTER_DESCRIPTION, REPEAT_NOTE
+from geometrikks.lib.parameters import (
+    CITY_FILTER_DESCRIPTION,
+    COUNTRY_FILTER_DESCRIPTION,
+    REPEAT_NOTE,
+    range_end_examples,
+    range_start_examples,
+)
 from geometrikks.lib.validation import validate_ip_addresses
 
 _STORED_FROM = "Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone."
@@ -23,10 +29,16 @@ _LINKED_ONLY = "Lines that did not parse into an access log line have no value a
 
 def provide_debug_time_window(
     from_timestamp: Annotated[
-        datetime | None, QueryParameter(name="fromTimestamp", description=_STORED_FROM, required=False)
+        datetime | None,
+        QueryParameter(
+            name="fromTimestamp", description=_STORED_FROM, required=False, examples=range_start_examples()
+        ),
     ] = None,
     to_timestamp: Annotated[
-        datetime | None, QueryParameter(name="toTimestamp", description=_STORED_TO, required=False)
+        datetime | None,
+        QueryParameter(
+            name="toTimestamp", description=_STORED_TO, required=False, examples=range_end_examples()
+        ),
     ] = None,
 ) -> list[FilterTypes]:
     """Optional inclusive [from, to] window on ``created_at`` (ingest time).
@@ -173,10 +185,16 @@ class AccessLogDebugController(Controller):
         self,
         access_log_debug_service: NamedDependency[AccessLogDebugService],
         from_timestamp: Annotated[
-            datetime | None, QueryParameter(name="fromTimestamp", description=_STORED_FROM, required=False)
+            datetime | None,
+            QueryParameter(
+                name="fromTimestamp", description=_STORED_FROM, required=False, examples=range_start_examples()
+            ),
         ] = None,
         to_timestamp: Annotated[
-            datetime | None, QueryParameter(name="toTimestamp", description=_STORED_TO, required=False)
+            datetime | None,
+            QueryParameter(
+                name="toTimestamp", description=_STORED_TO, required=False, examples=range_end_examples()
+            ),
         ] = None,
     ) -> AccessLogDebugStats:
         """Totals, malformed count, and top parse error within the range."""
