@@ -312,7 +312,7 @@ function SectionBody({
     case "last-error":
       return <LastErrorBlock instance={instance} />
     case "sources":
-      return <SourcesList instance={instance} />
+      return <SourcesList instance={instance} now={now} />
     case "jobs":
       return <JobsList instance={instance} now={now} />
     case "geoip":
