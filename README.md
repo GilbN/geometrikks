@@ -728,13 +728,14 @@ APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (se
 ![Login](/data/screenshots/login.png)
 
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
-under `/api/` and `/ws/` requires a session; the web app's static files
-(you need them to reach the login page), `/health`, `/health/ready` and
-`/schema` stay open. GeoMetrikks keeps sessions in the database, so restarts
-and updates don't log anyone out. A login lasts `APP_SESSION_MAX_AGE_DAYS`
-days, 7 by default. The clock starts when you sign in and using the app
-doesn't reset it. Changing the admin user or password, or who may sign in
-with OIDC, ends every session on the next start.
+under `/api/` and `/ws/` requires a session or an [API key](#api-keys); the
+web app's static files (you need them to reach the login page), `/health`,
+`/health/ready` and `/schema` stay open. GeoMetrikks keeps sessions in the
+database, so restarts and updates don't log anyone out. A login lasts
+`APP_SESSION_MAX_AGE_DAYS` days, 7 by default. The clock starts when you
+sign in and using the app doesn't reset it. Changing the admin user or
+password, or who may sign in with OIDC, ends every session on the next
+start.
 
 If something else already controls who reaches the app (an authenticating
 proxy such as Authelia or Tailscale, or a network only you can reach), you
@@ -819,6 +820,65 @@ verification off.
 The Settings > Status page shows whether the provider's discovery document
 could be fetched. Startup never waits for the provider; if it is still
 coming up, the first sign-in attempt retries.
+
+### API keys
+
+An API key lets a script or a dashboard call the API without logging in.
+Create one under Settings > API keys. Give it a name, pick a scope and
+choose when it expires. GeoMetrikks shows the key once, right after you
+create it. If you lose it, revoke it and create a new one.
+
+Keys start with `gmk_`. Send one in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer gmk_..." https://geo.example.com/api/v1/stats
+```
+
+The WebSocket feeds take the same header, so a script can open `/ws/live`
+with a key. Browsers cannot set headers on a WebSocket, so the web app
+keeps using its session cookie.
+
+A key has one of two scopes. A Read key can make `GET` and `HEAD` requests
+and open the WebSocket feeds. Any other request gets a 403, so a Read key
+cannot ban or unban IPs, ban DROP networks, run a scheduler job now, rotate
+the log file, or delete a server location or a retired agent instance. A
+Read/write key can do all of that. No key can list, create or revoke keys,
+log out, or ask who is logged in. Those endpoints answer every key with a
+403, so managing keys takes a browser login.
+
+A request with an unknown, revoked or expired key gets a 401. The list
+under Settings > API keys shows each key's scope, expiry, and when and from
+which IP it was last used. The last-used time updates at most once a minute
+while the IP stays the same.
+
+Things to know before you hand a key to a script:
+
+- With `APP_AUTH_DISABLED=true` keys do nothing, because the API is already
+  open to anyone who can reach it. You cannot create keys in that mode.
+- An authenticating proxy such as Authelia checks every request before
+  GeoMetrikks sees it, so it blocks a script's bearer request unless it has
+  a rule letting it through, for example a bypass for the network the
+  script runs on. Past the proxy, GeoMetrikks still requires a key or a
+  login.
+- Changing the admin user or password, or who may sign in with OIDC, ends
+  every session on the next start but does not revoke keys. If a key may
+  have leaked, revoke it in Settings > API keys.
+- GeoMetrikks ignores a bearer token that does not start with `gmk_`, such
+  as a JWT your proxy adds, and the session cookie still works.
+
+Creating and revoking a key writes `api_key_created` and `api_key_revoked`
+lines to `login.log` in `LOG_DIR`. A request with a bad key writes an
+`api_key_rejected` line, at most once a minute for each key prefix and IP:
+
+```text
+2026-11-02T14:03:11Z api_key_rejected user="gmk_Ab12" ip=203.0.113.7
+```
+
+The `user` field holds the first eight characters of the key, never the
+whole key. For an expired key the line ends with the key's name as
+`key="..."`. These lines are not `login_failed`, so CrowdSec or fail2ban
+filters written for failed logins ignore them. Add `api_key_rejected` to
+your filter if you want guessed keys to lead to a ban.
 
 ## Running behind a reverse proxy
 
@@ -1012,6 +1072,11 @@ Notes for exposing GeoMetrikks to the internet:
   edge.
 - Use `APP_AUTH_DISABLED=true` only when an authenticating proxy (Authelia,
   Tailscale, ...) sits in front of the app.
+- An API key works without the login form, so treat it like a password.
+  Give each script its own key. Use the Read scope unless the script has to
+  ban, unban or delete, set an expiry, and revoke keys you no longer use.
+  A rejected key shows up in `login.log` as `api_key_rejected`, not
+  `login_failed`.
 
 ## CrowdSec integration (optional)
 
