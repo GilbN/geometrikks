@@ -834,6 +834,13 @@ Keys start with `gmk_`. Send one in the `Authorization` header:
 curl -H "Authorization: Bearer gmk_..." https://geo.example.com/api/v1/stats
 ```
 
+`/schema` lists every endpoint in an interactive API reference. To try one
+with a key, switch the auth type in the Authentication box at the top to
+`apiKey`, paste the key and click Test Request on an endpoint. While you
+are logged in, your browser also sends its session cookie, so a request
+without a key still works there. Log out or use a private window to see
+what a request without credentials gets.
+
 The WebSocket feeds take the same header, so a script can open `/ws/live`,
 `/ws/crowdsec` or `/ws/logs` with a key. Browsers cannot set headers on a
 WebSocket, so the web app keeps using its session cookie.
