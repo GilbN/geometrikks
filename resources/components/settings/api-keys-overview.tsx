@@ -235,8 +235,14 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
     setCreated(null)
     leaveBlocker.proceed?.()
   }
-  const askingToLeave = leaveBlocker.status === "blocked"
+  const askingToLeave = leaveBlocker.status === "blocked" && created !== null
   const stayOnReveal = () => leaveBlocker.reset?.()
+  // Done while the leave question is up answers it: the user has the key and asked to go.
+  const finishReveal = () => (askingToLeave ? leaveReveal() : setOpen(false))
+  const strandedBlock = leaveBlocker.status === "blocked" && created === null
+  useEffect(() => {
+    if (strandedBlock) leaveBlocker.reset?.()
+  }, [strandedBlock, leaveBlocker])
 
   const changeOpen = (nextOpen: boolean) => {
     if (!nextOpen && creatingNow()) return
@@ -289,7 +295,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
               />
             )}
             {created ? (
-              <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
+              <ApiKeyReveal created={created} onDone={finishReveal} />
             ) : (
               <ApiKeyCreateForm onCreated={setCreated} onCancel={() => changeOpen(false)} />
             )}
@@ -317,7 +323,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
                 <DialogTitle>Key created</DialogTitle>
                 <DialogDescription>{createdKeyLine(created.apiKey)}</DialogDescription>
               </DialogHeader>
-              <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
+              <ApiKeyReveal created={created} onDone={finishReveal} />
             </>
           ) : (
             <>
