@@ -16,7 +16,7 @@ from litestar.status_codes import HTTP_200_OK
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.api_key_auth import SESSION_ONLY_SECURITY, requires_session_user
+from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY, SESSION_ONLY_SECURITY, requires_session_user
 from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
@@ -79,8 +79,9 @@ class LogoutResponse(msgspec.Struct, rename="camel"):
         str | None,
         msgspec.Meta(
             description=(
-                "The identity provider's sign-out URL, set when the session came from OIDC and "
-                "OIDC_LOGOUT_IDP is on. Null means the login page."
+                "The identity provider's sign-out URL. GeoMetrikks sets it when the session came from OIDC, "
+                "OIDC_LOGOUT_IDP is on and the provider's discovery document lists an end_session_endpoint. "
+                "Null means the login page."
             )
         ),
     ]
@@ -106,7 +107,13 @@ class OidcStatus(msgspec.Struct, rename="camel"):
     ]
     password_login: Annotated[bool, msgspec.Meta(description="Whether the username and password login is on.")]
     idp_logout: Annotated[
-        bool, msgspec.Meta(description="Whether logging out also ends the session at the identity provider.")
+        bool,
+        msgspec.Meta(
+            description=(
+                "OIDC_LOGOUT_IDP. When true, logout also ends the identity provider session if the provider "
+                "lists an end_session_endpoint."
+            )
+        ),
     ]
 
 
@@ -128,6 +135,7 @@ class AuthController(Controller):
         "/login",
         status_code=HTTP_200_OK,
         exclude_from_auth=True,
+        security=NO_CREDENTIALS_SECURITY,
         summary="Log in with the admin username and password",
         description=(
             "Checks the admin username and password, starts a browser session and sets its cookie. "
@@ -175,7 +183,8 @@ class AuthController(Controller):
         summary="Log out and end the browser session",
         description=(
             "Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the "
-            "identity provider's sign-out URL. API keys get a 403 here; use a browser session."
+            "identity provider's sign-out URL, as long as the provider lists an end_session_endpoint. "
+            "API keys get a 403 here; use a browser session."
         ),
     )
     async def logout(
@@ -231,6 +240,7 @@ class AuthController(Controller):
     @get(
         "/options",
         exclude_from_auth=True,
+        security=NO_CREDENTIALS_SECURITY,
         summary="List the login methods this server offers",
         description=(
             "Says whether password login is on and, when OIDC single sign-on is set up, gives the provider's "
@@ -291,7 +301,7 @@ class AuthController(Controller):
             idp_logout=settings.oidc.logout_idp,
         )
 
-    @get("/oidc/start", exclude_from_auth=True, include_in_schema=False)
+    @get("/oidc/start", exclude_from_auth=True, include_in_schema=False, security=NO_CREDENTIALS_SECURITY)
     async def oidc_start(self, request: Request) -> Redirect:
         """Browser navigation from the login button: send it to the provider."""
         client = runtime.get_oidc_client(request.app)
@@ -309,7 +319,7 @@ class AuthController(Controller):
         request.set_session(session)
         return Redirect(url, headers={"Cache-Control": "no-store"})
 
-    @get("/oidc/callback", exclude_from_auth=True, include_in_schema=False)
+    @get("/oidc/callback", exclude_from_auth=True, include_in_schema=False, security=NO_CREDENTIALS_SECURITY)
     async def oidc_callback(
         self,
         request: Request,

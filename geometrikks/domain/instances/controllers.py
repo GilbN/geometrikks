@@ -56,7 +56,7 @@ class InstanceController(Controller):
         return_dto=None,
         summary="Remove a retired instance from the list",
         description=(
-            "Deletes the instance's heartbeat row. An instance that is still running reappears at its next "
+            "Removes the instance from the list. An instance that is still running reappears at its next "
             "heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a "
             "browser session."
         ),

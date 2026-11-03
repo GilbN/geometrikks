@@ -297,12 +297,20 @@ async def test_session_only_operations_advertise_only_the_cookie(path: str, meth
 
 @pytest.mark.parametrize(
     ("path", "method"),
-    [("/api/v1/protected", "get"), (f"{API_V1_PREFIX}/auth/login", "post"), (f"{API_V1_PREFIX}/auth/options", "get")],
+    [("/api/v1/protected", "get")],
 )
 async def test_other_operations_keep_both_schemes(path: str, method: str):
     schema = await openapi_schema()
     operation = schema["paths"][path][method]
     assert operation.get("security", schema["security"]) == [{"sessionCookie": []}, {"apiKey": []}]
+
+
+@pytest.mark.parametrize(
+    ("path", "method"), [(f"{API_V1_PREFIX}/auth/login", "post"), (f"{API_V1_PREFIX}/auth/options", "get")]
+)
+async def test_auth_excluded_operations_advertise_no_credentials(path: str, method: str):
+    schema = await openapi_schema()
+    assert schema["paths"][path][method]["security"] == [{}]
 
 
 @pytest.mark.parametrize(

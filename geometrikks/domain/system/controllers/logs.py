@@ -42,7 +42,8 @@ class LogFileView(msgspec.Struct, rename="camel"):
     size_bytes: Annotated[int, msgspec.Meta(description="The file size in bytes. Zero when the file is missing.")]
     modified_at: Annotated[datetime | None, msgspec.Meta(description="Null when the file is missing.")]
     available: Annotated[
-        bool, msgspec.Meta(description="Whether the file exists and is readable. Only available files download.")
+        bool,
+        msgspec.Meta(description="Whether the file exists and is readable. The download endpoint serves only available files."),
     ]
 
 
@@ -77,9 +78,9 @@ class LogsController(Controller):
         sync_to_thread=True,
         summary="Get the newest app or login log records",
         description=(
-            "Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. Lines "
-            "that do not parse are skipped, so fewer records can come back. App log records keep every key "
-            "the event carried, so expect more keys than the schema lists."
+            "Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. It skips "
+            "lines that do not parse, so fewer records can come back. App log records keep every key the "
+            "event carried, so expect more keys than the schema lists."
         ),
     )
     def tail(
@@ -89,8 +90,8 @@ class LogsController(Controller):
             int,
             QueryParameter(
                 description=(
-                    f"How many lines to read from the end of the log, from 1 to {MAX_TAIL_LINES}. Values outside "
-                    "that range are clamped. Defaults to 500."
+                    f"How many lines to read from the end of the log, from 1 to {MAX_TAIL_LINES}. The server "
+                    "clamps a value outside that range to the nearest end. Defaults to 500."
                 )
             ),
         ] = 500,
@@ -114,7 +115,7 @@ class LogsController(Controller):
         description=(
             "Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in "
             "LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` "
-            "false."
+            "false. With LOGPARSER_ENABLED=false the list has no access logs."
         ),
     )
     def list_files(
@@ -163,7 +164,7 @@ class LogsController(Controller):
         sync_to_thread=True,
         summary="Rotate the app and login logs now",
         description=(
-            "Starts fresh log files and gzips the old ones into archives. A log that is empty is left alone. "
+            "Starts fresh log files and gzips the old ones into archives. It skips a log that is empty. "
             "Returns the names of the files that rotated. Needs a Read/write API key or a browser session."
         ),
     )

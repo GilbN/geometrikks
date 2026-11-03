@@ -76,7 +76,15 @@ SchedulerStatus = Literal["running", "disabled", "unavailable"]
 class SchedulerJobsResponse(msgspec.Struct, rename="camel"):
     """The scheduler and its jobs."""
 
-    scheduler_enabled: Annotated[bool, msgspec.Meta(description="SCHEDULER_ENABLED.")]
+    scheduler_enabled: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "Whether the scheduler is turned on in this process. False with SCHEDULER_ENABLED=false and "
+                "whenever the process has no scheduler, such as after a start without the database."
+            )
+        ),
+    ]
     scheduler_running: bool
     jobs: list[SchedulerJobView]
     # "unavailable" means DB-degraded mode never started the scheduler.
@@ -482,7 +490,8 @@ class SystemController(Controller):
         description=(
             "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB "
             "and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP "
-            "lists. The database fields are null when the database is unreachable."
+            "lists. When the database is unreachable, every database field is null except `migrationHead`, "
+            "the newest migration this build ships."
         ),
     )
     async def get_about(
@@ -661,7 +670,8 @@ class SystemController(Controller):
         description=(
             "Moves the job's next run to now and answers 202 right away, before the job finishes. A job that "
             "is already running does not start a second time, and an interval job counts its next run from "
-            "this one. An unknown job id gets a 404. Needs a Read/write API key or a browser session."
+            "this one. An unknown job id gets a 404, and so does every id while this process has no "
+            "scheduler. Needs a Read/write API key or a browser session."
         ),
     )
     async def run_scheduler_job(

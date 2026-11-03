@@ -846,14 +846,6 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
     ApiV1AuthLoginLoginErrors,
     ThrowOnError
   >({
-    security: [
-      {
-        in: "cookie",
-        name: "session",
-        type: "apiKey",
-      },
-      { scheme: "bearer", type: "http" },
-    ],
     url: "/api/v1/auth/login",
     ...options,
     headers: {
@@ -865,7 +857,7 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
 /**
  * Log out and end the browser session
  *
- * Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the identity provider's sign-out URL. API keys get a 403 here; use a browser session.
+ * Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the identity provider's sign-out URL, as long as the provider lists an end_session_endpoint. API keys get a 403 here; use a browser session.
  */
 export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
@@ -952,18 +944,7 @@ export const apiV1AuthOptionsOptions = <ThrowOnError extends boolean = false>(
     ApiV1AuthOptionsOptionsResponses,
     unknown,
     ThrowOnError
-  >({
-    security: [
-      {
-        in: "cookie",
-        name: "session",
-        type: "apiKey",
-      },
-      { scheme: "bearer", type: "http" },
-    ],
-    url: "/api/v1/auth/options",
-    ...options,
-  });
+  >({ url: "/api/v1/auth/options", ...options });
 
 /**
  * ListAlerts
@@ -1993,7 +1974,7 @@ export const apiV1InstancesListInstances = <
 /**
  * Remove a retired instance from the list
  *
- * Deletes the instance's heartbeat row. An instance that is still running reappears at its next heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a browser session.
+ * Removes the instance from the list. An instance that is still running reappears at its next heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a browser session.
  */
 export const apiV1InstancesInstanceNameDeleteInstance = <
   ThrowOnError extends boolean = false,
@@ -2024,7 +2005,7 @@ export const apiV1InstancesInstanceNameDeleteInstance = <
 /**
  * List the log files you can download
  *
- * Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` false.
+ * Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` false. With LOGPARSER_ENABLED=false the list has no access logs.
  */
 export const apiV1LogsFilesListFiles = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsFilesListFilesData, ThrowOnError>,
@@ -2080,7 +2061,7 @@ export const apiV1LogsFilesKindNameDownload = <
 /**
  * Rotate the app and login logs now
  *
- * Starts fresh log files and gzips the old ones into archives. A log that is empty is left alone. Returns the names of the files that rotated. Needs a Read/write API key or a browser session.
+ * Starts fresh log files and gzips the old ones into archives. It skips a log that is empty. Returns the names of the files that rotated. Needs a Read/write API key or a browser session.
  */
 export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsRotateRotateData, ThrowOnError>,
@@ -2105,7 +2086,7 @@ export const apiV1LogsRotateRotate = <ThrowOnError extends boolean = false>(
 /**
  * Get the newest app or login log records
  *
- * Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. Lines that do not parse are skipped, so fewer records can come back. App log records keep every key the event carried, so expect more keys than the schema lists.
+ * Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. It skips lines that do not parse, so fewer records can come back. App log records keep every key the event carried, so expect more keys than the schema lists.
  */
 export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1LogsTailTailData, ThrowOnError>,
@@ -2244,7 +2225,7 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
 /**
  * Get version, runtime and database details
  *
- * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. The database fields are null when the database is unreachable.
+ * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.
  */
 export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SystemAboutGetAboutData, ThrowOnError>,
@@ -2427,7 +2408,7 @@ export const apiV1SystemSchedulerJobsGetSchedulerJobs = <
 /**
  * Run a scheduler job now
  *
- * Moves the job's next run to now and answers 202 right away, before the job finishes. A job that is already running does not start a second time, and an interval job counts its next run from this one. An unknown job id gets a 404. Needs a Read/write API key or a browser session.
+ * Moves the job's next run to now and answers 202 right away, before the job finishes. A job that is already running does not start a second time, and an interval job counts its next run from this one. An unknown job id gets a 404, and so does every id while this process has no scheduler. Needs a Read/write API key or a browser session.
  */
 export const apiV1SystemSchedulerJobsJobIdRunRunSchedulerJob = <
   ThrowOnError extends boolean = false,
@@ -2498,24 +2479,13 @@ export const healthHealth = <ThrowOnError extends boolean = false>(
   options?: Options<HealthHealthData, ThrowOnError>,
 ): RequestResult<HealthHealthResponses, unknown, ThrowOnError> =>
   (options?.client ?? client).get<HealthHealthResponses, unknown, ThrowOnError>(
-    {
-      security: [
-        {
-          in: "cookie",
-          name: "session",
-          type: "apiKey",
-        },
-        { scheme: "bearer", type: "http" },
-      ],
-      url: "/health",
-      ...options,
-    },
+    { url: "/health", ...options },
   );
 
 /**
  * Check that the app is ready for traffic
  *
- * Answers 200 with `ready` true once `SELECT 1` against the database answers within two seconds, and 503 with `ready` false until then. An agent also waits for its startup schema check, and one whose check timed out stays at 503 until it restarts. No credentials needed.
+ * Runs `SELECT 1` against the database on every request. It answers 200 with `ready` true when the query returns within two seconds and 503 with `ready` false otherwise, so a ready app goes back to 503 when the database drops. An agent also needs a passed startup schema check, and one whose check timed out stays at 503 until it restarts. No credentials needed.
  */
 export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
   options?: Options<HealthReadyHealthReadyData, ThrowOnError>,
@@ -2528,15 +2498,4 @@ export const healthReadyHealthReady = <ThrowOnError extends boolean = false>(
     HealthReadyHealthReadyResponses,
     HealthReadyHealthReadyErrors,
     ThrowOnError
-  >({
-    security: [
-      {
-        in: "cookie",
-        name: "session",
-        type: "apiKey",
-      },
-      { scheme: "bearer", type: "http" },
-    ],
-    url: "/health/ready",
-    ...options,
-  });
+  >({ url: "/health/ready", ...options });

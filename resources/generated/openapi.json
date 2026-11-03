@@ -1036,10 +1036,10 @@
         "type": "object"
       },
       "AnalyticsSettingsView": {
-        "description": "How long the database keeps each kind of data, in days.",
+        "description": "How many days the database keeps each kind of data, and when it compresses it.",
         "properties": {
           "compressionAfterDays": {
-            "description": "Days after which stored data is compressed.",
+            "description": "The age in days at which TimescaleDB compresses stored data.",
             "type": "integer"
           },
           "debugRetentionDays": {
@@ -1047,7 +1047,7 @@
             "type": "integer"
           },
           "hourlyRetentionDays": {
-            "description": "Days to keep the hourly aggregates. The daily aggregates are kept forever.",
+            "description": "Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever.",
             "type": "integer"
           },
           "rawRetentionDays": {
@@ -1097,7 +1097,7 @@
             "type": "string"
           },
           "displayPrefix": {
-            "description": "The first eight characters of the key. They identify it here and in login.log.",
+            "description": "The first eight characters of the key. They identify it here, and an api_key_rejected line in login.log carries them in place of the key.",
             "type": "string"
           },
           "expired": {
@@ -2914,7 +2914,7 @@
             ]
           },
           "dbPath": {
-            "description": "Where the file sits on the server.",
+            "description": "The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there.",
             "type": "string"
           }
         },
@@ -3594,7 +3594,7 @@
           },
           "health": {
             "additionalProperties": {},
-            "description": "The instance's health report. `health` on the instance gives it typed.",
+            "description": "The instance's health report as raw JSON. The instance's `health` field holds the same report with a schema.",
             "type": "object"
           },
           "instanceNameSource": {
@@ -3763,7 +3763,7 @@
         "properties": {
           "failedBatches": {
             "default": 0,
-            "description": "Database writes that failed. Their records are dropped, not retried.",
+            "description": "Database writes that failed. GeoMetrikks drops their records and does not retry them.",
             "type": "integer"
           },
           "failedRecords": {
@@ -3803,7 +3803,7 @@
             "type": "integer"
           },
           "running": {
-            "description": "Whether the ingestion task is running.",
+            "description": "False when ingestion is turned off, failed to start or has stopped.",
             "type": "boolean"
           },
           "status": {
@@ -3875,7 +3875,7 @@
         "description": "Where one server sits on the map.",
         "properties": {
           "detectedAt": {
-            "description": "When the location was detected. Null for an override.",
+            "description": "When the instance last recorded the location. Null for an override.",
             "oneOf": [
               {
                 "format": "date-time",
@@ -3896,7 +3896,7 @@
             "type": "string"
           },
           "source": {
-            "description": "`auto` when an instance detected it from its public IP, `override` when MAP_SERVER_LOCATIONS sets it.",
+            "description": "`auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.",
             "type": "string"
           }
         },
@@ -4016,7 +4016,7 @@
         "description": "Every instance that sends heartbeats.",
         "properties": {
           "checkedAt": {
-            "description": "The database time that `checkingIn` and the problems were judged at.",
+            "description": "The database time GeoMetrikks compared each heartbeat against to set `checkingIn` and the problems.",
             "format": "date-time",
             "type": "string"
           },
@@ -4911,7 +4911,7 @@
         "description": "A log file on this server.",
         "properties": {
           "available": {
-            "description": "Whether the file exists and is readable. Only available files download.",
+            "description": "Whether the file exists and is readable. The download endpoint serves only available files.",
             "type": "boolean"
           },
           "kind": {
@@ -5056,7 +5056,7 @@
         "description": "Where the browser goes after logging out.",
         "properties": {
           "redirectTo": {
-            "description": "The identity provider's sign-out URL, set when the session came from OIDC and OIDC_LOGOUT_IDP is on. Null means the login page.",
+            "description": "The identity provider's sign-out URL. GeoMetrikks sets it when the session came from OIDC, OIDC_LOGOUT_IDP is on and the provider's discovery document lists an end_session_endpoint. Null means the login page.",
             "oneOf": [
               {
                 "type": "string"
@@ -5084,7 +5084,7 @@
             "type": "array"
           },
           "sendLogs": {
-            "description": "Whether parsed log lines are written to the database.",
+            "description": "Whether ingestion parses each line in full and stores an access log row with its HTTP fields. When false, GeoMetrikks still stores geo events but no access log rows.",
             "type": "boolean"
           },
           "storeDebugLines": {
@@ -5262,7 +5262,7 @@
             "type": "string"
           },
           "idpLogout": {
-            "description": "Whether logging out also ends the session at the identity provider.",
+            "description": "OIDC_LOGOUT_IDP. When true, logout also ends the identity provider session if the provider lists an end_session_endpoint.",
             "type": "boolean"
           },
           "issuer": {
@@ -6359,7 +6359,7 @@
             "type": "array"
           },
           "schedulerEnabled": {
-            "description": "SCHEDULER_ENABLED.",
+            "description": "Whether the scheduler is turned on in this process. False with SCHEDULER_ENABLED=false and whenever the process has no scheduler, such as after a start without the database.",
             "type": "boolean"
           },
           "schedulerRunning": {
@@ -7576,7 +7576,7 @@
     }
   },
   "info": {
-    "description": "GeoMetrikks reads your reverse proxy's access logs, looks up where each client IP is, and serves the results through this API. The web app uses the same endpoints.\n\n## Authentication\n\nSend an API key in the `Authorization` header:\n\n```bash\ncurl -H \"Authorization: Bearer gmk_...\" https://geo.example.com/api/v1/stats\n```\n\nCreate keys in the web app under Settings > API keys. GeoMetrikks shows a key once, right after you create it. A logged-in browser sends its `session` cookie instead, so the requests you try on this page work without a key while you are logged in.\n\nEvery path under `/api/` and `/ws/` needs a key or a session. `/health`, `/health/ready`, `/api/v1/auth/login` and `/api/v1/auth/options` need neither. A server started with `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.\n\n## Scopes\n\nEvery key has one of two scopes.\n\n- **Read** keys can send `GET` and `HEAD` requests and open the WebSocket feeds `/ws/live`, `/ws/crowdsec` and `/ws/logs`. Any other method gets a 403.\n- **Read/write** keys can also ban and unban IPs, ban DROP networks, run a scheduler job, rotate the log files and delete server locations and retired instances.\n\nNo key can list, create or revoke keys, log out, call `/api/v1/auth/me` or read `/api/v1/auth/oidc/status`. Those endpoints answer every key with a 403 and need a browser session.\n\n## Errors\n\nAn error response is a JSON object with the HTTP status and a message:\n\n```json\n{\"status_code\": 404, \"detail\": \"The API key does not exist.\"}\n```\n\nWhen a parameter fails validation, the 400 response adds an `extra` list that names each bad parameter:\n\n```json\n{\n  \"status_code\": 400,\n  \"detail\": \"Validation failed for GET /api/v1/logs/tail?lines=abc\",\n  \"extra\": [{\"message\": \"Expected `int`, got `str`\", \"key\": \"lines\", \"source\": \"query\"}]\n}\n```\n\nError keys are snake_case. Successful responses use camelCase keys.\n\n| Status | Meaning |\n| --- | --- |\n| 400 | A parameter or the body failed validation, for example an IP that does not parse. |\n| 401 | The request carries no session and no key, or the key is malformed, unknown, revoked or expired. |\n| 403 | A Read key sent a write, a key called an endpoint that needs a browser session, or a CrowdSec ban or unban reached a server without CrowdSec machine credentials. |\n| 404 | No route or no resource matches. CrowdSec endpoints other than the status also answer 404 when the CrowdSec integration is off. |\n| 409 | The request conflicts with the current state, for example a key name that is taken. |\n| 415 | `POST /api/v1/auth/api-keys` got a body that is not `application/json`. |\n| 500 | CrowdSec rejected the configured credentials, or the server hit an unexpected error. |\n| 502 | The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error. |\n| 503 | The database is unreachable. Checking an API key needs the database, so requests with a key get a 503 until it is back. |\n\n## Time ranges\n\nMost analytics endpoints and the abuse report take the range as `startDate` and `endDate`. The geo event, geo location, access log, access log debug and CrowdSec banned-location endpoints call it `fromTimestamp` and `toTimestamp`. Send them as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. GeoMetrikks stores times in UTC and returns them in UTC.\n\n`/api/v1/analytics/time-series`, `/api/v1/analytics/geo-time-series` and `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for longer ones, and their `granularity` parameter forces either size. Every response with buckets names the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone such as `Europe/Oslo`.\n\n## Pagination\n\nPaged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, `total`, `limit` and `offset`, where `total` counts the matches on every page. `/api/v1/crowdsec/drop-networks` calls its page parameter `page`. `/api/v1/crowdsec/alerts` pages by cursor, so pass the `nextCursor` of one response as `before` to get the next, older page. Top lists take a `limit` instead and have no pages.\n",
+    "description": "GeoMetrikks reads your reverse proxy's access logs, looks up where each client IP is, and serves the results through this API. The web app uses the same endpoints.\n\n## Authentication\n\nSend an API key in the `Authorization` header:\n\n```bash\ncurl -H \"Authorization: Bearer gmk_...\" https://geo.example.com/api/v1/stats\n```\n\nCreate keys in the web app under Settings > API keys. GeoMetrikks shows a key once, right after you create it. A logged-in browser sends its `session` cookie instead, so the requests you try on this page work without a key while you are logged in.\n\nEvery path under `/api/` and `/ws/` needs a key or a session. `/health`, `/health/ready`, `/api/v1/auth/login`, `/api/v1/auth/options` and the OIDC login routes `/api/v1/auth/oidc/start` and `/api/v1/auth/oidc/callback` need neither. A server started with `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.\n\n## Scopes\n\nEvery key has one of two scopes.\n\n- **Read** keys can send `GET` and `HEAD` requests and open the WebSocket feeds `/ws/live`, `/ws/crowdsec` and `/ws/logs`. Any other method gets a 403.\n- **Read/write** keys can also ban and unban IPs, ban DROP networks, run a scheduler job, rotate the log files and delete server locations and retired instances.\n\nNo key can list, create or revoke keys, log out, call `/api/v1/auth/me` or read `/api/v1/auth/oidc/status`. Those endpoints answer every key with a 403 and need a browser session.\n\n## Errors\n\nAn error response is a JSON object with the HTTP status and a message:\n\n```json\n{\"status_code\": 404, \"detail\": \"The API key does not exist.\"}\n```\n\nWhen a parameter fails validation, the 400 response adds an `extra` list that names each bad parameter:\n\n```json\n{\n  \"status_code\": 400,\n  \"detail\": \"Validation failed for GET /api/v1/logs/tail?lines=abc\",\n  \"extra\": [{\"message\": \"Expected `int`, got `str`\", \"key\": \"lines\", \"source\": \"query\"}]\n}\n```\n\nError keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one exception to this shape, and its 503 body is `{\"ready\": false}`.\n\n| Status | Meaning |\n| --- | --- |\n| 400 | A parameter or the body failed validation, for example an IP that does not parse, or a CrowdSec request needs a newer LAPI than the one configured. |\n| 401 | The request carries no session and no key, or the key is malformed, unknown, revoked or expired. |\n| 403 | A Read key sent a write, a key called an endpoint that needs a browser session, or a CrowdSec ban, unban or alert endpoint reached a server without CrowdSec machine credentials. |\n| 404 | No route or no resource matches. CrowdSec endpoints other than the status also answer 404 when the CrowdSec integration is off. |\n| 409 | The request conflicts with the current state, for example a key name that is taken. |\n| 415 | `POST /api/v1/auth/api-keys` got a body that is not `application/json`. |\n| 500 | CrowdSec rejected the configured credentials, or the server hit an unexpected error. |\n| 502 | The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error. |\n| 503 | The database is unreachable. Checking an API key needs the database, so requests with a key get a 503 until it is back. `/health/ready` also answers 503 on an agent whose startup schema check timed out, even while the database answers. |\n\n## Time ranges\n\nMost analytics endpoints and the abuse report take the range as `startDate` and `endDate`. The geo event, geo location, access log, access log debug and CrowdSec banned-location endpoints call it `fromTimestamp` and `toTimestamp`. Send them as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. GeoMetrikks stores times in UTC and returns them in UTC.\n\n`/api/v1/analytics/time-series`, `/api/v1/analytics/geo-time-series` and `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for longer ones, and their `granularity` parameter forces either size. Every response with buckets names the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone such as `Europe/Oslo`. `tz` only shifts ranges of 30 days or less to local days, and longer ranges keep UTC days whatever it says.\n\n## Pagination\n\nPaged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, `total`, `limit` and `offset`, where `total` counts the matches on every page. `/api/v1/crowdsec/drop-networks` is different. It takes `page` and a `pageSize` of at most 100, and answers with `items`, `totalNetworks` and traffic totals, with no `limit` or `offset`. `/api/v1/crowdsec/alerts` pages by cursor, so pass the `nextCursor` of one response as `before` to get the next, older page. Top lists take a `limit` instead and have no pages.\n",
     "title": "GeoMetrikks API",
     "version": "1"
   },
@@ -11021,6 +11021,9 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "Log in with the admin username and password",
         "tags": [
           "Auth"
@@ -11030,7 +11033,7 @@
     "/api/v1/auth/logout": {
       "post": {
         "deprecated": false,
-        "description": "Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the identity provider's sign-out URL. API keys get a 403 here; use a browser session.",
+        "description": "Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the identity provider's sign-out URL, as long as the provider lists an end_session_endpoint. API keys get a 403 here; use a browser session.",
         "operationId": "ApiV1AuthLogoutLogout",
         "responses": {
           "200": {
@@ -11139,6 +11142,9 @@
             "headers": {}
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "List the login methods this server offers",
         "tags": [
           "Auth"
@@ -15729,7 +15735,7 @@
     "/api/v1/instances/{instance_name}": {
       "delete": {
         "deprecated": false,
-        "description": "Deletes the instance's heartbeat row. An instance that is still running reappears at its next heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a browser session.",
+        "description": "Removes the instance from the list. An instance that is still running reappears at its next heartbeat, and the head that answers cannot remove itself. Needs a Read/write API key or a browser session.",
         "operationId": "ApiV1InstancesInstanceNameDeleteInstance",
         "parameters": [
           {
@@ -15827,7 +15833,7 @@
     "/api/v1/logs/files": {
       "get": {
         "deprecated": false,
-        "description": "Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` false.",
+        "description": "Lists geometrikks.log and login.log with their rotated `.gz` archives, then every access log in LOGPARSER_LOG_PATHS. An access log that is missing or unreadable still appears, with `available` false. With LOGPARSER_ENABLED=false the list has no access logs.",
         "operationId": "ApiV1LogsFilesListFiles",
         "responses": {
           "200": {
@@ -15964,7 +15970,7 @@
     "/api/v1/logs/rotate": {
       "post": {
         "deprecated": false,
-        "description": "Starts fresh log files and gzips the old ones into archives. A log that is empty is left alone. Returns the names of the files that rotated. Needs a Read/write API key or a browser session.",
+        "description": "Starts fresh log files and gzips the old ones into archives. It skips a log that is empty. Returns the names of the files that rotated. Needs a Read/write API key or a browser session.",
         "operationId": "ApiV1LogsRotateRotate",
         "responses": {
           "201": {
@@ -15988,20 +15994,20 @@
     "/api/v1/logs/tail": {
       "get": {
         "deprecated": false,
-        "description": "Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. Lines that do not parse are skipped, so fewer records can come back. App log records keep every key the event carried, so expect more keys than the schema lists.",
+        "description": "Returns the last `lines` lines of geometrikks.log or login.log as records, oldest first. It skips lines that do not parse, so fewer records can come back. App log records keep every key the event carried, so expect more keys than the schema lists.",
         "operationId": "ApiV1LogsTailTail",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "How many lines to read from the end of the log, from 1 to 2000. Values outside that range are clamped. Defaults to 500.",
+            "description": "How many lines to read from the end of the log, from 1 to 2000. The server clamps a value outside that range to the nearest end. Defaults to 500.",
             "in": "query",
             "name": "lines",
             "required": false,
             "schema": {
               "default": 500,
-              "description": "How many lines to read from the end of the log, from 1 to 2000. Values outside that range are clamped. Defaults to 500.",
+              "description": "How many lines to read from the end of the log, from 1 to 2000. The server clamps a value outside that range to the nearest end. Defaults to 500.",
               "type": "integer"
             }
           },
@@ -16381,7 +16387,7 @@
     "/api/v1/system/about": {
       "get": {
         "deprecated": false,
-        "description": "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. The database fields are null when the database is unreachable.",
+        "description": "Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.",
         "operationId": "ApiV1SystemAboutGetAbout",
         "responses": {
           "200": {
@@ -16525,7 +16531,7 @@
     "/api/v1/system/scheduler/jobs/{job_id}/run": {
       "post": {
         "deprecated": false,
-        "description": "Moves the job's next run to now and answers 202 right away, before the job finishes. A job that is already running does not start a second time, and an interval job counts its next run from this one. An unknown job id gets a 404. Needs a Read/write API key or a browser session.",
+        "description": "Moves the job's next run to now and answers 202 right away, before the job finishes. A job that is already running does not start a second time, and an interval job counts its next run from this one. An unknown job id gets a 404, and so does every id while this process has no scheduler. Needs a Read/write API key or a browser session.",
         "operationId": "ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJob",
         "parameters": [
           {
@@ -16639,6 +16645,9 @@
             "headers": {}
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "Check that the app is up and how its parts are doing",
         "tags": [
           "Health"
@@ -16648,7 +16657,7 @@
     "/health/ready": {
       "get": {
         "deprecated": false,
-        "description": "Answers 200 with `ready` true once `SELECT 1` against the database answers within two seconds, and 503 with `ready` false until then. An agent also waits for its startup schema check, and one whose check timed out stays at 503 until it restarts. No credentials needed.",
+        "description": "Runs `SELECT 1` against the database on every request. It answers 200 with `ready` true when the query returns within two seconds and 503 with `ready` false otherwise, so a ready app goes back to 503 when the database drops. An agent also needs a passed startup schema check, and one whose check timed out stays at 503 until it restarts. No credentials needed.",
         "operationId": "HealthReadyHealthReady",
         "responses": {
           "200": {
@@ -16673,6 +16682,9 @@
             "description": "Database unreachable, or an agent whose schema gate has not passed; the app is not ready for traffic."
           }
         },
+        "security": [
+          {}
+        ],
         "summary": "Check that the app is ready for traffic",
         "tags": [
           "Health"
@@ -16695,7 +16707,7 @@
   ],
   "tags": [
     {
-      "description": "Log in and out of the web app, see who is logged in, and list, create and revoke API keys. Everything here except login and the login options needs a browser session.",
+      "description": "Log in and out of the web app, see who is logged in, and list, create and revoke API keys. Login, the login options and the OIDC login routes need no credentials. Everything else here needs a browser session.",
       "name": "Auth"
     },
     {

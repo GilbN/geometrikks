@@ -69,7 +69,7 @@ class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
 
     health: Annotated[
         dict[str, Any],
-        msgspec.Meta(description="The instance's health report. `health` on the instance gives it typed."),
+        msgspec.Meta(description="The instance's health report as raw JSON. The instance's `health` field holds the same report with a schema."),
     ] = {}
     jobs: list[JobReport] = []
     last_error: LastErrorReport | None = None

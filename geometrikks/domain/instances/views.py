@@ -22,11 +22,15 @@ class InstanceServerLocationView(msgspec.Struct, rename="camel", kw_only=True):
     source: Annotated[
         str,
         msgspec.Meta(
-            description="`auto` when an instance detected it from its public IP, `override` when MAP_SERVER_LOCATIONS sets it."
+            description=(
+                "`auto` when the instance that tails the server recorded its own location, from its "
+                "MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when "
+                "MAP_SERVER_LOCATIONS on the head pins the server."
+            )
         ),
     ]
     detected_at: Annotated[
-        datetime | None, msgspec.Meta(description="When the location was detected. Null for an override.")
+        datetime | None, msgspec.Meta(description="When the instance last recorded the location. Null for an override.")
     ]
 
 
@@ -84,5 +88,6 @@ class InstancesResponse(msgspec.Struct, rename="camel", kw_only=True):
     head: HeadIdentityView
     instances: list[InstanceView]
     checked_at: Annotated[
-        datetime, msgspec.Meta(description="The database time that `checkingIn` and the problems were judged at.")
+        datetime,
+        msgspec.Meta(description="The database time GeoMetrikks compared each heartbeat against to set `checkingIn` and the problems."),
     ]

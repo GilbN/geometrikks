@@ -1015,10 +1015,12 @@ export const AlertViewSchema = {
 } as const;
 
 export const AnalyticsSettingsViewSchema = {
-  description: "How long the database keeps each kind of data, in days.",
+  description:
+    "How many days the database keeps each kind of data, and when it compresses it.",
   properties: {
     compressionAfterDays: {
-      description: "Days after which stored data is compressed.",
+      description:
+        "The age in days at which TimescaleDB compresses stored data.",
       type: "integer",
     },
     debugRetentionDays: {
@@ -1027,7 +1029,7 @@ export const AnalyticsSettingsViewSchema = {
     },
     hourlyRetentionDays: {
       description:
-        "Days to keep the hourly aggregates. The daily aggregates are kept forever.",
+        "Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever.",
       type: "integer",
     },
     rawRetentionDays: {
@@ -1078,7 +1080,7 @@ export const ApiKeyViewSchema = {
     },
     displayPrefix: {
       description:
-        "The first eight characters of the key. They identify it here and in login.log.",
+        "The first eight characters of the key. They identify it here, and an api_key_rejected line in login.log carries them in place of the key.",
       type: "string",
     },
     expired: {
@@ -2812,7 +2814,8 @@ export const GeoIPInfoViewSchema = {
       ],
     },
     dbPath: {
-      description: "Where the file sits on the server.",
+      description:
+        "The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there.",
       type: "string",
     },
   },
@@ -3461,7 +3464,7 @@ export const HeartbeatPayloadSchema = {
     health: {
       additionalProperties: {},
       description:
-        "The instance's health report. `health` on the instance gives it typed.",
+        "The instance's health report as raw JSON. The instance's `health` field holds the same report with a schema.",
       type: "object",
     },
     instanceNameSource: {
@@ -3637,7 +3640,7 @@ export const IngestionHealthSchema = {
     failedBatches: {
       default: 0,
       description:
-        "Database writes that failed. Their records are dropped, not retried.",
+        "Database writes that failed. GeoMetrikks drops their records and does not retry them.",
       type: "integer",
     },
     failedRecords: {
@@ -3681,7 +3684,8 @@ export const IngestionHealthSchema = {
       type: "integer",
     },
     running: {
-      description: "Whether the ingestion task is running.",
+      description:
+        "False when ingestion is turned off, failed to start or has stopped.",
       type: "boolean",
     },
     status: {
@@ -3752,7 +3756,8 @@ export const InstanceServerLocationViewSchema = {
   description: "Where one server sits on the map.",
   properties: {
     detectedAt: {
-      description: "When the location was detected. Null for an override.",
+      description:
+        "When the instance last recorded the location. Null for an override.",
       oneOf: [
         {
           format: "date-time",
@@ -3774,7 +3779,7 @@ export const InstanceServerLocationViewSchema = {
     },
     source: {
       description:
-        "`auto` when an instance detected it from its public IP, `override` when MAP_SERVER_LOCATIONS sets it.",
+        "`auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.",
       type: "string",
     },
   },
@@ -3893,7 +3898,7 @@ export const InstancesResponseSchema = {
   properties: {
     checkedAt: {
       description:
-        "The database time that `checkingIn` and the problems were judged at.",
+        "The database time GeoMetrikks compared each heartbeat against to set `checkingIn` and the problems.",
       format: "date-time",
       type: "string",
     },
@@ -4764,7 +4769,7 @@ export const LogFileViewSchema = {
   properties: {
     available: {
       description:
-        "Whether the file exists and is readable. Only available files download.",
+        "Whether the file exists and is readable. The download endpoint serves only available files.",
       type: "boolean",
     },
     kind: {
@@ -4900,7 +4905,7 @@ export const LogoutResponseSchema = {
   properties: {
     redirectTo: {
       description:
-        "The identity provider's sign-out URL, set when the session came from OIDC and OIDC_LOGOUT_IDP is on. Null means the login page.",
+        "The identity provider's sign-out URL. GeoMetrikks sets it when the session came from OIDC, OIDC_LOGOUT_IDP is on and the provider's discovery document lists an end_session_endpoint. Null means the login page.",
       oneOf: [
         {
           type: "string",
@@ -4928,7 +4933,8 @@ export const LogparserSettingsViewSchema = {
       type: "array",
     },
     sendLogs: {
-      description: "Whether parsed log lines are written to the database.",
+      description:
+        "Whether ingestion parses each line in full and stores an access log row with its HTTP fields. When false, GeoMetrikks still stores geo events but no access log rows.",
       type: "boolean",
     },
     storeDebugLines: {
@@ -5105,7 +5111,7 @@ export const OidcStatusSchema = {
     },
     idpLogout: {
       description:
-        "Whether logging out also ends the session at the identity provider.",
+        "OIDC_LOGOUT_IDP. When true, logout also ends the identity provider session if the provider lists an end_session_endpoint.",
       type: "boolean",
     },
     issuer: {
@@ -6149,7 +6155,8 @@ export const SchedulerJobsResponseSchema = {
       type: "array",
     },
     schedulerEnabled: {
-      description: "SCHEDULER_ENABLED.",
+      description:
+        "Whether the scheduler is turned on in this process. False with SCHEDULER_ENABLED=false and whenever the process has no scheduler, such as after a start without the database.",
       type: "boolean",
     },
     schedulerRunning: {

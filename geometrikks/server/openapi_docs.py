@@ -21,7 +21,8 @@ you create it. A logged-in browser sends its `session` cookie instead, so the re
 this page work without a key while you are logged in.
 
 Every path under `/api/` and `/ws/` needs a key or a session. `/health`, `/health/ready`, \
-`/api/v1/auth/login` and `/api/v1/auth/options` need neither. A server started with \
+`/api/v1/auth/login`, `/api/v1/auth/options` and the OIDC login routes `/api/v1/auth/oidc/start` and \
+`/api/v1/auth/oidc/callback` need neither. A server started with \
 `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.
 
 ## Scopes
@@ -55,14 +56,16 @@ parameter:
 }
 ```
 
-Error keys are snake_case. Successful responses use camelCase keys.
+Error keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one \
+exception to this shape, and its 503 body is `{"ready": false}`.
 
 | Status | Meaning |
 | --- | --- |
-| 400 | A parameter or the body failed validation, for example an IP that does not parse. |
+| 400 | A parameter or the body failed validation, for example an IP that does not parse, or a CrowdSec \
+request needs a newer LAPI than the one configured. |
 | 401 | The request carries no session and no key, or the key is malformed, unknown, revoked or expired. |
 | 403 | A Read key sent a write, a key called an endpoint that needs a browser session, or a \
-CrowdSec ban or unban reached a server without CrowdSec machine credentials. |
+CrowdSec ban, unban or alert endpoint reached a server without CrowdSec machine credentials. |
 | 404 | No route or no resource matches. CrowdSec endpoints other than the status also answer 404 \
 when the CrowdSec integration is off. |
 | 409 | The request conflicts with the current state, for example a key name that is taken. |
@@ -70,7 +73,8 @@ when the CrowdSec integration is off. |
 | 500 | CrowdSec rejected the configured credentials, or the server hit an unexpected error. |
 | 502 | The CrowdSec LAPI or an RDAP registry failed to answer or answered with an error. |
 | 503 | The database is unreachable. Checking an API key needs the database, so requests with a key \
-get a 503 until it is back. |
+get a 503 until it is back. `/health/ready` also answers 503 on an agent whose startup schema check \
+timed out, even while the database answers. |
 
 ## Time ranges
 
@@ -83,14 +87,16 @@ event, geo location, access log, access log debug and CrowdSec banned-location e
 `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for \
 longer ones, and their `granularity` parameter forces either size. Every response with buckets names \
 the size it used in `granularity`. Daily buckets are UTC days unless you pass `tz` with an IANA zone \
-such as `Europe/Oslo`.
+such as `Europe/Oslo`. `tz` only shifts ranges of 30 days or less to local days, and longer ranges \
+keep UTC days whatever it says.
 
 ## Pagination
 
 Paged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, \
 `total`, `limit` and `offset`, where `total` counts the matches on every page. \
-`/api/v1/crowdsec/drop-networks` calls its page parameter `page`. `/api/v1/crowdsec/alerts` pages \
-by cursor, so pass the `nextCursor` of one response as `before` to get the next, older page. \
+`/api/v1/crowdsec/drop-networks` is different. It takes `page` and a `pageSize` of at most 100, and \
+answers with `items`, `totalNetworks` and traffic totals, with no `limit` or `offset`. \
+`/api/v1/crowdsec/alerts` pages by cursor, so pass the `nextCursor` of one response as `before` to get the next, older page. \
 Top lists take a `limit` instead and have no pages.
 """
 
@@ -99,7 +105,8 @@ API_TAGS: list[Tag] = [
         name="Auth",
         description=(
             "Log in and out of the web app, see who is logged in, and list, create and revoke API keys. "
-            "Everything here except login and the login options needs a browser session."
+            "Login, the login options and the OIDC login routes need no credentials. Everything else here "
+            "needs a browser session."
         ),
     ),
     Tag(

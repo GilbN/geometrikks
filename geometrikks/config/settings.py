@@ -1457,6 +1457,10 @@ class Settings(BaseSettings):
         return "GeoMetrikks API"
 
     @property
+    def description(self) -> str:
+        return "Real-time GeoIP lookups and traffic analytics API"
+
+    @property
     def version(self) -> str:
         """The installed package version."""
         return get_installed_version()

@@ -292,11 +292,11 @@ export type AlertView = {
 /**
  * AnalyticsSettingsView
  *
- * How long the database keeps each kind of data, in days.
+ * How many days the database keeps each kind of data, and when it compresses it.
  */
 export type AnalyticsSettingsView = {
   /**
-   * Days after which stored data is compressed.
+   * The age in days at which TimescaleDB compresses stored data.
    */
   compressionAfterDays: number;
   /**
@@ -304,7 +304,7 @@ export type AnalyticsSettingsView = {
    */
   debugRetentionDays: number;
   /**
-   * Days to keep the hourly aggregates. The daily aggregates are kept forever.
+   * Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever.
    */
   hourlyRetentionDays: number;
   /**
@@ -338,7 +338,7 @@ export type ApiKeyView = {
    */
   createdBy: string;
   /**
-   * The first eight characters of the key. They identify it here and in login.log.
+   * The first eight characters of the key. They identify it here, and an api_key_rejected line in login.log carries them in place of the key.
    */
   displayPrefix: string;
   /**
@@ -1055,7 +1055,7 @@ export type GeoIpInfoView = {
    */
   buildDate: string | null;
   /**
-   * Where the file sits on the server.
+   * The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there.
    */
   dbPath: string;
 };
@@ -1298,7 +1298,7 @@ export type HeartbeatPayload = {
    */
   failedBatches5M?: number | null;
   /**
-   * The instance's health report. `health` on the instance gives it typed.
+   * The instance's health report as raw JSON. The instance's `health` field holds the same report with a schema.
    */
   health?: {
     [key: string]: unknown;
@@ -1380,7 +1380,7 @@ export type HypertableStatsView = {
  */
 export type IngestionHealth = {
   /**
-   * Database writes that failed. Their records are dropped, not retried.
+   * Database writes that failed. GeoMetrikks drops their records and does not retry them.
    */
   failedBatches?: number;
   /**
@@ -1408,7 +1408,7 @@ export type IngestionHealth = {
    */
   publishDropped?: number;
   /**
-   * Whether the ingestion task is running.
+   * False when ingestion is turned off, failed to start or has stopped.
    */
   running: boolean;
   /**
@@ -1438,14 +1438,14 @@ export type IngestionStatsResponse = {
  */
 export type InstanceServerLocationView = {
   /**
-   * When the location was detected. Null for an override.
+   * When the instance last recorded the location. Null for an override.
    */
   detectedAt: string | null;
   latitude: number;
   longitude: number;
   server: string;
   /**
-   * `auto` when an instance detected it from its public IP, `override` when MAP_SERVER_LOCATIONS sets it.
+   * `auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.
    */
   source: string;
 };
@@ -1513,7 +1513,7 @@ export type InstanceView = {
  */
 export type InstancesResponse = {
   /**
-   * The database time that `checkingIn` and the problems were judged at.
+   * The database time GeoMetrikks compared each heartbeat against to set `checkingIn` and the problems.
    */
   checkedAt: string;
   head: HeadIdentityView;
@@ -1758,7 +1758,7 @@ export type LocationTopIpsResponse = {
  */
 export type LogFileView = {
   /**
-   * Whether the file exists and is readable. Only available files download.
+   * Whether the file exists and is readable. The download endpoint serves only available files.
    */
   available: boolean;
   /**
@@ -1845,7 +1845,7 @@ export type LoginPayload = {
  */
 export type LogoutResponse = {
   /**
-   * The identity provider's sign-out URL, set when the session came from OIDC and OIDC_LOGOUT_IDP is on. Null means the login page.
+   * The identity provider's sign-out URL. GeoMetrikks sets it when the session came from OIDC, OIDC_LOGOUT_IDP is on and the provider's discovery document lists an end_session_endpoint. Null means the login page.
    */
   redirectTo: string | null;
 };
@@ -1861,7 +1861,7 @@ export type LogparserSettingsView = {
    */
   logPaths: Array<string>;
   /**
-   * Whether parsed log lines are written to the database.
+   * Whether ingestion parses each line in full and stores an access log row with its HTTP fields. When false, GeoMetrikks still stores geo events but no access log rows.
    */
   sendLogs: boolean;
   /**
@@ -1944,7 +1944,7 @@ export type OidcStatus = {
    */
   discovery: "ok" | "failed" | "pending";
   /**
-   * Whether logging out also ends the session at the identity provider.
+   * OIDC_LOGOUT_IDP. When true, logout also ends the identity provider session if the provider lists an end_session_endpoint.
    */
   idpLogout: boolean;
   issuer: string | null;
@@ -2315,7 +2315,7 @@ export type SchedulerJobView = {
 export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
   /**
-   * SCHEDULER_ENABLED.
+   * Whether the scheduler is turned on in this process. False with SCHEDULER_ENABLED=false and whenever the process has no scheduler, such as after a start without the database.
    */
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
@@ -5687,7 +5687,7 @@ export type ApiV1LogsTailTailData = {
   path?: never;
   query?: {
     /**
-     * How many lines to read from the end of the log, from 1 to 2000. Values outside that range are clamped. Defaults to 500.
+     * How many lines to read from the end of the log, from 1 to 2000. The server clamps a value outside that range to the nearest end. Defaults to 500.
      */
     lines?: number;
     /**

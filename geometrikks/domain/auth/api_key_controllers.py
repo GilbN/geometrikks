@@ -57,7 +57,12 @@ class ApiKeyView(msgspec.Struct, kw_only=True, rename="camel"):
     scope: Annotated[ApiKeyScope, msgspec.Meta(description=SCOPE_DESCRIPTION)]
     display_prefix: Annotated[
         str,
-        msgspec.Meta(description="The first eight characters of the key. They identify it here and in login.log."),
+        msgspec.Meta(
+            description=(
+                "The first eight characters of the key. They identify it here, and an api_key_rejected line in "
+                "login.log carries them in place of the key."
+            )
+        ),
     ]
     created_at: datetime
     created_by: Annotated[str, msgspec.Meta(description="The username that created the key.")]
@@ -197,8 +202,9 @@ class ApiKeyController(Controller):
         summary="Create an API key",
         description=(
             "Creates a key and returns it in `key`. This is the only time the full key appears, so store it "
-            "now. A taken name gets a 409, and a name outside 1 to 64 characters or an expiry in the past "
-            "gets a 400. Send the body as `application/json`. API keys get a 403 here; use a browser session."
+            "now. A taken name gets a 409, and a name outside 1 to "
+            f"{API_KEY_NAME_MAX_LENGTH} characters or an expiry in the past gets a 400. Send the body as "
+            "`application/json`. API keys get a 403 here; use a browser session."
         ),
         responses={
             HTTP_403_FORBIDDEN: _SESSION_ONLY,

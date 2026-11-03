@@ -24,7 +24,15 @@ class LogparserSettingsView(msgspec.Struct, rename="camel"):
     """The log ingestion settings."""
 
     log_paths: Annotated[list[str], msgspec.Meta(description="The access log files this server tails, from LOGPARSER_LOG_PATHS.")]
-    send_logs: Annotated[bool, msgspec.Meta(description="Whether parsed log lines are written to the database.")]
+    send_logs: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "Whether ingestion parses each line in full and stores an access log row with its HTTP fields. "
+                "When false, GeoMetrikks still stores geo events but no access log rows."
+            )
+        ),
+    ]
     store_debug_lines: Annotated[
         bool,
         msgspec.Meta(description="Whether every raw line goes to the debug table. When false, only malformed ones do."),
@@ -32,14 +40,16 @@ class LogparserSettingsView(msgspec.Struct, rename="camel"):
 
 
 class AnalyticsSettingsView(msgspec.Struct, rename="camel"):
-    """How long the database keeps each kind of data, in days."""
+    """How many days the database keeps each kind of data, and when it compresses it."""
 
     raw_retention_days: Annotated[int, msgspec.Meta(description="Days to keep raw geo events and access log lines.")]
     debug_retention_days: Annotated[int, msgspec.Meta(description="Days to keep the access log debug lines.")]
     hourly_retention_days: Annotated[
-        int, msgspec.Meta(description="Days to keep the hourly aggregates. The daily aggregates are kept forever.")
+        int, msgspec.Meta(description="Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever.")
     ]
-    compression_after_days: Annotated[int, msgspec.Meta(description="Days after which stored data is compressed.")]
+    compression_after_days: Annotated[
+        int, msgspec.Meta(description="The age in days at which TimescaleDB compresses stored data.")
+    ]
 
 
 class DefaultMapView(msgspec.Struct, rename="camel"):

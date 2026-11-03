@@ -34,6 +34,7 @@ from geometrikks.lib.advisories import (
     legacy_env_advisory,
 )
 from geometrikks.server import runtime
+from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
@@ -58,7 +59,9 @@ class UnavailableSourceHealth(msgspec.Struct, rename="camel"):
 class IngestionHealth(msgspec.Struct, rename="camel"):
     """The log ingestion of this process. The counters start at zero when the process starts."""
 
-    running: Annotated[bool, msgspec.Meta(description="Whether the ingestion task is running.")]
+    running: Annotated[
+        bool, msgspec.Meta(description="False when ingestion is turned off, failed to start or has stopped.")
+    ]
     parsed_lines: Annotated[int, msgspec.Meta(description="Log lines parsed, across all sources.")]
     pending_records: Annotated[
         int, msgspec.Meta(description="Parsed records held in memory until the next database write.")
@@ -85,7 +88,8 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
         int, msgspec.Meta(description="Live feed events left out because they were too large to send.")
     ] = 0
     failed_batches: Annotated[
-        int, msgspec.Meta(description="Database writes that failed. Their records are dropped, not retried.")
+        int,
+        msgspec.Meta(description="Database writes that failed. GeoMetrikks drops their records and does not retry them."),
     ] = 0
     failed_records: Annotated[int, msgspec.Meta(description="Records lost in the failed writes.")] = 0
     # Additive: richer than missing_files, which keeps the labels for older clients.
@@ -660,6 +664,7 @@ def build_health_response(
 @get(
     "/health",
     tags=["Health"],
+    security=NO_CREDENTIALS_SECURITY,
     summary="Check that the app is up and how its parts are doing",
     description=(
         "Answers 200 whenever the process serves requests, so Docker and load balancers can use it as a "
@@ -683,11 +688,13 @@ async def health(
 @get(
     "/health/ready",
     tags=["Health"],
+    security=NO_CREDENTIALS_SECURITY,
     summary="Check that the app is ready for traffic",
     description=(
-        "Answers 200 with `ready` true once `SELECT 1` against the database answers within two seconds, and "
-        "503 with `ready` false until then. An agent also waits for its startup schema check, and one whose "
-        "check timed out stays at 503 until it restarts. No credentials needed."
+        "Runs `SELECT 1` against the database on every request. It answers 200 with `ready` true when the "
+        "query returns within two seconds and 503 with `ready` false otherwise, so a ready app goes back to "
+        "503 when the database drops. An agent also needs a passed startup schema check, and one whose check "
+        "timed out stays at 503 until it restarts. No credentials needed."
     ),
     responses={
         HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(
