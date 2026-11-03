@@ -17,7 +17,6 @@ from geometrikks.domain.analytics.repositories import (
 )
 from geometrikks.domain.analytics.dtos import (
     SummaryResponse,
-    PeriodSummary,
     PercentChange,
     CumulativeDataPoint,
     CumulativeTimeSeriesResponse,
@@ -45,6 +44,7 @@ from geometrikks.domain.analytics.dtos import (
     IpProfileUserAgentDTO,
 )
 from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
+from geometrikks.domain.analytics.summary import period_summary
 from geometrikks.domain.analytics.asn_classification import classify_asn
 from geometrikks.domain.analytics.ip_profile import IpProfile, IpProfileBucket, IpProfileRepository
 
@@ -222,46 +222,14 @@ class AnalyticsController(Controller):
 
         if current_stats is None:
             # Return empty summary if no data
-            empty_period = PeriodSummary(
-                total_requests=0,
-                timed_requests=0,
-                total_geo_events=0,
-                unique_ips=0,
-                unique_countries=0,
-                total_bytes_sent=0,
-                avg_bytes_per_request=0.0,
-                status_2xx=0,
-                status_3xx=0,
-                status_4xx=0,
-                status_5xx=0,
-                avg_request_time=None,
-                max_request_time=None,
-                malformed_requests=0,
-                error_rate=0.0,
-            )
+            empty_period = period_summary(None)
             return SummaryResponse(
                 start_date=start_date.isoformat(),
                 end_date=end_date.isoformat(),
                 current_period=empty_period,
             )
 
-        current_period = PeriodSummary(
-            total_requests=current_stats.total_log_records,
-            timed_requests=current_stats.timed_requests,
-            total_geo_events=current_stats.total_geo_records,
-            unique_ips=current_stats.unique_ips,
-            unique_countries=current_stats.unique_countries,
-            total_bytes_sent=current_stats.total_bytes_sent,
-            avg_bytes_per_request=current_stats.avg_bytes_per_request,
-            status_2xx=current_stats.status_2xx,
-            status_3xx=current_stats.status_3xx,
-            status_4xx=current_stats.status_4xx,
-            status_5xx=current_stats.status_5xx,
-            avg_request_time=current_stats.avg_request_time,
-            max_request_time=current_stats.max_request_time,
-            malformed_requests=current_stats.malformed_requests,
-            error_rate=current_stats.error_rate,
-        )
+        current_period = period_summary(current_stats)
 
         previous_period = None
         percent_changes = None
@@ -275,23 +243,7 @@ class AnalyticsController(Controller):
             prev_stats: SummaryStats | None = await summary_stats_repo.get_summary(prev_start, prev_end)
 
             if prev_stats:
-                previous_period = PeriodSummary(
-                    total_requests=prev_stats.total_log_records,
-                    timed_requests=prev_stats.timed_requests,
-                    total_geo_events=prev_stats.total_geo_records,
-                    unique_ips=prev_stats.unique_ips,
-                    unique_countries=prev_stats.unique_countries,
-                    total_bytes_sent=prev_stats.total_bytes_sent,
-                    avg_bytes_per_request=prev_stats.avg_bytes_per_request,
-                    status_2xx=prev_stats.status_2xx,
-                    status_3xx=prev_stats.status_3xx,
-                    status_4xx=prev_stats.status_4xx,
-                    status_5xx=prev_stats.status_5xx,
-                    avg_request_time=prev_stats.avg_request_time,
-                    max_request_time=prev_stats.max_request_time,
-                    malformed_requests=prev_stats.malformed_requests,
-                    error_rate=prev_stats.error_rate,
-                )
+                previous_period = period_summary(prev_stats)
 
                 percent_changes = PercentChange(
                     log_records=_calculate_percent_change(
@@ -356,46 +308,14 @@ class AnalyticsController(Controller):
 
         if current_stats is None:
             # Return empty summary if no data
-            empty_period = PeriodSummary(
-                total_requests=0,
-                timed_requests=0,
-                total_geo_events=0,
-                unique_ips=0,
-                unique_countries=0,
-                total_bytes_sent=0,
-                avg_bytes_per_request=0.0,
-                status_2xx=0,
-                status_3xx=0,
-                status_4xx=0,
-                status_5xx=0,
-                avg_request_time=None,
-                max_request_time=None,
-                malformed_requests=0,
-                error_rate=0.0,
-            )
+            empty_period = period_summary(None)
             return SummaryResponse(
                 start_date=start_date.isoformat(),
                 end_date=end_date.isoformat(),
                 current_period=empty_period,
             )
 
-        current_period = PeriodSummary(
-            total_requests=current_stats.total_log_records,
-            timed_requests=current_stats.timed_requests,
-            total_geo_events=current_stats.total_geo_records,
-            unique_ips=current_stats.unique_ips,
-            unique_countries=current_stats.unique_countries,
-            total_bytes_sent=current_stats.total_bytes_sent,
-            avg_bytes_per_request=current_stats.avg_bytes_per_request,
-            status_2xx=current_stats.status_2xx,
-            status_3xx=current_stats.status_3xx,
-            status_4xx=current_stats.status_4xx,
-            status_5xx=current_stats.status_5xx,
-            avg_request_time=current_stats.avg_request_time,
-            max_request_time=current_stats.max_request_time,
-            malformed_requests=current_stats.malformed_requests,
-            error_rate=current_stats.error_rate,
-        )
+        current_period = period_summary(current_stats)
 
         previous_period = None
         percent_changes = None
@@ -409,23 +329,7 @@ class AnalyticsController(Controller):
             prev_stats: SummaryStats | None = await live_stats_repo.get_summary(prev_start, prev_end)
 
             if prev_stats:
-                previous_period = PeriodSummary(
-                    total_requests=prev_stats.total_log_records,
-                    timed_requests=prev_stats.timed_requests,
-                    total_geo_events=prev_stats.total_geo_records,
-                    unique_ips=prev_stats.unique_ips,
-                    unique_countries=prev_stats.unique_countries,
-                    total_bytes_sent=prev_stats.total_bytes_sent,
-                    avg_bytes_per_request=prev_stats.avg_bytes_per_request,
-                    status_2xx=prev_stats.status_2xx,
-                    status_3xx=prev_stats.status_3xx,
-                    status_4xx=prev_stats.status_4xx,
-                    status_5xx=prev_stats.status_5xx,
-                    avg_request_time=prev_stats.avg_request_time,
-                    max_request_time=prev_stats.max_request_time,
-                    malformed_requests=prev_stats.malformed_requests,
-                    error_rate=prev_stats.error_rate,
-                )
+                previous_period = period_summary(prev_stats)
 
                 percent_changes = PercentChange(
                     log_records=_calculate_percent_change(

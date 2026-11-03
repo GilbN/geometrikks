@@ -206,6 +206,14 @@ class SummaryStatsRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def latest_event_at(self, start: datetime, end: datetime) -> datetime | None:
+        """Latest retained access-log event time in the inclusive/exclusive range."""
+        result = await self.session.execute(
+            text("SELECT max(timestamp) FROM access_logs WHERE timestamp >= :start AND timestamp < :end"),
+            {"start": start, "end": end},
+        )
+        return result.scalar_one()
+
     async def get_summary(
         self,
         start: datetime,

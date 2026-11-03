@@ -113,6 +113,14 @@ such as `Europe/Oslo`. `tz` makes daily buckets local days on ranges of 30 days 
 ranges keep UTC days unless the endpoint's description says otherwise. Those shorter ranges get hourly \
 buckets unless you send `granularity=daily`, and `tz` changes nothing on hourly buckets.
 
+## Dashboard summary
+
+`GET /api/v1/integration/summary?window=24h` combines traffic totals, instance health, local \
+ingestion and active CrowdSec decisions. Each section reports `available`, `reason` and `data`; \
+unavailable data is null rather than zero. `latestEventAt` is retained log time. Parser freshness \
+is per process and does not prove a database commit. The CrowdSec count makes one LAPI request \
+with a two-second deadline. Use the detailed endpoints when you need individual records.
+
 ## Pagination
 
 Paged lists take `currentPage`, counted from 1, and `pageSize`. They answer with `items`, \
@@ -124,6 +132,7 @@ the next, older page. Top lists take a `limit` instead and have no pages.
 """
 
 API_TAGS: list[Tag] = [
+    Tag(name="Integrations", description="A compact overview for scripts and dashboard widgets, with per-section availability."),
     Tag(
         name="Auth",
         description=(

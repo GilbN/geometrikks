@@ -928,6 +928,16 @@
       ],
       "uri": "/api/v1/stats"
     },
+    "summary": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "window": "string | undefined"
+      },
+      "uri": "/api/v1/integration/summary"
+    },
     "tail": {
       "method": "get",
       "methods": [

@@ -174,6 +174,9 @@ import type {
   ApiV1InstancesListInstancesData,
   ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponses,
+  ApiV1IntegrationSummarySummaryData,
+  ApiV1IntegrationSummarySummaryErrors,
+  ApiV1IntegrationSummarySummaryResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
   ApiV1LogsFilesKindNameDownloadResponses,
@@ -306,6 +309,7 @@ export type OperationName =
   | 'run_scheduler_job'
   | 'server_locations'
   | 'stats'
+  | 'summary'
   | 'tail'
   | 'unban'
 
@@ -389,6 +393,7 @@ export interface OperationDataTypes {
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsData
   'stats': ApiV1StatsStatsData
+  'summary': ApiV1IntegrationSummarySummaryData
   'tail': ApiV1LogsTailTailData
   'unban': ApiV1CrowdsecUnbanUnbanData
 }
@@ -473,6 +478,7 @@ export interface OperationResponseTypes {
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsResponses
   'stats': ApiV1StatsStatsResponses
+  'summary': ApiV1IntegrationSummarySummaryResponses
   'tail': ApiV1LogsTailTailResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
 }
@@ -557,6 +563,7 @@ export interface OperationErrorTypes {
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
   'server_locations': never
   'stats': never
+  'summary': ApiV1IntegrationSummarySummaryErrors
   'tail': ApiV1LogsTailTailErrors
   'unban': ApiV1CrowdsecUnbanUnbanErrors
 }

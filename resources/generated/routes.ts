@@ -100,6 +100,7 @@ export type RouteName =
   | 'server_locations'
   | 'service_worker'
   | 'stats'
+  | 'summary'
   | 'tail'
   | 'unban';
 
@@ -201,6 +202,7 @@ export interface RoutePathParams {
   'server_locations': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'summary': Record<string, never>;
   'tail': Record<string, never>;
   'unban': Record<string, never>;
 }
@@ -572,6 +574,9 @@ export interface RouteQueryParams {
   'server_locations': Record<string, never>;
   'service_worker': Record<string, never>;
   'stats': Record<string, never>;
+  'summary': {
+    window?: string;
+  };
   'tail': {
     lines?: number;
     source?: "app" | "login";
@@ -1140,6 +1145,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'summary': {
+    path: '/api/v1/integration/summary',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['window'] as const,
   },
   'tail': {
     path: '/api/v1/logs/tail',

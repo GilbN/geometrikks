@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Dashboards can fetch traffic, instance health, local ingestion status and active CrowdSec decisions with `GET /api/v1/integration/summary?window=24h`. Sections report unavailable data explicitly, and freshness fields distinguish log time, parser activity and heartbeats.
 - Scripts can test credentials with `GET /api/v1/auth/connection`. It returns the app/API version, authentication mode, configured features and the current key's name, scope and expiry. Auth-disabled servers say so explicitly instead of claiming a supplied key was validated.
 - Analytics API endpoints accept relative windows such as `window=24h` instead of explicit dates. Responses include the resolved bounds. Windows support whole minutes, hours or days, up to 365 days.
 - The details of a JSON debug line open on a Fields view with one row per key. Request and response headers come first, without Traefik's `request_` and `downstream_` prefixes, so a custom header your app sends sits at the top instead of somewhere in one long line. The keys GeoMetrikks drops follow, then the ones it stores, each tagged with the access-log column it fills. Nested keys show as dotted paths such as `request.tls.version`. The Raw tab shows the line as logged, and Copy still copies it. A line nested more than six levels deep or with more than 200 keys shows only the Raw tab, since no reverse proxy writes lines like that.

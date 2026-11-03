@@ -231,3 +231,41 @@ Capabilities are configured server features, independent of key permissions
 and current upstream availability. The names are `crowdsec`, `crowdsecWrite`,
 `asn` and `drop`. `crowdsecWrite` still requires a Read/write key or a session
 when authentication is enabled. A capability does not imply its service is reachable.
+
+## Integration summary
+
+`GET /api/v1/integration/summary?window=24h` returns a compact overview for
+scripts and dashboard widgets. The default is 24 hours. Window syntax and
+limits match analytics. Responses use `Cache-Control: no-store`.
+
+The `traffic`, `instances`, `ingestion` and `crowdsec` sections each carry
+`available`, `reason` and `data`. A failed or disabled section has null data;
+available traffic with no requests and available CrowdSec with no decisions
+have zero counts. A readable instances section can still contain unhealthy agents.
+
+Traffic totals reuse `/analytics/summary`. Ranges above 24 hours count whole
+aggregate buckets and estimate unique counts. `latestEventAt` is the latest
+retained access-log timestamp in the requested window. It is not an ingestion
+or commit time, and it can be null even when older aggregates contain traffic.
+
+Ingestion describes only the head process. Its `lastRecordAt` is when that
+process last parsed a record. `instances.items[].lastParsedAt` reports the
+corresponding heartbeat value for each head or agent; `lastSeen` is when the
+heartbeat arrived. Instance statuses and `checkingIn` use the existing
+instances API evaluation. None of these times guarantees a committed write.
+
+Sections are observed in sequence, not as one atomic snapshot. Database sections
+have a three-second deadline each. The active-decision count makes one LAPI
+request per summary call, with a two-second deadline. A failed dependency does
+not remove sections that could be read. API-key authentication still needs its
+store, so a store outage can return a coded 503 before summary processing.
+
+Section reasons are `disabled`, `not_running`, `not_started`, `services_inactive`,
+`database_unavailable`, `crowdsec_unreachable`, `crowdsec_timeout`, `crowdsec_credentials_rejected`
+or `invalid_response`. Unknown reasons should be displayed as unavailable.
+
+`services_inactive` means database-backed services have not started or recovered;
+it does not prove that the database itself is unreachable. `crowdsec_timeout`
+means the full decision list did not arrive within the deadline. The count
+includes all scopes and origins, including subscribed blocklists, and can differ
+from the Security page's filtered or grouped view.

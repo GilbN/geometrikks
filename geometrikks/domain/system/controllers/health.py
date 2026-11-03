@@ -563,6 +563,41 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
+def build_ingestion_health(settings: Settings, ingestion_service: LogIngestionService | None) -> IngestionHealth:
+    """The local parser's health, independent of agents and database totals."""
+    is_running = ingestion_service.is_running if ingestion_service else False
+    # A tailer keeps waiting for an unavailable source through log rotation,
+    # so running can stay true while some sources are unreadable.
+    unavailable_sources = ingestion_service.unavailable_sources if ingestion_service else []
+    missing_files = [source.label for source in unavailable_sources]
+    # Disabling parsing is an operator choice, not an outage.
+    ingestion_status = "disabled" if not settings.logparser.enabled else "running" if is_running else "degraded"
+    last_record_at = ingestion_service.last_record_at if ingestion_service else None
+    return IngestionHealth(
+        running=is_running,
+        parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
+        pending_records=ingestion_service.pending_records if ingestion_service else 0,
+        missing_files=missing_files,
+        unavailable_sources=[
+            UnavailableSourceHealth(
+                kind=source.kind, label=source.label, reason=source.reason
+            )
+            for source in unavailable_sources
+        ],
+        last_record_at=last_record_at.isoformat() if last_record_at else None,
+        status=ingestion_status,
+        publish_dropped=(
+            ingestion_service.publish_dropped if ingestion_service else 0
+        ),
+        failed_batches=(
+            ingestion_service.failed_batches if ingestion_service else 0
+        ),
+        failed_records=(
+            ingestion_service.failed_records if ingestion_service else 0
+        ),
+    )
+
+
 def build_health_response(
     app: Litestar,
     settings: Settings,
@@ -574,27 +609,10 @@ def build_health_response(
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
-    is_running = ingestion_service.is_running if ingestion_service else False
-    # Sources that became unavailable mid-flight: the tailer keeps waiting for
-    # them (log rotation resilience), so `running` stays true, but nothing is
-    # being ingested from those sources and status must not read as healthy.
-    unavailable_sources = (
-        ingestion_service.unavailable_sources if ingestion_service else []
-    )
-    missing_files = [source.label for source in unavailable_sources]
+    ingestion_health = build_ingestion_health(settings, ingestion_service)
     services_active = runtime.is_db_available(app, default=True)
 
     poller = runtime.get_crowdsec_poller(app)
-
-    # LOGPARSER_ENABLED=false is an operator choice, not an outage: it must
-    # report "disabled", not "degraded", and must not flip overall status.
-    ingestion_status: Literal["running", "degraded", "disabled"]
-    if not settings.logparser.enabled:
-        ingestion_status = "disabled"
-    elif is_running:
-        ingestion_status = "running"
-    else:
-        ingestion_status = "degraded"
 
     return HealthResponse(
         # geoip does not flip status on its own: without a GeoLite2 database
@@ -603,36 +621,12 @@ def build_health_response(
         if (
             db_reachable
             and services_active
-            and not missing_files
-            and ingestion_status != "degraded"
+            and not ingestion_health.missing_files
+            and ingestion_health.status != "degraded"
         )
         else "degraded",
         started_at=_iso(runtime.get_started_at(app)),
-        ingestion=IngestionHealth(
-            running=is_running,
-            parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
-            pending_records=ingestion_service.pending_records if ingestion_service else 0,
-            missing_files=missing_files,
-            unavailable_sources=[
-                UnavailableSourceHealth(
-                    kind=source.kind, label=source.label, reason=source.reason
-                )
-                for source in unavailable_sources
-            ],
-            last_record_at=_iso(
-                ingestion_service.last_record_at if ingestion_service else None
-            ),
-            status=ingestion_status,
-            publish_dropped=(
-                ingestion_service.publish_dropped if ingestion_service else 0
-            ),
-            failed_batches=(
-                ingestion_service.failed_batches if ingestion_service else 0
-            ),
-            failed_records=(
-                ingestion_service.failed_records if ingestion_service else 0
-            ),
-        ),
+        ingestion=ingestion_health,
         database=DatabaseHealth(
             reachable=db_reachable,
             services_active=services_active,

@@ -1038,6 +1038,17 @@ export type CrowdSecStatusResponse = {
 };
 
 /**
+ * CrowdSecSummary
+ *
+ * Current decisions across all scopes and origins, counted by one bounded LAPI request.
+ */
+export type CrowdSecSummary = {
+  activeDecisions: number;
+  checkedAt: string;
+  writeEnabled: boolean;
+};
+
+/**
  * CumulativeDataPoint
  *
  * Running totals through the end of one bucket.
@@ -2139,6 +2150,23 @@ export type InstanceServerLocationView = {
 };
 
 /**
+ * InstanceSummary
+ *
+ * One instance using the same health evaluation as the instances API.
+ */
+export type InstanceSummary = {
+  checkingIn: boolean;
+  instanceName: string;
+  /**
+   * The process's last parsed-record time from its heartbeat, not a commit time.
+   */
+  lastParsedAt: string | null;
+  lastSeen: string;
+  mode: string;
+  status: "ok" | "warning" | "critical";
+};
+
+/**
  * InstanceView
  *
  * One instance as the Agents page shows it.
@@ -2206,6 +2234,38 @@ export type InstancesResponse = {
   checkedAt: string;
   head: HeadIdentityView;
   instances: Array<InstanceView>;
+};
+
+/**
+ * InstancesSummary
+ *
+ * Head and agent heartbeat counts, with their individual states.
+ */
+export type InstancesSummary = {
+  checkedAt: string;
+  checkingIn: number;
+  critical: number;
+  items: Array<InstanceSummary>;
+  total: number;
+  warning: number;
+};
+
+/**
+ * IntegrationSummary
+ *
+ * A dashboard overview whose sections are observed in sequence, not one atomic snapshot.
+ */
+export type IntegrationSummary = {
+  crowdsec: SummarySectionGeometrikksDomainIntegrationsSchemasCrowdSecSummary;
+  endDate: string;
+  generatedAt: string;
+  /**
+   * This head process only. Agent ingestion freshness is in instances.items[].lastParsedAt.
+   */
+  ingestion: SummarySectionGeometrikksDomainSystemControllersHealthIngestionHealth;
+  instances: SummarySectionGeometrikksDomainIntegrationsSchemasInstancesSummary;
+  startDate: string;
+  traffic: SummarySectionGeometrikksDomainIntegrationsSchemasTrafficSummary;
 };
 
 /**
@@ -3427,6 +3487,93 @@ export type SummaryResponse = {
 };
 
 /**
+ * SummarySection[CrowdSecSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasCrowdSecSummary =
+  {
+    available: boolean;
+    data?: CrowdSecSummary | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
+ * SummarySection[InstancesSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasInstancesSummary =
+  {
+    available: boolean;
+    data?: InstancesSummary | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
+ * SummarySection[TrafficSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasTrafficSummary = {
+  available: boolean;
+  data?: TrafficSummary | null;
+  reason?:
+    | "disabled"
+    | "not_running"
+    | "not_started"
+    | "services_inactive"
+    | "database_unavailable"
+    | "crowdsec_unreachable"
+    | "crowdsec_timeout"
+    | "crowdsec_credentials_rejected"
+    | "invalid_response"
+    | null;
+};
+
+/**
+ * SummarySection[IngestionHealth]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainSystemControllersHealthIngestionHealth =
+  {
+    available: boolean;
+    data?: IngestionHealth | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
  * SystemSettingsResponse
  *
  * Every setting, grouped into sections, with secrets hidden.
@@ -3878,6 +4025,19 @@ export type TopUserAgentsResponse = {
    * The request's `startDate`, echoed as ISO 8601.
    */
   startDate: string;
+};
+
+/**
+ * TrafficSummary
+ *
+ * Uses analytics/summary semantics, including whole aggregate buckets above 24 hours.
+ */
+export type TrafficSummary = {
+  /**
+   * Latest retained access-log timestamp in the requested window, not ingestion or commit time. Null when no raw rows remain in that window, even if aggregate totals are nonzero.
+   */
+  latestEventAt: string | null;
+  totals: PeriodSummary;
 };
 
 /**
@@ -7176,6 +7336,51 @@ export type ApiV1InstancesInstanceNameDeleteInstanceResponses = {
 
 export type ApiV1InstancesInstanceNameDeleteInstanceResponse =
   ApiV1InstancesInstanceNameDeleteInstanceResponses[keyof ApiV1InstancesInstanceNameDeleteInstanceResponses];
+
+export type ApiV1IntegrationSummarySummaryData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+  };
+  url: "/api/v1/integration/summary";
+};
+
+export type ApiV1IntegrationSummarySummaryErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1IntegrationSummarySummaryError =
+  ApiV1IntegrationSummarySummaryErrors[keyof ApiV1IntegrationSummarySummaryErrors];
+
+export type ApiV1IntegrationSummarySummaryResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: IntegrationSummary;
+};
+
+export type ApiV1IntegrationSummarySummaryResponse =
+  ApiV1IntegrationSummarySummaryResponses[keyof ApiV1IntegrationSummarySummaryResponses];
 
 export type ApiV1LogsFilesListFilesData = {
   body?: never;

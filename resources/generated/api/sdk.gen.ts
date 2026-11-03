@@ -177,6 +177,9 @@ import type {
   ApiV1InstancesListInstancesData,
   ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponses,
+  ApiV1IntegrationSummarySummaryData,
+  ApiV1IntegrationSummarySummaryErrors,
+  ApiV1IntegrationSummarySummaryResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
   ApiV1LogsFilesKindNameDownloadResponses,
@@ -2083,6 +2086,37 @@ export const apiV1InstancesInstanceNameDeleteInstance = <
       { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/instances/{instance_name}",
+    ...options,
+  });
+
+/**
+ * Get a compact dashboard overview
+ *
+ * Traffic, instances, local ingestion and active CrowdSec decisions in one response. window defaults to 24h and supports up to 365 days. Traffic uses analytics/summary semantics, including whole aggregate buckets above 24 hours. latestEventAt is retained log time, not commit time. Agent freshness comes from heartbeats; local ingestion describes only this process. Each section has available, reason and data; unavailable data is null, not zero. Sections are observed sequentially. Database sections have a three-second deadline each and the CrowdSec count makes one LAPI request with a two-second deadline.
+ */
+export const apiV1IntegrationSummarySummary = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1IntegrationSummarySummaryData, ThrowOnError>,
+): RequestResult<
+  ApiV1IntegrationSummarySummaryResponses,
+  ApiV1IntegrationSummarySummaryErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1IntegrationSummarySummaryResponses,
+    ApiV1IntegrationSummarySummaryErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/integration/summary",
     ...options,
   });
 

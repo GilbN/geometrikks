@@ -1991,6 +1991,26 @@ export const CrowdSecStatusResponseSchema = {
   type: "object",
 } as const;
 
+export const CrowdSecSummarySchema = {
+  description:
+    "Current decisions across all scopes and origins, counted by one bounded LAPI request.",
+  properties: {
+    activeDecisions: {
+      type: "integer",
+    },
+    checkedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    writeEnabled: {
+      type: "boolean",
+    },
+  },
+  required: ["activeDecisions", "checkedAt", "writeEnabled"],
+  title: "CrowdSecSummary",
+  type: "object",
+} as const;
+
 export const CumulativeDataPointSchema = {
   description:
     "Running totals through the end of one bucket.\n\nRanges up to 24 hours count from `startDate`. Longer ranges count from the start of the hour or UTC\nday that holds it.",
@@ -4194,6 +4214,52 @@ export const InstanceServerLocationViewSchema = {
   type: "object",
 } as const;
 
+export const InstanceSummarySchema = {
+  description:
+    "One instance using the same health evaluation as the instances API.",
+  properties: {
+    checkingIn: {
+      type: "boolean",
+    },
+    instanceName: {
+      type: "string",
+    },
+    lastParsedAt: {
+      description:
+        "The process's last parsed-record time from its heartbeat, not a commit time.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastSeen: {
+      format: "date-time",
+      type: "string",
+    },
+    mode: {
+      type: "string",
+    },
+    status: {
+      enum: ["ok", "warning", "critical"],
+      type: "string",
+    },
+  },
+  required: [
+    "checkingIn",
+    "instanceName",
+    "lastParsedAt",
+    "lastSeen",
+    "mode",
+    "status",
+  ],
+  title: "InstanceSummary",
+  type: "object",
+} as const;
+
 export const InstanceViewSchema = {
   description:
     "One instance as the Agents page shows it.\n\n`payload` is the last heartbeat as the instance sent it, or null when it does not fit the current\nschema. `health` is the health report from that heartbeat in the shape `/health` uses, or null when\nit does not fit that shape.",
@@ -4320,6 +4386,92 @@ export const InstancesResponseSchema = {
   },
   required: ["checkedAt", "head", "instances"],
   title: "InstancesResponse",
+  type: "object",
+} as const;
+
+export const InstancesSummarySchema = {
+  description: "Head and agent heartbeat counts, with their individual states.",
+  properties: {
+    checkedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    checkingIn: {
+      type: "integer",
+    },
+    critical: {
+      type: "integer",
+    },
+    items: {
+      items: {
+        $ref: "#/components/schemas/InstanceSummary",
+      },
+      type: "array",
+    },
+    total: {
+      type: "integer",
+    },
+    warning: {
+      type: "integer",
+    },
+  },
+  required: [
+    "checkedAt",
+    "checkingIn",
+    "critical",
+    "items",
+    "total",
+    "warning",
+  ],
+  title: "InstancesSummary",
+  type: "object",
+} as const;
+
+export const IntegrationSummarySchema = {
+  description:
+    "A dashboard overview whose sections are observed in sequence, not one atomic snapshot.",
+  properties: {
+    crowdsec: {
+      $ref: "#/components/schemas/SummarySection_geometrikks.domain.integrations.schemas.CrowdSecSummary_",
+    },
+    endDate: {
+      format: "date-time",
+      type: "string",
+    },
+    generatedAt: {
+      format: "date-time",
+      type: "string",
+    },
+    ingestion: {
+      allOf: [
+        {
+          $ref: "#/components/schemas/SummarySection_geometrikks.domain.system.controllers.health.IngestionHealth_",
+        },
+      ],
+      description:
+        "This head process only. Agent ingestion freshness is in instances.items[].lastParsedAt.",
+    },
+    instances: {
+      $ref: "#/components/schemas/SummarySection_geometrikks.domain.integrations.schemas.InstancesSummary_",
+    },
+    startDate: {
+      format: "date-time",
+      type: "string",
+    },
+    traffic: {
+      $ref: "#/components/schemas/SummarySection_geometrikks.domain.integrations.schemas.TrafficSummary_",
+    },
+  },
+  required: [
+    "crowdsec",
+    "endDate",
+    "generatedAt",
+    "ingestion",
+    "instances",
+    "startDate",
+    "traffic",
+  ],
+  title: "IntegrationSummary",
   type: "object",
 } as const;
 
@@ -7027,6 +7179,162 @@ export const SummaryResponseSchema = {
   type: "object",
 } as const;
 
+export const SummarySection_geometrikks_domain_integrations_schemas_CrowdSecSummary_Schema =
+  {
+    description:
+      "Unavailable sections have a reason and null data; available sections may contain zero counts.",
+    properties: {
+      available: {
+        type: "boolean",
+      },
+      data: {
+        oneOf: [
+          {
+            $ref: "#/components/schemas/CrowdSecSummary",
+          },
+          {
+            type: "null",
+          },
+        ],
+      },
+      reason: {
+        enum: [
+          "disabled",
+          "not_running",
+          "not_started",
+          "services_inactive",
+          "database_unavailable",
+          "crowdsec_unreachable",
+          "crowdsec_timeout",
+          "crowdsec_credentials_rejected",
+          "invalid_response",
+          null,
+        ],
+        type: ["null", "string"],
+      },
+    },
+    required: ["available"],
+    title: "SummarySection[CrowdSecSummary]",
+    type: "object",
+  } as const;
+
+export const SummarySection_geometrikks_domain_integrations_schemas_InstancesSummary_Schema =
+  {
+    description:
+      "Unavailable sections have a reason and null data; available sections may contain zero counts.",
+    properties: {
+      available: {
+        type: "boolean",
+      },
+      data: {
+        oneOf: [
+          {
+            $ref: "#/components/schemas/InstancesSummary",
+          },
+          {
+            type: "null",
+          },
+        ],
+      },
+      reason: {
+        enum: [
+          "disabled",
+          "not_running",
+          "not_started",
+          "services_inactive",
+          "database_unavailable",
+          "crowdsec_unreachable",
+          "crowdsec_timeout",
+          "crowdsec_credentials_rejected",
+          "invalid_response",
+          null,
+        ],
+        type: ["null", "string"],
+      },
+    },
+    required: ["available"],
+    title: "SummarySection[InstancesSummary]",
+    type: "object",
+  } as const;
+
+export const SummarySection_geometrikks_domain_integrations_schemas_TrafficSummary_Schema =
+  {
+    description:
+      "Unavailable sections have a reason and null data; available sections may contain zero counts.",
+    properties: {
+      available: {
+        type: "boolean",
+      },
+      data: {
+        oneOf: [
+          {
+            $ref: "#/components/schemas/TrafficSummary",
+          },
+          {
+            type: "null",
+          },
+        ],
+      },
+      reason: {
+        enum: [
+          "disabled",
+          "not_running",
+          "not_started",
+          "services_inactive",
+          "database_unavailable",
+          "crowdsec_unreachable",
+          "crowdsec_timeout",
+          "crowdsec_credentials_rejected",
+          "invalid_response",
+          null,
+        ],
+        type: ["null", "string"],
+      },
+    },
+    required: ["available"],
+    title: "SummarySection[TrafficSummary]",
+    type: "object",
+  } as const;
+
+export const SummarySection_geometrikks_domain_system_controllers_health_IngestionHealth_Schema =
+  {
+    description:
+      "Unavailable sections have a reason and null data; available sections may contain zero counts.",
+    properties: {
+      available: {
+        type: "boolean",
+      },
+      data: {
+        oneOf: [
+          {
+            $ref: "#/components/schemas/IngestionHealth",
+          },
+          {
+            type: "null",
+          },
+        ],
+      },
+      reason: {
+        enum: [
+          "disabled",
+          "not_running",
+          "not_started",
+          "services_inactive",
+          "database_unavailable",
+          "crowdsec_unreachable",
+          "crowdsec_timeout",
+          "crowdsec_credentials_rejected",
+          "invalid_response",
+          null,
+        ],
+        type: ["null", "string"],
+      },
+    },
+    required: ["available"],
+    title: "SummarySection[IngestionHealth]",
+    type: "object",
+  } as const;
+
 export const SystemSettingsResponseSchema = {
   description: "Every setting, grouped into sections, with secrets hidden.",
   properties: {
@@ -7858,6 +8166,32 @@ export const TopUserAgentsResponseSchema = {
   },
   required: ["endDate", "items", "startDate"],
   title: "TopUserAgentsResponse",
+  type: "object",
+} as const;
+
+export const TrafficSummarySchema = {
+  description:
+    "Uses analytics/summary semantics, including whole aggregate buckets above 24 hours.",
+  properties: {
+    latestEventAt: {
+      description:
+        "Latest retained access-log timestamp in the requested window, not ingestion or commit time. Null when no raw rows remain in that window, even if aggregate totals are nonzero.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    totals: {
+      $ref: "#/components/schemas/PeriodSummary",
+    },
+  },
+  required: ["latestEventAt", "totals"],
+  title: "TrafficSummary",
   type: "object",
 } as const;
 
