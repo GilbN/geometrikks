@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`. A ban sent with an API key names the key, as in `api-key:homepage`.
 - In a record sheet, a long ban reason wraps with the time left at its end. The time left used to sit beside the reason's first line while the rest of the reason wrapped underneath.
 - On a phone, a long IPv6 address in the abuse report's title wraps onto a second line. It used to make the dialog scroll sideways.
 

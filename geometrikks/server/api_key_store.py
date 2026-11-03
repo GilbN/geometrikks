@@ -31,6 +31,8 @@ LAST_USED_WRITE_INTERVAL = timedelta(seconds=60)
 REJECTION_LOG_INTERVAL = timedelta(seconds=60)
 # Anyone can send a random gmk_ token, so the rejection map must not grow with the attacker.
 REJECTION_LOG_MAX_ENTRIES = 10_000
+# Without a share per IP, one client sending distinct tokens would fill the map and silence everyone.
+REJECTION_LOG_MAX_ENTRIES_PER_IP = 100
 
 _T = TypeVar("_T")
 
@@ -153,6 +155,7 @@ class ApiKeyStore:
         self.clock = clock
         self.timeout = timeout
         self._rejections_logged_at: dict[tuple[str, str | None], datetime] = {}
+        self._live_rejections_by_ip: dict[str | None, int] = {}
         self._last_touch_by_key: dict[UUID, tuple[datetime, str | None]] = {}
 
     async def _call(self, operation: Callable[[], Awaitable[_T]]) -> _T:
@@ -226,13 +229,25 @@ class ApiKeyStore:
             if now - logged_at < REJECTION_LOG_INTERVAL:
                 break
             del self._rejections_logged_at[oldest_rejection]
+            self._forget_live_rejection(oldest_rejection[1])
         rejection = (display_prefix, ip)
         if rejection in self._rejections_logged_at:
+            return False
+        live_rejections_for_ip = self._live_rejections_by_ip.get(ip, 0)
+        if live_rejections_for_ip >= REJECTION_LOG_MAX_ENTRIES_PER_IP:
             return False
         if len(self._rejections_logged_at) >= REJECTION_LOG_MAX_ENTRIES:
             return False
         self._rejections_logged_at[rejection] = now
+        self._live_rejections_by_ip[ip] = live_rejections_for_ip + 1
         return True
+
+    def _forget_live_rejection(self, ip: str | None) -> None:
+        live_rejections_for_ip = self._live_rejections_by_ip[ip] - 1
+        if live_rejections_for_ip:
+            self._live_rejections_by_ip[ip] = live_rejections_for_ip
+        else:
+            del self._live_rejections_by_ip[ip]
 
 
 def install_api_key_store(app: Litestar, repository: ApiKeyRepository) -> ApiKeyStore:

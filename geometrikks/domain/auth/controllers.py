@@ -16,7 +16,7 @@ from litestar.status_codes import HTTP_200_OK
 from geometrikks.config.settings import Settings
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.api_key_auth import requires_session_user
+from geometrikks.server.api_key_auth import SESSION_ONLY_SECURITY, requires_session_user
 from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
@@ -127,7 +127,7 @@ class AuthController(Controller):
         login_logger.info("login_success", provider="password", user=data.username, ip=client_ip)
         return SessionUser(username=data.username, provider="password")
 
-    @post("/logout", status_code=HTTP_200_OK, guards=[requires_session_user])
+    @post("/logout", status_code=HTTP_200_OK, guards=[requires_session_user], security=SESSION_ONLY_SECURITY)
     async def logout(
         self,
         request: Request,
@@ -155,7 +155,7 @@ class AuthController(Controller):
         request.clear_session()
         return LogoutResponse(redirect_to=redirect_to)
 
-    @get("/me", guards=[requires_session_user])
+    @get("/me", guards=[requires_session_user], security=SESSION_ONLY_SECURITY)
     async def me(
         self,
         request: Request,
@@ -178,7 +178,7 @@ class AuthController(Controller):
         oidc = OidcOption(provider_name=settings.oidc.provider_name) if settings.oidc.enabled else None
         return AuthOptions(password=settings.password_login_enabled, oidc=oidc)
 
-    @get("/oidc/status", guards=[requires_session_user])
+    @get("/oidc/status", guards=[requires_session_user], security=SESSION_ONLY_SECURITY)
     async def oidc_status(
         self,
         request: Request,

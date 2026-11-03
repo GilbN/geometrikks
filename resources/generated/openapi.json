@@ -1689,7 +1689,7 @@
             ]
           },
           "name": {
-            "maxLength": 64,
+            "description": "1 to 64 characters once surrounding whitespace is trimmed.",
             "minLength": 1,
             "type": "string"
           },
@@ -10380,8 +10380,33 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The API key store is unavailable."
           }
         },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "summary": "ListApiKeys",
         "tags": [
           "Auth"
@@ -10449,8 +10474,53 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A key with this name exists, ignoring case, or APP_AUTH_DISABLED=true."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The body is not sent as application/json."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The API key store is unavailable."
           }
         },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "summary": "CreateApiKey",
         "tags": [
           "Auth"
@@ -10515,8 +10585,53 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No key has this id."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "APP_AUTH_DISABLED=true, where API keys cannot exist."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The API key store is unavailable."
           }
         },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "summary": "RevokeApiKey",
         "tags": [
           "Auth"
@@ -10618,6 +10733,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "summary": "Logout",
         "tags": [
           "Auth"
@@ -10648,6 +10768,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "summary": "Me",
         "tags": [
           "Auth"
@@ -10671,6 +10796,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
         "summary": "OidcStatus",
         "tags": [
           "Auth"

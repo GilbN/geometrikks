@@ -239,3 +239,85 @@ async def test_openapi_documents_the_routes():
     assert set(schema["paths"][API_KEYS_PATH]) == {"get", "post"}
     assert "delete" in schema["paths"][f"{API_KEYS_PATH}/{{key_id}}"]
     assert "CreatedApiKey" in schema["components"]["schemas"]
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    ["text/plain", "text/plain;charset=UTF-8", "application/x-www-form-urlencoded", None],
+    ids=["text-plain", "text-plain-charset", "form-urlencoded", "no-content-type"],
+)
+async def test_create_without_a_json_media_type_is_415_and_creates_nothing(content_type: str | None):
+    app = endpoints_app()
+    headers = {} if content_type is None else {"Content-Type": content_type}
+    async with logged_in_client(app) as client:
+        res = await client.post(API_KEYS_PATH, content=b'{"name": "sneaky"}', headers=headers)
+        listed = await client.get(API_KEYS_PATH)
+    assert res.status_code == 415
+    assert res.json()["status_code"] == 415
+    assert listed.json()["keys"] == []
+
+
+@pytest.mark.parametrize("content_type", ["application/json", "application/json; charset=utf-8", "Application/JSON"])
+async def test_create_with_a_json_media_type_works(content_type: str):
+    app = endpoints_app()
+    async with logged_in_client(app) as client:
+        res = await client.post(API_KEYS_PATH, content=b'{"name": "homepage"}', headers={"Content-Type": content_type})
+    assert res.status_code == 201
+
+
+async def test_padded_64_char_name_is_accepted_and_trimmed():
+    app = endpoints_app()
+    name = "x" * 64
+    async with logged_in_client(app) as client:
+        res = await client.post(API_KEYS_PATH, json={"name": f"  {name}  "})
+    assert res.status_code == 201
+    assert res.json()["apiKey"]["name"] == name
+
+
+SESSION_ONLY_OPERATIONS = [
+    (API_KEYS_PATH, "get"),
+    (API_KEYS_PATH, "post"),
+    (f"{API_KEYS_PATH}/{{key_id}}", "delete"),
+    (f"{API_V1_PREFIX}/auth/me", "get"),
+    (f"{API_V1_PREFIX}/auth/logout", "post"),
+    (f"{API_V1_PREFIX}/auth/oidc/status", "get"),
+]
+
+
+async def openapi_schema() -> dict[str, Any]:
+    async with AsyncTestClient(app=endpoints_app()) as client:
+        return (await client.get("/schema/openapi.json")).json()
+
+
+@pytest.mark.parametrize(("path", "method"), SESSION_ONLY_OPERATIONS)
+async def test_session_only_operations_advertise_only_the_cookie(path: str, method: str):
+    schema = await openapi_schema()
+    assert schema["paths"][path][method]["security"] == [{"sessionCookie": []}]
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [("/api/v1/protected", "get"), (f"{API_V1_PREFIX}/auth/login", "post"), (f"{API_V1_PREFIX}/auth/options", "get")],
+)
+async def test_other_operations_keep_both_schemes(path: str, method: str):
+    schema = await openapi_schema()
+    operation = schema["paths"][path][method]
+    assert operation.get("security", schema["security"]) == [{"sessionCookie": []}, {"apiKey": []}]
+
+
+@pytest.mark.parametrize(
+    ("path", "method", "status_codes"),
+    [
+        (API_KEYS_PATH, "get", {"403", "503"}),
+        (API_KEYS_PATH, "post", {"403", "409", "415", "503"}),
+        (f"{API_KEYS_PATH}/{{key_id}}", "delete", {"403", "404", "409", "503"}),
+    ],
+)
+async def test_openapi_documents_the_error_responses(path: str, method: str, status_codes: set[str]):
+    schema = await openapi_schema()
+    responses = schema["paths"][path][method]["responses"]
+    assert status_codes <= set(responses)
+    for status_code in status_codes:
+        assert responses[status_code]["content"]["application/json"]["schema"] == {
+            "$ref": "#/components/schemas/ErrorEnvelope"
+        }

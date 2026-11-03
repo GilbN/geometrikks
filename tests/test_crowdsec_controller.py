@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
+from uuid import uuid4
 from unittest.mock import AsyncMock
 
-from litestar import Litestar
+from litestar import Litestar, Request
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,8 @@ from geometrikks.domain.security.repositories import DropTrafficRepository
 from geometrikks.domain.security.schemas import DropNetworkHits, DropNetworkOrigin
 from geometrikks.services.crowdsec import CrowdSecService, CrowdSecUnavailableError, CrowdSecUnreachableError, Decision
 from geometrikks.services.geoip.locator import GeoIpLocator, GeoIpPlace
+from geometrikks.server.api_key_auth import ApiKeyPrincipal
+from geometrikks.server.auth import AdminUser
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
 
@@ -1964,3 +1968,18 @@ async def test_ban_networks_ends_the_read_transaction_before_banning(monkeypatch
     )
     assert [result["ok"] for result in resp.json()["results"]] == [True, True, True]
     db_session.rollback.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("user", "expected_actor"),
+    [
+        (AdminUser(username="admin"), "admin"),
+        (ApiKeyPrincipal(key_id=uuid4(), name="homepage", scope="read_write"), "api-key:homepage"),
+        (None, "unknown"),
+    ],
+    ids=["session-user", "api-key", "no-user"],
+)
+def test_audit_actor_names_the_user_or_key(user: object, expected_actor: str):
+    scope: dict[str, Any] = {} if user is None else {"user": user}
+    request = cast("Request", SimpleNamespace(scope=scope))
+    assert security_controllers._actor(request) == expected_actor

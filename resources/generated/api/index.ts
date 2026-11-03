@@ -187,6 +187,8 @@ export type {
   ApiV1AuthApiKeysKeyIdRevokeApiKeyResponse,
   ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses,
   ApiV1AuthApiKeysListApiKeysData,
+  ApiV1AuthApiKeysListApiKeysError,
+  ApiV1AuthApiKeysListApiKeysErrors,
   ApiV1AuthApiKeysListApiKeysResponse,
   ApiV1AuthApiKeysListApiKeysResponses,
   ApiV1AuthLoginLoginData,

@@ -1581,7 +1581,7 @@ export const CreateApiKeyPayloadSchema = {
       ],
     },
     name: {
-      maxLength: 64,
+      description: "1 to 64 characters once surrounding whitespace is trimmed.",
       minLength: 1,
       type: "string",
     },

@@ -346,3 +346,27 @@ async def test_install_puts_the_store_on_app_state_and_follows_session_store_rea
     app.state.session_store_ready = False
     with pytest.raises(ServiceUnavailableException):
         await store.list_records()
+
+
+async def test_one_ip_cannot_use_more_than_its_share_of_the_rejection_log() -> None:
+    store, _, clock = _store()
+    for prefix_number in range(api_key_store.REJECTION_LOG_MAX_ENTRIES_PER_IP):
+        assert store.should_log_rejection(f"gmk_{prefix_number:04d}", "203.0.113.9") is True
+    assert store.should_log_rejection("gmk_over", "203.0.113.9") is False
+    assert store.should_log_rejection("gmk_over", "192.168.1.20") is True
+
+    clock.advance(60)
+
+    assert store.should_log_rejection("gmk_over", "203.0.113.9") is True
+
+
+async def test_rejection_log_per_ip_ceiling_counts_only_live_entries() -> None:
+    store, _, clock = _store()
+    for prefix_number in range(api_key_store.REJECTION_LOG_MAX_ENTRIES_PER_IP - 1):
+        assert store.should_log_rejection(f"gmk_{prefix_number:04d}", "203.0.113.9") is True
+    clock.advance(30)
+    assert store.should_log_rejection("gmk_last", "203.0.113.9") is True
+    clock.advance(30)
+    for prefix_number in range(api_key_store.REJECTION_LOG_MAX_ENTRIES_PER_IP - 1):
+        assert store.should_log_rejection(f"gmk_new{prefix_number:04d}", "203.0.113.9") is True
+    assert store.should_log_rejection("gmk_over", "203.0.113.9") is False

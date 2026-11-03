@@ -9,7 +9,7 @@ from litestar.enums import ScopeType
 from litestar.exceptions import NotAuthorizedException, PermissionDeniedException, ServiceUnavailableException
 from litestar.middleware.authentication import AuthenticationResult
 from litestar.middleware.session.server_side import ServerSideSessionBackend
-from litestar.openapi.spec import Components, SecurityScheme
+from litestar.openapi.spec import Components, SecurityRequirement, SecurityScheme
 from litestar.security.session_auth import SessionAuth, SessionAuthMiddleware
 
 from geometrikks.domain.auth.api_keys import (
@@ -35,6 +35,8 @@ if TYPE_CHECKING:
 login_logger = get_logger(LOGIN_LOGGER_NAME)
 
 API_KEY_SECURITY_SCHEME = "apiKey"
+SESSION_COOKIE_SECURITY_SCHEME = "sessionCookie"
+SESSION_ONLY_SECURITY: list[SecurityRequirement] = [{SESSION_COOKIE_SECURITY_SCHEME: []}]
 READ_ONLY_METHODS = frozenset({"GET", "HEAD"})
 
 RejectionReason = Literal["malformed", "unknown", "expired"]

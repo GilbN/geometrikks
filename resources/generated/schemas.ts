@@ -60,6 +60,7 @@ import type {
   ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors,
   ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses,
   ApiV1AuthApiKeysListApiKeysData,
+  ApiV1AuthApiKeysListApiKeysErrors,
   ApiV1AuthApiKeysListApiKeysResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
@@ -524,7 +525,7 @@ export interface OperationErrorTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsErrors
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors
   'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors
-  'list_api_keys': never
+  'list_api_keys': ApiV1AuthApiKeysListApiKeysErrors
   'list_banned_ips': never
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsErrors
   'list_banned_ranges': never

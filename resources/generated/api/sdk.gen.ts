@@ -63,6 +63,7 @@ import type {
   ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors,
   ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses,
   ApiV1AuthApiKeysListApiKeysData,
+  ApiV1AuthApiKeysListApiKeysErrors,
   ApiV1AuthApiKeysListApiKeysResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
@@ -741,10 +742,14 @@ export const apiV1AuthApiKeysListApiKeys = <
   ThrowOnError extends boolean = false,
 >(
   options?: Options<ApiV1AuthApiKeysListApiKeysData, ThrowOnError>,
-): RequestResult<ApiV1AuthApiKeysListApiKeysResponses, unknown, ThrowOnError> =>
+): RequestResult<
+  ApiV1AuthApiKeysListApiKeysResponses,
+  ApiV1AuthApiKeysListApiKeysErrors,
+  ThrowOnError
+> =>
   (options?.client ?? client).get<
     ApiV1AuthApiKeysListApiKeysResponses,
-    unknown,
+    ApiV1AuthApiKeysListApiKeysErrors,
     ThrowOnError
   >({
     security: [
@@ -753,7 +758,6 @@ export const apiV1AuthApiKeysListApiKeys = <
         name: "session",
         type: "apiKey",
       },
-      { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/auth/api-keys",
     ...options,
@@ -782,7 +786,6 @@ export const apiV1AuthApiKeysCreateApiKey = <
         name: "session",
         type: "apiKey",
       },
-      { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/auth/api-keys",
     ...options,
@@ -815,7 +818,6 @@ export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
         name: "session",
         type: "apiKey",
       },
-      { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/auth/api-keys/{key_id}",
     ...options,
@@ -869,7 +871,6 @@ export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
         name: "session",
         type: "apiKey",
       },
-      { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/auth/logout",
     ...options,
@@ -892,7 +893,6 @@ export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
         name: "session",
         type: "apiKey",
       },
-      { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/auth/me",
     ...options,
@@ -921,7 +921,6 @@ export const apiV1AuthOidcStatusOidcStatus = <
         name: "session",
         type: "apiKey",
       },
-      { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/auth/oidc/status",
     ...options,
