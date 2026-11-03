@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest"
 import type { ApiKeyList, ApiKeyView } from "@/generated/api/types.gen"
 import {
   apiErrorMessage,
+  apiKeyAccessLine,
   apiKeyNameError,
+  apiKeyRowLine,
+  apiKeyRowTone,
   apiKeysSummary,
   createdKeyLine,
   curlExample,
@@ -13,6 +16,7 @@ import {
   lastUsedDetail,
   lastUsedLabel,
   lastUsedShort,
+  lastUsedValue,
   scopeLabel,
   timeAgo,
   usageTone,
@@ -279,6 +283,68 @@ describe("apiErrorMessage", () => {
   it("falls back when the error has no detail", () => {
     expect(apiErrorMessage(new Error("Network Error"), "Could not create the key. Try again.")).toBe(
       "Could not create the key. Try again.",
+    )
+  })
+})
+
+describe("apiKeyRowLine", () => {
+  it("joins last used and expiry", () => {
+    expect(apiKeyRowLine(makeKey({ lastUsedAt: isoAgo(2 * MINUTE) }), NOW)).toBe("Used 2 min ago · never expires")
+    const expiresAt = "2027-02-01T12:00:00Z"
+    expect(apiKeyRowLine(makeKey({ lastUsedAt: isoAgo(3 * DAY), expiresAt }), NOW)).toBe(
+      `Used 3 days ago · expires ${formatKeyDate(expiresAt)}`,
+    )
+    expect(apiKeyRowLine(makeKey(), NOW)).toBe("Never used · never expires")
+  })
+
+  it("says how old a stale key is", () => {
+    expect(apiKeyRowLine(makeKey({ createdAt: isoAgo(125 * DAY) }), NOW)).toBe("Never used · created 4 months ago")
+  })
+
+  it("names the day an expired key stopped", () => {
+    const expiresAt = "2026-10-20T12:00:00Z"
+    const expiredKey = makeKey({ expiresAt, expired: true, lastUsedAt: isoAgo(13 * DAY) })
+    expect(apiKeyRowLine(expiredKey, NOW)).toBe(`Expired ${formatKeyDate(expiresAt)}`)
+  })
+})
+
+describe("apiKeyRowTone", () => {
+  it("greys out an expired key even when it was used in its last day", () => {
+    const expiredKey = makeKey({ expired: true, expiresAt: isoAgo(HOUR), lastUsedAt: isoAgo(2 * HOUR) })
+    expect(apiKeyRowTone(expiredKey, NOW)).toBe("idle")
+  })
+
+  it("follows usageTone otherwise", () => {
+    expect(apiKeyRowTone(makeKey({ lastUsedAt: isoAgo(HOUR) }), NOW)).toBe("live")
+    expect(apiKeyRowTone(makeKey({ createdAt: isoAgo(40 * DAY) }), NOW)).toBe("stale")
+  })
+})
+
+describe("lastUsedValue", () => {
+  it("adds the IP when there is one", () => {
+    expect(lastUsedValue(makeKey({ lastUsedAt: isoAgo(3 * DAY), lastUsedIp: "192.168.1.20" }), NOW)).toBe(
+      "3 days ago, from 192.168.1.20",
+    )
+    expect(lastUsedValue(makeKey({ lastUsedAt: isoAgo(2 * MINUTE) }), NOW)).toBe("2 min ago")
+  })
+
+  it("reads Never for an unused key", () => {
+    expect(lastUsedValue(makeKey(), NOW)).toBe("Never")
+  })
+})
+
+describe("apiKeyAccessLine", () => {
+  it("describes each scope", () => {
+    expect(apiKeyAccessLine(makeKey({ scope: "read_write" }))).toBe(
+      "Can ban and unban IPs, run scheduler jobs and delete data.",
+    )
+    expect(apiKeyAccessLine(makeKey())).toBe("Can view data and live feeds, and change nothing.")
+  })
+
+  it("says when an expired key stopped working", () => {
+    const expiresAt = "2026-10-20T12:00:00Z"
+    expect(apiKeyAccessLine(makeKey({ expired: true, expiresAt }))).toBe(
+      `It stopped working on ${formatKeyDate(expiresAt)}.`,
     )
   })
 })

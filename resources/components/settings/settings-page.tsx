@@ -7,6 +7,7 @@ export function SettingsPage({
   title,
   subtitle,
   actions,
+  subtitleOnPhone,
   toolbar,
   children,
 }: {
@@ -14,6 +15,8 @@ export function SettingsPage({
   subtitle: string
   /** Buttons beside the title, such as a page's Create button. */
   actions?: React.ReactNode
+  /** Keeps the subtitle visible below md, where the top bar names the page. */
+  subtitleOnPhone?: boolean
   /** Page-level controls that belong with the title, inside the band. */
   toolbar?: React.ReactNode
   children: React.ReactNode
@@ -29,7 +32,14 @@ export function SettingsPage({
           !toolbar && "max-md:contents"
         )}
       >
-        <PageHeader title={title} subtitle={subtitle} actions={actions} />
+        <PageHeader
+          title={title}
+          subtitle={subtitle}
+          actions={actions}
+          subtitleOnPhone={subtitleOnPhone}
+          // The band's own margin is lost while it is `display: contents`.
+          className={cn(!toolbar && "max-md:mb-4")}
+        />
         {toolbar}
       </div>
       {children}

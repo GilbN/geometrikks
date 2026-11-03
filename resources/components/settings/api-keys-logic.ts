@@ -110,10 +110,37 @@ export function curlExample(origin: string, displayPrefix: string): string {
   return `curl -H "Authorization: Bearer ${displayPrefix}…" ${origin}/api/v1/analytics/summary`
 }
 
+const lowerFirst = (text: string) => `${text.charAt(0).toLowerCase()}${text.slice(1)}`
+
+/** A phone row's second line: "Used 2 min ago · never expires". */
+export function apiKeyRowLine(apiKey: ApiKeyView, now: number): string {
+  if (apiKey.expired) return expiryLabel(apiKey)
+  if (usageTone(apiKey, now) === "stale") return `Never used · created ${timeAgo(now - Date.parse(apiKey.createdAt))}`
+  return `${lastUsedLabel(apiKey, now)} · ${lowerFirst(expiryLabel(apiKey))}`
+}
+
+/** An expired key's dot stays grey, whatever its last use. */
+export function apiKeyRowTone(apiKey: ApiKeyView, now: number): UsageTone {
+  return apiKey.expired ? "idle" : usageTone(apiKey, now)
+}
+
+/** The Last used value in the phone drawer, IP included. */
+export function lastUsedValue(apiKey: ApiKeyView, now: number): string {
+  if (!apiKey.lastUsedAt) return "Never"
+  const ago = timeAgo(now - Date.parse(apiKey.lastUsedAt))
+  return apiKey.lastUsedIp ? `${ago}, from ${apiKey.lastUsedIp}` : ago
+}
+
+/** What the key can do, under its name in the phone drawer. */
+export function apiKeyAccessLine(apiKey: ApiKeyView): string {
+  if (apiKey.expired) return `It stopped working on ${formatKeyDate(apiKey.expiresAt ?? apiKey.createdAt)}.`
+  if (apiKey.scope === "read_write") return "Can ban and unban IPs, run scheduler jobs and delete data."
+  return "Can view data and live feeds, and change nothing."
+}
+
 /** "homepage · Read · never expires", under the reveal's title. */
 export function createdKeyLine(apiKey: ApiKeyView): string {
-  const expiry = expiryLabel(apiKey)
-  return `${apiKey.name} · ${scopeLabel(apiKey.scope)} · ${expiry.charAt(0).toLowerCase()}${expiry.slice(1)}`
+  return `${apiKey.name} · ${scopeLabel(apiKey.scope)} · ${lowerFirst(expiryLabel(apiKey))}`
 }
 
 export function apiKeyNameError(name: string): string | null {

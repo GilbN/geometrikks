@@ -1,7 +1,7 @@
-import { useRef, useState } from "react"
-import { useIsMutating } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
-import { KeyRound, Plus } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useIsMutating, useQueryClient } from "@tanstack/react-query"
+import { Link, useBlocker } from "@tanstack/react-router"
+import { KeyRound, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import type { ApiKeyView, CreatedApiKey } from "@/lib/api"
 import { queryKeys, useApiKeys, useRevokeApiKey } from "@/lib/queries"
@@ -17,7 +17,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -28,12 +27,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import { SectionIcon } from "@/components/settings/status-overview"
 import { ApiKeyCreateForm, ApiKeyReveal } from "@/components/settings/api-key-create"
+import { ApiKeyScopeBadge, UsageDot } from "@/components/settings/api-key-status"
+import { ApiKeyDrawer, ApiKeyList, focusDrawerTitle } from "@/components/settings/api-keys-phone"
 import {
   apiErrorMessage,
   createdKeyLine,
@@ -42,40 +52,8 @@ import {
   lastUsedDetail,
   lastUsedLabel,
   lastUsedShort,
-  scopeLabel,
   usageTone,
-  type UsageTone,
 } from "@/components/settings/api-keys-logic"
-import { useNarrowLayout } from "@/components/data/narrow-layout"
-
-/** Live glows green and stale amber, like the other status dots; idle is a plain grey dot. */
-function UsageDot({ tone }: { tone: UsageTone }) {
-  if (tone === "live") return <StatusLed tone="emerald" />
-  if (tone === "stale") return <StatusLed tone="amber" />
-  return <span className="inline-flex size-2 shrink-0 rounded-full bg-muted-foreground/60" />
-}
-
-export function ApiKeyScopeBadge({ apiKey }: { apiKey: ApiKeyView }) {
-  if (apiKey.expired) {
-    return (
-      <Badge variant="outline" className="border-destructive/40 text-destructive">
-        Expired
-      </Badge>
-    )
-  }
-  if (apiKey.scope === "read_write") {
-    return (
-      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/[0.08] text-amber-600 dark:text-amber-400">
-        {scopeLabel(apiKey.scope)}
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant="outline" className="text-muted-foreground">
-      {scopeLabel(apiKey.scope)}
-    </Badge>
-  )
-}
 
 /** The dot and short text are visual; screen readers get the full sentence. */
 function LastUsedCell({ apiKey, now }: { apiKey: ApiKeyView; now: number }) {
@@ -161,27 +139,87 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
   )
 }
 
-/** The Create key button and its dialog: the form, then the one-time reveal. */
-export function CreateApiKeyDialog({ triggerRef }: { triggerRef?: React.Ref<HTMLButtonElement> }) {
+/**
+ * The Create key button and its dialog, or its bottom drawer on a narrow
+ * card: the form, then the one-time reveal.
+ */
+export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerRef?: React.Ref<HTMLButtonElement> }) {
   const [open, setOpen] = useState(false)
   const [created, setCreated] = useState<CreatedApiKey | null>(null)
-  // Closing mid-request would unmount the form and lose the only response
-  // that carries the key.
+  // Fixed while open, so a rotated tablet doesn't remount the form mid-request.
+  const [drawerWhileOpen, setDrawerWhileOpen] = useState(narrow)
+  // Closing or leaving the page mid-request would unmount the form and lose
+  // the only response that carries the key. `creating` re-renders a tick
+  // after the form shows Creating, so the guards ask the cache directly.
   const creating = useIsMutating({ mutationKey: queryKeys.auth.createApiKey }) > 0
+  const queryClient = useQueryClient()
+  const creatingNow = useCallback(
+    () => queryClient.isMutating({ mutationKey: queryKeys.auth.createApiKey }) > 0,
+    [queryClient],
+  )
+  useBlocker({ shouldBlockFn: creatingNow, enableBeforeUnload: creatingNow })
+
+  const changeOpen = (nextOpen: boolean) => {
+    if (!nextOpen && creatingNow()) return
+    if (nextOpen) setDrawerWhileOpen(narrow)
+    setOpen(nextOpen)
+  }
+  const inDrawer = open ? drawerWhileOpen : narrow
+  const createButton = (
+    <Button ref={triggerRef} type="button">
+      <Plus />
+      Create key
+    </Button>
+  )
+
+  if (inDrawer) {
+    return (
+      // A swipe or a tap beside the reveal would throw the key away, so only Done closes it.
+      <Drawer open={open} onOpenChange={changeOpen} dismissible={!creating && !created} autoFocus>
+        <DrawerTrigger asChild>{createButton}</DrawerTrigger>
+        <DrawerContent
+          className="data-[vaul-drawer-direction=bottom]:max-h-[calc(100dvh-92px)] md:mx-auto md:w-full md:max-w-lg"
+          onOpenAutoFocus={focusDrawerTitle}
+          onCloseAutoFocus={() => setCreated(null)}
+        >
+          <DrawerHeader className="flex-row items-start gap-2 pb-3 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
+            <div className="min-w-0 flex-1 space-y-1">
+              <DrawerTitle tabIndex={-1} className="text-[15px] outline-none">
+                {created ? "Key created" : "Create API key"}
+              </DrawerTitle>
+              <DrawerDescription className="text-xs">
+                {created ? createdKeyLine(created.apiKey) : "Name it after whatever will use it."}
+              </DrawerDescription>
+            </div>
+            {!created && !creating && (
+              <DrawerClose asChild>
+                <Button type="button" variant="ghost" size="icon" aria-label="Close" className="-mt-1 -mr-2 shrink-0">
+                  <X className="size-[18px]" />
+                </Button>
+              </DrawerClose>
+            )}
+          </DrawerHeader>
+          <div className="overflow-y-auto overscroll-contain px-4 pb-6">
+            {created ? (
+              <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
+            ) : (
+              <ApiKeyCreateForm onCreated={setCreated} onCancel={() => changeOpen(false)} />
+            )}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen || !creating) && setOpen(nextOpen)}>
-      <DialogTrigger asChild>
-        <Button ref={triggerRef} type="button">
-          <Plus />
-          Create key
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>{createButton}</DialogTrigger>
       <DialogContent
         className="sm:max-w-xl"
         showCloseButton={!creating}
-        onEscapeKeyDown={(event) => creating && event.preventDefault()}
+        onEscapeKeyDown={(event) => creatingNow() && event.preventDefault()}
         // A stray click beside the reveal would throw the key away.
-        onInteractOutside={(event) => (creating || created) && event.preventDefault()}
+        onInteractOutside={(event) => (creatingNow() || created) && event.preventDefault()}
         onCloseAutoFocus={() => setCreated(null)}
       >
         {created ? (
@@ -208,15 +246,12 @@ export function CreateApiKeyDialog({ triggerRef }: { triggerRef?: React.Ref<HTML
   )
 }
 
-/** A narrow card drops the Key and Expires columns. */
 function ApiKeysTable({
   apiKeys,
-  narrow,
   onRevoked,
 }: {
   apiKeys: ApiKeyView[]
-  narrow: boolean
-  onRevoked: () => void
+  onRevoked: (revokedKeyId: string) => void
 }) {
   const now = Date.now()
   return (
@@ -225,9 +260,9 @@ function ApiKeysTable({
         <TableRow className="hover:bg-transparent">
           <TableHead className="pl-4">Name</TableHead>
           <TableHead>Scope</TableHead>
-          {!narrow && <TableHead>Key</TableHead>}
+          <TableHead>Key</TableHead>
           <TableHead>Last used</TableHead>
-          {!narrow && <TableHead>Expires</TableHead>}
+          <TableHead>Expires</TableHead>
           <TableHead className="w-px pr-4">
             <span className="sr-only">Actions</span>
           </TableHead>
@@ -242,19 +277,15 @@ function ApiKeysTable({
             <TableCell>
               <ApiKeyScopeBadge apiKey={apiKey} />
             </TableCell>
-            {!narrow && (
-              <TableCell className="font-mono text-xs text-muted-foreground">{apiKey.displayPrefix}…</TableCell>
-            )}
+            <TableCell className="font-mono text-xs text-muted-foreground">{apiKey.displayPrefix}…</TableCell>
             <TableCell>
               <LastUsedCell apiKey={apiKey} now={now} />
             </TableCell>
-            {!narrow && (
-              <TableCell className={cn("tabular-nums", !apiKey.expiresAt && "text-muted-foreground")}>
-                {expiryShort(apiKey)}
-              </TableCell>
-            )}
+            <TableCell className={cn("tabular-nums", !apiKey.expiresAt && "text-muted-foreground")}>
+              {expiryShort(apiKey)}
+            </TableCell>
             <TableCell className="pr-4 text-right">
-              <RevokeKeyButton apiKey={apiKey} onRevoked={onRevoked} />
+              <RevokeKeyButton apiKey={apiKey} onRevoked={() => onRevoked(apiKey.id)} />
             </TableCell>
           </TableRow>
         ))}
@@ -263,11 +294,33 @@ function ApiKeysTable({
   )
 }
 
-/** `focusOutsideList` takes focus when a revoke empties the list and the card goes with it. */
-export function ApiKeysOverview({ focusOutsideList }: { focusOutsideList: () => void }) {
+/**
+ * `narrow` comes from the page, which measures the card's width so the
+ * Create button above it can pick a drawer too. `focusOutsideList` takes
+ * focus when a revoke empties the list and the card goes with it.
+ */
+export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean; focusOutsideList: () => void }) {
   const { data, isError } = useApiKeys()
   const cardRef = useRef<HTMLDivElement>(null)
-  const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const listRef = useRef<HTMLDivElement>(null)
+  const [drawer, setDrawer] = useState<{ keyId: string | null; open: boolean }>({ keyId: null, open: false })
+  // The row that opened the drawer gets focus back when it closes.
+  const openerRef = useRef<HTMLElement | null>(null)
+  const revokedRef = useRef(false)
+  const keyCount = data?.keys.length ?? 0
+  const setDrawerOpen = useCallback(
+    (open: boolean) => setDrawer((previous) => (previous.open === open ? previous : { ...previous, open })),
+    [],
+  )
+
+  // A drawer left open while the list was gone, behind an error or a card
+  // grown past the breakpoint, would otherwise pop back up on its own.
+  const showingList = narrow && keyCount > 0
+  const wasShowingList = useRef(false)
+  useEffect(() => {
+    if (wasShowingList.current && !showingList) setDrawer({ keyId: null, open: false })
+    wasShowingList.current = showingList
+  }, [showingList])
 
   if (!data && !isError) {
     return <Skeleton className="h-48 w-full rounded-xl" />
@@ -328,15 +381,58 @@ export function ApiKeysOverview({ focusOutsideList }: { focusOutsideList: () => 
     )
   }
 
+  // Holds whether or not the refetch without the revoked key has landed yet.
+  const focusAfterRevoke = (revokedKeyId: string) =>
+    data.keys.some((apiKey) => apiKey.id !== revokedKeyId) ? cardRef.current?.focus() : focusOutsideList()
+
+  if (!narrow) {
+    return (
+      <Card ref={cardRef} tabIndex={-1} aria-label="API keys" className="gap-0 py-0 outline-none">
+        <ApiKeysTable apiKeys={data.keys} onRevoked={focusAfterRevoke} />
+      </Card>
+    )
+  }
+
+  const now = Date.now()
+  const drawerKey = data.keys.find((apiKey) => apiKey.id === drawer.keyId) ?? null
   return (
-    <Card ref={cardRef} tabIndex={-1} aria-label="API keys" className="gap-0 py-0 outline-none">
-      <div ref={layoutRef}>
-        <ApiKeysTable
-          apiKeys={data.keys}
-          narrow={narrow}
-          onRevoked={() => (data.keys.length > 1 ? cardRef.current?.focus() : focusOutsideList())}
-        />
-      </div>
-    </Card>
+    <>
+      <Card ref={cardRef} tabIndex={-1} aria-label="API keys" className="gap-0 overflow-hidden py-0 outline-none">
+        <div ref={listRef}>
+          <ApiKeyList
+            apiKeys={data.keys}
+            now={now}
+            onOpen={(keyId, opener) => {
+              openerRef.current = opener
+              revokedRef.current = false
+              setDrawer({ keyId, open: true })
+            }}
+          />
+        </div>
+      </Card>
+      <ApiKeyDrawer
+        apiKey={drawerKey}
+        open={drawer.open}
+        onOpenChange={setDrawerOpen}
+        now={now}
+        onRevoked={() => {
+          revokedRef.current = true
+          setDrawerOpen(false)
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault()
+          if (revokedRef.current) {
+            focusAfterRevoke(drawer.keyId ?? "")
+            return
+          }
+          // A key revoked in another tab takes its row along.
+          const row = listRef.current?.querySelector<HTMLElement>(
+            `[data-api-key-row="${CSS.escape(drawer.keyId ?? "")}"]`,
+          )
+          const target = openerRef.current?.isConnected ? openerRef.current : (row ?? cardRef.current)
+          target?.focus()
+        }}
+      />
+    </>
   )
 }
