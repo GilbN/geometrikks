@@ -3,13 +3,17 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import cast
+
 
 import pytest
 from litestar import Litestar
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import CrowdSecSettings, LogParserSettings, Settings
+from geometrikks.domain.analytics.repositories import SummaryStatsRepository
 from geometrikks.domain.instances.views import HeadIdentityView, InstancesResponse
 from geometrikks.domain.integrations.controllers import IntegrationController
 from geometrikks.domain.integrations.services import IntegrationSummaryService
@@ -76,8 +80,8 @@ def service(*, traffic=None, session=None, instance_error=None, crowdsec=None, d
         )
 
     return IntegrationSummaryService(
-        app=app, settings=settings, session=session or Session(),
-        traffic_repo=traffic or TrafficReader(), instance_reader=instances,
+        app=app, settings=settings, session=cast(AsyncSession, session or Session()),
+        traffic_repo=cast(SummaryStatsRepository, traffic or TrafficReader()), instance_reader=instances,
     )
 
 
