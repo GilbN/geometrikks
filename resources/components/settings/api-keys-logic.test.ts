@@ -13,10 +13,13 @@ import {
   expiryLabel,
   expiryShort,
   formatKeyDate,
+  isNotFoundError,
   lastUsedDetail,
   lastUsedLabel,
   lastUsedShort,
   lastUsedValue,
+  revokeConfirmText,
+  revokeVerb,
   scopeLabel,
   timeAgo,
   usageTone,
@@ -345,6 +348,39 @@ describe("apiKeyAccessLine", () => {
     const expiresAt = "2026-10-20T12:00:00Z"
     expect(apiKeyAccessLine(makeKey({ expired: true, expiresAt }))).toBe(
       `It stopped working on ${formatKeyDate(expiresAt)}.`,
+    )
+  })
+})
+
+describe("isNotFoundError", () => {
+  it("is true for the 404 envelope", () => {
+    expect(isNotFoundError({ status_code: 404, detail: "The API key does not exist." })).toBe(true)
+  })
+
+  it("is false for other errors", () => {
+    expect(isNotFoundError({ status_code: 503, detail: "The API key store is unavailable." })).toBe(false)
+    expect(isNotFoundError(new Error("network"))).toBe(false)
+    expect(isNotFoundError(null)).toBe(false)
+    expect(isNotFoundError("404")).toBe(false)
+  })
+})
+
+describe("revokeVerb", () => {
+  it("revokes a live key and removes an expired one", () => {
+    expect(revokeVerb(makeKey())).toBe("Revoke")
+    expect(revokeVerb(makeKey({ expired: true, expiresAt: "2026-10-01T00:00:00Z" }))).toBe("Remove")
+  })
+})
+
+describe("revokeConfirmText", () => {
+  it("warns that a live key stops working", () => {
+    expect(revokeConfirmText(makeKey())).toBe("Anything using it gets 401 from now on. This can't be undone.")
+  })
+
+  it("names the day an expired key stopped", () => {
+    const expiresAt = "2026-10-01T12:00:00Z"
+    expect(revokeConfirmText(makeKey({ expired: true, expiresAt }))).toBe(
+      `It stopped working on ${formatKeyDate(expiresAt)}. This takes it off the list.`,
     )
   })
 })

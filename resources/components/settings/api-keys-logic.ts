@@ -155,3 +155,19 @@ export function apiErrorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === "object" && "detail" in error && typeof error.detail === "string") return error.detail
   return fallback
 }
+
+/** A revoke that 404s means the key is already gone, which is what the user wanted. */
+export function isNotFoundError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "status_code" in error && error.status_code === 404)
+}
+
+export function revokeVerb(apiKey: ApiKeyView): "Revoke" | "Remove" {
+  return apiKey.expired ? "Remove" : "Revoke"
+}
+
+/** The sentence under "Revoke homepage?" in the confirm. */
+export function revokeConfirmText(apiKey: ApiKeyView): string {
+  return apiKey.expired
+    ? `It stopped working on ${formatKeyDate(apiKey.expiresAt ?? apiKey.createdAt)}. This takes it off the list.`
+    : "Anything using it gets 401 from now on. This can't be undone."
+}

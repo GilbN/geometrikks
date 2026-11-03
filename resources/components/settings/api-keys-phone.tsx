@@ -23,7 +23,10 @@ import {
   apiKeyRowTone,
   expiryShort,
   formatKeyDate,
+  isNotFoundError,
   lastUsedValue,
+  revokeConfirmText,
+  revokeVerb,
 } from "@/components/settings/api-keys-logic"
 
 const rowBadgeClasses = "h-[18px] px-1.5 text-[11px] font-normal"
@@ -96,21 +99,44 @@ export function ApiKeyDrawer({
   useEffect(() => {
     if (gone) onOpenChange(false)
   }, [gone, onOpenChange])
+  // A swipe away mid-revoke would skip the focus handoff that runs once it lands.
+  const [revoking, setRevoking] = useState(false)
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} autoFocus>
+    <Drawer open={open} onOpenChange={onOpenChange} dismissible={!revoking} autoFocus>
       <DrawerContent
         className="data-[vaul-drawer-direction=bottom]:max-h-[calc(100dvh-92px)] md:mx-auto md:w-full md:max-w-lg"
         onOpenAutoFocus={focusDrawerTitle}
         onCloseAutoFocus={onCloseAutoFocus}
       >
-        {shown && <ApiKeyDetail key={shown.id} apiKey={shown} now={now} onRevoked={onRevoked} />}
+        {shown && (
+          <ApiKeyDetail
+            key={shown.id}
+            apiKey={shown}
+            now={now}
+            revoking={revoking}
+            onRevokingChange={setRevoking}
+            onRevoked={onRevoked}
+          />
+        )}
       </DrawerContent>
     </Drawer>
   )
 }
 
-function ApiKeyDetail({ apiKey, now, onRevoked }: { apiKey: ApiKeyView; now: number; onRevoked: () => void }) {
+function ApiKeyDetail({
+  apiKey,
+  now,
+  revoking,
+  onRevokingChange,
+  onRevoked,
+}: {
+  apiKey: ApiKeyView
+  now: number
+  revoking: boolean
+  onRevokingChange: (revoking: boolean) => void
+  onRevoked: () => void
+}) {
   return (
     <>
       <DrawerHeader className="flex-row items-start gap-2 pb-3 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
@@ -121,11 +147,13 @@ function ApiKeyDetail({ apiKey, now, onRevoked }: { apiKey: ApiKeyView; now: num
           </DrawerTitle>
           <DrawerDescription className="text-xs">{apiKeyAccessLine(apiKey)}</DrawerDescription>
         </div>
-        <DrawerClose asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label="Close" className="-mt-1 -mr-2 shrink-0">
-            <X className="size-[18px]" />
-          </Button>
-        </DrawerClose>
+        {!revoking && (
+          <DrawerClose asChild>
+            <Button type="button" variant="ghost" size="icon" aria-label="Close" className="-mt-1 -mr-2 shrink-0">
+              <X className="size-[18px]" />
+            </Button>
+          </DrawerClose>
+        )}
       </DrawerHeader>
       <div className="space-y-4 overflow-y-auto overscroll-contain px-4 pb-6">
         <dl className="grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-2 text-[13px]">
@@ -138,7 +166,7 @@ function ApiKeyDetail({ apiKey, now, onRevoked }: { apiKey: ApiKeyView; now: num
           <dt className="text-muted-foreground">Expires</dt>
           <dd>{expiryShort(apiKey)}</dd>
         </dl>
-        <RevokeInDrawer apiKey={apiKey} onRevoked={onRevoked} />
+        <RevokeInDrawer apiKey={apiKey} onRevokingChange={onRevokingChange} onRevoked={onRevoked} />
       </div>
     </>
   )
@@ -146,12 +174,24 @@ function ApiKeyDetail({ apiKey, now, onRevoked }: { apiKey: ApiKeyView; now: num
 
 /** Revoke, confirmed in place: vaul bundles its own Radix Dialog, which keeps
  *  focus out of an AlertDialog opened from inside the drawer. */
-function RevokeInDrawer({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked: () => void }) {
+function RevokeInDrawer({
+  apiKey,
+  onRevokingChange,
+  onRevoked,
+}: {
+  apiKey: ApiKeyView
+  onRevokingChange: (revoking: boolean) => void
+  onRevoked: () => void
+}) {
   const [confirming, setConfirming] = useState(false)
   const [revokeError, setRevokeError] = useState<string | null>(null)
   const revokeApiKeyMutation = useRevokeApiKey()
   const pending = revokeApiKeyMutation.isPending
-  const verb = apiKey.expired ? "Remove" : "Revoke"
+  const verb = revokeVerb(apiKey)
+  useEffect(() => {
+    onRevokingChange(pending)
+    return () => onRevokingChange(false)
+  }, [pending, onRevokingChange])
   const revokeRef = useRef<HTMLButtonElement>(null)
   const keepRef = useRef<HTMLButtonElement>(null)
   const descriptionId = useId()
@@ -169,7 +209,7 @@ function RevokeInDrawer({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked: 
     revokeApiKeyMutation.mutate(apiKey.id, {
       onSuccess: onRevoked,
       onError: (error) => {
-        if (error && typeof error === "object" && "status_code" in error && error.status_code === 404) {
+        if (isNotFoundError(error)) {
           onRevoked()
           return
         }
@@ -207,10 +247,7 @@ function RevokeInDrawer({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked: 
       className="space-y-2.5 rounded-lg border border-destructive/40 bg-destructive/[0.07] p-3 text-[12.5px] leading-relaxed"
     >
       <p id={descriptionId}>
-        {verb} <span className="font-semibold">{apiKey.name}</span>?{" "}
-        {apiKey.expired
-          ? `It stopped working on ${formatKeyDate(apiKey.expiresAt ?? apiKey.createdAt)}. This takes it off the list.`
-          : "Anything using it gets 401 from now on. This can't be undone."}
+        {verb} <span className="font-semibold">{apiKey.name}</span>? {revokeConfirmText(apiKey)}
       </p>
       {revokeError && (
         <p role="alert" className="text-destructive">

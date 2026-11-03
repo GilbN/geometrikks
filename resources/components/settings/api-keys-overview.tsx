@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { useIsMutating, useQueryClient } from "@tanstack/react-query"
 import { Link, useBlocker } from "@tanstack/react-router"
 import { KeyRound, Plus, X } from "lucide-react"
@@ -48,10 +48,12 @@ import {
   apiErrorMessage,
   createdKeyLine,
   expiryShort,
-  formatKeyDate,
+  isNotFoundError,
   lastUsedDetail,
   lastUsedLabel,
   lastUsedShort,
+  revokeConfirmText,
+  revokeVerb,
   usageTone,
 } from "@/components/settings/api-keys-logic"
 
@@ -83,7 +85,7 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
   const revokedRef = useRef(false)
   const revokeApiKeyMutation = useRevokeApiKey()
   const pending = revokeApiKeyMutation.isPending
-  const verb = apiKey.expired ? "Remove" : "Revoke"
+  const verb = revokeVerb(apiKey)
   return (
     <AlertDialog open={confirming} onOpenChange={(open) => !pending && setConfirming(open)}>
       <AlertDialogTrigger asChild>
@@ -102,11 +104,7 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
           <AlertDialogTitle>
             {verb} {apiKey.name}?
           </AlertDialogTitle>
-          <AlertDialogDescription>
-            {apiKey.expired
-              ? `It stopped working on ${formatKeyDate(apiKey.expiresAt ?? apiKey.createdAt)}. This takes it off the list.`
-              : "Anything using it gets 401 from now on. This can't be undone."}
-          </AlertDialogDescription>
+          <AlertDialogDescription>{revokeConfirmText(apiKey)}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>Keep</AlertDialogCancel>
@@ -121,7 +119,7 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
                   setConfirming(false)
                 },
                 onError: (error) => {
-                  if (error && typeof error === "object" && "status_code" in error && error.status_code === 404) {
+                  if (isNotFoundError(error)) {
                     revokedRef.current = true
                     setConfirming(false)
                     return
@@ -136,6 +134,73 @@ function RevokeKeyButton({ apiKey, onRevoked }: { apiKey: ApiKeyView; onRevoked:
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  )
+}
+
+const LEAVE_REVEAL_TITLE = "Leave without the key?"
+const LEAVE_REVEAL_TEXT =
+  "The key is shown only once. If you leave now, you will have to revoke it and create a new one."
+
+function LeaveRevealConfirm({ open, onStay, onLeave }: { open: boolean; onStay: () => void; onLeave: () => void }) {
+  return (
+    <AlertDialog open={open} onOpenChange={(nextOpen) => !nextOpen && onStay()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{LEAVE_REVEAL_TITLE}</AlertDialogTitle>
+          <AlertDialogDescription>{LEAVE_REVEAL_TEXT}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Stay</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={(event) => {
+              event.preventDefault()
+              onLeave()
+            }}
+          >
+            Leave
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/** The drawer asks in place. An AlertDialog over vaul's drawer loses focus
+ *  to the drawer's own focus trap, as RevokeInDrawer notes. */
+function LeaveRevealInDrawer({ onStay, onLeave }: { onStay: () => void; onLeave: () => void }) {
+  const titleId = useId()
+  const textId = useId()
+  const confirmRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    confirmRef.current?.scrollIntoView({ block: "nearest" })
+  }, [])
+  return (
+    <div
+      ref={confirmRef}
+      role="alertdialog"
+      aria-labelledby={titleId}
+      aria-describedby={textId}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape") return
+        event.stopPropagation()
+        onStay()
+      }}
+      className="mb-4 space-y-2.5 rounded-lg border border-destructive/40 bg-destructive/[0.07] p-3 text-[12.5px] leading-relaxed"
+    >
+      <p id={titleId} className="font-semibold">
+        {LEAVE_REVEAL_TITLE}
+      </p>
+      <p id={textId}>{LEAVE_REVEAL_TEXT}</p>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" autoFocus className="flex-1" onClick={onStay}>
+          Stay
+        </Button>
+        <Button type="button" variant="destructive" className="flex-1" onClick={onLeave}>
+          Leave
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -158,6 +223,20 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
     [queryClient],
   )
   useBlocker({ shouldBlockFn: creatingNow, enableBeforeUnload: creatingNow })
+  // Leaving the reveal throws the key away for good, so Back and links ask first.
+  const drawerTitleRef = useRef<HTMLHeadingElement>(null)
+  const revealingRef = useRef(false)
+  revealingRef.current = open && created !== null
+  const revealingNow = useCallback(() => revealingRef.current, [])
+  const leaveBlocker = useBlocker({ shouldBlockFn: revealingNow, enableBeforeUnload: revealingNow, withResolver: true })
+  const leaveReveal = () => {
+    revealingRef.current = false
+    setOpen(false)
+    setCreated(null)
+    leaveBlocker.proceed?.()
+  }
+  const askingToLeave = leaveBlocker.status === "blocked"
+  const stayOnReveal = () => leaveBlocker.reset?.()
 
   const changeOpen = (nextOpen: boolean) => {
     if (!nextOpen && creatingNow()) return
@@ -184,7 +263,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
         >
           <DrawerHeader className="flex-row items-start gap-2 pb-3 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
             <div className="min-w-0 flex-1 space-y-1">
-              <DrawerTitle tabIndex={-1} className="text-[15px] outline-none">
+              <DrawerTitle ref={drawerTitleRef} tabIndex={-1} className="text-[15px] outline-none">
                 {created ? "Key created" : "Create API key"}
               </DrawerTitle>
               <DrawerDescription className="text-xs">
@@ -200,6 +279,15 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
             )}
           </DrawerHeader>
           <div className="overflow-y-auto overscroll-contain px-4 pb-6">
+            {askingToLeave && (
+              <LeaveRevealInDrawer
+                onStay={() => {
+                  stayOnReveal()
+                  drawerTitleRef.current?.focus()
+                }}
+                onLeave={leaveReveal}
+              />
+            )}
             {created ? (
               <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
             ) : (
@@ -212,37 +300,40 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
   }
 
   return (
-    <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger asChild>{createButton}</DialogTrigger>
-      <DialogContent
-        className="sm:max-w-xl"
-        showCloseButton={!creating}
-        onEscapeKeyDown={(event) => creatingNow() && event.preventDefault()}
-        // A stray click beside the reveal would throw the key away.
-        onInteractOutside={(event) => (creatingNow() || created) && event.preventDefault()}
-        onCloseAutoFocus={() => setCreated(null)}
-      >
-        {created ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Key created</DialogTitle>
-              <DialogDescription>{createdKeyLine(created.apiKey)}</DialogDescription>
-            </DialogHeader>
-            <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Create API key</DialogTitle>
-              <DialogDescription>
-                Name it after whatever will use it, so you know what breaks when you revoke it.
-              </DialogDescription>
-            </DialogHeader>
-            <ApiKeyCreateForm onCreated={setCreated} onCancel={() => setOpen(false)} />
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={changeOpen}>
+        <DialogTrigger asChild>{createButton}</DialogTrigger>
+        <DialogContent
+          className="sm:max-w-xl"
+          showCloseButton={!creating}
+          // Escape or a stray click beside the reveal would throw the key away.
+          onEscapeKeyDown={(event) => (creatingNow() || created) && event.preventDefault()}
+          onInteractOutside={(event) => (creatingNow() || created) && event.preventDefault()}
+          onCloseAutoFocus={() => setCreated(null)}
+        >
+          {created ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Key created</DialogTitle>
+                <DialogDescription>{createdKeyLine(created.apiKey)}</DialogDescription>
+              </DialogHeader>
+              <ApiKeyReveal created={created} onDone={() => setOpen(false)} />
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Create API key</DialogTitle>
+                <DialogDescription>
+                  Name it after whatever will use it, so you know what breaks when you revoke it.
+                </DialogDescription>
+              </DialogHeader>
+              <ApiKeyCreateForm onCreated={setCreated} onCancel={() => setOpen(false)} />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+      <LeaveRevealConfirm open={askingToLeave} onStay={stayOnReveal} onLeave={leaveReveal} />
+    </>
   )
 }
 
@@ -425,12 +516,13 @@ export function ApiKeysOverview({ narrow, focusOutsideList }: { narrow: boolean;
             focusAfterRevoke(drawer.keyId ?? "")
             return
           }
-          // A key revoked in another tab takes its row along.
+          // A key revoked in another tab takes its row along, and the last one takes the card.
           const row = listRef.current?.querySelector<HTMLElement>(
             `[data-api-key-row="${CSS.escape(drawer.keyId ?? "")}"]`,
           )
-          const target = openerRef.current?.isConnected ? openerRef.current : (row ?? cardRef.current)
-          target?.focus()
+          const target = [openerRef.current, row, cardRef.current].find((candidate) => candidate?.isConnected)
+          if (target) target.focus()
+          else focusOutsideList()
         }}
       />
     </>
