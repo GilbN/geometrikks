@@ -134,6 +134,46 @@ async def test_access_logs_pass_the_page_sort_and_search_to_the_service(captured
     assert any(isinstance(f, SearchFilter) and f.value == "hello" for f in captured_filters)
 
 
+async def test_access_log_range_headers_are_optional_and_request_local(captured_filters):
+    import asyncio
+
+    bounds = [
+        {"fromTimestamp": "2026-11-01T00:00:00+00:00", "toTimestamp": "2026-11-02T00:00:00+00:00"},
+        {"fromTimestamp": "2026-10-01T02:00:00+02:00", "toTimestamp": "2026-10-02T02:00:00+02:00"},
+    ]
+    async with AsyncTestClient(app=_hermetic_app()) as client:
+        responses = await asyncio.gather(*[client.get("/api/v1/access-logs", params=value) for value in bounds])
+        unbounded = await client.get("/api/v1/access-logs")
+        start_only = await client.get("/api/v1/access-logs", params={"fromTimestamp": bounds[0]["fromTimestamp"]})
+    for response, expected in zip(responses, bounds, strict=True):
+        assert response.status_code == 200
+        assert response.headers["X-Range-Start"] == expected["fromTimestamp"].replace("+00:00", "Z")
+        assert response.headers["X-Range-End"] == expected["toTimestamp"].replace("+00:00", "Z")
+    assert "X-Range-Start" not in unbounded.headers and "X-Range-End" not in unbounded.headers
+    assert start_only.headers["X-Range-Start"] == bounds[0]["fromTimestamp"].replace("+00:00", "Z")
+    assert "X-Range-End" not in start_only.headers
+
+
+async def test_resolved_utc_headers_can_be_used_directly_in_a_query_string(captured_filters):
+    async with AsyncTestClient(app=_hermetic_app()) as client:
+        first = await client.get("/api/v1/access-logs", params={"window": "10m"})
+        start, end = first.headers["X-Range-Start"], first.headers["X-Range-End"]
+        assert start.endswith("Z") and end.endswith("Z")
+        second = await client.get(f"/api/v1/access-logs?fromTimestamp={start}&toTimestamp={end}")
+    assert second.status_code == 200
+    assert second.headers["X-Range-Start"] == start and second.headers["X-Range-End"] == end
+
+
+async def test_access_log_window_conflicts_return_a_coded_400(captured_filters):
+    async with AsyncTestClient(app=_hermetic_app()) as client:
+        response = await client.get("/api/v1/access-logs", params={
+            "window": "10m", "fromTimestamp": "2026-11-01T00:00:00Z",
+        })
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_range"
+    assert "X-Range-Start" not in response.headers
+
+
 async def test_geo_events_default_to_50_rows_newest_first(captured_filters: list[FilterTypes]):
     async with AsyncTestClient(app=_hermetic_app()) as client:
         resp = await client.get("/api/v1/geo-events/")

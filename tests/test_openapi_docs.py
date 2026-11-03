@@ -53,6 +53,14 @@ def test_synthesized_validation_responses_document_error_codes(openapi_document:
                 assert schema["properties"]["code"]["type"] == "string"
                 assert schema["examples"][0]["code"] == "validation_failed"
     assert found > 0
+
+
+def test_access_log_polling_window_and_headers_are_documented(openapi_document: dict[str, Any]):
+    operation = openapi_document["paths"]["/api/v1/access-logs"]["get"]
+    parameters = {param["name"]: param for param in operation["parameters"]}
+    assert not parameters["window"].get("required", False)
+    headers = operation["responses"]["200"]["headers"]
+    assert "X-Range-Start" in headers and "X-Range-End" in headers
 # Litestar falls back to the handler name, one word with no spaces; a written summary always has one.
 GENERATED_SUMMARY = re.compile(r"\S+")
 

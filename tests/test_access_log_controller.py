@@ -7,7 +7,7 @@ tests cover the two project-specific providers appended alongside it.
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from geometrikks.domain.exceptions import DomainValidationError
@@ -28,12 +28,12 @@ from geometrikks.domain.logs.controllers.access_logs import (
 
 class TestTimeWindow:
     def test_no_window_when_both_bounds_none(self) -> None:
-        assert provide_access_log_time_window(None, None) == []
+        assert provide_access_log_time_window(None, None).filters == []
 
     def test_adds_inclusive_window_on_timestamp(self) -> None:
         start = datetime(2026, 7, 1, tzinfo=timezone.utc)
         end = datetime(2026, 7, 2, tzinfo=timezone.utc)
-        result = provide_access_log_time_window(start, end)
+        result = provide_access_log_time_window(start, end).filters
         assert len(result) == 1
         window = result[0]
         assert isinstance(window, OnBeforeAfter)
@@ -43,12 +43,33 @@ class TestTimeWindow:
 
     def test_open_ended_window_when_only_one_bound(self) -> None:
         start = datetime(2026, 7, 1, tzinfo=timezone.utc)
-        result = provide_access_log_time_window(start, None)
+        result = provide_access_log_time_window(start, None).filters
         assert len(result) == 1
         window = result[0]
         assert isinstance(window, OnBeforeAfter)
         assert window.on_or_after == start
         assert window.on_or_before is None
+
+    def test_relative_window_echoes_the_same_inclusive_filter_bounds(self) -> None:
+        result = provide_access_log_time_window(window="10m")
+        assert result.start is not None and result.end is not None
+        assert result.end - result.start == timedelta(minutes=10)
+        window_filter = result.filters[0]
+        assert isinstance(window_filter, OnBeforeAfter)
+        assert window_filter.on_or_after == result.start
+        assert window_filter.on_or_before == result.end
+
+    @pytest.mark.parametrize("bounds", [(datetime.now(timezone.utc), None), (None, datetime.now(timezone.utc))])
+    def test_relative_window_rejects_either_explicit_bound(self, bounds) -> None:
+        with pytest.raises(DomainValidationError) as error:
+            provide_access_log_time_window(*bounds, window="10m")
+        assert error.value.code == "invalid_range"
+
+    @pytest.mark.parametrize("window", ["", "0m", "366d", "1h30m"])
+    def test_invalid_relative_window_is_a_domain_error(self, window) -> None:
+        with pytest.raises(DomainValidationError) as error:
+            provide_access_log_time_window(window=window)
+        assert error.value.code == "invalid_range"
 
 
 class TestInFilters:

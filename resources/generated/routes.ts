@@ -500,6 +500,7 @@ export interface RouteQueryParams {
     sortOrder?: "asc" | "desc";
     statusIn?: number[];
     toTimestamp?: DateTime;
+    window?: string;
   };
   'list_alert_scenarios': {
     kind?: string;
@@ -948,7 +949,7 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'logFormatIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'serverIn', 'serverNotIn', 'sortOrder', 'statusIn', 'toTimestamp'] as const,
+    queryParams: ['cityIn', 'countryCodeIn', 'currentPage', 'fromTimestamp', 'hostIn', 'hostNotIn', 'ipAddressIn', 'ipAddressNotIn', 'logFormatIn', 'methodIn', 'orderBy', 'pageSize', 'searchIgnoreCase', 'searchString', 'serverIn', 'serverNotIn', 'sortOrder', 'statusIn', 'toTimestamp', 'window'] as const,
   },
   'list_alert_scenarios': {
     path: '/api/v1/crowdsec/alerts/scenarios',

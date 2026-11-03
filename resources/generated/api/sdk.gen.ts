@@ -310,7 +310,7 @@ export const apiV1AccessLogDebugStatsGetAccessLogDebugStats = <
 /**
  * List access log lines
  *
- * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. For recent polling, use window=10m and deduplicate by id. X-Range-Start and X-Range-End echo inclusive bounds; reuse them as fromTimestamp and toTimestamp on later pages. Do not send window with explicit bounds. Pagination is not a snapshot; overlapping polls can repeat records and do not guarantee late imports or backfills.
  */
 export const apiV1AccessLogsListAccessLogs = <
   ThrowOnError extends boolean = false,

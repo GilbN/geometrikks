@@ -4270,6 +4270,10 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     toTimestamp?: string | null;
     /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
      * Keep only these HTTP methods, matched exactly, such as `GET`. Repeat the parameter to pass more than one.
      */
     methodIn?: Array<string> | null;

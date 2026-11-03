@@ -662,7 +662,8 @@
         "serverNotIn": "string[] | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "statusIn": "number[] | undefined",
-        "toTimestamp": "DateTime | undefined"
+        "toTimestamp": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/access-logs"
     },

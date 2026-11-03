@@ -12,10 +12,10 @@ Every REST endpoint lives under `/api/v1`, mounted as a single Litestar
 registration point. Controllers live in their vertical domain packages
 (`geometrikks/domain/<domain>/controllers*`) and own only their domain
 segment (`/analytics`, `/crowdsec`, ...); the router supplies the version
-prefix. Everything under `/api/v1` requires the session cookie except
+prefix. Everything under `/api/v1` requires a bearer API key or the session cookie except
 `/api/v1/auth/login`, `/api/v1/auth/options`, `/api/v1/auth/oidc/start` and
-`/api/v1/auth/oidc/callback` (with `APP_AUTH_DISABLED=true` nothing requires a
-session, and the auth endpoints stay registered as mode-appropriate no-ops:
+`/api/v1/auth/oidc/callback` (with `APP_AUTH_DISABLED=true` nothing requires
+credentials, and the auth endpoints stay registered as mode-appropriate no-ops:
 `/api/v1/auth/me` and a valid `/api/v1/auth/login` return
 `{"mode": "disabled"}`). `/api/v1/auth/logout` always answers 200 with
 `{"redirectTo": string | null}`: `redirectTo` carries the identity
@@ -25,9 +25,12 @@ router:
 
 - `/health` and `/health/ready`: unauthenticated probe endpoints.
 - `/ws/live`, `/ws/logs`, `/ws/crowdsec`: WebSocket feeds
-  (`geometrikks/domain/realtime/`), session-authenticated during the
-  handshake.
+  (`geometrikks/domain/realtime/`), authenticated during the
+  handshake by a session cookie or an Authorization bearer header.
 - `/schema` (deliberately unauthenticated), `/sw.js`, and the SPA shell.
+
+API-key management, `/auth/me`, `/auth/logout` and `/auth/oidc/status` require
+a browser session; API keys get a 403 on those endpoints.
 
 ## Field casing: camelCase
 
@@ -269,3 +272,58 @@ it does not prove that the database itself is unreachable. `crowdsec_timeout`
 means the full decision list did not arrive within the deadline. The count
 includes all scopes and origins, including subscribed blocklists, and can differ
 from the Security page's filtered or grouped view.
+
+## Recent-record polling
+
+`GET /api/v1/access-logs?window=10m` selects the last ten minutes using log
+timestamps. It keeps the access-log endpoint's inclusive start and end bounds.
+Window grammar and the 365-day cap match analytics. Supplying `window` with
+either `fromTimestamp` or `toTimestamp` returns 400 with `code: invalid_range`.
+
+Responses keep `items`, `total`, `limit` and `offset`. `X-Range-Start` and
+`X-Range-End` echo whichever bounds were resolved or supplied, as ISO 8601.
+UTC bounds use `Z`; other offsets keep their sign and offset.
+An unbounded side has no corresponding header. Responses use `Cache-Control: no-store`.
+
+For a script polling every 30 seconds, a ten-minute overlap is a starting point:
+
+1. Request page 1 with `window=10m`, `orderBy=id`, `sortOrder=asc` and `pageSize=1000`.
+2. Read the range headers. For later pages, replace `window` with those exact
+   values as `fromTimestamp` and `toTimestamp`, URL-encoding each value. A raw
+   `+` in a query string becomes a space. Use client query parameters or curl's
+   `--data-urlencode`. Keep the sort, page size and filters.
+3. Process `items`, deduplicating by `id`. Fetch `currentPage=2`, then 3, until
+   `offset + len(items) >= total` or a page is empty. Totals can change during a poll.
+4. Begin the next poll with a fresh relative window. Keep seen IDs for at least
+   the overlap duration after last seeing them. Persist them if repeats across
+   process restarts matter. Keep the deduplication state when a request fails.
+
+For example, the first request can be made with:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --dump-header poll.headers \
+  --header "Authorization: Bearer $GMK_API_KEY" \
+  --get "$GMK_URL/api/v1/access-logs" \
+  --data-urlencode window=10m \
+  --data-urlencode pageSize=1000 \
+  --data-urlencode orderBy=id \
+  --data-urlencode sortOrder=asc
+```
+
+This is best-effort recent polling. Pages are not a transaction snapshot;
+concurrent writes and retention can change their contents. Choose an overlap
+longer than the polling interval and expected ingestion delay. Records that
+arrive after their log time has left the window can be missed. Imports and
+backfills are outside this contract. An ID greater than the last seen ID is
+not a commit-order cursor: agents can commit out of order.
+
+CrowdSec alerts already support recent polling with
+`GET /api/v1/crowdsec/alerts?since=10m&limit=500`. Deduplicate by alert `id`
+and use `nextCursor` as `before` to read older pages. The LAPI filters alert
+start time, which can precede when an alert is created. Late alerts can fall
+outside the window, and the same-second pagination limit can return a 409.
+
+For a live feed, Read keys can also authenticate `/ws/live` with an
+Authorization bearer header in the WebSocket handshake. Use a client that
+can send that header; the browser WebSocket API uses the session cookie.

@@ -113,6 +113,12 @@ such as `Europe/Oslo`. `tz` makes daily buckets local days on ranges of 30 days 
 ranges keep UTC days unless the endpoint's description says otherwise. Those shorter ranges get hourly \
 buckets unless you send `granularity=daily`, and `tz` changes nothing on hourly buckets.
 
+For recent access-log polling, use `/api/v1/access-logs?window=10m&orderBy=id&sortOrder=asc`. \
+`X-Range-Start` and `X-Range-End` echo inclusive bounds. URL-encode them as `fromTimestamp` and \
+`toTimestamp` for later pages, dropping `window`, and deduplicate records by `id` across polls. \
+Pages are not a snapshot; choose overlap longer than the polling interval and ingestion delay. \
+Late imports and backfills are outside this polling contract. An ID is not a commit-order cursor.
+
 ## Dashboard summary
 
 `GET /api/v1/integration/summary?window=24h` combines traffic totals, instance health, local \
