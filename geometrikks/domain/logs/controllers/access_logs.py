@@ -35,7 +35,38 @@ from geometrikks.lib.parameters import (
     ServerIn,
     ServerNotIn,
 )
+from geometrikks.lib.pagination import (
+    LIMIT_OFFSET_KEY,
+    MAX_LOG_PAGE_SIZE,
+    ORDER_BY_KEY,
+    limit_offset_provider,
+    order_by_provider,
+)
 from geometrikks.lib.validation import validate_ip_addresses
+
+ACCESS_LOG_SORT_FIELDS = (
+    "timestamp",
+    "id",
+    "ip_address",
+    "remote_user",
+    "method",
+    "url",
+    "http_version",
+    "status_code",
+    "bytes_sent",
+    "referrer",
+    "user_agent",
+    "request_time",
+    "upstream_response_time",
+    "host",
+    "country_code",
+    "country_name",
+    "city",
+    "autonomous_system_number",
+    "autonomous_system_organization",
+    "server",
+    "log_format",
+)
 
 
 def provide_access_log_time_window(
@@ -211,15 +242,22 @@ class AccessLogController(Controller):
         # No config here: constructing it needs Settings(), which must not run
         # at import time. The service provider falls back to the request-scoped
         # ``db_session`` dependency registered by SQLAlchemyInitPlugin.
+        # pagination_type and sort_field are kept so the aggregate ``filters``
+        # asks for the two providers replaced below, which cap pageSize and
+        # check orderBy.
         filters={
-            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
-            "pagination_size": 50,
+            "pagination_type": "limit_offset",
             "search": "url,referrer,user_agent",  # -> ?searchString
             "search_ignore_case": True,
-            "sort_field": "timestamp",            # default; overridable via ?orderBy
-            "sort_order": "desc",                 # -> ?sortOrder
+            "sort_field": "timestamp",
         },
     ) | {
+        LIMIT_OFFSET_KEY: limit_offset_provider(default_size=50, max_size=MAX_LOG_PAGE_SIZE),
+        ORDER_BY_KEY: order_by_provider(
+            fields=ACCESS_LOG_SORT_FIELDS,
+            default="timestamp",
+            note="A sort by `request_time` or `upstream_response_time` puts lines without a timing last.",
+        ),
         "time_window": Provide(provide_access_log_time_window, sync_to_thread=False),
         "in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
     }
@@ -228,11 +266,10 @@ class AccessLogController(Controller):
         "/",
         summary="List access log lines",
         description=(
-            "Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize`, 50 by "
-            "default. `searchString` matches part of the URL, referrer or user agent, ignoring case unless "
-            "`searchIgnoreCase` is false. `orderBy` takes a snake_case field name such as `status_code`, and a "
-            "sort by `request_time` or `upstream_response_time` puts lines without a timing last. Timings are in "
-            "seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
+            "Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted "
+            "with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, "
+            "ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back "
+            "ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
         ),
     )
     async def list_access_logs(

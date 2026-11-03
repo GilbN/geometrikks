@@ -45,6 +45,7 @@ from geometrikks.lib.parameters import (
     FromTimestamp,
     GEO_WHOLE_BUCKETS_NOTE,
 )
+from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, limit_offset_provider
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
@@ -72,18 +73,17 @@ class GeoLocationController(Controller):
         # No config here: constructing it needs Settings(), which must not run
         # at import time. The service provider falls back to the request-scoped
         # ``db_session`` dependency registered by SQLAlchemyInitPlugin.
-        filters={
-            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
-            "pagination_size": 10,               # matches the old global provider
-        },
-    )
+        # Kept so the aggregate ``filters`` asks for the provider replaced
+        # below, which caps pageSize.
+        filters={"pagination_type": "limit_offset"},
+    ) | {LIMIT_OFFSET_KEY: limit_offset_provider(default_size=10)}
 
     @get(
         "/",
         summary="List the stored locations",
         description=(
-            "Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`, 10 by "
-            "default. It takes no time range or filters. Pass an item's `id` to "
+            "Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`. It takes "
+            "no time range or filters. Pass an item's `id` to "
             "`/api/v1/geo-locations/{location_id}/top-ips`."
         ),
     )

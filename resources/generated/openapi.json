@@ -7955,18 +7955,20 @@
     "/api/v1/access-log-debug": {
       "get": {
         "deprecated": false,
-        "description": "Returns stored raw log lines, newest first, each with the access log line it produced, paged with `currentPage` and `pageSize`, 50 by default. `fromTimestamp` and `toTimestamp` filter on when GeoMetrikks stored the line, inclusive at both ends, and `searchString` matches part of the raw line or the parse error, ignoring case unless `searchIgnoreCase` is false. Lines go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.",
+        "description": "Returns stored raw log lines, newest first, each with the access log line it produced, paged with `currentPage` and `pageSize`. `fromTimestamp` and `toTimestamp` filter on when GeoMetrikks stored the line, inclusive at both ends, and `searchString` matches part of the raw line or the parse error, ignoring case unless `searchIgnoreCase` is false. Lines go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.",
         "operationId": "ApiV1AccessLogDebugListAccessLogDebug",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "The page to return, counted from 1. Defaults to 1.",
             "in": "query",
             "name": "currentPage",
             "required": false,
             "schema": {
               "default": 1,
+              "description": "The page to return, counted from 1. Defaults to 1.",
               "minimum": 1.0,
               "type": "integer"
             }
@@ -7975,11 +7977,14 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Rows per page, from 1 to 1000. Defaults to 50.",
             "in": "query",
             "name": "pageSize",
             "required": false,
             "schema": {
               "default": 50,
+              "description": "Rows per page, from 1 to 1000. Defaults to 50.",
+              "maximum": 1000.0,
               "minimum": 1.0,
               "type": "integer"
             }
@@ -8407,18 +8412,20 @@
     "/api/v1/access-logs": {
       "get": {
         "deprecated": false,
-        "description": "Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize`, 50 by default. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. `orderBy` takes a snake_case field name such as `status_code`, and a sort by `request_time` or `upstream_response_time` puts lines without a timing last. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AccessLogsListAccessLogs",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "The page to return, counted from 1. Defaults to 1.",
             "in": "query",
             "name": "currentPage",
             "required": false,
             "schema": {
               "default": 1,
+              "description": "The page to return, counted from 1. Defaults to 1.",
               "minimum": 1.0,
               "type": "integer"
             }
@@ -8427,11 +8434,14 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Rows per page, from 1 to 1000. Defaults to 50.",
             "in": "query",
             "name": "pageSize",
             "required": false,
             "schema": {
               "default": 50,
+              "description": "Rows per page, from 1 to 1000. Defaults to 50.",
+              "maximum": 1000.0,
               "minimum": 1.0,
               "type": "integer"
             }
@@ -8480,42 +8490,32 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "The field to sort by, one of `timestamp`, `id`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization`, `server`, `log_format`. Defaults to `timestamp`, and any other value gets a 400. A sort by `request_time` or `upstream_response_time` puts lines without a timing last.",
             "in": "query",
             "name": "orderBy",
             "required": false,
             "schema": {
               "default": "timestamp",
-              "oneOf": [
-                {
-                  "default": "timestamp",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Order by field"
+              "description": "The field to sort by, one of `timestamp`, `id`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization`, `server`, `log_format`. Defaults to `timestamp`, and any other value gets a 400. A sort by `request_time` or `upstream_response_time` puts lines without a timing last.",
+              "type": "string"
             }
           },
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "`asc` or `desc`. Defaults to `desc`.",
             "in": "query",
             "name": "sortOrder",
             "required": false,
             "schema": {
               "default": "desc",
+              "description": "`asc` or `desc`. Defaults to `desc`.",
               "enum": [
                 "asc",
-                "desc",
-                null
+                "desc"
               ],
-              "title": "Field to search",
-              "type": [
-                "null",
-                "string"
-              ]
+              "type": "string"
             }
           },
           {
@@ -11484,6 +11484,26 @@
               }
             },
             "description": "Bad request syntax or unsupported method"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Wrong credentials, or password login is off because only OIDC is set up."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The database is down, so nobody can log in."
           }
         },
         "security": [
@@ -11511,6 +11531,16 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
           }
         },
         "security": [
@@ -11547,6 +11577,26 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request has no session."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
           }
         },
         "security": [
@@ -11576,6 +11626,16 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request used an API key."
           }
         },
         "security": [
@@ -12428,13 +12488,14 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Rows per page. Defaults to 10.",
+            "description": "Rows per page, from 1 to 500. Defaults to 10.",
             "in": "query",
             "name": "pageSize",
             "required": false,
             "schema": {
               "default": 10,
-              "description": "Rows per page. Defaults to 10.",
+              "description": "Rows per page, from 1 to 500. Defaults to 10.",
+              "maximum": 500.0,
               "minimum": 1.0,
               "type": "integer"
             }
@@ -13006,18 +13067,20 @@
     "/api/v1/geo-events": {
       "get": {
         "deprecated": false,
-        "description": "Returns one event per logged request whose client IP has a GeoIP location, newest first, with the location embedded. Page with `currentPage` and `pageSize`, 50 by default. Sort with `orderBy` and `sortOrder`, where `orderBy` takes a snake_case field name such as `timestamp`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive.",
+        "description": "Returns one event per logged request whose client IP has a GeoIP location, newest first, with the location embedded. Page with `currentPage` and `pageSize`, and sort with `orderBy` and `sortOrder`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive.",
         "operationId": "ApiV1GeoEventsListGeoEvents",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "The page to return, counted from 1. Defaults to 1.",
             "in": "query",
             "name": "currentPage",
             "required": false,
             "schema": {
               "default": 1,
+              "description": "The page to return, counted from 1. Defaults to 1.",
               "minimum": 1.0,
               "type": "integer"
             }
@@ -13026,11 +13089,14 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Rows per page, from 1 to 500. Defaults to 50.",
             "in": "query",
             "name": "pageSize",
             "required": false,
             "schema": {
               "default": 50,
+              "description": "Rows per page, from 1 to 500. Defaults to 50.",
+              "maximum": 500.0,
               "minimum": 1.0,
               "type": "integer"
             }
@@ -13039,42 +13105,32 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "The field to sort by, one of `timestamp`, `id`, `ip_address`, `server`, `location_id`, `autonomous_system_number`, `autonomous_system_organization`. Defaults to `timestamp`, and any other value gets a 400.",
             "in": "query",
             "name": "orderBy",
             "required": false,
             "schema": {
               "default": "timestamp",
-              "oneOf": [
-                {
-                  "default": "timestamp",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Order by field"
+              "description": "The field to sort by, one of `timestamp`, `id`, `ip_address`, `server`, `location_id`, `autonomous_system_number`, `autonomous_system_organization`. Defaults to `timestamp`, and any other value gets a 400.",
+              "type": "string"
             }
           },
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "`asc` or `desc`. Defaults to `desc`.",
             "in": "query",
             "name": "sortOrder",
             "required": false,
             "schema": {
               "default": "desc",
+              "description": "`asc` or `desc`. Defaults to `desc`.",
               "enum": [
                 "asc",
-                "desc",
-                null
+                "desc"
               ],
-              "title": "Field to search",
-              "type": [
-                "null",
-                "string"
-              ]
+              "type": "string"
             }
           },
           {
@@ -15404,18 +15460,20 @@
     "/api/v1/geo-locations": {
       "get": {
         "deprecated": false,
-        "description": "Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`, 10 by default. It takes no time range or filters. Pass an item's `id` to `/api/v1/geo-locations/{location_id}/top-ips`.",
+        "description": "Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`. It takes no time range or filters. Pass an item's `id` to `/api/v1/geo-locations/{location_id}/top-ips`.",
         "operationId": "ApiV1GeoLocationsListGeoLocations",
         "parameters": [
           {
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "The page to return, counted from 1. Defaults to 1.",
             "in": "query",
             "name": "currentPage",
             "required": false,
             "schema": {
               "default": 1,
+              "description": "The page to return, counted from 1. Defaults to 1.",
               "minimum": 1.0,
               "type": "integer"
             }
@@ -15424,11 +15482,14 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Rows per page, from 1 to 500. Defaults to 10.",
             "in": "query",
             "name": "pageSize",
             "required": false,
             "schema": {
               "default": 10,
+              "description": "Rows per page, from 1 to 500. Defaults to 10.",
+              "maximum": 500.0,
               "minimum": 1.0,
               "type": "integer"
             }

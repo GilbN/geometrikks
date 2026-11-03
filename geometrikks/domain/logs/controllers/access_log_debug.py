@@ -13,6 +13,7 @@ from advanced_alchemy.service import OffsetPagination
 
 from geometrikks.domain.logs.schemas import AccessLogDebugEntry, AccessLogDebugStats
 from geometrikks.domain.logs.services import DEBUG_SORT_COLUMNS, AccessLogDebugService
+from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, MAX_LOG_PAGE_SIZE, limit_offset_provider
 from geometrikks.lib.parameters import (
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
@@ -81,13 +82,15 @@ class AccessLogDebugController(Controller):
         # No sort config: the generated OrderBy provider cannot resolve the
         # logical ``timestamp`` key, which maps to the log_timestamp column;
         # the handler passes orderBy through to the service's allowlist.
+        # pagination_type is kept so the aggregate ``filters`` asks for the
+        # provider replaced below, which caps pageSize.
         filters={
-            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
-            "pagination_size": 50,
+            "pagination_type": "limit_offset",
             "search": "raw_line,parse_error",    # -> ?searchString
             "search_ignore_case": True,
         },
     ) | {
+        LIMIT_OFFSET_KEY: limit_offset_provider(default_size=50, max_size=MAX_LOG_PAGE_SIZE),
         "time_window": Provide(provide_debug_time_window, sync_to_thread=False),
     }
 
@@ -96,7 +99,7 @@ class AccessLogDebugController(Controller):
         summary="List stored raw log lines",
         description=(
             "Returns stored raw log lines, newest first, each with the access log line it produced, paged with "
-            "`currentPage` and `pageSize`, 50 by default. `fromTimestamp` and `toTimestamp` filter on when "
+            "`currentPage` and `pageSize`. `fromTimestamp` and `toTimestamp` filter on when "
             "GeoMetrikks stored the line, inclusive at both ends, and `searchString` matches part of the raw line "
             "or the parse error, ignoring case unless `searchIgnoreCase` is false. Lines go back "
             "ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default."

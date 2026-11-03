@@ -38,26 +38,14 @@ HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "pa
 # Litestar falls back to the handler name, one word with no spaces; a written summary always has one.
 GENERATED_SUMMARY = re.compile(r"\S+")
 
-# advanced_alchemy's create_service_dependencies builds these filter parameters and takes no
+# advanced_alchemy's create_service_dependencies builds these search parameters and takes no
 # descriptions, so each endpoint's description explains them instead.
 UNDESCRIBABLE_PARAMETERS = frozenset(
     {
-        ("get", "/api/v1/access-log-debug", "currentPage"),
-        ("get", "/api/v1/access-log-debug", "pageSize"),
         ("get", "/api/v1/access-log-debug", "searchString"),
         ("get", "/api/v1/access-log-debug", "searchIgnoreCase"),
-        ("get", "/api/v1/access-logs", "currentPage"),
-        ("get", "/api/v1/access-logs", "pageSize"),
         ("get", "/api/v1/access-logs", "searchString"),
         ("get", "/api/v1/access-logs", "searchIgnoreCase"),
-        ("get", "/api/v1/access-logs", "orderBy"),
-        ("get", "/api/v1/access-logs", "sortOrder"),
-        ("get", "/api/v1/geo-events", "currentPage"),
-        ("get", "/api/v1/geo-events", "pageSize"),
-        ("get", "/api/v1/geo-events", "orderBy"),
-        ("get", "/api/v1/geo-events", "sortOrder"),
-        ("get", "/api/v1/geo-locations", "currentPage"),
-        ("get", "/api/v1/geo-locations", "pageSize"),
     }
 )
 
@@ -267,6 +255,15 @@ def test_undescribable_parameters_are_still_in_the_schema(openapi_document: dict
     assert UNDESCRIBABLE_PARAMETERS - present == set()
 
 
+def test_undescribable_parameters_still_lack_a_description(openapi_document: dict[str, Any]):
+    described = {
+        (method, path, parameter["name"])
+        for method, path, parameter in _parameters(openapi_document)
+        if parameter.get("description", "").strip()
+    }
+    assert UNDESCRIBABLE_PARAMETERS & described == set()
+
+
 def test_every_component_schema_has_a_description(openapi_document: dict[str, Any]):
     undescribed = [
         name
@@ -358,6 +355,28 @@ def test_operations_without_auth_advertise_no_credentials(
     openapi_document: dict[str, Any], path: str, method: str
 ):
     assert openapi_document["paths"][path][method]["security"] == [{}]
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "status"),
+    [
+        ("post", "/api/v1/auth/login", "401"),
+        ("post", "/api/v1/auth/login", "503"),
+        ("get", "/api/v1/auth/me", "401"),
+        ("get", "/api/v1/auth/me", "403"),
+        ("post", "/api/v1/auth/logout", "403"),
+        ("get", "/api/v1/auth/oidc/status", "403"),
+        ("get", "/api/v1/auth/api-keys", "403"),
+        ("post", "/api/v1/auth/api-keys", "403"),
+        ("delete", "/api/v1/auth/api-keys/{key_id}", "403"),
+    ],
+)
+def test_auth_routes_declare_the_errors_their_descriptions_name(
+    openapi_document: dict[str, Any], method: str, path: str, status: str
+):
+    response = openapi_document["paths"][path][method]["responses"][status]
+    assert response["description"].strip()
+    assert response["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/ErrorEnvelope"
 
 
 @pytest.mark.parametrize("route_handler", [AuthController.oidc_start, AuthController.oidc_callback])

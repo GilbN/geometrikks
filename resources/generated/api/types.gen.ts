@@ -3873,7 +3873,13 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 1000. Defaults to 50.
+     */
     pageSize?: number;
     /**
      * Field to search
@@ -4011,7 +4017,13 @@ export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 1000. Defaults to 50.
+     */
     pageSize?: number;
     /**
      * Field to search
@@ -4022,13 +4034,13 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     searchIgnoreCase?: boolean | null;
     /**
-     * Order by field
+     * The field to sort by, one of `timestamp`, `id`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization`, `server`, `log_format`. Defaults to `timestamp`, and any other value gets a 400. A sort by `request_time` or `upstream_response_time` puts lines without a timing last.
      */
-    orderBy?: string | null;
+    orderBy?: string;
     /**
-     * Field to search
+     * `asc` or `desc`. Defaults to `desc`.
      */
-    sortOrder?: "asc" | "desc" | null;
+    sortOrder?: "asc" | "desc";
     /**
      * Keep only lines logged at or after this time, as ISO 8601 with a timezone.
      */
@@ -5015,6 +5027,14 @@ export type ApiV1AuthLoginLoginErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * Wrong credentials, or password login is off because only OIDC is set up.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The database is down, so nobody can log in.
+   */
+  503: ErrorEnvelope;
 };
 
 export type ApiV1AuthLoginLoginError =
@@ -5037,6 +5057,16 @@ export type ApiV1AuthLogoutLogoutData = {
   url: "/api/v1/auth/logout";
 };
 
+export type ApiV1AuthLogoutLogoutErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthLogoutLogoutError =
+  ApiV1AuthLogoutLogoutErrors[keyof ApiV1AuthLogoutLogoutErrors];
+
 export type ApiV1AuthLogoutLogoutResponses = {
   /**
    * Request fulfilled, document follows
@@ -5054,6 +5084,19 @@ export type ApiV1AuthMeMeData = {
   url: "/api/v1/auth/me";
 };
 
+export type ApiV1AuthMeMeErrors = {
+  /**
+   * The request has no session.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthMeMeError = ApiV1AuthMeMeErrors[keyof ApiV1AuthMeMeErrors];
+
 export type ApiV1AuthMeMeResponses = {
   /**
    * Request fulfilled, document follows
@@ -5070,6 +5113,16 @@ export type ApiV1AuthOidcStatusOidcStatusData = {
   query?: never;
   url: "/api/v1/auth/oidc/status";
 };
+
+export type ApiV1AuthOidcStatusOidcStatusErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthOidcStatusOidcStatusError =
+  ApiV1AuthOidcStatusOidcStatusErrors[keyof ApiV1AuthOidcStatusOidcStatusErrors];
 
 export type ApiV1AuthOidcStatusOidcStatusResponses = {
   /**
@@ -5429,7 +5482,7 @@ export type ApiV1CrowdsecDecisionsListDecisionsData = {
      */
     currentPage?: number;
     /**
-     * Rows per page. Defaults to 10.
+     * Rows per page, from 1 to 500. Defaults to 10.
      */
     pageSize?: number;
     /**
@@ -5718,16 +5771,22 @@ export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 50.
+     */
     pageSize?: number;
     /**
-     * Order by field
+     * The field to sort by, one of `timestamp`, `id`, `ip_address`, `server`, `location_id`, `autonomous_system_number`, `autonomous_system_organization`. Defaults to `timestamp`, and any other value gets a 400.
      */
-    orderBy?: string | null;
+    orderBy?: string;
     /**
-     * Field to search
+     * `asc` or `desc`. Defaults to `desc`.
      */
-    sortOrder?: "asc" | "desc" | null;
+    sortOrder?: "asc" | "desc";
     /**
      * Keep only events at or after this time, as ISO 8601 with a timezone.
      */
@@ -6385,7 +6444,13 @@ export type ApiV1GeoLocationsListGeoLocationsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 10.
+     */
     pageSize?: number;
   };
   url: "/api/v1/geo-locations";

@@ -66,10 +66,13 @@ import type {
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
   ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutErrors,
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
+  ApiV1AuthMeMeErrors,
   ApiV1AuthMeMeResponses,
   ApiV1AuthOidcStatusOidcStatusData,
+  ApiV1AuthOidcStatusOidcStatusErrors,
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
@@ -536,10 +539,10 @@ export interface OperationErrorTypes {
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
   'list_instances': ApiV1InstancesListInstancesErrors
   'login': ApiV1AuthLoginLoginErrors
-  'logout': never
+  'logout': ApiV1AuthLogoutLogoutErrors
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors
-  'me': never
-  'oidc_status': never
+  'me': ApiV1AuthMeMeErrors
+  'oidc_status': ApiV1AuthOidcStatusOidcStatusErrors
   'options': never
   'read_settings': never
   'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors

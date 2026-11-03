@@ -9,6 +9,7 @@ from litestar.enums import ScopeType
 from litestar.exceptions import NotAuthorizedException, PermissionDeniedException, ServiceUnavailableException
 from litestar.middleware.authentication import AuthenticationResult
 from litestar.middleware.session.server_side import ServerSideSessionBackend
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.openapi.spec import Components, SecurityRequirement, SecurityScheme
 from litestar.security.session_auth import SessionAuth, SessionAuthMiddleware
 
@@ -20,6 +21,7 @@ from geometrikks.domain.auth.api_keys import (
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
 from geometrikks.server.auth import AdminUser
+from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 
 if TYPE_CHECKING:
@@ -37,6 +39,7 @@ login_logger = get_logger(LOGIN_LOGGER_NAME)
 API_KEY_SECURITY_SCHEME = "apiKey"
 SESSION_COOKIE_SECURITY_SCHEME = "sessionCookie"
 SESSION_ONLY_SECURITY: list[SecurityRequirement] = [{SESSION_COOKIE_SECURITY_SCHEME: []}]
+SESSION_ONLY_RESPONSE = ResponseSpec(data_container=ErrorEnvelope, description="The request used an API key.")
 # Litestar drops an empty handler list and the global requirement applies again.
 # An empty requirement object is OpenAPI's way to say no credentials.
 NO_CREDENTIALS_SECURITY: list[SecurityRequirement] = [{}]

@@ -69,10 +69,13 @@ import type {
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
   ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutErrors,
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
+  ApiV1AuthMeMeErrors,
   ApiV1AuthMeMeResponses,
   ApiV1AuthOidcStatusOidcStatusData,
+  ApiV1AuthOidcStatusOidcStatusErrors,
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
@@ -236,7 +239,7 @@ export type Options<
 /**
  * List stored raw log lines
  *
- * Returns stored raw log lines, newest first, each with the access log line it produced, paged with `currentPage` and `pageSize`, 50 by default. `fromTimestamp` and `toTimestamp` filter on when GeoMetrikks stored the line, inclusive at both ends, and `searchString` matches part of the raw line or the parse error, ignoring case unless `searchIgnoreCase` is false. Lines go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.
+ * Returns stored raw log lines, newest first, each with the access log line it produced, paged with `currentPage` and `pageSize`. `fromTimestamp` and `toTimestamp` filter on when GeoMetrikks stored the line, inclusive at both ends, and `searchString` matches part of the raw line or the parse error, ignoring case unless `searchIgnoreCase` is false. Lines go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.
  */
 export const apiV1AccessLogDebugListAccessLogDebug = <
   ThrowOnError extends boolean = false,
@@ -301,7 +304,7 @@ export const apiV1AccessLogDebugStatsGetAccessLogDebugStats = <
 /**
  * List access log lines
  *
- * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize`, 50 by default. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. `orderBy` takes a snake_case field name such as `status_code`, and a sort by `request_time` or `upstream_response_time` puts lines without a timing last. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AccessLogsListAccessLogs = <
   ThrowOnError extends boolean = false,
@@ -867,10 +870,14 @@ export const apiV1AuthLoginLogin = <ThrowOnError extends boolean = false>(
  */
 export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthLogoutLogoutData, ThrowOnError>,
-): RequestResult<ApiV1AuthLogoutLogoutResponses, unknown, ThrowOnError> =>
+): RequestResult<
+  ApiV1AuthLogoutLogoutResponses,
+  ApiV1AuthLogoutLogoutErrors,
+  ThrowOnError
+> =>
   (options?.client ?? client).post<
     ApiV1AuthLogoutLogoutResponses,
-    unknown,
+    ApiV1AuthLogoutLogoutErrors,
     ThrowOnError
   >({
     security: [
@@ -891,10 +898,10 @@ export const apiV1AuthLogoutLogout = <ThrowOnError extends boolean = false>(
  */
 export const apiV1AuthMeMe = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1AuthMeMeData, ThrowOnError>,
-): RequestResult<ApiV1AuthMeMeResponses, unknown, ThrowOnError> =>
+): RequestResult<ApiV1AuthMeMeResponses, ApiV1AuthMeMeErrors, ThrowOnError> =>
   (options?.client ?? client).get<
     ApiV1AuthMeMeResponses,
-    unknown,
+    ApiV1AuthMeMeErrors,
     ThrowOnError
   >({
     security: [
@@ -919,12 +926,12 @@ export const apiV1AuthOidcStatusOidcStatus = <
   options?: Options<ApiV1AuthOidcStatusOidcStatusData, ThrowOnError>,
 ): RequestResult<
   ApiV1AuthOidcStatusOidcStatusResponses,
-  unknown,
+  ApiV1AuthOidcStatusOidcStatusErrors,
   ThrowOnError
 > =>
   (options?.client ?? client).get<
     ApiV1AuthOidcStatusOidcStatusResponses,
-    unknown,
+    ApiV1AuthOidcStatusOidcStatusErrors,
     ThrowOnError
   >({
     security: [
@@ -1469,7 +1476,7 @@ export const apiV1DropListsGetDropLists = <
 /**
  * List geo events
  *
- * Returns one event per logged request whose client IP has a GeoIP location, newest first, with the location embedded. Page with `currentPage` and `pageSize`, 50 by default. Sort with `orderBy` and `sortOrder`, where `orderBy` takes a snake_case field name such as `timestamp`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive.
+ * Returns one event per logged request whose client IP has a GeoIP location, newest first, with the location embedded. Page with `currentPage` and `pageSize`, and sort with `orderBy` and `sortOrder`. `fromTimestamp` and `toTimestamp` are optional here, and both ends of the range are inclusive.
  */
 export const apiV1GeoEventsListGeoEvents = <
   ThrowOnError extends boolean = false,
@@ -1754,7 +1761,7 @@ export const apiV1GeoEventsTopIpsGetGeoLogTopIps = <
 /**
  * List the stored locations
  *
- * Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`, 10 by default. It takes no time range or filters. Pass an item's `id` to `/api/v1/geo-locations/{location_id}/top-ips`.
+ * Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`. It takes no time range or filters. Pass an item's `id` to `/api/v1/geo-locations/{location_id}/top-ips`.
  */
 export const apiV1GeoLocationsListGeoLocations = <
   ThrowOnError extends boolean = false,

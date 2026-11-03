@@ -1,14 +1,11 @@
 """Dependency providers for the security (CrowdSec) domain."""
 from __future__ import annotations
 
-from typing import Annotated
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from litestar import Request
 from litestar.di import NamedDependency
-from litestar.params import QueryParameter, SkipValidation
-from advanced_alchemy.extensions.litestar import filters
+from litestar.params import SkipValidation
 
 from geometrikks.config.settings import Settings
 from geometrikks.server import runtime
@@ -58,30 +55,3 @@ def provide_geoip_locator(
     if not runtime.is_geoip_available(request.app):
         return None
     return GeoIpLocator(settings.geoip.db_path, settings.geoip.locales)
-
-
-def provide_limit_offset_pagination(
-    current_page: Annotated[
-        int,
-        QueryParameter(
-            name="currentPage", ge=1, required=False, description="The page to return, counted from 1. Defaults to 1."
-        ),
-    ] = 1,
-    page_size: Annotated[
-        int, QueryParameter(name="pageSize", ge=1, required=False, description="Rows per page. Defaults to 10.")
-    ] = 10,
-) -> filters.LimitOffset:
-    """Add offset/limit pagination.
-
-    Controller-scoped provider for endpoints that paginate in-memory results
-    (CrowdSec decisions); ORM-backed lists use the Advanced Alchemy filter
-    dependencies from create_service_dependencies() instead.
-
-    Parameters
-    ----------
-    current_page : int
-        Page number (1-indexed).
-    page_size : int
-        Number of items per page.
-    """
-    return filters.LimitOffset(page_size, page_size * (current_page - 1))

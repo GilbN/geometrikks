@@ -37,11 +37,11 @@ from geometrikks.domain.security.dependencies import (
     provide_crowdsec_service,
     provide_drop_traffic_repo,
     provide_geoip_locator,
-    provide_limit_offset_pagination,
     provide_security_enrichment_repo,
 )
 from geometrikks.config.settings import Settings
 from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.lib.pagination import limit_offset_provider
 from geometrikks.lib.validation import validate_ip_address
 from geometrikks.domain.security.alert_history import (
     BOT_KIND_GROUP,
@@ -755,9 +755,7 @@ class CrowdSecController(Controller):
         "crowdsec_poller": Provide(provide_crowdsec_poller, sync_to_thread=False),
         "enrichment_repo": Provide(provide_security_enrichment_repo),
         "geoip": Provide(provide_geoip_locator, sync_to_thread=False),
-        # Controller-scoped: /decisions paginates an in-memory LAPI result,
-        # not an ORM query, so it keeps the hand-written provider.
-        "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=False),
+        "limit_offset": limit_offset_provider(default_size=10),
         "drop_snapshot": Provide(provide_drop_snapshot),
         "drop_traffic_repo": Provide(provide_drop_traffic_repo),
     }
