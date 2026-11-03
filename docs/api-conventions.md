@@ -12,10 +12,10 @@ Every REST endpoint lives under `/api/v1`, mounted as a single Litestar
 registration point. Controllers live in their vertical domain packages
 (`geometrikks/domain/<domain>/controllers*`) and own only their domain
 segment (`/analytics`, `/crowdsec`, ...); the router supplies the version
-prefix. Everything under `/api/v1` requires the session cookie except
+prefix. Everything under `/api/v1` requires a bearer API key or the session cookie except
 `/api/v1/auth/login`, `/api/v1/auth/options`, `/api/v1/auth/oidc/start` and
-`/api/v1/auth/oidc/callback` (with `APP_AUTH_DISABLED=true` nothing requires a
-session, and the auth endpoints stay registered as mode-appropriate no-ops:
+`/api/v1/auth/oidc/callback` (with `APP_AUTH_DISABLED=true` nothing requires
+credentials, and the auth endpoints stay registered as mode-appropriate no-ops:
 `/api/v1/auth/me` and a valid `/api/v1/auth/login` return
 `{"mode": "disabled"}`). `/api/v1/auth/logout` always answers 200 with
 `{"redirectTo": string | null}`: `redirectTo` carries the identity
@@ -25,9 +25,12 @@ router:
 
 - `/health` and `/health/ready`: unauthenticated probe endpoints.
 - `/ws/live`, `/ws/logs`, `/ws/crowdsec`: WebSocket feeds
-  (`geometrikks/domain/realtime/`), session-authenticated during the
-  handshake.
+  (`geometrikks/domain/realtime/`), authenticated during the
+  handshake by a session cookie or an Authorization bearer header.
 - `/schema` (deliberately unauthenticated), `/sw.js`, and the SPA shell.
+
+API-key management, `/auth/me`, `/auth/logout` and `/auth/oidc/status` require
+a browser session; API keys get a 403 on those endpoints.
 
 ## Field casing: camelCase
 
@@ -54,14 +57,17 @@ attributes stay snake_case.
   `status_code`, ...); renaming historical log data would misrepresent it.
   OpenAPI documents only the stable record fields.
 
-## Error envelope: Litestar native
+## Error envelope
 
-Errors use Litestar's native HTTP-exception envelope, unchanged:
+API errors use Litestar's HTTP-exception envelope with an added machine-readable `code`:
 
 ```json
-{"status_code": 404, "detail": "Not Found"}
+{"status_code": 404, "detail": "Not Found", "code": "not_found"}
 ```
 
+- `code` is stable and independent of the human-readable `detail`. Clients should use
+  the HTTP status and `code` to decide how to handle an error. Unknown codes should
+  fall back to the HTTP status. Unexpected internal errors may omit `code`.
 - `extra` appears additionally on request-validation errors with the
   per-field breakdown.
 - The envelope keys are the framework's and stay snake_case; the camelCase
@@ -72,6 +78,26 @@ Errors use Litestar's native HTTP-exception envelope, unchanged:
   keep litestar-vite's empty-body behavior. The 404 handler treats the whole
   `/api/` namespace as API surface, matching the auth boundary: an unknown or
   unversioned `/api/` path is an API consumer's mistake and gets JSON.
+
+### Error codes
+
+| Code | Meaning |
+| --- | --- |
+| `api_key_invalid` | The key is malformed, unknown or revoked. |
+| `api_key_expired` | The key has expired. |
+| `api_key_read_only` | The key cannot perform writes. |
+| `session_required` | This operation requires a browser session. |
+| `api_keys_unavailable` | The API key store is unavailable. |
+| `validation_failed` | Request parameters or the body failed framework validation. |
+| `invalid_request` | A supplied value failed domain validation. |
+| `invalid_range` | The time range is missing, mixed, inverted or unsupported. |
+| `not_authenticated`, `forbidden` | Authentication is missing or access is denied. |
+| `not_found`, `method_not_allowed`, `conflict` | The resource or operation cannot satisfy the request. |
+| `request_too_large`, `unsupported_media_type`, `rate_limited` | The request exceeds a limit or uses an unsupported format. |
+| `unavailable`, `upstream_unavailable` | The app or an upstream service is unavailable. |
+| `crowdsec_unreachable`, `crowdsec_credentials_rejected`, `crowdsec_unsupported` | CrowdSec cannot complete the operation. |
+| `rdap_unavailable` | The registry lookup failed. |
+| `internal_error`, `http_error` | A handled error has no more specific code. |
 
 ## Operation IDs
 
@@ -177,3 +203,127 @@ name. Every request and redirect must be https to a public DNS name.
 Private and reserved addresses answer 400. Space that no registry covers or
 holds answers 404, and a failed upstream request answers 502. Answers are
 cached for a day.
+
+## Relative analytics ranges
+
+Every `/api/v1/analytics` endpoint accepts `window=15m`, `window=24h` or
+`window=7d` instead of `startDate` and `endDate`. Use a positive whole number
+of minutes, hours or days, up to 365 days. The server resolves the window
+once per request and echoes its bounds in the response.
+
+Use exactly one mode: a window, or both explicit bounds. Mixed modes, missing
+bounds, bounds without timezones and empty or inverted ranges return 400 with
+`code: invalid_range`. Explicit ranges have no new duration cap.
+
+Geo, map and abuse-report endpoints keep their existing range parameters and defaults.
+
+## Connection checks
+
+`GET /api/v1/auth/connection` accepts API keys and browser sessions. It returns
+`appVersion`, `apiVersion`, `capabilities` and a `mode` discriminator:
+
+- `apiKey` also carries the current key's `name`, `scope` and `expiresAt`.
+- `session` has no key fields.
+- `disabled` means authentication is off. Any supplied key was not validated.
+
+Expired keys return 401 with `code: api_key_expired`; invalid or revoked keys
+return `api_key_invalid`. Store outages return 503 with `api_keys_unavailable`.
+Responses use `Cache-Control: no-store`.
+
+Capabilities are configured server features, independent of key permissions
+and current upstream availability. The names are `crowdsec`, `crowdsecWrite`,
+`asn` and `drop`. `crowdsecWrite` still requires a Read/write key or a session
+when authentication is enabled. A capability does not imply its service is reachable.
+
+## Integration summary
+
+`GET /api/v1/integration/summary?window=24h` returns a compact overview for
+scripts and dashboard widgets. The default is 24 hours. Window syntax and
+limits match analytics. Responses use `Cache-Control: no-store`.
+
+The `traffic`, `instances`, `ingestion` and `crowdsec` sections each carry
+`available`, `reason` and `data`. A failed or disabled section has null data;
+available traffic with no requests and available CrowdSec with no decisions
+have zero counts. A readable instances section can still contain unhealthy agents.
+
+Traffic totals reuse `/analytics/summary`. Ranges above 24 hours count whole
+aggregate buckets and estimate unique counts. `latestEventAt` is the latest
+retained access-log timestamp in the requested window. It is not an ingestion
+or commit time, and it can be null even when older aggregates contain traffic.
+
+Ingestion describes only the head process. Its `lastRecordAt` is when that
+process last parsed a record. `instances.items[].lastParsedAt` reports the
+corresponding heartbeat value for each head or agent; `lastSeen` is when the
+heartbeat arrived. Instance statuses and `checkingIn` use the existing
+instances API evaluation. None of these times guarantees a committed write.
+
+Sections are observed in sequence, not as one atomic snapshot. Database sections
+have a three-second deadline each. The active-decision count makes one LAPI
+request per summary call, with a two-second deadline. A failed dependency does
+not remove sections that could be read. API-key authentication still needs its
+store, so a store outage can return a coded 503 before summary processing.
+
+Section reasons are `disabled`, `not_running`, `not_started`, `services_inactive`,
+`database_unavailable`, `crowdsec_unreachable`, `crowdsec_timeout`, `crowdsec_credentials_rejected`
+or `invalid_response`. Unknown reasons should be displayed as unavailable.
+
+`services_inactive` means database-backed services have not started or recovered;
+it does not prove that the database itself is unreachable. `crowdsec_timeout`
+means the full decision list did not arrive within the deadline. The count
+includes all scopes and origins, including subscribed blocklists, and can differ
+from the Security page's filtered or grouped view.
+
+## Recent-record polling
+
+`GET /api/v1/access-logs?window=10m` selects the last ten minutes using log
+timestamps. It keeps the access-log endpoint's inclusive start and end bounds.
+Window grammar and the 365-day cap match analytics. Supplying `window` with
+either `fromTimestamp` or `toTimestamp` returns 400 with `code: invalid_range`.
+
+Responses keep `items`, `total`, `limit` and `offset`. `X-Range-Start` and
+`X-Range-End` echo whichever bounds were resolved or supplied, as ISO 8601.
+UTC bounds use `Z`; other offsets keep their sign and offset.
+An unbounded side has no corresponding header. Responses use `Cache-Control: no-store`.
+
+For a script polling every 30 seconds, a ten-minute overlap is a starting point:
+
+1. Request page 1 with `window=10m`, `orderBy=id`, `sortOrder=asc` and `pageSize=1000`.
+2. Read the range headers. For later pages, replace `window` with those exact
+   values as `fromTimestamp` and `toTimestamp`, URL-encoding each value. A raw
+   `+` in a query string becomes a space. Use client query parameters or curl's
+   `--data-urlencode`. Keep the sort, page size and filters.
+3. Process `items`, deduplicating by `id`. Fetch `currentPage=2`, then 3, until
+   `offset + len(items) >= total` or a page is empty. Totals can change during a poll.
+4. Begin the next poll with a fresh relative window. Keep seen IDs for at least
+   the overlap duration after last seeing them. Persist them if repeats across
+   process restarts matter. Keep the deduplication state when a request fails.
+
+For example, the first request can be made with:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  --dump-header poll.headers \
+  --header "Authorization: Bearer $GMK_API_KEY" \
+  --get "$GMK_URL/api/v1/access-logs" \
+  --data-urlencode window=10m \
+  --data-urlencode pageSize=1000 \
+  --data-urlencode orderBy=id \
+  --data-urlencode sortOrder=asc
+```
+
+This is best-effort recent polling. Pages are not a transaction snapshot;
+concurrent writes and retention can change their contents. Choose an overlap
+longer than the polling interval and expected ingestion delay. Records that
+arrive after their log time has left the window can be missed. Imports and
+backfills are outside this contract. An ID greater than the last seen ID is
+not a commit-order cursor: agents can commit out of order.
+
+CrowdSec alerts already support recent polling with
+`GET /api/v1/crowdsec/alerts?since=10m&limit=500`. Deduplicate by alert `id`
+and use `nextCursor` as `before` to read older pages. The LAPI filters alert
+start time, which can precede when an alert is created. Late alerts can fall
+outside the window, and the same-second pagination limit can return a 409.
+
+For a live feed, Read keys can also authenticate `/ws/live` with an
+Authorization bearer header in the WebSocket handshake. Use a client that
+can send that header; the browser WebSocket API uses the session cookie.

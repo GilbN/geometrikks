@@ -541,6 +541,27 @@ export type AnalyticsSettingsView = {
 };
 
 /**
+ * ApiKeyConnection
+ *
+ * A successfully authenticated API key. An expired key gets a 401 instead.
+ */
+export type ApiKeyConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  /**
+   * The key's expiry, or null if it never expires.
+   */
+  expiresAt: string | null;
+  mode: "apiKey";
+  name: string;
+  scope: "read" | "read_write";
+};
+
+/**
  * ApiKeyList
  *
  * Every stored API key, newest first.
@@ -1017,6 +1038,17 @@ export type CrowdSecStatusResponse = {
 };
 
 /**
+ * CrowdSecSummary
+ *
+ * Current decisions across all scopes and origins, counted by one bounded LAPI request.
+ */
+export type CrowdSecSummary = {
+  activeDecisions: number;
+  checkedAt: string;
+  writeEnabled: boolean;
+};
+
+/**
  * CumulativeDataPoint
  *
  * Running totals through the end of one bucket.
@@ -1236,6 +1268,21 @@ export type DefaultMapView = {
 export type DefaultServerLocationView = {
   latitude: number;
   longitude: number;
+};
+
+/**
+ * DisabledConnection
+ *
+ * Authentication is disabled, so this response does not validate a supplied key.
+ */
+export type DisabledConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  mode: "disabled";
 };
 
 /**
@@ -1468,6 +1515,7 @@ export type EmbeddedLocationDto = {
  * Its keys are snake_case, unlike the camelCase keys of successful responses.
  */
 export type ErrorEnvelope = {
+  code: string;
   detail: string;
   status_code: number;
 };
@@ -2102,6 +2150,23 @@ export type InstanceServerLocationView = {
 };
 
 /**
+ * InstanceSummary
+ *
+ * One instance using the same health evaluation as the instances API.
+ */
+export type InstanceSummary = {
+  checkingIn: boolean;
+  instanceName: string;
+  /**
+   * The process's last parsed-record time from its heartbeat, not a commit time.
+   */
+  lastParsedAt: string | null;
+  lastSeen: string;
+  mode: string;
+  status: "ok" | "warning" | "critical";
+};
+
+/**
  * InstanceView
  *
  * One instance as the Agents page shows it.
@@ -2169,6 +2234,38 @@ export type InstancesResponse = {
   checkedAt: string;
   head: HeadIdentityView;
   instances: Array<InstanceView>;
+};
+
+/**
+ * InstancesSummary
+ *
+ * Head and agent heartbeat counts, with their individual states.
+ */
+export type InstancesSummary = {
+  checkedAt: string;
+  checkingIn: number;
+  critical: number;
+  items: Array<InstanceSummary>;
+  total: number;
+  warning: number;
+};
+
+/**
+ * IntegrationSummary
+ *
+ * A dashboard overview whose sections are observed in sequence, not one atomic snapshot.
+ */
+export type IntegrationSummary = {
+  crowdsec: SummarySectionGeometrikksDomainIntegrationsSchemasCrowdSecSummary;
+  endDate: string;
+  generatedAt: string;
+  /**
+   * This head process only. Agent ingestion freshness is in instances.items[].lastParsedAt.
+   */
+  ingestion: SummarySectionGeometrikksDomainSystemControllersHealthIngestionHealth;
+  instances: SummarySectionGeometrikksDomainIntegrationsSchemasInstancesSummary;
+  startDate: string;
+  traffic: SummarySectionGeometrikksDomainIntegrationsSchemasTrafficSummary;
 };
 
 /**
@@ -3254,6 +3351,21 @@ export type ServerLocationsResponse = {
 };
 
 /**
+ * SessionConnection
+ *
+ * The request used an authenticated browser session.
+ */
+export type SessionConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  mode: "session";
+};
+
+/**
  * SessionUser
  *
  * The user of the current browser session.
@@ -3373,6 +3485,93 @@ export type SummaryResponse = {
    */
   startDate: string;
 };
+
+/**
+ * SummarySection[CrowdSecSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasCrowdSecSummary =
+  {
+    available: boolean;
+    data?: CrowdSecSummary | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
+ * SummarySection[InstancesSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasInstancesSummary =
+  {
+    available: boolean;
+    data?: InstancesSummary | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
+ * SummarySection[TrafficSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasTrafficSummary = {
+  available: boolean;
+  data?: TrafficSummary | null;
+  reason?:
+    | "disabled"
+    | "not_running"
+    | "not_started"
+    | "services_inactive"
+    | "database_unavailable"
+    | "crowdsec_unreachable"
+    | "crowdsec_timeout"
+    | "crowdsec_credentials_rejected"
+    | "invalid_response"
+    | null;
+};
+
+/**
+ * SummarySection[IngestionHealth]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainSystemControllersHealthIngestionHealth =
+  {
+    available: boolean;
+    data?: IngestionHealth | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
 
 /**
  * SystemSettingsResponse
@@ -3829,6 +4028,19 @@ export type TopUserAgentsResponse = {
 };
 
 /**
+ * TrafficSummary
+ *
+ * Uses analytics/summary semantics, including whole aggregate buckets above 24 hours.
+ */
+export type TrafficSummary = {
+  /**
+   * Latest retained access-log timestamp in the requested window, not ingestion or commit time. Null when no raw rows remain in that window, even if aggregate totals are nonzero.
+   */
+  latestEventAt: string | null;
+  totals: PeriodSummary;
+};
+
+/**
  * UnavailableSourceHealth
  *
  * A log source that ingestion cannot read right now.
@@ -3930,6 +4142,10 @@ export type ApiV1AccessLogDebugListAccessLogDebugErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3989,6 +4205,10 @@ export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4050,6 +4270,10 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     toTimestamp?: string | null;
     /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
      * Keep only these HTTP methods, matched exactly, such as `GET`. Repeat the parameter to pass more than one.
      */
     methodIn?: Array<string> | null;
@@ -4102,6 +4326,10 @@ export type ApiV1AccessLogsListAccessLogsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4160,15 +4388,19 @@ export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponse =
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
@@ -4186,6 +4418,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4215,13 +4451,17 @@ export type ApiV1AnalyticsIpProfileGetIpProfileData = {
   path?: never;
   query: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * The client IP to profile. A value that is not an IP gets a 400.
      */
@@ -4239,6 +4479,10 @@ export type ApiV1AnalyticsIpProfileGetIpProfileErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4266,15 +4510,19 @@ export type ApiV1AnalyticsIpProfileGetIpProfileResponse =
 export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
@@ -4288,6 +4536,10 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4315,15 +4567,19 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryResponse =
 export type ApiV1AnalyticsSummaryGetSummaryData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
@@ -4337,6 +4593,10 @@ export type ApiV1AnalyticsSummaryGetSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4364,15 +4624,19 @@ export type ApiV1AnalyticsSummaryGetSummaryResponse =
 export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
@@ -4406,6 +4670,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4433,15 +4701,19 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesResponse =
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
   };
   url: "/api/v1/analytics/time-series/cumulative";
 };
@@ -4451,6 +4723,10 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4479,15 +4755,19 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
 export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many ASNs to return, from 1 to 100. Defaults to 25.
      */
@@ -4517,6 +4797,10 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4544,15 +4828,19 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsResponse =
 export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many cities to return, from 1 to 100. Defaults to 25.
      */
@@ -4582,6 +4870,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4609,15 +4901,19 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesResponse =
 export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many countries to return, from 1 to 100. Defaults to 25.
      */
@@ -4647,6 +4943,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4674,15 +4974,19 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesResponse =
 export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many IPs to return, from 1 to 100. Defaults to 25.
      */
@@ -4712,6 +5016,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4739,15 +5047,19 @@ export type ApiV1AnalyticsTopIpsGetTopIpsResponse =
 export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many URLs to return, from 1 to 100. Defaults to 25.
      */
@@ -4777,6 +5089,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4804,15 +5120,19 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsResponse =
 export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
     /**
      * How many user agents to return, from 1 to 100. Defaults to 25.
      */
@@ -4842,6 +5162,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4909,6 +5233,10 @@ export type ApiV1AuthApiKeysCreateApiKeyErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4966,6 +5294,10 @@ export type ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5006,6 +5338,37 @@ export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses = {
 export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponse =
   ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses[keyof ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses];
 
+export type ApiV1AuthConnectionConnectionData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/connection";
+};
+
+export type ApiV1AuthConnectionConnectionErrors = {
+  /**
+   * Missing or invalid credentials.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The authentication store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthConnectionConnectionError =
+  ApiV1AuthConnectionConnectionErrors[keyof ApiV1AuthConnectionConnectionErrors];
+
+export type ApiV1AuthConnectionConnectionResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ApiKeyConnection | SessionConnection | DisabledConnection;
+};
+
+export type ApiV1AuthConnectionConnectionResponse =
+  ApiV1AuthConnectionConnectionResponses[keyof ApiV1AuthConnectionConnectionResponses];
+
 export type ApiV1AuthLoginLoginData = {
   body: LoginPayload;
   path?: never;
@@ -5018,6 +5381,10 @@ export type ApiV1AuthLoginLoginErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5192,6 +5559,10 @@ export type ApiV1CrowdsecAlertsListAlertsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5241,6 +5612,10 @@ export type ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5282,6 +5657,10 @@ export type ApiV1CrowdsecAlertsAlertIdGetAlertErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5322,6 +5701,10 @@ export type ApiV1CrowdsecBanBanErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5358,6 +5741,10 @@ export type ApiV1CrowdsecBanNetworksBanNetworksErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5432,6 +5819,10 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5502,6 +5893,10 @@ export type ApiV1CrowdsecDecisionsListDecisionsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5557,6 +5952,10 @@ export type ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5603,6 +6002,10 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5656,6 +6059,10 @@ export type ApiV1CrowdsecDropNetworksListDropNetworksErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5726,6 +6133,10 @@ export type ApiV1CrowdsecUnbanUnbanErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5816,6 +6227,10 @@ export type ApiV1GeoEventsListGeoEventsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -5936,6 +6351,10 @@ export type ApiV1GeoEventsLogsGetGeoLogsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6027,6 +6446,10 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6108,6 +6531,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6185,6 +6612,10 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6262,6 +6693,10 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6339,6 +6774,10 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6416,6 +6855,10 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6461,6 +6904,10 @@ export type ApiV1GeoLocationsListGeoLocationsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6548,6 +6995,10 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6606,6 +7057,10 @@ export type ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6663,6 +7118,10 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6712,6 +7171,10 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6766,6 +7229,10 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6834,6 +7301,10 @@ export type ApiV1InstancesInstanceNameDeleteInstanceErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6869,6 +7340,51 @@ export type ApiV1InstancesInstanceNameDeleteInstanceResponses = {
 
 export type ApiV1InstancesInstanceNameDeleteInstanceResponse =
   ApiV1InstancesInstanceNameDeleteInstanceResponses[keyof ApiV1InstancesInstanceNameDeleteInstanceResponses];
+
+export type ApiV1IntegrationSummarySummaryData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+  };
+  url: "/api/v1/integration/summary";
+};
+
+export type ApiV1IntegrationSummarySummaryErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1IntegrationSummarySummaryError =
+  ApiV1IntegrationSummarySummaryErrors[keyof ApiV1IntegrationSummarySummaryErrors];
+
+export type ApiV1IntegrationSummarySummaryResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: IntegrationSummary;
+};
+
+export type ApiV1IntegrationSummarySummaryResponse =
+  ApiV1IntegrationSummarySummaryResponses[keyof ApiV1IntegrationSummarySummaryResponses];
 
 export type ApiV1LogsFilesListFilesData = {
   body?: never;
@@ -6908,6 +7424,10 @@ export type ApiV1LogsFilesKindNameDownloadErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -6970,6 +7490,10 @@ export type ApiV1LogsTailTailErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -7243,6 +7767,10 @@ export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null

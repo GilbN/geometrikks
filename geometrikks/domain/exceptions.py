@@ -15,22 +15,25 @@ class GeometrikksError(Exception):
 class DomainValidationError(GeometrikksError):
     """A client-supplied value failed a domain invariant (translates to 400)."""
 
-    def __init__(self, detail: str) -> None:
+    def __init__(self, detail: str, *, code: str = "invalid_request") -> None:
         super().__init__(detail)
         self.detail = detail
+        self.code = code
 
 
 class DomainNotFoundError(GeometrikksError):
     """The named resource does not exist (translates to 404)."""
 
-    def __init__(self, detail: str) -> None:
+    def __init__(self, detail: str, *, code: str = "not_found") -> None:
         super().__init__(detail)
         self.detail = detail
+        self.code = code
 
 
 class DomainConflictError(GeometrikksError):
     """The request contradicts the resource's current state (translates to 409)."""
 
-    def __init__(self, detail: str) -> None:
+    def __init__(self, detail: str, *, code: str = "conflict") -> None:
         super().__init__(detail)
         self.detail = detail
+        self.code = code

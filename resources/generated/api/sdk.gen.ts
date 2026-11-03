@@ -65,6 +65,9 @@ import type {
   ApiV1AuthApiKeysListApiKeysData,
   ApiV1AuthApiKeysListApiKeysErrors,
   ApiV1AuthApiKeysListApiKeysResponses,
+  ApiV1AuthConnectionConnectionData,
+  ApiV1AuthConnectionConnectionErrors,
+  ApiV1AuthConnectionConnectionResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
@@ -174,6 +177,9 @@ import type {
   ApiV1InstancesListInstancesData,
   ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponses,
+  ApiV1IntegrationSummarySummaryData,
+  ApiV1IntegrationSummarySummaryErrors,
+  ApiV1IntegrationSummarySummaryResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
   ApiV1LogsFilesKindNameDownloadResponses,
@@ -304,7 +310,7 @@ export const apiV1AccessLogDebugStatsGetAccessLogDebugStats = <
 /**
  * List access log lines
  *
- * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. For recent polling, use window=10m and deduplicate by id. X-Range-Start and X-Range-End echo inclusive bounds; reuse them as fromTimestamp and toTimestamp on later pages. Do not send window with explicit bounds. Pagination is not a snapshot; overlapping polls can repeat records and do not guarantee late imports or backfills.
  */
 export const apiV1AccessLogsListAccessLogs = <
   ThrowOnError extends boolean = false,
@@ -371,7 +377,7 @@ export const apiV1AccessLogsFacetsGetAccessLogFacets = <
 export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<
+  options?: Options<
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData,
     ThrowOnError
   >,
@@ -380,7 +386,7 @@ export const apiV1AnalyticsGeoTimeSeriesGetGeoTimeSeries = <
   ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesResponses,
     ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors,
     ThrowOnError
@@ -436,13 +442,13 @@ export const apiV1AnalyticsIpProfileGetIpProfile = <
 export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsLiveSummaryGetLiveSummaryData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsLiveSummaryGetLiveSummaryData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
   ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsLiveSummaryGetLiveSummaryResponses,
     ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors,
     ThrowOnError
@@ -467,13 +473,13 @@ export const apiV1AnalyticsLiveSummaryGetLiveSummary = <
 export const apiV1AnalyticsSummaryGetSummary = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsSummaryGetSummaryData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsSummaryGetSummaryData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsSummaryGetSummaryResponses,
   ApiV1AnalyticsSummaryGetSummaryErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsSummaryGetSummaryResponses,
     ApiV1AnalyticsSummaryGetSummaryErrors,
     ThrowOnError
@@ -498,13 +504,13 @@ export const apiV1AnalyticsSummaryGetSummary = <
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTimeSeriesGetTimeSeriesData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTimeSeriesGetTimeSeriesData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
   ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTimeSeriesGetTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors,
     ThrowOnError
@@ -529,7 +535,7 @@ export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
 export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<
+  options?: Options<
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData,
     ThrowOnError
   >,
@@ -538,7 +544,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
   ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses,
     ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors,
     ThrowOnError
@@ -563,13 +569,13 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopAsnsGetTopAsnsData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopAsnsGetTopAsnsData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
   ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopAsnsGetTopAsnsResponses,
     ApiV1AnalyticsTopAsnsGetTopAsnsErrors,
     ThrowOnError
@@ -594,13 +600,13 @@ export const apiV1AnalyticsTopAsnsGetTopAsns = <
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopCitiesGetTopCitiesData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopCitiesGetTopCitiesData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
   ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopCitiesGetTopCitiesResponses,
     ApiV1AnalyticsTopCitiesGetTopCitiesErrors,
     ThrowOnError
@@ -625,13 +631,16 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopCountriesGetTopCountriesData, ThrowOnError>,
+  options?: Options<
+    ApiV1AnalyticsTopCountriesGetTopCountriesData,
+    ThrowOnError
+  >,
 ): RequestResult<
   ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
   ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopCountriesGetTopCountriesResponses,
     ApiV1AnalyticsTopCountriesGetTopCountriesErrors,
     ThrowOnError
@@ -656,13 +665,13 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopIpsGetTopIpsData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopIpsGetTopIpsData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopIpsGetTopIpsResponses,
   ApiV1AnalyticsTopIpsGetTopIpsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopIpsGetTopIpsResponses,
     ApiV1AnalyticsTopIpsGetTopIpsErrors,
     ThrowOnError
@@ -687,13 +696,13 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<ApiV1AnalyticsTopUrlsGetTopUrlsData, ThrowOnError>,
+  options?: Options<ApiV1AnalyticsTopUrlsGetTopUrlsData, ThrowOnError>,
 ): RequestResult<
   ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
   ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopUrlsGetTopUrlsResponses,
     ApiV1AnalyticsTopUrlsGetTopUrlsErrors,
     ThrowOnError
@@ -718,7 +727,7 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,
 >(
-  options: Options<
+  options?: Options<
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
     ThrowOnError
   >,
@@ -727,7 +736,7 @@ export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
   ThrowOnError
 > =>
-  (options.client ?? client).get<
+  (options?.client ?? client).get<
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
     ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
     ThrowOnError
@@ -835,6 +844,37 @@ export const apiV1AuthApiKeysKeyIdRevokeApiKey = <
       },
     ],
     url: "/api/v1/auth/api-keys/{key_id}",
+    ...options,
+  });
+
+/**
+ * Check credentials and configured API features
+ *
+ * Returns the app/API version and configured features without checking external services. API-key requests also return that key's name, scope and expiry. Invalid or expired keys get a coded 401 before this handler runs. Browser sessions return mode=session. With APP_AUTH_DISABLED=true, mode=disabled means a supplied key has not been validated.
+ */
+export const apiV1AuthConnectionConnection = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AuthConnectionConnectionData, ThrowOnError>,
+): RequestResult<
+  ApiV1AuthConnectionConnectionResponses,
+  ApiV1AuthConnectionConnectionErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AuthConnectionConnectionResponses,
+    ApiV1AuthConnectionConnectionErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/auth/connection",
     ...options,
   });
 
@@ -2046,6 +2086,37 @@ export const apiV1InstancesInstanceNameDeleteInstance = <
       { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/instances/{instance_name}",
+    ...options,
+  });
+
+/**
+ * Get a compact dashboard overview
+ *
+ * Traffic, instances, local ingestion and active CrowdSec decisions in one response. window defaults to 24h and supports up to 365 days. Traffic uses analytics/summary semantics, including whole aggregate buckets above 24 hours. latestEventAt is retained log time, not commit time. Agent freshness comes from heartbeats; local ingestion describes only this process. Each section has available, reason and data; unavailable data is null, not zero. Sections are observed sequentially. Database sections have a three-second deadline each and the CrowdSec count makes one LAPI request with a two-second deadline.
+ */
+export const apiV1IntegrationSummarySummary = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1IntegrationSummarySummaryData, ThrowOnError>,
+): RequestResult<
+  ApiV1IntegrationSummarySummaryResponses,
+  ApiV1IntegrationSummarySummaryErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1IntegrationSummarySummaryResponses,
+    ApiV1IntegrationSummarySummaryErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/integration/summary",
     ...options,
   });
 

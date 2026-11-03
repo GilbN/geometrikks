@@ -25,6 +25,12 @@ Every path under `/api/` and `/ws/` needs a key or a session. `/health`, `/healt
 `/api/v1/auth/oidc/callback` need neither. A server started with \
 `APP_AUTH_DISABLED=true` asks for no credentials at all, and you cannot create keys on it.
 
+To test a connection, call `GET /api/v1/auth/connection`. It reports the app/API version, \
+authentication mode and configured features. With a key it also returns that key's name, scope and \
+expiry, without returning the secret. Invalid and expired keys get a coded 401. `mode: disabled` \
+means authentication is off and a supplied key has not been checked. Capabilities describe \
+configuration, not current upstream health or permission to write with a Read key.
+
 ## Scopes
 
 Every key has one of two scopes.
@@ -39,10 +45,10 @@ No key can list, create or revoke keys, log out, call `/api/v1/auth/me` or read 
 
 ## Errors
 
-An error response is a JSON object with the HTTP status and a message:
+An API error response includes the HTTP status, a message and a stable machine-readable code:
 
 ```json
-{"status_code": 404, "detail": "The API key does not exist."}
+{"status_code": 404, "detail": "The API key does not exist.", "code": "not_found"}
 ```
 
 When a parameter fails validation, the 400 response adds an `extra` list that names each bad \
@@ -51,10 +57,20 @@ parameter:
 ```json
 {
   "status_code": 400,
+  "code": "validation_failed",
   "detail": "Validation failed for GET /api/v1/logs/tail?lines=abc",
   "extra": [{"message": "Expected `int`, got `str`", "key": "lines", "source": "query"}]
 }
 ```
+
+Branch on the HTTP status and `code`, not the wording of `detail`. Unknown codes fall back to \
+the HTTP status. Unexpected internal errors may omit `code`.
+
+Key failures use `api_key_invalid`, `api_key_expired`, `api_key_read_only`, `session_required` or \
+`api_keys_unavailable`. Parameter errors use `validation_failed` or `invalid_request`. Resource \
+errors use `not_found` or `conflict`. CrowdSec failures use `crowdsec_unreachable`, \
+`crowdsec_credentials_rejected` or `crowdsec_unsupported`. Other failures use a code matching the \
+status, such as `not_authenticated`, `forbidden` or `unavailable`.
 
 Error keys are snake_case. Successful responses use camelCase keys. `/health/ready` is the one \
 exception to this shape, and its 503 body is `{"ready": false}`.
@@ -78,11 +94,16 @@ timed out, even while the database answers.
 
 ## Time ranges
 
-Most analytics endpoints and the abuse report take the range as `startDate` and `endDate`. The geo \
+Every analytics endpoint and the abuse report take the range as `startDate` and `endDate`. The geo \
 event, geo location, access log, access log debug and CrowdSec banned-location endpoints call it \
 `fromTimestamp` and `toTimestamp`. Send them as ISO 8601 with a timezone, such as \
 `2026-11-01T00:00:00Z`. GeoMetrikks stores times in UTC and returns them in UTC. A response that echoes \
 `startDate` and `endDate` keeps the offset you sent.
+
+Every `/api/v1/analytics` endpoint accepts `window=15m`, `window=24h` or `window=7d` instead of \
+explicit dates. Use positive whole minutes, hours or days, up to 365 days. Responses echo the \
+resolved bounds. Mixing modes, omitting one bound, using no timezone or sending an empty or inverted \
+analytics range returns 400 with `code: invalid_range`.
 
 `/api/v1/analytics/time-series`, `/api/v1/analytics/geo-time-series` and \
 `/api/v1/geo-events/time-series` use hourly buckets for ranges up to 30 days and daily buckets for \
@@ -91,6 +112,20 @@ the size it used in `granularity`. Daily buckets are UTC days unless you pass `t
 such as `Europe/Oslo`. `tz` makes daily buckets local days on ranges of 30 days or less, and longer \
 ranges keep UTC days unless the endpoint's description says otherwise. Those shorter ranges get hourly \
 buckets unless you send `granularity=daily`, and `tz` changes nothing on hourly buckets.
+
+For recent access-log polling, use `/api/v1/access-logs?window=10m&orderBy=id&sortOrder=asc`. \
+`X-Range-Start` and `X-Range-End` echo inclusive bounds. URL-encode them as `fromTimestamp` and \
+`toTimestamp` for later pages, dropping `window`, and deduplicate records by `id` across polls. \
+Pages are not a snapshot; choose overlap longer than the polling interval and ingestion delay. \
+Late imports and backfills are outside this polling contract. An ID is not a commit-order cursor.
+
+## Dashboard summary
+
+`GET /api/v1/integration/summary?window=24h` combines traffic totals, instance health, local \
+ingestion and active CrowdSec decisions. Each section reports `available`, `reason` and `data`; \
+unavailable data is null rather than zero. `latestEventAt` is retained log time. Parser freshness \
+is per process and does not prove a database commit. The CrowdSec count makes one LAPI request \
+with a two-second deadline. Use the detailed endpoints when you need individual records.
 
 ## Pagination
 
@@ -103,6 +138,7 @@ the next, older page. Top lists take a `limit` instead and have no pages.
 """
 
 API_TAGS: list[Tag] = [
+    Tag(name="Integrations", description="A compact overview for scripts and dashboard widgets, with per-section availability."),
     Tag(
         name="Auth",
         description=(

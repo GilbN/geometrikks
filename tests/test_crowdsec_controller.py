@@ -1988,7 +1988,7 @@ async def test_ban_networks_ends_the_read_transaction_before_banning(monkeypatch
     ("user", "expected_actor"),
     [
         (AdminUser(username="admin"), "admin"),
-        (ApiKeyPrincipal(key_id=uuid4(), name="homepage", scope="read_write"), "api-key:homepage"),
+        (ApiKeyPrincipal(key_id=uuid4(), name="homepage", scope="read_write", expires_at=None), "api-key:homepage"),
         (None, "unknown"),
     ],
     ids=["session-user", "api-key", "no-user"],

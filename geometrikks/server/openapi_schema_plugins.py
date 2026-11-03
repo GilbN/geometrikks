@@ -19,10 +19,11 @@ from litestar._openapi.schema_generation.plugins import (
     TypedDictSchemaPlugin,
 )
 from litestar.pagination import OffsetPagination
+from litestar.openapi.spec import OpenAPIType, Schema
 
 if TYPE_CHECKING:
+    from litestar import Litestar
     from litestar._openapi.schema_generation import SchemaCreator
-    from litestar.openapi.spec import Schema
     from litestar.typing import FieldDefinition
 
 
@@ -92,3 +93,29 @@ DOCSTRING_SCHEMA_PLUGINS = [
     DataclassDocstringSchemaPlugin(),
     TypedDictDocstringSchemaPlugin(),
 ]
+
+
+def document_error_codes(app: Litestar) -> None:
+    """Include codes in Litestar's synthesized API error schemas before export."""
+    def add_code(schema: Schema) -> None:
+        if schema.description == "Validation Exception" and schema.properties:
+            schema.properties["code"] = Schema(type=OpenAPIType.STRING, description="A stable machine-readable error code.")
+            schema.required = list(dict.fromkeys([*(schema.required or []), "code"]))
+            for example in schema.examples or []:
+                if isinstance(example, dict):
+                    example["code"] = "validation_failed"
+        for child in schema.one_of or []:
+            if isinstance(child, Schema):
+                add_code(child)
+
+    for path, item in (app.openapi_schema.paths or {}).items():
+        if not path.startswith("/api/"):
+            continue
+        for method in ("get", "post", "put", "patch", "delete", "head", "options"):
+            operation = getattr(item, method, None)
+            for status, response in ((operation.responses or {}) if operation else {}).items():
+                if not status.isdigit() or int(status) < 400 or int(status) == 500:
+                    continue
+                for media in (getattr(response, "content", None) or {}).values():
+                    if isinstance(media.schema, Schema):
+                        add_code(media.schema)

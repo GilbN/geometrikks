@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 from litestar.enums import ScopeType
-from litestar.exceptions import NotAuthorizedException, PermissionDeniedException, ServiceUnavailableException
 from litestar.middleware.authentication import AuthenticationResult
 from litestar.middleware.session.server_side import ServerSideSessionBackend
 from litestar.openapi.datastructures import ResponseSpec
@@ -21,10 +20,18 @@ from geometrikks.domain.auth.api_keys import (
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
 from geometrikks.server.auth import AdminUser
-from geometrikks.server.exceptions import ErrorEnvelope
+from geometrikks.server.exceptions import (
+    ApiKeysUnavailableError,
+    ErrorEnvelope,
+    ExpiredApiKeyError,
+    InvalidApiKeyError,
+    ReadOnlyApiKeyError,
+    SessionRequiredError,
+)
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from uuid import UUID
 
     from litestar.config.app import AppConfig
@@ -55,6 +62,7 @@ class ApiKeyPrincipal:
     key_id: UUID
     name: str
     scope: ApiKeyScope
+    expires_at: datetime | None
 
 
 def bearer_tokens(connection: ASGIConnection[Any, Any, Any, Any]) -> list[str]:
@@ -88,7 +96,7 @@ class ApiKeyAuthMiddleware(SessionAuthMiddleware):
             return await super().authenticate_request(connection)
         store = runtime.get_api_key_store(connection.app)
         if store is None:
-            raise ServiceUnavailableException(detail="API keys are unavailable.")
+            raise ApiKeysUnavailableError(detail="API keys are unavailable.")
         token = api_key_tokens[0]
         if len(api_key_tokens) > 1 or not is_well_formed_api_key(token):
             self._reject(store, connection, token, "malformed")
@@ -98,7 +106,10 @@ class ApiKeyAuthMiddleware(SessionAuthMiddleware):
         if api_key_record.is_expired(store.clock()):
             self._reject(store, connection, token, "expired", key_name=api_key_record.name)
         await store.record_use(api_key_record, resolve_client_ip(connection))
-        principal = ApiKeyPrincipal(key_id=api_key_record.id, name=api_key_record.name, scope=api_key_record.scope)
+        principal = ApiKeyPrincipal(
+            key_id=api_key_record.id, name=api_key_record.name, scope=api_key_record.scope,
+            expires_at=api_key_record.expires_at,
+        )
         return AuthenticationResult(user=principal, auth=None)
 
     @staticmethod
@@ -115,7 +126,9 @@ class ApiKeyAuthMiddleware(SessionAuthMiddleware):
         if store.should_log_rejection(display_prefix, client_ip):
             key_field = {} if key_name is None else {"key": key_name}
             login_logger.warning("api_key_rejected", user=display_prefix, ip=client_ip, reason=reason, **key_field)
-        raise NotAuthorizedException("API key expired" if reason == "expired" else "Invalid API key")
+        if reason == "expired":
+            raise ExpiredApiKeyError("API key expired")
+        raise InvalidApiKeyError("Invalid API key")
 
 
 class GeoSessionAuth(SessionAuth[AdminUser | ApiKeyPrincipal, ServerSideSessionBackend]):
@@ -151,9 +164,9 @@ def api_key_scope_guard(connection: ASGIConnection[Any, Any, Any, Any], _: BaseR
     if connection.scope["type"] == ScopeType.WEBSOCKET:
         return
     if connection.scope.get("method") not in READ_ONLY_METHODS:
-        raise PermissionDeniedException("This API key is read-only")
+        raise ReadOnlyApiKeyError("This API key is read-only")
 
 
 def requires_session_user(connection: ASGIConnection[Any, Any, Any, Any], _: BaseRouteHandler) -> None:
     if "user" in connection.scope and isinstance(connection.scope["user"], ApiKeyPrincipal):
-        raise PermissionDeniedException("API keys cannot use this endpoint")
+        raise SessionRequiredError("API keys cannot use this endpoint")

@@ -16,8 +16,9 @@ from geometrikks.server.api_key_auth import api_key_scope_guard
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.openapi_docs import API_INTRO, API_TAGS
 from geometrikks.server.openapi_render import LiveRangeExamplesJsonPlugin
-from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS
-from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
+from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS, document_error_codes
+from geometrikks.server.api_version import API_VERSION
+from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.logging import get_logger
 
@@ -156,5 +157,8 @@ def create_app(
     # process-cached factories.
     app.state.settings = settings
     app.state.db_config = db_config
+
+    if openapi_config is not None:
+        document_error_codes(app)
 
     return app

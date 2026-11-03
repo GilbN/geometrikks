@@ -1,10 +1,12 @@
 """AccessLog API endpoints."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated
 
-from litestar import Controller, get
+from litestar import Controller, Request, get
+from litestar.datastructures import ResponseHeader
 from litestar.di import NamedDependency, Provide
 from litestar.params import QueryParameter, SkipValidation
 from sqlalchemy import or_
@@ -24,6 +26,7 @@ from geometrikks.domain.logs.schemas import AccessLogFacets
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.domain.logs.dtos import AccessLogDTO
 from geometrikks.domain.logs.sorting import nulls_last_for_timings
+from geometrikks.domain.logs.window_headers import AccessLogRangeHeaders, RANGE_HEADERS_STATE_KEY
 from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
@@ -43,6 +46,8 @@ from geometrikks.lib.pagination import (
     order_by_provider,
 )
 from geometrikks.lib.validation import validate_ip_addresses
+from geometrikks.lib.time_ranges import Window, relative_range
+from geometrikks.domain.exceptions import DomainValidationError
 
 ACCESS_LOG_SORT_FIELDS = (
     "timestamp",
@@ -69,6 +74,15 @@ ACCESS_LOG_SORT_FIELDS = (
 )
 
 
+@dataclass(frozen=True)
+class AccessLogTimeWindow:
+    """The existing inclusive log filters and their resolved bounds."""
+
+    filters: list[FilterTypes]
+    start: datetime | None
+    end: datetime | None
+
+
 def provide_access_log_time_window(
     from_timestamp: Annotated[
         datetime | None,
@@ -88,21 +102,27 @@ def provide_access_log_time_window(
             examples=range_end_examples(),
         ),
     ] = None,
-) -> list[FilterTypes]:
+    window: Window = None,
+) -> AccessLogTimeWindow:
     """Optional inclusive [from, to] window on the ``timestamp`` column.
 
     The built-in ``created_at`` / ``updated_at`` filter config targets those
     audit columns; access logs carry the event time on ``timestamp`` instead.
     """
+    if window is not None:
+        if from_timestamp is not None or to_timestamp is not None:
+            raise DomainValidationError("Use window or explicit timestamp bounds, not both.", code="invalid_range")
+        resolved = relative_range(window)
+        from_timestamp, to_timestamp = resolved.start, resolved.end
     if from_timestamp is None and to_timestamp is None:
-        return []
-    return [
+        return AccessLogTimeWindow([], None, None)
+    return AccessLogTimeWindow([
         OnBeforeAfter(
             field_name="timestamp",
             on_or_after=from_timestamp,
             on_or_before=to_timestamp,
         )
-    ]
+    ], from_timestamp, to_timestamp)
 
 
 def provide_access_log_in_filters(
@@ -265,23 +285,46 @@ class AccessLogController(Controller):
     @get(
         "/",
         summary="List access log lines",
+        middleware=[AccessLogRangeHeaders()],
         description=(
             "Returns parsed access log lines, newest first, paged with `currentPage` and `pageSize` and sorted "
             "with `orderBy` and `sortOrder`. `searchString` matches part of the URL, referrer or user agent, "
             "ignoring case unless `searchIgnoreCase` is false. Timings are in seconds, and lines go back "
             "ANALYTICS_RAW_RETENTION_DAYS days, 180 by default."
+            " For recent polling, use window=10m and deduplicate by id. X-Range-Start and X-Range-End "
+            "echo inclusive bounds; reuse them as fromTimestamp and toTimestamp on later pages. "
+            "Do not send window with explicit bounds. Pagination is not a snapshot; overlapping polls "
+            "can repeat records and do not guarantee late imports or backfills."
         ),
+        response_headers=[
+            ResponseHeader(name="Cache-Control", value="no-store"),
+            ResponseHeader(
+                name="X-Range-Start", documentation_only=True,
+                description="Inclusive resolved lower bound, when supplied, as ISO 8601.",
+            ),
+            ResponseHeader(
+                name="X-Range-End", documentation_only=True,
+                description="Inclusive resolved upper bound, when supplied, as ISO 8601.",
+            ),
+        ],
     )
     async def list_access_logs(
         self,
+        request: Request,
         access_log_service: NamedDependency[AccessLogService],
         filters: NamedDependency[SkipValidation[list[FilterTypes]]],
-        time_window: NamedDependency[SkipValidation[list[FilterTypes]]],
+        time_window: NamedDependency[SkipValidation[AccessLogTimeWindow]],
         in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
     ) -> OffsetPagination[AccessLog]:
         """List access logs newest-first, with optional search/filter/sort."""
-        all_filters = nulls_last_for_timings([*filters, *time_window, *in_filters])
+        all_filters = nulls_last_for_timings([*filters, *time_window.filters, *in_filters])
         results, total = await access_log_service.get_many_and_count(*all_filters)
+        headers = {}
+        if time_window.start is not None:
+            headers["X-Range-Start"] = time_window.start.isoformat().replace("+00:00", "Z")
+        if time_window.end is not None:
+            headers["X-Range-End"] = time_window.end.isoformat().replace("+00:00", "Z")
+        request.state[RANGE_HEADERS_STATE_KEY] = headers
         return access_log_service.to_schema(results, total, filters=all_filters)
 
     @get(
