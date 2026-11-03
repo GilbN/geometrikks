@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Generic, TypedDict, TypeVar
 
@@ -10,6 +12,7 @@ import pytest
 from advanced_alchemy.service import OffsetPagination
 from litestar import Litestar, get
 from litestar._openapi.schema_generation.plugins import StructSchemaPlugin
+from litestar.dto._backend import DTOBackend
 from litestar.openapi import OpenAPIConfig
 from litestar.openapi.spec import Schema
 from litestar.typing import FieldDefinition
@@ -30,6 +33,42 @@ from geometrikks.server.openapi_schema_plugins import (
 from geometrikks.services.logfiles import LogTailRecord
 
 PageItemT = TypeVar("PageItemT")
+
+HTTP_METHODS = frozenset({"get", "put", "post", "delete", "options", "head", "patch", "trace"})
+GENERATED_SUMMARY = re.compile(r"[A-Z][A-Za-z]+")
+
+# advanced_alchemy's create_service_dependencies builds these filter parameters and takes no
+# descriptions, so each endpoint's description explains them instead.
+UNDESCRIBABLE_PARAMETERS = frozenset(
+    {
+        ("get", "/api/v1/access-log-debug", "currentPage"),
+        ("get", "/api/v1/access-log-debug", "pageSize"),
+        ("get", "/api/v1/access-log-debug", "searchString"),
+        ("get", "/api/v1/access-log-debug", "searchIgnoreCase"),
+        ("get", "/api/v1/access-logs", "currentPage"),
+        ("get", "/api/v1/access-logs", "pageSize"),
+        ("get", "/api/v1/access-logs", "searchString"),
+        ("get", "/api/v1/access-logs", "searchIgnoreCase"),
+        ("get", "/api/v1/access-logs", "orderBy"),
+        ("get", "/api/v1/access-logs", "sortOrder"),
+        ("get", "/api/v1/geo-events", "currentPage"),
+        ("get", "/api/v1/geo-events", "pageSize"),
+        ("get", "/api/v1/geo-events", "orderBy"),
+        ("get", "/api/v1/geo-events", "sortOrder"),
+        ("get", "/api/v1/geo-locations", "currentPage"),
+        ("get", "/api/v1/geo-locations", "pageSize"),
+    }
+)
+
+# SQLAlchemyDTO transfer models have no docstring to carry into the schema.
+UNDESCRIBABLE_COMPONENTS = frozenset(
+    {
+        "ListAccessLogsAccessLogResponseBody",
+        "ListGeoEventsGeoEventGeoLocationResponseBody",
+        "ListGeoEventsGeoEventResponseBody",
+        "ListGeoLocationsGeoLocationResponseBody",
+    }
+)
 
 
 class DocumentedParent(msgspec.Struct):
@@ -169,9 +208,74 @@ def _component_named(components: dict[str, Any], prefix: str) -> dict[str, Any]:
 @pytest.fixture
 def openapi_document(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setenv("APP_ADMIN_PASSWORD", "openapi-docs-test")
+    # Litestar remembers every DTO model name per process and qualifies repeats, so a fresh
+    # registry gives each build the names the running app and /schema use.
+    monkeypatch.setattr(DTOBackend, "_seen_model_names", set())
     from geometrikks.server.core import create_app
 
     return create_app().openapi_schema.to_schema()
+
+
+def _operations(document: dict[str, Any]) -> Iterator[tuple[str, str, dict[str, Any]]]:
+    for path, path_item in document["paths"].items():
+        for method, operation in path_item.items():
+            if method in HTTP_METHODS:
+                yield method, path, operation
+
+
+def _parameters(document: dict[str, Any]) -> Iterator[tuple[str, str, dict[str, Any]]]:
+    for method, path, operation in _operations(document):
+        for parameter in operation.get("parameters", []):
+            if parameter["in"] in {"query", "path"}:
+                yield method, path, parameter
+
+
+def test_every_operation_has_a_written_summary(openapi_document: dict[str, Any]):
+    bad_summaries = [
+        (method, path, operation.get("summary"))
+        for method, path, operation in _operations(openapi_document)
+        if not operation.get("summary")
+        or GENERATED_SUMMARY.fullmatch(operation["summary"])
+        or operation["summary"].endswith(".")
+    ]
+    assert bad_summaries == []
+
+
+def test_every_operation_has_a_description(openapi_document: dict[str, Any]):
+    undescribed = [
+        (method, path)
+        for method, path, operation in _operations(openapi_document)
+        if not operation.get("description", "").strip()
+    ]
+    assert undescribed == []
+
+
+def test_every_query_and_path_parameter_has_a_description(openapi_document: dict[str, Any]):
+    undescribed = [
+        (method, path, parameter["name"])
+        for method, path, parameter in _parameters(openapi_document)
+        if not parameter.get("description", "").strip()
+        and (method, path, parameter["name"]) not in UNDESCRIBABLE_PARAMETERS
+    ]
+    assert undescribed == []
+
+
+def test_undescribable_parameters_are_still_in_the_schema(openapi_document: dict[str, Any]):
+    present = {(method, path, parameter["name"]) for method, path, parameter in _parameters(openapi_document)}
+    assert UNDESCRIBABLE_PARAMETERS - present == set()
+
+
+def test_every_component_schema_has_a_description(openapi_document: dict[str, Any]):
+    undescribed = [
+        name
+        for name, schema in openapi_document["components"]["schemas"].items()
+        if not schema.get("description", "").strip() and name not in UNDESCRIBABLE_COMPONENTS
+    ]
+    assert undescribed == []
+
+
+def test_undescribable_components_are_still_in_the_schema(openapi_document: dict[str, Any]):
+    assert UNDESCRIBABLE_COMPONENTS - set(openapi_document["components"]["schemas"]) == set()
 
 
 def test_struct_docstring_becomes_the_component_description(openapi_document: dict[str, Any]):
