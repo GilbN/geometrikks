@@ -4,6 +4,7 @@ import {
   LOCAL_BUILD_LABEL,
   displayVersion,
   hasUncommittedChanges,
+  isDevBuild,
   isLocalBuild,
   publicVersion,
   sameRelease,
@@ -69,4 +70,15 @@ describe("hasUncommittedChanges", () => {
     expect(hasUncommittedChanges("0.23.0.dev3")).toBe(false)
     expect(hasUncommittedChanges("unknown")).toBe(false)
   })
+})
+
+describe("isDevBuild", () => {
+  it.each([
+    ["0.22.0.dev4", true],
+    ["0.22.0.dev4+g52b67d62c", true],
+    ["0.22.0", false],
+    ["0.22.0+g2d297914e", false],
+    ["0.0.0.dev1+local", false],
+    ["unknown", false],
+  ])("%s -> %s", (version, expected) => expect(isDevBuild(version)).toBe(expected))
 })
