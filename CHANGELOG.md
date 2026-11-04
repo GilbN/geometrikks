@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `docs/configuration.md` puts the settings most installs need first: login, database, the logs to read and GeoIP. Each optional feature follows with its own section. The 28 settings for pool sizes, poll intervals, timeouts and log rotation sit in an Advanced tuning section near the end. Almost every install can leave them at their defaults.
 - The abuse report dialog keeps its title and its Download and Copy buttons in place while the rest scrolls, and its preview box is shorter. On a phone the title takes less room and the two buttons sit side by side.
+- Analytics loads faster, most of all with a filter over a long range. On an install with 12 million log lines, the page with three IPs excluded over 180 days went from 23 to 6 seconds, and the unfiltered 30-day page from 4 to 1.4 seconds. A filtered chart now estimates its p50, p95 and p99 latency the same way an unfiltered chart always has.
 
 ### Fixed
 
