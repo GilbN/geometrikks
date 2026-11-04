@@ -490,3 +490,107 @@ async def test_cagg_time_series_carries_timed_requests(pg_engine, pg_session_mak
     assert row.total_requests == 2
     assert row.timed_requests == 1
     assert row.avg_request_time == pytest.approx(0.1)
+
+
+async def test_filtered_time_series_rolls_quarter_hours_into_the_hour(pg_session_maker, clean_tables):
+    hour = NOW - timedelta(hours=2)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=hour + timedelta(minutes=5), url="/a", user_agent="ua", rt=0.01)
+        await _insert_log(
+            session, ts=hour + timedelta(minutes=40), url="/a", user_agent="ua", status=404, bytes_sent=300, rt=0.03
+        )
+        await _insert_log(session, ts=hour + timedelta(minutes=50), url="/ws", user_agent="ua", status=101, rt=5.0)
+        await _insert_log(
+            session, ts=hour + timedelta(minutes=20), url="/a", user_agent="ua", status=500, rt=9.0, ip="10.0.0.2"
+        )
+        await session.commit()
+    async with pg_session_maker() as session:
+        rows = await LiveStatsRepository(session=session).get_time_series(
+            NOW - timedelta(hours=6),
+            NOW,
+            bucket_interval="1 hour",
+            filters=AnalyticsFilters(ip_exclude=["10.0.0.2"]),
+        )
+    assert [r.bucket for r in rows] == [hour]
+    row = rows[0]
+    assert (row.total_requests, row.total_bytes) == (3, 500)
+    assert (row.status_2xx, row.status_4xx, row.status_5xx) == (1, 1, 0)
+    assert row.timed_requests == 2
+    assert row.avg_request_time == pytest.approx(0.02)
+    assert row.max_request_time == pytest.approx(0.03)
+    assert row.p50_request_time is not None
+    assert 0.009 < row.p50_request_time < 0.031
+
+
+async def test_filtered_time_series_without_timed_rows_has_no_latency(pg_session_maker, clean_tables):
+    hour = NOW - timedelta(hours=2)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=hour + timedelta(minutes=5), url="/a", user_agent="ua", rt=None)
+        await _insert_log(session, ts=hour + timedelta(minutes=35), url="/ws", user_agent="ua", status=101, rt=5.0)
+        await session.commit()
+    async with pg_session_maker() as session:
+        rows = await LiveStatsRepository(session=session).get_time_series(
+            NOW - timedelta(hours=6),
+            NOW,
+            bucket_interval="1 hour",
+            filters=AnalyticsFilters(ip_exclude=["10.0.0.2"]),
+        )
+    row = rows[0]
+    assert (row.total_requests, row.timed_requests) == (2, 0)
+    assert (row.avg_request_time, row.max_request_time) == (None, None)
+    assert (row.p50_request_time, row.p95_request_time, row.p99_request_time) == (None, None, None)
+
+async def _planner_settings(session) -> tuple[str, int]:
+    row = (await session.execute(text(
+        "SELECT current_setting('parallel_setup_cost'), pg_size_bytes(current_setting('work_mem'))"
+    ))).one()
+    return row[0], row[1]
+
+
+async def test_raw_scan_zeroes_parallel_costs_for_its_transaction_only(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        before = await _planner_settings(session)
+        await session.commit()
+        await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=1), NOW)
+        during = await _planner_settings(session)
+        await session.commit()
+        after = await _planner_settings(session)
+    assert during[0] == "0"
+    assert during[1] >= 64 * 1024 * 1024
+    assert after == before
+
+
+async def test_raw_scan_keeps_a_larger_work_mem(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await session.execute(text("SET LOCAL work_mem = '256MB'"))
+        await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=1), NOW)
+        _, work_mem = await _planner_settings(session)
+    assert work_mem == 256 * 1024 * 1024
+
+
+async def _workers_per_scan(session) -> int:
+    return (await session.execute(text("SELECT current_setting('max_parallel_workers_per_gather')::int"))).scalar_one()
+
+
+async def test_raw_scan_takes_a_quarter_of_the_worker_pool(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await session.execute(text("SET LOCAL max_parallel_workers_per_gather = 64"))
+        pool = (await session.execute(text("SELECT current_setting('max_parallel_workers')::int"))).scalar_one()
+        await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=1), NOW)
+        workers = await _workers_per_scan(session)
+    assert workers == max(1, pool // 4)
+
+
+async def test_raw_scan_keeps_parallel_queries_off_when_disabled(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await session.execute(text("SET LOCAL max_parallel_workers_per_gather = 0"))
+        await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=1), NOW)
+        workers = await _workers_per_scan(session)
+    assert workers == 0
+
+
+async def test_raw_scan_replans_on_every_run(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=1), NOW)
+        mode = (await session.execute(text("SELECT current_setting('plan_cache_mode')"))).scalar_one()
+    assert mode == "force_custom_plan"

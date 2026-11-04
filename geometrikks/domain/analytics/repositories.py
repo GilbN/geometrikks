@@ -121,6 +121,35 @@ LATENCY_PCT = latency_col("latency_pct_agg", "pct_agg")
 URL_LATENCY_HITS = "COALESCE(latency_hits, timed_hits, hits)"
 URL_LATENCY_TOTAL = latency_col("total_latency", "total_request_time", count="latency_hits")
 
+# TimescaleDB costs a compressed-chunk scan far below what decompressing it
+# takes, so Postgres keeps wide scans on one core. Zero worker costs restore
+# the parallel plans. The Analytics page sends its wide scans together, and
+# without a cap the first one took every worker and left the chart serial,
+# so each takes a quarter of the pool. 64MB keeps the parallel sorts and
+# hashes in memory; 128MB measured slower on a 12M-row install. asyncpg
+# reuses prepared statements. After five runs on one connection Postgres may
+# switch to a cached generic plan, made without the request's range and
+# maybe before these settings applied, so each run is planned fresh. The
+# settings end with the transaction.
+_WIDE_SCAN_PLANNER_SQL = text("""
+    SELECT set_config('plan_cache_mode', 'force_custom_plan', true),
+           set_config('parallel_setup_cost', '0', true),
+           set_config('parallel_tuple_cost', '0', true),
+           set_config('max_parallel_workers_per_gather', LEAST(
+               current_setting('max_parallel_workers_per_gather')::int,
+               GREATEST(1, current_setting('max_parallel_workers')::int / 4)
+           )::text, true),
+           set_config('work_mem', CASE
+               WHEN pg_size_bytes(current_setting('work_mem')) < pg_size_bytes('64MB') THEN '64MB'
+               ELSE current_setting('work_mem')
+           END, true)
+""")
+
+
+async def plan_for_wide_scan(session: AsyncSession) -> None:
+    """Let the next access_logs scan in this transaction run in parallel."""
+    await session.execute(_WIDE_SCAN_PLANNER_SQL)
+
 
 def _floor_to_hour(dt: datetime) -> datetime:
     """Truncate datetime to the start of its hour."""
@@ -781,6 +810,7 @@ class SummaryStatsRepository:
             ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {**_stitch_params(start, end, granularity), "limit": limit}
         )
@@ -917,6 +947,7 @@ class SummaryStatsRepository:
                 WHERE timestamp >= :start AND timestamp < :end
                 {filter_sql}
             """)
+            await plan_for_wide_scan(self.session)
             row = (await self.session.execute(
                 stmt, {"start": start, "end": end, **filter_params}
             )).one()
@@ -1326,39 +1357,63 @@ class LiveStatsRepository:
         bucket_interval is '1 hour' or '1 day' (validated by the caller).
         With a non-UTC ``tz``, daily buckets are local days; raw rows carry
         exact timestamps, so this needs no range restriction.
+
+        The scan groups by UTC quarter hours and rolls those up, because a
+        per-row time_bucket with a timezone costs more than the scan itself
+        and PERCENTILE_CONT cannot run in parallel. Every zone offset in use
+        is a whole number of quarter hours, so no quarter straddles a local
+        day.
+        Percentiles come from percentile_agg, as on the CAGG path.
         """
         if bucket_interval not in ("1 hour", "1 day"):
             raise ValueError("bucket_interval must be '1 hour' or '1 day'")
         local_days = bucket_interval == "1 day" and tz is not None and tz != "UTC"
         bucket_expr = (
-            "time_bucket('1 day', timestamp, CAST(:tz AS TEXT))"
+            "time_bucket('1 day', quarter, CAST(:tz AS TEXT))"
             if local_days
-            else f"time_bucket('{bucket_interval}', timestamp)"
+            else f"time_bucket('{bucket_interval}', quarter)"
         )
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
         if local_days:
             filter_params = {**filter_params, "tz": tz}
         stmt = text(f"""
+            WITH quarters AS (
+                SELECT
+                    time_bucket('15 minutes', timestamp) AS quarter,
+                    COUNT(*) AS total_requests,
+                    SUM(bytes_sent) AS total_bytes,
+                    COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
+                    COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
+                    COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
+                    COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+                    COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                    SUM(request_time) FILTER (WHERE {LATENCY_FILTER}) AS total_request_time,
+                    MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                    percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER}) AS pct_agg
+                FROM access_logs
+                WHERE timestamp >= :start AND timestamp < :end
+                {filter_sql}
+                GROUP BY quarter
+            )
             SELECT
                 {bucket_expr} AS bucket,
-                CAST(COUNT(*) AS BIGINT) AS total_requests,
-                CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
-                COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
-                COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
-                COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
-                COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
-                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
-                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
-                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
-            FROM access_logs
-            WHERE timestamp >= :start AND timestamp < :end
-            {filter_sql}
+                CAST(SUM(total_requests) AS BIGINT) AS total_requests,
+                CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                CAST(SUM(status_2xx) AS BIGINT) AS status_2xx,
+                CAST(SUM(status_3xx) AS BIGINT) AS status_3xx,
+                CAST(SUM(status_4xx) AS BIGINT) AS status_4xx,
+                CAST(SUM(status_5xx) AS BIGINT) AS status_5xx,
+                CAST(SUM(timed_requests) AS BIGINT) AS timed_requests,
+                SUM(total_request_time) / NULLIF(SUM(timed_requests), 0) AS avg_request_time,
+                MAX(max_request_time) AS max_request_time,
+                approx_percentile(0.50, rollup(pct_agg)) AS p50_request_time,
+                approx_percentile(0.95, rollup(pct_agg)) AS p95_request_time,
+                approx_percentile(0.99, rollup(pct_agg)) AS p99_request_time
+            FROM quarters
             GROUP BY bucket
             ORDER BY bucket ASC
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, **filter_params}
         )
@@ -1406,6 +1461,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1436,6 +1492,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, user_agent
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1458,6 +1515,7 @@ class LiveStatsRepository:
             GROUP BY autonomous_system_number
             ORDER BY hits DESC, asn
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, **filter_params}
         )
@@ -1491,6 +1549,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, ip_address
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1514,6 +1573,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, country_code
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1537,6 +1597,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, city
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )

@@ -103,7 +103,7 @@ async def test_stitched_top_urls_reads_the_url_latency_columns() -> None:
 
     await repo.get_top_urls(NOW - timedelta(days=3), NOW)  # > 24h, no filters: stitched path
 
-    sql = session.sql[0]
+    sql = session.sql[-1]
     assert f"{URL_LATENCY_HITS} AS timed_hits" in sql
     assert f"{URL_LATENCY_TOTAL} AS total_request_time" in sql
     assert "COALESCE(s.timed_hits, s.hits)" not in sql
@@ -129,15 +129,27 @@ async def test_raw_time_series_filters_every_latency_aggregate() -> None:
     await LiveStatsRepository(session=session).get_time_series(  # ty: ignore[invalid-argument-type]
         NOW - timedelta(hours=6), NOW, bucket_interval="1 hour"
     )
-    sql = session.sql[0]
-    assert sql.count(FILTER) == 6
-    assert "COUNT(*) AS BIGINT) AS total_requests" in sql
+    sql = session.sql[-1]
+    assert sql.count(FILTER) == 4  # count, sum, max, percentile_agg
+    assert f"COUNT(request_time) {FILTER} AS timed_requests" in sql
+    assert f"percentile_agg(request_time) {FILTER} AS pct_agg" in sql
+
+
+async def test_raw_time_series_rolls_quarter_hours_into_buckets() -> None:
+    session = CaptureSession()
+    await LiveStatsRepository(session=session).get_time_series(  # ty: ignore[invalid-argument-type]
+        NOW - timedelta(days=3), NOW, bucket_interval="1 day", tz="Asia/Kathmandu"
+    )
+    sql = session.sql[-1]
+    assert "time_bucket('15 minutes', timestamp)" in sql
+    assert "time_bucket('1 day', quarter, CAST(:tz AS TEXT))" in sql
+    assert "PERCENTILE_CONT" not in sql
 
 
 async def test_raw_top_urls_filters_hits_and_average() -> None:
     session = CaptureSession()
     await LiveStatsRepository(session=session).get_top_urls(NOW - timedelta(hours=6), NOW)  # ty: ignore[invalid-argument-type]
-    sql = session.sql[0]
+    sql = session.sql[-1]
     assert f"COUNT(request_time) {FILTER} AS BIGINT) AS timed_hits" in sql
     assert f"AVG(request_time) {FILTER} AS avg_request_time" in sql
     assert "COUNT(*) AS BIGINT) AS hits" in sql
@@ -146,7 +158,7 @@ async def test_raw_top_urls_filters_hits_and_average() -> None:
 async def test_stitched_top_urls_raw_halves_filter_the_edges() -> None:
     session = CaptureSession()
     await SummaryStatsRepository(session=session).get_top_urls(NOW - timedelta(days=3), NOW)  # ty: ignore[invalid-argument-type]
-    sql = session.sql[0]
+    sql = session.sql[-1]
     edge = "CAST((al.request_time IS NOT NULL AND al.status_code NOT IN (0, 101))::int AS BIGINT)"
     assert sql.count(edge) == 2
     assert sql.count("CASE WHEN al.status_code NOT IN (0, 101) THEN al.request_time END") == 2
