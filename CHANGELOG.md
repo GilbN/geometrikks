@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On a develop image, View on GitHub on Settings > Changelog opens the changelog on the develop branch. It used to open the main branch, which lacks the changes listed under Unreleased.
 - Startup no longer logs `` `uuid-utils` not installed, falling back to `uuid4` for UUID v7 generation. ``
 - CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`.
 - In a record sheet, a long ban reason wraps with the time left at its end. The time left used to sit beside the reason's first line while the rest of the reason wrapped underneath.

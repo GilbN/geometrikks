@@ -20,6 +20,12 @@ export function isLocalBuild(version: string): boolean {
   return match !== null && match[1].split(".").every((part) => Number(part) === 0)
 }
 
+/** True for a develop image, whose version has a .devN segment. */
+export function isDevBuild(version: string): boolean {
+  const match = VERSION_PATTERN.exec(version)
+  return match !== null && match[2] !== undefined && !isLocalBuild(version)
+}
+
 /** The version without its +local suffix. */
 export function publicVersion(version: string): string {
   const suffixStart = version.indexOf("+")
