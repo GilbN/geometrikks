@@ -20,6 +20,9 @@ export interface AccessLogFilterState {
   serversExclude: string[]
   /** Exact log-format values, chosen from the facets list. Include-only. */
   logFormats: string[]
+  /** Autonomous system numbers, chosen from the facets list. */
+  asns: number[]
+  asnsExclude: number[]
   methods: string[]
   statusCodes: number[]
   cities: string[]
@@ -35,6 +38,8 @@ export const EMPTY_ACCESS_LOG_FILTERS: AccessLogFilterState = {
   servers: [],
   serversExclude: [],
   logFormats: [],
+  asns: [],
+  asnsExclude: [],
   methods: [],
   statusCodes: [],
   cities: [],
@@ -52,6 +57,8 @@ export function countActiveAccessLogFilters(filters: AccessLogFilterState): numb
     (filters.servers.length ? 1 : 0) +
     (filters.serversExclude.length ? 1 : 0) +
     (filters.logFormats.length ? 1 : 0) +
+    (filters.asns.length ? 1 : 0) +
+    (filters.asnsExclude.length ? 1 : 0) +
     (filters.methods.length ? 1 : 0) +
     (filters.statusCodes.length ? 1 : 0) +
     (filters.cities.length ? 1 : 0) +

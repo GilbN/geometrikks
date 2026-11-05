@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAccessLogFacets } from "@/lib/queries"
+import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { isValidIp } from "@/lib/crowdsec"
@@ -34,12 +35,17 @@ const STATUS_CODES = [
 ] as const
 
 type ListKey = "ips" | "ipsExclude" | "hostsExclude" | "serversExclude"
+type AsnKey = "asns" | "asnsExclude"
 
 export function AccessLogsFilterBar() {
   const isMobile = useIsMobile()
   const { filters, setFilters } = useAccessLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
-  const { data: facets } = useAccessLogFacets({ enabled: facetsEnabled })
+  // Selected ASNs need the facets for their organization labels.
+  const { data: facets } = useAccessLogFacets({
+    enabled: facetsEnabled || filters.asns.length > 0 || filters.asnsExclude.length > 0,
+  })
+  const asnLabel = useAsnLabel(facets?.asns)
 
   // The search box is the one free-text field left, so it stays local and
   // debounced: writing every keystroke to the URL would spam navigation.
@@ -75,19 +81,31 @@ export function AccessLogsFilterBar() {
   }
   const remove = (key: ListKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
+  const setAsns = (key: AsnKey) => (values: number[]) =>
+    setFilters((prev) => ({ ...prev, [key]: values }))
+  const removeAsn = (key: AsnKey, asn: number) =>
+    setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== asn) }))
 
+  const textChip = (key: ListKey, exclude: boolean) => (v: string) => ({
+    key, label: v, exclude, remove: () => remove(key, v),
+  })
+  const asnChip = (key: AsnKey, exclude: boolean) => (v: number) => ({
+    key, label: asnLabel(v), exclude, remove: () => removeAsn(key, v),
+  })
   const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, v, exclude: false })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, v, exclude: true })),
-    ...filters.hostsExclude.map((v) => ({ key: "hostsExclude" as const, v, exclude: true })),
-    ...filters.serversExclude.map((v) => ({ key: "serversExclude" as const, v, exclude: true })),
+    ...filters.ips.map(textChip("ips", false)),
+    ...filters.ipsExclude.map(textChip("ipsExclude", true)),
+    ...filters.hostsExclude.map(textChip("hostsExclude", true)),
+    ...filters.serversExclude.map(textChip("serversExclude", true)),
+    ...filters.asns.map(asnChip("asns", false)),
+    ...filters.asnsExclude.map(asnChip("asnsExclude", true)),
   ]
-  const chipRow = (keys: ListKey[]) => {
+  const chipRow = (keys: (ListKey | AsnKey)[]) => {
     const shown = chips.filter((c) => keys.includes(c.key))
     return shown.length > 0 && (
       <FilterRow>
         {shown.map((c) => (
-          <FilterChip key={`${c.key}:${c.v}`} value={c.v} exclude={c.exclude} onRemove={() => remove(c.key, c.v)} />
+          <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
         ))}
       </FilterRow>
     )
@@ -188,6 +206,41 @@ export function AccessLogsFilterBar() {
       }
     />
   )
+  const asnPair = (inDrawer: boolean) => (
+    <FilterPair
+      label="ASN"
+      excludeLabel="Exclude ASN"
+      stacked={inDrawer}
+      includeChips={chipRow(["asns"])}
+      excludeChips={chipRow(["asnsExclude"])}
+      include={
+        <FilterCombobox<number>
+          label="ASN"
+          options={facets?.asns.map((a) => a.asn) ?? []}
+          selected={filters.asns}
+          onChange={setAsns("asns")}
+          labelFor={asnLabel}
+          loading={!facets}
+          emptyText="No ASN data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      }
+      exclude={
+        <FilterCombobox<number>
+          label="Exclude ASN"
+          options={facets?.asns.map((a) => a.asn) ?? []}
+          selected={filters.asnsExclude}
+          onChange={setAsns("asnsExclude")}
+          labelFor={asnLabel}
+          loading={!facets}
+          emptyText="No ASN data"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+          forceInline={inDrawer}
+        />
+      }
+    />
+  )
   const method = (inDrawer: boolean) => (
     <FilterField label="Method" hideLabel={!inDrawer}>
       <FilterCombobox
@@ -277,6 +330,7 @@ export function AccessLogsFilterBar() {
           {logFormat(true)}
           {country(true)}
           {city(true)}
+          {asnPair(true)}
         </FiltersDrawer>
       </div>
     )
@@ -296,8 +350,9 @@ export function AccessLogsFilterBar() {
         {logFormat(false)}
         {country(false)}
         {city(false)}
+        {asnPair(false)}
       </FilterRow>
-      {chipRow(["ips", "ipsExclude", "hostsExclude", "serversExclude"])}
+      {chipRow(["ips", "ipsExclude", "hostsExclude", "serversExclude", "asns", "asnsExclude"])}
     </FilterRail>
   )
 }

@@ -224,3 +224,38 @@ class TestInFilters:
         assert provide_access_log_in_filters(
             None, None, None, None, None, None, None, None, [], [], []
         ) == []
+
+    def test_asn_in_yields_collection_filter(self) -> None:
+        result = provide_access_log_in_filters(asn_in=[13335])
+        assert len(result) == 1
+        asn = result[0]
+        assert isinstance(asn, CollectionFilter)
+        assert asn.field_name == "autonomous_system_number"
+        assert asn.values == [13335]
+
+    def test_asn_not_in_keeps_rows_with_no_asn(self) -> None:
+        # Rows ingested without the ASN database carry NULL, and
+        # `NULL NOT IN (...)` is NULL, so a bare NotInCollectionFilter would
+        # drop them.
+        result = provide_access_log_in_filters(asn_not_in=[13335])
+        assert len(result) == 1
+        group = result[0]
+        assert isinstance(group, FilterGroup)
+        assert group.logical_operator is or_
+        excluded, is_null = group.filters
+        assert isinstance(excluded, NotInCollectionFilter)
+        assert excluded.field_name == "autonomous_system_number"
+        assert excluded.values == [13335]
+        assert isinstance(is_null, NullFilter)
+        assert is_null.field_name == "autonomous_system_number"
+
+    def test_asn_params_use_shared_query_names(self) -> None:
+        query_names = {
+            name: parameter.annotation.__metadata__[0].name
+            for name, parameter in inspect.signature(provide_access_log_in_filters, eval_str=True).parameters.items()
+        }
+        assert query_names["asn_in"] == "asnIn"
+        assert query_names["asn_not_in"] == "asnNotIn"
+
+    def test_empty_asn_lists_yield_no_filters(self) -> None:
+        assert provide_access_log_in_filters(asn_in=[], asn_not_in=[]) == []

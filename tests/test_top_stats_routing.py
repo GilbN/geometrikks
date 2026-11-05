@@ -116,6 +116,23 @@ async def test_top_cities_week_range_uses_hourly_cagg():
     assert "log_ip_hourly_stats" in session.statements[-1]
 
 
+@pytest.mark.parametrize("method", ["get_top_ips", "get_top_countries", "get_top_cities"])
+@pytest.mark.parametrize("start", [WEEK_START, LONG_START], ids=["hourly", "daily"])
+@pytest.mark.parametrize(
+    "filters",
+    [AnalyticsFilters(asns=[13335]), AnalyticsFilters(asns_exclude=[13335])],
+    ids=["include", "exclude"],
+)
+async def test_per_ip_lists_read_raw_rows_for_an_asn_filter(method, start, filters):
+    # log_ip_*_stats has no ASN column to filter on.
+    session = _RecordingSession()
+    await getattr(_repo(session), method)(start, NOW, filters=filters)
+    sql = session.statements[-1]
+    assert "log_ip_" not in sql
+    assert "FROM access_logs" in sql
+    assert "autonomous_system_number" in sql
+
+
 async def test_stitched_sql_binds_bounds_as_params():
     """Regression: stitch bounds must be plain bind params, never a joined CTE.
 

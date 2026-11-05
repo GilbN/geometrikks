@@ -1058,10 +1058,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
         startDate,
         endDate,
         granularity: resolved,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1108,10 +1105,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
         startDate,
         endDate,
         limit,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1137,10 +1131,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
         startDate,
         endDate,
         limit,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1166,10 +1157,7 @@ export function useTopAsns(options: UseTopListOptions = {}) {
         startDate,
         endDate,
         limit,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1195,10 +1183,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
         startDate,
         endDate,
         limit,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1224,10 +1209,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
         startDate,
         endDate,
         limit,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1253,10 +1235,7 @@ export function useTopCityStats(options: UseTopListOptions = {}) {
         startDate,
         endDate,
         limit,
-        countryCodes: filters.countryCodes,
-        cities: filters.cities,
-        ips: filters.ips,
-        ipsExclude: filters.ipsExclude,
+        ...filters,
       })
     },
     enabled,
@@ -1282,6 +1261,8 @@ export interface UseAccessLogsOptions {
   serverIn?: string[]
   serverNotIn?: string[]
   logFormatIn?: string[]
+  asnIn?: number[]
+  asnNotIn?: number[]
   cityIn?: string[]
   countryCodeIn?: string[]
   statusIn?: number[]
@@ -1307,6 +1288,8 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     serverIn,
     serverNotIn,
     logFormatIn,
+    asnIn,
+    asnNotIn,
     cityIn,
     countryCodeIn,
     statusIn,
@@ -1317,7 +1300,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, serverIn, serverNotIn, logFormatIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, serverIn, serverNotIn, logFormatIn, asnIn, asnNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1336,6 +1319,8 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         serverIn,
         serverNotIn,
         logFormatIn,
+        asnIn,
+        asnNotIn,
         cityIn,
         countryCodeIn,
         statusIn,

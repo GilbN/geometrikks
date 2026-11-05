@@ -62,7 +62,13 @@ export function TopIpsTable() {
                         primary={
                           <>
                             <IpLabel ip={row.ipAddress} className="truncate font-mono text-xs" />
-                            <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} city={row.city} />
+                            <IpActionsMenu
+                              ip={row.ipAddress}
+                              countryCode={row.countryCode}
+                              city={row.city}
+                              asn={row.asn}
+                              asOrganization={row.asOrganization}
+                            />
                           </>
                         }
                         value={formatNumber(row.hits)}
@@ -84,7 +90,13 @@ export function TopIpsTable() {
                     <TableRow key={row.ipAddress}>
                       <TableCell className="font-mono text-xs">
                         <IpLabel ip={row.ipAddress} />
-                        <IpActionsMenu ip={row.ipAddress} countryCode={row.countryCode} city={row.city} />
+                        <IpActionsMenu
+                          ip={row.ipAddress}
+                          countryCode={row.countryCode}
+                          city={row.city}
+                          asn={row.asn}
+                          asOrganization={row.asOrganization}
+                        />
                       </TableCell>
                       <TableCell>{row.countryCode ? <CountryLabel code={row.countryCode} /> : "-"}</TableCell>
                       <TableCell>{row.city ?? "-"}</TableCell>

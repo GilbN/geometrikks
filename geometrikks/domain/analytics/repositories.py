@@ -1011,11 +1011,12 @@ class SummaryStatsRepository:
         """Top client IPs: stitched log_ip CAGG read above 24h, raw otherwise.
 
         Country/city/IP filters apply on the CAGG path (its columns carry the
-        dimensions), so filtered long ranges stay fast.
+        dimensions), so filtered long ranges stay fast. The CAGG has no ASN
+        column, so an ASN filter reads raw rows at any range.
         """
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_ips(
                 start, end, limit, filters=filters
             )
@@ -1038,7 +1039,61 @@ class SummaryStatsRepository:
         result = await self.session.execute(
             stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
-        return [TopIpRow(**row._mapping) for row in result.fetchall()]
+        top_ips = [TopIpRow(**row._mapping) for row in result.fetchall()]
+        await self._attach_asns(top_ips, start, end, granularity)
+        return top_ips
+
+    async def _attach_asns(
+        self, top_ips: list[TopIpRow], start: datetime, end: datetime, granularity: StatsGranularity
+    ) -> None:
+        """Fill each row's ASN, which log_ip_*_stats does not carry.
+
+        The per-IP geo rollup answers most IPs. Only its whole buckets inside
+        the window count, since a partial last bucket also aggregates events
+        after ``end``. Some IPs have no geo event, because GeoIP gave them an
+        ASN but no location. Those, and IPs seen only in a partial bucket,
+        take the ASN of their newest access log in the window.
+        """
+        if not top_ips:
+            return
+        window = _stitch_params(start, end, granularity)
+        geo_rows = await self.session.execute(
+            text(f"""
+                SELECT DISTINCT ON (ip_address)
+                    host(ip_address) AS ip, asn, as_org
+                FROM ip_location_{granularity.value}_stats
+                WHERE ip_address = ANY(CAST(:ips AS inet[]))
+                  AND asn IS NOT NULL
+                  AND bucket >= :a_start AND bucket < :a_end
+                ORDER BY ip_address, bucket DESC
+            """),
+            {"ips": [top_ip.ip_address for top_ip in top_ips], **window},
+        )
+        networks = {row.ip: (int(row.asn), row.as_org) for row in geo_rows.fetchall()}
+        unresolved = [top_ip.ip_address for top_ip in top_ips if top_ip.ip_address not in networks]
+        if unresolved:
+            # LIMIT 1 over rows ordered by time stops at the first chunk that
+            # holds the IP, so a busy IP's lines are not all read.
+            log_rows = await self.session.execute(
+                text("""
+                    SELECT host(ips.ip) AS ip, latest.asn, latest.as_org
+                    FROM unnest(CAST(:ips AS inet[])) AS ips(ip)
+                    CROSS JOIN LATERAL (
+                        SELECT autonomous_system_number AS asn,
+                               autonomous_system_organization AS as_org
+                        FROM access_logs
+                        WHERE ip_address = ips.ip
+                          AND timestamp >= :start AND timestamp < :end
+                          AND autonomous_system_number IS NOT NULL
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) latest
+                """),
+                {"ips": unresolved, "start": start, "end": end},
+            )
+            networks.update({row.ip: (int(row.asn), row.as_org) for row in log_rows.fetchall()})
+        for top_ip in top_ips:
+            top_ip.asn, top_ip.as_organization = networks.get(top_ip.ip_address, (None, None))
 
     async def get_top_countries(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
@@ -1046,7 +1101,7 @@ class SummaryStatsRepository:
         """Top countries with exact unique-IP counts (combined is IP-keyed)."""
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_countries(
                 start, end, limit, filters=filters
             )
@@ -1075,7 +1130,7 @@ class SummaryStatsRepository:
         """Top cities with exact unique-IP counts (NULL cities excluded)."""
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_cities(
                 start, end, limit, filters=filters
             )
@@ -1140,6 +1195,8 @@ class TopIpRow:
     total_bytes: int
     country_code: str | None
     city: str | None
+    asn: int | None = None
+    as_organization: str | None = None
 
 
 @dataclass
@@ -1167,7 +1224,7 @@ class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
     Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP. An exclude-only filter counts as
+    cannot be sliced by country/city/IP/ASN. An exclude-only filter counts as
     active for exactly that reason.
     """
 
@@ -1175,9 +1232,18 @@ class AnalyticsFilters:
     cities: Sequence[str] | None = None
     ip_addresses: Sequence[str] | None = None
     ip_exclude: Sequence[str] | None = None
+    asns: Sequence[int] | None = None
+    asns_exclude: Sequence[int] | None = None
 
     def is_active(self) -> bool:
-        return bool(self.country_codes or self.cities or self.ip_addresses or self.ip_exclude)
+        return bool(
+            self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
+            or self.asns or self.asns_exclude
+        )
+
+    def needs_raw_rows(self) -> bool:
+        """True when a filter has no column on the per-IP log_ip CAGGs."""
+        return bool(self.asns or self.asns_exclude)
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -1195,6 +1261,15 @@ class AnalyticsFilters:
         if self.ip_exclude:
             clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
             params["filter_ips_exclude"] = list(self.ip_exclude)
+        if self.asns:
+            clauses.append("AND autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))")
+            params["filter_asns"] = [int(asn) for asn in self.asns]
+        if self.asns_exclude:
+            clauses.append(
+                "AND (autonomous_system_number IS NULL "
+                "OR NOT (autonomous_system_number = ANY(CAST(:filter_asns_exclude AS bigint[]))))"
+            )
+            params["filter_asns_exclude"] = [int(asn) for asn in self.asns_exclude]
         return " ".join(clauses), params
 
 
@@ -1541,7 +1616,9 @@ class LiveStatsRepository:
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
                 MAX(country_code) AS country_code,
-                MAX(city) AS city
+                MAX(city) AS city,
+                MAX(autonomous_system_number) AS asn,
+                MAX(autonomous_system_organization) AS as_organization
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}

@@ -444,6 +444,7 @@ export type {
   AsnCategoryTotalsDto,
   AsnClassificationListResponse,
   AsnClassificationView,
+  AsnFacet,
   AuthDisabled,
   AuthOptions,
   BannedIp,

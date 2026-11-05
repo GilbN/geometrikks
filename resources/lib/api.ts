@@ -34,6 +34,7 @@ import {
 import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
+  AsnFacet,
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
   SystemSettingsResponse,
@@ -738,7 +739,7 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 // ============================================================================
 
 /**
- * Country/city/IP filters shared by the analytics page's six filterable
+ * Country/city/IP/ASN filters shared by the analytics page's seven filterable
  * endpoints (not geo-time-series, which stays unfiltered). The generated
  * fetch client serializes arrays as repeated keys (?countryCode=NO&countryCode=SE)
  * by default, matching what Litestar expects.
@@ -748,6 +749,19 @@ export interface AnalyticsFilterParams {
   cities?: string[]
   ips?: string[]
   ipsExclude?: string[]
+  asns?: number[]
+  asnsExclude?: number[]
+}
+
+function analyticsFilterQuery(params: AnalyticsFilterParams) {
+  return {
+    countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+    city: params.cities?.length ? params.cities : undefined,
+    ipAddress: params.ips?.length ? params.ips : undefined,
+    ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    asnIn: params.asns?.length ? params.asns : undefined,
+    asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+  }
 }
 
 export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
@@ -757,10 +771,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       endDate: params.endDate,
       granularity: params.granularity,
       tz: BROWSER_TZ,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -786,10 +797,7 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -802,10 +810,7 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -818,10 +823,7 @@ export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number }
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -834,10 +836,7 @@ export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: numbe
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -850,10 +849,7 @@ export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: 
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -866,10 +862,7 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -1212,6 +1205,10 @@ export interface AccessLogsParams {
   serverNotIn?: string[]
   /** Exact log-format match(es), chosen from the facets list. */
   logFormatIn?: string[]
+  /** Autonomous system number(s) to include. */
+  asnIn?: number[]
+  /** Autonomous system numbers to exclude. */
+  asnNotIn?: number[]
   /** Exact city match(es). */
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
@@ -1237,6 +1234,8 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       serverIn: params.serverIn?.length ? params.serverIn : undefined,
       serverNotIn: params.serverNotIn?.length ? params.serverNotIn : undefined,
       logFormatIn: params.logFormatIn?.length ? params.logFormatIn : undefined,
+      asnIn: params.asnIn?.length ? params.asnIn : undefined,
+      asnNotIn: params.asnNotIn?.length ? params.asnNotIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
@@ -1265,9 +1264,11 @@ export interface AccessLogFacets {
   servers: string[]
   /** Sorted alphabetically. */
   logFormats: string[]
+  /** Sorted by organization, unnamed last. */
+  asns: AsnFacet[]
 }
 
-/** Distinct country/city/host/server/log-format values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host/server/log-format/ASN values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data

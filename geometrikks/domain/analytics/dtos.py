@@ -380,6 +380,11 @@ class TopIpDTO(msgspec.Struct, rename="camel"):
     total_bytes: int
     country_code: Annotated[str | None, msgspec.Meta(description="Null when GeoIP has no country for the IP.")]
     city: Annotated[str | None, msgspec.Meta(description="Null when GeoIP has no city for the IP.")]
+    asn: Annotated[
+        int | None,
+        msgspec.Meta(description="The autonomous system the IP belongs to. Null when the IP has no ASN data."),
+    ]
+    as_organization: AsnOrganization
 
 
 class TopIpsResponse(msgspec.Struct, rename="camel"):

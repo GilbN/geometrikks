@@ -14,6 +14,16 @@ class CountryFacet(msgspec.Struct, rename="camel"):
     name: Annotated[str, msgspec.Meta(description="The country name, or the code when GeoIP gave no name.")]
 
 
+class AsnFacet(msgspec.Struct, rename="camel"):
+    """An autonomous system that appears in the access logs."""
+
+    asn: Annotated[int, msgspec.Meta(description="The autonomous system number, the value `asnIn` takes.")]
+    organization: Annotated[
+        str | None,
+        msgspec.Meta(description="The network's name from the GeoLite2 ASN database. Null when it has none."),
+    ]
+
+
 class AccessLogFacets(msgspec.Struct, rename="camel"):
     """The values the access log filters can take, each list sorted."""
 
@@ -24,6 +34,10 @@ class AccessLogFacets(msgspec.Struct, rename="camel"):
     log_formats: Annotated[
         list[str],
         msgspec.Meta(description="The log formats the lines were read with, such as `nginx` or `traefik-json`."),
+    ]
+    asns: Annotated[
+        list[AsnFacet],
+        msgspec.Meta(description="Sorted by organization, with the ones that have none last."),
     ]
 
 

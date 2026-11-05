@@ -555,6 +555,13 @@
       "AccessLogFacets": {
         "description": "The values the access log filters can take, each list sorted.",
         "properties": {
+          "asns": {
+            "description": "Sorted by organization, with the ones that have none last.",
+            "items": {
+              "$ref": "#/components/schemas/AsnFacet"
+            },
+            "type": "array"
+          },
           "cities": {
             "items": {
               "type": "string"
@@ -591,6 +598,7 @@
           }
         },
         "required": [
+          "asns",
           "cities",
           "countries",
           "hosts",
@@ -1389,6 +1397,32 @@
           "sourceUrl"
         ],
         "title": "AsnClassificationView",
+        "type": "object"
+      },
+      "AsnFacet": {
+        "description": "An autonomous system that appears in the access logs.",
+        "properties": {
+          "asn": {
+            "description": "The autonomous system number, the value `asnIn` takes.",
+            "type": "integer"
+          },
+          "organization": {
+            "description": "The network's name from the GeoLite2 ASN database. Null when it has none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "asn",
+          "organization"
+        ],
+        "title": "AsnFacet",
         "type": "object"
       },
       "AuthDisabled": {
@@ -8154,6 +8188,28 @@
       "TopIpDTO": {
         "description": "One client IP with its hits.",
         "properties": {
+          "asOrganization": {
+            "description": "The network's name from the GeoLite2 ASN database. Null when it has none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "asn": {
+            "description": "The autonomous system the IP belongs to. Null when the IP has no ASN data.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "city": {
             "description": "Null when GeoIP has no city for the IP.",
             "oneOf": [
@@ -8191,6 +8247,8 @@
           }
         },
         "required": [
+          "asOrganization",
+          "asn",
           "city",
           "countryCode",
           "errorHits",
@@ -9366,6 +9424,52 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -9473,7 +9577,7 @@
     "/api/v1/access-logs/facets": {
       "get": {
         "deprecated": false,
-        "description": "Returns every country, city, host, server name and log format the access logs hold, to fill the list filters. It reads the daily aggregates, so values stay listed after their raw lines are gone.",
+        "description": "Returns every country, city, host, server name, log format and ASN the access logs hold, to fill the list filters. It reads the daily aggregates, so values stay listed after their raw lines are gone.",
         "operationId": "ApiV1AccessLogsFacetsGetAccessLogFacets",
         "responses": {
           "200": {
@@ -10207,7 +10311,7 @@
     "/api/v1/analytics/time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
+        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
         "operationId": "ApiV1AnalyticsTimeSeriesGetTimeSeries",
         "parameters": [
           {
@@ -10392,6 +10496,52 @@
                 {
                   "items": {
                     "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
                   },
                   "type": "array"
                 },
@@ -10644,7 +10794,7 @@
     "/api/v1/analytics/top-asns": {
       "get": {
         "deprecated": false,
-        "description": "Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopAsnsGetTopAsns",
         "parameters": [
           {
@@ -10832,6 +10982,52 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -10900,7 +11096,7 @@
     "/api/v1/analytics/top-cities": {
       "get": {
         "deprecated": false,
-        "description": "Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one.",
+        "description": "Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopCitiesGetTopCities",
         "parameters": [
           {
@@ -11088,6 +11284,52 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -11156,7 +11398,7 @@
     "/api/v1/analytics/top-countries": {
       "get": {
         "deprecated": false,
-        "description": "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out.",
+        "description": "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopCountriesGetTopCountries",
         "parameters": [
           {
@@ -11344,6 +11586,52 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -11412,7 +11700,7 @@
     "/api/v1/analytics/top-ips": {
       "get": {
         "deprecated": false,
-        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS.",
+        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
         "parameters": [
           {
@@ -11600,6 +11888,52 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -11668,7 +12002,7 @@
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
-        "description": "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopUrlsGetTopUrls",
         "parameters": [
           {
@@ -11856,6 +12190,52 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -11924,7 +12304,7 @@
     "/api/v1/analytics/top-user-agents": {
       "get": {
         "deprecated": false,
-        "description": "Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city or IP filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopUserAgentsGetTopUserAgents",
         "parameters": [
           {
@@ -12104,6 +12484,52 @@
                 {
                   "items": {
                     "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+            "in": "query",
+            "name": "asnIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+            "in": "query",
+            "name": "asnNotIn",
+            "required": false,
+            "schema": {
+              "description": "Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
                   },
                   "type": "array"
                 },
