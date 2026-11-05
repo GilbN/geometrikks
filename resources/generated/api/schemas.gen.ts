@@ -556,6 +556,13 @@ export const AccessLogDebugStatsSchema = {
 export const AccessLogFacetsSchema = {
   description: "The values the access log filters can take, each list sorted.",
   properties: {
+    asns: {
+      description: "Sorted by organization, with the ones that have none last.",
+      items: {
+        $ref: "#/components/schemas/AsnFacet",
+      },
+      type: "array",
+    },
     cities: {
       items: {
         type: "string",
@@ -592,7 +599,7 @@ export const AccessLogFacetsSchema = {
       type: "array",
     },
   },
-  required: ["cities", "countries", "hosts", "logFormats", "servers"],
+  required: ["asns", "cities", "countries", "hosts", "logFormats", "servers"],
   title: "AccessLogFacets",
   type: "object",
 } as const;
@@ -1380,6 +1387,31 @@ export const AsnClassificationViewSchema = {
   },
   required: ["dataset", "entries", "license", "sourceUrl"],
   title: "AsnClassificationView",
+  type: "object",
+} as const;
+
+export const AsnFacetSchema = {
+  description: "An autonomous system that appears in the access logs.",
+  properties: {
+    asn: {
+      description: "The autonomous system number, the value `asnIn` takes.",
+      type: "integer",
+    },
+    organization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["asn", "organization"],
+  title: "AsnFacet",
   type: "object",
 } as const;
 

@@ -251,6 +251,10 @@ export type AccessLogDebugStats = {
  * The values the access log filters can take, each list sorted.
  */
 export type AccessLogFacets = {
+  /**
+   * Sorted by organization, with the ones that have none last.
+   */
+  asns: Array<AsnFacet>;
   cities: Array<string>;
   /**
    * Sorted by name.
@@ -652,6 +656,22 @@ export type AsnClassificationView = {
   entries: number;
   license: string;
   sourceUrl: string;
+};
+
+/**
+ * AsnFacet
+ *
+ * An autonomous system that appears in the access logs.
+ */
+export type AsnFacet = {
+  /**
+   * The autonomous system number, the value `asnIn` takes.
+   */
+  asn: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  organization: string | null;
 };
 
 /**
@@ -4325,6 +4345,14 @@ export type ApiV1AccessLogsListAccessLogsData = {
      * Keep only lines read with these log formats, as `/facets` lists them, such as `nginx`. Repeat the parameter to pass more than one.
      */
     logFormatIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -4666,6 +4694,14 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     ipAddressNotIn?: Array<string> | null;
     /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
+    /**
      * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
@@ -4796,6 +4832,14 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-asns";
 };
@@ -4869,6 +4913,14 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -4942,6 +4994,14 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -5015,6 +5075,14 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -5088,6 +5156,14 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -5161,6 +5237,14 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };

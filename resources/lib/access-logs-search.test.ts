@@ -37,4 +37,16 @@ describe("access-logs search codec", () => {
     expect(encoded.serverx).toEqual(["nas.lan"])
     expect(decodeAccessLogsSearch(encoded)).toEqual(filters)
   })
+
+  it("round-trips ASN filters as numbers", () => {
+    const filters = { ...EMPTY_ACCESS_LOG_FILTERS, asns: [13335], asnsExclude: [15169, 64512] }
+    const encoded = encodeAccessLogFilters(filters)
+    expect(encoded.asn).toEqual([13335])
+    expect(encoded.asnx).toEqual([15169, 64512])
+    expect(decodeUrl(defaultStringifySearch(encoded))).toEqual(filters)
+  })
+
+  it("drops a mangled ASN param instead of failing", () => {
+    expect(decodeUrl("?asn=cloudflare").asns).toEqual([])
+  })
 })

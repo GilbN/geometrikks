@@ -1011,11 +1011,12 @@ class SummaryStatsRepository:
         """Top client IPs: stitched log_ip CAGG read above 24h, raw otherwise.
 
         Country/city/IP filters apply on the CAGG path (its columns carry the
-        dimensions), so filtered long ranges stay fast.
+        dimensions), so filtered long ranges stay fast. The CAGG has no ASN
+        column, so an ASN filter reads raw rows at any range.
         """
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_ips(
                 start, end, limit, filters=filters
             )
@@ -1046,7 +1047,7 @@ class SummaryStatsRepository:
         """Top countries with exact unique-IP counts (combined is IP-keyed)."""
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_countries(
                 start, end, limit, filters=filters
             )
@@ -1075,7 +1076,7 @@ class SummaryStatsRepository:
         """Top cities with exact unique-IP counts (NULL cities excluded)."""
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_cities(
                 start, end, limit, filters=filters
             )
@@ -1167,7 +1168,7 @@ class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
     Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP. An exclude-only filter counts as
+    cannot be sliced by country/city/IP/ASN. An exclude-only filter counts as
     active for exactly that reason.
     """
 
@@ -1175,9 +1176,18 @@ class AnalyticsFilters:
     cities: Sequence[str] | None = None
     ip_addresses: Sequence[str] | None = None
     ip_exclude: Sequence[str] | None = None
+    asns: Sequence[int] | None = None
+    asns_exclude: Sequence[int] | None = None
 
     def is_active(self) -> bool:
-        return bool(self.country_codes or self.cities or self.ip_addresses or self.ip_exclude)
+        return bool(
+            self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
+            or self.asns or self.asns_exclude
+        )
+
+    def needs_raw_rows(self) -> bool:
+        """True when a filter has no column on the per-IP log_ip CAGGs."""
+        return bool(self.asns or self.asns_exclude)
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -1195,6 +1205,15 @@ class AnalyticsFilters:
         if self.ip_exclude:
             clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
             params["filter_ips_exclude"] = list(self.ip_exclude)
+        if self.asns:
+            clauses.append("AND autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))")
+            params["filter_asns"] = [int(asn) for asn in self.asns]
+        if self.asns_exclude:
+            clauses.append(
+                "AND (autonomous_system_number IS NULL "
+                "OR NOT (autonomous_system_number = ANY(CAST(:filter_asns_exclude AS bigint[]))))"
+            )
+            params["filter_asns_exclude"] = [int(asn) for asn in self.asns_exclude]
         return " ".join(clauses), params
 
 

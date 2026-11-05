@@ -14,6 +14,7 @@ from advanced_alchemy.filters import (
 )
 from sqlalchemy import or_, text
 
+from geometrikks.domain.logs.controllers.access_logs import provide_access_log_in_filters
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.server.timescale import refresh_caggs_range
 
@@ -39,21 +40,24 @@ async def _insert(
     city: str | None = None,
     server: str | None = None,
     log_format: str | None = None,
+    asn: int | None = None,
+    asn_org: str | None = None,
 ) -> None:
     async with session_maker() as session:
         await session.execute(
             text(
                 "INSERT INTO access_logs (timestamp, ip_address, method, url, host, "
                 " status_code, bytes_sent, request_time, country_code, country_name, city, "
-                " server, log_format) "
+                " server, log_format, autonomous_system_number, autonomous_system_organization) "
                 "VALUES (:ts, :ip, :method, :url, :host, :status, 100, 0.01, "
-                " :country_code, :country_name, :city, :server, :log_format)"
+                " :country_code, :country_name, :city, :server, :log_format, :asn, :asn_org)"
             ),
             {
                 "ts": ts, "ip": ip, "method": method, "url": url, "host": host,
                 "status": status, "country_code": country_code,
                 "country_name": country_name, "city": city,
                 "server": server, "log_format": log_format,
+                "asn": asn, "asn_org": asn_org,
             },
         )
         await session.commit()
@@ -355,3 +359,36 @@ async def test_log_format_collection_filter_narrows_results(pg_session_maker, cl
         )
     assert total == 1
     assert str(results[0].ip_address) == "10.0.0.2"
+
+
+async def test_asn_include_and_exclude(pg_session_maker, clean_tables) -> None:
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", asn=13335, asn_org="Cloudflare")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", asn=15169, asn_org="Google")
+    # Ingested without the ASN database, so an exclude must keep it.
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3")
+    async with pg_session_maker() as session:
+        service = AccessLogService(session=session)
+        included, included_total = await service.get_many_and_count(
+            _window(), *provide_access_log_in_filters(asn_in=[13335]), LimitOffset(50, 0)
+        )
+        excluded, excluded_total = await service.get_many_and_count(
+            _window(), *provide_access_log_in_filters(asn_not_in=[13335]), LimitOffset(50, 0)
+        )
+    assert included_total == 1
+    assert str(included[0].ip_address) == "10.0.0.1"
+    assert excluded_total == 2
+    assert sorted(str(r.ip_address) for r in excluded) == ["10.0.0.2", "10.0.0.3"]
+
+
+async def test_facets_lists_asns_with_organizations(pg_engine, pg_session_maker, clean_tables) -> None:
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.1", asn=15169, asn_org="Google")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.2", asn=13335, asn_org="Cloudflare")
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.3", asn=64512)
+    await _insert(pg_session_maker, NOW - timedelta(hours=1), "10.0.0.4")
+    await _refresh_facets_cagg(pg_engine, "asn_daily_stats")
+    async with pg_session_maker() as session:
+        facets = await AccessLogService(session=session).get_facets()
+    # Sorted by organization, unnamed last, rows without an ASN left out.
+    assert [(a.asn, a.organization) for a in facets.asns] == [
+        (13335, "Cloudflare"), (15169, "Google"), (64512, None),
+    ]

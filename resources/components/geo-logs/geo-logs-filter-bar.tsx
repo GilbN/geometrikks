@@ -7,11 +7,12 @@
  * the URL search params.
  */
 import { CountryFlag } from "@/components/country-flag"
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
+import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useGeoEventFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
@@ -38,16 +39,7 @@ export function GeoLogsFilterBar() {
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
 
-  // FilterCombobox calls labelFor per option per keystroke; a linear find
-  // over an unbounded ASN facet list would make that quadratic.
-  const asnOrgs = useMemo(
-    () => new Map(facets?.asns.map((a) => [a.asn, a.organization]) ?? []),
-    [facets],
-  )
-  const asnLabel = (asn: number) => {
-    const org = asnOrgs.get(asn)
-    return org ? `AS${asn} ${org}` : `AS${asn}`
-  }
+  const asnLabel = useAsnLabel(facets?.asns)
   type AsnKey = "asns" | "asnsExclude"
   const setAsns = (key: AsnKey) => (values: number[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))

@@ -140,6 +140,27 @@ function countryTarget<F>(
   ]
 }
 
+function asnTarget<F>(
+  { asn }: IpRowValues,
+  filters: F,
+  setFilters: SetFilters<F>,
+  includeKey: ListKey<F, number>,
+  excludeKey: ListKey<F, number>,
+): FilterTarget[] {
+  if (asn == null) return []
+  return [
+    listFilterTarget<F, number>({
+      noun: "ASN",
+      value: asn,
+      label: `AS${asn}`,
+      filters,
+      setFilters,
+      includeKey,
+      excludeKey,
+    }),
+  ]
+}
+
 export function accessLogFilterTargets(filters: AccessLogFilterState, setFilters: SetFilters<AccessLogFilterState>) {
   return (row: IpRowValues): FilterTarget[] => {
     const target = (
@@ -153,6 +174,7 @@ export function accessLogFilterTargets(filters: AccessLogFilterState, setFilters
       ...(row.host ? [target("host", row.host, "hosts", "hostsExclude")] : []),
       ...(row.server ? [target("server", row.server, "servers", "serversExclude")] : []),
       ...countryTarget(row, filters, setFilters, "countryCodes"),
+      ...asnTarget(row, filters, setFilters, "asns", "asnsExclude"),
     ]
   }
 }
@@ -161,19 +183,7 @@ export function geoLogFilterTargets(filters: GeoLogFilterState, setFilters: SetF
   return (row: IpRowValues): FilterTarget[] => [
     listFilterTarget({ noun: "IP", value: row.ip, filters, setFilters, includeKey: "ips", excludeKey: "ipsExclude" }),
     ...countryTarget(row, filters, setFilters, "countryCodes"),
-    ...(row.asn != null
-      ? [
-          listFilterTarget({
-            noun: "ASN",
-            value: row.asn,
-            label: `AS${row.asn}`,
-            filters,
-            setFilters,
-            includeKey: "asns",
-            excludeKey: "asnsExclude",
-          }),
-        ]
-      : []),
+    ...asnTarget(row, filters, setFilters, "asns", "asnsExclude"),
   ]
 }
 

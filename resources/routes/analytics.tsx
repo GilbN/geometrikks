@@ -38,6 +38,8 @@ const analyticsSearchSchema = z.object({
   city: z.array(z.string()).optional().catch(undefined),
   ip: z.array(z.string()).optional().catch(undefined),
   ipx: z.array(z.string()).optional().catch(undefined),
+  asn: z.array(z.number().int()).optional().catch(undefined),
+  asnx: z.array(z.number().int()).optional().catch(undefined),
 })
 
 type AnalyticsSearch = z.infer<typeof analyticsSearchSchema>
@@ -56,6 +58,8 @@ function decode(search: AnalyticsSearch): AnalyticsFilterState {
     cities: search.city ?? [],
     ips: search.ip ?? [],
     ipsExclude: search.ipx ?? [],
+    asns: search.asn ?? [],
+    asnsExclude: search.asnx ?? [],
   }
 }
 
@@ -65,6 +69,8 @@ function encode(filters: AnalyticsFilterState): Partial<AnalyticsSearch> {
     city: arrayParam(filters.cities),
     ip: arrayParam(filters.ips),
     ipx: arrayParam(filters.ipsExclude),
+    asn: arrayParam(filters.asns),
+    asnx: arrayParam(filters.asnsExclude),
   }
 }
 

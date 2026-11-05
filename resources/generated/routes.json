@@ -477,6 +477,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -495,6 +497,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -512,6 +516,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -529,6 +535,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -558,6 +566,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -575,6 +585,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -592,6 +604,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
         "endDate": "DateTime | undefined",
@@ -644,6 +658,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",

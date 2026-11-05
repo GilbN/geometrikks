@@ -1,5 +1,5 @@
 /**
- * Shared country/city/IP-include/IP-exclude filters for the analytics page.
+ * Shared country/city/IP/ASN include and exclude filters for the analytics page.
  * Threaded into the seven analytics hooks (time-series, top-urls,
  * top-user-agents, top-asns, top-ips, top-country-stats, top-city-stats) so
  * the filter bar reshapes every chart and top-list at once.
@@ -16,6 +16,8 @@ export interface AnalyticsFilterState {
   cities: string[]
   ips: string[]
   ipsExclude: string[]
+  asns: number[]
+  asnsExclude: number[]
 }
 
 export const EMPTY_FILTERS: AnalyticsFilterState = {
@@ -23,6 +25,8 @@ export const EMPTY_FILTERS: AnalyticsFilterState = {
   cities: [],
   ips: [],
   ipsExclude: [],
+  asns: [],
+  asnsExclude: [],
 }
 
 /** How many filter groups are set; a multi-select counts once however
@@ -32,7 +36,9 @@ export function countActiveAnalyticsFilters(filters: AnalyticsFilterState): numb
     (filters.countryCodes.length ? 1 : 0) +
     (filters.cities.length ? 1 : 0) +
     (filters.ips.length ? 1 : 0) +
-    (filters.ipsExclude.length ? 1 : 0)
+    (filters.ipsExclude.length ? 1 : 0) +
+    (filters.asns.length ? 1 : 0) +
+    (filters.asnsExclude.length ? 1 : 0)
   )
 }
 

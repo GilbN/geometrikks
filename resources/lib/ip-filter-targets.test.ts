@@ -94,6 +94,18 @@ describe("page filter targets", () => {
     expect(filters.countryCodes).toEqual([])
   })
 
+  it("filters and excludes the row's ASN on Access Logs as a number", () => {
+    let filters = { ...EMPTY_ACCESS_LOG_FILTERS, asnsExclude: [13335] }
+    const asn = accessLogFilterTargets(filters, (updater) => {
+      filters = updater(filters)
+    })({ ip: "1.2.3.4", asn: 13335 }).find((target) => target.noun === "ASN")
+    expect(asn?.value).toBe("AS13335")
+    expect(asn?.state).toBe("exclude")
+    asn?.include?.()
+    expect(filters.asns).toEqual([13335])
+    expect(filters.asnsExclude).toEqual([])
+  })
+
   it("filters and excludes the row's ASN on Geo Logs as a number", () => {
     let filters = { ...EMPTY_GEO_LOG_FILTERS, asns: [64500] }
     const asn = geoLogFilterTargets(filters, (updater) => {

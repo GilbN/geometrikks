@@ -30,6 +30,8 @@ from geometrikks.domain.logs.window_headers import AccessLogRangeHeaders, RANGE_
 from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
+    AsnIn,
+    AsnNotIn,
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,
     IpAddressIn,
@@ -181,8 +183,10 @@ def provide_access_log_in_filters(
             required=False,
         ),
     ] = None,
+    asn_in: AsnIn = None,
+    asn_not_in: AsnNotIn = None,
 ) -> list[FilterTypes]:
-    """Include/exclude matches on method / IP / city / country / status / host / server / log format.
+    """Include/exclude matches on method / IP / city / country / status / host / server / log format / ASN.
 
     Provided here rather than via the built-in ``in_fields`` config, whose
     generated providers yield ``None`` when the param is absent and fail the
@@ -196,7 +200,8 @@ def provide_access_log_in_filters(
     silently drop every row whose host never parsed. ``ip_address`` is
     NOT NULL, so ``ipAddressNotIn`` needs no such treatment. ``server`` is
     nullable for the same reason ``host`` is (older rows predate the
-    column), so ``serverNotIn`` gets the same NULL-OR treatment.
+    column), so ``serverNotIn`` gets the same NULL-OR treatment, and so does
+    ``asnNotIn``: rows ingested without the ASN database carry no ASN.
 
     Raises:
         DomainValidationError: If an ``ipAddressIn``/``ipAddressNotIn`` value
@@ -243,6 +248,18 @@ def provide_access_log_in_filters(
         )
     if log_format_in:
         result.append(CollectionFilter(field_name="log_format", values=log_format_in))
+    if asn_in:
+        result.append(CollectionFilter(field_name="autonomous_system_number", values=asn_in))
+    if asn_not_in:
+        result.append(
+            FilterGroup(
+                logical_operator=or_,
+                filters=[
+                    NotInCollectionFilter(field_name="autonomous_system_number", values=asn_not_in),
+                    NullFilter(field_name="autonomous_system_number"),
+                ],
+            )
+        )
     return result
 
 
@@ -332,7 +349,7 @@ class AccessLogController(Controller):
         return_dto=None,
         summary="List the filter values in the access logs",
         description=(
-            "Returns every country, city, host, server name and log format the access logs hold, to fill the "
+            "Returns every country, city, host, server name, log format and ASN the access logs hold, to fill the "
             "list filters. It reads the daily aggregates, so values stay listed after their raw lines are gone."
         ),
     )

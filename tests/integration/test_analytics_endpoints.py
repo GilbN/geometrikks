@@ -9,7 +9,11 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 
-from geometrikks.domain.analytics.repositories import AnalyticsFilters, LiveStatsRepository
+from geometrikks.domain.analytics.repositories import (
+    AnalyticsFilters,
+    LiveStatsRepository,
+    SummaryStatsRepository,
+)
 
 import pytest
 
@@ -21,16 +25,17 @@ NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 async def _insert_log(
     session, *, ts, url, user_agent, status=200, bytes_sent=100, rt=0.01,
-    ip="10.0.0.1", country=None, country_name=None, city=None
+    ip="10.0.0.1", country=None, country_name=None, city=None, asn=None
 ):
     # access_logs is an id-only base: no created_at/updated_at columns.
     await session.execute(text(
         "INSERT INTO access_logs (timestamp, ip_address, method, url, "
-        "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city) "
-        "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city)"
+        "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city, "
+        "autonomous_system_number) "
+        "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, :asn)"
     ), {
         "ts": ts, "url": url, "status": status, "bytes": bytes_sent, "rt": rt, "ua": user_agent,
-        "ip": ip, "country": country, "country_name": country_name, "city": city
+        "ip": ip, "country": country, "country_name": country_name, "city": city, "asn": asn
     })
 
 
@@ -594,3 +599,53 @@ async def test_raw_scan_replans_on_every_run(pg_session_maker, clean_tables):
         await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=1), NOW)
         mode = (await session.execute(text("SELECT current_setting('plan_cache_mode')"))).scalar_one()
     assert mode == "force_custom_plan"
+
+
+async def _seed_asn_traffic(session_maker) -> None:
+    ts = NOW - timedelta(hours=1)
+    async with session_maker() as session:
+        for _ in range(3):
+            await _insert_log(session, ts=ts, url="/cf", user_agent="x", ip="1.1.1.1",
+                              country="NO", city="Oslo", asn=13335)
+        await _insert_log(session, ts=ts, url="/g", user_agent="x", ip="8.8.8.8",
+                          country="SE", city="Umea", asn=15169)
+        # No ASN data, so an exclude keeps it and an include drops it.
+        await _insert_log(session, ts=ts, url="/none", user_agent="x", ip="9.9.9.9",
+                          country="DK", city="Aarhus")
+        await session.commit()
+
+
+@pytest.mark.parametrize("days", [7, 60], ids=["hourly", "daily"])
+async def test_per_ip_lists_filter_by_asn_past_a_day(pg_session_maker, clean_tables, days):
+    # Above 24h these lists read log_ip_*_stats, which has no ASN column.
+    await _seed_asn_traffic(pg_session_maker)
+    start = NOW - timedelta(days=days)
+    include = AnalyticsFilters(asns=[13335])
+    exclude = AnalyticsFilters(asns_exclude=[13335])
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        ips_in = await repo.get_top_ips(start, NOW, limit=10, filters=include)
+        ips_out = await repo.get_top_ips(start, NOW, limit=10, filters=exclude)
+        countries = await repo.get_top_countries(start, NOW, limit=10, filters=exclude)
+        cities = await repo.get_top_cities(start, NOW, limit=10, filters=include)
+
+    assert [(r.ip_address, r.hits) for r in ips_in] == [("1.1.1.1", 3)]
+    assert sorted(r.ip_address for r in ips_out) == ["8.8.8.8", "9.9.9.9"]
+    assert sorted(c.country_code for c in countries) == ["DK", "SE"]
+    assert [(c.city, c.hits) for c in cities] == [("Oslo", 3)]
+
+
+async def test_filtered_time_series_and_top_lists_by_asn(pg_session_maker, clean_tables):
+    await _seed_asn_traffic(pg_session_maker)
+    start = NOW - timedelta(hours=2)
+    async with pg_session_maker() as session:
+        repo = LiveStatsRepository(session=session)
+        series = await repo.get_time_series(
+            start, NOW, bucket_interval="1 hour", filters=AnalyticsFilters(asns_exclude=[13335])
+        )
+        urls = await repo.get_top_urls(start, NOW, limit=10, filters=AnalyticsFilters(asns=[15169]))
+        asns = await repo.get_top_asns(start, NOW, filters=AnalyticsFilters(asns_exclude=[15169]))
+
+    assert sum(r.total_requests for r in series) == 2
+    assert [u.url for u in urls] == ["/g"]
+    assert [(r.asn, r.hits) for r in asns] == [(13335, 3)]
