@@ -736,3 +736,30 @@ async def test_aggregated_top_ips_ignore_asns_seen_after_the_window(pg_session_m
         )
 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("1.1.1.1", 100, "Before")]
+
+
+async def test_aggregated_top_ips_take_the_newest_bucket_with_an_asn(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.server.timescale import refresh_caggs_range
+    from tests.integration.test_geo_logs_asn_pg import _insert_event, _one_location
+
+    async with pg_session_maker() as session:
+        loc = await _one_location(session)
+        await _insert_log(session, ts=NOW - timedelta(days=5), url="/a", user_agent="x", ip="2001:db8::1")
+        await _insert_event(session, ts=NOW - timedelta(days=5), ip="2001:db8::1", location_id=loc,
+                            asn=100, org="Older")
+        await _insert_event(session, ts=NOW - timedelta(days=2), ip="2001:db8::1", location_id=loc,
+                            asn=200, org="Newer")
+        # A later bucket without ASN data must not hide the newer one.
+        await _insert_event(session, ts=NOW - timedelta(hours=30), ip="2001:db8::1", location_id=loc)
+        await session.commit()
+    failed = await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=365), end=NOW, caggs=["ip_location_daily_stats"]
+    )
+    assert failed == []
+
+    async with pg_session_maker() as session:
+        rows = await SummaryStatsRepository(session=session).get_top_ips(
+            NOW - timedelta(days=60), NOW, limit=10
+        )
+
+    assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("2001:db8::1", 200, "Newer")]
