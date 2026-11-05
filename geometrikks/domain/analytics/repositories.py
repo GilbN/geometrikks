@@ -1039,7 +1039,61 @@ class SummaryStatsRepository:
         result = await self.session.execute(
             stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
-        return [TopIpRow(**row._mapping) for row in result.fetchall()]
+        top_ips = [TopIpRow(**row._mapping) for row in result.fetchall()]
+        await self._attach_asns(top_ips, start, end, granularity)
+        return top_ips
+
+    async def _attach_asns(
+        self, top_ips: list[TopIpRow], start: datetime, end: datetime, granularity: StatsGranularity
+    ) -> None:
+        """Fill each row's ASN, which log_ip_*_stats does not carry.
+
+        The per-IP geo rollup answers most IPs. Only its whole buckets inside
+        the window count, since a partial last bucket also aggregates events
+        after ``end``. Some IPs have no geo event, because GeoIP gave them an
+        ASN but no location. Those, and IPs seen only in a partial bucket,
+        take the ASN of their newest access log in the window.
+        """
+        if not top_ips:
+            return
+        window = _stitch_params(start, end, granularity)
+        geo_rows = await self.session.execute(
+            text(f"""
+                SELECT DISTINCT ON (ip_address)
+                    host(ip_address) AS ip, asn, as_org
+                FROM ip_location_{granularity.value}_stats
+                WHERE ip_address = ANY(CAST(:ips AS inet[]))
+                  AND asn IS NOT NULL
+                  AND bucket >= :a_start AND bucket < :a_end
+                ORDER BY ip_address, bucket DESC
+            """),
+            {"ips": [top_ip.ip_address for top_ip in top_ips], **window},
+        )
+        networks = {row.ip: (int(row.asn), row.as_org) for row in geo_rows.fetchall()}
+        unresolved = [top_ip.ip_address for top_ip in top_ips if top_ip.ip_address not in networks]
+        if unresolved:
+            # LIMIT 1 over rows ordered by time stops at the first chunk that
+            # holds the IP, so a busy IP's lines are not all read.
+            log_rows = await self.session.execute(
+                text("""
+                    SELECT host(ips.ip) AS ip, latest.asn, latest.as_org
+                    FROM unnest(CAST(:ips AS inet[])) AS ips(ip)
+                    CROSS JOIN LATERAL (
+                        SELECT autonomous_system_number AS asn,
+                               autonomous_system_organization AS as_org
+                        FROM access_logs
+                        WHERE ip_address = ips.ip
+                          AND timestamp >= :start AND timestamp < :end
+                          AND autonomous_system_number IS NOT NULL
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) latest
+                """),
+                {"ips": unresolved, "start": start, "end": end},
+            )
+            networks.update({row.ip: (int(row.asn), row.as_org) for row in log_rows.fetchall()})
+        for top_ip in top_ips:
+            top_ip.asn, top_ip.as_organization = networks.get(top_ip.ip_address, (None, None))
 
     async def get_top_countries(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
@@ -1141,6 +1195,8 @@ class TopIpRow:
     total_bytes: int
     country_code: str | None
     city: str | None
+    asn: int | None = None
+    as_organization: str | None = None
 
 
 @dataclass
@@ -1560,7 +1616,9 @@ class LiveStatsRepository:
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
                 MAX(country_code) AS country_code,
-                MAX(city) AS city
+                MAX(city) AS city,
+                MAX(autonomous_system_number) AS asn,
+                MAX(autonomous_system_organization) AS as_organization
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}

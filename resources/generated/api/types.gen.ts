@@ -3948,6 +3948,14 @@ export type TopIpdto = {
  */
 export type TopIpDto = {
   /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  asOrganization: string | null;
+  /**
+   * The autonomous system the IP belongs to. Null when the IP has no ASN data.
+   */
+  asn: number | null;
+  /**
    * Null when GeoIP has no city for the IP.
    */
   city: string | null;

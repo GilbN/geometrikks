@@ -8035,6 +8035,30 @@ export const TopIPDTOSchema = {
 export const TopIpDTOSchema = {
   description: "One client IP with its hits.",
   properties: {
+    asOrganization: {
+      description:
+        "The network's name from the GeoLite2 ASN database. Null when it has none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    asn: {
+      description:
+        "The autonomous system the IP belongs to. Null when the IP has no ASN data.",
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     city: {
       description: "Null when GeoIP has no city for the IP.",
       oneOf: [
@@ -8072,6 +8096,8 @@ export const TopIpDTOSchema = {
     },
   },
   required: [
+    "asOrganization",
+    "asn",
     "city",
     "countryCode",
     "errorHits",

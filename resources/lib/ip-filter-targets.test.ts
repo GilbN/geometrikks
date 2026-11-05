@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest"
 import { EMPTY_ACCESS_LOG_FILTERS } from "./access-log-filters-context"
+import { EMPTY_FILTERS } from "./analytics-filters-context"
 import { EMPTY_GEO_LOG_FILTERS } from "./geo-log-filters-context"
-import { accessLogFilterTargets, geoLogFilterTargets, listFilterTarget, singleFilterTarget } from "./ip-filter-targets"
+import {
+  accessLogFilterTargets,
+  analyticsFilterTargets,
+  asnFilterTarget,
+  geoLogFilterTargets,
+  listFilterTarget,
+  singleFilterTarget,
+} from "./ip-filter-targets"
 
 interface Filters {
   ips: string[]
@@ -104,6 +112,25 @@ describe("page filter targets", () => {
     asn?.include?.()
     expect(filters.asns).toEqual([13335])
     expect(filters.asnsExclude).toEqual([])
+  })
+
+  it("filters and excludes the row's ASN on Analytics", () => {
+    let filters = EMPTY_FILTERS
+    const asn = analyticsFilterTargets(filters, (updater) => {
+      filters = updater(filters)
+    })({ ip: "1.2.3.4", asn: 13335 }).find((target) => target.noun === "ASN")
+    asn?.exclude?.()
+    expect(filters.asnsExclude).toEqual([13335])
+  })
+
+  it("builds an ASN target for an ASN row without an IP", () => {
+    let filters = { ...EMPTY_FILTERS, asns: [13335] }
+    const target = asnFilterTarget(13335, filters, (updater) => {
+      filters = updater(filters)
+    })
+    expect([target.noun, target.value, target.state]).toEqual(["ASN", "AS13335", "include"])
+    target.remove()
+    expect(filters.asns).toEqual([])
   })
 
   it("filters and excludes the row's ASN on Geo Logs as a number", () => {

@@ -25,17 +25,19 @@ NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
 async def _insert_log(
     session, *, ts, url, user_agent, status=200, bytes_sent=100, rt=0.01,
-    ip="10.0.0.1", country=None, country_name=None, city=None, asn=None
+    ip="10.0.0.1", country=None, country_name=None, city=None, asn=None, asn_org=None
 ):
     # access_logs is an id-only base: no created_at/updated_at columns.
     await session.execute(text(
         "INSERT INTO access_logs (timestamp, ip_address, method, url, "
         "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city, "
-        "autonomous_system_number) "
-        "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, :asn)"
+        "autonomous_system_number, autonomous_system_organization) "
+        "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, "
+        ":asn, :asn_org)"
     ), {
         "ts": ts, "url": url, "status": status, "bytes": bytes_sent, "rt": rt, "ua": user_agent,
-        "ip": ip, "country": country, "country_name": country_name, "city": city, "asn": asn
+        "ip": ip, "country": country, "country_name": country_name, "city": city, "asn": asn,
+        "asn_org": asn_org,
     })
 
 
@@ -649,3 +651,88 @@ async def test_filtered_time_series_and_top_lists_by_asn(pg_session_maker, clean
     assert sum(r.total_requests for r in series) == 2
     assert [u.url for u in urls] == ["/g"]
     assert [(r.asn, r.hits) for r in asns] == [(13335, 3)]
+
+
+async def test_raw_top_ips_carry_each_ip_asn(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        for _ in range(2):
+            await _insert_log(session, ts=ts, url="/a", user_agent="x", ip="1.1.1.1",
+                              asn=13335, asn_org="Cloudflare, Inc.")
+        await _insert_log(session, ts=ts, url="/a", user_agent="x", ip="9.9.9.9")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=2), NOW, limit=10)
+
+    assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [
+        ("1.1.1.1", 13335, "Cloudflare, Inc."), ("9.9.9.9", None, None),
+    ]
+
+
+@pytest.mark.parametrize("days", [7, 60], ids=["hourly", "daily"])
+async def test_aggregated_top_ips_take_each_ip_asn_from_geo_events(pg_session_maker, clean_tables, days):
+    # log_ip_*_stats has no ASN column, so the ASN comes from ip_location_*_stats.
+    # Only whole buckets count, so the events sit days back. The access log
+    # carries no organization, which shows the geo rollup answered.
+    from tests.integration.test_geo_logs_asn_pg import _insert_event, _one_location
+
+    ts = NOW - timedelta(days=2)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=ts, url="/a", user_agent="x", ip="1.1.1.1", asn=13335)
+        await _insert_log(session, ts=ts, url="/a", user_agent="x", ip="9.9.9.9")
+        loc = await _one_location(session)
+        await _insert_event(session, ts=ts, ip="1.1.1.1", location_id=loc, asn=13335, org="Cloudflare, Inc.")
+        await _insert_event(session, ts=ts, ip="9.9.9.9", location_id=loc)
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await SummaryStatsRepository(session=session).get_top_ips(
+            NOW - timedelta(days=days), NOW, limit=10
+        )
+
+    assert sorted((r.ip_address, r.asn, r.as_organization) for r in rows) == [
+        ("1.1.1.1", 13335, "Cloudflare, Inc."), ("9.9.9.9", None, None),
+    ]
+
+
+async def test_aggregated_top_ips_fall_back_to_access_logs_for_ips_without_geo_events(
+    pg_session_maker, clean_tables
+):
+    # The parser skips the geo event when GeoIP has no location, yet still
+    # stamps the ASN on the access log.
+    ts = NOW - timedelta(hours=1)
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=ts, url="/a", user_agent="x", ip="1.1.1.1",
+                          asn=13335, asn_org="Cloudflare, Inc.")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await SummaryStatsRepository(session=session).get_top_ips(
+            NOW - timedelta(days=7), NOW, limit=10
+        )
+
+    assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("1.1.1.1", 13335, "Cloudflare, Inc.")]
+
+
+async def test_aggregated_top_ips_ignore_asns_seen_after_the_window(pg_session_maker, clean_tables):
+    from tests.integration.test_geo_logs_asn_pg import _insert_event, _one_location
+
+    end = NOW - timedelta(hours=2) + timedelta(minutes=30)
+    async with pg_session_maker() as session:
+        loc = await _one_location(session)
+        await _insert_log(session, ts=end - timedelta(minutes=20), url="/a", user_agent="x",
+                          ip="1.1.1.1", asn=100, asn_org="Before")
+        await _insert_event(session, ts=end - timedelta(minutes=20), ip="1.1.1.1", location_id=loc,
+                            asn=100, org="Before")
+        # Same hourly bucket as `end`, but after it.
+        await _insert_event(session, ts=end + timedelta(minutes=10), ip="1.1.1.1", location_id=loc,
+                            asn=200, org="After")
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        rows = await SummaryStatsRepository(session=session).get_top_ips(
+            end - timedelta(days=7), end, limit=10
+        )
+
+    assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("1.1.1.1", 100, "Before")]

@@ -74,7 +74,7 @@ export function IpFilterTargetsProvider({
   return <FilterTargetsContext.Provider value={targetsFor}>{children}</FilterTargetsContext.Provider>
 }
 
-interface IpAction {
+export interface IpAction {
   key: string
   icon: ReactNode
   label: string
@@ -86,10 +86,12 @@ interface IpAction {
   opensDialog?: boolean
 }
 
-function filterActions(ip: string, target: FilterTarget): IpAction[] {
+/** `heading` is what the menu already names, so a target with that value
+ *  needs no detail beside its label. */
+export function filterActions(heading: string, target: FilterTarget): IpAction[] {
   const key = `${target.noun}:${target.value}`
   // The IP already heads the menu; a host or server needs its value shown.
-  const detail = target.value === ip ? undefined : target.value
+  const detail = target.value === heading ? undefined : target.value
   if (target.state === "include") {
     return [{ key: `${key}:remove`, icon: <FilterX />, label: `Stop filtering by ${target.noun}`, detail, run: target.remove }]
   }
