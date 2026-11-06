@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On a phone held sideways, the sidebar opens collapsed to its icons. The sidebar, header and side panels such as the IP inspector also stay clear of the notch. The sidebar used to open full width on every page load, with its icons under the notch.
 - On a develop image, View on GitHub on Settings > Changelog opens the changelog on the develop branch. It used to open the main branch, which lacks the changes listed under Unreleased.
 - Startup no longer logs `` `uuid-utils` not installed, falling back to `uuid4` for UUID v7 generation. ``
 - CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`.
