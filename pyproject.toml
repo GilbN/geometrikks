@@ -42,8 +42,6 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ty>=0.0.74",
-    "faker>=40.36.0",
-    "polyfactory>=3.3.0",
 ]
 
 [tool.pytest.ini_options]
