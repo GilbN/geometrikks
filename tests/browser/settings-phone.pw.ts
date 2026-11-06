@@ -17,11 +17,14 @@ const backLink = (page: Page) => page.locator("header").getByRole("link", { name
 const pageScroller = (page: Page) => page.locator('main:not([data-slot="sidebar-inset"])')
 const mainScrollTop = (page: Page) => pageScroller(page).evaluate((main) => main.scrollTop)
 
-async function isInsideRow(page: Page, link: Locator): Promise<boolean> {
+async function isInsideRow(page: Page, link: Locator, inset = 0): Promise<boolean> {
   const row = (await chipRow(page).boundingBox())!
   const box = (await link.boundingBox())!
-  return box.x >= row.x - 0.5 && box.x + box.width <= row.x + row.width + 0.5
+  return box.x >= row.x + inset - 0.5 && box.x + box.width <= row.x + row.width - inset + 0.5
 }
+
+const FADE_WIDTH = 48
+const isClearOfFades = (page: Page, link: Locator) => isInsideRow(page, link, FADE_WIDTH)
 
 test.describe("portrait phone", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
@@ -70,6 +73,42 @@ test.describe("small phone held sideways", () => {
     expect(await mainScrollTop(page)).toBe(0)
     await expect(settingsNav(page).locator('[data-fade="start"]')).toBeAttached()
   })
+
+  test("brings a chip that takes keyboard focus clear of the fades", async ({ page }) => {
+    await login(page)
+    await page.goto("/settings/status")
+    await expect(settingsNav(page)).toBeVisible()
+    expect(await isClearOfFades(page, chip(page, "Changelog"))).toBe(false)
+
+    await chip(page, "Logs").focus()
+    await page.keyboard.press("Tab")
+    await page.keyboard.press("Tab")
+    await expect(chip(page, "Changelog")).toBeFocused()
+    await expect.poll(() => isClearOfFades(page, chip(page, "Changelog"))).toBe(true)
+    expect(await mainScrollTop(page)).toBe(0)
+
+    expect(await isClearOfFades(page, chip(page, "Agents"))).toBe(false)
+    // The browser's own focus scrolling is off here, so only the row's focus handler can move it.
+    await chip(page, "Agents").evaluate((link: HTMLElement) => link.focus({ preventScroll: true }))
+    await expect.poll(() => isClearOfFades(page, chip(page, "Agents"))).toBe(true)
+    expect(await mainScrollTop(page)).toBe(0)
+  })
+
+  test("reveals the current chip on a resize without scrolling the page", async ({ page }) => {
+    await login(page)
+    await page.goto("/settings/environment")
+    await expect(settingsNav(page)).toBeVisible()
+    await expect.poll(() => pageScroller(page).evaluate((main) => main.scrollHeight - main.clientHeight)).toBeGreaterThan(400)
+
+    await chipRow(page).evaluate((row) => row.scrollTo({ left: row.scrollWidth }))
+    await expect.poll(() => isClearOfFades(page, chip(page, "Environment"))).toBe(false)
+    await pageScroller(page).evaluate((main) => main.scrollTo({ top: 200 }))
+    await expect.poll(() => mainScrollTop(page)).toBe(200)
+
+    await page.setViewportSize({ width: 700, height: 375 })
+    await expect.poll(() => isClearOfFades(page, chip(page, "Environment"))).toBe(true)
+    expect(await mainScrollTop(page)).toBe(200)
+  })
 })
 
 test.describe("large phone held sideways", () => {
@@ -102,7 +141,8 @@ test.describe("large phone held sideways", () => {
     await pageScroller(page).evaluate((main) => main.scrollTo({ top: 200 }))
     await expect.poll(() => mainScrollTop(page)).toBeGreaterThan(0)
 
-    await chip(page, "About").click()
+    // click() would scroll the chip into view first, taking <main> back to the top on its own.
+    await chip(page, "About").dispatchEvent("click")
     await expect(page).toHaveURL(/\/settings\/about$/)
     await expect.poll(() => mainScrollTop(page)).toBe(0)
   })

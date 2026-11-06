@@ -95,14 +95,14 @@ function SettingsLayout() {
           <span
             aria-hidden
             data-fade="start"
-            className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-linear-to-r from-background to-transparent"
+            className="pointer-events-none absolute inset-y-0 hidden phone-side:block left-0 w-12 bg-linear-to-r from-background to-transparent"
           />
         )}
         {fades.end && (
           <span
             aria-hidden
             data-fade="end"
-            className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-linear-to-l from-background to-transparent"
+            className="pointer-events-none absolute inset-y-0 hidden phone-side:block right-0 w-12 bg-linear-to-l from-background to-transparent"
           />
         )}
       </nav>
