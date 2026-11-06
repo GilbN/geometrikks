@@ -22,21 +22,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  LayoutDashboard,
-  Map,
-  MapPinned,
-  FileText,
-  BarChart3,
-  Settings,
   ChevronLeft,
   Activity,
   Globe2,
   AlertCircle,
-  Bug,
   LogOut,
   PowerOff,
-  ShieldBan,
 } from "lucide-react"
+import { NAV_ITEMS, SETTINGS_ITEM, type NavItem as NavItemData } from "@/lib/phone-nav"
 import { flushIpActions } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 import { displayVersion, publicVersion } from "@/lib/version"
@@ -55,62 +48,6 @@ import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeS
 import { SiDocker } from "react-icons/si"
 import { useReloadNotice } from "@/lib/reload-notice"
 import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
-
-const navigationItems = [
-  {
-    title: "Overview",
-    url: "/",
-    icon: LayoutDashboard,
-    description: "Dashboard home",
-  },
-  {
-    title: "Map",
-    url: "/map",
-    icon: Map,
-    description: "Geographic view",
-  },
-  {
-    title: "Access Logs",
-    url: "/access-logs",
-    icon: FileText,
-    description: "Request logs",
-  },
-  {
-    title: "Geo Logs",
-    url: "/geo-logs",
-    icon: MapPinned,
-    description: "Geolocation logs",
-  },
-  {
-    title: "Debug Logs",
-    url: "/debug-logs",
-    icon: Bug,
-    description: "Raw & malformed lines",
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-    description: "Statistics & trends",
-  },
-  {
-    title: "Security",
-    url: "/security",
-    icon: ShieldBan,
-    description: "CrowdSec bans & alerts",
-    // Hidden until the CrowdSec integration is configured
-    requiresCrowdsec: true,
-  },
-]
-
-const secondaryItems = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    description: "Configuration",
-  },
-]
 
 function GeoLogo({ collapsed }: { collapsed: boolean }) {
   return (
@@ -143,7 +80,7 @@ function NavItem({
   warning,
   notice,
 }: {
-  item: (typeof navigationItems)[0]
+  item: NavItemData
   isActive: boolean
   warning?: string
   /** Something new to look at, in the accent color rather than amber. */
@@ -507,8 +444,8 @@ export function AppSidebar() {
   const currentPath = routerState.location.pathname
   const { data: crowdsecStatus } = useCrowdsecStatus()
   const changelogUnseen = useChangelogUnseen()
-  const visibleNavigationItems = navigationItems.filter(
-    (item) => !("requiresCrowdsec" in item) || crowdsecStatus?.enabled === true,
+  const visibleNavigationItems = NAV_ITEMS.filter(
+    (item) => !item.requiresCrowdsec || crowdsecStatus?.enabled === true,
   )
 
   // Shares the ["health"] cache with LiveIndicator's 10s poll.
@@ -582,7 +519,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {secondaryItems.map((item) => (
+              {[SETTINGS_ITEM].map((item) => (
                 <NavItem
                   key={item.title}
                   item={item}
