@@ -3,7 +3,7 @@
  * the ban durations, the way the phone IP actions menu offers them. Renders
  * nothing without CrowdSec write access.
  */
-import { useRef, useState, type ComponentType, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { Loader2, ShieldBan, ShieldOff, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,7 @@ import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip
 import { useBannedIps, useCrowdsecStatus } from "@/lib/queries"
 import { usePollingHold } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
+import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
 
 /** DrawerClose or PopoverClose: closes the container a choice sits in. */
 export type CloseSlot = ComponentType<{ asChild?: boolean; children: ReactNode }>
@@ -49,6 +50,9 @@ export function PanelBanButton({
   // its close animation, it leaves pointer-events: none on the body.
   const openDialogAfterClose = useRef(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const drawer = useSideDrawer()
+  // A rotation remounts the drawer closed (vaul cannot turn it around).
+  useEffect(() => setSheetOpen(false), [drawer.direction])
 
   if (!status?.writeEnabled) return null
 
@@ -62,6 +66,8 @@ export function PanelBanButton({
   return (
     <>
       <Drawer
+        key={drawer.direction}
+        direction={drawer.direction}
         onOpenChange={setSheetOpen}
         onAnimationEnd={(open) => {
           if (open || !openDialogAfterClose.current) return
@@ -88,12 +94,22 @@ export function PanelBanButton({
             {footer && (banned ? "Unban" : "Ban")}
           </Button>
         </DrawerTrigger>
-        <DrawerContent>
+        <DrawerContent className={drawer.contentClassName}>
           <DrawerHeader>
-            <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
-              {ip}
-              {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
-            </DrawerTitle>
+            {drawer.side ? (
+              <div className="flex items-center gap-2">
+                <DrawerTitle className="flex min-w-0 flex-1 flex-wrap items-center gap-2 font-mono">
+                  {ip}
+                  {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                </DrawerTitle>
+                <SideDrawerClose />
+              </div>
+            ) : (
+              <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
+                {ip}
+                {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+              </DrawerTitle>
+            )}
             <DrawerDescription>
               {waiting ? "Waiting to send to CrowdSec" : banned ? "CrowdSec has a decision on this IP" : "Ban this IP in CrowdSec for"}
             </DrawerDescription>
