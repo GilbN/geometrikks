@@ -42,6 +42,8 @@ for (const width of [1280, 390]) {
     await expect(monitor).toHaveCount(0)
     await toggle.click()
     if (width < 768) {
+      // Escape goes to the top layer, which is the menu until it finishes closing.
+      await expect(page.getByRole("menu")).toHaveCount(0)
       await page.keyboard.press("Escape")
       await expect(page.locator('[data-slot="drawer-content"]')).toBeHidden()
     }
