@@ -407,12 +407,12 @@ class SummaryStatsRepository:
                 mal.malformed_requests
             FROM (
                 SELECT
-                    COALESCE(SUM(total_requests), 0) AS total_log_records,
+                    CAST(COALESCE(SUM(total_requests), 0) AS BIGINT) AS total_log_records,
                     COALESCE(SUM(total_bytes), 0) AS total_bytes,
-                    COALESCE(SUM(status_2xx), 0) AS status_2xx,
-                    COALESCE(SUM(status_3xx), 0) AS status_3xx,
-                    COALESCE(SUM(status_4xx), 0) AS status_4xx,
-                    COALESCE(SUM(status_5xx), 0) AS status_5xx,
+                    CAST(COALESCE(SUM(status_2xx), 0) AS BIGINT) AS status_2xx,
+                    CAST(COALESCE(SUM(status_3xx), 0) AS BIGINT) AS status_3xx,
+                    CAST(COALESCE(SUM(status_4xx), 0) AS BIGINT) AS status_4xx,
+                    CAST(COALESCE(SUM(status_5xx), 0) AS BIGINT) AS status_5xx,
                     COALESCE(SUM({LATENCY_COUNT}), 0) AS timed_requests,
                     SUM({LATENCY_AVG} * {LATENCY_COUNT})
                         / NULLIF(SUM({LATENCY_COUNT}), 0) AS avg_request_time,
@@ -426,7 +426,7 @@ class SummaryStatsRepository:
             ) log
             CROSS JOIN (
                 SELECT
-                    COALESCE(SUM(total_events), 0) AS total_geo_records,
+                    CAST(COALESCE(SUM(total_events), 0) AS BIGINT) AS total_geo_records,
                     COALESCE(distinct_count(rollup(hll_ips)), 0) AS unique_ips,
                     COALESCE(distinct_count(rollup(hll_countries)), 0) AS unique_countries,
                     COALESCE(distinct_count(rollup(hll_cities)), 0) AS unique_cities

@@ -170,6 +170,30 @@ async def test_time_series_total_bytes_is_int(pg_session_maker, clean_tables):
     assert type(summary.total_bytes) is int
 
 
+async def test_cagg_summary_counts_are_ints(pg_session_maker, clean_tables):
+    """Uncast CAGG sums come back as Decimal. The API then sends them as JSON
+    strings, and subtracting a Decimal error rate from a float 0.0 raises."""
+    async with pg_session_maker() as session:
+        await _insert_log(session, ts=NOW - timedelta(hours=1), url="/x", user_agent="x", status=404)
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        summary = await SummaryStatsRepository(session=session).get_summary(NOW - timedelta(days=2), NOW)
+
+    assert summary is not None
+    counts = {
+        "total_log_records": summary.total_log_records,
+        "status_2xx": summary.status_2xx,
+        "status_3xx": summary.status_3xx,
+        "status_4xx": summary.status_4xx,
+        "status_5xx": summary.status_5xx,
+        "total_geo_records": summary.total_geo_records,
+    }
+    assert {name: type(value) for name, value in counts.items()} == {name: int for name in counts}
+    assert type(summary.error_rate) is float
+    assert summary.error_rate == 1.0
+
+
 async def test_top_ips_ordering_and_math(pg_session_maker, clean_tables):
     ts = NOW - timedelta(hours=1)
     async with pg_session_maker() as session:
