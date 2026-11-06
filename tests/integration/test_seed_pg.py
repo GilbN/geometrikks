@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import asyncpg
 import pytest
@@ -20,9 +20,7 @@ SERVERS = ("seed-it-a", "seed-it-b")
 async def test_seed_writes_linked_rows_and_refreshes(
     pg_engine, migrated_database_url, clean_tables, clean_server_locations
 ) -> None:
-    # Ends a day back so the refresh has whole daily buckets to materialize.
-    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
-    config = SeedConfig(rows=3_000, days=3, visitors=150, batch_size=700, servers=SERVERS, end=end)
+    config = SeedConfig(rows=3_000, days=3, visitors=150, batch_size=700, servers=SERVERS)
 
     stats = await run_seed(config, FakeGeoSource(), migrated_database_url)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import cycle
@@ -73,11 +74,19 @@ class SeedWriter:
         )
         failed: list[str] = []
         for row in existing:
-            try:
-                # ALL_CAGGS names only; CALL takes no bind parameter for the view.
-                await self.conn.execute(f"CALL refresh_continuous_aggregate('{row['name']}', NULL, NULL)")
-            except asyncpg.PostgresError:
-                failed.append(row["name"])
+            # A refresh policy running on the same view raises "concurrent
+            # refresh"; retry like refresh_caggs_range does.
+            for attempt in range(5):
+                try:
+                    # ALL_CAGGS names only; CALL takes no bind parameter for the view.
+                    await self.conn.execute(f"CALL refresh_continuous_aggregate('{row['name']}', NULL, NULL)")
+                    break
+                except asyncpg.PostgresError as exc:
+                    if "concurrent refresh" in str(exc) and attempt < 4:
+                        await asyncio.sleep(0.5 * (attempt + 1))
+                        continue
+                    failed.append(f"{row['name']} ({exc})")
+                    break
         return failed
 
     async def upsert_locations(self, places: Iterable[Place]) -> dict[str, int]:

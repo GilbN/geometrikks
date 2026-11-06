@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 
-# Ten years; --reset's clearing refresh starts in 2000.
+# Ten years; also keeps the window start clear of datetime overflow.
 MAX_DAYS = 3650
 
 

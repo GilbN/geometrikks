@@ -234,7 +234,11 @@ class VisitorBuilder:
         # blocks, such as 2a10::/12, under a type ingestion skips.
         if resolved is None or ip in self._seen or not check_ip_type(ip):
             return False
-        return resolved.place.city is not None or ":" in ip or self.rng.random() < COUNTRY_ONLY_KEEP
+        if ":" in ip:
+            # Most of a /32 is unannounced: GeoLite2 City places it by country
+            # but the ASN database has no entry, which no real client shows.
+            return not self.source.has_asn or resolved.asn is not None
+        return resolved.place.city is not None or self.rng.random() < COUNTRY_ONLY_KEEP
 
     def _find(
         self,
@@ -274,7 +278,9 @@ class VisitorBuilder:
         return fallback
 
     def _random_ipv6(self) -> str:
-        if self._ipv6_subnets and self.rng.random() < 0.5:
+        # Without ASN data every resolving address fits at once, so reuse would
+        # pile IPv6 visitors into the first few /32s found.
+        if self.source.has_asn and self._ipv6_subnets and self.rng.random() < 0.5:
             return _random_in(self.rng, self.rng.choice(self._ipv6_subnets))
         return _random_in(self.rng, ipaddress.ip_network(self.rng.choice(IPV6_POOLS)))
 
