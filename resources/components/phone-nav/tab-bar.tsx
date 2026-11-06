@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { MoreHorizontal, type LucideIcon } from "lucide-react"
+import { MoreMenu } from "@/components/phone-nav/more-menu"
 import { useKeyboardOpen } from "@/hooks/use-keyboard-open"
 import { useServiceStatus } from "@/hooks/use-service-status"
 import { usePhoneChrome } from "@/lib/phone-chrome"
@@ -117,7 +118,7 @@ export function TabBar({ compact }: { compact: boolean }) {
   const current = activeTab(pathname, slot)
   const serviceStatus = useServiceStatus()
   const more = useMoreBadge(serviceStatus)
-  const { barCovered, moreOpen, setMoreOpen, moreTriggerRef } = usePhoneChrome()
+  const { barCovered, moreOpen, moreTriggerRef } = usePhoneChrome()
   const keyboardOpen = useKeyboardOpen()
   const idPrefix = useId()
 
@@ -166,22 +167,26 @@ export function TabBar({ compact }: { compact: boolean }) {
           </Link>
         )
       })}
-      <button
-        ref={moreTriggerRef}
-        type="button"
-        aria-expanded={moreOpen}
-        aria-label={showLabel ? undefined : "More"}
-        aria-describedby={describe("more", more?.description ?? null)}
-        onClick={() => setMoreOpen(!moreOpen)}
-        onContextMenu={suppressContextMenu}
-        className={cn(
-          cellClass(layout, current === "more"),
-          layout === "portrait" && "col-start-5",
-          "aria-expanded:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--primary)_60%,transparent)]",
-        )}
-      >
-        <CellContent icon={MoreHorizontal} label="More" badge={more?.tone} showLabel={showLabel} />
-      </button>
+      <MoreMenu
+        compact={compact}
+        trigger={
+          <button
+            ref={moreTriggerRef}
+            type="button"
+            aria-expanded={moreOpen}
+            aria-label={showLabel ? undefined : "More"}
+            aria-describedby={describe("more", more?.description ?? null)}
+            onContextMenu={suppressContextMenu}
+            className={cn(
+              cellClass(layout, current === "more"),
+              layout === "portrait" && "col-start-5",
+              "aria-expanded:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--primary)_60%,transparent)]",
+            )}
+          >
+            <CellContent icon={MoreHorizontal} label="More" badge={more?.tone} showLabel={showLabel} />
+          </button>
+        }
+      />
       {descriptions}
       {compact && (
         <div ref={probeRef} aria-hidden inert className={cn(BAR_FRAME, "invisible absolute top-0 left-0 flex h-12 w-max gap-0.5 phone-short:h-11")}>

@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test"
 import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS } from "./safe-areas"
 
-test.use({ serviceWorkers: "block" })
+// The scrim test needs the map, and the map needs WebGL.
+test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
 
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
@@ -12,6 +13,18 @@ async function login(page: Page) {
 
 const tabBar = (page: Page) => page.locator("[data-tab-bar]")
 const barCells = (page: Page) => tabBar(page).locator("a, button")
+// CSS, not a role: the open drawer hides the page, the bar included, from the accessibility tree.
+const moreCell = (page: Page) => tabBar(page).locator("button")
+const moreMenu = (page: Page) => page.getByRole("dialog", { name: "More" })
+
+async function degradeHealth(page: Page) {
+  await page.route("**/health", async (route) => {
+    const response = await route.fetch()
+    const health = await response.json()
+    health.status = "degraded"
+    return route.fulfill({ response, json: health })
+  })
+}
 
 test.describe("portrait phone", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
@@ -76,6 +89,57 @@ test.describe("portrait phone", () => {
     await page.getByPlaceholder("URL, referrer or user agent").blur()
     await expect(tabBar(page)).toBeVisible()
   })
+
+  test("opens More in a drawer without moving the current tab", async ({ page }) => {
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).click()
+
+    const menu = moreMenu(page)
+    await expect(menu).toBeVisible()
+    for (const name of ["Geo Logs", "Debug Logs", "Settings"]) {
+      await expect(menu.getByRole("link", { name })).toBeVisible()
+    }
+    await expect(menu.getByText(/^v\d+\.\d+/)).toBeVisible()
+    await expect(moreCell(page)).toHaveAttribute("aria-expanded", "true")
+    await expect(tabBar(page).locator("a", { hasText: "Overview" })).toHaveAttribute("aria-current", "page")
+
+    await menu.getByRole("link", { name: "Geo Logs" }).click()
+    await expect(page).toHaveURL(/\/geo-logs$/)
+    await expect(menu).toBeHidden()
+    await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
+    await expect(tabBar(page).locator("[aria-current]")).toHaveCount(0)
+    await expect(moreCell(page)).toHaveClass(/text-primary/)
+
+    await moreCell(page).click()
+    await menu.getByRole("link", { name: "Geo Logs" }).click()
+    await expect(menu).toBeHidden()
+    await expect(moreCell(page)).not.toBeFocused()
+  })
+
+  test("closes More when the phone turns sideways", async ({ page }) => {
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).click()
+    await expect(moreMenu(page)).toBeVisible()
+
+    await page.setViewportSize({ width: 932, height: 430 })
+    await expect(tabBar(page)).toHaveAttribute("data-compact")
+    await expect(moreMenu(page)).toBeHidden()
+    await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
+    await expect(tabBar(page)).toBeVisible()
+    expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") === null)).toBe(true)
+  })
+
+  test("marks More amber while the service is degraded", async ({ page }) => {
+    await degradeHealth(page)
+    await login(page)
+    await page.goto("/")
+
+    await expect(moreCell(page).locator(".bg-amber-400")).toHaveCount(1)
+    await moreCell(page).click()
+    await expect(moreMenu(page).getByRole("link", { name: /Degraded/ })).toHaveAttribute("href", "/settings/status")
+  })
 })
 
 test.describe("phone held sideways", () => {
@@ -100,5 +164,80 @@ test.describe("phone held sideways", () => {
 
     const headerHeight = await page.locator("header").first().evaluate((el) => getComputedStyle(el).height)
     expect(headerHeight).toBe("48px")
+  })
+})
+
+test.describe("More on a phone held sideways", () => {
+  const insets = { ...IPHONE_LANDSCAPE_INSETS, top: 24 }
+  test.use({
+    viewport: { width: 932, height: 430 },
+    hasTouch: true,
+    isMobile: true,
+  })
+
+  test("opens a popover above the bar, inside the safe areas", async ({ page }) => {
+    await emulateSafeAreas(page, insets)
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).tap()
+
+    const menu = moreMenu(page)
+    await expect(menu).toBeVisible()
+    await expect(moreCell(page)).toHaveAttribute("aria-expanded", "true")
+    const box = (await menu.boundingBox())!
+    const more = (await moreCell(page).boundingBox())!
+    expect(box.y).toBeGreaterThanOrEqual(insets.top)
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(932)
+    expect(more.y - (box.y + box.height)).toBeCloseTo(8, 0)
+    expect(box.x + box.width).toBeCloseTo(more.x + more.width, 0)
+    expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
+    expect(await page.locator("header").first().evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
+    expect(await tabBar(page).evaluate((el) => el.closest("[inert]") === null)).toBe(true)
+
+    await moreCell(page).tap()
+    await expect(menu).toBeHidden()
+    await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
+  })
+
+  test("closes on a scrim tap that never reaches the map", async ({ page }) => {
+    await emulateSafeAreas(page, insets)
+    await login(page)
+    await page.goto("/map")
+    const canvas = page.locator(".maplibregl-canvas")
+    await expect(canvas).toBeVisible()
+    await canvas.evaluate((el) => {
+      const counts = { pointerdown: 0, click: 0 }
+      Object.assign(window, { mapHits: counts })
+      el.addEventListener("pointerdown", () => counts.pointerdown++)
+      el.addEventListener("click", () => counts.click++)
+    })
+
+    await moreCell(page).tap()
+    const menu = moreMenu(page)
+    await expect(menu).toBeVisible()
+    const box = (await menu.boundingBox())!
+    const x = box.x > insets.left + 40 ? box.x - 20 : box.x + box.width + 20
+    await page.touchscreen.tap(x, box.y + box.height / 2)
+
+    await expect(menu).toBeHidden()
+    await expect(moreCell(page)).toBeFocused()
+    await expect(page).toHaveURL(/\/map$/)
+    expect(await page.evaluate(() => (window as unknown as { mapHits: unknown }).mapHits)).toEqual({ pointerdown: 0, click: 0 })
+    expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") === null)).toBe(true)
+  })
+
+  test("lets another tab close More and navigate", async ({ page }) => {
+    await emulateSafeAreas(page, insets)
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).tap()
+    await expect(moreMenu(page)).toBeVisible()
+
+    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await expect(page).toHaveURL(/\/access-logs$/)
+    await expect(moreMenu(page)).toBeHidden()
+    await expect(tabBar(page).locator("a", { hasText: "Access Logs" })).toHaveAttribute("aria-current", "page")
+    await expect(moreCell(page)).not.toBeFocused()
   })
 })

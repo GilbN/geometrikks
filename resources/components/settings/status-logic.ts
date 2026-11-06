@@ -159,17 +159,22 @@ function countedAttention(count: number, singular: string, plural: string): stri
   return `${count} ${count === 1 ? `${singular} needs` : `${plural} need`} attention.`
 }
 
+/** "2 advisories need attention. 1 agent needs attention.", or null when nothing does. */
+export function attentionSummary(advisoryCount: number, agentAttentionCount = 0): string | null {
+  const counts: string[] = []
+  if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
+  if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
+  return counts.length === 0 ? null : counts.join(" ")
+}
+
 export function sidebarStatusTooltip(
   base: string,
   advisoryCount: number,
   variant: "degraded" | "attention",
   agentAttentionCount = 0,
 ): string {
-  const counts: string[] = []
-  if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
-  if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
-  if (counts.length === 0) return base
-  const countText = counts.join(" ")
+  const countText = attentionSummary(advisoryCount, agentAttentionCount)
+  if (countText === null) return base
   if (variant === "attention") {
     const page = advisoryCount === 0 ? "Settings > Agents" : "Settings > Status"
     return `${countText} See ${page}.`
