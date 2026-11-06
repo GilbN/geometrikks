@@ -5,17 +5,17 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useLongPressName } from "@/hooks/use-long-press-name"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
-import { PILL_WIDTH, PILL_WIDTH_COMPACT, pillSize, type PillSize } from "@/lib/phone-pill"
+import type { PillSize } from "@/lib/phone-pill"
 import { cn } from "@/lib/utils"
-import { PILL_SIDE_EDGE, tabBarTop } from "./phone-map-actions"
+import { measurePillSize, PILL_SIDE_EDGE, pillWidth } from "./phone-map-actions"
 
-/** The pill's size for the room between 8px under the map's top and 12px above the tab bar. */
+/** The pill's size, following the map's height. */
 export function usePillSize(map: HTMLElement | undefined): PillSize {
   const [size, setSize] = useState<PillSize>("full")
 
   useLayoutEffect(() => {
     if (!map) return
-    const measure = () => setSize(pillSize(map.clientHeight - 8 - (tabBarTop() + 12)))
+    const measure = () => setSize(measurePillSize(map))
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(map)
@@ -125,7 +125,7 @@ export function MapActionPill({
       aria-label="Map actions"
       inert={hidden}
       style={{
-        width: compact ? PILL_WIDTH_COMPACT : PILL_WIDTH,
+        width: pillWidth(size),
         right: side ? `max(${PILL_SIDE_EDGE}px, env(safe-area-inset-right, 0px))` : "var(--tab-bar-side)",
       }}
       className={cn(

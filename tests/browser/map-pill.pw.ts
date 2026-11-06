@@ -46,8 +46,13 @@ async function setup(page: Page, { serverLocation = true } = {}) {
     features: [location(131, 10, 50), location(132, 30, 60)],
   } }))
   await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
-    version: 8, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf", sources: {},
-    layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
+    version: 8, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+    // MapLibre credits only sources that a layer uses.
+    sources: { credit: { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: "© Test" } },
+    layers: [
+      { id: "background", type: "background", paint: { "background-color": "#111827" } },
+      { id: "credit", type: "circle", source: "credit" },
+    ],
   } }))
   await page.goto("/map")
   await expect(page.locator(".maplibregl-canvas")).toBeVisible()
@@ -97,6 +102,14 @@ async function settledCenter(page: Page) {
   }).toPass({ timeout: 10_000 })
   return previous
 }
+
+/** Shows the frame-rate badge from the first load. */
+async function showFrameRate(page: Page) {
+  await page.addInitScript(() => localStorage.setItem("geometrikks-map-frame-rate", "true"))
+}
+
+const credit = (page: Page) => page.locator(".fullscreen-map .maplibregl-ctrl-attrib").filter({ hasText: "© Test" })
+const frameRate = (page: Page) => page.getByTestId("map-frame-rate")
 
 async function holdOn(page: Page, target: Locator, ms: number) {
   const { x, y, width, height } = await box(target)
@@ -173,6 +186,20 @@ test.describe("portrait", () => {
     expect(await settledCenter(page)).toEqual(before)
   })
 
+  test("the credit line and the frame rate sit on the left above the bar", async ({ page }) => {
+    await showFrameRate(page)
+    await setup(page)
+    await expect(credit(page)).toBeVisible()
+    const bar = await box(page.locator("[data-tab-bar]"))
+    const line = await box(credit(page))
+    expect(line.x).toBeCloseTo(20, 0)
+    expect(bar.y - (line.y + line.height)).toBeCloseTo(10, 0)
+    const badge = await box(frameRate(page))
+    expect(badge.x).toBeCloseTo(20, 0)
+    expect(bar.y - (badge.y + badge.height)).toBeCloseTo(28, 0)
+    expect(badge.y + badge.height).toBeLessThan(line.y)
+  })
+
   test("Live is a toggle", async ({ page }) => {
     await setup(page)
     const live = pill(page).getByRole("button", { name: "Live", exact: true })
@@ -215,5 +242,38 @@ test.describe("phone held sideways", () => {
     const bar = await box(page.locator("[data-tab-bar]"))
     expect(bar.y - (pillBox.y + pillBox.height)).toBeCloseTo(12, 0)
     await page.screenshot({ path: "smoke-artifacts/map-pill-landscape.png" })
+  })
+
+  test("the credit button and the frame rate stand on the pill's foot line", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    await showFrameRate(page)
+    await setup(page)
+    const foot = (found: { y: number; height: number }) => found.y + found.height
+    await expect(credit(page)).toBeVisible()
+    const pillBox = await box(pill(page))
+    const button = await box(credit(page))
+    expect(button.x).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.left, 0)
+    expect(foot(button)).toBeCloseTo(foot(pillBox), 0)
+    const badge = await box(frameRate(page))
+    expect(badge.x - (button.x + button.width)).toBeCloseTo(8, 0)
+    expect(foot(badge)).toBeCloseTo(foot(pillBox), 0)
+    await page.screenshot({ path: "smoke-artifacts/map-pill-landscape-credit.png" })
+  })
+
+  test("the Layers drawer covers the bar while it is open", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await setup(page)
+    const bar = page.locator("[data-tab-bar]")
+    const drawer = page.locator('[data-slot="drawer-content"]')
+    await expect(bar).toBeVisible()
+    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await expect(drawer).toBeVisible()
+    await expect(bar).toBeHidden()
+    await expect(pill(page)).toBeHidden()
+    await drawer.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(drawer).toBeHidden()
+    await expect(bar).toBeVisible()
+    await expect(pill(page)).toBeVisible()
   })
 })

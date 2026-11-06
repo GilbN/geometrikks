@@ -19,7 +19,7 @@ export function isPhoneLayout(): boolean {
   return window.matchMedia(PHONE_QUERY).matches
 }
 
-/** Whether the app shows its phone UI: the map action card, detail panels and the live feed sheet. */
+/** Whether the app shows its phone UI: the map pill, detail panels and the live feed sheet. */
 export function usePhoneLayout(): boolean {
   return useMediaQuery(PHONE_QUERY)
 }
