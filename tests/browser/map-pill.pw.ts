@@ -139,13 +139,38 @@ test.describe("portrait", () => {
     await expect.poll(() => settledCenter(page)).not.toEqual(before)
   })
 
-  test("an unavailable button says why on a long press", async ({ page }) => {
+  test("a press that leaves the button ends there", async ({ page }) => {
+    await setup(page)
+    const fit = pill(page).getByRole("button", { name: "All traffic", exact: true })
+    const before = await settledCenter(page)
+    const { x, y } = await box(fit)
+
+    await holdOn(page, fit, 0)
+    await page.mouse.move(x - 120, y, { steps: 4 })
+    await page.waitForTimeout(600)
+    await page.mouse.up()
+    await expect(page.getByRole("tooltip")).toHaveCount(0)
+    expect(await settledCenter(page)).toEqual(before)
+
+    await fit.focus()
+    await page.keyboard.press("Enter")
+    await expect.poll(() => settledCenter(page)).not.toEqual(before)
+  })
+
+  test("an unavailable button says why on a long press and does nothing on a tap", async ({ page }) => {
     await setup(page, { serverLocation: false })
     const server = pill(page).getByRole("button", { name: "Server: no location", exact: true })
     await expect(server).toHaveAttribute("aria-disabled", "true")
     await holdOn(page, server, 600)
     await expect(page.getByRole("tooltip")).toHaveText("Server: no location")
     await page.mouse.up()
+
+    const before = await settledCenter(page)
+    // Playwright's click waits for an enabled element, and aria-disabled counts as disabled.
+    const { x, y, width, height } = await box(server)
+    await page.mouse.click(x + width / 2, y + height / 2)
+    await page.waitForTimeout(500)
+    expect(await settledCenter(page)).toEqual(before)
   })
 
   test("Live is a toggle", async ({ page }) => {
@@ -160,12 +185,16 @@ test.describe("portrait", () => {
 test.describe("phone held sideways", () => {
   test("a short screen leaves Layers and Live, and the tools menu takes the rest", async ({ page }) => {
     await page.setViewportSize({ width: 780, height: 280 })
-    await setup(page)
+    await setup(page, { serverLocation: false })
     await expect(pill(page).getByRole("button")).toHaveCount(2)
     await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
     await page.getByRole("button", { name: "Map tools", exact: true }).click()
-    await expect(page.getByRole("menuitem", { name: "Show all traffic" })).toBeVisible()
-    await expect(page.getByRole("menuitem", { name: "Go to server location" })).toBeVisible()
+    const fit = page.getByRole("menuitem", { name: "Show all traffic", exact: true })
+    const server = page.getByRole("menuitem", { name: "Go to server", exact: true })
+    await expect(fit).toBeVisible()
+    await expect(fit).not.toHaveAttribute("aria-disabled", "true")
+    await expect(server).toBeVisible()
+    await expect(server).toHaveAttribute("aria-disabled", "true")
   })
 
   test("a slightly taller screen gets the compact pill", async ({ page }) => {
@@ -173,6 +202,7 @@ test.describe("phone held sideways", () => {
     await setup(page)
     await expect(pill(page).getByRole("button")).toHaveCount(4)
     expect((await box(pill(page))).width).toBe(50)
+    expect((await box(pill(page).locator("svg").first())).width).toBe(22)
   })
 
   test("the pill clears the notch", async ({ page }) => {
@@ -182,6 +212,8 @@ test.describe("phone held sideways", () => {
     const pillBox = await box(pill(page))
     expect(pillBox.x + pillBox.width).toBeCloseTo(932 - IPHONE_LANDSCAPE_INSETS.right, 0)
     expect(pillBox.width).toBe(54)
+    const bar = await box(page.locator("[data-tab-bar]"))
+    expect(bar.y - (pillBox.y + pillBox.height)).toBeCloseTo(12, 0)
     await page.screenshot({ path: "smoke-artifacts/map-pill-landscape.png" })
   })
 })

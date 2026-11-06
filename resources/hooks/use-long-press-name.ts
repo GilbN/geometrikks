@@ -13,6 +13,7 @@ export function useLongPressName() {
   const holdTimer = useRef<number | undefined>(undefined)
   const swallowTimer = useRef<number | undefined>(undefined)
   const swallowClick = useRef(false)
+  const stopWatchingRelease = useRef<(() => void) | undefined>(undefined)
 
   const cancelPress = () => {
     window.clearTimeout(holdTimer.current)
@@ -20,8 +21,21 @@ export function useLongPressName() {
     setOpen(false)
   }
 
+  const endPress = () => {
+    stopWatchingRelease.current?.()
+    stopWatchingRelease.current = undefined
+    cancelPress()
+    window.clearTimeout(swallowTimer.current)
+    if (swallowClick.current) {
+      swallowTimer.current = window.setTimeout(() => {
+        swallowClick.current = false
+      }, SWALLOW_MS)
+    }
+  }
+
   useEffect(
     () => () => {
+      stopWatchingRelease.current?.()
       window.clearTimeout(holdTimer.current)
       window.clearTimeout(swallowTimer.current)
     },
@@ -34,6 +48,14 @@ export function useLongPressName() {
       swallowClick.current = false
       if (event.button !== 0) return
       window.clearTimeout(holdTimer.current)
+      // A release off the button never reaches its onPointerUp.
+      stopWatchingRelease.current?.()
+      window.addEventListener("pointerup", endPress, { once: true })
+      window.addEventListener("pointercancel", endPress, { once: true })
+      stopWatchingRelease.current = () => {
+        window.removeEventListener("pointerup", endPress)
+        window.removeEventListener("pointercancel", endPress)
+      }
       holdTimer.current = window.setTimeout(() => {
         holdTimer.current = undefined
         swallowClick.current = true
@@ -48,17 +70,13 @@ export function useLongPressName() {
         event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
       if (!inside) cancelPress()
     },
-    onPointerUp() {
-      cancelPress()
-      if (swallowClick.current) {
-        swallowTimer.current = window.setTimeout(() => {
-          swallowClick.current = false
-        }, SWALLOW_MS)
-      }
-    },
-    onPointerCancel() {
+    // A mouse has no implicit capture, so once it leaves no pointermove arrives
+    // here. A touch fires pointerleave only after its pointerup.
+    onPointerLeave() {
       cancelPress()
     },
+    onPointerUp: endPress,
+    onPointerCancel: endPress,
     onClickCapture(event: MouseEvent<HTMLElement>) {
       if (!swallowClick.current) return
       swallowClick.current = false
