@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { phoneToastPlacement } from "./phone-toasts"
 
-const base = { side: false, onMap: false, covered: false, barSide: 20, rightInset: 0, headerBottom: 56 }
+const base = { side: false, onMap: false, covered: false, barSide: 20, leftInset: 0, rightInset: 0, headerBottom: 56 }
 
 describe("phoneToastPlacement", () => {
   it("spans the bar's width above it in portrait", () => {
@@ -32,6 +32,16 @@ describe("phoneToastPlacement", () => {
       expect(placement.position).toBe("top-center")
       expect(placement.offset).toEqual({ top: "64px", left: "20px", right: "20px" })
     }
+  })
+
+  it("keeps covered toasts clear of the notch held sideways", () => {
+    const placement = phoneToastPlacement({ ...base, side: true, covered: true, leftInset: 59, rightInset: 59 })
+    expect(placement.offset).toEqual({ top: "64px", left: "59px", right: "59px" })
+  })
+
+  it("keeps covered toasts on the bar's margins in portrait", () => {
+    const placement = phoneToastPlacement({ ...base, covered: true, leftInset: 0, rightInset: 0 })
+    expect(placement.offset).toEqual({ top: "64px", left: "20px", right: "20px" })
   })
 
   it("gives spanning and centred placements different classes", () => {
