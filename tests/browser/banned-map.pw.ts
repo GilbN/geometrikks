@@ -323,6 +323,14 @@ test.describe("landscape phone", () => {
     await page.goto("/map?focusIp=192.0.2.250")
     const toast = page.locator("[data-sonner-toast]").filter({ hasText: "IP not on the map" })
     await expect(toast).toBeVisible()
+    // Sonner slides the toast up into place, so measure where it settles.
+    let settledY = Number.NaN
+    await expect.poll(async () => {
+      const { y } = await box(toast)
+      const settled = Math.abs(y - settledY) < 0.5
+      settledY = y
+      return settled
+    }).toBe(true)
     const toastBox = await box(toast)
     const map = await box(page.locator(".maplibregl-map"))
     const railBox = await box(rail(page))

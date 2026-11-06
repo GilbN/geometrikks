@@ -7,7 +7,7 @@
  * Mounted beside the <Map>, not inside it, so MapLibre's unlayered CSS never
  * reaches it. GeoMapInner wraps both in a MapProvider for useMap().
  */
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react"
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from "react"
 import { ScanSearch, XIcon } from "lucide-react"
 import { useMap } from "react-map-gl/maplibre"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { cn } from "@/lib/utils"
 import { PHONE_ACTION_CARD_BOTTOM, safeAreaInsets } from "./phone-action-card"
 import { isPhoneSideViewport, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { MapPanelContext } from "./SideDrawer"
 import { PHONE_PANEL_MAX_WIDTH, PHONE_PANEL_WIDTH_SHARE, PHONE_RAIL_EDGE, panToBox, sideVisibleBox } from "@/lib/phone-map-geometry"
 
 /** Room kept between the point and the panel or the map's sides. */
@@ -178,6 +179,7 @@ export function MapDetailPanel({
   const panelRef = useRef<HTMLElement>(null)
   const titleId = useId()
   const side = usePhoneMapSide() && !inline
+  const panelContext = useMemo(() => ({ side }), [side])
   const { default: mapRef } = useMap()
   useKeepPointInView(inline ? undefined : point, panelRef)
   // Under a map in a scrolling page the card can open below the fold.
@@ -225,49 +227,51 @@ export function MapDetailPanel({
   }, [mapRef])
 
   return (
-    <section
-      ref={panelRef}
-      tabIndex={-1}
-      role="dialog"
-      aria-modal="false"
-      aria-label={label}
-      aria-labelledby={label ? undefined : titleId}
-      style={
-        inline
-          ? undefined
-          : side
-            ? {
-                top: 12,
-                bottom: `max(12px, env(safe-area-inset-bottom, 0px))`,
-                right: `max(${PHONE_RAIL_EDGE}px, env(safe-area-inset-right, 0px))`,
-                width: `min(${PHONE_PANEL_MAX_WIDTH}px, ${PHONE_PANEL_WIDTH_SHARE * 100}%)`,
-              }
-            : { bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))` }
-      }
-      className={cn(
-        "flex flex-col overflow-hidden border border-border text-card-foreground outline-none animate-in fade-in-0 duration-200 motion-reduce:animate-none",
-        inline
-          ? "scroll-mt-[var(--sticky-top,0px)] scroll-mb-4 rounded-xl bg-card"
-          : side
-            ? "@container/panel absolute z-20 rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-right-4"
-            : "absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-20 max-h-[min(62%,36rem)] rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-bottom-4",
-      )}
-    >
-      <header className="flex shrink-0 items-center gap-2 border-b border-border/60 py-1.5 pr-1.5 pl-4 has-[[data-slot=panel-back]]:pl-1.5">
-        {leading}
-        {icon && <span className="flex shrink-0 items-center">{icon}</span>}
-        <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="truncate text-lg font-semibold leading-tight">{title}</h2>
-          {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
-        </div>
-        {aside}
-        <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-full text-muted-foreground" onClick={onClose} aria-label={closeLabel}>
-          <XIcon className="size-5" />
-        </Button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 text-sm">{children}</div>
-      {footer && <div className="flex shrink-0 gap-2 border-t border-border/60 p-3">{footer}</div>}
-    </section>
+    <MapPanelContext.Provider value={panelContext}>
+      <section
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="false"
+        aria-label={label}
+        aria-labelledby={label ? undefined : titleId}
+        style={
+          inline
+            ? undefined
+            : side
+              ? {
+                  top: 12,
+                  bottom: `max(12px, env(safe-area-inset-bottom, 0px))`,
+                  right: `max(${PHONE_RAIL_EDGE}px, env(safe-area-inset-right, 0px))`,
+                  width: `min(${PHONE_PANEL_MAX_WIDTH}px, ${PHONE_PANEL_WIDTH_SHARE * 100}%)`,
+                }
+              : { bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))` }
+        }
+        className={cn(
+          "flex flex-col overflow-hidden border border-border text-card-foreground outline-none animate-in fade-in-0 duration-200 motion-reduce:animate-none",
+          inline
+            ? "scroll-mt-[var(--sticky-top,0px)] scroll-mb-4 rounded-xl bg-card"
+            : side
+              ? "@container/panel absolute z-20 rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-right-4"
+              : "absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-20 max-h-[min(62%,36rem)] rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-bottom-4",
+        )}
+      >
+        <header className="flex shrink-0 items-center gap-2 border-b border-border/60 py-1.5 pr-1.5 pl-4 has-[[data-slot=panel-back]]:pl-1.5">
+          {leading}
+          {icon && <span className="flex shrink-0 items-center">{icon}</span>}
+          <div className="min-w-0 flex-1">
+            <h2 id={titleId} className="truncate text-lg font-semibold leading-tight">{title}</h2>
+            {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
+          </div>
+          {aside}
+          <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-full text-muted-foreground" onClick={onClose} aria-label={closeLabel}>
+            <XIcon className="size-5" />
+          </Button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 text-sm">{children}</div>
+        {footer && <div className="flex shrink-0 gap-2 border-t border-border/60 p-3">{footer}</div>}
+      </section>
+    </MapPanelContext.Provider>
   )
 }
 

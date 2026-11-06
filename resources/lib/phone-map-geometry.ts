@@ -12,7 +12,6 @@ export const PHONE_RAIL_WIDTH = 76
 export const PHONE_RAIL_EDGE = 12
 export const PHONE_PANEL_MAX_WIDTH = 400
 export const PHONE_PANEL_WIDTH_SHARE = 0.45
-export const PHONE_SIDE_DRAWER_WIDTH = 384
 /** Room a toast leaves for the attribution pill at the map's bottom left. */
 const TOAST_LEFT = 48
 const TOAST_GAP = 12
@@ -54,7 +53,8 @@ export function panToBox(point: { x: number; y: number }, box: Box): { dx: numbe
   return { dx, dy }
 }
 
-/** A toast's distance from the viewport's left and right edges, so it stays on the free map. */
+/** A toast's distance from the viewport's left and right edges, so it stays on the free map.
+ *  A map that starts at the screen's edge (the phone shell) also clears the left inset. */
 export function sideToastArea(args: {
   viewportWidth: number
   mapLeft: number
@@ -65,7 +65,7 @@ export function sideToastArea(args: {
   const edge = Math.max(PHONE_RAIL_EDGE, args.insets.right)
   const occupied = args.panelOpen ? sidePanelWidth(args.mapRight - args.mapLeft) : PHONE_RAIL_WIDTH
   return {
-    left: args.mapLeft + TOAST_LEFT,
+    left: Math.max(args.mapLeft, args.insets.left) + TOAST_LEFT,
     right: args.viewportWidth - args.mapRight + edge + occupied + TOAST_GAP,
   }
 }

@@ -53,6 +53,10 @@ describe("sideToastArea", () => {
     expect(sideToastArea({ ...map, panelOpen: false })).toEqual({ left: 159, right: 147 })
   })
 
+  it("clears a left cutout when the map starts at the screen's edge", () => {
+    expect(sideToastArea({ ...map, mapLeft: 0, panelOpen: false }).left).toBe(107)
+  })
+
   it("stops short of an open panel", () => {
     expect(sideToastArea({ ...map, panelOpen: true })).toEqual({ left: 159, right: 440 })
   })
