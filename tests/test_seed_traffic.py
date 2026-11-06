@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import ipaddress
 import json
 import random
 from datetime import datetime, timezone
@@ -177,3 +178,17 @@ def test_ipv6_visitors_hold_their_share() -> None:
     visitors, _ = _generate(_config(visitors=1_000))
     share = sum(":" in visitor.ip for visitor in visitors) / len(visitors)
     assert 0.08 < share < 0.25
+
+
+class _PartlyUnannouncedSource(FakeGeoSource):
+    def resolve(self, ip: str) -> Resolved | None:
+        resolved = super().resolve(ip)
+        if resolved is not None and int(ipaddress.ip_address(ip)) % 3 == 0:
+            return Resolved(place=resolved.place, asn=None, asn_org=None)
+        return resolved
+
+
+def test_visitors_skip_unannounced_space_when_asn_data_is_loaded() -> None:
+    config = _config()
+    visitors = VisitorBuilder(config, _PartlyUnannouncedSource(), random.Random(config.seed)).build()
+    assert all(visitor.resolved.asn is not None for visitor in visitors)

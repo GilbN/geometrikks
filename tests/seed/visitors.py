@@ -38,7 +38,7 @@ KIND_SHARES: tuple[tuple[VisitorKind, float], ...] = (("browser", 0.72), ("crawl
 IPV6_SHARE = 0.15
 # How often a cityless (country-level) IPv4 record is kept. Live data has
 # some, at the country's centroid, but most IPv4 resolves to a city. Most
-# IPv6 resolves to a country only, so IPv6 keeps every record.
+# IPv6 resolves to a country only, so IPv6 keeps every cityless record.
 COUNTRY_ONLY_KEEP = 0.15
 
 
@@ -234,11 +234,11 @@ class VisitorBuilder:
         # blocks, such as 2a10::/12, under a type ingestion skips.
         if resolved is None or ip in self._seen or not check_ip_type(ip):
             return False
-        if ":" in ip:
-            # Most of a /32 is unannounced: GeoLite2 City places it by country
-            # but the ASN database has no entry, which no real client shows.
-            return not self.source.has_asn or resolved.asn is not None
-        return resolved.place.city is not None or self.rng.random() < COUNTRY_ONLY_KEEP
+        # Unannounced space: GeoLite2 City places it by country, but the ASN
+        # database has no entry, which no real client shows.
+        if self.source.has_asn and resolved.asn is None:
+            return False
+        return resolved.place.city is not None or ":" in ip or self.rng.random() < COUNTRY_ONLY_KEEP
 
     def _find(
         self,

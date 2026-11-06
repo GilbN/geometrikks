@@ -56,7 +56,7 @@ Each server name owns a share of the hosts and one log format. The first is `geo
 | `--debug-share` | 0.02 | Share of normal requests that keep a raw line |
 | `--batch-size` | 20000 | Rows per COPY |
 | `--reset` | off | Empty every traffic table and aggregate first. Asks you to type the database name unless you pass `-y` |
-| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so older seeded rows stay out of aggregate-backed charts until the app's next full refresh, which runs every six hours |
+| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so rows outside those windows stay out of aggregate-backed charts until the app's next full refresh, which runs every six hours. After any full refresh, today's rows count as outside the daily window too |
 | `--database-url` | `DB_*` | Another database, as a `postgresql+asyncpg://` URL |
 
 `--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug`, `geo_locations` and the import history in `import_jobs` and `loki_imports`, real data included. It then refreshes the aggregates over all time, which drops their old buckets. Don't point it at a database you care about. Stop the app first, too. A running app holds location ids from before the reset, and its next batch fails until it reloads them.
