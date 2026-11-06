@@ -28,6 +28,8 @@ export function usePillSize(map: HTMLElement | undefined): PillSize {
 const PILL_BUTTON =
   "relative rounded-full p-0 touch-none [-webkit-touch-callout:none] hover:bg-transparent dark:hover:bg-transparent active:bg-foreground/5 dark:active:bg-foreground/5 aria-disabled:cursor-default aria-disabled:opacity-50"
 
+const PILL_ICON = "size-[22px]"
+
 const LIVE_ON = "bg-foreground/9 text-primary hover:bg-foreground/9 hover:text-primary dark:hover:bg-foreground/9"
 
 function PillButton({
@@ -117,7 +119,6 @@ export function MapActionPill({
 }) {
   const side = usePhoneMapSide()
   const compact = size === "compact"
-  const icon = compact ? "size-5" : "size-[22px]"
 
   return (
     <nav
@@ -138,15 +139,15 @@ export function MapActionPill({
         compact={compact}
         wrap={(button) => cloneElement(layersTrigger, undefined, button)}
       >
-        <Layers aria-hidden className={icon} />
+        <Layers aria-hidden className={PILL_ICON} />
         {activeFilterCount > 0 && (
-          <span aria-hidden className={cn("absolute size-[7px] rounded-full bg-primary", compact ? "top-2 right-2" : "top-[9px] right-[9px]")} />
+          <span aria-hidden className="absolute top-[9px] right-[9px] size-[7px] rounded-full bg-primary" />
         )}
       </PillButton>
       {size !== "two" && (
         <>
           <PillButton name={canFit ? "All traffic" : "All traffic: no data yet"} compact={compact} unavailable={!canFit} onClick={onFit}>
-            <Focus aria-hidden className={icon} />
+            <Focus aria-hidden className={PILL_ICON} />
           </PillButton>
           <PillButton
             name={canGoToServer ? "Server" : "Server: no location"}
@@ -154,7 +155,7 @@ export function MapActionPill({
             unavailable={!canGoToServer}
             onClick={onGoToServer}
           >
-            <Server aria-hidden className={icon} />
+            <Server aria-hidden className={PILL_ICON} />
           </PillButton>
         </>
       )}
@@ -165,7 +166,7 @@ export function MapActionPill({
         onClick={onToggleLive}
         className={cn(liveMode && LIVE_ON)}
       >
-        <Radio aria-hidden className={cn(icon, liveMode && "animate-pulse motion-reduce:animate-none")} />
+        <Radio aria-hidden className={cn(PILL_ICON, liveMode && "animate-pulse motion-reduce:animate-none")} />
       </PillButton>
     </nav>
   )

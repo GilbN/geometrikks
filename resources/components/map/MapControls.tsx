@@ -49,6 +49,7 @@ import {
   Maximize2,
   MoreHorizontal,
   Radio,
+  Server,
   SlidersHorizontal,
   Sparkles,
   ShieldBan,
@@ -271,7 +272,6 @@ export function MapControls({
   const canFit = !isLoading && hasMapData
   const canGoToServer = serverLocationAvailable && !!onGoToServerLocation
   const actionsInMenu = isMobile && pillSize === "two"
-  const goToServerInMenu = (!isMobile || actionsInMenu) && canGoToServer
 
   const toolsMenu = (
     <DropdownMenu>
@@ -293,18 +293,25 @@ export function MapControls({
             Show all traffic
           </DropdownMenuItem>
         )}
-        {goToServerInMenu && (
+        {actionsInMenu && (
           <DropdownMenuItem
+            disabled={!canGoToServer}
             onSelect={() => {
               setDrawerOpen(false)
               onGoToServerLocation?.()
             }}
           >
+            <Server className="h-4 w-4" />
+            Go to server
+          </DropdownMenuItem>
+        )}
+        {!isMobile && canGoToServer && (
+          <DropdownMenuItem onSelect={onGoToServerLocation}>
             <Home className="h-4 w-4" />
             Go to server location
           </DropdownMenuItem>
         )}
-        {(actionsInMenu || goToServerInMenu) && <DropdownMenuSeparator />}
+        {(actionsInMenu || (!isMobile && canGoToServer)) && <DropdownMenuSeparator />}
         <DropdownMenuCheckboxItem
           checked={frameRateEnabled}
           onCheckedChange={onFrameRateChange}
