@@ -1,7 +1,9 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react"
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactElement, type ReactNode, type RefObject } from "react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { MoreHorizontal, type LucideIcon } from "lucide-react"
 import { MoreMenu } from "@/components/phone-nav/more-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useLongPressName } from "@/hooks/use-long-press-name"
 import { useKeyboardOpen } from "@/hooks/use-keyboard-open"
 import { useServiceStatus } from "@/hooks/use-service-status"
 import { usePhoneChrome } from "@/lib/phone-chrome"
@@ -39,8 +41,11 @@ function suppressContextMenu(event: MouseEvent) {
 
 const BAR_FRAME = "rounded-full p-1"
 
-const BAR_SURFACE =
-  "fixed z-40 bg-card/88 ring-1 ring-foreground/10 shadow-[0_10px_30px_rgb(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/6%)] backdrop-blur-[14px] backdrop-saturate-[1.4]"
+/** The bar's surface, shared with the map's action pill. */
+export const TAB_BAR_SURFACE =
+  "bg-card/88 shadow-[0_10px_30px_rgb(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/6%)] backdrop-blur-[14px] backdrop-saturate-[1.4]"
+
+const BAR_SURFACE = cn("fixed z-40 ring-1 ring-foreground/10", TAB_BAR_SURFACE)
 
 const PORTRAIT_BAR =
   "inset-x-[var(--tab-bar-side)] bottom-[max(12px,calc(env(safe-area-inset-bottom,0px)_-_12px))] grid h-[62px] grid-cols-5"
@@ -77,6 +82,33 @@ function CellContent({ icon: Icon, label, badge, showLabel }: { icon: LucideIcon
       </span>
       {showLabel && <span className="max-w-full truncate">{label}</span>}
     </>
+  )
+}
+
+/** Shows an icon-only cell's name while it is held. `wrap` places the trigger, for a cell that opens a menu. */
+function CellName({
+  name,
+  enabled,
+  cell,
+  wrap = (trigger) => trigger,
+}: {
+  name: string
+  enabled: boolean
+  cell: ReactElement
+  wrap?: (trigger: ReactElement) => ReactElement
+}) {
+  const press = useLongPressName()
+  return (
+    <Tooltip open={enabled && press.open}>
+      {wrap(
+        <TooltipTrigger asChild {...(enabled ? press.bind : {})}>
+          {cell}
+        </TooltipTrigger>,
+      )}
+      <TooltipContent side="top" sideOffset={8} className="rounded-full text-sm">
+        {name}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -154,22 +186,30 @@ export function TabBar({ compact }: { compact: boolean }) {
         const selected = current === item.id
         const warning = item.id === "security" ? securityWarning : null
         return (
-          <Link
+          <CellName
             key={item.id}
-            to={item.url}
-            aria-current={selected ? "page" : undefined}
-            aria-label={showLabel ? undefined : item.title}
-            aria-describedby={describe(item.id, warning)}
-            onContextMenu={suppressContextMenu}
-            className={cellClass(layout, selected)}
-          >
-            <CellContent icon={item.icon} label={item.title} badge={warning ? "amber" : null} showLabel={showLabel} />
-          </Link>
+            name={item.title}
+            enabled={!showLabel}
+            cell={
+              <Link
+                to={item.url}
+                aria-current={selected ? "page" : undefined}
+                aria-label={showLabel ? undefined : item.title}
+                aria-describedby={describe(item.id, warning)}
+                onContextMenu={suppressContextMenu}
+                className={cellClass(layout, selected)}
+              >
+                <CellContent icon={item.icon} label={item.title} badge={warning ? "amber" : null} showLabel={showLabel} />
+              </Link>
+            }
+          />
         )
       })}
-      <MoreMenu
-        compact={compact}
-        trigger={
+      <CellName
+        name="More"
+        enabled={!showLabel}
+        wrap={(trigger) => <MoreMenu compact={compact} trigger={trigger} />}
+        cell={
           <button
             ref={moreTriggerRef}
             type="button"

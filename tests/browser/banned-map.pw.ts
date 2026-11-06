@@ -339,12 +339,12 @@ test.describe("landscape phone", () => {
 })
 
 test.describe("short screens that are not phones held sideways", () => {
-  test("a portrait phone with the keyboard open keeps the bottom card", async ({ browser }) => {
+  test("a portrait phone with the keyboard open keeps the portrait layout", async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 412, height: 400 }, hasTouch: true, isMobile: true, serviceWorkers: "block", baseURL: test.info().project.use.baseURL })
     const page = await context.newPage()
     await setup(page)
-    const card = await box(page.getByRole("navigation", { name: "Map actions", exact: true }))
-    expect(card.width).toBeGreaterThan(card.height)
+    const pill = await box(page.getByRole("navigation", { name: "Map actions", exact: true }))
+    expect(412 - (pill.x + pill.width)).toBeCloseTo(20, 0)
     await page.getByRole("button", { name: /^Layers and filters/ }).click()
     const content = page.locator('[data-slot="drawer-content"]')
     await expect.poll(async () => {
