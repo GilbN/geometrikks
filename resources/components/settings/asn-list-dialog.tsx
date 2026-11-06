@@ -3,7 +3,7 @@
  * About page. Fetched lazily on first open and cached for the session;
  * the list only changes with a release.
  */
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -49,11 +49,6 @@ export function AsnListDialog() {
         `as${entry.asn}`.startsWith(q),
     )
   }, [data, query])
-
-  // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
-  useEffect(() => {
-    if (!isMobile) setOpen(false)
-  }, [isMobile])
 
   const trigger = (
     <Button variant="outline" size="sm">
@@ -113,7 +108,7 @@ export function AsnListDialog() {
     return (
       <Drawer open={open} onOpenChange={setOpen} autoFocus>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent className="h-[85dvh]" onOpenAutoFocus={focusDrawerTitle}>
+        <DrawerContent className="h-[85dvh] data-[vaul-drawer-direction=bottom]:max-h-[85dvh]" onOpenAutoFocus={focusDrawerTitle}>
           <DrawerHeader>
             <DrawerTitle tabIndex={-1} className="outline-none">
               {TITLE}

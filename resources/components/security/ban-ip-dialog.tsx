@@ -141,7 +141,7 @@ function BanIpForm({
 
   return (
     <>
-      <div className={inDrawer ? "space-y-3 overflow-y-auto overscroll-contain px-4" : "space-y-3"}>
+      <div className={inDrawer ? "space-y-3 overflow-y-auto overscroll-contain px-4 py-1" : "space-y-3"}>
         <div className="space-y-1.5">
           <Label htmlFor="ban-ip">IP address or range</Label>
           <Input
