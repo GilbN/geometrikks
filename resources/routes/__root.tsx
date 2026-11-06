@@ -84,12 +84,13 @@ function AppBreadcrumb() {
         <BreadcrumbSeparator className="hidden md:block phone-side:hidden" />
         {isSettingsChild && (
           <>
-            <BreadcrumbItem className="hidden md:block">
+            <BreadcrumbItem className="hidden md:block phone-side:hidden">
               <BreadcrumbLink href="/settings">Settings</BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block" />
-            {/* Phones have no settings nav on the page; this goes back to the list. */}
-            <BreadcrumbItem className="md:hidden">
+            <BreadcrumbItem className="hidden phone-side:block">Settings</BreadcrumbItem>
+            <BreadcrumbSeparator className="hidden md:block phone-side:block" />
+            {/* Portrait phones have no settings nav on the page; this goes back to the list. */}
+            <BreadcrumbItem className="md:hidden phone-side:hidden">
               <BreadcrumbLink asChild>
                 <Link to="/settings" className="-ml-1 flex min-h-10 items-center gap-0.5 pr-1">
                   <ChevronLeft aria-hidden className="size-4" />
@@ -97,7 +98,7 @@ function AppBreadcrumb() {
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator className="md:hidden" />
+            <BreadcrumbSeparator className="md:hidden phone-side:hidden" />
           </>
         )}
         <BreadcrumbItem className="min-w-0">
