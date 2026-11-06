@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ReloadNoticeMenuCard } from "@/components/reload-notice"
 import { useServiceStatus } from "@/hooks/use-service-status"
 import { logOut } from "@/lib/log-out"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { usePhoneChrome } from "@/lib/phone-chrome"
 import { moreItems, slotFour } from "@/lib/phone-nav"
 import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
@@ -21,6 +22,7 @@ function StatusLink() {
   return (
     <Link
       to={statusRoute}
+      replace
       className={cn(
         "mx-3.5 my-1.5 flex items-center gap-2.5 rounded-[10px] border px-3 text-[13px] text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
         warn ? "min-h-[54px] border-amber-400/35 bg-amber-400/7 py-2" : "h-11 border-border bg-foreground/2",
@@ -54,6 +56,7 @@ function Destinations({ compact }: { compact: boolean }) {
       <Link
         key={item.id}
         to={item.url}
+        replace
         className={cn(
           "flex shrink-0 items-center gap-3.5 px-[18px] text-[15px] outline-none focus-visible:bg-foreground/5 active:bg-foreground/5",
           compact ? "h-11" : "h-[50px]",
@@ -88,7 +91,7 @@ function Footer() {
           </span>
         )}
         {unseenRelease && (
-          <Link to="/settings/about" className="font-sans text-xs font-medium text-primary">
+          <Link to="/settings/about" replace className="font-sans text-xs font-medium text-primary">
             {unseenRelease.displayVersion} available
           </Link>
         )}
@@ -159,6 +162,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
   // A layout effect, so the menu of the old layout never paints in the new one.
   useLayoutEffect(() => setMoreOpen(false), [compact, setMoreOpen])
   useEffect(() => () => setMoreOpen(false), [setMoreOpen])
+  useOverlayEntry("more", moreOpen, () => setMoreOpen(false))
 
   function changeOpen(open: boolean) {
     if (open) {
