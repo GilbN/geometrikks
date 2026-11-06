@@ -35,6 +35,7 @@ import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { CountryFlag } from "@/components/country-flag"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useCoverBar, usePhoneChrome } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -267,6 +268,7 @@ export function MapControls({
   // vaul cannot turn an open drawer around, so a rotation closes it.
   useEffect(() => setDrawerOpen(false), [drawer.direction])
   useCoverBar(drawerOpen && drawer.side)
+  useOverlayEntry("map-layers", drawerOpen, () => setDrawerOpen(false))
   const { default: map } = useMap()
   const pillSize = usePillSize(isMobile ? map?.getContainer() : undefined)
   const { barCovered } = usePhoneChrome()

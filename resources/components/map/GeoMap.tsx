@@ -81,6 +81,7 @@ import type { LiveRequest } from "@/lib/live-traffic/types"
 import { isPhoneLayout, isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { phoneFitPadding } from "@/lib/phone-map-geometry"
 import { useCoverBar, useCoverToasts } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
 export type LayerType = "heatmap" | "markers" | "banned"
@@ -877,6 +878,11 @@ function GeoMapInner({
 
   useCoverBar(phoneDetailOpen && phoneSide)
   useCoverToasts(phoneDetailOpen && !phoneSide)
+  useOverlayEntry("map-detail", phoneDetailOpen, () => {
+    closeBannedPopup()
+    setLivePopup(null)
+    closeLocation()
+  })
 
   if (!mapReady || !initialViewResolved) {
     return (

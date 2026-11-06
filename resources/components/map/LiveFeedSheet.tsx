@@ -16,6 +16,7 @@ import { describeDecisions } from "@/lib/live-traffic/summary"
 import { LiveSummary } from "./LiveSummary"
 import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
 import { useCoverBar } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 import { LiveFeedList, LiveFeedTabs, type FeedLane } from "./LiveFeedList"
 import type { LiveRequest } from "@/lib/live-traffic/types"
@@ -36,6 +37,7 @@ export function LiveFeedSheet({
   const decisions = describeDecisions(summary.decisions)
   const drawer = useSideDrawer()
   useCoverBar(open && drawer.side)
+  useOverlayEntry("live-feed", open, () => onOpenChange(false))
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction={drawer.direction}>

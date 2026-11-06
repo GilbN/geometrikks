@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, RefreshCw, Home } from "lucide-react"
 import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 import { IpInspectorProvider } from "@/lib/ip-inspector"
+import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { isChromelessRoute } from "@/lib/auth-redirect"
 import { RELOAD_NOTICE_MENU_DESCRIPTION_ID, ReloadNotice, ReloadNoticeMenuDot } from "@/components/reload-notice"
@@ -227,6 +228,7 @@ function RootLayout() {
       <TooltipProvider delayDuration={0}>
         <TimeRangeProvider>
           <LiveFeedProvider>
+          <OverlayHistoryProvider>
           <IpInspectorProvider>
           <SidebarProvider defaultOpen={!isPhoneSideViewport()}>
             {!phone && <AppSidebar />}
@@ -271,6 +273,7 @@ function RootLayout() {
             <IpInspectorSheet />
           </SidebarProvider>
           </IpInspectorProvider>
+          </OverlayHistoryProvider>
           </LiveFeedProvider>
         </TimeRangeProvider>
       </TooltipProvider>
