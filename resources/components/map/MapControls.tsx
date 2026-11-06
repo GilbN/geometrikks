@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/drawer"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { CountryFlag } from "@/components/country-flag"
-import { usePhoneMap } from "@/hooks/use-phone-map"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { PHONE_RAIL_EDGE, PHONE_RAIL_WIDTH } from "@/lib/phone-map-geometry"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
@@ -260,7 +260,7 @@ export function MapControls({
   const activeFilterCount =
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const isMobile = usePhoneMap()
+  const isMobile = usePhoneLayout()
   const drawer = useSideDrawer()
   // vaul cannot turn an open drawer around, so a rotation closes it.
   useEffect(() => setDrawerOpen(false), [drawer.direction])

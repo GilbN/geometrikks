@@ -19,6 +19,9 @@
 }
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant phone (@media (width < 48rem), (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
+@custom-variant phone-side (@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
+@custom-variant phone-short (@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 22rem));
 
 /* The phone refresh button's auto refresh ring: one fill per interval. The
    button sets the interval as an inline animation-duration. */
@@ -113,6 +116,35 @@
   -moz-osx-font-smoothing: grayscale;
 
   --radius: 0.625rem;
+
+  --tab-bar-top: 0px;
+  --tab-bar-clear: calc(var(--tab-bar-top) + 12px);
+  --tab-bar-side: 20px;
+}
+
+/* Later blocks win at equal specificity, so the sideways cases follow portrait. */
+@media (width < 48rem) {
+  :root {
+    --tab-bar-top: calc(max(12px, env(safe-area-inset-bottom, 0px) - 12px) + 62px);
+  }
+}
+
+@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem) {
+  :root {
+    --tab-bar-top: calc(max(8px, env(safe-area-inset-bottom, 0px) - 4px) + 48px);
+  }
+}
+
+@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 22rem) {
+  :root {
+    --tab-bar-top: calc(max(8px, env(safe-area-inset-bottom, 0px) - 4px) + 44px);
+  }
+}
+
+@media (width < 390px) {
+  :root {
+    --tab-bar-side: 16px;
+  }
 }
 
 /* Shared component styling consumes palette values without knowing theme IDs. */

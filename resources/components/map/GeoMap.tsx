@@ -79,7 +79,7 @@ import {
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { isPhoneMapViewport, isPhoneSideViewport, usePhoneMap, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { isPhoneLayout, isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { sideFitPadding, sideToastArea } from "@/lib/phone-map-geometry"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 import { cn } from "@/lib/utils"
@@ -113,7 +113,7 @@ function weightedPoints(
  *  on a phone, and of the action rail on a phone held sideways. */
 function fitPadding() {
   if (isPhoneSideViewport()) return sideFitPadding(FIT_PADDING, safeAreaInsets())
-  const isMobile = isPhoneMapViewport()
+  const isMobile = isPhoneLayout()
   return {
     top: FIT_PADDING,
     right: FIT_PADDING + (isMobile ? 0 : DESKTOP_CONTROLS_INSET),
@@ -202,7 +202,7 @@ function GeoMapInner({
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
   const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
-  const isMobile = usePhoneMap()
+  const isMobile = usePhoneLayout()
   const phoneSide = usePhoneMapSide()
   // Under 48rem the map starts at the screen's left edge; wider, the sidebar covers the left inset.
   const phoneShell = useIsMobile()

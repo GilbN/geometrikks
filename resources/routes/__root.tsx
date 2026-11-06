@@ -4,7 +4,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
-import { isPhoneSideViewport, usePhoneMap, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { abovePhoneActionCard } from "@/components/map/phone-action-card"
 import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -143,7 +143,7 @@ function GeoDegradedBanner() {
  *  whose edges GeoMap publishes as --map-toast-left and --map-toast-right. */
 function RootToaster() {
   const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
-  const phoneMap = usePhoneMap()
+  const phoneMap = usePhoneLayout()
   const side = usePhoneMapSide()
   if (onMap && side) {
     const offset = {
