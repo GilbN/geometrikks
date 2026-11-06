@@ -122,7 +122,10 @@ export function ReloadNoticeMenuCard({ stacked, onLater }: { stacked: boolean; o
       <Button variant="ghost" className="h-11 rounded-[9px] px-3.5 text-sm" onClick={onLater}>
         Later
       </Button>
-      <Button className="h-11 rounded-[9px] px-3.5 text-sm" onClick={reloadNow}>
+      <Button
+        className="h-11 rounded-[9px] px-3.5 text-sm dark:border-transparent dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/80"
+        onClick={reloadNow}
+      >
         Reload
       </Button>
     </div>

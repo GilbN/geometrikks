@@ -129,6 +129,9 @@ test.describe("portrait phone", () => {
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
     await expect(tabBar(page)).toBeVisible()
     expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") === null)).toBe(true)
+
+    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await expect(page).toHaveURL(/\/access-logs$/)
   })
 
   test("marks More amber while the service is degraded", async ({ page }) => {
@@ -185,12 +188,11 @@ test.describe("More on a phone held sideways", () => {
     await expect(menu).toBeVisible()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "true")
     const box = (await menu.boundingBox())!
-    const more = (await moreCell(page).boundingBox())!
-    expect(box.y).toBeGreaterThanOrEqual(insets.top)
+    const bar = (await tabBar(page).boundingBox())!
+    expect(box.y).toBeCloseTo(insets.top, 0)
     expect(box.x).toBeGreaterThanOrEqual(0)
-    expect(box.x + box.width).toBeLessThanOrEqual(932)
-    expect(more.y - (box.y + box.height)).toBeCloseTo(8, 0)
-    expect(box.x + box.width).toBeCloseTo(more.x + more.width, 0)
+    expect(bar.y - (box.y + box.height)).toBeCloseTo(8, 0)
+    expect(box.x + box.width).toBeCloseTo(bar.x + bar.width, 0)
     expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
     expect(await page.locator("header").first().evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
     expect(await tabBar(page).evaluate((el) => el.closest("[inert]") === null)).toBe(true)
