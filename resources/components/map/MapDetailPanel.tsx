@@ -7,13 +7,15 @@
  * Mounted beside the <Map>, not inside it, so MapLibre's unlayered CSS never
  * reaches it. GeoMapInner wraps both in a MapProvider for useMap().
  */
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react"
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react"
 import { ScanSearch, XIcon } from "lucide-react"
 import { useMap } from "react-map-gl/maplibre"
 import { Button } from "@/components/ui/button"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { cn } from "@/lib/utils"
-import { PHONE_ACTION_CARD_BOTTOM } from "./phone-action-card"
+import { PHONE_ACTION_CARD_BOTTOM, safeAreaInsets } from "./phone-action-card"
+import { isPhoneSideViewport, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { PHONE_PANEL_MAX_WIDTH, PHONE_PANEL_WIDTH_SHARE, PHONE_RAIL_EDGE, panToBox, sideVisibleBox } from "@/lib/phone-map-geometry"
 
 /** Room kept between the point and the panel or the map's sides. */
 const VIEW_MARGIN = 24
@@ -76,8 +78,17 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
         waitForMoveEnd()
         return
       }
-      // Layout offsets, so the slide-in transform does not count. The panel
-      // and the map container share an offset parent.
+      const { dx, dy } = isPhoneSideViewport() ? sidePan() : bottomPan()
+      if ((Math.abs(dx) < 1 && Math.abs(dy) < 1) || pans >= MAX_PANS) return
+      pans += 1
+      // Registered first: with reduced motion the pan ends before panBy returns.
+      waitForMoveEnd()
+      map!.panBy([dx, dy], { duration: 300 })
+    }
+
+    // Layout offsets, so the slide-in transform does not count. The panel
+    // and the map container share an offset parent.
+    function bottomPan() {
       const panelTop = panel!.offsetTop - container.offsetTop
       const width = container.clientWidth
       // A landscape phone leaves little map above the panel; the pill's
@@ -87,11 +98,22 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
       const { x, y } = map!.project([longitude!, latitude!])
       const dy = y < top || y > bottom ? y - (top + bottom) / 2 : 0
       const dx = x < VIEW_MARGIN || x > width - VIEW_MARGIN ? x - width / 2 : 0
-      if ((Math.abs(dx) < 1 && Math.abs(dy) < 1) || pans >= MAX_PANS) return
-      pans += 1
-      // Registered first: with reduced motion the pan ends before panBy returns.
-      waitForMoveEnd()
-      map!.panBy([dx, dy], { duration: 300 })
+      return { dx, dy }
+    }
+
+    // Held sideways, the panel docks on the right and the point goes left of it.
+    function sidePan() {
+      // The vitals pill is GeoMap's, a sibling of the map container.
+      const pill = container.closest("[data-geo-map]")?.querySelector("[data-live-pill]")
+      const box = sideVisibleBox({
+        mapWidth: container.clientWidth,
+        mapHeight: container.clientHeight,
+        panelLeft: panel!.offsetLeft - container.offsetLeft,
+        topInset: pill ? TOP_INSET : VIEW_MARGIN,
+        bottomInset: safeAreaInsets().bottom,
+        margin: VIEW_MARGIN,
+      })
+      return panToBox(map!.project([longitude!, latitude!]), box)
     }
 
     const recheck = () => {
@@ -155,6 +177,7 @@ export function MapDetailPanel({
 }) {
   const panelRef = useRef<HTMLElement>(null)
   const titleId = useId()
+  const side = usePhoneMapSide() && !inline
   const { default: mapRef } = useMap()
   useKeepPointInView(inline ? undefined : point, panelRef)
   // Under a map in a scrolling page the card can open below the fold.
@@ -209,12 +232,25 @@ export function MapDetailPanel({
       aria-modal="false"
       aria-label={label}
       aria-labelledby={label ? undefined : titleId}
-      style={inline ? undefined : { bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))` }}
+      style={
+        inline
+          ? undefined
+          : side
+            ? {
+                top: 12,
+                bottom: `max(12px, env(safe-area-inset-bottom, 0px))`,
+                right: `max(${PHONE_RAIL_EDGE}px, env(safe-area-inset-right, 0px))`,
+                width: `min(${PHONE_PANEL_MAX_WIDTH}px, ${PHONE_PANEL_WIDTH_SHARE * 100}%)`,
+              }
+            : { bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))` }
+      }
       className={cn(
         "flex flex-col overflow-hidden border border-border text-card-foreground outline-none animate-in fade-in-0 duration-200 motion-reduce:animate-none",
         inline
           ? "scroll-mt-[var(--sticky-top,0px)] scroll-mb-4 rounded-xl bg-card"
-          : "absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-20 max-h-[min(62%,36rem)] rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-bottom-4",
+          : side
+            ? "@container/panel absolute z-20 rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-right-4"
+            : "absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-20 max-h-[min(62%,36rem)] rounded-2xl bg-floating shadow-2xl shadow-black/40 backdrop-blur-sm slide-in-from-bottom-4",
       )}
     >
       <header className="flex shrink-0 items-center gap-2 border-b border-border/60 py-1.5 pr-1.5 pl-4 has-[[data-slot=panel-back]]:pl-1.5">
@@ -249,8 +285,12 @@ export function PanelStats({ items }: { items: { label: string; value: ReactNode
   const columns = items.filter((item) => !item.wide).length
   return (
     <dl
-      className="grid overflow-hidden rounded-xl border border-border"
-      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      className={cn(
+        "grid grid-cols-[repeat(var(--stat-columns),minmax(0,1fr))] overflow-hidden rounded-xl border border-border",
+        // A side panel under 20rem has no room for three; the third takes its own row.
+        columns === 3 && "@max-[20rem]/panel:grid-cols-2",
+      )}
+      style={{ "--stat-columns": columns } as CSSProperties}
     >
       {items.map((item, index) => (
         <div
@@ -258,6 +298,8 @@ export function PanelStats({ items }: { items: { label: string; value: ReactNode
           className={cn(
             "min-w-0 border-border px-3 py-2",
             item.wide ? "col-span-full border-t" : index < columns - 1 && "border-r",
+            columns === 3 && index === 1 && "@max-[20rem]/panel:border-r-0",
+            columns === 3 && index === 2 && "@max-[20rem]/panel:col-span-full @max-[20rem]/panel:border-t",
           )}
         >
           <dt className="text-xs text-muted-foreground">{item.label}</dt>
