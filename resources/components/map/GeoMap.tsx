@@ -78,12 +78,10 @@ import {
 } from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { isPhoneLayout, isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { phoneFitPadding } from "@/lib/phone-map-geometry"
 import { useCoverBar, useCoverToasts } from "@/lib/phone-chrome"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
-import { cn } from "@/lib/utils"
 
 export type LayerType = "heatmap" | "markers" | "banned"
 export type MapProjection = "mercator" | "globe"
@@ -112,8 +110,8 @@ function weightedPoints(
 /** The padding that keeps fitted locations clear of the map's edges, of the
  *  controls panel on the right from md up, and of the map pill and the tab
  *  bar on a phone. */
-function fitPadding(map: HTMLElement | null | undefined) {
-  if (map && isPhoneLayout()) {
+function fitPadding(map: HTMLElement) {
+  if (isPhoneLayout()) {
     const side = isPhoneSideViewport()
     const insets = safeAreaInsets()
     return phoneFitPadding(FIT_PADDING, {
@@ -214,8 +212,6 @@ function GeoMapInner({
   const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
   const isMobile = usePhoneLayout()
   const phoneSide = usePhoneMapSide()
-  // Under 48rem the map starts at the screen's left edge; wider, the sidebar covers the left inset.
-  const phoneShell = useIsMobile()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
   const { filters, setFilters } = useUrlFilters({
@@ -504,9 +500,11 @@ function GeoMapInner({
     const defaultView = runtimeSettings?.map.defaultView
     const onTraffic = isMobile && !defaultView
     if (onTraffic && isLoadingGeoJSON) return
-    const rect = mapContainerRef.current?.getBoundingClientRect()
-    const size = { width: rect?.width ?? 0, height: rect?.height ?? 0 }
-    const padding = fitPadding(mapContainerRef.current)
+    const container = mapContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const size = { width: rect.width, height: rect.height }
+    const padding = fitPadding(container)
     const view =
       (onTraffic ? trafficView(weightedPoints(geojson), size, padding) : null) ??
       initialMapView({
@@ -1063,10 +1061,7 @@ function GeoMapInner({
       {liveMode && isMobile && (
         <div
           data-live-pill=""
-          className={cn(
-            "pointer-events-none absolute top-4 z-10",
-            phoneShell ? "left-[max(1rem,env(safe-area-inset-left))]" : "left-4",
-          )}
+          className="pointer-events-none absolute top-4 left-[max(1rem,env(safe-area-inset-left))] z-10"
         >
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
         </div>

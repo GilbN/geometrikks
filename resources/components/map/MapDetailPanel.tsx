@@ -107,12 +107,14 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
     function sidePan() {
       // The vitals pill is GeoMap's, a sibling of the map container.
       const pill = container.closest("[data-geo-map]")?.querySelector("[data-live-pill]")
+      const insets = safeAreaInsets()
       const box = sideVisibleBox({
         mapWidth: container.clientWidth,
         mapHeight: container.clientHeight,
         panelLeft: panel!.offsetLeft - container.offsetLeft,
         topInset: pill ? TOP_INSET : VIEW_MARGIN,
-        bottomInset: safeAreaInsets().bottom,
+        leftInset: insets.left,
+        bottomInset: insets.bottom,
         margin: VIEW_MARGIN,
       })
       return panToBox(map!.project([longitude!, latitude!]), box)

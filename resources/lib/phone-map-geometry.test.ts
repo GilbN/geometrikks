@@ -39,8 +39,14 @@ describe("sidePanelWidth", () => {
 describe("sideVisibleBox", () => {
   it("is the map left of the panel, below the top inset and above the bottom inset", () => {
     expect(
-      sideVisibleBox({ mapWidth: 821, mapHeight: 367, panelLeft: 393, topInset: 72, bottomInset: 21, margin: 24 }),
+      sideVisibleBox({ mapWidth: 821, mapHeight: 367, panelLeft: 393, topInset: 72, leftInset: 0, bottomInset: 21, margin: 24 }),
     ).toEqual({ left: 24, right: 369, top: 72, bottom: 322 })
+  })
+
+  it("keeps the point clear of a left cutout", () => {
+    expect(
+      sideVisibleBox({ mapWidth: 932, mapHeight: 382, panelLeft: 473, topInset: 24, leftInset: 59, bottomInset: 21, margin: 24 }).left,
+    ).toBe(83)
   })
 })
 
