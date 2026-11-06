@@ -239,6 +239,17 @@ function Sidebar({
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      // On a phone held sideways the notch is a left safe-area inset. Both
+      // widths grow by it so the gap and the off-canvas offset follow, and the
+      // container pads and paints that strip.
+      style={
+        side === "left"
+          ? ({
+              "--sidebar-width": `calc(${SIDEBAR_WIDTH} + env(safe-area-inset-left, 0px))`,
+              "--sidebar-width-icon": `calc(${SIDEBAR_WIDTH_ICON} + env(safe-area-inset-left, 0px))`,
+            } as React.CSSProperties)
+          : undefined
+      }
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
@@ -257,7 +268,7 @@ function Sidebar({
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
-            ? "left-0 group-data-[collapsible=offExamples]:left-[calc(var(--sidebar-width)*-1)]"
+            ? "left-0 bg-sidebar pl-[env(safe-area-inset-left,0px)] group-data-[collapsible=offExamples]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offExamples]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
