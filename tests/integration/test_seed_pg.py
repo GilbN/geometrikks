@@ -4,11 +4,12 @@ from __future__ import annotations
 import dataclasses
 from datetime import datetime, timedelta, timezone
 
+import asyncpg
 import pytest
 from sqlalchemy import text
 
 from tests.seed.config import SeedConfig
-from tests.seed.seeder import run_seed
+from tests.seed.seeder import asyncpg_dsn, run_seed
 from tests.seed_support import FakeGeoSource
 
 pytestmark = pytest.mark.anyio
@@ -57,11 +58,18 @@ async def test_seed_writes_linked_rows_and_refreshes(
 async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
     pg_engine, migrated_database_url, clean_tables, clean_server_locations
 ) -> None:
-    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
-    first = SeedConfig(rows=800, days=4, visitors=60, servers=SERVERS, end=end)
+    first = SeedConfig(rows=800, days=4, visitors=60, servers=SERVERS)
     await run_seed(first, FakeGeoSource(), migrated_database_url)
+    # The app's six-hourly full refresh also materializes today's open bucket.
+    conn = await asyncpg.connect(asyncpg_dsn(migrated_database_url))
+    try:
+        for cagg in ("summary_daily_stats", "summary_hourly_stats", "server_daily_stats"):
+            await conn.execute(f"CALL refresh_continuous_aggregate('{cagg}', NULL, NULL)")
+    finally:
+        await conn.close()
 
-    second = dataclasses.replace(first, rows=500, days=1, seed=7)
+    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
+    second = dataclasses.replace(first, rows=500, days=1, seed=7, end=end)
     stats = await run_seed(second, FakeGeoSource(), migrated_database_url, reset=True)
 
     assert stats.failed_caggs == []

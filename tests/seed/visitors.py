@@ -36,8 +36,9 @@ VisitorKind = Literal["browser", "crawler", "scanner"]
 
 KIND_SHARES: tuple[tuple[VisitorKind, float], ...] = (("browser", 0.72), ("crawler", 0.04), ("scanner", 0.24))
 IPV6_SHARE = 0.15
-# How often a cityless (country-level) record is kept. Live data has some, at
-# the country's centroid, but most of it resolves to a city.
+# How often a cityless (country-level) IPv4 record is kept. Live data has
+# some, at the country's centroid, but most IPv4 resolves to a city. Most
+# IPv6 resolves to a country only, so IPv6 keeps every record.
 COUNTRY_ONLY_KEEP = 0.15
 
 
@@ -146,9 +147,7 @@ def _random_in(rng: random.Random, network: ipaddress.IPv4Network | ipaddress.IP
     return str(network.network_address + offset)
 
 
-def _random_public_ip(rng: random.Random) -> str:
-    if rng.random() < IPV6_SHARE:
-        return _random_in(rng, ipaddress.ip_network(rng.choice(IPV6_POOLS)))
+def _random_ipv4(rng: random.Random) -> str:
     while True:
         address = ipaddress.IPv4Address(rng.getrandbits(32))
         if address.is_global and not address.is_multicast:
@@ -169,6 +168,7 @@ class VisitorBuilder:
     """Samples IPs until each visitor kind finds addresses that fit it."""
 
     MAX_ATTEMPTS = 400
+    IPV6_ATTEMPTS = 4_000
     # A small country holds a few hundredths of a percent of IPv4.
     HOME_ATTEMPTS = 100_000
 
@@ -182,6 +182,11 @@ class VisitorBuilder:
         # /16s already known to sit in the home country; sampling inside them
         # finds the next home IP far faster than the whole address space.
         self._home_subnets: list[ipaddress.IPv4Network] = []
+        # IPv6 /32s that resolved. A random address in a regional /12 resolves
+        # about 10% of the time and to a city well under 1%; inside a known
+        # /32 both rates are far higher.
+        self._ipv6_subnets: list[ipaddress.IPv6Network] = []
+        self._known_ipv6_subnets: set[ipaddress.IPv6Network] = set()
 
     def build(self) -> list[Visitor]:
         return [self._public_visitor(pick_weighted(self.rng, KIND_SHARES)) for _ in range(self.config.visitor_count)]
@@ -229,19 +234,28 @@ class VisitorBuilder:
         # blocks, such as 2a10::/12, under a type ingestion skips.
         if resolved is None or ip in self._seen or not check_ip_type(ip):
             return False
-        return resolved.place.city is not None or self.rng.random() < COUNTRY_ONLY_KEEP
+        return resolved.place.city is not None or ":" in ip or self.rng.random() < COUNTRY_ONLY_KEEP
 
     def _find(
-        self, fits: Callable[[Resolved], bool], ranges: tuple[str, ...] | None = None
+        self,
+        fits: Callable[[Resolved], bool],
+        ranges: tuple[str, ...] | None = None,
+        ipv6: bool | None = None,
     ) -> tuple[str, Resolved]:
         """A fresh IP whose record passes ``fits``; any resolvable one once attempts run out."""
+        if ipv6 is None:
+            ipv6 = not ranges and self.rng.random() < IPV6_SHARE
         fallback: tuple[str, Resolved] | None = None
-        for _ in range(self.MAX_ATTEMPTS):
+        for _ in range(self.IPV6_ATTEMPTS if ipv6 else self.MAX_ATTEMPTS):
             if ranges:
                 ip = _random_in(self.rng, ipaddress.ip_network(self.rng.choice(ranges)))
+            elif ipv6:
+                ip = self._random_ipv6()
             else:
-                ip = _random_public_ip(self.rng)
+                ip = _random_ipv4(self.rng)
             resolved = self.source.resolve(ip)
+            if ipv6 and resolved is not None:
+                self._remember_ipv6_subnet(ip)
             if not self._accept(ip, resolved):
                 continue
             assert resolved is not None
@@ -250,14 +264,25 @@ class VisitorBuilder:
                 return ip, resolved
             fallback = fallback or (ip, resolved)
         if fallback is None:
-            if ranges:
-                return self._find(fits)
+            if ranges or ipv6:
+                return self._find(fits, ipv6=False)
             raise SeedError(
                 "No sampled IP resolved to a location. Is the GeoLite2 City database a real build, "
                 "not the test fixture?"
             )
         self._seen.add(fallback[0])
         return fallback
+
+    def _random_ipv6(self) -> str:
+        if self._ipv6_subnets and self.rng.random() < 0.5:
+            return _random_in(self.rng, self.rng.choice(self._ipv6_subnets))
+        return _random_in(self.rng, ipaddress.ip_network(self.rng.choice(IPV6_POOLS)))
+
+    def _remember_ipv6_subnet(self, ip: str) -> None:
+        subnet = ipaddress.IPv6Network(f"{ip}/32", strict=False)
+        if subnet not in self._known_ipv6_subnets:
+            self._known_ipv6_subnets.add(subnet)
+            self._ipv6_subnets.append(subnet)
 
     def _find_home(self, country: str) -> tuple[str, Resolved]:
         for _ in range(self.HOME_ATTEMPTS):

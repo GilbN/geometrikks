@@ -6,21 +6,16 @@ import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 import asyncpg
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from geometrikks.server.timescale import refresh_caggs_range
 from geometrikks.services.aggregation.service import AggregationService
-from tests.seed.config import SeedConfig
+from tests.seed.config import SeedConfig, SeedError
 from tests.seed.traffic import TrafficGenerator
 from tests.seed.visitors import GeoSource, VisitorBuilder
 from tests.seed.writer import SeedWriter
-
-
-# Start of the refresh that clears stale buckets after --reset; older than any real log.
-RESET_FROM = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
 
 @dataclass(slots=True)
@@ -62,23 +57,23 @@ async def run_seed(
     stats = SeedStats()
     rng = random.Random(config.seed)
 
-    progress(f"Sampling {config.visitor_count:,} visitor IPs")
-    visitors = VisitorBuilder(config, source, rng).build()
-    stats.visitors = len(visitors)
-    places = [visitor.resolved.place for visitor in visitors]
-
+    try:
+        conn = await asyncpg.connect(asyncpg_dsn(database_url))
+    except (OSError, asyncpg.PostgresError) as exc:
+        raise SeedError(f"Cannot connect to the database: {exc}") from exc
     engine = create_async_engine(database_url)
-    conn = await asyncpg.connect(asyncpg_dsn(database_url))
     try:
         writer = SeedWriter(conn)
         await writer.check_schema()
+
+        progress(f"Sampling {config.visitor_count:,} visitor IPs")
+        visitors = VisitorBuilder(config, source, rng).build()
+        stats.visitors = len(visitors)
+        places = [visitor.resolved.place for visitor in visitors]
+
         if reset:
             progress("Emptying traffic tables and continuous aggregates")
-            stale_caggs = await writer.reset(config.servers)
-            if stale_caggs:
-                stats.failed_caggs += await refresh_caggs_range(
-                    engine, start=RESET_FROM, end=datetime.now(timezone.utc), caggs=stale_caggs
-                )
+            stats.failed_caggs += await writer.reset(config.servers)
         location_ids = await writer.upsert_locations(places)
         stats.locations = len(location_ids)
         await writer.add_server_locations(config.servers)

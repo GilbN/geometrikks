@@ -42,13 +42,14 @@ class SeedWriter:
             )
 
     async def reset(self, servers: Iterable[str]) -> list[str]:
-        """Empty the traffic tables and return the continuous aggregates that now hold stale buckets.
+        """Empty the traffic tables and their aggregates; return the aggregates that failed to clear.
 
-        The aggregates are left to the caller's refresh: TimescaleDB 2.31
-        rejects TRUNCATE on a continuous aggregate, and truncating a raw
-        hypertable invalidates its whole range, so a refresh drops the old
-        buckets. geo_locations ids keep counting up, so a running app's
-        cached location ids point at no row instead of at a seeded place.
+        TimescaleDB 2.31 rejects TRUNCATE on a continuous aggregate. Truncating
+        a raw hypertable invalidates its whole range instead, and a refresh
+        over all time then drops every bucket. That includes today's, which
+        the app's six-hourly full refresh materializes. geo_locations ids keep
+        counting up, so a running app's cached location ids point at no row
+        instead of at a seeded place.
         """
         async with self.conn.transaction():
             for table in ("access_logs", "geo_events", "access_log_debug"):
@@ -58,11 +59,18 @@ class SeedWriter:
             await self.conn.execute(
                 "DELETE FROM server_locations WHERE server = ANY($1::text[]) AND source = 'auto'", list(servers)
             )
-        rows = await self.conn.fetch(
+        existing = await self.conn.fetch(
             "SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL",
             list(ALL_CAGGS),
         )
-        return [row["name"] for row in rows]
+        failed: list[str] = []
+        for row in existing:
+            try:
+                # ALL_CAGGS names only; CALL takes no bind parameter for the view.
+                await self.conn.execute(f"CALL refresh_continuous_aggregate('{row['name']}', NULL, NULL)")
+            except asyncpg.PostgresError:
+                failed.append(row["name"])
+        return failed
 
     async def upsert_locations(self, places: Iterable[Place]) -> dict[str, int]:
         """Insert the places that are new and return the id of every place, keyed by geohash."""

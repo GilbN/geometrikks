@@ -171,3 +171,9 @@ def test_bots_take_any_network_without_asn_data() -> None:
     visitors = VisitorBuilder(config, source, random.Random(config.seed)).build()
     assert {visitor.kind for visitor in visitors} == {"browser", "crawler", "scanner"}
     assert source.lookups < 5 * len(visitors)
+
+
+def test_ipv6_visitors_hold_their_share() -> None:
+    visitors, _ = _generate(_config(visitors=1_000))
+    share = sum(":" in visitor.ip for visitor in visitors) / len(visitors)
+    assert 0.08 < share < 0.25
