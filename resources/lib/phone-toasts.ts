@@ -5,6 +5,7 @@ type ToastPlacementInput = {
   onMap: boolean
   covered: boolean
   barSide: number
+  leftInset: number
   rightInset: number
   headerBottom: number
 }
@@ -17,11 +18,15 @@ type ToastPlacement = {
 
 /** Where the toaster sits on a phone: above the tab bar, short of the map pill
  *  in portrait, or under the header while a surface covers the bottom edge. */
-export function phoneToastPlacement({ side, onMap, covered, barSide, rightInset, headerBottom }: ToastPlacementInput): ToastPlacement {
+export function phoneToastPlacement({ side, onMap, covered, barSide, leftInset, rightInset, headerBottom }: ToastPlacementInput): ToastPlacement {
   if (covered) {
     return {
       position: "top-center",
-      offset: { top: `${headerBottom + 8}px`, left: `${barSide}px`, right: `${barSide}px` },
+      offset: {
+        top: `${headerBottom + 8}px`,
+        left: `${Math.max(barSide, leftInset)}px`,
+        right: `${Math.max(barSide, rightInset)}px`,
+      },
       className: "toaster-span",
     }
   }

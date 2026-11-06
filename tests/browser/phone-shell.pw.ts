@@ -169,7 +169,7 @@ test.describe("portrait phone", () => {
     const bar = (await tabBar(page).boundingBox())!
     // The 54px pill's right edge lines up with the bar's.
     const pillLeft = bar.x + bar.width - 54
-    expect(pillLeft - (toast.x + toast.width)).toBeGreaterThanOrEqual(8)
+    expect(pillLeft - (toast.x + toast.width)).toBeCloseTo(8, 0)
     expect(toast.x).toBeCloseTo(20, 0)
     expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
   })
@@ -182,6 +182,23 @@ test.describe("portrait phone", () => {
     await expect(moreCell(page).locator(".bg-amber-400")).toHaveCount(1)
     await moreCell(page).click()
     await expect(moreMenu(page).getByRole("link", { name: /Degraded/ })).toHaveAttribute("href", "/settings/status")
+  })
+})
+
+test.describe("wide portrait phone", () => {
+  // Above 600px Sonner drops its phone layout and reads offset, not mobileOffset.
+  test.use({ viewport: { width: 700, height: 900 }, hasTouch: true, isMobile: true })
+
+  test("spans toasts between the bar's margins above the bar", async ({ page }) => {
+    await login(page)
+    await page.goto("/settings/about")
+    await page.getByRole("button", { name: "Copy details" }).click()
+
+    const toast = await settledToast(page, /Copied|blocked the copy/)
+    const bar = (await tabBar(page).boundingBox())!
+    expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
+    expect(toast.x).toBeCloseTo(20, 0)
+    expect(700 - (toast.x + toast.width)).toBeCloseTo(20, 0)
   })
 })
 

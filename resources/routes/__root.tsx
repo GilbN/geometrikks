@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type ComponentProps } from "react"
+import { useState, useEffect, type ComponentProps } from "react"
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
 import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
@@ -6,7 +6,6 @@ import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
 import { isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { safeAreaInsets } from "@/components/map/phone-action-card"
-import { useMediaQuery } from "@/hooks/use-media-query"
 import { phoneToastPlacement } from "@/lib/phone-toasts"
 import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -154,24 +153,37 @@ function useBottomEdge(element: HTMLElement | null): number {
   return bottom
 }
 
+type PhoneEdges = { barSide: number; leftInset: number; rightInset: number }
+
+function measurePhoneEdges(): PhoneEdges {
+  const { left, right } = safeAreaInsets()
+  const barSide = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tab-bar-side")) || 0
+  return { barSide, leftInset: left, rightInset: right }
+}
+
+/** The bar's side margin from main.css and the safe-area insets, re-read on
+ *  resize because both follow the viewport. */
+function usePhoneEdges(phone: boolean): PhoneEdges {
+  const [edges, setEdges] = useState<PhoneEdges>({ barSide: 0, leftInset: 0, rightInset: 0 })
+  useEffect(() => {
+    if (!phone) return
+    const measure = () => setEdges(measurePhoneEdges())
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [phone])
+  return edges
+}
+
 function RootToaster({ shellTop }: { shellTop: HTMLElement | null }) {
   const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
   const phone = usePhoneLayout()
   const side = usePhoneMapSide()
-  const narrow = useMediaQuery("(width < 390px)")
   const { toastsCovered } = usePhoneChrome()
   const headerBottom = useBottomEdge(phone ? shellTop : null)
-  // env() insets change on rotation, which flips side; nothing else re-measures them.
-  const rightInset = useMemo(() => (phone ? safeAreaInsets().right : 0), [phone, side])
+  const edges = usePhoneEdges(phone)
   if (!phone) return <Toaster />
-  const placement = phoneToastPlacement({
-    side,
-    onMap,
-    covered: toastsCovered,
-    barSide: narrow ? 16 : 20,
-    rightInset,
-    headerBottom,
-  })
+  const placement = phoneToastPlacement({ side, onMap, covered: toastsCovered, headerBottom, ...edges })
   // Both offsets: Sonner switches to mobileOffset only up to 600px.
   return (
     <Toaster

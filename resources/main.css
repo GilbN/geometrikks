@@ -490,7 +490,9 @@
 /* Phone toasters. Sonner's stylesheet is inserted after this one, hence the
    extra attribute. A spanning toaster runs between its left and right offsets,
    which differ beside the map pill; Sonner's phone layout assumes equal sides.
-   A centred one keeps Sonner's width even where its phone layout would stretch it. */
+   A centred one keeps Sonner's width even where its phone layout would stretch it.
+   The spanning toast rule ties with the 601px custom-toast width rule above and
+   wins only by coming after it. */
 .toaster.toaster-span[data-sonner-toaster] {
   left: var(--offset-left);
   right: var(--offset-right);
