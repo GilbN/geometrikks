@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   LOCAL_BUILD_LABEL,
+  containerRuntimeLabel,
   displayVersion,
   hasUncommittedChanges,
   isDevBuild,
@@ -81,4 +82,11 @@ describe("isDevBuild", () => {
     ["0.0.0.dev1+local", false],
     ["unknown", false],
   ])("%s -> %s", (version, expected) => expect(isDevBuild(version)).toBe(expected))
+})
+
+describe("containerRuntimeLabel", () => {
+  it("names the image tag when there is one", () => {
+    expect(containerRuntimeLabel("ghcr.io/gilbn/geometrikks:0.24")).toBe("Container image ghcr.io/gilbn/geometrikks:0.24")
+    expect(containerRuntimeLabel(null)).toBe("Running in a container")
+  })
 })

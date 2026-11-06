@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type MouseEvent, type ReactElement } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactElement } from "react"
 import { createPortal } from "react-dom"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { ChevronRight, LogOut } from "lucide-react"
@@ -12,10 +12,10 @@ import { usePhoneChrome } from "@/lib/phone-chrome"
 import { moreItems, slotFour } from "@/lib/phone-nav"
 import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
 import { cn } from "@/lib/utils"
-import { displayVersion, publicVersion } from "@/lib/version"
+import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/version"
 
 function StatusLink() {
-  const { variant, color, label, detail, statusRoute } = useServiceStatus()
+  const { variant, color, label, attention, statusRoute } = useServiceStatus()
   const warn = variant === "degraded" || variant === "attention"
 
   return (
@@ -33,7 +33,7 @@ function StatusLink() {
       {warn ? (
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="text-sm font-medium text-foreground">{label}</span>
-          {detail && <span className="text-xs text-amber-700 dark:text-amber-300">{detail.replace(/\.$/, "")}</span>}
+          {attention.length > 0 && <span className="text-xs text-amber-700 dark:text-amber-300">{attention.join(", ")}</span>}
         </span>
       ) : (
         <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -77,14 +77,13 @@ function Footer() {
   const { data: settings } = useRuntimeSettings()
   const unseenRelease = useUnseenRelease()
   const { data: me } = useMe()
-  const runtimeLabel = settings?.runtime.imageTag ? `Container image ${settings.runtime.imageTag}` : "Running in a container"
 
   return (
     <div className="flex shrink-0 items-center justify-between px-[18px] pt-1.5 pb-2.5 font-mono text-[11px] text-muted-foreground">
       <span className="flex h-11 items-center gap-1.5">
         {settings && displayVersion(publicVersion(settings.version))}
         {settings?.runtime.container && (
-          <span role="img" aria-label={runtimeLabel} className="inline-flex">
+          <span role="img" aria-label={containerRuntimeLabel(settings.runtime.imageTag)} className="inline-flex">
             <SiDocker aria-hidden className="size-4 text-[#2496ED]" />
           </span>
         )}
@@ -154,7 +153,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
   const openedOn = useRef(pathname)
   const leaving = useRef(false)
   const scrimRef = useRef<HTMLDivElement>(null)
-  const topInset = useMemo(() => (compact ? readSafeAreaTop() : 0), [compact])
+  const [topInset, setTopInset] = useState(0)
 
   useEffect(() => setMoreOpen(false), [pathname, setMoreOpen])
   // A layout effect, so the menu of the old layout never paints in the new one.
@@ -165,6 +164,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
     if (open) {
       openedOn.current = pathname
       leaving.current = false
+      if (compact) setTopInset(readSafeAreaTop())
     }
     setMoreOpen(open)
   }
@@ -206,7 +206,10 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
         aria-label="More"
         side="top"
         align="end"
-        sideOffset={8}
+        // The anchor is the More cell, inset 4px in the bar's padding; these put
+        // the popover 8px above the bar and flush with its right edge.
+        sideOffset={12}
+        alignOffset={-4}
         collisionPadding={{ top: Math.max(8, topInset) }}
         onInteractOutside={(event) => {
           const target = event.target as Element | null
@@ -217,7 +220,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
           if (target === scrimRef.current) event.preventDefault()
         }}
         onCloseAutoFocus={onCloseAutoFocus}
-        className="max-h-(--radix-popover-content-available-height) w-[min(620px,calc(100vw_-_16px))] flex-row gap-0 overflow-hidden rounded-[14px] bg-background p-0 text-foreground shadow-[0_20px_40px_rgb(0_0_0/0.5)] ring-border"
+        className="h-(--radix-popover-content-available-height) w-[min(620px,calc(100vw_-_16px))] flex-row gap-0 overflow-hidden rounded-[14px] bg-background p-0 text-foreground shadow-[0_20px_40px_rgb(0_0_0/0.5)] ring-border"
       >
         {content}
       </PopoverContent>

@@ -33,7 +33,7 @@ import {
   schedulerJobState,
   sidebarIngestionVariant,
   sidebarStatusTooltip,
-  attentionSummary,
+  attentionParts,
   serverLocationRows,
   schedulerSummary,
   statusProblems,
@@ -363,12 +363,12 @@ describe("sidebarIngestionVariant", () => {
   })
 })
 
-describe("attentionSummary", () => {
-  it("counts advisories and agents, and is null when neither needs attention", () => {
-    expect(attentionSummary(0, 0)).toBeNull()
-    expect(attentionSummary(2)).toBe("2 advisories need attention.")
-    expect(attentionSummary(1, 1)).toBe("1 advisory needs attention. 1 agent needs attention.")
-    expect(attentionSummary(0, 3)).toBe("3 agents need attention.")
+describe("attentionParts", () => {
+  it("counts advisories and agents without punctuation, and is empty when neither needs attention", () => {
+    expect(attentionParts(0, 0)).toEqual([])
+    expect(attentionParts(2)).toEqual(["2 advisories need attention"])
+    expect(attentionParts(1, 1)).toEqual(["1 advisory needs attention", "1 agent needs attention"])
+    expect(attentionParts(0, 3)).toEqual(["3 agents need attention"])
   })
 })
 

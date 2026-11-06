@@ -31,7 +31,7 @@ import {
 import { NAV_ITEMS, SETTINGS_ITEM, type NavItem as NavItemData } from "@/lib/phone-nav"
 import { logOut } from "@/lib/log-out"
 import { cn } from "@/lib/utils"
-import { displayVersion, publicVersion } from "@/lib/version"
+import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/version"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { useServiceStatus } from "@/hooks/use-service-status"
@@ -338,10 +338,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
   if (collapsed || !settings) return null
 
   const version = displayVersion(publicVersion(settings.version))
-  const imageTag = settings.runtime.imageTag
-  const runtimeLabel = imageTag
-    ? `Container image ${imageTag}`
-    : "Running in a container"
+  const runtimeLabel = containerRuntimeLabel(settings.runtime.imageTag)
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
