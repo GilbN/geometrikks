@@ -99,7 +99,7 @@ export function PanelBanButton({
             {drawer.side ? (
               <div className="flex items-center gap-2">
                 <DrawerTitle className="flex min-w-0 flex-1 flex-wrap items-center gap-2 font-mono">
-                  {ip}
+                  <span className="min-w-0 break-all">{ip}</span>
                   {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
                 </DrawerTitle>
                 <SideDrawerClose />

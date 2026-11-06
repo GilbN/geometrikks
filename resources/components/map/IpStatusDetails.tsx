@@ -33,8 +33,7 @@ import { useBannedIps, useCrowdsecStatus, useDropNetwork, useIpDecisions } from 
 import { scenarioText } from "@/lib/scenario-name"
 import { usePollingHold } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
-import { usePhoneMap } from "@/hooks/use-phone-map"
-import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
+import { SideDrawerClose, usePanelPhone, useSideDrawer } from "./SideDrawer"
 import { BanChoices, type CloseSlot } from "./PanelBanButton"
 
 const ORIGIN_TEXT: Record<string, string> = {
@@ -227,7 +226,7 @@ function MarkedIpStatus({
   onOpenAlert,
   children,
 }: IpStatusDetailsProps & { decision: string | null }) {
-  const isMobile = usePhoneMap()
+  const isMobile = usePanelPhone()
   const drawer = useSideDrawer()
   const { data: status } = useCrowdsecStatus()
   const { unban } = useIpActions()

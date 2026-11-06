@@ -42,10 +42,14 @@ export function LiveFeedSheet({
           summary does not use, which is a row or two on a short phone. */}
       <DrawerContent className={cn(drawer.side ? drawer.contentClassName : "h-[80vh]")}>
         <DrawerHeader className="pb-2">
-          <div className="flex items-center justify-between gap-2">
+          {drawer.side ? (
+            <div className="flex items-center justify-between gap-2">
+              <DrawerTitle>Live traffic</DrawerTitle>
+              <SideDrawerClose />
+            </div>
+          ) : (
             <DrawerTitle>Live traffic</DrawerTitle>
-            {drawer.side && <SideDrawerClose />}
-          </div>
+          )}
           <DrawerDescription className="sr-only">
             Requests arriving now, with a separate lane for refused requests and banned IPs.
           </DrawerDescription>
