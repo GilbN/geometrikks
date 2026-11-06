@@ -22,6 +22,29 @@ test.describe("phone held sideways", () => {
     await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0)
   })
 
+  test("keeps page content clear of the notches and the map full-bleed", async ({ page }) => {
+    const { left, right } = IPHONE_LANDSCAPE_INSETS
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    await login(page)
+    await page.goto("/")
+
+    const card = page.locator('main [data-slot="card"]').first()
+    // Loading cards are swapped for loaded ones, so both edges come from one box.
+    await expect
+      .poll(async () => {
+        const box = await card.boundingBox()
+        return box && { clearsLeft: box.x >= left, clearsRight: box.x + box.width <= 932 - right }
+      })
+      .toEqual({ clearsLeft: true, clearsRight: true })
+
+    await page.goto("/map")
+    const map = page.locator(".fullscreen-map")
+    await expect(map).toBeVisible()
+    const mapBox = (await map.boundingBox())!
+    expect(mapBox.x).toBe(0)
+    expect(mapBox.width).toBe(932)
+  })
+
   test("shell clears the landscape safe areas", async ({ page }) => {
     const { left, right } = IPHONE_LANDSCAPE_INSETS
     await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
@@ -57,5 +80,6 @@ test.describe("desktop", () => {
     await login(page)
     await page.goto("/")
     await expect(sidebar(page)).toHaveAttribute("data-state", "expanded")
+    await expect(page.locator("[data-tab-bar]")).toHaveCount(0)
   })
 })

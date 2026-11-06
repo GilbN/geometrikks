@@ -52,6 +52,17 @@ test.describe("portrait phone", () => {
     await expect(barCells(page).nth(3)).toHaveText("Analytics", { timeout: 20_000 })
   })
 
+  test("keeps More in the last column while slot 4 is unresolved", async ({ page }) => {
+    await page.route("**/api/v1/crowdsec/status", () => new Promise<void>(() => {}))
+    await login(page)
+    await page.goto("/")
+
+    await expect(barCells(page)).toHaveCount(4)
+    const bar = (await tabBar(page).boundingBox())!
+    const more = (await barCells(page).last().boundingBox())!
+    expect(more.x + more.width / 2).toBeGreaterThan(bar.x + (bar.width * 4) / 5)
+  })
+
   test("hides the bar while the soft keyboard is up", async ({ page }) => {
     await login(page)
     await page.goto("/access-logs")
@@ -61,6 +72,9 @@ test.describe("portrait phone", () => {
 
     await page.setViewportSize({ width: 393, height: 420 })
     await expect(tabBar(page)).toBeHidden()
+
+    await page.getByPlaceholder("URL, referrer or user agent").blur()
+    await expect(tabBar(page)).toBeVisible()
   })
 })
 
