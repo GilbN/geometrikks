@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, type CSSProperties } from "react"
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
 import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { isPhoneSideViewport } from "@/hooks/use-phone-map"
+import { isPhoneSideViewport, usePhoneMap, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { abovePhoneActionCard } from "@/components/map/phone-action-card"
 import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -139,13 +138,31 @@ function GeoDegradedBanner() {
 }
 
 /** On a phone the map has an action card floating at the bottom, so toasts
- *  there rise above it instead of covering its buttons. */
+ *  there rise above it instead of covering its buttons. Held sideways, they
+ *  sit in the free map between the attribution pill and the rail or panel,
+ *  whose edges GeoMap publishes as --map-toast-left and --map-toast-right. */
 function RootToaster() {
   const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
-  const isMobile = useIsMobile()
+  const phoneMap = usePhoneMap()
+  const side = usePhoneMapSide()
+  if (onMap && side) {
+    const offset = {
+      left: "var(--map-toast-left, 16px)",
+      // Above the attribution pill and the frame-rate badge.
+      bottom: "calc(max(16px, env(safe-area-inset-bottom, 0px)) + 2.5rem)",
+    }
+    return (
+      <Toaster
+        position="bottom-left"
+        offset={offset}
+        mobileOffset={offset}
+        style={{ "--width": "min(356px, calc(100vw - var(--map-toast-left, 16px) - var(--map-toast-right, 16px)))" } as CSSProperties}
+      />
+    )
+  }
   // Both offsets: Sonner switches to mobileOffset only up to 600px, and the
   // card shows up to md.
-  const lift = onMap && isMobile ? { bottom: abovePhoneActionCard(8) } : undefined
+  const lift = onMap && phoneMap ? { bottom: abovePhoneActionCard(8) } : undefined
   return <Toaster offset={lift} mobileOffset={lift} />
 }
 

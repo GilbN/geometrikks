@@ -8,9 +8,10 @@
  * Layers button opens a bottom drawer with the same sections.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { MapOverlay } from "./MapOverlay"
 import { PHONE_ACTION_CARD_BOTTOM, PHONE_ACTION_CARD_HEIGHT } from "./phone-action-card"
+import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -31,7 +32,8 @@ import {
 } from "@/components/ui/drawer"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { CountryFlag } from "@/components/country-flag"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneMap } from "@/hooks/use-phone-map"
+import { PHONE_RAIL_EDGE, PHONE_RAIL_WIDTH } from "@/lib/phone-map-geometry"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -258,7 +260,10 @@ export function MapControls({
   const activeFilterCount =
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const isMobile = useIsMobile()
+  const isMobile = usePhoneMap()
+  const drawer = useSideDrawer()
+  // vaul cannot turn an open drawer around, so a rotation closes it.
+  useEffect(() => setDrawerOpen(false), [drawer.direction])
 
   const toolsMenu = (
     <DropdownMenu>
@@ -498,16 +503,27 @@ export function MapControls({
   if (isMobile) {
     const cardButton = "h-full flex-col gap-1 rounded-lg px-1 text-[11px] font-medium"
     return (
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction={drawer.direction}>
         <nav
           aria-label="Map actions"
           inert={phoneDetailOpen}
-          style={{
-            bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))`,
-            height: PHONE_ACTION_CARD_HEIGHT,
-          }}
+          style={
+            drawer.side
+              ? {
+                  top: "calc(50% - env(safe-area-inset-bottom, 0px) / 2)",
+                  right: `max(${PHONE_RAIL_EDGE}px, env(safe-area-inset-right, 0px))`,
+                  width: PHONE_RAIL_WIDTH,
+                }
+              : {
+                  bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))`,
+                  height: PHONE_ACTION_CARD_HEIGHT,
+                }
+          }
           className={cn(
-            "absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-10 grid grid-cols-4 gap-1 rounded-xl border border-border bg-floating p-1 backdrop-blur-sm",
+            "absolute z-10 grid rounded-xl border border-border bg-floating p-1 backdrop-blur-sm",
+            drawer.side
+              ? "-translate-y-1/2 grid-rows-[repeat(4,60px)] gap-0.5"
+              : "left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] grid-cols-4 gap-1",
             phoneDetailOpen && "invisible",
           )}
         >
@@ -551,11 +567,14 @@ export function MapControls({
             {demoTrafficMode === "off" ? "Live" : "Demo"}
           </Button>
         </nav>
-        <DrawerContent>
+        <DrawerContent className={drawer.contentClassName}>
           <DrawerHeader>
             <div className="flex items-center justify-between gap-2">
               <DrawerTitle>Map controls</DrawerTitle>
-              {toolsMenu}
+              <div className="flex items-center gap-1">
+                {toolsMenu}
+                {drawer.side && <SideDrawerClose />}
+              </div>
             </div>
             <DrawerDescription className="sr-only">
               Switch map layers, filter by country and city, and view statistics.

@@ -389,6 +389,20 @@
   }
 }
 
+/* Held sideways (GeoMap sets data-phone-side), the bottom edge is free again,
+   so the attribution goes back to the compact pill at the bottom left. */
+.fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left {
+  right: auto;
+  display: block;
+  bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (width < 48rem) {
+  .fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left {
+    left: env(safe-area-inset-left, 0px);
+  }
+}
+
 /* iOS Safari force-zooms the page when a focused input has a font-size below
    16px. Most inputs here render at text-xs/text-sm, so on touch devices bump
    every text-entry control to 16px to suppress the zoom. Unlayered CSS beats
