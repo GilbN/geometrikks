@@ -15,10 +15,11 @@ const sidebar = (page: Page) => page.locator('[data-slot="sidebar"]').first()
 test.describe("phone held sideways", () => {
   test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
 
-  test("opens with the sidebar collapsed", async ({ page }) => {
+  test("shows the compact tab bar and no sidebar", async ({ page }) => {
     await login(page)
     await page.goto("/")
-    await expect(sidebar(page)).toHaveAttribute("data-state", "collapsed")
+    await expect(page.locator("[data-tab-bar]")).toHaveAttribute("data-compact")
+    await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0)
   })
 
   test("shell clears the landscape safe areas", async ({ page }) => {
@@ -27,11 +28,14 @@ test.describe("phone held sideways", () => {
     await login(page)
     await page.goto("/map")
 
-    const container = page.locator('[data-slot="sidebar-container"]')
-    const firstItem = container.locator('[data-sidebar="menu-button"]').first()
-    expect((await firstItem.boundingBox())!.x).toBeGreaterThanOrEqual(left)
-    // The strip under the notch is painted, not see-through.
-    expect(await container.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+    const bar = page.locator("[data-tab-bar]")
+    await expect(bar).toBeVisible()
+    const barBox = (await bar.boundingBox())!
+    expect(barBox.x).toBeGreaterThanOrEqual(left)
+    expect(barBox.x + barBox.width).toBeLessThanOrEqual(932 - right)
+
+    const headerContent = (await page.locator("header").first().locator(":scope > *").first().boundingBox())!
+    expect(headerContent.x).toBeGreaterThanOrEqual(left)
 
     const headerButtons = page.locator("header").first().getByRole("button")
     const lastHeaderButton = (await headerButtons.last().boundingBox())!
