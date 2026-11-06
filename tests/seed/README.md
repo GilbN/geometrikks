@@ -12,7 +12,7 @@ It writes to the database in your `DB_*` settings and prints its name before it 
 
 ## Where the locations come from
 
-Visitor IPs are random public addresses, kept only when the GeoLite2 City database places them. Every marker therefore sits on a city MaxMind actually reports, with the state, postal code, timezone and ASN the app would have stored. An IP keeps its location, ASN and user agent for the whole run, so the IP inspector and the per-IP views stay consistent.
+Visitor IPs are random public addresses, kept only when the GeoLite2 City database places them. Every marker therefore sits on a place MaxMind actually reports: a city, or the country's centre for some IPv4 and most IPv6, with the state, postal code, timezone and ASN the app would have stored. An IP keeps its location, ASN and user agent for the whole run, so the IP inspector and the per-IP views stay consistent.
 
 The seeder reads the same databases as the app (`GEOIP_DB_PATH` and `GEOIP_ASN_DB_PATH`). A fresh worktree has no `data/geoip`, so point it at your main checkout:
 
