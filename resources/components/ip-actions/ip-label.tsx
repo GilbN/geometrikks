@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { DROP_OUTLINE_CLASS, DropMarkSrText } from "@/components/drop/drop-mark"
 import { useBannedIps, useDropNetwork } from "@/lib/queries"
 import { decisionLabel } from "@/lib/crowdsec"
@@ -22,11 +23,14 @@ function decisionTone(type: string): string {
 export function IpLabel({
   ip,
   title,
+  prefix,
   className,
 }: {
   ip: string
   /** Replaces the default tooltip for the decision type. */
   title?: (decisionType: string) => string
+  /** Inside the marking, before the IP, as a map popup's rank. */
+  prefix?: ReactNode
   className?: string
 }) {
   const { data: bannedIps } = useBannedIps()
@@ -39,6 +43,7 @@ export function IpLabel({
         className={cn("font-mono", dropNetwork && [IP_PILL_CLASS, dropMark], className)}
         title={dropNetwork ? dropMarkTitle(dropNetwork.sblId) : undefined}
       >
+        {prefix}
         {ip}
         {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
       </span>
@@ -50,6 +55,7 @@ export function IpLabel({
       className={cn(IP_PILL_CLASS, "font-mono", decisionTone(decision), dropMark, className)}
       title={dropNetwork ? dropMarkTitle(dropNetwork.sblId, decisionTitle) : decisionTitle}
     >
+      {prefix}
       {ip}
       <span className="sr-only"> ({decisionLabel(decision)})</span>
       {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}

@@ -8,6 +8,8 @@ import { toast } from "sonner"
 import Map, {
   Source,
   Layer,
+  MapProvider,
+  Marker,
   NavigationControl,
   type MapRef,
   type ViewStateChangeEvent,
@@ -44,18 +46,19 @@ import {
   unclusteredPointLayer,
 } from "./layers"
 import { MapControls, type BannedSummary } from "./MapControls"
+import { FOCUS_SETTLED, FOCUSING_ATTRIBUTE } from "./MapDetailPanel"
 import { phoneActionCardTop } from "./phone-action-card"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
-import { BannedMapPopup } from "./BannedMapPopup"
+import { BannedMapPanel, BannedMapPopup } from "./BannedMapPopup"
 import { DecisionAlertSheet, type DecisionRef } from "@/components/security/alert-detail-sheet"
 import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
 import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom } from "@/lib/map-clusters"
 import type { TopIPDTO } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { MapPopup, type PopupInfo } from "./MapPopup"
-import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
+import { LocationPanel, MapPopup, type PopupInfo } from "./MapPopup"
+import { LiveRequestCard, LiveRequestPanel, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
@@ -310,17 +313,29 @@ function GeoMapInner({
     if (target) {
       let passes = 0
       let timer: number | undefined
+      let stopped = false
+      // Runs once. A descent that resolves after a newer focus started must
+      // not clear the newer one's attribute.
       const stop = () => {
+        if (stopped) return
+        stopped = true
         window.clearTimeout(timer)
         map.off("moveend", onMoveEnd)
         map.off("render", settle)
+        map.getContainer().removeAttribute(FOCUSING_ATTRIBUTE)
+      }
+      // A phone's MapDetailPanel waits for this before panning its point
+      // into view, since its pan would cancel the descent.
+      const finish = () => {
+        stop()
+        if (generation === focusGeneration.current) map.getContainer().dispatchEvent(new Event(FOCUS_SETTLED))
       }
       // Waits for the target source, not map idle. The live routes animate
       // their own source, which can hold idle off indefinitely.
       const settle = () => {
         const source = map.getSource<GeoJSONSource>(target.sourceId)
         const layers = target.layerIds.filter((id) => map.getLayer(id))
-        if (!source || layers.length === 0) return stop()
+        if (!source || layers.length === 0) return finish()
         // react-map-gl holds the camera at the last rendered view state until
         // React catches up, so wait for the landing to arrive. An ease comes
         // in from below, so a lagging 6.998 still draws zoom 6 tiles. A
@@ -345,24 +360,25 @@ function GeoMapInner({
               landingZoom = next
               map.easeTo({ center, zoom: next, duration: 800 }, eventData)
             } else {
-              stop()
+              finish()
             }
           })
           // A data refresh mid-descent retires the cluster ids. The camera
           // stays where it landed.
-          .catch(stop)
+          .catch(finish)
       }
       const onMoveEnd = (event: unknown) => {
         if ((event as { focusGeneration?: number }).focusGeneration !== generation) return
         map.on("render", settle)
         map.triggerRepaint()
         window.clearTimeout(timer)
-        timer = window.setTimeout(stop, 3000)
+        timer = window.setTimeout(finish, 3000)
       }
       // Registered before the flight: with reduced motion, flyTo jumps and
       // fires moveend synchronously.
       map.on("moveend", onMoveEnd)
       stopFocusListeners.current = stop
+      map.getContainer().setAttribute(FOCUSING_ATTRIBUTE, "")
     }
     map.flyTo({ center, zoom: landingZoom, duration: arrived ? 0 : 1500 }, eventData)
   }, [cancelFocus])
@@ -816,6 +832,23 @@ function GeoMapInner({
     }
   }, [closeBannedPopup])
 
+  const bannedOpen = activeLayer === "banned" && bannedPopup !== null && bannedPopupIps.length > 0
+  const locationOpen = popup !== null && activeLayer === "markers"
+  const closeLocation = () => {
+    cancelFocus()
+    setPopup(null)
+  }
+  // On a phone the open popup is a MapDetailPanel over the action card, and
+  // a ring marks its point instead of the popup's tip.
+  const phoneDetailOpen = isMobile && (bannedOpen || locationOpen || livePopup !== null)
+  const phoneDetailPoint: Coordinate | null = !isMobile
+    ? null
+    : bannedOpen
+      ? [bannedPopup.longitude, bannedPopup.latitude]
+      : locationOpen
+        ? [popup.longitude, popup.latitude]
+        : livePopup?.coordinates ?? null
+
   if (!mapReady || !initialViewResolved) {
     return (
       <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
@@ -825,6 +858,7 @@ function GeoMapInner({
   }
 
   return (
+    <MapProvider>
     <div className="h-full w-full relative">
       <Map
         ref={mapRef}
@@ -922,7 +956,13 @@ function GeoMapInner({
           />
         ))}
 
-        {activeLayer === "banned" && bannedPopup && bannedPopupIps.length > 0 && (
+        {phoneDetailPoint && (
+          <Marker longitude={phoneDetailPoint[0]} latitude={phoneDetailPoint[1]} anchor="center" style={{ pointerEvents: "none" }}>
+            <span aria-hidden className="block size-12 rounded-full border-2 border-primary shadow-[0_0_0_6px] shadow-primary/25" />
+          </Marker>
+        )}
+
+        {!isMobile && bannedOpen && (
           <BannedMapPopup
             key={bannedPopup.groupIds.join("|")}
             longitude={bannedPopup.longitude}
@@ -933,30 +973,53 @@ function GeoMapInner({
           />
         )}
 
-        {/* Popup */}
-        {popup && activeLayer === "markers" && (
+        {!isMobile && locationOpen && (
           <MapPopup
             key={`${popup.longitude},${popup.latitude}`}
             longitude={popup.longitude}
             latitude={popup.latitude}
             properties={popup.properties}
-            onClose={() => {
-              cancelFocus()
-              setPopup(null)
-            }}
+            totalEvents={geojson?.stats.events}
+            onClose={closeLocation}
+            onOpenAlert={setBannedAlert}
           />
         )}
 
-        {livePopup && livePopup.coordinates && (
-          <LiveRequestPopup key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} />
+        {!isMobile && livePopup && livePopup.coordinates && (
+          <LiveRequestPopup key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} onOpenAlert={setBannedAlert} />
         )}
       </Map>
 
       {/* A request with no GeoIP match has nowhere on the map to anchor a
           Popup, so its detail renders as a centered card instead - it stays
           reachable from the strip and the sheet alike. */}
-      {livePopup && !livePopup.coordinates && (
-        <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
+      {!isMobile && livePopup && !livePopup.coordinates && (
+        <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} onOpenAlert={setBannedAlert} />
+      )}
+
+      {isMobile && bannedOpen && (
+        <BannedMapPanel
+          key={bannedPopup.groupIds.join("|")}
+          longitude={bannedPopup.longitude}
+          latitude={bannedPopup.latitude}
+          ips={bannedPopupIps}
+          onClose={closeBannedPopup}
+          onOpenAlert={setBannedAlert}
+        />
+      )}
+      {isMobile && locationOpen && (
+        <LocationPanel
+          key={`${popup.longitude},${popup.latitude}`}
+          longitude={popup.longitude}
+          latitude={popup.latitude}
+          properties={popup.properties}
+          totalEvents={geojson?.stats.events}
+          onClose={closeLocation}
+          onOpenAlert={setBannedAlert}
+        />
+      )}
+      {isMobile && livePopup && (
+        <LiveRequestPanel key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} onOpenAlert={setBannedAlert} />
       )}
 
       {/* Fly to would clear the map filters and switch off the Banned IPs
@@ -1024,6 +1087,7 @@ function GeoMapInner({
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
         topIPs={activeLayer === "banned" ? bannedTopIps : globalTopIPs?.topIps ?? []}
         onSelectIp={selectTopIp}
+        phoneDetailOpen={phoneDetailOpen}
         countryOptions={filterOptions.countries}
         countryLabels={filterOptions.countryLabels}
         cityOptions={filterOptions.cities}
@@ -1038,6 +1102,7 @@ function GeoMapInner({
       />
 
     </div>
+    </MapProvider>
   )
 }
 

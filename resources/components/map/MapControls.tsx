@@ -109,6 +109,8 @@ interface MapControlsProps {
   selectedServers: string[]
   onServersChange: (values: string[]) => void
   serversLoading?: boolean
+  /** The phone action card hides while a MapDetailPanel covers it. */
+  phoneDetailOpen?: boolean
 }
 
 /**
@@ -248,6 +250,7 @@ export function MapControls({
   selectedServers,
   onServersChange,
   serversLoading = false,
+  phoneDetailOpen = false,
 }: MapControlsProps) {
   const { events, countries, cities, locations } = featureStats
   const hasMapData = activeLayer === "banned" ? (banned.stats?.ips ?? 0) > 0 : events > 0
@@ -498,11 +501,15 @@ export function MapControls({
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
         <nav
           aria-label="Map actions"
+          inert={phoneDetailOpen}
           style={{
             bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))`,
             height: PHONE_ACTION_CARD_HEIGHT,
           }}
-          className="absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-10 grid grid-cols-4 gap-1 rounded-xl border border-border bg-floating p-1 backdrop-blur-sm"
+          className={cn(
+            "absolute left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] z-10 grid grid-cols-4 gap-1 rounded-xl border border-border bg-floating p-1 backdrop-blur-sm",
+            phoneDetailOpen && "invisible",
+          )}
         >
           <DrawerTrigger asChild>
             <Button

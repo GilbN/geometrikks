@@ -26,9 +26,9 @@ from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import (
     GeoLocationRepository,
+    LocationTopIPs,
     LocationWithEventCount,
     StatsGranularity,
-    TopIP,
     get_stats_granularity,
     stitch_params,
     stitched_ip_location_cte,
@@ -783,8 +783,8 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
         to_timestamp: datetime,
         *,
         limit: int = 5,
-    ) -> list[TopIP]:
-        """Top IPs by event count for one location."""
+    ) -> LocationTopIPs:
+        """Top IPs by event count for one location, and its distinct IP count."""
         return await self.repository.get_location_top_ips(
             location_id, from_timestamp, to_timestamp, limit=limit
         )
