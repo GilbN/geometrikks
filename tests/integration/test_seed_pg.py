@@ -66,10 +66,11 @@ async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
 
     assert stats.failed_caggs == []
     async with pg_engine.connect() as conn:
-        access_logs, daily_total, hourly_total = (await conn.execute(text("""
+        access_logs, daily_total, hourly_total, server_events = (await conn.execute(text("""
             SELECT
                 (SELECT count(*) FROM access_logs),
                 (SELECT sum(total_requests) FROM summary_daily_stats),
-                (SELECT sum(total_requests) FROM summary_hourly_stats)
+                (SELECT sum(total_requests) FROM summary_hourly_stats),
+                (SELECT sum(event_count) FROM server_daily_stats)
         """))).one()
-    assert access_logs == daily_total == hourly_total == stats.access_logs == 500
+    assert access_logs == daily_total == hourly_total == server_events == stats.access_logs == 500

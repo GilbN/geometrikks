@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import dataclasses
-import ipaddress
 import json
 import random
 from datetime import datetime, timezone
@@ -12,6 +11,7 @@ import geohash2
 import pytest
 
 from geometrikks.services.logparser.formats import FORMATS
+from geometrikks.services.logparser.logparser import check_ip_type
 from tests.seed.config import SeedConfig, SeedError
 from tests.seed.traffic import Batch, TrafficGenerator
 from tests.seed.visitors import MaxMindGeoSource, Visitor, VisitorBuilder
@@ -63,10 +63,13 @@ def test_every_request_is_a_public_log_and_event_pair() -> None:
         assert sorted((log.timestamp, log.ip_address) for log in logs) == sorted(
             (event.timestamp, event.ip_address) for event in batch.geo_events
         )
-        assert all(ipaddress.ip_address(log.ip_address).is_global for log in logs)
+        assert all(check_ip_type(log.ip_address) for log in logs)
 
 
-@pytest.mark.parametrize("overrides", [{"batch_size": 0}, {"visitors": 0}, {"rows": 0}, {"debug_share": 1.5}])
+@pytest.mark.parametrize(
+    "overrides",
+    [{"batch_size": 0}, {"visitors": 0}, {"rows": 0}, {"debug_share": 1.5}, {"days": float("nan")}, {"days": 99_999}],
+)
 def test_config_rejects_values_that_cannot_seed(overrides) -> None:
     with pytest.raises(ValueError):
         _config(**overrides)

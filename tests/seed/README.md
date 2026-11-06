@@ -26,7 +26,7 @@ Without the ASN database the rows get no ASN. The City database is required. The
 
 ## What a run writes
 
-- `access_logs` and `geo_events`, one of each per request. Ingestion writes the pair only for a public IP that GeoIP places, so the seeder has no LAN or unplaced traffic either.
+- `access_logs` and `geo_events`, one of each per request, from public IPs GeoIP places. Ingestion writes nothing for LAN addresses, and the seeder has none.
 - `geo_locations`, one row per distinct place.
 - `access_log_debug`. Every TLS, SSH and SMB probe keeps its raw line, linked to its access log. So does `--debug-share` of normal requests, and a few lines that never parsed.
 - `server_locations`, a map beacon per server name (Frankfurt, then Oslo, Amsterdam and so on). Existing beacons stay as they are.
@@ -56,16 +56,16 @@ Each server name owns a share of the hosts and one log format. The first is `geo
 | `--debug-share` | 0.02 | Share of normal requests that keep a raw line |
 | `--batch-size` | 20000 | Rows per COPY |
 | `--reset` | off | Empty every traffic table and aggregate first. Asks you to type the database name unless you pass `-y` |
-| `--no-refresh` | off | Skip the aggregate refresh. Aggregate-backed charts then leave out seeded rows older than the last refresh until the scheduler refreshes them |
+| `--no-refresh` | off | Skip the aggregate refresh. The scheduler only refreshes the last three days, so older seeded rows stay out of aggregate-backed charts unless an aggregate is empty at the next app start |
 | `--database-url` | `DB_*` | Another database, as a `postgresql+asyncpg://` URL |
 
 `--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug`, `geo_locations` and the import history in `import_jobs` and `loki_imports`, real data included. It then refreshes the aggregates over all time, which drops their old buckets. Don't point it at a database you care about. Stop the app first, too. A running app holds location ids from before the reset, and its next batch fails until it reloads them.
 
-Raw retention and the hourly aggregate retention still apply. If `--days` reaches past them, the next retention job drops the oldest seeded rows.
+Retention still applies: 180 days for raw rows, 60 for hourly aggregates and 30 for debug lines by default. If `--days` reaches past them, the next retention job drops the oldest seeded rows.
 
 ## Speed
 
-On the dev box, 100k requests take about 30 seconds: 3 to sample visitors, 12 to write and 15 to refresh the aggregates. Each batch goes in through COPY in one transaction, so a failed run never leaves a batch's geo events without their access logs.
+On the dev box, 100k requests take about 30 seconds, half of it refreshing the aggregates. Each batch goes in through COPY in one transaction, so a failed run never leaves a batch's geo events without their access logs.
 
 ## Layout
 

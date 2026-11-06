@@ -6,6 +6,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 
+# Ten years; --reset's clearing refresh starts in 2000.
+MAX_DAYS = 3650
+
+
 class SeedError(RuntimeError):
     """The seed cannot run as asked; the message says why."""
 
@@ -46,8 +50,8 @@ class SeedConfig:
     def __post_init__(self) -> None:
         if self.rows < 1:
             raise ValueError("rows must be at least 1")
-        if self.days <= 0:
-            raise ValueError("days must be positive")
+        if not 0 < self.days <= MAX_DAYS:
+            raise ValueError(f"days must be above 0 and at most {MAX_DAYS}")
         if not self.servers or any(not name.strip() for name in self.servers):
             raise ValueError("servers needs at least one non-empty name")
         if self.end.tzinfo is None:

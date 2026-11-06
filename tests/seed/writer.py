@@ -56,11 +56,10 @@ class SeedWriter:
                 "DELETE FROM server_locations WHERE server = ANY($1::text[]) AND source = 'auto'", list(servers)
             )
         rows = await self.conn.fetch(
-            "SELECT view_name FROM timescaledb_information.continuous_aggregates "
-            "WHERE view_schema = current_schema() AND view_name = ANY($1::text[])",
+            "SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL",
             list(ALL_CAGGS),
         )
-        return [row["view_name"] for row in rows]
+        return [row["name"] for row in rows]
 
     async def upsert_locations(self, places: Iterable[Place]) -> dict[str, int]:
         """Insert the places that are new and return the id of every place, keyed by geohash."""

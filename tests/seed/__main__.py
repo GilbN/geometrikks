@@ -119,7 +119,8 @@ async def main(argv: list[str] | None = None) -> int:
         f"{stats.debug_rows:,} debug lines, {stats.locations:,} locations from {stats.visitors:,} visitors"
     )
     if stats.failed_caggs:
-        print(f"These continuous aggregates did not refresh: {', '.join(stats.failed_caggs)}", file=sys.stderr)
+        failed = ", ".join(dict.fromkeys(stats.failed_caggs))
+        print(f"These continuous aggregates did not refresh: {failed}", file=sys.stderr)
         return 1
     return 0
 
