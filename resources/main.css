@@ -487,6 +487,34 @@
   }
 }
 
+/* Phone toasters. Sonner's stylesheet is inserted after this one, hence the
+   extra attribute. A spanning toaster runs between its left and right offsets,
+   which differ beside the map pill; Sonner's phone layout assumes equal sides.
+   A centred one keeps Sonner's width even where its phone layout would stretch it. */
+.toaster.toaster-span[data-sonner-toaster] {
+  left: var(--offset-left);
+  right: var(--offset-right);
+  width: auto;
+  transform: none;
+}
+
+.toaster.toaster-span [data-sonner-toast] {
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+
+.toaster.toaster-centred[data-sonner-toaster] {
+  left: 50%;
+  right: auto;
+  width: var(--width);
+  transform: translateX(-50%);
+}
+
+.toaster.toaster-centred [data-sonner-toast] {
+  width: var(--width);
+}
+
 .toaster .toast-surface > * {
   transition: opacity 0.4s;
 }
