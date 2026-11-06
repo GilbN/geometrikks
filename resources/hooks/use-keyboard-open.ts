@@ -20,13 +20,12 @@ function isEditable(element: Element | null): boolean {
   return element instanceof HTMLElement && element.isContentEditable
 }
 
-/** Whether the on-screen keyboard is up. */
 export function useKeyboardOpen(): boolean {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const viewport = window.visualViewport
-    if (!viewport) return
+    if (!viewport || !window.matchMedia("(pointer: coarse)").matches) return
 
     // Browsers that resize the layout viewport for the keyboard shrink
     // innerHeight with it, so the comparison uses the tallest height seen at

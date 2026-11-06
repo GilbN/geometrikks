@@ -133,7 +133,7 @@ export function TabBar({ compact }: { compact: boolean }) {
     if (!text) return undefined
     const id = `${idPrefix}-${key}`
     descriptions.push(
-      <span key={id} id={id} className="sr-only">
+      <span key={id} id={id} hidden>
         {text}
       </span>,
     )
@@ -176,6 +176,7 @@ export function TabBar({ compact }: { compact: boolean }) {
         onContextMenu={suppressContextMenu}
         className={cn(
           cellClass(layout, current === "more"),
+          layout === "portrait" && "col-start-5",
           "aria-expanded:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--primary)_60%,transparent)]",
         )}
       >
