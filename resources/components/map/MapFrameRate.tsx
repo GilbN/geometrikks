@@ -2,14 +2,14 @@ import { useEffect, useRef } from "react"
 import { useMap } from "react-map-gl/maplibre"
 
 import { useIsMobile } from "@/hooks/use-mobile"
-import { usePhoneMap, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { abovePhoneActionCard } from "./phone-action-card"
 
 /** Passive render counter: it must never request a map repaint itself. */
 export function MapFrameRate() {
   const { current: map } = useMap()
   const counterRef = useRef<HTMLDivElement>(null)
-  const isMobile = usePhoneMap()
+  const isMobile = usePhoneLayout()
   const side = usePhoneMapSide()
   const phoneShell = useIsMobile()
 
