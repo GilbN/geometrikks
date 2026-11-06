@@ -29,7 +29,6 @@ export function usePhoneMapSide(): boolean {
   return useMediaQuery(PHONE_SIDE_QUERY)
 }
 
-/** Whether lists render as portrait phone lists rather than sideways-phone chips. */
 export function usePortraitList(): boolean {
   return isPortraitList(useIsMobile(), usePhoneMapSide())
 }

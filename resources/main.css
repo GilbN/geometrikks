@@ -19,7 +19,7 @@
 }
 
 @custom-variant dark (&:is(.dark *));
-@custom-variant phone (@media (width < 48rem), (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
+@custom-variant phone (@media (width < 48rem), @media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
 @custom-variant phone-side (@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
 @custom-variant phone-short (@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 22rem));
 

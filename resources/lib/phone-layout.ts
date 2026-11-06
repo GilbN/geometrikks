@@ -1,4 +1,3 @@
-/** The portrait phone layout: narrow, and not a phone held sideways. */
 export function isPortraitList(mobile: boolean, side: boolean): boolean {
   return mobile && !side
 }
