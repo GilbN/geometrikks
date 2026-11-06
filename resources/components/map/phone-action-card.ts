@@ -5,6 +5,8 @@
  * safe-area inset.
  */
 
+import type { Insets } from "@/lib/phone-map-geometry"
+
 export const PHONE_ACTION_CARD_BOTTOM = 30
 export const PHONE_ACTION_CARD_HEIGHT = 62
 /** Where the card's top edge sits. */
@@ -17,11 +19,22 @@ export function abovePhoneActionCard(gap: number): string {
 
 /** The card's top edge in px, safe-area inset included, for MapLibre padding. */
 export function phoneActionCardTop(): number {
+  return PHONE_ACTION_CARD_TOP + safeAreaInsets().bottom
+}
+
+/** The safe-area insets in px. */
+export function safeAreaInsets(): Insets {
   // env() only resolves inside CSS, so measure it on a throwaway element.
   const probe = document.createElement("div")
-  probe.style.cssText = "position:fixed;visibility:hidden;height:env(safe-area-inset-bottom, 0px)"
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;padding:0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)"
   document.body.appendChild(probe)
-  const inset = probe.getBoundingClientRect().height
+  const style = getComputedStyle(probe)
+  const insets = {
+    left: parseFloat(style.paddingLeft) || 0,
+    right: parseFloat(style.paddingRight) || 0,
+    bottom: parseFloat(style.paddingBottom) || 0,
+  }
   probe.remove()
-  return PHONE_ACTION_CARD_TOP + inset
+  return insets
 }

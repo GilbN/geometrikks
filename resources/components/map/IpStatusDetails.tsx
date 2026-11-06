@@ -4,7 +4,7 @@
  * bottom sheet on a phone and a popover elsewhere, since a phone has no hover
  * for the tooltip the tables use. An IP with neither renders as it is.
  */
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Loader2, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -33,7 +33,7 @@ import { useBannedIps, useCrowdsecStatus, useDropNetwork, useIpDecisions } from 
 import { scenarioText } from "@/lib/scenario-name"
 import { usePollingHold } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { SideDrawerClose, usePanelPhone, useSideDrawer } from "./SideDrawer"
 import { BanChoices, type CloseSlot } from "./PanelBanButton"
 
 const ORIGIN_TEXT: Record<string, string> = {
@@ -226,7 +226,8 @@ function MarkedIpStatus({
   onOpenAlert,
   children,
 }: IpStatusDetailsProps & { decision: string | null }) {
-  const isMobile = useIsMobile()
+  const isMobile = usePanelPhone()
+  const drawer = useSideDrawer()
   const { data: status } = useCrowdsecStatus()
   const { unban } = useIpActions()
   const pending = usePendingIpAction(ip)
@@ -235,6 +236,8 @@ function MarkedIpStatus({
   const [choosingBan, setChoosingBan] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   usePollingHold(open || dialogOpen)
+  // A rotation remounts the drawer closed (vaul cannot turn it around).
+  useEffect(() => setOpen(false), [drawer.direction])
   // On a phone the inspector, the alert sheet and the ban dialog open once
   // the sheet has finished closing. Opened during its close animation, they
   // leave pointer-events: none on the body. A popover is not modal, so they
@@ -316,6 +319,8 @@ function MarkedIpStatus({
     <>
       {isMobile ? (
         <Drawer
+          key={drawer.direction}
+          direction={drawer.direction}
           onOpenChange={changeOpen}
           onAnimationEnd={(isOpen) => {
             if (isOpen || !afterClose.current) return
@@ -326,19 +331,20 @@ function MarkedIpStatus({
           }}
         >
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-          <DrawerContent>
+          <DrawerContent className={drawer.contentClassName}>
             <DrawerHeader className="text-left md:text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
               <div className="flex items-center gap-1">
                 <DrawerTitle>
                   <IpLabel ip={ip} className="text-xl break-all" />
                 </DrawerTitle>
                 <CopyIpButton ip={ip} className="size-11 [&_svg:not([class*='size-'])]:size-5" />
+                {drawer.side && <span className="ml-auto"><SideDrawerClose /></span>}
               </div>
               <DrawerDescription className={cn(!context && "sr-only")}>
                 {context ?? "Why this IP is marked"}
               </DrawerDescription>
             </DrawerHeader>
-            <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6">{details}</div>
+            <div className={cn("flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6", drawer.side ? "min-h-0 flex-1" : "max-h-[60vh]")}>{details}</div>
           </DrawerContent>
         </Drawer>
       ) : (
