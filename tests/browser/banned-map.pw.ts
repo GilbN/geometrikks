@@ -56,17 +56,19 @@ async function setup(page: Page, data = collection([group("2", 25)])) {
   await expect.poll(() => state.requests.length).toBeGreaterThan(0)
   return { state, delta: () => socket?.send(JSON.stringify({ type: "crowdsec_decisions", added: [], deleted: [{ ip: "192.0.2.1", origin: "crowdsec" }] })) }
 }
-async function clickCenter(page: Page) {
+async function clickCenter(page: Page, dx = 0) {
   const canvas = page.locator(".maplibregl-canvas")
   const box = await canvas.boundingBox()
   if (!box) throw new Error("Map has no bounds")
-  await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } })
+  await canvas.click({ position: { x: box.width / 2 + dx, y: box.height / 2 } })
 }
-async function openCenterPopup(page: Page) {
-  // Source processing occurs in a worker after the API response settles.
+async function openCenterPopup(page: Page, dx = 0) {
+  const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  // Source processing occurs in a worker after the API response settles. A
+  // retry that clicks the point again once a late popup has opened closes it.
   await expect(async () => {
-    await clickCenter(page)
-    await expect(page.getByRole("dialog", { name: "Banned IPs", exact: true })).toBeVisible({ timeout: 500 })
+    if (!(await popup.isVisible())) await clickCenter(page, dx)
+    await expect(popup).toBeVisible({ timeout: 500 })
   }).toPass({ timeout: 10_000 })
 }
 
@@ -94,6 +96,8 @@ for (const width of [1280, 390]) {
     await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(20)
     const row = popup.getByRole("button", { name: /^192\./ }).first()
     const background = () => row.evaluate((el) => getComputedStyle(el).backgroundColor)
+    // The click that opened it can leave the pointer over a row of the phone panel.
+    await page.mouse.move(0, 0)
     expect(await background()).toBe("rgba(0, 0, 0, 0)")
     await row.hover()
     await expect.poll(background).not.toBe("rgba(0, 0, 0, 0)")
@@ -119,51 +123,54 @@ for (const width of [1280, 390]) {
   })
 }
 
-// Opened from the centre of a phone map, the 20-row list is too tall to sit
-// above its point, so it opens below it, over the action card. The map pans
-// it clear; at 640px it is taller than the room and its list scrolls. With
-// reduced motion the pan is a jump, and a later drag must stay where the
-// user left it.
+// On a phone the popup is a panel over the action card, which hides. The map
+// pans the point into the room above the panel, and the 20-row list scrolls
+// inside it. With reduced motion the pan is a jump, and a later drag must
+// stay where the user left it.
 for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] as const) {
-  test(`a phone popup stays clear of the action card at 390x${height}${reducedMotion ? " with reduced motion" : ""}`, async ({ page }) => {
+  test(`a phone panel keeps its point in view at 390x${height}${reducedMotion ? " with reduced motion" : ""}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height })
     if (reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
     await setup(page)
     await openCenterPopup(page)
-    const popup = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
     const card = page.getByRole("navigation", { name: "Map actions", exact: true })
     const map = page.locator(".maplibregl-map")
-    const clear = async () => {
-      const [popupBox, cardBox, mapBox] = await Promise.all([popup.boundingBox(), card.boundingBox(), map.boundingBox()])
-      if (!popupBox || !cardBox || !mapBox) return false
-      return popupBox.y >= mapBox.y && popupBox.y + popupBox.height <= cardBox.y
+    // Server markers are off, so the only marker is the selection ring.
+    const pointY = async () => {
+      const ring = await page.locator(".maplibregl-marker").boundingBox()
+      return ring ? ring.y + ring.height / 2 : NaN
     }
-    await expect.poll(clear).toBe(true)
-    await popup.getByRole("button", { name: "Next", exact: true }).click()
-    await expect(popup.getByRole("button", { name: /^192\./ })).toHaveCount(5)
-    await expect.poll(clear).toBe(true)
+    const pointAbovePanel = async () => {
+      const [panelBox, mapBox] = await Promise.all([panel.boundingBox(), map.boundingBox()])
+      const y = await pointY()
+      return !!panelBox && !!mapBox && y > mapBox.y && y < panelBox.y
+    }
+    await expect(card).toBeHidden()
+    await expect(panel).toBeInViewport({ ratio: 1 })
+    await expect.poll(pointAbovePanel).toBe(true)
+    await panel.getByRole("button", { name: "Next", exact: true }).click()
+    await expect(panel.getByRole("button", { name: /^192\./ })).toHaveCount(5)
+    await expect.poll(pointAbovePanel).toBe(true)
 
-    // Drag the map down from its top-left corner, clear of the popup. The
-    // drag can flip the popup to the other side of its point, so follow the
-    // point itself: the last translate MapLibre puts on the popup (plus an
-    // offset of at most 8px for a corner anchor).
-    const pointY = () =>
-      page.locator(".maplibregl-popup").evaluate((element) => {
-        const moves = [...(element as HTMLElement).style.transform.matchAll(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/g)]
-        return Number(moves.at(-1)?.[2])
-      })
+    // Drag the map down from its top-left corner, clear of the panel.
+    await page.waitForTimeout(500)
     const before = await pointY()
     const mapBox = (await map.boundingBox())!
     await page.mouse.move(mapBox.x + 12, mapBox.y + 12)
     await page.mouse.down()
-    await page.mouse.move(mapBox.x + 12, mapBox.y + 92, { steps: 8 })
+    await page.mouse.move(mapBox.x + 12, mapBox.y + 52, { steps: 8 })
     await page.mouse.up()
     await page.waitForTimeout(1000)
     const dragged = await pointY()
-    expect(dragged).toBeGreaterThan(before + 40)
+    expect(dragged).toBeGreaterThan(before + 20)
     // No correction pan undoes the drag afterwards.
     await page.waitForTimeout(1000)
     expect(Math.abs((await pointY()) - dragged)).toBeLessThanOrEqual(1)
+
+    await page.keyboard.press("Escape")
+    await expect(panel).toBeHidden()
+    await expect(card).toBeVisible()
   })
 }
 
@@ -271,15 +278,22 @@ test("filters, fit-to-data and style changes use the banned dataset", async ({ p
   await expect(page.getByRole("dialog", { name: "Banned IPs", exact: true })).toBeVisible()
   await page.getByRole("button", { name: "Close banned IP popup" }).click()
   await page.getByRole("button", { name: "Fit to data bounds", exact: true }).click()
-  await openCenterPopup(page)
+  // The fit keeps the right-hand controls panel clear, so at its zoom the
+  // point lands half the panel's 256px inset left of centre. Clicks wait for
+  // each ease to end; one during it stops the camera short.
+  await page.waitForTimeout(2500)
+  await openCenterPopup(page, -128)
   await page.getByRole("button", { name: "Close banned IP popup" }).click()
   await page.getByRole("switch", { name: "Globe", exact: true }).click()
+  await page.waitForTimeout(2000)
   await openCenterPopup(page)
   await page.getByRole("button", { name: "Close banned IP popup" }).click()
+  // Leaving the globe eases back to the fit's zoom.
   await page.getByRole("switch", { name: "Globe", exact: true }).click()
+  await page.waitForTimeout(2000)
   await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
   await page.getByRole("menuitemradio", { name: "Light", exact: true }).click()
-  await openCenterPopup(page)
+  await openCenterPopup(page, -128)
 })
 
 test("thousands of IPs use a paginated popup and no eager lookups", async ({ page }) => {
@@ -323,6 +337,7 @@ test("IP inspection preserves the range and can focus another traffic location",
   await page.getByRole("button", { name: "Fly to Stockholm", exact: true }).click()
   await page.locator('[data-slot="sheet-content"]').getByRole("button", { name: "Close", exact: true }).click()
   await expect(page.getByRole("tab", { name: "Markers", exact: true })).toHaveAttribute("aria-selected", "true")
-  await expect(page.locator(".geo-popup").getByText("Stockholm, Sweden", { exact: true })).toBeVisible()
+  await expect(page.locator(".geo-popup").getByText("Stockholm", { exact: true })).toBeVisible()
+  await expect(page.locator(".geo-popup").getByText("Sweden", { exact: true })).toBeVisible()
   await page.screenshot({ path: "smoke-artifacts/banned-map-inspect-return.png" })
 })

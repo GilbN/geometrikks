@@ -153,7 +153,12 @@ function useDropNetworkBan(dropNetwork: DropNetworkMatch | null, active: boolean
 }
 
 /** Copies the IP in one click; the icon turns into a check for a moment. */
-export function CopyIpButton({ ip, className }: { ip: string; className?: string }) {
+export function CopyIpButton({ ip, what = "IP", className }: {
+  ip: string
+  /** What the tooltip says it copies, as in "Copy network" for a CIDR. */
+  what?: string
+  className?: string
+}) {
   const [copied, setCopied] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(resetTimer.current), [])
@@ -175,7 +180,7 @@ export function CopyIpButton({ ip, className }: { ip: string; className?: string
       variant="ghost"
       size="icon-xs"
       className={cn("ml-1 align-middle text-muted-foreground pointer-coarse:min-h-8 pointer-coarse:min-w-8", className)}
-      title={copied ? "Copied" : "Copy IP"}
+      title={copied ? "Copied" : `Copy ${what}`}
       aria-label={copied ? `Copied ${ip}` : `Copy ${ip}`}
       onClick={(event) => void copy(event.currentTarget)}
     >

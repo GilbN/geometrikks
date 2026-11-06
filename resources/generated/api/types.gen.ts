@@ -2591,6 +2591,10 @@ export type LocationTopIpsResponse = {
    */
   locationId: number;
   topIps?: Array<TopIpdto>;
+  /**
+   * Distinct client IPs at the location in the range.
+   */
+  uniqueIps: number;
 };
 
 /**
@@ -3930,6 +3934,14 @@ export type TopGeoIpsResponse = {
  * One client IP with its geo events at one location.
  */
 export type TopIpdto = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  asOrganization?: string | null;
+  /**
+   * The IP's network. Set only in the top IPs of a single location, and null there when GeoIP had no ASN for the IP. On ranges up to 24 hours it comes from the IP's newest event with an ASN. On longer ranges it comes from the newest hour or UTC day with one. If the IP changed networks within that hour or day, `asn` and `asOrganization` can each come from a different network.
+   */
+  asn?: number | null;
   /**
    * The IP's events at this one location in the range.
    */

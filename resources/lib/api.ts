@@ -293,6 +293,9 @@ export interface TopIPDTO {
   ipAddress: string
   eventCount: number
   location: EmbeddedLocationDTO | null
+  /** Set only in a single location's top IPs. */
+  asn?: number | null
+  asOrganization?: string | null
 }
 
 // GeoJSON shapes come from the generated client; the aliases keep the
@@ -676,6 +679,7 @@ export interface CumulativeTimeSeriesResponse {
 
 export interface LocationTopIPsResponse {
   locationId: number
+  uniqueIps: number
   topIps: TopIPDTO[]
 }
 

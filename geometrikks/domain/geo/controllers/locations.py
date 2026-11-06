@@ -349,14 +349,19 @@ class GeoLocationController(Controller):
         from_timestamp = ensure_utc(from_timestamp)
         to_timestamp = ensure_utc(to_timestamp)
 
-        top_ips_data = await geo_location_service.get_location_top_ips(
+        result = await geo_location_service.get_location_top_ips(
             location_id, from_timestamp, to_timestamp, limit=limit
         )
         top_ips = [
-            TopIPDTO(ip_address=ip.ip_address, event_count=ip.event_count)
-            for ip in top_ips_data
+            TopIPDTO(
+                ip_address=ip.ip_address,
+                event_count=ip.event_count,
+                asn=ip.asn,
+                as_organization=ip.as_organization,
+            )
+            for ip in result.top_ips
         ]
-        return LocationTopIPsResponse(location_id=location_id, top_ips=top_ips)
+        return LocationTopIPsResponse(location_id=location_id, unique_ips=result.unique_ips, top_ips=top_ips)
 
     @get(
         "/top-countries",

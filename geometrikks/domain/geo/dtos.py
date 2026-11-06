@@ -8,6 +8,7 @@ import msgspec
 
 from advanced_alchemy.extensions.litestar import SQLAlchemyDTO, SQLAlchemyDTOConfig
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.domain.geo.schemas import AsnOrganization
 
 
 class GeoEventDTO(SQLAlchemyDTO[GeoEvent]):
@@ -53,6 +54,18 @@ class TopIPDTO(msgspec.Struct, rename="camel"):
             )
         ),
     ] = None
+    asn: Annotated[
+        int | None,
+        msgspec.Meta(
+            description=(
+                "The IP's network. Set only in the top IPs of a single location, and null there when GeoIP had "
+                "no ASN for the IP. On ranges up to 24 hours it comes from the IP's newest event with an ASN. On "
+                "longer ranges it comes from the newest hour or UTC day with one. If the IP changed networks within "
+                "that hour or day, `asn` and `asOrganization` can each come from a different network."
+            )
+        ),
+    ] = None
+    as_organization: AsnOrganization = None
 
 
 # The geometry fields have no defaults on purpose. A default makes them
@@ -126,6 +139,7 @@ class LocationTopIPsResponse(msgspec.Struct, rename="camel"):
     """The client IPs with the most events at one location, most first."""
 
     location_id: LocationId
+    unique_ips: Annotated[int, msgspec.Meta(description="Distinct client IPs at the location in the range.")]
     top_ips: list[TopIPDTO] = msgspec.field(default_factory=list)
 
 
