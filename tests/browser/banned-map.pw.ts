@@ -79,6 +79,11 @@ async function box(locator: Locator) {
   return found
 }
 
+/** Waits for the element's own animations, such as a panel's slide-in, to end. */
+async function settled(locator: Locator) {
+  await expect.poll(() => locator.evaluate((el) => el.getAnimations().some((animation) => animation.playState === "running"))).toBe(false)
+}
+
 // A full 20-row page makes a tall card. Opened from the map's centre, it fits
 // whole on the map only in a viewport about this tall.
 const CROWDED_POPUP_HEIGHT = 1000
@@ -155,6 +160,7 @@ for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] 
     }
     await expect(card).toBeHidden()
     await expect(panel).toBeInViewport({ ratio: 1 })
+    await settled(panel)
     const bar = await box(page.locator("[data-tab-bar]"))
     const panelBox = await box(panel)
     expect(bar.y - (panelBox.y + panelBox.height)).toBeCloseTo(12, 0)
@@ -219,8 +225,7 @@ test.describe("landscape phone", () => {
       const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
       await expect(rail(page)).toBeHidden()
       await expect(bar).toBeHidden()
-      // The panel slides in from the right, so measure it once that ends.
-      await panel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
+      await settled(panel)
       const panelBox = await box(panel)
       expect(panelBox.y - map.y).toBeCloseTo(12, 0)
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(map.x + map.width - edge + 1)
@@ -265,7 +270,7 @@ test.describe("landscape phone", () => {
     await expect(cells.nth(3).locator("dd")).toHaveText(time, { useInnerText: true })
   })
 
-  test("layers and the live feed open from the right", async ({ page }) => {
+  test("layers and the live feed open from the right, and the live pill clears the notch", async ({ page }) => {
     await page.setViewportSize({ width: 932, height: 430 })
     await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
     await setup(page)
@@ -288,6 +293,7 @@ test.describe("landscape phone", () => {
     await expect(drawer).toBeHidden()
 
     await rail(page).getByRole("button", { name: "Live" }).click()
+    expect((await box(page.locator("[data-live-pill]"))).x).toBeGreaterThanOrEqual(IPHONE_LANDSCAPE_INSETS.left)
     await page.getByRole("button", { name: /Open the live request feed/ }).click()
     await expect.poll(settledRightEdge).toBe(932)
     const feed = await box(drawer)

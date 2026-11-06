@@ -30,17 +30,18 @@ export function sidePanelWidth(mapWidth: number): number {
   return Math.round(Math.min(PHONE_PANEL_MAX_WIDTH, PHONE_PANEL_WIDTH_SHARE * mapWidth))
 }
 
-/** Where a selected point may sit: left of the panel, below the top inset and above the bottom inset. */
+/** Where a selected point may sit: left of the panel, right of the left inset, below the top inset and above the bottom inset. */
 export function sideVisibleBox(args: {
   mapWidth: number
   mapHeight: number
   panelLeft: number
   topInset: number
+  leftInset: number
   bottomInset: number
   margin: number
 }): Box {
   return {
-    left: args.margin,
+    left: args.leftInset + args.margin,
     right: args.panelLeft - args.margin,
     top: args.topInset,
     bottom: args.mapHeight - args.margin - args.bottomInset,
