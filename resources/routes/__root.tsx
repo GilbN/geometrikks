@@ -1,4 +1,4 @@
-import { useState, useEffect, type CSSProperties } from "react"
+import { useState, useEffect, type ComponentProps, type CSSProperties } from "react"
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
 import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
@@ -38,7 +38,7 @@ import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { isChromelessRoute } from "@/lib/auth-redirect"
 import { RELOAD_NOTICE_MENU_DESCRIPTION_ID, ReloadNotice, ReloadNoticeMenuDot } from "@/components/reload-notice"
 import { TabBar } from "@/components/phone-nav/tab-bar"
-import { PhoneChromeProvider } from "@/lib/phone-chrome"
+import { PhoneChromeProvider, usePhoneChrome } from "@/lib/phone-chrome"
 
 export const Route = createRootRoute({
   validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
@@ -168,6 +168,14 @@ function RootToaster() {
   return <Toaster offset={lift} mobileOffset={lift} />
 }
 
+/** The header and the page go inert under the sideways More popover. The
+ *  portrait drawer is modal and does this itself. */
+function PageInset(props: ComponentProps<typeof SidebarInset>) {
+  const { moreOpen } = usePhoneChrome()
+  const phoneSide = usePhoneMapSide()
+  return <SidebarInset {...props} inert={moreOpen && phoneSide} />
+}
+
 function RootLayout() {
   const isChromeless = useRouterState({
     select: (state) => isChromelessRoute(state.location.pathname),
@@ -193,7 +201,7 @@ function RootLayout() {
           <IpInspectorProvider>
           <SidebarProvider defaultOpen={!isPhoneSideViewport()}>
             {!phone && <AppSidebar />}
-            <SidebarInset className="bg-background h-dvh">
+            <PageInset className="bg-background h-dvh">
               <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
@@ -227,7 +235,7 @@ function RootLayout() {
               <main className="relative min-h-0 flex-1 overflow-auto phone:pb-[var(--tab-bar-clear)] phone:scroll-pb-[var(--tab-bar-clear)] phone-side:pl-[env(safe-area-inset-left,0px)] phone-side:pr-[env(safe-area-inset-right,0px)] phone-side:has-[.fullscreen-map]:px-0">
                 <Outlet />
               </main>
-            </SidebarInset>
+            </PageInset>
             {phone && <TabBar compact={phoneSide} />}
             <IpInspectorSheet />
           </SidebarProvider>

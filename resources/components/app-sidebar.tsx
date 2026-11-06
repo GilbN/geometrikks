@@ -29,12 +29,9 @@ import {
   PowerOff,
 } from "lucide-react"
 import { NAV_ITEMS, SETTINGS_ITEM, type NavItem as NavItemData } from "@/lib/phone-nav"
-import { flushIpActions } from "@/lib/pending-ip-actions"
+import { logOut } from "@/lib/log-out"
 import { cn } from "@/lib/utils"
 import { displayVersion, publicVersion } from "@/lib/version"
-import { logout } from "@/lib/api"
-import { logoutThenNavigate } from "@/lib/auth-redirect"
-import { toast } from "sonner"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { useServiceStatus } from "@/hooks/use-service-status"
@@ -234,26 +231,11 @@ function LogoutButton() {
 
   if (me?.mode !== "session") return null
 
-  async function onLogout() {
-    try {
-      // A ban or unban still in its undo window goes out while the session lives.
-      await flushIpActions()
-      // Hard navigation is deliberate, not a leftover: it discards the
-      // TanStack Query cache holding the previous session's data, which a
-      // client-side redirect would not. The /logout route does the same.
-      await logoutThenNavigate(logout, (url) => {
-        window.location.href = url
-      })
-    } catch {
-      toast.error("Logout failed. Try again.")
-    }
-  }
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
-          onClick={onLogout}
+          onClick={logOut}
           onPointerLeave={resetTooltipSuppression}
           className={cn(
             "flex items-center justify-center w-full py-2",

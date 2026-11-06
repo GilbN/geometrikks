@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { useInstances } from "@/lib/queries"
 import {
+  attentionSummary,
   sidebarIngestionVariant,
   sidebarStatusTooltip,
   type SidebarIngestionVariant,
@@ -24,6 +25,8 @@ export function useServiceStatus(): {
   color: string
   label: string
   tooltip: string
+  /** What needs attention, for degraded and attention only. */
+  detail: string | null
   statusRoute: "/settings/status" | "/settings/agents"
   crowdsecDown: boolean
 } {
@@ -50,8 +53,11 @@ export function useServiceStatus(): {
       ? sidebarStatusTooltip(baseTooltip, headAdvisoryCount, variant, agentAttentionCount)
       : baseTooltip
 
+  const detail =
+    variant === "degraded" || variant === "attention" ? attentionSummary(headAdvisoryCount, agentAttentionCount) : null
+
   const crowdsecDown =
     health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
 
-  return { variant, color, label, tooltip, statusRoute, crowdsecDown }
+  return { variant, color, label, tooltip, detail, statusRoute, crowdsecDown }
 }
