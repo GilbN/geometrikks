@@ -45,11 +45,9 @@ class SeedWriter:
         """Empty the traffic tables and their aggregates; return the aggregates that failed to clear.
 
         TimescaleDB 2.31 rejects TRUNCATE on a continuous aggregate. Truncating
-        a raw hypertable invalidates its whole range instead, and a refresh
-        over all time then drops every bucket. That includes today's, which
-        the app's six-hourly full refresh materializes. geo_locations ids keep
-        counting up, so a running app's cached location ids point at no row
-        instead of at a seeded place.
+        a raw hypertable invalidates its whole range instead, so a full refresh
+        drops every bucket. geo_locations ids keep counting up, so a running
+        app's cached location ids point at no row instead of at a seeded place.
         """
         async with self.conn.transaction():
             for table in ("access_logs", "geo_events", "access_log_debug"):
@@ -59,6 +57,16 @@ class SeedWriter:
             await self.conn.execute(
                 "DELETE FROM server_locations WHERE server = ANY($1::text[]) AND source = 'auto'", list(servers)
             )
+        return await self.refresh_aggregates()
+
+    async def refresh_aggregates(self) -> list[str]:
+        """Refresh every GeoMetrikks aggregate over all time; return the ones that failed.
+
+        Matches the app's six-hourly full refresh. It covers today's open
+        bucket, which a bounded refresh skips. Once the app's full refresh has
+        run, the daily watermark sits at tomorrow, and real-time aggregation
+        no longer reads today's rows.
+        """
         existing = await self.conn.fetch(
             "SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL",
             list(ALL_CAGGS),

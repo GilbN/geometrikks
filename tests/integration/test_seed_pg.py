@@ -68,8 +68,8 @@ async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
     finally:
         await conn.close()
 
-    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
-    second = dataclasses.replace(first, rows=500, days=1, seed=7, end=end)
+    # Ends now, so today's rows sit below the daily watermark the refresh above moved to tomorrow.
+    second = dataclasses.replace(first, rows=500, days=1, seed=7, end=datetime.now(timezone.utc))
     stats = await run_seed(second, FakeGeoSource(), migrated_database_url, reset=True)
 
     assert stats.failed_caggs == []

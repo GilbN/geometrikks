@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 import asyncpg
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from geometrikks.server.timescale import refresh_caggs_range
 from geometrikks.services.aggregation.service import AggregationService
 from tests.seed.config import SeedConfig, SeedError
 from tests.seed.traffic import TrafficGenerator
@@ -49,8 +48,9 @@ async def run_seed(
         source: Resolves sampled IPs to places and ASNs.
         database_url: SQLAlchemy asyncpg URL of a migrated GeoMetrikks database.
         reset: Empty the traffic tables and their aggregates first.
-        refresh: Materialize the continuous aggregates over the seeded range and
-            update geo_locations.last_hit, as the scheduler would.
+        refresh: Refresh the continuous aggregates over all time, today's open
+            bucket included, and update geo_locations.last_hit, as the
+            scheduler would.
         progress: Receives one line per step.
     """
     started = time.monotonic()
@@ -86,17 +86,15 @@ async def run_seed(
             stats.debug_rows += counts.debug_rows
             rate = stats.access_logs / max(time.monotonic() - started, 1e-6)
             progress(f"  {stats.access_logs:,} / {config.rows:,} requests ({rate:,.0f}/s)")
-        await conn.close()
 
         if refresh:
             progress("Refreshing continuous aggregates")
-            stats.failed_caggs += await refresh_caggs_range(engine, start=config.start, end=config.end)
+            stats.failed_caggs += await writer.refresh_aggregates()
             async with async_sessionmaker(engine)() as session:
                 await AggregationService(session).refresh_location_last_hits()
                 await session.commit()
     finally:
-        if not conn.is_closed():
-            await conn.close()
+        await conn.close()
         await engine.dispose()
 
     stats.seconds = time.monotonic() - started

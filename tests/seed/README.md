@@ -31,7 +31,7 @@ Without the ASN database the rows get no ASN, and scanners and the crawlers with
 - `access_log_debug`. Every TLS, SSH and SMB probe keeps its raw line, linked to its access log. So does `--debug-share` of normal requests, and a few lines that never parsed.
 - `server_locations`, a map beacon per server name (Frankfurt, then Oslo, Amsterdam and so on). Existing beacons stay as they are.
 
-Then it refreshes the continuous aggregates over the seeded range and sets `geo_locations.last_hit`, the work the scheduler would otherwise do over the next six hours.
+Then it runs the full aggregate refresh the app runs every six hours, today's bucket included, and sets `geo_locations.last_hit`.
 
 The traffic has three kinds of visitor:
 
@@ -65,7 +65,7 @@ Retention still applies: 180 days for raw rows, 60 for hourly aggregates and 30 
 
 ## Speed
 
-On the dev box, 100k requests take about 30 seconds, half of it refreshing the aggregates. Each batch goes in through COPY in one transaction, so a failed run never leaves a batch's geo events without their access logs.
+On the dev box, 100k requests take about 45 seconds, including the full aggregate refresh. Each batch goes in through COPY in one transaction, so a failed run never leaves a batch's geo events without their access logs.
 
 ## Layout
 
