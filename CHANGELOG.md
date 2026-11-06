@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On ranges over 24 hours, `GET /api/v1/analytics/summary` and `GET /api/v1/integration/summary` return request counts, status counts and the error rate as numbers. They used to come back as strings, and the Overview failed with a 500 when one of the two periods it compares had no requests.
 - On a develop image, View on GitHub on Settings > Changelog opens the changelog on the develop branch. It used to open the main branch, which lacks the changes listed under Unreleased.
 - Startup no longer logs `` `uuid-utils` not installed, falling back to `uuid4` for UUID v7 generation. ``
 - CrowdSec ban and unban lines in the app log name the admin by username. They used to print `AdminUser(username='admin', provider='password')`.
