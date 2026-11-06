@@ -16,6 +16,8 @@ import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } f
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
+import { useCoverBar } from "@/lib/phone-chrome"
+import { usePhoneMapSide } from "@/hooks/use-phone-map"
 import { useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
@@ -31,8 +33,10 @@ import { scenarioText } from "@/lib/scenario-name"
 export function IpInspectorSheet() {
   const { ip, close } = useIpInspector()
   const { range, customRange, setRange, setCustomRange } = useTimeRange()
+  const side = usePhoneMapSide()
   const open = ip !== undefined
   const valid = open && isValidIp(ip)
+  useCoverBar(open && side)
 
   // What was selected before the first bar zoom, so "Back" restores it exactly.
   const [beforeZoom, setBeforeZoom] = useState<RangeSelection | null>(null)

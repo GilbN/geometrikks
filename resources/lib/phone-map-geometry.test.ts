@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest"
-import { panToBox, sideFitPadding, sidePanelWidth, sideToastArea, sideVisibleBox } from "@/lib/phone-map-geometry"
+import { panToBox, phoneFitPadding, sidePanelWidth, sideVisibleBox } from "@/lib/phone-map-geometry"
 
 const IPHONE = { left: 59, right: 59, bottom: 21 }
 const NONE = { left: 0, right: 0, bottom: 0 }
 
-describe("sideFitPadding", () => {
-  it("keeps fitted points clear of the rail and the bottom inset", () => {
-    expect(sideFitPadding(60, IPHONE)).toEqual({ top: 60, right: 195, bottom: 81, left: 60 })
+describe("phoneFitPadding", () => {
+  it("keeps fitted points clear of the pill and the bar in portrait", () => {
+    expect(phoneFitPadding(60, { side: false, insets: NONE, barTop: 84, pillWidth: 54, pillEdge: 20 })).toEqual({
+      top: 60,
+      right: 134,
+      bottom: 156,
+      left: 60,
+    })
   })
 
-  it("uses the rail's 12px edge when there is no inset", () => {
-    expect(sideFitPadding(60, NONE).right).toBe(148)
+  it("also clears the left cutout on a phone held sideways", () => {
+    expect(phoneFitPadding(60, { side: true, insets: IPHONE, barTop: 65, pillWidth: 54, pillEdge: 59 })).toEqual({
+      top: 60,
+      right: 173,
+      bottom: 137,
+      left: 119,
+    })
+  })
+
+  it("ignores the left inset in portrait", () => {
+    expect(phoneFitPadding(60, { side: false, insets: IPHONE, barTop: 84, pillWidth: 50, pillEdge: 20 }).left).toBe(60)
   })
 })
 
@@ -43,21 +57,5 @@ describe("panToBox", () => {
 
   it("centres a point that is outside on both axes", () => {
     expect(panToBox({ x: 0, y: 340 }, box)).toEqual({ dx: 0 - (24 + 369) / 2, dy: 340 - (72 + 322) / 2 })
-  })
-})
-
-describe("sideToastArea", () => {
-  const map = { viewportWidth: 932, mapLeft: 111, mapRight: 932, insets: IPHONE }
-
-  it("sits between the attribution pill and the rail", () => {
-    expect(sideToastArea({ ...map, panelOpen: false })).toEqual({ left: 159, right: 147 })
-  })
-
-  it("clears a left cutout when the map starts at the screen's edge", () => {
-    expect(sideToastArea({ ...map, mapLeft: 0, panelOpen: false }).left).toBe(107)
-  })
-
-  it("stops short of an open panel", () => {
-    expect(sideToastArea({ ...map, panelOpen: true })).toEqual({ left: 159, right: 440 })
   })
 })

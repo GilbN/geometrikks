@@ -73,6 +73,12 @@ async function openCenterPopup(page: Page, dx = 0) {
   }).toPass({ timeout: 10_000 })
 }
 
+async function box(locator: Locator) {
+  const found = await locator.boundingBox()
+  if (!found) throw new Error("Element has no box")
+  return found
+}
+
 // A full 20-row page makes a tall card. Opened from the map's centre, it fits
 // whole on the map only in a viewport about this tall.
 const CROWDED_POPUP_HEIGHT = 1000
@@ -124,8 +130,8 @@ for (const width of [1280, 390]) {
   })
 }
 
-// On a phone the popup is a panel over the action card, which hides. The map
-// pans the point into the room above the panel, and the 20-row list scrolls
+// On a phone the popup is a panel 12px above the tab bar, and the map pill
+// hides. The map pans the point into the room above the panel, and the 20-row list scrolls
 // inside it. With reduced motion the pan is a jump, and a later drag must
 // stay where the user left it.
 for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] as const) {
@@ -149,6 +155,9 @@ for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] 
     }
     await expect(card).toBeHidden()
     await expect(panel).toBeInViewport({ ratio: 1 })
+    const bar = await box(page.locator("[data-tab-bar]"))
+    const panelBox = await box(panel)
+    expect(bar.y - (panelBox.y + panelBox.height)).toBeCloseTo(12, 0)
     await expect.poll(pointAbovePanel).toBe(true)
     await panel.getByRole("button", { name: "Next", exact: true }).click()
     await expect(panel.getByRole("button", { name: /^192\./ })).toHaveCount(5)
@@ -175,14 +184,11 @@ for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] 
   })
 }
 
-// Held sideways, the phone map stands on the right edge: a rail instead of
-// the card, the panel docked there, and drawers that open from the right.
+// Held sideways, the phone map stands on the right edge: the pill, the panel
+// docked there over the bar, and drawers that open from the right.
 const NO_INSETS: SafeAreaInsets = { left: 0, right: 0, bottom: 0 }
-const box = async (locator: Locator) => {
-  const found = await locator.boundingBox()
-  if (!found) throw new Error("Element has no box")
-  return found
-}
+
+const LAST_HIT = "2026-11-06T06:41:07Z"
 
 test.describe("landscape phone", () => {
   test.use({ hasTouch: true, isMobile: true })
@@ -205,15 +211,20 @@ test.describe("landscape phone", () => {
       expect(Math.abs(map.x + map.width - (railBox.x + railBox.width) - edge)).toBeLessThanOrEqual(1)
       expect(railBox.height).toBeGreaterThan(railBox.width)
 
+      const bar = page.locator("[data-tab-bar]")
+      await expect(bar).toBeVisible()
+      expect(map.y + map.height).toBe(height)
+
       await openCenterPopup(page)
       const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
       await expect(rail(page)).toBeHidden()
+      await expect(bar).toBeHidden()
       // The panel slides in from the right, so measure it once that ends.
       await panel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
       const panelBox = await box(panel)
-      expect(panelBox.y).toBeGreaterThanOrEqual(map.y + 11)
+      expect(panelBox.y - map.y).toBeCloseTo(12, 0)
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(map.x + map.width - edge + 1)
-      expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(map.y + map.height - Math.max(12, insets.bottom) + 1)
+      expect(height - (panelBox.y + panelBox.height)).toBeCloseTo(Math.max(12, insets.bottom), 0)
       await expect.poll(async () => {
         const { x } = await ringCenter(page)
         return x > map.x + 24 && x < panelBox.x - 24
@@ -228,16 +239,17 @@ test.describe("landscape phone", () => {
       await page.keyboard.press("Escape")
       await expect(panel).toBeHidden()
       await expect(rail(page)).toBeVisible()
+      await expect(bar).toBeVisible()
     })
   }
 
-  test("a narrow side panel puts its stats in two columns", async ({ page }) => {
+  test("a narrow side panel puts its stats in a 2x2 grid with the time of the last hit", async ({ page }) => {
     await page.setViewportSize({ width: 667, height: 375 })
     await setup(page)
     await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
       type: "FeatureCollection", stats: { events: 40, countries: 1, cities: 1, locations: 1 },
       features: [{ type: "Feature", geometry: { type: "Point", coordinates: [10, 50] }, properties: {
-        id: 131, geohash: "u0yj", city: "Frankfurt", countryCode: "DE", countryName: "Germany", eventCount: 40, lastHit: null, topIps: [],
+        id: 131, geohash: "u0yj", city: "Frankfurt", countryCode: "DE", countryName: "Germany", eventCount: 40, lastHit: LAST_HIT, topIps: [],
       } }],
     } }))
     await page.evaluate(() => localStorage.setItem("geometrikks-map-layer", "markers"))
@@ -245,6 +257,12 @@ test.describe("landscape phone", () => {
     const stats = page.getByRole("dialog").locator("dl").first()
     await expect(stats).toBeVisible()
     expect(await stats.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(2)
+    const cells = stats.locator(":scope > div")
+    const [share, lastHit] = await Promise.all([box(cells.nth(2)), box(cells.nth(3))])
+    expect(lastHit.y).toBeCloseTo(share.y, 0)
+    expect(lastHit.x).toBeGreaterThan(share.x)
+    const time = await page.evaluate((value) => new Date(value).toLocaleTimeString(), LAST_HIT)
+    await expect(cells.nth(3).locator("dd")).toHaveText(time, { useInnerText: true })
   })
 
   test("layers and the live feed open from the right", async ({ page }) => {
@@ -314,6 +332,41 @@ test.describe("landscape phone", () => {
     }).toBe(932)
     const bottom = await box(drawer)
     expect(Math.abs(bottom.width - 430)).toBeLessThanOrEqual(1)
+  })
+
+  test("a toast moves under the header while a panel covers the bar", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    // A failed copy is a toast the panel can raise.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) } })
+      document.execCommand = () => false
+    })
+    await setup(page)
+    await openCenterPopup(page)
+    const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    await panel.getByRole("button", { name: /^192\./ }).first().click()
+    await panel.getByRole("button", { name: /^Copy 192\./ }).click()
+
+    const toaster = page.locator("[data-sonner-toaster]")
+    const toast = toaster.locator("[data-sonner-toast]").filter({ hasText: "The browser blocked the copy." })
+    await expect(toast).toBeVisible()
+    await expect(toaster).toHaveAttribute("data-y-position", "top")
+    await expect(toaster).toHaveAttribute("data-x-position", "center")
+    const shellTop = await box(page.locator("[data-shell-top]"))
+    expect((await box(toaster)).y - (shellTop.y + shellTop.height)).toBeCloseTo(8, 0)
+    // Sonner slides the toast into place, so measure where it settles.
+    let settledY = Number.NaN
+    await expect.poll(async () => {
+      const { y } = await box(toast)
+      const settled = Math.abs(y - settledY) < 0.5
+      settledY = y
+      return settled
+    }).toBe(true)
+    const toastBox = await box(toast)
+    expect(toastBox.x).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.left, 0)
+    expect(932 - (toastBox.x + toastBox.width)).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.right, 0)
+    await page.screenshot({ path: "smoke-artifacts/banned-map-covered-toast.png" })
   })
 
   test("side toasts centre above the bar", async ({ page }) => {

@@ -396,43 +396,45 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent) !important;
 }
 
-/* On a phone the full-page map's attribution (MapAttribution, not compact)
-   is a small centred line under the floating action card, above the
-   safe-area inset. Scoped to .fullscreen-map so embedded card maps
-   (geo-logs) are unaffected. The query matches useIsMobile. */
-@media (width < 48rem) {
-  .fullscreen-map .maplibregl-ctrl-bottom-left {
-    left: 0;
-    right: 0;
-    bottom: env(safe-area-inset-bottom, 0px);
-    display: flex;
-    justify-content: center;
+/* On a portrait phone the full-page map's attribution (MapAttribution, not
+   compact) is a small line at the bottom left, 10px above the tab bar.
+   Scoped to .fullscreen-map so embedded card maps (geo-logs) are unaffected. */
+.fullscreen-map .maplibregl-ctrl-bottom-left {
+  @variant phone {
+    left: var(--tab-bar-side);
+    right: auto;
+    bottom: calc(var(--tab-bar-top) + 10px);
   }
+}
 
-  .fullscreen-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+.fullscreen-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+  @variant phone {
     float: none;
-    margin: 0 0.75rem 8px;
+    margin: 0;
     padding: 0;
     background: transparent;
     color: var(--muted-foreground);
     font-size: 10px;
     line-height: 1.2;
-    text-align: center;
   }
 }
 
-/* Held sideways (GeoMap sets data-phone-side), the bottom edge is free again,
-   so the attribution goes back to the compact pill at the bottom left. */
+/* Held sideways (GeoMap sets data-phone-side), the compact button mirrors the
+   map pill: same edge gap, foot on the same line. MapFrameRate renders into
+   this corner, 8px after the credit. */
 .fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left {
+  left: max(12px, env(safe-area-inset-left, 0px));
   right: auto;
-  display: block;
-  bottom: env(safe-area-inset-bottom, 0px);
+  bottom: var(--tab-bar-clear);
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
 }
 
-@media (width < 48rem) {
-  .fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left {
-    left: env(safe-area-inset-left, 0px);
-  }
+/* The badge can mount before MapLibre adds the credit, so order keeps the credit first. */
+.fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib {
+  margin: 0;
+  order: -1;
 }
 
 /* iOS Safari force-zooms the page when a focused input has a font-size below

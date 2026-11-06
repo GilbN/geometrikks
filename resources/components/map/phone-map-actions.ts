@@ -4,6 +4,7 @@
  */
 
 import type { Insets } from "@/lib/phone-map-geometry"
+import { PILL_WIDTH, PILL_WIDTH_COMPACT, pillSize, type PillSize } from "@/lib/phone-pill"
 
 /** The pill's distance from the map's right edge in landscape, before the safe-area inset. */
 export const PILL_SIDE_EDGE = 12
@@ -21,6 +22,15 @@ function cssLength(value: string): number {
 /** The tab bar's top edge, measured from the viewport bottom, safe-area inset included. */
 export function tabBarTop(): number {
   return cssLength("var(--tab-bar-top)")
+}
+
+/** The pill's size for the room between 8px under the map's top and 12px above the tab bar. */
+export function measurePillSize(map: HTMLElement): PillSize {
+  return pillSize(map.clientHeight - 8 - (tabBarTop() + 12))
+}
+
+export function pillWidth(size: PillSize): number {
+  return size === "compact" ? PILL_WIDTH_COMPACT : PILL_WIDTH
 }
 
 /** The pill's distance from the map's right edge: in line with the bar in portrait, clear of the notch sideways. */

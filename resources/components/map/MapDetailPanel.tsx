@@ -1,8 +1,9 @@
 /**
- * The phone's version of the map popups: a panel where the action card
- * sits, with 14px text and 44px buttons. It is not modal. The map above it
- * stays live, and a tap on another point swaps the panel's content. The map
- * pans the panel's point into the room left above it.
+ * The phone's version of the map popups: a panel above the tab bar (on the
+ * right, over the bar, when held sideways), with 14px text and 44px buttons.
+ * It is not modal. The map beside it stays live, and a tap on another point
+ * swaps the panel's content. The map pans the panel's point into the room
+ * left beside it.
  *
  * Mounted beside the <Map>, not inside it, so MapLibre's unlayered CSS never
  * reaches it. GeoMapInner wraps both in a MapProvider for useMap().
@@ -13,7 +14,7 @@ import { useMap } from "react-map-gl/maplibre"
 import { Button } from "@/components/ui/button"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { cn } from "@/lib/utils"
-import { PHONE_ACTION_CARD_BOTTOM, safeAreaInsets } from "./phone-action-card"
+import { safeAreaInsets } from "./phone-map-actions"
 import { isPhoneSideViewport, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { MapPanelContext } from "./SideDrawer"
 import { PHONE_PANEL_MAX_WIDTH, PHONE_PANEL_WIDTH_SHARE, PHONE_RAIL_EDGE, panToBox, sideVisibleBox } from "@/lib/phone-map-geometry"
@@ -202,7 +203,7 @@ export function MapDetailPanel({
   }, [])
 
   // Opened from the drawer or the live feed, focus lands on the body or the
-  // action card's inert trigger once that finishes closing. The panel takes
+  // map pill's inert trigger once that finishes closing. The panel takes
   // it then. Focus on the map or in another control stays put.
   // The layout cleanup runs while the panel is still in the document, so
   // focus inside it can go back to the map.
@@ -245,7 +246,7 @@ export function MapDetailPanel({
                   right: `max(${PHONE_RAIL_EDGE}px, env(safe-area-inset-right, 0px))`,
                   width: `min(${PHONE_PANEL_MAX_WIDTH}px, ${PHONE_PANEL_WIDTH_SHARE * 100}%)`,
                 }
-              : { bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))` }
+              : { bottom: "var(--tab-bar-clear)" }
         }
         className={cn(
           "flex flex-col overflow-hidden border border-border text-card-foreground outline-none animate-in fade-in-0 duration-200 motion-reduce:animate-none",
@@ -284,14 +285,20 @@ export function PanelBackButton({ label, onClick, children }: { label: string; o
   )
 }
 
-/** Headline facts in a bordered grid divided by hairlines. A `wide` item takes a row of its own. */
-export function PanelStats({ items }: { items: { label: string; value: ReactNode; accent?: boolean; wide?: boolean }[] }) {
+/** Headline facts in a bordered grid divided by hairlines. A `wide` item takes
+ *  a row of its own, except in a side panel under 20rem, where three stats and
+ *  it make a 2x2 grid and it shows its `narrowValue`. */
+export function PanelStats({
+  items,
+}: {
+  items: { label: string; value: ReactNode; narrowValue?: ReactNode; accent?: boolean; wide?: boolean }[]
+}) {
   const columns = items.filter((item) => !item.wide).length
   return (
     <dl
       className={cn(
         "grid grid-cols-[repeat(var(--stat-columns),minmax(0,1fr))] overflow-hidden rounded-xl border border-border",
-        // A side panel under 20rem has no room for three; the third takes its own row.
+        // A side panel under 20rem has no room for three; the stats go 2x2.
         columns === 3 && "@max-[20rem]/panel:grid-cols-2",
       )}
       style={{ "--stat-columns": columns } as CSSProperties}
@@ -303,12 +310,20 @@ export function PanelStats({ items }: { items: { label: string; value: ReactNode
             "min-w-0 border-border px-3 py-2",
             item.wide ? "col-span-full border-t" : index < columns - 1 && "border-r",
             columns === 3 && index === 1 && "@max-[20rem]/panel:border-r-0",
-            columns === 3 && index === 2 && "@max-[20rem]/panel:col-span-full @max-[20rem]/panel:border-t",
+            columns === 3 && index === 2 && "@max-[20rem]/panel:border-t @max-[20rem]/panel:border-r",
+            columns === 3 && item.wide && "@max-[20rem]/panel:col-span-1",
           )}
         >
           <dt className="text-xs text-muted-foreground">{item.label}</dt>
           <dd className={cn("mt-0.5 font-semibold tabular-nums leading-tight", item.accent ? "text-xl text-primary" : "text-base")}>
-            {item.value}
+            {item.narrowValue === undefined ? (
+              item.value
+            ) : (
+              <>
+                <span className="@max-[20rem]/panel:hidden">{item.value}</span>
+                <span className="hidden @max-[20rem]/panel:inline">{item.narrowValue}</span>
+              </>
+            )}
           </dd>
         </div>
       ))}

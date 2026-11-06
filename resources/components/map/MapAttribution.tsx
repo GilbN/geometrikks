@@ -11,7 +11,7 @@
  * class changes after it count as the user's choice.
  *
  * With `compact` off (phones) there is no toggle: the full text always shows,
- * restyled as a line under the action card in main.css.
+ * restyled as a line above the tab bar in main.css.
  */
 
 import { AttributionControl } from "maplibre-gl"

@@ -47,7 +47,7 @@ import {
 } from "./layers"
 import { MapControls, type BannedSummary } from "./MapControls"
 import { FOCUS_SETTLED, FOCUSING_ATTRIBUTE } from "./MapDetailPanel"
-import { phoneActionCardTop, safeAreaInsets } from "./phone-action-card"
+import { measurePillSize, pillRightEdge, pillWidth, safeAreaInsets, tabBarTop } from "./phone-map-actions"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
@@ -80,7 +80,8 @@ import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/con
 import type { LiveRequest } from "@/lib/live-traffic/types"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { isPhoneLayout, isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
-import { sideFitPadding, sideToastArea } from "@/lib/phone-map-geometry"
+import { phoneFitPadding } from "@/lib/phone-map-geometry"
+import { useCoverBar, useCoverToasts } from "@/lib/phone-chrome"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 import { cn } from "@/lib/utils"
 
@@ -109,15 +110,24 @@ function weightedPoints(
 }
 
 /** The padding that keeps fitted locations clear of the map's edges, of the
- *  controls panel on the right from md up, of the action card at the bottom
- *  on a phone, and of the action rail on a phone held sideways. */
-function fitPadding() {
-  if (isPhoneSideViewport()) return sideFitPadding(FIT_PADDING, safeAreaInsets())
-  const isMobile = isPhoneLayout()
+ *  controls panel on the right from md up, and of the map pill and the tab
+ *  bar on a phone. */
+function fitPadding(map: HTMLElement | null | undefined) {
+  if (map && isPhoneLayout()) {
+    const side = isPhoneSideViewport()
+    const insets = safeAreaInsets()
+    return phoneFitPadding(FIT_PADDING, {
+      side,
+      insets,
+      barTop: tabBarTop(),
+      pillWidth: pillWidth(measurePillSize(map)),
+      pillEdge: pillRightEdge(side, insets),
+    })
+  }
   return {
     top: FIT_PADDING,
-    right: FIT_PADDING + (isMobile ? 0 : DESKTOP_CONTROLS_INSET),
-    bottom: FIT_PADDING + (isMobile ? phoneActionCardTop() : 0),
+    right: FIT_PADDING + DESKTOP_CONTROLS_INSET,
+    bottom: FIT_PADDING,
     left: FIT_PADDING,
   }
 }
@@ -288,7 +298,6 @@ function GeoMapInner({
   // placeholder and jump. On failure, both queries settle after one retry.
   const [initialViewResolved, setInitialViewResolved] = useState(false)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [frameRateEnabled, setFrameRateEnabled] = useState(loadFrameRatePreference)
@@ -505,7 +514,7 @@ function GeoMapInner({
     if (onTraffic && isLoadingGeoJSON) return
     const rect = mapContainerRef.current?.getBoundingClientRect()
     const size = { width: rect?.width ?? 0, height: rect?.height ?? 0 }
-    const padding = fitPadding()
+    const padding = fitPadding(mapContainerRef.current)
     const view =
       (onTraffic ? trafficView(weightedPoints(geojson), size, padding) : null) ??
       initialMapView({
@@ -605,8 +614,9 @@ function GeoMapInner({
   // of traffic from the US to Japan centred a phone on the South Atlantic.
   const fitToBounds = useCallback(() => {
     if (!fitData?.features.length || !mapRef.current) return
-    const rect = mapRef.current.getContainer().getBoundingClientRect()
-    const padding = fitPadding()
+    const container = mapRef.current.getContainer()
+    const rect = container.getBoundingClientRect()
+    const padding = fitPadding(container)
     const window = trafficWindow(weightedPoints(fitData), { width: rect.width, height: rect.height }, padding)
     if (!window) return
     let south = Infinity
@@ -856,7 +866,7 @@ function GeoMapInner({
     cancelFocus()
     setPopup(null)
   }
-  // On a phone the open popup is a MapDetailPanel over the action card, and
+  // On a phone the open popup is a MapDetailPanel over the map, and
   // a ring marks its point instead of the popup's tip.
   const phoneDetailOpen = isMobile && (bannedOpen || locationOpen || livePopup !== null)
   const phoneDetailPoint: Coordinate | null = !isMobile
@@ -867,33 +877,8 @@ function GeoMapInner({
         ? [popup.longitude, popup.latitude]
         : livePopup?.coordinates ?? null
 
-  // Toasts live outside the map, so the map tells them where its free area is:
-  // right of the attribution pill and left of the rail or an open panel.
-  useEffect(() => {
-    const root = rootRef.current
-    if (!phoneSide || !root) return
-    const style = document.documentElement.style
-    const update = () => {
-      const rect = root.getBoundingClientRect()
-      const area = sideToastArea({
-        viewportWidth: window.innerWidth,
-        mapLeft: rect.left,
-        mapRight: rect.right,
-        insets: safeAreaInsets(),
-        panelOpen: phoneDetailOpen,
-      })
-      style.setProperty("--map-toast-left", `${area.left}px`)
-      style.setProperty("--map-toast-right", `${area.right}px`)
-    }
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(root)
-    return () => {
-      observer.disconnect()
-      style.removeProperty("--map-toast-left")
-      style.removeProperty("--map-toast-right")
-    }
-  }, [phoneSide, phoneDetailOpen, mapReady, initialViewResolved])
+  useCoverBar(phoneDetailOpen && phoneSide)
+  useCoverToasts(phoneDetailOpen && !phoneSide)
 
   if (!mapReady || !initialViewResolved) {
     return (
@@ -905,7 +890,7 @@ function GeoMapInner({
 
   return (
     <MapProvider>
-    <div ref={rootRef} data-geo-map="" data-phone-side={phoneSide ? "" : undefined} className="h-full w-full relative">
+    <div data-geo-map="" data-phone-side={phoneSide ? "" : undefined} className="h-full w-full relative">
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -927,11 +912,11 @@ function GeoMapInner({
         cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
-        {/* Phones pinch to zoom and turn; the action card takes this corner. */}
+        {/* Phones pinch to zoom and turn; the map pill takes this corner. */}
         {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
-        {/* On a portrait phone the attribution is a line of text under the
-            action card. Held sideways, the bottom edge is free for the pill. */}
+        {/* On a portrait phone the attribution is a line of text above the
+            tab bar. Held sideways it is the compact button at the pill's foot. */}
         <MapAttribution key={isMobile && !phoneSide ? "line" : "pill"} compact={!isMobile || phoneSide} />
 
         {/* GeoJSON data source */}
