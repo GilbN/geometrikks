@@ -40,6 +40,8 @@ def fake_place(index: int) -> Place:
 class FakeGeoSource:
     """Resolves every public IP to one of ``FAKE_PLACES``, fixed per address."""
 
+    has_asn = True
+
     def resolve(self, ip: str) -> Resolved | None:
         index = int(ipaddress.ip_address(ip)) % len(FAKE_PLACES)
         _, _, _, _, _, asn, org, _ = FAKE_PLACES[index]

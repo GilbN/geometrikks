@@ -15,7 +15,10 @@ from tests.seed.config import SeedError
 from tests.seed.traffic import AccessLogRow, Batch, DebugRow, GeoEventRow
 from tests.seed.visitors import Place
 
-REQUIRED_TABLES = ("access_logs", "geo_events", "geo_locations", "access_log_debug", "server_locations")
+# summary_daily_stats stands in for the continuous aggregates, which only app startup creates.
+REQUIRED_TABLES = (
+    "access_logs", "geo_events", "geo_locations", "access_log_debug", "server_locations", "summary_daily_stats",
+)
 
 
 @dataclass(slots=True)
@@ -35,7 +38,7 @@ class SeedWriter:
         ]
         if missing:
             raise SeedError(
-                f"Tables missing: {', '.join(missing)}. Start the app once or run `uv run litestar database upgrade`."
+                f"Missing: {', '.join(missing)}. Start the app once so the tables and continuous aggregates exist."
             )
 
     async def reset(self, servers: Iterable[str]) -> list[str]:

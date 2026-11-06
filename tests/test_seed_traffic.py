@@ -14,7 +14,7 @@ from geometrikks.services.logparser.formats import FORMATS
 from geometrikks.services.logparser.logparser import check_ip_type
 from tests.seed.config import SeedConfig, SeedError
 from tests.seed.traffic import Batch, TrafficGenerator
-from tests.seed.visitors import MaxMindGeoSource, Visitor, VisitorBuilder
+from tests.seed.visitors import MaxMindGeoSource, Resolved, Visitor, VisitorBuilder
 from tests.seed_support import FakeGeoSource
 
 END = datetime(2026, 11, 1, 12, tzinfo=timezone.utc)
@@ -148,3 +148,26 @@ def test_home_country_that_never_resolves_raises_seed_error(monkeypatch: pytest.
     monkeypatch.setattr(VisitorBuilder, "HOME_ATTEMPTS", 500)
     with pytest.raises(SeedError, match="'ZZ'"):
         _generate(_config(home_country="ZZ", home_share=1.0, visitors=5))
+
+
+class _NoAsnSource(FakeGeoSource):
+    has_asn = False
+
+    def __init__(self) -> None:
+        self.lookups = 0
+
+    def resolve(self, ip: str) -> Resolved | None:
+        self.lookups += 1
+        resolved = super().resolve(ip)
+        return resolved and Resolved(place=resolved.place, asn=None, asn_org=None)
+
+    def is_hosting(self, asn: int | None) -> bool:
+        return False
+
+
+def test_bots_take_any_network_without_asn_data() -> None:
+    source = _NoAsnSource()
+    config = _config()
+    visitors = VisitorBuilder(config, source, random.Random(config.seed)).build()
+    assert {visitor.kind for visitor in visitors} == {"browser", "crawler", "scanner"}
+    assert source.lookups < 5 * len(visitors)

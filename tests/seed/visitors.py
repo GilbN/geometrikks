@@ -65,6 +65,9 @@ class Resolved:
 
 
 class GeoSource(Protocol):
+    @property
+    def has_asn(self) -> bool: ...
+
     def resolve(self, ip: str) -> Resolved | None: ...
 
     def is_hosting(self, asn: int | None) -> bool: ...
@@ -115,6 +118,10 @@ class MaxMindGeoSource:
             except (geoip2.errors.AddressNotFoundError, ValueError):
                 pass
         return Resolved(place=place, asn=asn, asn_org=org)
+
+    @property
+    def has_asn(self) -> bool:
+        return self._asn is not None
 
     def is_hosting(self, asn: int | None) -> bool:
         return asn is not None and asn in self._hosting
@@ -185,10 +192,10 @@ class VisitorBuilder:
             if ranges:
                 ip, resolved = self._find(lambda resolved: True, ranges)
             else:
-                ip, resolved = self._find(lambda resolved: self.source.is_hosting(resolved.asn))
+                ip, resolved = self._find(self._datacenter)
         elif kind == "scanner":
             user_agent = pick_weighted(self.rng, SCANNER_USER_AGENTS)
-            ip, resolved = self._find(lambda resolved: self.source.is_hosting(resolved.asn))
+            ip, resolved = self._find(self._datacenter)
         else:
             user_agent = pick_weighted(self.rng, BROWSER_USER_AGENTS)
             home = self.config.home_country
@@ -212,6 +219,10 @@ class VisitorBuilder:
             active_to=active_to,
             utc_offset_hours=_utc_offset_hours(resolved.place.timezone, self.config.end),
         )
+
+    def _datacenter(self, resolved: Resolved) -> bool:
+        """Whether a bot may use this IP. Without ASN data any IP may, or every bot would exhaust its attempts."""
+        return not self.source.has_asn or self.source.is_hosting(resolved.asn)
 
     def _accept(self, ip: str, resolved: Resolved | None) -> bool:
         # check_ip_type is ingestion's own gate; IPy files some allocated

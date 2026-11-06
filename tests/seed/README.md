@@ -22,16 +22,16 @@ uv run python -m tests.seed \
   --asn-db ~/dev/geometrikks/data/geoip/GeoLite2-ASN.mmdb
 ```
 
-Without the ASN database the rows get no ASN. The City database is required. The `*-Test.mmdb` fixtures in `tests/` cover too few addresses to sample from.
+Without the ASN database the rows get no ASN, and scanners and crawlers come from any network instead of hosting ones. The City database is required. The `*-Test.mmdb` fixtures in `tests/` cover too few addresses to sample from.
 
 ## What a run writes
 
-- `access_logs` and `geo_events`, one of each per request, from public IPs GeoIP places. Ingestion writes nothing for LAN addresses, and the seeder has none.
+- `access_logs` and `geo_events`, one of each per request, from public IPs GeoIP places. Ingestion writes no access log or geo event for LAN addresses, and the seeder has none.
 - `geo_locations`, one row per distinct place.
 - `access_log_debug`. Every TLS, SSH and SMB probe keeps its raw line, linked to its access log. So does `--debug-share` of normal requests, and a few lines that never parsed.
 - `server_locations`, a map beacon per server name (Frankfurt, then Oslo, Amsterdam and so on). Existing beacons stay as they are.
 
-Then it refreshes the continuous aggregates over the seeded range and sets `geo_locations.last_hit`, the work the scheduler would otherwise do over the next hour.
+Then it refreshes the continuous aggregates over the seeded range and sets `geo_locations.last_hit`, the work the scheduler would otherwise do over the next six hours.
 
 The traffic has three kinds of visitor:
 
@@ -56,7 +56,7 @@ Each server name owns a share of the hosts and one log format. The first is `geo
 | `--debug-share` | 0.02 | Share of normal requests that keep a raw line |
 | `--batch-size` | 20000 | Rows per COPY |
 | `--reset` | off | Empty every traffic table and aggregate first. Asks you to type the database name unless you pass `-y` |
-| `--no-refresh` | off | Skip the aggregate refresh. The scheduler only refreshes the last three days, so older seeded rows stay out of aggregate-backed charts unless an aggregate is empty at the next app start |
+| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so older seeded rows stay out of aggregate-backed charts until the app's full refresh, six hours after it starts |
 | `--database-url` | `DB_*` | Another database, as a `postgresql+asyncpg://` URL |
 
 `--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug`, `geo_locations` and the import history in `import_jobs` and `loki_imports`, real data included. It then refreshes the aggregates over all time, which drops their old buckets. Don't point it at a database you care about. Stop the app first, too. A running app holds location ids from before the reset, and its next batch fails until it reloads them.
