@@ -314,10 +314,9 @@ test.describe("landscape phone", () => {
     expect(Math.abs(bottom.width - 430)).toBeLessThanOrEqual(1)
   })
 
-  test("side toasts stay on the free map", async ({ page }) => {
+  test("side toasts centre above the bar", async ({ page }) => {
     await page.setViewportSize({ width: 932, height: 430 })
     await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    await page.addInitScript(() => localStorage.setItem("geometrikks-map-frame-rate", "true"))
     await setup(page)
     await page.route("**/api/v1/geo-events/logs?*", (route) => route.fulfill({ json: { items: [], total: 0 } }))
     await page.goto("/map?focusIp=192.0.2.250")
@@ -332,17 +331,10 @@ test.describe("landscape phone", () => {
       return settled
     }).toBe(true)
     const toastBox = await box(toast)
-    const map = await box(page.locator(".maplibregl-map"))
-    const railBox = await box(rail(page))
-    expect(toastBox.x).toBeGreaterThanOrEqual(map.x + 40)
-    expect(toastBox.x + toastBox.width).toBeLessThanOrEqual(railBox.x)
-    const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
-      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
-    // The test style has no sources, so MapLibre may render no attribution.
-    const attribution = page.locator(".maplibregl-ctrl-attrib")
-    if (await attribution.isVisible()) expect(overlaps(toastBox, await box(attribution))).toBe(false)
-    const badge = page.getByTestId("map-frame-rate")
-    if (await badge.isVisible()) expect(overlaps(toastBox, await box(badge))).toBe(false)
+    const bar = await box(page.locator("[data-tab-bar]"))
+    expect(Math.abs(toastBox.x + toastBox.width / 2 - 932 / 2)).toBeLessThanOrEqual(1)
+    expect(toastBox.width).toBeCloseTo(356, 0)
+    expect(bar.y - (toastBox.y + toastBox.height)).toBeCloseTo(12, 0)
   })
 })
 

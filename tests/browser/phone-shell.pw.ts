@@ -17,6 +17,20 @@ const barCells = (page: Page) => tabBar(page).locator("a, button")
 const moreCell = (page: Page) => tabBar(page).locator("button")
 const moreMenu = (page: Page) => page.getByRole("dialog", { name: "More" })
 
+async function settledToast(page: Page, text: string | RegExp) {
+  const toast = page.locator("[data-sonner-toast]").filter({ hasText: text })
+  await expect(toast).toBeVisible()
+  // Sonner slides the toast up into place, so measure where it settles.
+  let lastY = Number.NaN
+  await expect.poll(async () => {
+    const { y } = (await toast.boundingBox())!
+    const settled = Math.abs(y - lastY) < 0.5
+    lastY = y
+    return settled
+  }).toBe(true)
+  return (await toast.boundingBox())!
+}
+
 async function degradeHealth(page: Page) {
   await page.route("**/health", async (route) => {
     const response = await route.fetch()
@@ -132,6 +146,32 @@ test.describe("portrait phone", () => {
 
     await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
     await expect(page).toHaveURL(/\/access-logs$/)
+  })
+
+  test("puts toasts 12px above the bar, as wide as the bar", async ({ page }) => {
+    await login(page)
+    await page.goto("/settings/about")
+    await page.getByRole("button", { name: "Copy details" }).click()
+
+    const toast = await settledToast(page, /Copied|blocked the copy/)
+    const bar = (await tabBar(page).boundingBox())!
+    expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
+    expect(toast.x).toBeCloseTo(20, 0)
+    expect(toast.width).toBeCloseTo(393 - 40, 0)
+  })
+
+  test("stops toasts on the map short of the pill", async ({ page }) => {
+    await login(page)
+    await page.route("**/api/v1/geo-events/logs?*", (route) => route.fulfill({ json: { items: [], total: 0 } }))
+    await page.goto("/map?focusIp=192.0.2.250")
+
+    const toast = await settledToast(page, "IP not on the map")
+    const bar = (await tabBar(page).boundingBox())!
+    // The 54px pill's right edge lines up with the bar's.
+    const pillLeft = bar.x + bar.width - 54
+    expect(pillLeft - (toast.x + toast.width)).toBeGreaterThanOrEqual(8)
+    expect(toast.x).toBeCloseTo(20, 0)
+    expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
   })
 
   test("marks More amber while the service is degraded", async ({ page }) => {

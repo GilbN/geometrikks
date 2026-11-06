@@ -1,11 +1,13 @@
-import { useState, useEffect, type ComponentProps, type CSSProperties } from "react"
+import { useState, useEffect, useMemo, type ComponentProps } from "react"
 import { createRootRoute, Outlet, useRouterState, Link } from "@tanstack/react-router"
 import type { ErrorComponentProps } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
 import { isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
-import { abovePhoneActionCard } from "@/components/map/phone-action-card"
+import { safeAreaInsets } from "@/components/map/phone-action-card"
+import { useMediaQuery } from "@/hooks/use-media-query"
+import { phoneToastPlacement } from "@/lib/phone-toasts"
 import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -139,33 +141,46 @@ function GeoDegradedBanner() {
   )
 }
 
-/** On a phone the map has an action card floating at the bottom, so toasts
- *  there rise above it instead of covering its buttons. Held sideways, they
- *  sit in the free map between the attribution pill and the rail or panel,
- *  whose edges GeoMap publishes as --map-toast-left and --map-toast-right. */
-function RootToaster() {
+/** Follows the bottom edge of the banners and header, which move as banners
+ *  come and go and as the notch padding changes. */
+function useBottomEdge(element: HTMLElement | null): number {
+  const [bottom, setBottom] = useState(0)
+  useEffect(() => {
+    if (!element) return
+    const observer = new ResizeObserver(() => setBottom(element.getBoundingClientRect().bottom))
+    observer.observe(element, { box: "border-box" })
+    return () => observer.disconnect()
+  }, [element])
+  return bottom
+}
+
+function RootToaster({ shellTop }: { shellTop: HTMLElement | null }) {
   const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
-  const phoneMap = usePhoneLayout()
+  const phone = usePhoneLayout()
   const side = usePhoneMapSide()
-  if (onMap && side) {
-    const offset = {
-      left: "var(--map-toast-left, 16px)",
-      // Above the attribution pill and the frame-rate badge.
-      bottom: "calc(max(16px, env(safe-area-inset-bottom, 0px)) + 2.5rem)",
-    }
-    return (
-      <Toaster
-        position="bottom-left"
-        offset={offset}
-        mobileOffset={offset}
-        style={{ "--width": "min(356px, calc(100vw - var(--map-toast-left, 16px) - var(--map-toast-right, 16px)))" } as CSSProperties}
-      />
-    )
-  }
-  // Both offsets: Sonner switches to mobileOffset only up to 600px, and the
-  // card shows up to md.
-  const lift = onMap && phoneMap ? { bottom: abovePhoneActionCard(8) } : undefined
-  return <Toaster offset={lift} mobileOffset={lift} />
+  const narrow = useMediaQuery("(width < 390px)")
+  const { toastsCovered } = usePhoneChrome()
+  const headerBottom = useBottomEdge(phone ? shellTop : null)
+  // env() insets change on rotation, which flips side; nothing else re-measures them.
+  const rightInset = useMemo(() => (phone ? safeAreaInsets().right : 0), [phone, side])
+  if (!phone) return <Toaster />
+  const placement = phoneToastPlacement({
+    side,
+    onMap,
+    covered: toastsCovered,
+    barSide: narrow ? 16 : 20,
+    rightInset,
+    headerBottom,
+  })
+  // Both offsets: Sonner switches to mobileOffset only up to 600px.
+  return (
+    <Toaster
+      position={placement.position}
+      offset={placement.offset}
+      mobileOffset={placement.offset}
+      className={placement.className}
+    />
+  )
 }
 
 /** The header and the page go inert under the sideways More popover. The
@@ -182,6 +197,7 @@ function RootLayout() {
   })
   const phone = usePhoneLayout()
   const phoneSide = usePhoneMapSide()
+  const [shellTop, setShellTop] = useState<HTMLDivElement | null>(null)
 
   // No sidebar or data providers on these routes; see isChromelessRoute.
   if (isChromeless) {
@@ -202,6 +218,7 @@ function RootLayout() {
           <SidebarProvider defaultOpen={!isPhoneSideViewport()}>
             {!phone && <AppSidebar />}
             <PageInset className="bg-background h-dvh">
+              <div data-shell-top="" ref={setShellTop} className="shrink-0">
               <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
@@ -228,6 +245,7 @@ function RootLayout() {
                   </div>
                 </div>
               </header>
+              </div>
               {/* Main content area. Bars that stick to its top set --sticky-top
                   and --table-header-height on it, so content below can keep clear
                   of them. relative keeps sr-only text inside it; placed against an
@@ -243,7 +261,7 @@ function RootLayout() {
           </LiveFeedProvider>
         </TimeRangeProvider>
       </TooltipProvider>
-      <RootToaster />
+      <RootToaster shellTop={shellTop} />
       <ReloadNotice />
       </PhoneChromeProvider>
     </ThemeProvider>
