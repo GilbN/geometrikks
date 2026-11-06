@@ -24,13 +24,6 @@ BROWSER_USER_AGENTS: Final[Weighted] = (
     ("Mozilla/5.0 (iPad; CPU OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.1 Mobile/15E148 Safari/604.1", 3),
 )
 
-LAN_USER_AGENTS: Final[Weighted] = (
-    *BROWSER_USER_AGENTS,
-    ("HomeAssistant/2026.10.4 aiohttp/3.12.15 Python/3.13", 12),
-    ("Uptime-Kuma/2.0.2", 10),
-    ("curl/8.14.1", 4),
-)
-
 SCANNER_USER_AGENTS: Final[tuple[tuple[str | None, float], ...]] = (
     (None, 20),
     ("Mozilla/5.0 zgrab/0.x", 12),
@@ -187,6 +180,4 @@ SERVER_SITES: Final[tuple[tuple[float, float], ...]] = (
 
 # Regional IPv6 allocations (RIPE, ARIN, APNIC, LACNIC, AFRINIC); a random
 # address in all of 2000::/3 almost never resolves.
-IPV6_POOLS: Final[tuple[str, ...]] = ("2a00::/12", "2a10::/12", "2600::/12", "2400::/12", "2800::/12", "2c00::/12")
-
-LAN_SUBNET: Final[str] = "192.168.1.0/24"
+IPV6_POOLS: Final[tuple[str, ...]] = ("2a00::/12", "2600::/12", "2400::/12", "2800::/12", "2c00::/12")

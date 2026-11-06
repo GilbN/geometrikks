@@ -6,6 +6,7 @@ import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import asyncpg
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -16,6 +17,10 @@ from tests.seed.config import SeedConfig
 from tests.seed.traffic import TrafficGenerator
 from tests.seed.visitors import GeoSource, VisitorBuilder
 from tests.seed.writer import SeedWriter
+
+
+# Start of the refresh that clears stale buckets after --reset; older than any real log.
+RESET_FROM = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
 
 @dataclass(slots=True)
@@ -48,7 +53,7 @@ async def run_seed(
         config: What to generate.
         source: Resolves sampled IPs to places and ASNs.
         database_url: SQLAlchemy asyncpg URL of a migrated GeoMetrikks database.
-        reset: Empty the traffic tables first.
+        reset: Empty the traffic tables and their aggregates first.
         refresh: Materialize the continuous aggregates over the seeded range and
             update geo_locations.last_hit, as the scheduler would.
         progress: Receives one line per step.
@@ -60,17 +65,20 @@ async def run_seed(
     progress(f"Sampling {config.visitor_count:,} visitor IPs")
     visitors = VisitorBuilder(config, source, rng).build()
     stats.visitors = len(visitors)
-    places = [visitor.resolved.place for visitor in visitors if visitor.resolved is not None]
+    places = [visitor.resolved.place for visitor in visitors]
 
-    dsn = asyncpg_dsn(database_url)
-    conn = await asyncpg.connect(dsn)
-    events_conn = await asyncpg.connect(dsn)
+    engine = create_async_engine(database_url)
+    conn = await asyncpg.connect(asyncpg_dsn(database_url))
     try:
-        writer = SeedWriter(conn, events_conn)
+        writer = SeedWriter(conn)
         await writer.check_schema()
         if reset:
             progress("Emptying traffic tables and continuous aggregates")
-            await writer.reset(config.servers)
+            stale_caggs = await writer.reset(config.servers)
+            if stale_caggs:
+                stats.failed_caggs += await refresh_caggs_range(
+                    engine, start=RESET_FROM, end=datetime.now(timezone.utc), caggs=stale_caggs
+                )
         location_ids = await writer.upsert_locations(places)
         stats.locations = len(location_ids)
         await writer.add_server_locations(config.servers)
@@ -83,20 +91,18 @@ async def run_seed(
             stats.debug_rows += counts.debug_rows
             rate = stats.access_logs / max(time.monotonic() - started, 1e-6)
             progress(f"  {stats.access_logs:,} / {config.rows:,} requests ({rate:,.0f}/s)")
-    finally:
         await conn.close()
-        await events_conn.close()
 
-    if refresh:
-        engine = create_async_engine(database_url)
-        try:
+        if refresh:
             progress("Refreshing continuous aggregates")
-            stats.failed_caggs = await refresh_caggs_range(engine, start=config.start, end=config.end)
+            stats.failed_caggs += await refresh_caggs_range(engine, start=config.start, end=config.end)
             async with async_sessionmaker(engine)() as session:
                 await AggregationService(session).refresh_location_last_hits()
                 await session.commit()
-        finally:
-            await engine.dispose()
+    finally:
+        if not conn.is_closed():
+            await conn.close()
+        await engine.dispose()
 
     stats.seconds = time.monotonic() - started
     return stats

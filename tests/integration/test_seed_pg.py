@@ -1,6 +1,7 @@
 """The seeder against the real schema, so it breaks in CI instead of rotting when a column changes."""
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -47,21 +48,28 @@ async def test_seed_writes_linked_rows_and_refreshes(
 
     access_logs, geo_events, debug_rows, dangling, unhit, moved, daily_total = counts
     assert (access_logs, geo_events, debug_rows) == (stats.access_logs, stats.geo_events, stats.debug_rows)
-    assert 0 < geo_events < access_logs
+    assert geo_events == access_logs
     assert (dangling, unhit, moved) == (0, 0, 0)
     assert daily_total == access_logs
     assert list(servers) == list(SERVERS)
 
 
-async def test_seed_reset_empties_earlier_traffic(
+async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
     pg_engine, migrated_database_url, clean_tables, clean_server_locations
 ) -> None:
-    end = datetime.now(timezone.utc) - timedelta(days=1)
-    config = SeedConfig(rows=500, days=2, visitors=60, servers=SERVERS, end=end)
-    await run_seed(config, FakeGeoSource(), migrated_database_url, refresh=False)
+    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
+    first = SeedConfig(rows=800, days=4, visitors=60, servers=SERVERS, end=end)
+    await run_seed(first, FakeGeoSource(), migrated_database_url)
 
-    stats = await run_seed(config, FakeGeoSource(), migrated_database_url, reset=True, refresh=False)
+    second = dataclasses.replace(first, rows=500, days=1, seed=7)
+    stats = await run_seed(second, FakeGeoSource(), migrated_database_url, reset=True)
 
+    assert stats.failed_caggs == []
     async with pg_engine.connect() as conn:
-        total = (await conn.execute(text("SELECT count(*) FROM access_logs"))).scalar_one()
-    assert total == stats.access_logs == 500
+        access_logs, daily_total, hourly_total = (await conn.execute(text("""
+            SELECT
+                (SELECT count(*) FROM access_logs),
+                (SELECT sum(total_requests) FROM summary_daily_stats),
+                (SELECT sum(total_requests) FROM summary_hourly_stats)
+        """))).one()
+    assert access_logs == daily_total == hourly_total == stats.access_logs == 500

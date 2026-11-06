@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import cycle
 
 import asyncpg
 
+from geometrikks.server.timescale import ALL_CAGGS
+
 from tests.seed.catalog import SERVER_SITES
+from tests.seed.config import SeedError
 from tests.seed.traffic import AccessLogRow, Batch, DebugRow, GeoEventRow
 from tests.seed.visitors import Place
 
 REQUIRED_TABLES = ("access_logs", "geo_events", "geo_locations", "access_log_debug", "server_locations")
-
-
-class SeedError(RuntimeError):
-    """The target database cannot take the seed as it stands."""
 
 
 @dataclass(slots=True)
@@ -28,11 +26,8 @@ class WriteCounts:
 
 
 class SeedWriter:
-    """Writes through two connections so geo_events loads while access_logs does."""
-
-    def __init__(self, conn: asyncpg.Connection, events_conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Connection) -> None:
         self.conn = conn
-        self.events_conn = events_conn
 
     async def check_schema(self) -> None:
         missing = [
@@ -43,24 +38,29 @@ class SeedWriter:
                 f"Tables missing: {', '.join(missing)}. Start the app once or run `uv run litestar database upgrade`."
             )
 
-    async def reset(self, servers: Iterable[str]) -> None:
-        """Empty every traffic table and its continuous aggregates.
+    async def reset(self, servers: Iterable[str]) -> list[str]:
+        """Empty the traffic tables and return the continuous aggregates that now hold stale buckets.
 
-        TRUNCATE on a continuous aggregate also resets its watermark; deleting
-        only the raw rows would leave stale buckets that hide new history.
+        The aggregates are left to the caller's refresh: TimescaleDB 2.31
+        rejects TRUNCATE on a continuous aggregate, and truncating a raw
+        hypertable invalidates its whole range, so a refresh drops the old
+        buckets. geo_locations ids keep counting up, so a running app's
+        cached location ids point at no row instead of at a seeded place.
         """
-        caggs = await self.conn.fetch(
-            "SELECT format('%I.%I', view_schema, view_name) AS name FROM timescaledb_information.continuous_aggregates"
-        )
         async with self.conn.transaction():
-            for cagg in caggs:
-                await self.conn.execute(f"TRUNCATE {cagg['name']}")
             for table in ("access_logs", "geo_events", "access_log_debug"):
                 await self.conn.execute(f"TRUNCATE {table}")
-            await self.conn.execute("TRUNCATE geo_locations RESTART IDENTITY CASCADE")
+            await self.conn.execute("TRUNCATE geo_locations CASCADE")
+            await self.conn.execute("TRUNCATE import_jobs, loki_imports")
             await self.conn.execute(
                 "DELETE FROM server_locations WHERE server = ANY($1::text[]) AND source = 'auto'", list(servers)
             )
+        rows = await self.conn.fetch(
+            "SELECT view_name FROM timescaledb_information.continuous_aggregates "
+            "WHERE view_schema = current_schema() AND view_name = ANY($1::text[])",
+            list(ALL_CAGGS),
+        )
+        return [row["view_name"] for row in rows]
 
     async def upsert_locations(self, places: Iterable[Place]) -> dict[str, int]:
         """Insert the places that are new and return the id of every place, keyed by geohash."""
@@ -111,18 +111,11 @@ class SeedWriter:
             )
 
     async def write(self, batch: Batch) -> WriteCounts:
-        debug_rows, _ = await asyncio.gather(self._write_logs(batch), self._write_events(batch))
-        return WriteCounts(
-            access_logs=len(batch.access_logs) + len(batch.linked),
-            geo_events=len(batch.geo_events),
-            debug_rows=debug_rows,
-        )
-
-    async def _write_logs(self, batch: Batch) -> int:
+        """Write one batch in one transaction, so a failure never splits its logs from its events."""
         debug_rows: list[DebugRow] = list(batch.orphan_debug)
         async with self.conn.transaction():
             if batch.access_logs:
-                await self._copy(self.conn, "access_logs", batch.access_logs, AccessLogRow._fields)
+                await self._copy("access_logs", batch.access_logs, AccessLogRow._fields)
             if batch.linked:
                 # Reserved up front so each debug row can name its access log in the same COPY pass.
                 ids = await self.conn.fetch(
@@ -131,20 +124,19 @@ class SeedWriter:
                     len(batch.linked),
                 )
                 linked_logs = [(row["id"], *log) for row, (log, _) in zip(ids, batch.linked)]
-                await self._copy(self.conn, "access_logs", linked_logs, ("id", *AccessLogRow._fields))
+                await self._copy("access_logs", linked_logs, ("id", *AccessLogRow._fields))
                 debug_rows.extend(
                     debug._replace(access_log_id=row["id"]) for row, (_, debug) in zip(ids, batch.linked)
                 )
+            if batch.geo_events:
+                await self._copy("geo_events", batch.geo_events, GeoEventRow._fields)
             if debug_rows:
-                await self._copy(self.conn, "access_log_debug", debug_rows, DebugRow._fields)
-        return len(debug_rows)
+                await self._copy("access_log_debug", debug_rows, DebugRow._fields)
+        return WriteCounts(
+            access_logs=len(batch.access_logs) + len(batch.linked),
+            geo_events=len(batch.geo_events),
+            debug_rows=len(debug_rows),
+        )
 
-    async def _write_events(self, batch: Batch) -> None:
-        if batch.geo_events:
-            await self._copy(self.events_conn, "geo_events", batch.geo_events, GeoEventRow._fields)
-
-    @staticmethod
-    async def _copy(
-        conn: asyncpg.Connection, table: str, records: Iterable[tuple], columns: tuple[str, ...]
-    ) -> None:
-        await conn.copy_records_to_table(table, records=records, columns=list(columns))
+    async def _copy(self, table: str, records: Iterable[tuple], columns: tuple[str, ...]) -> None:
+        await self.conn.copy_records_to_table(table, records=records, columns=list(columns))

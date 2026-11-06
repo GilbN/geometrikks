@@ -21,23 +21,21 @@ import geohash2
 import geoip2.database
 import geoip2.errors
 
+from geometrikks.services.logparser.logparser import check_ip_type
 from tests.seed.catalog import (
     BROWSER_USER_AGENTS,
     CRAWLERS,
     IPV6_POOLS,
-    LAN_SUBNET,
-    LAN_USER_AGENTS,
     SCANNER_USER_AGENTS,
     SITES,
     pick_weighted,
 )
-from tests.seed.config import SeedConfig
+from tests.seed.config import SeedConfig, SeedError
 
-VisitorKind = Literal["browser", "crawler", "scanner", "lan"]
+VisitorKind = Literal["browser", "crawler", "scanner"]
 
 KIND_SHARES: tuple[tuple[VisitorKind, float], ...] = (("browser", 0.72), ("crawler", 0.04), ("scanner", 0.24))
 IPV6_SHARE = 0.15
-LAN_VISITORS = 12
 # How often a cityless (country-level) record is kept. Live data has some, at
 # the country's centroid, but most of it resolves to a city.
 COUNTRY_ONLY_KEEP = 0.15
@@ -128,7 +126,7 @@ class Visitor:
 
     ip: str
     kind: VisitorKind
-    resolved: Resolved | None
+    resolved: Resolved
     user_agent: str | None
     hosts: tuple[str, ...]
     active_from: float
@@ -164,6 +162,8 @@ class VisitorBuilder:
     """Samples IPs until each visitor kind finds addresses that fit it."""
 
     MAX_ATTEMPTS = 400
+    # A small country holds a few hundredths of a percent of IPv4.
+    HOME_ATTEMPTS = 100_000
 
     def __init__(self, config: SeedConfig, source: GeoSource, rng: random.Random) -> None:
         self.config = config
@@ -177,41 +177,25 @@ class VisitorBuilder:
         self._home_subnets: list[ipaddress.IPv4Network] = []
 
     def build(self) -> list[Visitor]:
-        visitors = [self._public_visitor(pick_weighted(self.rng, KIND_SHARES)) for _ in range(self.config.visitor_count)]
-        lan = ipaddress.ip_network(LAN_SUBNET)
-        lan_ips = self.rng.sample(range(10, 250), LAN_VISITORS)
-        visitors.extend(
-            Visitor(
-                ip=str(lan.network_address + host),
-                kind="lan",
-                resolved=None,
-                user_agent=pick_weighted(self.rng, LAN_USER_AGENTS),
-                hosts=tuple(SITES),
-                active_from=self._start,
-                active_to=self._end,
-                utc_offset_hours=0.0,
-            )
-            for host in lan_ips
-        )
-        return visitors
+        return [self._public_visitor(pick_weighted(self.rng, KIND_SHARES)) for _ in range(self.config.visitor_count)]
 
     def _public_visitor(self, kind: VisitorKind) -> Visitor:
         if kind == "crawler":
             _, user_agent, ranges = self.rng.choice(CRAWLERS)
             if ranges:
-                ip, resolved = self._find(lambda r: True, ranges)
+                ip, resolved = self._find(lambda resolved: True, ranges)
             else:
-                ip, resolved = self._find(lambda r: self.source.is_hosting(r.asn))
+                ip, resolved = self._find(lambda resolved: self.source.is_hosting(resolved.asn))
         elif kind == "scanner":
             user_agent = pick_weighted(self.rng, SCANNER_USER_AGENTS)
-            ip, resolved = self._find(lambda r: self.source.is_hosting(r.asn))
+            ip, resolved = self._find(lambda resolved: self.source.is_hosting(resolved.asn))
         else:
             user_agent = pick_weighted(self.rng, BROWSER_USER_AGENTS)
             home = self.config.home_country
             if home and self.rng.random() < self.config.home_share:
                 ip, resolved = self._find_home(home.upper())
             else:
-                ip, resolved = self._find(lambda r: not self.source.is_hosting(r.asn))
+                ip, resolved = self._find(lambda resolved: not self.source.is_hosting(resolved.asn))
 
         active_from, active_to = self._window(kind)
         if kind == "browser":
@@ -230,7 +214,9 @@ class VisitorBuilder:
         )
 
     def _accept(self, ip: str, resolved: Resolved | None) -> bool:
-        if resolved is None or ip in self._seen:
+        # check_ip_type is ingestion's own gate; IPy files some allocated
+        # blocks, such as 2a10::/12, under a type ingestion skips.
+        if resolved is None or ip in self._seen or not check_ip_type(ip):
             return False
         return resolved.place.city is not None or self.rng.random() < COUNTRY_ONLY_KEEP
 
@@ -255,7 +241,7 @@ class VisitorBuilder:
         if fallback is None:
             if ranges:
                 return self._find(fits)
-            raise RuntimeError(
+            raise SeedError(
                 "No sampled IP resolved to a location. Is the GeoLite2 City database a real build, "
                 "not the test fixture?"
             )
@@ -263,7 +249,7 @@ class VisitorBuilder:
         return fallback
 
     def _find_home(self, country: str) -> tuple[str, Resolved]:
-        for _ in range(self.MAX_ATTEMPTS * 25):
+        for _ in range(self.HOME_ATTEMPTS):
             if self._home_subnets and self.rng.random() < 0.5:
                 ip = _random_in(self.rng, self.rng.choice(self._home_subnets))
             else:
@@ -281,7 +267,7 @@ class VisitorBuilder:
                 self._home_subnets.append(subnet)
             self._seen.add(ip)
             return ip, resolved
-        raise RuntimeError(f"Found no IP in country {country!r}; check the ISO code")
+        raise SeedError(f"Found no address in {country!r} after {self.HOME_ATTEMPTS:,} random tries. Check the ISO code.")
 
     def _window(self, kind: VisitorKind) -> tuple[float, float]:
         """When this visitor is active: crawlers always, people for a stretch, scanners in a burst."""
