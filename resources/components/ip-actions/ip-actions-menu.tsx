@@ -315,9 +315,8 @@ export function IpActionsMenu({
   /** Where Fly to lands; without it the map picks the IP's busiest location. */
   locationId?: number
   className?: string
-  /** For a record sheet's footer: a full-size button and a dropdown at every
-   *  width, since a vaul drawer can't nest in the sheet's dialog. Copy,
-   *  inspect and fly-to are left out because the sheet has its own. */
+  /** For a record sheet's footer: a full-size button. The menu leaves out
+   *  Copy, Inspect and Fly to, since the sheet has its own buttons for them. */
   footer?: boolean
   /** Runs after a filter action, so a sheet can close over the filtered table. */
   onFilter?: () => void
@@ -346,8 +345,8 @@ export function IpActionsMenu({
   const banDrawerShown = banDrawerOpen && status?.writeEnabled === true
   // A rotation swaps the drawer for the dropdown, or turns it around, without
   // an onOpenChange(false). The hook closes it instead, or the hold stays on.
-  const drawer = usePhoneDrawer("ip-actions", menuOpen, () => setMenuOpen(false), footer ? { phone: false } : undefined)
-  const banDrawer = usePhoneDrawer("ip-ban", banDrawerShown, () => setBanDrawerOpen(false), footer ? { phone: false } : undefined)
+  const drawer = usePhoneDrawer("ip-actions", menuOpen, () => setMenuOpen(false))
+  const banDrawer = usePhoneDrawer("ip-ban", banDrawerShown, () => setBanDrawerOpen(false))
   // Ban was tapped and the ban drawer waits for this drawer to close. A turn
   // drops the queued action, so the line below drops this too. Otherwise
   // turning back to the same layout would bring the hold back.
@@ -510,59 +509,65 @@ export function IpActionsMenu({
               </DrawerHeader>
             )}
             <div className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-2 pb-6">
-              <div className="flex gap-2 px-2 [&_svg:not([class*='size-'])]:size-5">
-                <DrawerClose asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="size-11 shrink-0"
-                    aria-label={copyAction.label}
-                    title={copyAction.label}
-                    onClick={(event) => select(copyAction, event.currentTarget)}
-                  >
-                    {copyAction.icon}
-                  </Button>
-                </DrawerClose>
-                {[
-                  { action: inspectAction, text: "Inspect" },
-                  { action: flyToAction, text: "Fly to" },
-                ].map(({ action, text }) => (
-                  <DrawerClose key={action.key} asChild>
-                    <Button
-                      variant="outline"
-                      className="h-11 min-w-0 flex-1 px-2"
-                      aria-label={action.label}
-                      onClick={(event) => select(action, event.currentTarget)}
-                    >
-                      {action.icon}
-                      {text}
-                    </Button>
-                  </DrawerClose>
-                ))}
-                {status?.writeEnabled && (
-                  <DrawerClose asChild>
-                    {waiting ? (
-                      <Button variant="outline" className="h-11 min-w-0 flex-1 px-2" aria-label={undoLabel} onClick={() => undoIpAction(ip)}>
-                        <Undo2 />
-                        Undo
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        className="h-11 min-w-0 flex-1 border-destructive/40 px-2 text-destructive hover:text-destructive"
-                        aria-label={banned ? "Unban IP" : "Ban IP"}
-                        disabled={isPending}
-                        // With a DROP network the ban drawer offers the network
-                        // too, so Unban goes there rather than unbanning at once.
-                        onClick={banned && !dropBanShown ? unbanIp : queueBanDrawer}
-                      >
-                        {banned ? <ShieldOff /> : <ShieldBan />}
-                        {banned ? "Unban" : "Ban"}
-                      </Button>
-                    )}
-                  </DrawerClose>
-                )}
-              </div>
+              {(!footer || status?.writeEnabled) && (
+                <div className="flex gap-2 px-2 [&_svg:not([class*='size-'])]:size-5">
+                  {!footer && (
+                    <>
+                      <DrawerClose asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="size-11 shrink-0"
+                          aria-label={copyAction.label}
+                          title={copyAction.label}
+                          onClick={(event) => select(copyAction, event.currentTarget)}
+                        >
+                          {copyAction.icon}
+                        </Button>
+                      </DrawerClose>
+                      {[
+                        { action: inspectAction, text: "Inspect" },
+                        { action: flyToAction, text: "Fly to" },
+                      ].map(({ action, text }) => (
+                        <DrawerClose key={action.key} asChild>
+                          <Button
+                            variant="outline"
+                            className="h-11 min-w-0 flex-1 px-2"
+                            aria-label={action.label}
+                            onClick={(event) => select(action, event.currentTarget)}
+                          >
+                            {action.icon}
+                            {text}
+                          </Button>
+                        </DrawerClose>
+                      ))}
+                    </>
+                  )}
+                  {status?.writeEnabled && (
+                    <DrawerClose asChild>
+                      {waiting ? (
+                        <Button variant="outline" className="h-11 min-w-0 flex-1 px-2" aria-label={undoLabel} onClick={() => undoIpAction(ip)}>
+                          <Undo2 />
+                          Undo
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="h-11 min-w-0 flex-1 border-destructive/40 px-2 text-destructive hover:text-destructive"
+                          aria-label={banned ? "Unban IP" : "Ban IP"}
+                          disabled={isPending}
+                          // With a DROP network the ban drawer offers the network
+                          // too, so Unban goes there rather than unbanning at once.
+                          onClick={banned && !dropBanShown ? unbanIp : queueBanDrawer}
+                        >
+                          {banned ? <ShieldOff /> : <ShieldBan />}
+                          {banned ? "Unban" : "Ban"}
+                        </Button>
+                      )}
+                    </DrawerClose>
+                  )}
+                </div>
+              )}
               {targets.length > 0 && <IpFilterToggles heading={ip} targets={targets} onFilter={onFilter} />}
             </div>
           </DrawerContent>
@@ -615,8 +620,8 @@ export function IpActionsMenu({
                     Unban IP
                   </DropdownMenuItem>
                 ) : footer ? (
-                  // Inline rather than a submenu: a phone has no room beside
-                  // the footer menu for one.
+                  // Inline rather than a submenu, which would have to open
+                  // over the sheet.
                   <DropdownMenuGroup aria-labelledby={banLabelId}>
                     <DropdownMenuLabel id={banLabelId} className="flex items-center gap-2 font-normal">
                       <ShieldBan className="size-4" />
