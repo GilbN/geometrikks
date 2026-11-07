@@ -110,7 +110,8 @@ test.describe("portrait phone", () => {
     for (const name of ["Geo Logs", "Debug Logs", "Settings"]) {
       await expect(menu.getByRole("link", { name })).toBeVisible()
     }
-    await expect(menu.getByText(/^v\d+\.\d+/)).toBeVisible()
+    // A build without release tags, as in CI, shows "local build" instead of a version.
+    await expect(menu.getByText(/^(v\d+\.\d+|local build)/)).toBeVisible()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "true")
     await expect(tabBar(page).locator("a", { hasText: "Overview" })).toHaveAttribute("aria-current", "page")
 
