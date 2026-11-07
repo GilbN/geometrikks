@@ -190,6 +190,27 @@ for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] 
   })
 }
 
+test("a focused location keeps its point above the portrait panel", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 })
+  await setup(page)
+  await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
+    type: "FeatureCollection", stats: { events: 40, countries: 1, cities: 1, locations: 1 },
+    features: [{ type: "Feature", geometry: { type: "Point", coordinates: [10, 50] }, properties: {
+      id: 131, geohash: "u0yj", city: "Frankfurt", countryCode: "DE", countryName: "Germany", eventCount: 40, lastHit: null, topIps: [],
+    } }],
+  } }))
+  await page.evaluate(() => localStorage.setItem("geometrikks-map-layer", "markers"))
+  await page.goto("/map?focus=131")
+  const panel = page.getByRole("dialog")
+  await expect(panel).toBeVisible()
+  await settled(panel)
+  const panelBox = await box(panel)
+  await expect.poll(async () => {
+    const ring = await page.locator(".maplibregl-marker").boundingBox()
+    return !!ring && ring.y + ring.height < panelBox.y
+  }, { timeout: 10_000 }).toBe(true)
+})
+
 // Held sideways, the phone map stands on the right edge: the pill, the panel
 // docked there over the bar, and drawers that open from the right.
 const NO_INSETS: SafeAreaInsets = { left: 0, right: 0, bottom: 0 }
@@ -232,7 +253,7 @@ test.describe("landscape phone", () => {
       expect(height - (panelBox.y + panelBox.height)).toBeCloseTo(Math.max(12, insets.bottom), 0)
       await expect.poll(async () => {
         const { x } = await ringCenter(page)
-        return x > map.x + 24 && x < panelBox.x - 24
+        return x > insets.left + 24 && x < panelBox.x - 24
       }).toBe(true)
 
       // A page lists 20 of the 25 IPs, more than a short panel shows, so its body scrolls.
@@ -268,6 +289,11 @@ test.describe("landscape phone", () => {
     expect(lastHit.x).toBeGreaterThan(share.x)
     const time = await page.evaluate((value) => new Date(value).toLocaleTimeString(), LAST_HIT)
     await expect(cells.nth(3).locator("dd")).toHaveText(time, { useInnerText: true })
+    const panel = await box(page.getByRole("dialog"))
+    await expect.poll(async () => {
+      const ring = await page.locator(".maplibregl-marker").boundingBox()
+      return !!ring && ring.x + ring.width < panel.x
+    }, { timeout: 10_000 }).toBe(true)
   })
 
   test("layers and the live feed open from the right, and the live pill clears the notch", async ({ page }) => {
