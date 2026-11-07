@@ -42,14 +42,13 @@ test("buildComment reports each shard in order, with steps that did not run", ()
 | Check | Result |
 | --- | --- |
 | Overall CI | ❌ failure |
-| Frontend job | ✅ success |
 
 | Shard | Job | Build production image | HTTP smoke checks | Browser smoke test | Artifact upload |
 | --- | --- | --- | --- | --- | --- |
 | 1/2 | ✅ success | ✅ success | ✅ success | ✅ success | ⏭️ not run |
 | 2/2 | ❌ failure | ✅ success | ❌ failure | ⏭️ skipped | ✅ success |
 
-[View workflow run and download \`container-smoke-<shard>-2\`](https://github.com/GilbN/geometrikks/actions/runs/123)`,
+[View the workflow run and its \`container-smoke-<shard>-<attempt>\` artifacts](https://github.com/GilbN/geometrikks/actions/runs/123)`,
   );
 });
 

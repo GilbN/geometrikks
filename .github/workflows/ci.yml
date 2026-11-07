@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # develop too, so its image cache is there for PRs to start from.
+    branches: [main, develop]
   pull_request:
 
 concurrency:
@@ -142,11 +143,17 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
       - uses: docker/setup-buildx-action@v4
+        with:
+          # The runner is thrown away; removing the builder only adds a post step.
+          cleanup: false
       # The step names from here through "Upload smoke artifacts" are
       # referenced verbatim by .github/scripts/pr-smoke-summary.cjs; renaming
       # one silently shows it as "not run" in the sticky PR comment.
       - name: Build production image
         uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_SUMMARY: "false"
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
         with:
           context: .
           load: true
@@ -161,7 +168,7 @@ jobs:
       # test runner only supports the Node runtime, and bun re-executes
       # node-shebang bins under bun.
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
       - name: Prepare smoke-test fixtures
         shell: bash
         run: |
@@ -300,8 +307,7 @@ jobs:
               echo "| Docker health | healthy |"
               echo "| Database readiness | ready |"
               echo "| GeoIP fixture and ingestion | healthy |"
-              echo "| Authentication and dashboard | passed |"
-              echo "| Browser console/network errors | none |"
+              echo "| Browser smoke tests in this shard | passed |"
             fi
             echo
             echo "Diagnostics and screenshots: artifact \`${SMOKE_ARTIFACT_NAME}\`."

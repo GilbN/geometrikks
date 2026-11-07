@@ -35,14 +35,12 @@ function shardRow(job) {
 }
 
 function buildComment({ workflowRun, jobs }) {
-  const frontend = jobs.find((job) => job.name === "frontend");
   const shards = jobs
     .filter((job) => SMOKE_JOB_NAME.test(job.name))
     .sort((a, b) => shardNumber(a) - shardNumber(b));
   const shardRows = shards.length > 0
     ? shards.map(shardRow).join("\n")
     : `| all | ${statusLabel(undefined)} | ${SMOKE_STEPS.map(() => statusLabel(undefined)).join(" | ")} |`;
-  const artifactName = `container-smoke-<shard>-${workflowRun.run_attempt}`;
 
   return `${COMMENT_MARKER}
 ## Production image smoke test
@@ -50,13 +48,12 @@ function buildComment({ workflowRun, jobs }) {
 | Check | Result |
 | --- | --- |
 | Overall CI | ${statusLabel(workflowRun.conclusion)} |
-| Frontend job | ${statusLabel(frontend?.conclusion)} |
 
 | Shard | Job | Build production image | HTTP smoke checks | Browser smoke test | Artifact upload |
 | --- | --- | --- | --- | --- | --- |
 ${shardRows}
 
-[View workflow run and download \`${artifactName}\`](${workflowRun.html_url})`;
+[View the workflow run and its \`container-smoke-<shard>-<attempt>\` artifacts](${workflowRun.html_url})`;
 }
 
 async function main({ github, context, core }) {
