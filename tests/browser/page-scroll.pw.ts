@@ -13,11 +13,45 @@ const accessRows: AccessLog[] = Array.from({ length: 20 }, (_, index) => ({
   countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
 }))
 
+/** Logs in and pins the server state that sizes the shell, so every server
+ *  gives the pages the same heights. */
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
   expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  // A missing GeoIP database adds a banner over the header, which shortens <main>.
+  await page.route("**/health", async (route) => {
+    const health = await (await route.fetch()).json()
+    health.geoip.available = true
+    return route.fulfill({ json: health })
+  })
+  await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
+    enabled: false, writeEnabled: false, lapiReachable: false, liveUpdates: false,
+  } }))
+  // The IP's locations, which the inspector and the map's ?focusIp lookup read.
+  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/logs", (route) => route.fulfill({ json: {
+    items: [], total: 0, limit: 50, offset: 0,
+  } }))
+}
+
+async function routeMap(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem("geometrikks-map-layer", "markers")
+    localStorage.setItem("geometrikks-map-live", "false")
+    localStorage.setItem("geometrikks-server-markers-enabled", "false")
+  })
+  await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
+    type: "FeatureCollection", stats: { events: 0, countries: 0, cities: 0, locations: 0 }, features: [],
+  } }))
+  await page.route("**/api/v1/geo-locations/top-ips?*", (route) => route.fulfill({ json: { topIps: [] } }))
+  await page.route("**/api/v1/geo-locations/server-locations*", (route) => route.fulfill({ json: { locations: [] } }))
+  await page.route("**/api/v1/geo-events/facets**", (route) => route.fulfill({ json: {
+    servers: ["example.test"], countries: [{ code: "NO", name: "Norway" }], cities: ["Oslo"],
+  } }))
+  await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
+    version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
+  } }))
 }
 
 // The shell nests the scrolling <main> inside the sidebar inset's <main>.
@@ -56,13 +90,35 @@ async function scrollAboveFirstRow(page: Page): Promise<number> {
   return scrollMain(page, Math.min(400, firstRowTop - 10))
 }
 
-/** A row's actions button already in view, so click() has no reason to scroll <main> to it. */
+/** <main>'s scrollTop once its scroll and height have held still for a few frames. */
+async function settledScrollTop(page: Page): Promise<number> {
+  return pageScroller(page).evaluate((main) => new Promise<number>((resolve) => {
+    let last = ""
+    let stillFrames = 0
+    const check = () => {
+      const now = `${main.scrollTop} ${main.scrollHeight} ${main.clientHeight}`
+      stillFrames = now === last ? stillFrames + 1 : 0
+      last = now
+      if (stillFrames >= 10) resolve(main.scrollTop)
+      else requestAnimationFrame(check)
+    }
+    requestAnimationFrame(check)
+  }))
+}
+
+/** A row's actions button in view and on top at its centre. click() scrolls
+ *  <main> to uncover a button that a sticky bar covers. */
 async function inViewActionsButton(page: Page) {
   const height = page.viewportSize()!.height
   const buttons = page.locator("table").getByRole("button", { name: /^Actions for / })
   for (const button of await buttons.all()) {
     const box = await button.boundingBox()
-    if (box && box.y > 120 && box.y + box.height < height - 160) return button
+    if (!box || box.y < 0 || box.y + box.height > height - 160) continue
+    const onTop = await button.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))
+    })
+    if (onTop) return button
   }
   throw new Error("No row's actions button is in view")
 }
@@ -104,11 +160,12 @@ for (const viewport of viewports) {
 
       // The filter bar sits above the scrolled-away top, and click() would scroll to it.
       await (await inViewActionsButton(page)).click()
+      const filtered = page.waitForResponse((response) => new URL(response.url()).searchParams.has("ipAddressNotIn"))
       await page.getByText("Exclude IP", { exact: true }).filter({ visible: true }).click()
       await expect.poll(() => new URL(page.url()).searchParams.get("ipx")).toMatch(/192\.0\.2\./)
+      await filtered
       await expect(firstRow(page)).toBeVisible()
-      await page.waitForTimeout(500)
-      expect(await mainScrollTop(page)).toBe(scrolled)
+      expect(await settledScrollTop(page)).toBe(scrolled)
     })
 
     test("opening and closing the IP inspector keeps the scroll", async ({ page }) => {
@@ -119,11 +176,11 @@ for (const viewport of viewports) {
       await page.getByText("Inspect IP", { exact: true }).filter({ visible: true }).click()
       await expect(page).toHaveURL(/inspect=/)
       await expect(page.getByRole("dialog").filter({ visible: true }).first()).toBeVisible()
-      expect(await mainScrollTop(page)).toBe(scrolled)
+      expect(await settledScrollTop(page)).toBe(scrolled)
       await page.keyboard.press("Escape")
       await expect(page).not.toHaveURL(/inspect=/)
-      await page.waitForTimeout(500)
-      expect(await mainScrollTop(page)).toBe(scrolled)
+      await expect(page.getByRole("dialog").filter({ visible: true })).toHaveCount(0)
+      expect(await settledScrollTop(page)).toBe(scrolled)
     })
   })
 }
@@ -132,24 +189,19 @@ test.describe("desktop", () => {
   test.use({ viewport: { width: 1360, height: 900 } })
 
   test("Back restores the scroll after the next page replaces its URL on mount", async ({ page }) => {
-    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/logs", (route) => route.fulfill({ json: {
-      items: [{
-        locationId: 131, ipAddress: accessRows[0].ipAddress, city: "Oslo", countryCode: "NO", countryName: "Norway",
-        eventCount: 1, servers: ["example.test"], lastSeen: "2026-08-16T12:00:00Z", latitude: 59.9, longitude: 10.7,
-        postalCode: null, state: null, stateCode: null, asn: null, asOrganization: null,
-      }],
-      total: 1, limit: 50, offset: 0,
-    } }))
-    await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
-      version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
-    } }))
+    test.slow()
+    await routeMap(page)
     await openAccessLogs(page)
     const scrolled = await scrollMain(page, 400)
     const actions = await inViewActionsButton(page)
     const flyToMap = async () => {
       await actions.click()
       await page.getByText("Fly to on the map", { exact: true }).filter({ visible: true }).click()
-      await expect(page).toHaveURL(/\/map\?focus=131/)
+      // The IP has no locations, so the map replaces ?focusIp with no focus.
+      // A Back before that replace lands would have it replace the Access
+      // Logs entry instead. Starting WebGL in swiftshader can hold the page's
+      // main thread for seconds on a busy machine.
+      await expect(page).toHaveURL(/\/map$/, { timeout: 30_000 })
     }
     const backToAccessLogs = async () => {
       await page.goBack()
@@ -158,8 +210,8 @@ test.describe("desktop", () => {
       await expect.poll(async () => Math.abs((await mainScrollTop(page)) - scrolled)).toBeLessThanOrEqual(10)
     }
 
-    // The map waits for the IP's locations before it replaces ?focusIp with
-    // ?focus. On the second visit they are cached, so it replaces the URL as it mounts.
+    // The map waits for the IP's locations before it replaces ?focusIp. On
+    // the second visit they are cached, so it replaces the URL as it mounts.
     await flyToMap()
     await backToAccessLogs()
     await flyToMap()
