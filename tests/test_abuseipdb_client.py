@@ -100,7 +100,7 @@ async def test_check_parses_and_caches_for_15_minutes():
     assert (first.isp, first.domain, first.country_code) == ("Amazon", "amazon.com", "US")
     assert first.is_tor is False and first.is_whitelisted is None
     request = calls[0]
-    assert request.method == "GET" and request.url.params["ip"] == "3.5.140.2"
+    assert request.method == "GET" and request.url.params["ipAddress"] == "3.5.140.2"
     assert request.headers["Key"] == "test-key"
 
     now[0] += 1
@@ -181,6 +181,7 @@ async def test_daily_limit_429_is_daily():
     [
         (httpx2.ConnectError("refused"), False),
         (httpx2.ConnectTimeout("slow"), False),
+        (httpx2.PoolTimeout("busy"), False),
         (httpx2.ReadTimeout("slow"), True),
         (httpx2.RemoteProtocolError("cut"), True),
     ],
@@ -200,8 +201,9 @@ async def test_transport_failures_say_whether_the_report_may_have_left(raised, m
         httpx2.Response(200, content=b"<html>"),
         httpx2.Response(200, content=b"x" * (MAX_RESPONSE_BYTES + 1)),
         httpx2.Response(200, json={"data": {"ipAddress": "3.5.140.2"}}),
+        httpx2.Response(200, json={"data": {"ipAddress": None, "abuseConfidenceScore": True}}),
     ],
-    ids=["5xx", "not-json", "oversized", "wrong-shape"],
+    ids=["5xx", "not-json", "oversized", "wrong-shape", "wrong-types"],
 )
 async def test_5xx_and_unparseable_and_oversized_answers_may_have_been_sent(response):
     client, _ = build_client(response)
@@ -266,3 +268,68 @@ async def test_default_transport_guard_blocks_real_requests():
 
     with pytest.raises(pytest.fail.Exception, match="tried to reach AbuseIPDB"):
         await client.check("3.5.140.2")
+
+
+async def test_check_answer_problems_never_say_maybe_sent():
+    for response in (httpx2.Response(503), httpx2.Response(200, content=b"<html>")):
+        client, _ = build_client(response)
+        with pytest.raises(AbuseIpdbUnavailableError) as exc:
+            await client.check("3.5.140.2")
+        assert exc.value.maybe_sent is False
+
+
+async def test_check_rejects_wrongly_typed_fields():
+    bad = {"data": {**CHECK_BODY["data"], "totalReports": True}}
+    client, _ = build_client(httpx2.Response(200, json=bad))
+
+    with pytest.raises(AbuseIpdbUnavailableError):
+        await client.check("3.5.140.2")
+
+
+async def test_upstream_detail_containing_the_key_is_redacted():
+    client, _ = build_client(
+        httpx2.Response(401, json={"errors": [{"detail": "Key test-key is invalid", "status": 401}]})
+    )
+
+    with pytest.raises(AbuseIpdbAuthError) as exc:
+        await client.check("3.5.140.2")
+    assert exc.value.detail == "Key [redacted] is invalid"
+    assert "test-key" not in str(exc.value)
+
+
+class _BrokenBody(httpx2.AsyncByteStream):
+    async def __aiter__(self):
+        yield b'{"errors":'
+        raise httpx2.ReadError("cut")
+
+
+async def test_oversized_429_body_still_classifies_and_records_the_quota():
+    client, _ = build_client(
+        httpx2.Response(
+            429,
+            content=b"x" * (MAX_RESPONSE_BYTES + 1),
+            headers={"X-RateLimit-Limit": "1000", "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": str(RESET)},
+        )
+    )
+
+    with pytest.raises(AbuseIpdbRateLimitedError) as exc:
+        await client.report("3.5.140.2", [21], "probing", REPORTED_AT)
+    assert exc.value.daily is True
+    assert exc.value.detail == "AbuseIPDB answered 429"
+    assert client.rate_limit("report") == RateLimit(1000, 0, datetime.fromtimestamp(RESET, UTC))
+
+
+async def test_interrupted_401_body_is_still_an_auth_error():
+    client, _ = build_client(httpx2.Response(401, stream=_BrokenBody()))
+
+    with pytest.raises(AbuseIpdbAuthError) as exc:
+        await client.check("3.5.140.2")
+    assert exc.value.detail == "AbuseIPDB answered 401"
+
+
+async def test_naive_timestamp_is_refused():
+    client, calls = build_client(httpx2.Response(200, json=REPORT_BODY))
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        await client.report("3.5.140.2", [21], "probing", datetime(2026, 11, 6, 14, 2))
+    assert calls == []

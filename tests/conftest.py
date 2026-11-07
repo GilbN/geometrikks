@@ -118,7 +118,6 @@ def block_abuseipdb_network(monkeypatch: pytest.MonkeyPatch):
         pytest.fail("a test tried to reach AbuseIPDB")
 
     monkeypatch.setattr("geometrikks.services.abuseipdb.default_transport", lambda: httpx2.MockTransport(refuse))
-    yield
 
 
 @pytest.fixture(autouse=True)

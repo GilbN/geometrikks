@@ -132,8 +132,29 @@ def _error_detail(body: bytes, status: int) -> str:
     return f"AbuseIPDB answered {status}"
 
 
-def _optional_str(value: Any) -> str | None:
-    return value if isinstance(value, str) else None
+class _BadPayloadError(Exception):
+    """A 2xx answer whose data object has missing or wrongly typed fields."""
+
+
+def _required_int(data: dict[str, Any], key: str) -> int:
+    value = data.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise _BadPayloadError(key)
+    return value
+
+
+def _required_str(data: dict[str, Any], key: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str):
+        raise _BadPayloadError(key)
+    return value
+
+
+def _optional(data: dict[str, Any], key: str, kind: type) -> Any:
+    value = data.get(key)
+    if value is not None and not isinstance(value, kind):
+        raise _BadPayloadError(key)
+    return value
 
 
 class AbuseIpdbClient:
@@ -171,6 +192,7 @@ class AbuseIpdbClient:
         headers = {"Key": self.api_key, "Accept": "application/json", "User-Agent": USER_AGENT}
         url = API_BASE + endpoint
         body = bytearray()
+        body_problem: str | None = None
         try:
             async with httpx2.AsyncClient(
                 timeout=self.timeout,
@@ -180,36 +202,49 @@ class AbuseIpdbClient:
             ) as client:
                 request_args: dict[str, Any] = {"data": form} if method == "POST" else {"params": form}
                 async with client.stream(method, url, **request_args) as resp:
-                    async for chunk in resp.aiter_bytes():
-                        body += chunk
-                        if len(body) > MAX_RESPONSE_BYTES:
-                            raise AbuseIpdbUnavailableError("AbuseIPDB sent an oversized answer", maybe_sent=True)
+                    status = resp.status_code
+                    response_headers = resp.headers
+                    self._remember_rate_limit(endpoint, response_headers)
+                    try:
+                        async for chunk in resp.aiter_bytes():
+                            body += chunk
+                            if len(body) > MAX_RESPONSE_BYTES:
+                                body_problem = "sent an oversized answer"
+                                break
+                    except httpx2.HTTPError:
+                        body_problem = "broke off its answer"
         except (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout) as exc:
-            raise AbuseIpdbUnavailableError(f"Could not reach AbuseIPDB ({type(exc).__name__})", maybe_sent=False) from exc
+            raise AbuseIpdbUnavailableError(
+                f"Could not reach AbuseIPDB ({type(exc).__name__})", maybe_sent=False
+            ) from exc
         except httpx2.HTTPError as exc:
-            raise AbuseIpdbUnavailableError(f"AbuseIPDB request failed ({type(exc).__name__})", maybe_sent=True) from exc
+            raise AbuseIpdbUnavailableError(
+                f"AbuseIPDB request failed ({type(exc).__name__})", maybe_sent=maybe_sent
+            ) from exc
 
-        status = resp.status_code
-        self._remember_rate_limit(endpoint, resp.headers)
-        if status == 429:
-            raise AbuseIpdbRateLimitedError(
-                _error_detail(bytes(body), status),
-                retry_after=_int_header(resp.headers, "Retry-After"),
-                daily=resp.headers.get("X-RateLimit-Remaining") == "0",
-                resets_at=_epoch_header(resp.headers, "X-RateLimit-Reset"),
-            )
-        if status in (401, 403):
-            raise AbuseIpdbAuthError(_error_detail(bytes(body), status))
         if 400 <= status < 500:
-            raise AbuseIpdbRejectedError(_error_detail(bytes(body), status), status)
-        if status >= 500 or not 200 <= status < 300:
-            raise AbuseIpdbUnavailableError(f"AbuseIPDB answered {status}", maybe_sent=maybe_sent or status >= 500)
+            detail = f"AbuseIPDB answered {status}" if body_problem else _error_detail(bytes(body), status)
+            detail = detail.replace(self.api_key, "[redacted]")
+            if status == 429:
+                raise AbuseIpdbRateLimitedError(
+                    detail,
+                    retry_after=_int_header(response_headers, "Retry-After"),
+                    daily=_int_header(response_headers, "X-RateLimit-Remaining") == 0,
+                    resets_at=_epoch_header(response_headers, "X-RateLimit-Reset"),
+                )
+            if status in (401, 403):
+                raise AbuseIpdbAuthError(detail)
+            raise AbuseIpdbRejectedError(detail, status)
+        if body_problem:
+            raise AbuseIpdbUnavailableError(f"AbuseIPDB {body_problem}", maybe_sent=maybe_sent)
+        if not 200 <= status < 300:
+            raise AbuseIpdbUnavailableError(f"AbuseIPDB answered {status}", maybe_sent=maybe_sent)
         try:
             data = msgspec.json.decode(bytes(body))["data"]
         except (msgspec.DecodeError, KeyError, TypeError) as exc:
-            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=True) from exc
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=maybe_sent) from exc
         if not isinstance(data, dict):
-            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=True)
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=maybe_sent)
         return data
 
     def _cached_check(self, ip: str) -> CheckResult | None:
@@ -232,23 +267,23 @@ class AbuseIpdbClient:
         """What AbuseIPDB knows about ``ip``; answers are cached for 15 minutes."""
         if (hit := self._cached_check(ip)) is not None:
             return hit
-        data = await self._request("check", "GET", {"ip": ip})
+        data = await self._request("check", "GET", {"ipAddress": ip})
         try:
-            last_reported = data.get("lastReportedAt")
+            last_reported = _optional(data, "lastReportedAt", str)
             result = CheckResult(
-                ip_address=str(data["ipAddress"]),
-                abuse_confidence_score=int(data["abuseConfidenceScore"]),
-                total_reports=int(data["totalReports"]),
-                num_distinct_users=int(data["numDistinctUsers"]),
-                last_reported_at=datetime.fromisoformat(last_reported) if isinstance(last_reported, str) else None,
-                usage_type=_optional_str(data.get("usageType")),
-                isp=_optional_str(data.get("isp")),
-                domain=_optional_str(data.get("domain")),
-                is_tor=bool(data.get("isTor", False)),
-                is_whitelisted=data["isWhitelisted"] if isinstance(data.get("isWhitelisted"), bool) else None,
-                country_code=_optional_str(data.get("countryCode")),
+                ip_address=_required_str(data, "ipAddress"),
+                abuse_confidence_score=_required_int(data, "abuseConfidenceScore"),
+                total_reports=_required_int(data, "totalReports"),
+                num_distinct_users=_required_int(data, "numDistinctUsers"),
+                last_reported_at=datetime.fromisoformat(last_reported) if last_reported else None,
+                usage_type=_optional(data, "usageType", str),
+                isp=_optional(data, "isp", str),
+                domain=_optional(data, "domain", str),
+                is_tor=_optional(data, "isTor", bool) or False,
+                is_whitelisted=_optional(data, "isWhitelisted", bool),
+                country_code=_optional(data, "countryCode", str),
             )
-        except (KeyError, TypeError, ValueError) as exc:
+        except (_BadPayloadError, ValueError) as exc:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from exc
         self._store_check(ip, result)
         logger.info("abuseipdb_check", ip=ip, score=result.abuse_confidence_score)
@@ -256,6 +291,8 @@ class AbuseIpdbClient:
 
     async def report(self, ip: str, categories: Sequence[int], comment: str, timestamp: datetime) -> ReportResult:
         """Report ``ip``; the comment and categories become public on AbuseIPDB."""
+        if timestamp.tzinfo is None:
+            raise ValueError("timestamp must be timezone-aware")
         data = await self._request(
             "report",
             "POST",
@@ -263,12 +300,12 @@ class AbuseIpdbClient:
                 "ip": ip,
                 "categories": ",".join(str(category) for category in categories),
                 "comment": comment,
-                "timestamp": timestamp.isoformat(),
+                "timestamp": timestamp.isoformat(timespec="seconds"),
             },
         )
         try:
-            result = ReportResult(str(data["ipAddress"]), int(data["abuseConfidenceScore"]))
-        except (KeyError, TypeError, ValueError) as exc:
+            result = ReportResult(_required_str(data, "ipAddress"), _required_int(data, "abuseConfidenceScore"))
+        except _BadPayloadError as exc:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=True) from exc
         logger.info("abuseipdb_report", ip=ip, categories=list(categories), score=result.abuse_confidence_score)
         return result
