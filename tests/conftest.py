@@ -107,3 +107,25 @@ def refresh_settings_cache():
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def block_abuseipdb_network(monkeypatch: pytest.MonkeyPatch):
+    """No test reaches api.abuseipdb.com; tests that need a client pass their own transport."""
+    import httpx2
+
+    def refuse(request: httpx2.Request) -> httpx2.Response:
+        pytest.fail("a test tried to reach AbuseIPDB")
+
+    monkeypatch.setattr("geometrikks.services.abuseipdb.default_transport", lambda: httpx2.MockTransport(refuse))
+    yield
+
+
+@pytest.fixture(autouse=True)
+def reset_abuseipdb_client_between_tests():
+    """The AbuseIPDB client is process-global; keep one test's cache out of the next."""
+    from geometrikks.services.abuseipdb import reset_abuseipdb_client
+
+    reset_abuseipdb_client()
+    yield
+    reset_abuseipdb_client()
