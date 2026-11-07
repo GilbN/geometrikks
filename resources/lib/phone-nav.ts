@@ -27,6 +27,8 @@ export type NavItem = {
   url: string
   icon: LucideIcon
   description: string
+  /** A shorter label for the phone tab bar, where a cell is about 69px wide. */
+  barTitle?: string
   requiresCrowdsec?: true
 }
 
@@ -50,6 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: "access-logs",
     title: "Access Logs",
+    barTitle: "Logs",
     url: "/access-logs",
     icon: FileText,
     description: "Request logs",
