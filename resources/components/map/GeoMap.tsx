@@ -3,7 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate, useRouter, useSearch } from "@tanstack/react-router"
+import { useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router"
 import { toast } from "sonner"
 import Map, {
   Source,
@@ -204,8 +204,10 @@ function GeoMapInner({
   const router = useRouter()
   // The router keeps the map mounted until the next page has loaded, so a
   // late rewrite of the URL can land on that page's history entry and turn
-  // it into the map.
-  const isMapCurrent = useCallback(() => router.latestLocation.pathname === "/map", [router])
+  // it into the map. The pathname reruns a focus skipped that way when Back
+  // returns to the map before it unmounts.
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const isMapCurrent = useCallback(() => pathname === "/map" && router.latestLocation.pathname === "/map", [pathname, router])
   const { filters, setFilters } = useUrlFilters({
     search,
     navigate,

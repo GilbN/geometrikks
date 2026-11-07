@@ -92,6 +92,7 @@ test("leaving the map before its data returns keeps the next page", async ({ pag
   await flyTo(page, LOGGED_IP)
   await expect(page).toHaveURL(/focus=130/)
   await expect.poll(() => geojson.held.length).toBeGreaterThan(0)
+  await expect(page.locator(".maplibregl-canvas")).toBeVisible()
   await leaveForAnalytics(page, analyticsChunk, () => geojson.release((route) => route.fulfill({ json: locations })))
 })
 
@@ -105,4 +106,19 @@ test("going back before the IP lookup returns keeps the previous page", async ({
   await page.waitForTimeout(1000)
   await expect(page).toHaveURL(/\/geo-logs$/)
   await expect(page.locator(".fullscreen-map")).toHaveCount(0)
+})
+
+test("returning to the map before the next page loads still flies to the IP", async ({ page }) => {
+  const { lookup, geojson, analyticsChunk } = await setup(page)
+  await geojson.release((route) => route.fulfill({ json: locations }))
+  await flyTo(page, TOP_IP)
+  await expect.poll(() => lookup.held.length).toBeGreaterThan(0)
+  await page.getByRole("link", { name: "Analytics", exact: true }).click()
+  await expect(page).toHaveURL(/\/analytics$/)
+  await expect.poll(() => analyticsChunk.held.length).toBeGreaterThan(0)
+  await lookup.release((route) => route.fulfill({ json: logsPage }))
+  await page.waitForTimeout(1000)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/map$/)
+  await expect(page.locator(".fullscreen-map")).toBeVisible()
 })
