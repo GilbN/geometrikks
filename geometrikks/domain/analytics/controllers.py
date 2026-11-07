@@ -484,6 +484,7 @@ class AnalyticsController(Controller):
                     error_rate=(row.status_4xx + row.status_5xx) / row.total_requests if row.total_requests else 0.0,
                     timed_requests=row.timed_requests,
                     avg_request_time=row.avg_request_time,
+                    max_request_time=row.max_request_time,
                     p50_request_time=row.p50_request_time,
                     p95_request_time=row.p95_request_time,
                     p99_request_time=row.p99_request_time,

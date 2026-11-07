@@ -1,0 +1,99 @@
+import type { GeoEventsTimeSeriesResponse, TimeSeriesResponse } from "@/lib/api"
+
+const HOUR_MS = 3_600_000
+const DAY_MS = 24 * HOUR_MS
+
+/** With fewer buckets the line is a few straight segments, not a shape. */
+export const MIN_SPARKLINE_BUCKETS = 6
+
+/** Hourly up to a week (168 points at most), daily above. */
+export function sparklineGranularity(startMs: number, endMs: number): "hourly" | "daily" {
+  return endMs - startMs <= 7 * DAY_MS + HOUR_MS ? "hourly" : "daily"
+}
+
+export function hasSparklines(startMs: number, endMs: number): boolean {
+  const step = sparklineGranularity(startMs, endMs) === "hourly" ? HOUR_MS : DAY_MS
+  return Math.ceil((endMs - startMs) / step) >= MIN_SPARKLINE_BUCKETS
+}
+
+/**
+ * The series endpoints leave out buckets without traffic, which would draw a
+ * quiet night as a straight line between its edges. Zeros go back in from
+ * the gaps between returned buckets rather than from a grid built on the
+ * client, because daily buckets are local days on the hourly aggregate and
+ * UTC days on the daily one.
+ */
+export function fillGaps(
+  points: readonly { timestamp: string; value: number }[],
+  startMs: number,
+  endMs: number,
+  stepMs: number,
+): number[] {
+  const zeros = (count: number) => Array<number>(Math.max(0, count)).fill(0)
+  if (points.length === 0) return zeros(Math.ceil((endMs - startMs) / stepMs))
+
+  // A local day can run 23 or 25 hours, so the edges allow a little slack.
+  const bucketsBetween = (fromMs: number, toMs: number) => Math.ceil((toMs - fromMs) / stepMs - 0.05)
+  const times = points.map((point) => Date.parse(point.timestamp))
+  const filled = zeros(bucketsBetween(startMs, times[0]))
+  points.forEach((point, index) => {
+    if (index > 0) filled.push(...zeros(Math.round((times[index] - times[index - 1]) / stepMs) - 1))
+    filled.push(point.value)
+  })
+  filled.push(...zeros(bucketsBetween(times[times.length - 1], endMs) - 1))
+  return filled
+}
+
+export interface OverviewSparklines {
+  requests: number[]
+  geoEvents: number[]
+  uniqueCountries: number[]
+  uniqueIps: number[]
+  /** 2xx share of each bucket's requests, since the Success card shows a percentage. */
+  successRate: number[]
+  status3xx: number[]
+  status4xx: number[]
+  status5xx: number[]
+  bytesSent: number[]
+  avgRequestTime: number[]
+  maxRequestTime: number[]
+  avgRequestSize: number[]
+}
+
+/**
+ * Counts get their empty buckets back as zeros. Rates, averages and maxima
+ * have no value in an empty bucket, and a zero there would read as an outage
+ * or instant responses, so those lines skip the bucket instead.
+ */
+export function buildOverviewSparklines(
+  timeSeries: TimeSeriesResponse | undefined,
+  geoSeries: GeoEventsTimeSeriesResponse | undefined,
+  startMs: number,
+  endMs: number,
+): OverviewSparklines {
+  const step = sparklineGranularity(startMs, endMs) === "hourly" ? HOUR_MS : DAY_MS
+  const access = timeSeries?.data ?? []
+  const geo = geoSeries?.data ?? []
+  const counts = <T extends { timestamp: string }>(rows: readonly T[], pick: (row: T) => number) =>
+    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), startMs, endMs, step)
+  const present = (pick: (row: (typeof access)[number]) => number | null | undefined) =>
+    access.flatMap((row) => {
+      const value = pick(row)
+      return value == null ? [] : [value]
+    })
+
+  return {
+    requests: counts(access, (row) => row.totalRequests),
+    geoEvents: counts(geo, (row) => row.totalGeoEvents),
+    uniqueCountries: counts(geo, (row) => row.uniqueCountries),
+    uniqueIps: counts(geo, (row) => row.uniqueIps),
+    status3xx: counts(access, (row) => row.status3xx),
+    status4xx: counts(access, (row) => row.status4xx),
+    status5xx: counts(access, (row) => row.status5xx),
+    bytesSent: counts(access, (row) => row.totalBytesSent),
+    successRate: present((row) => (row.totalRequests > 0 ? row.status2xx / row.totalRequests : null)),
+    avgRequestTime: present((row) => row.avgRequestTime),
+    maxRequestTime: present((row) => row.maxRequestTime),
+    avgRequestSize: present((row) => (row.totalRequests > 0 ? row.totalBytesSent / row.totalRequests : null)),
+  }
+}

@@ -96,6 +96,7 @@ import {
   fetchReleaseCheck,
   fetchDropLists,
 } from "./api"
+import { buildOverviewSparklines, hasSparklines, sparklineGranularity } from "./sparklines"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
 import type { DropListsResponse } from "@/generated/api/types.gen"
 import {
@@ -174,6 +175,8 @@ export const queryKeys = {
       [...queryKeys.analytics.all, "time-series", params, refreshKey] as const,
     geoTimeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "geo-time-series", params, refreshKey] as const,
+    overviewSparklines: (params: Record<string, unknown>, refreshKey?: number) =>
+      [...queryKeys.analytics.all, "overview-sparklines", params, refreshKey] as const,
     topUrls: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.analytics.all, "top-urls", params, refreshKey] as const,
     topUserAgents: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -1086,6 +1089,45 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
     staleTime: 60 * 1000,
     refetchInterval,
   })
+}
+
+/**
+ * The charts on the Overview stat cards. They ignore the Analytics page's
+ * filters and chart granularity, since the cards above them do too.
+ * `drawable` is false when the range is too short to draw a shape, and
+ * `shown` is also false while charts are off. Switching them off keeps the
+ * last lines, so the cards can fold them away instead of dropping them.
+ * `drawKey` names the range the lines belong to, and changes when the new
+ * range's lines arrive rather than when the range is picked.
+ */
+export function useOverviewSparklines({ enabled = true }: { enabled?: boolean } = {}) {
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+  const drawable = hasSparklines(Date.parse(startDate), Date.parse(endDate))
+  const shown = enabled && drawable
+  const granularity = sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
+
+  const query = useQuery({
+    queryKey: queryKeys.analytics.overviewSparklines({ range, customRange, granularity }, lastRefresh),
+    queryFn: async () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      const [access, geo] = await Promise.all([
+        fetchTimeSeries({ startDate, endDate, granularity }),
+        fetchGeoTimeSeries({ startDate, endDate, granularity }),
+      ])
+      return {
+        lines: buildOverviewSparklines(access, geo, Date.parse(startDate), Date.parse(endDate)),
+        drawKey: JSON.stringify([range, customRange]),
+      }
+    },
+    enabled: shown,
+    // Each refresh is a new key; keeping the last lines stops them blinking out.
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+    refetchInterval,
+  })
+  const data = drawable ? query.data : undefined
+  return { shown, drawable, lines: data?.lines, drawKey: data?.drawKey ?? "" }
 }
 
 /**

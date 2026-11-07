@@ -11,11 +11,14 @@ declare module "@tanstack/react-router" {
     timeRange?: boolean
     /** The page draws time-series charts: the range drawer offers chart buckets. */
     chartBuckets?: boolean
+    /** The Overview: the range drawer can turn its card charts off. */
+    overviewCharts?: boolean
   }
 }
 
-export function useRouteHeader(): { timeRange: boolean; chartBuckets: boolean } {
+export function useRouteHeader(): { timeRange: boolean; chartBuckets: boolean; overviewCharts: boolean } {
   const timeRange = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.timeRange })
   const chartBuckets = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.chartBuckets })
-  return { timeRange, chartBuckets }
+  const overviewCharts = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.overviewCharts })
+  return { timeRange, chartBuckets, overviewCharts }
 }

@@ -7,7 +7,7 @@ function point(overrides: Partial<TimeSeriesDataPoint>): TimeSeriesDataPoint {
   return {
     timestamp: "2026-08-14T00:00:00Z", totalRequests: 0, totalBytesSent: 0, totalGeoEvents: 0,
     status2xx: 0, status3xx: 0, status4xx: 0, status5xx: 0, errorRate: 0, timedRequests: 0,
-    avgRequestTime: null, p50RequestTime: null, p95RequestTime: null, p99RequestTime: null,
+    avgRequestTime: null, maxRequestTime: null, p50RequestTime: null, p95RequestTime: null, p99RequestTime: null,
     ...overrides,
   }
 }

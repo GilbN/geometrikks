@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useOverviewCharts } from "@/lib/overview-preferences"
 import {
   CHART_GRANULARITY_OPTIONS,
   POLL_INTERVAL_OPTIONS,
@@ -99,9 +100,10 @@ export function TimeRangePicker({
 }: {
   trigger: React.ReactNode
   align?: "start" | "end"
-  refreshControls?: { chartBuckets: boolean }
+  refreshControls?: { chartBuckets: boolean; overviewCharts?: boolean }
 }) {
   const { range, setRange, setCustomRange, pollInterval, setPollInterval, granularity, setGranularity } = useTimeRange()
+  const [overviewCharts, setOverviewCharts] = useOverviewCharts()
   const isMobile = useIsMobile()
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
   const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
@@ -206,6 +208,21 @@ export function TimeRangePicker({
                       {option.label}
                     </ToggleGroupItem>
                   ))}
+                </ToggleGroup>
+              </RefreshControl>
+            )}
+            {refreshControls?.overviewCharts && (
+              <RefreshControl label="Card charts">
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  aria-label="Card charts"
+                  value={overviewCharts ? "on" : "off"}
+                  onValueChange={(value) => value && setOverviewCharts(value === "on")}
+                  className="w-full"
+                >
+                  <ToggleGroupItem value="on" className="flex-1 text-xs">On</ToggleGroupItem>
+                  <ToggleGroupItem value="off" className="flex-1 text-xs">Off</ToggleGroupItem>
                 </ToggleGroup>
               </RefreshControl>
             )}

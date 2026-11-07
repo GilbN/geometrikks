@@ -3628,6 +3628,7 @@ export type TimeSeriesDataPoint = {
    * The share of requests with a 4xx or 5xx status, from 0 to 1.
    */
   errorRate: number;
+  maxRequestTime: number | null;
   p50RequestTime: number | null;
   p95RequestTime: number | null;
   p99RequestTime: number | null;
