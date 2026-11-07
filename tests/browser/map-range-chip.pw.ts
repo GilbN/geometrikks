@@ -19,13 +19,18 @@ async function login(page: Page) {
   expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
 }
 
-async function openMap(page: Page, { live = false, path = "/map" } = {}) {
+async function openMap(page: Page, { live = false, customRange = false, path = "/map" } = {}) {
   await login(page)
-  await page.addInitScript((liveOn) => {
+  await page.addInitScript(({ liveOn, custom }) => {
     localStorage.setItem("geometrikks-map-layer", "markers")
     localStorage.setItem("geometrikks-map-live", String(liveOn))
     localStorage.setItem("geometrikks-server-markers-enabled", "false")
-  }, live)
+    if (custom) {
+      localStorage.setItem("geometrikks-time-range", JSON.stringify({
+        range: "custom", customRange: { from: "2026-10-01T08:00:00Z", to: "2026-10-28T18:30:00Z" },
+      }))
+    }
+  }, { liveOn: live, custom: customRange })
   // A missing GeoIP database adds a banner at the top, which moves the map down.
   await page.route("**/health", async (route) => {
     const health = await (await route.fetch()).json()
@@ -42,6 +47,15 @@ async function openMap(page: Page, { live = false, path = "/map" } = {}) {
   } }))
   await page.goto(path)
   await expect(page.locator(".maplibregl-canvas")).toBeVisible()
+}
+
+function threatLog(timestamp: string, index: number) {
+  return {
+    timestamp, ip_address: `198.51.100.${index % 250}`, remote_user: null, method: "GET", url: "/wp-login.php", http_version: "HTTP/1.1",
+    status_code: 403, bytes_sent: 120, referrer: null, user_agent: null, request_time: null, upstream_response_time: null,
+    host: "a.test", country_code: null, country_name: null, city: null, autonomous_system_number: null,
+    autonomous_system_organization: null, server: "a.test",
+  }
 }
 
 const chip = (page: Page) => page.getByRole("group", { name: "Time range", exact: true })
@@ -97,6 +111,38 @@ test.describe("portrait phone", () => {
     expect(Math.abs(centreY(vitals) - centreY(chipBox))).toBeLessThanOrEqual(2)
     expect(vitals.x).toBeCloseTo(16, 0)
     await page.screenshot({ path: "smoke-artifacts/map-range-chip-live.png" })
+  })
+
+  test("on a narrow phone the live pill gives way to a custom range", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 780 })
+    await page.routeWebSocket("**/ws/live", (socket) => {
+      const now = new Date().toISOString()
+      socket.send(JSON.stringify({ type: "batch", dropped: 0, events: Array.from({ length: 1500 }, (_, index) => ({
+        type: "request", geo: null, log: threatLog(now, index),
+      })) }))
+    })
+    await openMap(page, { live: true, customRange: true })
+    const vitalsButton = page.locator("[data-live-pill] button")
+    await expect(vitalsButton).toHaveAccessibleName(/^1,?500 requests per minute, 1,?500 threats/)
+    const vitals = await box(vitalsButton)
+    const chipBox = await box(chip(page))
+    expect(vitals.x + vitals.width).toBeLessThanOrEqual(chipBox.x)
+    const chevron = await box(vitalsButton.locator("svg").last())
+    expect(chevron.x + chevron.width).toBeLessThanOrEqual(vitals.x + vitals.width)
+    const threatBadge = await box(vitalsButton.getByText("1,500", { exact: true }).last().locator(".."))
+    // The rpm may be cut short, so measure where its clipping ends.
+    const rpmRight = await vitalsButton.getByText("1,500", { exact: true }).first().evaluate((rpm) => {
+      let right = rpm.getBoundingClientRect().right
+      for (let parent = rpm.parentElement; parent && parent.tagName !== "BUTTON"; parent = parent.parentElement) {
+        if (getComputedStyle(parent).overflowX !== "visible") right = Math.min(right, parent.getBoundingClientRect().right)
+      }
+      return right
+    })
+    expect(rpmRight).toBeLessThanOrEqual(threatBadge.x)
+    expect(Math.abs(centreY(vitals) - centreY(chipBox))).toBeLessThanOrEqual(2)
+    const pillBox = await box(actionPill(page))
+    expect(Math.abs(chipBox.x + chipBox.width - (pillBox.x + pillBox.width))).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: "smoke-artifacts/map-range-chip-narrow-live.png" })
   })
 
   test("the chip stays while a location panel is open", async ({ page }) => {

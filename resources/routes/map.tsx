@@ -7,9 +7,10 @@
  */
 
 import { createFileRoute } from "@tanstack/react-router"
-import { lazy, Suspense } from "react"
-import { MapRangeChip } from "@/components/map/MapRangeChip"
+import { lazy, Suspense, useState } from "react"
+import { MapLiveSlotContext } from "@/components/map/map-live-slot"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
+import { MapTopRow } from "@/components/map/MapTopRow"
 import { mapSearchSchema } from "@/lib/map-filters"
 
 const GeoMap = lazy(() => import("@/components/map/GeoMap"))
@@ -21,12 +22,15 @@ export const Route = createFileRoute("/map")({
 })
 
 function MapPage() {
+  const [liveSlot, setLiveSlot] = useState<HTMLDivElement | null>(null)
   return (
     <div className="fullscreen-map h-full w-full relative">
-      <Suspense fallback={<MapSkeleton />}>
-        <GeoMap />
-      </Suspense>
-      <MapRangeChip />
+      <MapTopRow liveSlotRef={setLiveSlot} />
+      <MapLiveSlotContext.Provider value={liveSlot}>
+        <Suspense fallback={<MapSkeleton />}>
+          <GeoMap />
+        </Suspense>
+      </MapLiveSlotContext.Provider>
     </div>
   )
 }
