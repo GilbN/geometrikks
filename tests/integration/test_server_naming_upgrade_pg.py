@@ -27,7 +27,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from geometrikks.config.settings import get_settings
 from geometrikks.server import timescale
 from geometrikks.server.migrations import upgrade_to_head
-from tests.integration.conftest import ADMIN_URL, IT_DBNAME, PG_HOST, PG_PASSWORD, PG_PORT, PG_USER
+from tests.integration.conftest import (
+    IT_DBNAME,
+    PG_HOST,
+    PG_PASSWORD,
+    PG_PORT,
+    PG_USER,
+    admin_exec,
+    create_scratch_database,
+    drop_scratch_database,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -206,28 +215,18 @@ NEW_CONSTRAINTS = {"pk_server_locations", "uq_server_locations_server", "ck_serv
 LEGACY_CONSTRAINTS = {"pk_site_homes", "uq_site_homes_hostname", "ck_site_homes_source"}
 
 
-async def _admin_exec(sql: str) -> None:
-    engine = create_async_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(text(sql))
-    finally:
-        await engine.dispose()
-
-
 async def _drop_scratch_database() -> None:
-    await _admin_exec(f"DROP DATABASE IF EXISTS {RENAME_DBNAME} WITH (FORCE)")
-    await _admin_exec(f"DROP ROLE IF EXISTS {OWNER_ROLE}")
+    await drop_scratch_database(RENAME_DBNAME)
+    await admin_exec(f"DROP ROLE IF EXISTS {OWNER_ROLE}")
 
 
 async def _create_scratch_database(database_role: str) -> None:
     await _drop_scratch_database()
     if database_role == "database_owner":
-        await _admin_exec(f"CREATE ROLE {OWNER_ROLE} LOGIN PASSWORD '{OWNER_PASSWORD}'")
-        await _admin_exec(f"CREATE DATABASE {RENAME_DBNAME} OWNER {OWNER_ROLE}")
+        await admin_exec(f"CREATE ROLE {OWNER_ROLE} LOGIN PASSWORD '{OWNER_PASSWORD}'")
+        await create_scratch_database(RENAME_DBNAME, owner=OWNER_ROLE)
     else:
-        await _admin_exec(f"CREATE DATABASE {RENAME_DBNAME}")
-    # Refresh-policy jobs would otherwise race the DDL in these tests.
+        await create_scratch_database(RENAME_DBNAME)
     engine = create_async_engine(RENAME_URL, isolation_level="AUTOCOMMIT")
     try:
         async with engine.connect() as conn:
@@ -235,10 +234,6 @@ async def _create_scratch_database(database_role: str) -> None:
             # created by its administrator.
             for extension in ("timescaledb", "timescaledb_toolkit", "postgis"):
                 await conn.execute(text(f"CREATE EXTENSION IF NOT EXISTS {extension} CASCADE"))
-            stopped = (
-                await conn.execute(text("SELECT _timescaledb_functions.stop_background_workers()"))
-            ).scalar()
-            assert stopped, f"could not stop the TimescaleDB background workers in {RENAME_DBNAME}"
     finally:
         await engine.dispose()
 

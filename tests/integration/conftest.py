@@ -34,6 +34,52 @@ ADMIN_URL = f"postgresql+asyncpg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/p
 IT_URL = f"postgresql+asyncpg://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{IT_DBNAME}"
 
 
+async def admin_exec(sql: str) -> None:
+    engine = create_async_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text(sql))
+    finally:
+        await engine.dispose()
+
+
+async def create_scratch_database(name: str, *, owner: str | None = None) -> None:
+    """Create a database TimescaleDB's policy jobs never run in, dropping any stale one.
+
+    A refresh policy runs the moment it is created, and setup_timescaledb
+    creates one per continuous aggregate, in the session fixture and again
+    in every test that rebuilds a view. Left running, those jobs
+    materialize whatever rows the current test has seeded, and they race
+    the next DROP MATERIALIZED VIEW ("tuple concurrently deleted").
+
+    The launcher never starts a job scheduler in a template database, so
+    the database is one from the start. Calling stop_background_workers()
+    after CREATE EXTENSION instead races the scheduler that CREATE
+    EXTENSION starts, and when the stop catches it mid-startup the call
+    hangs for about 60 seconds.
+    """
+    await drop_scratch_database(name)
+    owner_clause = f" OWNER {owner}" if owner else ""
+    await admin_exec(f"CREATE DATABASE {name}{owner_clause} IS_TEMPLATE true")
+
+
+async def drop_scratch_database(name: str) -> None:
+    engine = create_async_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
+    try:
+        async with engine.connect() as conn:
+            exists = (await conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": name}
+            )).scalar()
+            if not exists:
+                return
+            # Postgres refuses to drop a template. Refusing connections first
+            # keeps the launcher from starting a scheduler in the gap.
+            await conn.execute(text(f"ALTER DATABASE {name} WITH ALLOW_CONNECTIONS false IS_TEMPLATE false"))
+            await conn.execute(text(f"DROP DATABASE {name} WITH (FORCE)"))
+    finally:
+        await engine.dispose()
+
+
 def _server_reachable() -> bool:
     try:
         with socket.create_connection((PG_HOST, PG_PORT), timeout=1):
@@ -62,42 +108,9 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture(scope="session")
 def it_database_url() -> Iterator[str]:
     """Create the scratch DB (dropping any stale one), yield its URL, drop it."""
-
-    async def _admin_exec(sql: str) -> None:
-        engine = create_async_engine(ADMIN_URL, isolation_level="AUTOCOMMIT")
-        try:
-            async with engine.connect() as conn:
-                await conn.execute(text(sql))
-        finally:
-            await engine.dispose()
-
-    async def _stop_background_workers() -> None:
-        """Keep TimescaleDB's policy jobs from running in the scratch DB.
-
-        A refresh policy runs the moment it is created, and setup_timescaledb
-        creates one per continuous aggregate, in the session fixture and again
-        in every test that rebuilds a view. Left running, those jobs
-        materialize whatever rows the current test has seeded, and they race
-        the next DROP MATERIALIZED VIEW ("tuple concurrently deleted"). The
-        CREATE EXTENSION covers a server whose template database does
-        not already carry the extension.
-        """
-        engine = create_async_engine(IT_URL, isolation_level="AUTOCOMMIT")
-        try:
-            async with engine.connect() as conn:
-                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
-                stopped = (
-                    await conn.execute(text("SELECT _timescaledb_functions.stop_background_workers()"))
-                ).scalar()
-                assert stopped, f"could not stop the TimescaleDB background workers in {IT_DBNAME}"
-        finally:
-            await engine.dispose()
-
-    asyncio.run(_admin_exec(f"DROP DATABASE IF EXISTS {IT_DBNAME} WITH (FORCE)"))
-    asyncio.run(_admin_exec(f"CREATE DATABASE {IT_DBNAME}"))
-    asyncio.run(_stop_background_workers())
+    asyncio.run(create_scratch_database(IT_DBNAME))
     yield IT_URL
-    asyncio.run(_admin_exec(f"DROP DATABASE IF EXISTS {IT_DBNAME} WITH (FORCE)"))
+    asyncio.run(drop_scratch_database(IT_DBNAME))
 
 
 @pytest.fixture(scope="session")
