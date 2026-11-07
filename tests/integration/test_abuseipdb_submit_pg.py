@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import httpx2
 import pytest
 import structlog
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from geometrikks.domain.abuseipdb.errors import (
@@ -288,8 +288,86 @@ async def test_failed_update_after_acceptance_stays_unconfirmed(pg_session_maker
     [stored] = await stored_rows(pg_session_maker)
     assert (stored.status, stored.abuse_confidence_score) == ("unconfirmed", None)
     [failed] = [log for log in logs if log["event"] == "abuseipdb_report_failed"]
-    assert (failed["reason"], failed["upstream_status"]) == ("settle_failed", None)
+    assert (failed["reason"], failed["upstream_status"], failed["error_type"]) == (
+        "settle_failed", None, "SQLAlchemyError"
+    )
     assert not [log for log in logs if log["event"] == "abuseipdb_report_sent"]
+
+
+async def test_a_failed_settle_commit_stays_unconfirmed(pg_session_maker, clean_abuseipdb_reports, monkeypatch):
+    async with pg_session_maker() as session:
+        real_commit = session.commit
+        commits = 0
+
+        async def commit_that_fails_on_the_settle():
+            nonlocal commits
+            commits += 1
+            if commits == 2:
+                raise SQLAlchemyError("simulated commit failure")
+            await real_commit()
+
+        monkeypatch.setattr(session, "commit", commit_that_fails_on_the_settle)
+        with pytest.raises(ReportUnconfirmedError):
+            await submit(session, client_for(httpx2.Response(200, json=ACCEPTED)))
+
+        assert commits == 2
+        assert (await session.execute(text("SELECT 1"))).scalar_one() == 1
+
+    [stored] = await stored_rows(pg_session_maker)
+    assert (stored.status, stored.abuse_confidence_score) == ("unconfirmed", None)
+
+
+async def test_no_refresh_runs_after_the_settle_commit(pg_session_maker, clean_abuseipdb_reports, monkeypatch):
+    now = datetime.now(UTC)
+    async with pg_session_maker() as session:
+        real_refresh = session.refresh
+        report_sent = False
+
+        async def accept(request: httpx2.Request) -> httpx2.Response:
+            nonlocal report_sent
+            report_sent = True
+            return httpx2.Response(200, json=ACCEPTED)
+
+        async def refresh_that_fails_after_the_call(*args, **kwargs):
+            if report_sent:
+                raise SQLAlchemyError("simulated refresh failure")
+            await real_refresh(*args, **kwargs)
+
+        monkeypatch.setattr(session, "refresh", refresh_that_fails_after_the_call)
+        row = await submit(session, client_for(accept), now=now)
+
+    assert (row.status, row.abuse_confidence_score, row.reported_at, row.ip_address) == ("sent", 52, now, "3.5.140.2")
+    [stored] = await stored_rows(pg_session_maker)
+    assert (stored.status, stored.abuse_confidence_score) == ("sent", 52)
+
+
+async def test_a_failed_cleanup_still_raises_the_upstream_refusal(
+    pg_session_maker, clean_abuseipdb_reports, monkeypatch
+):
+    async def delete_that_aborts_the_transaction(self, *args, **kwargs):
+        await self.session.execute(text("SELECT 1 / 0"))
+
+    monkeypatch.setattr(AbuseIpdbReportRepository, "delete", delete_that_aborts_the_transaction)
+    refusal_detail = "The comment field must not be greater than 1024 characters."
+
+    with structlog.testing.capture_logs() as logs:
+        async with pg_session_maker() as session:
+            with pytest.raises(UpstreamRejectedError) as refusal:
+                await submit(session, client_for(httpx2.Response(422, json=_errors(refusal_detail))))
+            assert (await session.execute(text("SELECT 1"))).scalar_one() == 1
+
+    assert (refusal.value.status_code, refusal.value.detail) == (400, refusal_detail)
+    [failed] = [log for log in logs if log["event"] == "abuseipdb_report_failed"]
+    assert failed == {
+        "event": "abuseipdb_report_failed",
+        "log_level": "warning",
+        "ip_address": "3.5.140.2",
+        "upstream_status": 422,
+        "reason": "cleanup_failed",
+        "error_type": "DBAPIError",
+    }
+    [stored] = await stored_rows(pg_session_maker)
+    assert stored.status == "unconfirmed"
 
 
 async def test_logs_never_carry_the_comment(pg_session_maker, clean_abuseipdb_reports):

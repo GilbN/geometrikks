@@ -145,6 +145,11 @@ async def test_comment_limits_count_code_points():
             await submit(submission(comment=comment))
 
 
+async def test_a_comment_with_a_nul_character_is_refused():
+    with pytest.raises(DomainValidationError, match="comment"):
+        await submit(submission(comment="ssh brute\x00force"))
+
+
 @pytest.mark.parametrize(
     "attack_time",
     [datetime(2026, 11, 7, 11, 0), NOW + timedelta(seconds=1)],

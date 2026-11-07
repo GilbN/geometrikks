@@ -92,6 +92,8 @@ def _checked_comment(comment: str) -> str:
     stripped = comment.strip()
     if not 1 <= len(stripped) <= MAX_COMMENT_LENGTH:
         raise DomainValidationError(f"comment must be 1 to {MAX_COMMENT_LENGTH} characters")
+    if "\x00" in stripped:
+        raise DomainValidationError("comment must not contain NUL characters")
     return stripped
 
 
@@ -102,8 +104,17 @@ def _check_attack_time(attack_time: datetime, now: datetime) -> None:
         raise DomainValidationError("attackTime must not be in the future")
 
 
-def _log_failure(ip: str, *, upstream_status: int | None, reason: str) -> None:
-    logger.warning("abuseipdb_report_failed", ip_address=ip, upstream_status=upstream_status, reason=reason)
+def _log_failure(ip: str, *, upstream_status: int | None, reason: str, error: Exception | None = None) -> None:
+    # Log only the class name. SQLAlchemy error text embeds bound parameters, and the comment is one.
+    fields = {} if error is None else {"error_type": type(error).__name__}
+    logger.warning(
+        "abuseipdb_report_failed", ip_address=ip, upstream_status=upstream_status, reason=reason, **fields
+    )
+
+
+async def _rollback(repository: AbuseIpdbReportRepository) -> None:
+    with contextlib.suppress(Exception):
+        await repository.session.rollback()
 
 
 def _clear_rejection(
@@ -173,27 +184,35 @@ async def submit_report(
             _log_failure(ip, upstream_status=None, reason="unconfirmed")
             raise ReportUnconfirmedError from error
         rejection, upstream_status, reason = _clear_rejection(error)
-        await repository.delete(row_id, auto_commit=True)
-        _log_failure(ip, upstream_status=upstream_status, reason=reason)
+        try:
+            await repository.delete(row_id, auto_commit=True)
+        except Exception as cleanup_error:
+            await _rollback(repository)
+            _log_failure(ip, upstream_status=upstream_status, reason="cleanup_failed", error=cleanup_error)
+        else:
+            _log_failure(ip, upstream_status=upstream_status, reason=reason)
         raise rejection from error
 
     row.status = "sent"
     row.abuse_confidence_score = result.abuse_confidence_score
     row.reported_at = now
     try:
-        row = await repository.update(row, auto_commit=True)
+        # Skip the refresh. If it failed after the commit, a sent row would be reported as unconfirmed.
+        row = await repository.update(row, auto_commit=True, auto_refresh=False)
     # AbuseIPDB has published the report by now. Any failure here must read as unconfirmed,
     # never as a 500 or a rejection, because the committed unconfirmed row is its only record.
     except Exception as error:
-        with contextlib.suppress(Exception):
-            await repository.session.rollback()
-        _log_failure(ip, upstream_status=None, reason="settle_failed")
+        await _rollback(repository)
+        _log_failure(ip, upstream_status=None, reason="settle_failed", error=error)
         raise ReportUnconfirmedError from error
 
     # asyncpg hands INET back as an ipaddress object; detach before restoring the string
     # so the assignment doesn't dirty the row.
     repository.session.expunge(row)
     row.ip_address = ip
+    row.status = "sent"
+    row.abuse_confidence_score = result.abuse_confidence_score
+    row.reported_at = now
     logger.info(
         "abuseipdb_report_sent",
         ip_address=ip,
