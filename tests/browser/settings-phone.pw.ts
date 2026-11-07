@@ -105,7 +105,7 @@ test.describe("small phone held sideways", () => {
     await pageScroller(page).evaluate((main) => main.scrollTo({ top: 200 }))
     await expect.poll(() => mainScrollTop(page)).toBe(200)
 
-    await page.setViewportSize({ width: 700, height: 375 })
+    await page.setViewportSize({ width: 640, height: 375 })
     await expect.poll(() => isClearOfFades(page, chip(page, "Environment"))).toBe(true)
     expect(await mainScrollTop(page)).toBe(200)
   })
