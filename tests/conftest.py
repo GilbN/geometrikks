@@ -17,6 +17,7 @@ os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 _SETTINGS_ENV_PREFIXES = (
     "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "LOKI_", "ANALYTICS_",
     "SCHEDULER_", "MAP_", "CROWDSEC_", "OIDC_", "VITE_", "MAXMINDDB_", "DROP_",
+    "ABUSEIPDB_",
 )
 for _key in [k for k in os.environ if k.startswith(_SETTINGS_ENV_PREFIXES)]:
     del os.environ[_key]
