@@ -47,7 +47,7 @@ import {
 } from "./layers"
 import { MapControls, type BannedSummary } from "./MapControls"
 import { FOCUS_SETTLED, FOCUSING_ATTRIBUTE } from "./MapDetailPanel"
-import { measurePillSize, pillRightEdge, pillWidth, safeAreaInsets, tabBarTop } from "./phone-map-actions"
+import { measurePillSize, pillRightEdge, pillWidth, rangeChipBottom, safeAreaInsets, tabBarTop } from "./phone-map-actions"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
@@ -118,6 +118,7 @@ function fitPadding(map: HTMLElement) {
     return phoneFitPadding(FIT_PADDING, {
       side,
       insets,
+      topClearance: rangeChipBottom() + 12,
       barTop: tabBarTop(),
       pillWidth: pillWidth(measurePillSize(map)),
       pillEdge: pillRightEdge(side, insets),
@@ -1068,11 +1069,12 @@ function GeoMapInner({
       )}
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts
-          whenever live mode is on regardless of the desktop overlay preference. */}
+          whenever live mode is on regardless of the desktop overlay preference.
+          It centres in the range chip's row. */}
       {liveMode && isMobile && (
         <div
           data-live-pill=""
-          className="pointer-events-none absolute top-4 left-[max(1rem,env(safe-area-inset-left))] z-10"
+          className="pointer-events-none absolute top-(--range-chip-top) left-[max(1rem,env(safe-area-inset-left))] z-10 flex h-11 items-center"
         >
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
         </div>

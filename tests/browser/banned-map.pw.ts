@@ -211,6 +211,59 @@ test("a focused location keeps its point above the portrait panel", async ({ pag
   }, { timeout: 10_000 }).toBe(true)
 })
 
+/** A failed copy is a toast the panel can raise. */
+async function blockCopy(page: Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) } })
+    document.execCommand = () => false
+  })
+}
+
+/** A missing GeoIP database adds a banner at the top of the screen. */
+async function geoipAvailable(page: Page) {
+  await page.route("**/health", async (route) => {
+    const health = await (await route.fetch()).json()
+    health.geoip.available = true
+    return route.fulfill({ json: health })
+  })
+}
+
+async function copyFailureToast(page: Page) {
+  const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  await panel.getByRole("button", { name: /^192\./ }).first().click()
+  await panel.getByRole("button", { name: /^Copy 192\./ }).click()
+  const toast = page.locator("[data-sonner-toast]").filter({ hasText: "The browser blocked the copy." })
+  await expect(toast).toBeVisible()
+  return toast
+}
+
+/** Sonner slides a toast into place, so this measures where it settles. */
+async function settledBox(toast: Locator) {
+  let settledY = Number.NaN
+  await expect.poll(async () => {
+    const { y } = await box(toast)
+    const settled = Math.abs(y - settledY) < 0.5
+    settledY = y
+    return settled
+  }).toBe(true)
+  return box(toast)
+}
+
+test("a toast stays clear of the range chip while a portrait panel is open", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 })
+  await emulateSafeAreas(page, { top: 59, left: 0, right: 0, bottom: 34 })
+  await blockCopy(page)
+  await geoipAvailable(page)
+  await setup(page)
+  await openCenterPopup(page)
+  const toast = await copyFailureToast(page)
+  await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-y-position", "top")
+  const chip = await box(page.getByRole("group", { name: "Time range", exact: true }))
+  const toastBox = await settledBox(toast)
+  expect(toastBox.y).toBeGreaterThanOrEqual(chip.y + chip.height + 8 - 0.5)
+  await page.screenshot({ path: "smoke-artifacts/banned-map-portrait-toast.png" })
+})
+
 // Held sideways, the phone map stands on the right edge: the pill, the panel
 // docked there over the bar, and drawers that open from the right.
 const NO_INSETS: SafeAreaInsets = { left: 0, right: 0, bottom: 0 }
@@ -366,36 +419,21 @@ test.describe("landscape phone", () => {
     expect(Math.abs(bottom.width - 430)).toBeLessThanOrEqual(1)
   })
 
-  test("a toast moves under the header while a panel covers the bar", async ({ page }) => {
+  test("a toast moves to the top while a panel covers the bar", async ({ page }) => {
     await page.setViewportSize({ width: 932, height: 430 })
     await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
-    // A failed copy is a toast the panel can raise.
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) } })
-      document.execCommand = () => false
-    })
+    await blockCopy(page)
+    await geoipAvailable(page)
     await setup(page)
     await openCenterPopup(page)
-    const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
-    await panel.getByRole("button", { name: /^192\./ }).first().click()
-    await panel.getByRole("button", { name: /^Copy 192\./ }).click()
-
+    const toast = await copyFailureToast(page)
     const toaster = page.locator("[data-sonner-toaster]")
-    const toast = toaster.locator("[data-sonner-toast]").filter({ hasText: "The browser blocked the copy." })
-    await expect(toast).toBeVisible()
     await expect(toaster).toHaveAttribute("data-y-position", "top")
     await expect(toaster).toHaveAttribute("data-x-position", "center")
-    const shellTop = await box(page.locator("[data-shell-top]"))
-    expect((await box(toaster)).y - (shellTop.y + shellTop.height)).toBeCloseTo(8, 0)
-    // Sonner slides the toast into place, so measure where it settles.
-    let settledY = Number.NaN
-    await expect.poll(async () => {
-      const { y } = await box(toast)
-      const settled = Math.abs(y - settledY) < 0.5
-      settledY = y
-      return settled
-    }).toBe(true)
-    const toastBox = await box(toast)
+    // The panel hides the range chip, so toasts take the top of the screen.
+    await expect(page.getByRole("group", { name: "Time range", exact: true })).toBeHidden()
+    expect((await box(toaster)).y).toBeCloseTo(8, 0)
+    const toastBox = await settledBox(toast)
     expect(toastBox.x).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.left, 0)
     expect(932 - (toastBox.x + toastBox.width)).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.right, 0)
     await page.screenshot({ path: "smoke-artifacts/banned-map-covered-toast.png" })

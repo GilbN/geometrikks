@@ -9,6 +9,12 @@ import { PILL_WIDTH, PILL_WIDTH_COMPACT, pillSize, type PillSize } from "@/lib/p
 /** The pill's distance from the map's right edge in landscape, before the safe-area inset. */
 export const PILL_SIDE_EDGE = 12
 
+export const RANGE_CHIP_HEIGHT = 44
+
+/** The least room between the range chip and the pill under it. Any more
+ *  and a 780x300 screen drops to the two-button pill. */
+const PILL_CHIP_GAP = 4
+
 /** A CSS length, such as one built from var() or env(), in px. */
 function cssLength(value: string): number {
   const probe = document.createElement("div")
@@ -24,16 +30,31 @@ export function tabBarTop(): number {
   return cssLength("var(--tab-bar-top)")
 }
 
-/** The pill's size for the room between 8px under the map's top and 12px above the tab bar. */
+/** The top safe-area inset the phone map's overlays clear, 0 while a banner stands above the map. */
+export function mapTopInset(): number {
+  return cssLength("var(--map-top-inset)")
+}
+
+/** The range chip's bottom edge, measured from the map's top. */
+export function rangeChipBottom(): number {
+  return cssLength(`calc(var(--range-chip-top) + ${RANGE_CHIP_HEIGHT}px)`)
+}
+
+/** The pill's size for the room between the range chip and 12px above the tab bar. */
 export function measurePillSize(map: HTMLElement): PillSize {
-  return pillSize(map.clientHeight - 8 - (tabBarTop() + 12))
+  return pillSize(map.clientHeight - (rangeChipBottom() + PILL_CHIP_GAP) - (tabBarTop() + 12))
 }
 
 export function pillWidth(size: PillSize): number {
   return size === "compact" ? PILL_WIDTH_COMPACT : PILL_WIDTH
 }
 
-/** The pill's distance from the map's right edge: in line with the bar in portrait, clear of the notch sideways. */
+/** The CSS `right` of the pill and the range chip: in line with the bar in portrait, clear of the notch sideways. */
+export function pillRight(side: boolean): string {
+  return side ? `max(${PILL_SIDE_EDGE}px, env(safe-area-inset-right, 0px))` : "var(--tab-bar-side)"
+}
+
+/** The pill's distance from the map's right edge, in px. */
 export function pillRightEdge(side: boolean, insets: Insets): number {
   return side ? Math.max(PILL_SIDE_EDGE, insets.right) : cssLength("var(--tab-bar-side)")
 }

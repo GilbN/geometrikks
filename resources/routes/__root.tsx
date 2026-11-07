@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query"
 import { fetchHealth } from "@/lib/api"
 import { ThemeProvider } from "@/components/theme-provider"
 import { isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
-import { safeAreaInsets } from "@/components/map/phone-map-actions"
-import { phoneToastPlacement } from "@/lib/phone-toasts"
+import { mapTopInset, rangeChipBottom, safeAreaInsets } from "@/components/map/phone-map-actions"
+import { phoneToastPlacement, toastTopEdge } from "@/lib/phone-toasts"
 import { DEFAULT_MODE } from "@/lib/theme"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
@@ -42,6 +42,7 @@ import { RELOAD_NOTICE_MENU_DESCRIPTION_ID, ReloadNotice, ReloadNoticeMenuDot } 
 import { TabBar } from "@/components/phone-nav/tab-bar"
 import { PhoneChromeProvider, usePhoneChrome } from "@/lib/phone-chrome"
 import { usePageScroll } from "@/hooks/use-page-scroll"
+import { cn } from "@/lib/utils"
 
 export const Route = createRootRoute({
   validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
@@ -178,15 +179,33 @@ function usePhoneEdges(phone: boolean): PhoneEdges {
   return edges
 }
 
+type MapTopEdges = { chipBottom: number; mapTopInset: number }
+
+/** The range chip's bottom and the top inset on the phone map, re-read when
+ *  the banners above the map change and on resize, since both follow them. */
+function useMapTopEdges(onPhoneMap: boolean, shellBottom: number): MapTopEdges {
+  const [edges, setEdges] = useState<MapTopEdges>({ chipBottom: 0, mapTopInset: 0 })
+  useEffect(() => {
+    if (!onPhoneMap) return
+    const measure = () => setEdges({ chipBottom: rangeChipBottom(), mapTopInset: mapTopInset() })
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [onPhoneMap, shellBottom])
+  return edges
+}
+
 function RootToaster({ shellTop }: { shellTop: HTMLElement | null }) {
   const onMap = useRouterState({ select: (state) => state.location.pathname === "/map" })
   const phone = usePhoneLayout()
   const side = usePhoneMapSide()
-  const { toastsCovered } = usePhoneChrome()
-  const headerBottom = useBottomEdge(phone ? shellTop : null)
+  const { toastsCovered, barCovered } = usePhoneChrome()
+  const shellBottom = useBottomEdge(phone ? shellTop : null)
+  const mapEdges = useMapTopEdges(phone && onMap, shellBottom)
   const edges = usePhoneEdges(phone)
   if (!phone) return <Toaster />
-  const placement = phoneToastPlacement({ side, onMap, covered: toastsCovered, headerBottom, ...edges })
+  const topEdge = toastTopEdge({ onMap, chipShown: !barCovered, shellBottom, ...mapEdges })
+  const placement = phoneToastPlacement({ side, onMap, covered: toastsCovered, topEdge, ...edges })
   // Both offsets: Sonner switches to mobileOffset only up to 600px.
   return (
     <Toaster
@@ -212,6 +231,7 @@ function RootLayout() {
   })
   const phone = usePhoneLayout()
   const phoneSide = usePhoneMapSide()
+  const phoneMap = useRouterState({ select: (state) => state.location.pathname === "/map" }) && phone
   const [shellTop, setShellTop] = useState<HTMLDivElement | null>(null)
   const [main, setMain] = useState<HTMLElement | null>(null)
   usePageScroll(main)
@@ -236,10 +256,16 @@ function RootLayout() {
           <SidebarProvider defaultOpen={!isPhoneSideViewport()}>
             {!phone && <AppSidebar />}
             <PageInset className="bg-background h-dvh">
-              <div data-shell-top="" ref={setShellTop} className="shrink-0">
+              {/* The phone map has no header, so a banner there clears the notch itself. */}
+              <div
+                data-shell-top=""
+                ref={setShellTop}
+                className={cn("shrink-0", phoneMap && "pt-[env(safe-area-inset-top,0px)] empty:hidden")}
+              >
               <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
+              {!phoneMap && (
               <header className="relative z-10 flex h-14 shrink-0 items-center phone-side:h-12 justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] md:pl-4 phone:pl-[max(1rem,env(safe-area-inset-left,0px))] phone:pr-[max(1rem,env(safe-area-inset-right,0px))]">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   {!phone && (
@@ -263,6 +289,7 @@ function RootLayout() {
                   </div>
                 </div>
               </header>
+              )}
               </div>
               {/* Main content area. Bars that stick to its top set --sticky-top
                   and --table-header-height on it, so content below can keep clear
