@@ -282,6 +282,10 @@ export function IpActionsMenu({
   // dismissed. vaul only reports the end of a close it made itself, so every
   // drawer action closes it through DrawerClose rather than by setting menuOpen.
   const afterClose = useRef<(() => void) | null>(null)
+  // Armed for one close: after a turn remounts the drawer, it must not run on a later one.
+  useEffect(() => {
+    afterClose.current = null
+  }, [drawer.key])
   const triggerRef = useRef<HTMLButtonElement>(null)
   const banLabelId = useId()
   const dropBanLabelId = useId()
@@ -382,6 +386,7 @@ export function IpActionsMenu({
           direction={drawer.direction}
           open={drawer.open}
           onOpenChange={setMenuOpen}
+          onClosed={drawer.onClosed}
           onAnimationEnd={(open) => {
             if (!open) runAfterClose()
           }}

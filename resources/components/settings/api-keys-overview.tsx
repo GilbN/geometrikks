@@ -275,6 +275,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
         direction={drawer.direction}
         open={drawer.open}
         onOpenChange={changeOpen}
+        onClosed={drawer.onClosed}
         dismissible={!creating && !created}
         autoFocus
       >

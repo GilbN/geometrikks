@@ -65,7 +65,7 @@ export function AsnActionsMenu({
       </>
     )
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setMenuOpen}>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setMenuOpen} onClosed={drawer.onClosed}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent className={drawer.contentClassName}>
           {drawer.side ? (

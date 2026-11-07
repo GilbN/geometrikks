@@ -802,7 +802,7 @@ function LogDetail({
 
   if (drawer.phone) {
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange}>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed}>
         <DrawerContent className={drawer.contentClassName} onCloseAutoFocus={onCloseAutoFocus}>
           {title && (
             <>

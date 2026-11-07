@@ -191,7 +191,7 @@ export function FilterCombobox<T extends string | number>({
 
   if (drawer.phone) {
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={changeOpen}>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={changeOpen} onClosed={drawer.onClosed}>
         <DrawerTrigger asChild>
           <Button variant="outline" size="sm" disabled={disabled} className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
             {triggerLabel}

@@ -115,7 +115,7 @@ export function AsnListDialog() {
       </>
     )
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setOpen} autoFocus>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setOpen} onClosed={drawer.onClosed} autoFocus>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent
           className={cn(

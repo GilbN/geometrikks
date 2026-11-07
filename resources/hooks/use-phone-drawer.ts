@@ -1,9 +1,9 @@
-import { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import { MapPanelContext, SIDE_DRAWER_CONTENT, useSideDrawer } from "@/components/map/SideDrawer"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { useCoverBar } from "@/lib/phone-chrome"
-import { drawerLayout, settleDrawerLayout, type DrawerLayout } from "@/lib/phone-layout"
+import { drawerLayout, settleDrawerLayout, type DrawerLayout, type DrawerPhase } from "@/lib/phone-layout"
 
 export interface PhoneDrawer {
   /** Render the phone version: a drawer instead of a dialog, menu or popover. */
@@ -18,6 +18,8 @@ export interface PhoneDrawer {
   open: boolean
   /** For the Drawer's `key`: vaul can't change direction while mounted. */
   key: DrawerLayout
+  /** For the Drawer's `onClosed`: a closed drawer keeps its layout until it has slid out. */
+  onClosed: () => void
   overlayId: string
 }
 
@@ -27,8 +29,10 @@ export interface PhoneDrawer {
  * desktop version otherwise. Inside a map panel the panel decides.
  *
  * An open overlay whose layout changes closes through `onClose`, unless
- * `keepWhileOpen` holds the layout it opened in. On a phone it gets a history
- * entry so Back closes it, and from the right it hides the tab bar.
+ * `keepWhileOpen` holds the layout it opened in. A closing drawer slides out
+ * in the layout it opened in, and turns once `onClosed` reports it gone. On a
+ * phone it gets a history entry so Back closes it, and from the right it
+ * hides the tab bar.
  */
 export function usePhoneDrawer(
   name: string,
@@ -42,9 +46,21 @@ export function usePhoneDrawer(
   const phone = options.phone ?? (panel !== null || phoneLayout)
   const current = drawerLayout(phone, phone && sideDrawer.side)
 
+  const keepWhileOpen = options.keepWhileOpen ?? false
   const [openedIn, setOpenedIn] = useState(current)
-  const settled = settleDrawerLayout(current, openedIn, open, options.keepWhileOpen ?? false)
-  if (!open && openedIn !== current) setOpenedIn(current)
+  const [wasOpen, setWasOpen] = useState(open)
+  const [closing, setClosing] = useState(false)
+  let sliding = closing
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    // A drawer a turn has already remounted closed has nothing to slide out.
+    sliding = !open && openedIn !== "desktop" && (openedIn === current || keepWhileOpen)
+    setClosing(sliding)
+  }
+  const phase: DrawerPhase = open ? "open" : sliding ? "closing" : "closed"
+  const settled = settleDrawerLayout(current, openedIn, phase, keepWhileOpen)
+  if (phase === "closed" && openedIn !== current) setOpenedIn(current)
+  const onClosed = useCallback(() => setClosing(false), [])
 
   const closeRef = useRef(onClose)
   useLayoutEffect(() => {
@@ -69,6 +85,7 @@ export function usePhoneDrawer(
     layout,
     open: shownOpen,
     key: layout,
+    onClosed,
     overlayId,
   }
 }

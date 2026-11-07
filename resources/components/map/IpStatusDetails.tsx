@@ -4,7 +4,7 @@
  * drawer on a phone and a popover elsewhere, since a phone has no hover
  * for the tooltip the tables use. An IP with neither renders as it is.
  */
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Loader2, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -242,6 +242,10 @@ function MarkedIpStatus({
   // leave pointer-events: none on the body. A popover is not modal, so they
   // open straight away.
   const afterClose = useRef<(() => void) | null>(null)
+  // Armed for one close: after a turn remounts the drawer, it must not run on a later one.
+  useEffect(() => {
+    afterClose.current = null
+  }, [drawer.key])
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   const banned = decision !== null
@@ -322,6 +326,7 @@ function MarkedIpStatus({
           direction={drawer.direction}
           open={drawer.open}
           onOpenChange={changeOpen}
+          onClosed={drawer.onClosed}
           onAnimationEnd={(isOpen) => {
             if (isOpen || !afterClose.current) return
             const run = afterClose.current

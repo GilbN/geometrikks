@@ -30,7 +30,7 @@ export function FiltersDrawer({
   const [open, setOpen] = useState(false)
   const drawer = usePhoneDrawer("filters", open, () => setOpen(false))
   return (
-    <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setOpen}>
+    <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setOpen} onClosed={drawer.onClosed}>
       <DrawerTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 pointer-coarse:h-11">
           <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />

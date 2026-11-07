@@ -24,17 +24,21 @@ export function drawerLayout(phone: boolean, side: boolean): DrawerLayout {
   return side ? "right" : "bottom"
 }
 
+/** An overlay is open, sliding out after a close, or gone. */
+export type DrawerPhase = "open" | "closing" | "closed"
+
 /** The layout an overlay renders in, given the one it opened in. A vaul
  *  drawer can't change direction or turn into a dialog while mounted, so an
  *  overlay whose layout changed while open is `turned` and has to close,
- *  unless it keeps the layout it opened in. */
+ *  unless it keeps the layout it opened in. A drawer sliding out finishes in
+ *  the layout it opened in. */
 export function settleDrawerLayout(
   current: DrawerLayout,
   openedIn: DrawerLayout,
-  open: boolean,
+  phase: DrawerPhase,
   keepWhileOpen: boolean,
 ): { layout: DrawerLayout; turned: boolean } {
-  if (!open || openedIn === current) return { layout: current, turned: false }
-  if (keepWhileOpen) return { layout: openedIn, turned: false }
+  if (phase === "closed" || openedIn === current) return { layout: current, turned: false }
+  if (phase === "closing" || keepWhileOpen) return { layout: openedIn, turned: false }
   return { layout: current, turned: true }
 }

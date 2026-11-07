@@ -266,7 +266,7 @@ export function BanIpDialog({
       </>
     )
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} autoFocus>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed} autoFocus>
         <DrawerContent className={drawer.contentClassName} onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
           {drawer.side ? (
             <DrawerHeader className="flex-row items-start gap-2">

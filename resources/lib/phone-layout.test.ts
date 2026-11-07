@@ -60,22 +60,27 @@ describe("drawerLayout", () => {
 
 describe("settleDrawerLayout", () => {
   it("follows the viewport while closed", () => {
-    expect(settleDrawerLayout("right", "bottom", false, false)).toEqual({ layout: "right", turned: false })
-    expect(settleDrawerLayout("right", "bottom", false, true)).toEqual({ layout: "right", turned: false })
+    expect(settleDrawerLayout("right", "bottom", "closed", false)).toEqual({ layout: "right", turned: false })
+    expect(settleDrawerLayout("right", "bottom", "closed", true)).toEqual({ layout: "right", turned: false })
   })
   it("stays put while open in an unchanged layout", () => {
-    expect(settleDrawerLayout("bottom", "bottom", true, false)).toEqual({ layout: "bottom", turned: false })
+    expect(settleDrawerLayout("bottom", "bottom", "open", false)).toEqual({ layout: "bottom", turned: false })
   })
   it("turns an open drawer rotated to another side", () => {
-    expect(settleDrawerLayout("right", "bottom", true, false)).toEqual({ layout: "right", turned: true })
-    expect(settleDrawerLayout("bottom", "right", true, false)).toEqual({ layout: "bottom", turned: true })
+    expect(settleDrawerLayout("right", "bottom", "open", false)).toEqual({ layout: "right", turned: true })
+    expect(settleDrawerLayout("bottom", "right", "open", false)).toEqual({ layout: "bottom", turned: true })
   })
   it("turns an open overlay that crosses between phone and desktop", () => {
-    expect(settleDrawerLayout("desktop", "bottom", true, false)).toEqual({ layout: "desktop", turned: true })
-    expect(settleDrawerLayout("right", "desktop", true, false)).toEqual({ layout: "right", turned: true })
+    expect(settleDrawerLayout("desktop", "bottom", "open", false)).toEqual({ layout: "desktop", turned: true })
+    expect(settleDrawerLayout("right", "desktop", "open", false)).toEqual({ layout: "right", turned: true })
   })
   it("keeps the opening layout when asked to", () => {
-    expect(settleDrawerLayout("right", "bottom", true, true)).toEqual({ layout: "bottom", turned: false })
-    expect(settleDrawerLayout("desktop", "right", true, true)).toEqual({ layout: "right", turned: false })
+    expect(settleDrawerLayout("right", "bottom", "open", true)).toEqual({ layout: "bottom", turned: false })
+    expect(settleDrawerLayout("desktop", "right", "open", true)).toEqual({ layout: "right", turned: false })
+  })
+  it("slides a closing drawer out in the layout it opened in", () => {
+    expect(settleDrawerLayout("right", "bottom", "closing", false)).toEqual({ layout: "bottom", turned: false })
+    expect(settleDrawerLayout("bottom", "right", "closing", true)).toEqual({ layout: "right", turned: false })
+    expect(settleDrawerLayout("bottom", "bottom", "closing", false)).toEqual({ layout: "bottom", turned: false })
   })
 })
