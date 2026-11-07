@@ -24,7 +24,7 @@ export function MapRangeChip() {
       style={{ right: pillRight(side) }}
       className={cn(
         TAB_BAR_SURFACE,
-        "absolute top-(--range-chip-top) z-10 flex h-11 items-center gap-0.5 rounded-full border border-foreground/10 p-[3px]",
+        "absolute top-(--range-chip-top) z-10 flex h-11 items-center gap-0.5 rounded-full border border-border p-[3px]",
       )}
     >
       <PhoneTimeRangeControls chip />
