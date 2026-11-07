@@ -1,6 +1,16 @@
 import { expect, test, type Page } from "@playwright/test"
+import type { AccessLog } from "../../resources/lib/api"
+import type { InstanceView, InstancesResponse } from "../../resources/generated/api/types.gen"
 
 test.use({ serviceWorkers: "block" })
+
+const accessRows: AccessLog[] = Array.from({ length: 20 }, (_, index) => ({
+  id: index + 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: `192.0.2.${index + 1}`, remoteUser: null,
+  method: "GET", url: `/request/${index}`, httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
+  referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
+  host: "example.test", server: null, logFormat: null, countryCode: "NO",
+  countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
+}))
 
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
@@ -14,11 +24,12 @@ const pageScroller = (page: Page) => page.locator('main:not([data-slot="sidebar-
 const mainScrollTop = (page: Page) => pageScroller(page).evaluate((main) => main.scrollTop)
 const firstRow = (page: Page) => page.locator("table tr[data-index='0']")
 
-async function openAccessLogs(page: Page, search = "") {
+async function openAccessLogs(page: Page) {
   await login(page)
-  // The local data is old; a short range can leave the page too short to scroll.
-  await page.addInitScript(() => localStorage.setItem("geometrikks-time-range", JSON.stringify({ range: "30d" })))
-  await page.goto(`/access-logs${search}`)
+  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({
+    json: { items: accessRows, total: accessRows.length, limit: 20, offset: 0 },
+  }))
+  await page.goto("/access-logs")
   await expect(firstRow(page)).toBeVisible()
 }
 
@@ -30,9 +41,9 @@ async function scrollMain(page: Page, top: number): Promise<number> {
   return mainScrollTop(page)
 }
 
-/** On a phone the table scrolls with the page, and a filter change takes a
- *  page scrolled past its first row (less the bars stuck to <main>'s top)
- *  back up to it. Stays above that. */
+/** On a phone the table scrolls with the page. A filter change moves <main>
+ *  back up to the table's first row, less the bars stuck to its top, so this
+ *  returns a scroll position above that row. */
 async function scrollAboveFirstRow(page: Page): Promise<number> {
   const firstRowTop = await pageScroller(page).evaluate((main) => {
     const table = main.querySelector("table")!
@@ -55,6 +66,14 @@ async function inViewActionsButton(page: Page) {
   throw new Error("No row's actions button is in view")
 }
 
+/** A client-side navigation, as a bar tab or sidebar link makes. */
+async function clickVisibleLink(page: Page, href: string) {
+  await page.evaluate((wanted) => {
+    const link = [...document.querySelectorAll<HTMLAnchorElement>(`a[href='${wanted}']`)].find((a) => a.offsetParent !== null)
+    link!.click()
+  }, href)
+}
+
 const viewports = [
   { name: "desktop", use: { viewport: { width: 1360, height: 900 } } },
   { name: "portrait phone", use: { viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true } },
@@ -68,11 +87,7 @@ for (const viewport of viewports) {
       await openAccessLogs(page)
       const scrolled = await scrollMain(page, 400)
 
-      await page.evaluate(() => {
-        // A client-side navigation, as a bar tab or sidebar link makes.
-        const link = [...document.querySelectorAll<HTMLAnchorElement>("a[href='/']")].find((a) => a.offsetParent !== null)
-        link!.click()
-      })
+      await clickVisibleLink(page, "/")
       await expect(page).toHaveURL(/\/$/)
       await expect.poll(() => mainScrollTop(page)).toBe(0)
 
@@ -83,14 +98,13 @@ for (const viewport of viewports) {
     })
 
     test("a filter change keeps the scroll", async ({ page }) => {
-      // Already excluding one IP, so excluding another adds no chip row that shifts the page.
-      await openAccessLogs(page, `?ipx=${encodeURIComponent(JSON.stringify(["198.51.100.1"]))}`)
+      await openAccessLogs(page)
       const scrolled = await scrollAboveFirstRow(page)
 
       // The filter bar sits above the scrolled-away top, and click() would scroll to it.
       await (await inViewActionsButton(page)).click()
       await page.getByText("Exclude IP", { exact: true }).filter({ visible: true }).click()
-      await expect.poll(() => new URL(page.url()).searchParams.get("ipx")).toMatch(/198\.51\.100\.1.+/)
+      await expect.poll(() => new URL(page.url()).searchParams.get("ipx")).toMatch(/192\.0\.2\./)
       await expect(firstRow(page)).toBeVisible()
       await page.waitForTimeout(500)
       expect(await mainScrollTop(page)).toBe(scrolled)
@@ -98,7 +112,7 @@ for (const viewport of viewports) {
 
     test("opening and closing the IP inspector keeps the scroll", async ({ page }) => {
       await openAccessLogs(page)
-      const scrolled = await scrollAboveFirstRow(page)
+      const scrolled = await scrollMain(page, 400)
 
       await (await inViewActionsButton(page)).click()
       await page.getByText("Inspect IP", { exact: true }).filter({ visible: true }).click()
@@ -112,3 +126,42 @@ for (const viewport of viewports) {
     })
   })
 }
+
+function agent(instanceName: string, overrides: Partial<InstanceView> = {}): InstanceView {
+  const now = new Date().toISOString()
+  return {
+    instanceName, mode: "agent", appVersion: "0.20.0", schemaRevision: "7c1e9a", bootId: `boot-${instanceName}`,
+    startedAt: now, lastSeen: now, isSelf: false, checkingIn: true, status: "ok", problems: [],
+    payload: null, health: null, serverLocations: [], ...overrides,
+  }
+}
+
+test.describe("short desktop", () => {
+  test.use({ viewport: { width: 1360, height: 520 } })
+
+  test("an Agents deep link from a scrolled Status page shows the agent's row", async ({ page }) => {
+    await login(page)
+    const target = "agent-15"
+    const instances: InstancesResponse = {
+      checkedAt: new Date().toISOString(),
+      head: { instanceName: "head", appVersion: "0.20.0", schemaRevision: "7c1e9a" },
+      instances: [
+        agent("head", { mode: "full", isSelf: true }),
+        ...Array.from({ length: 14 }, (_, index) => agent(`agent-${String(index + 1).padStart(2, "0")}`)),
+        agent(target, {
+          status: "critical",
+          problems: [{ id: "instance-schema-behind", severity: "critical", summary: `${target} runs an older database migration.` }],
+        }),
+      ],
+    }
+    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/instances", (route) => route.fulfill({ json: instances }))
+    await page.goto("/settings/status")
+    const deepLink = page.getByRole("link", { name: `Open ${target} on the Agents page` })
+    await expect(deepLink).toBeVisible()
+    await scrollMain(page, 300)
+
+    await deepLink.click()
+    await expect(page).toHaveURL(new RegExp(`/settings/agents\\?instance=${target}$`))
+    await expect(page.getByRole("row").filter({ hasText: target }).first()).toBeInViewport({ ratio: 1 })
+  })
+})
