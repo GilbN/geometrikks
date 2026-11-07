@@ -23,10 +23,40 @@ function Drawer({
   )
 }
 
+// A Drawer keyed on its direction remounts its trigger when the phone turns,
+// and focus on the old trigger would drop to the body. The trigger's parent
+// element outlives the remount, so the new trigger there takes the focus.
+let focusedTriggerParent: ParentNode | null = null
+
 function DrawerTrigger({
+  ref,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
-  return <DrawerPrimitive.Trigger data-slot="drawer-trigger" {...props} />
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
+  const setRefs = React.useCallback(
+    (node: HTMLButtonElement | null) => {
+      triggerRef.current = node
+      if (typeof ref === "function") ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref]
+  )
+  React.useLayoutEffect(() => {
+    const trigger = triggerRef.current
+    const focusLost = document.activeElement === null || document.activeElement === document.body
+    if (trigger && focusLost && focusedTriggerParent !== null && trigger.parentNode === focusedTriggerParent) {
+      focusedTriggerParent = null
+      trigger.focus({ preventScroll: true })
+    }
+    return () => {
+      if (!trigger || document.activeElement !== trigger) return
+      focusedTriggerParent = trigger.parentNode
+      queueMicrotask(() => {
+        focusedTriggerParent = null
+      })
+    }
+  }, [])
+  return <DrawerPrimitive.Trigger data-slot="drawer-trigger" ref={setRefs} {...props} />
 }
 
 function DrawerPortal({
