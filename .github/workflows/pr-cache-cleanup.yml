@@ -1,0 +1,26 @@
+name: PR cache cleanup
+
+# A closed PR's caches can never be restored again, but they count against the
+# repository's 10 GB cache limit until they are evicted.
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  delete-caches:
+    # Runs from forks, and runs where Dependabot closed its own PR, only get a
+    # read-only token. Their caches expire after 7 days unused.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Delete this pull request's caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_REF: refs/pull/${{ github.event.pull_request.number }}/merge
+        run: gh cache delete --all --ref "${PR_REF}" --succeed-on-no-caches
