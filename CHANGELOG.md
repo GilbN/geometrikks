@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On a phone, a long IPv6 address in the abuse report's title wraps onto a second line. It used to make the dialog scroll sideways.
 - If you used Fly to on the map or Show on map and then went Back or opened another page before the map finished loading, that page turned into the map when the map's data arrived. You now stay on the page you went to.
 - Selecting a banned IP or one on the DROP list in a table selects only the IP. Chrome's right-click menu used to add the hidden screen reader label. A search or a browser extension such as AbuseIPDB's then got `35.210.200.212(Banned)`.
+- On a phone, the ⋮ button at the bottom of a record sheet opens the IP actions from the bottom of the screen, or from the right on a phone held sideways, as the ⋮ in a table row does. It used to open the small desktop menu.
 
 ## [0.23.0] - 2026-10-31
 
