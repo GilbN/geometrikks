@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test"
 import type { AccessLog } from "../../resources/lib/api"
 import type { InstanceView, InstancesResponse } from "../../resources/generated/api/types.gen"
 
-test.use({ serviceWorkers: "block" })
+// WebGL for the map, which one test opens.
+test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
 
 const accessRows: AccessLog[] = Array.from({ length: 20 }, (_, index) => ({
   id: index + 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: `192.0.2.${index + 1}`, remoteUser: null,
@@ -126,6 +127,45 @@ for (const viewport of viewports) {
     })
   })
 }
+
+test.describe("desktop", () => {
+  test.use({ viewport: { width: 1360, height: 900 } })
+
+  test("Back restores the scroll after the next page replaces its URL on mount", async ({ page }) => {
+    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/logs", (route) => route.fulfill({ json: {
+      items: [{
+        locationId: 131, ipAddress: accessRows[0].ipAddress, city: "Oslo", countryCode: "NO", countryName: "Norway",
+        eventCount: 1, servers: ["example.test"], lastSeen: "2026-08-16T12:00:00Z", latitude: 59.9, longitude: 10.7,
+        postalCode: null, state: null, stateCode: null, asn: null, asOrganization: null,
+      }],
+      total: 1, limit: 50, offset: 0,
+    } }))
+    await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
+      version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
+    } }))
+    await openAccessLogs(page)
+    const scrolled = await scrollMain(page, 400)
+    const actions = await inViewActionsButton(page)
+    const flyToMap = async () => {
+      await actions.click()
+      await page.getByText("Fly to on the map", { exact: true }).filter({ visible: true }).click()
+      await expect(page).toHaveURL(/\/map\?focus=131/)
+    }
+    const backToAccessLogs = async () => {
+      await page.goBack()
+      await expect(page).toHaveURL(/\/access-logs$/)
+      await expect(firstRow(page)).toBeVisible()
+      await expect.poll(async () => Math.abs((await mainScrollTop(page)) - scrolled)).toBeLessThanOrEqual(10)
+    }
+
+    // The map waits for the IP's locations before it replaces ?focusIp with
+    // ?focus. On the second visit they are cached, so it replaces the URL as it mounts.
+    await flyToMap()
+    await backToAccessLogs()
+    await flyToMap()
+    await backToAccessLogs()
+  })
+})
 
 function agent(instanceName: string, overrides: Partial<InstanceView> = {}): InstanceView {
   const now = new Date().toISOString()
