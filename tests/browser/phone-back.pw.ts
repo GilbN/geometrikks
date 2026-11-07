@@ -184,3 +184,30 @@ test("Back from a page opened in More returns to the page before it", async ({ p
   await expect(moreMenu(page)).toBeHidden()
   await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
 })
+
+test.describe("phone held sideways", () => {
+  test.use({ viewport: { width: 932, height: 430 } })
+
+  test("a bar tab tapped while More is open takes More's place in history", async ({ page }) => {
+    await login(page)
+    await page.goto("/")
+    await page.goto("/geo-logs")
+    const entries = () => page.evaluate(() => history.length)
+    const before = await entries()
+    await moreCell(page).tap()
+    await expect(moreMenu(page)).toBeVisible()
+
+    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await expect(page).toHaveURL(/\/access-logs$/)
+    await expect(moreMenu(page)).toBeHidden()
+    // A stale More entry under the new page would be one more; Back skips it unseen.
+    expect(await entries()).toBe(before + 1)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/geo-logs$/)
+    await expect(moreMenu(page)).toBeHidden()
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/$/)
+  })
+})

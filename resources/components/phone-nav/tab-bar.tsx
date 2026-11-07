@@ -193,6 +193,7 @@ export function TabBar({ compact }: { compact: boolean }) {
             cell={
               <Link
                 to={item.url}
+                replace={moreOpen}
                 aria-current={selected ? "page" : undefined}
                 aria-label={showLabel ? undefined : item.title}
                 aria-describedby={describe(item.id, warning)}
