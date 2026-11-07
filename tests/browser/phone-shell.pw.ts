@@ -225,6 +225,7 @@ test.describe("phone held sideways", () => {
     const headerHeight = await page.locator("header").first().evaluate((el) => getComputedStyle(el).height)
     expect(headerHeight).toBe("48px")
   })
+
 })
 
 test.describe("More on a phone held sideways", () => {
@@ -247,7 +248,7 @@ test.describe("More on a phone held sideways", () => {
     const box = (await menu.boundingBox())!
     const bar = (await tabBar(page).boundingBox())!
     expect(box.y).toBeCloseTo(insets.top, 0)
-    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x).toBeGreaterThanOrEqual(insets.left)
     expect(bar.y - (box.y + box.height)).toBeCloseTo(8, 0)
     expect(box.x + box.width).toBeCloseTo(bar.x + bar.width, 0)
     expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
@@ -257,6 +258,24 @@ test.describe("More on a phone held sideways", () => {
     await moreCell(page).tap()
     await expect(menu).toBeHidden()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
+  })
+
+  test("keeps a narrow bar's popover inside the left inset", async ({ page }) => {
+    const narrowInsets = { left: 47, right: 47, bottom: 21 }
+    await page.setViewportSize({ width: 844, height: 390 })
+    await emulateSafeAreas(page, narrowInsets)
+    // Slot 4 waits for the CrowdSec status, so the bar has four cells.
+    await page.route("**/api/v1/crowdsec/status", () => new Promise(() => {}))
+    await login(page)
+    await page.goto("/")
+    await expect(barCells(page)).toHaveCount(4)
+    await moreCell(page).tap()
+
+    const menu = moreMenu(page)
+    await expect(menu).toBeVisible()
+    const box = (await menu.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(narrowInsets.left)
+    expect(box.x + box.width).toBeLessThanOrEqual(844 - narrowInsets.right)
   })
 
   test("closes on a scrim tap that never reaches the map", async ({ page }) => {

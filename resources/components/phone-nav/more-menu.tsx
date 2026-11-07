@@ -131,7 +131,7 @@ export function MoreContent({ compact }: { compact: boolean }) {
 
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="w-[290px] shrink-0 overflow-hidden border-r pt-1.5">{cards}</div>
+      <div className="w-[290px] shrink-0 overflow-y-auto border-r pt-1.5">{cards}</div>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto pt-1.5">
         <Destinations compact />
         <Footer />
@@ -140,13 +140,21 @@ export function MoreContent({ compact }: { compact: boolean }) {
   )
 }
 
-function readSafeAreaTop(): number {
+type SafeAreaInsets = { top: number; left: number; right: number }
+
+function readSafeAreaInsets(): SafeAreaInsets {
   const probe = document.createElement("div")
-  probe.style.cssText = "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top,0px)"
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)"
   document.body.append(probe)
-  const top = parseFloat(getComputedStyle(probe).paddingTop) || 0
+  const style = getComputedStyle(probe)
+  const insets = {
+    top: parseFloat(style.paddingTop) || 0,
+    left: parseFloat(style.paddingLeft) || 0,
+    right: parseFloat(style.paddingRight) || 0,
+  }
   probe.remove()
-  return top
+  return insets
 }
 
 /** The phone tab bar's More menu, opened by `trigger`, the bar's More cell. */
@@ -156,7 +164,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
   const openedOn = useRef(pathname)
   const leaving = useRef(false)
   const scrimRef = useRef<HTMLDivElement>(null)
-  const [topInset, setTopInset] = useState(0)
+  const [insets, setInsets] = useState<SafeAreaInsets>({ top: 0, left: 0, right: 0 })
 
   useEffect(() => setMoreOpen(false), [pathname, setMoreOpen])
   // A layout effect, so the menu of the old layout never paints in the new one.
@@ -168,7 +176,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
     if (open) {
       openedOn.current = pathname
       leaving.current = false
-      if (compact) setTopInset(readSafeAreaTop())
+      if (compact) setInsets(readSafeAreaInsets())
     }
     setMoreOpen(open)
   }
@@ -214,7 +222,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
         // the popover 8px above the bar and flush with its right edge.
         sideOffset={12}
         alignOffset={-4}
-        collisionPadding={{ top: Math.max(8, topInset) }}
+        collisionPadding={{ top: Math.max(8, insets.top), left: Math.max(8, insets.left), right: Math.max(8, insets.right) }}
         onInteractOutside={(event) => {
           const target = event.target as Element | null
           if (target?.closest("[data-tab-bar]")) {
@@ -224,7 +232,7 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
           if (target === scrimRef.current) event.preventDefault()
         }}
         onCloseAutoFocus={onCloseAutoFocus}
-        className="h-(--radix-popover-content-available-height) w-[min(620px,calc(100vw_-_16px))] flex-row gap-0 overflow-hidden rounded-[14px] bg-background p-0 text-foreground shadow-[0_20px_40px_rgb(0_0_0/0.5)] ring-border"
+        className="h-(--radix-popover-content-available-height) w-[min(620px,calc(100vw_-_16px_-_env(safe-area-inset-left,0px)_-_env(safe-area-inset-right,0px)))] flex-row gap-0 overflow-hidden rounded-[14px] bg-background p-0 text-foreground shadow-[0_20px_40px_rgb(0_0_0/0.5)] ring-border"
       >
         {content}
       </PopoverContent>
