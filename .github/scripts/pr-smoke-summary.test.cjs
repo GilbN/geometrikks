@@ -3,7 +3,7 @@ const test = require("node:test");
 
 const summary = require("./pr-smoke-summary.cjs");
 
-test("buildComment reports failures and steps that did not run", () => {
+test("buildComment reports each shard in order, with steps that did not run", () => {
   const body = summary.buildComment({
     workflowRun: {
       conclusion: "failure",
@@ -11,14 +11,24 @@ test("buildComment reports failures and steps that did not run", () => {
       run_attempt: 2,
     },
     jobs: [
+      { name: "frontend", conclusion: "success", steps: [] },
       {
-        name: "frontend",
+        name: "smoke 2/2",
         conclusion: "failure",
         steps: [
           { name: "Build production image", conclusion: "success" },
           { name: "Run HTTP smoke checks", conclusion: "failure" },
           { name: "Run browser smoke test", conclusion: "skipped" },
           { name: "Upload smoke artifacts", conclusion: "success" },
+        ],
+      },
+      {
+        name: "smoke 1/2",
+        conclusion: "success",
+        steps: [
+          { name: "Build production image", conclusion: "success" },
+          { name: "Run HTTP smoke checks", conclusion: "success" },
+          { name: "Run browser smoke test", conclusion: "success" },
         ],
       },
     ],
@@ -32,14 +42,24 @@ test("buildComment reports failures and steps that did not run", () => {
 | Check | Result |
 | --- | --- |
 | Overall CI | ❌ failure |
-| Frontend job | ❌ failure |
-| Build production image | ✅ success |
-| HTTP smoke checks | ❌ failure |
-| Browser smoke test | ⏭️ skipped |
-| Artifact upload | ✅ success |
+| Frontend job | ✅ success |
 
-[View workflow run and download \`container-smoke-2\`](https://github.com/GilbN/geometrikks/actions/runs/123)`,
+| Shard | Job | Build production image | HTTP smoke checks | Browser smoke test | Artifact upload |
+| --- | --- | --- | --- | --- | --- |
+| 1/2 | ✅ success | ✅ success | ✅ success | ✅ success | ⏭️ not run |
+| 2/2 | ❌ failure | ✅ success | ❌ failure | ⏭️ skipped | ✅ success |
+
+[View workflow run and download \`container-smoke-<shard>-2\`](https://github.com/GilbN/geometrikks/actions/runs/123)`,
   );
+});
+
+test("buildComment marks the smoke test not run when no shard job exists", () => {
+  const body = summary.buildComment({
+    workflowRun: { conclusion: "cancelled", html_url: "https://example.test/run", run_attempt: 1 },
+    jobs: [{ name: "frontend", conclusion: "cancelled", steps: [] }],
+  });
+
+  assert.match(body, /\| all \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \|/);
 });
 
 test("main updates the existing smoke comment instead of adding a duplicate", async () => {
@@ -57,7 +77,7 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
   ];
   const jobs = [
     {
-      name: "frontend",
+      name: "smoke 1/1",
       conclusion: "success",
       steps: [
         { name: "Build production image", conclusion: "success" },
@@ -109,7 +129,7 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
   await summary.main({ github, context, core: { notice() {} } });
 
   assert.equal(comments.length, 2);
-  assert.match(comments[0].body, /\| Browser smoke test \| ✅ success \|/);
+  assert.match(comments[0].body, /\| 1\/1 \| ✅ success \| ✅ success \| ✅ success \| ✅ success \| ✅ success \|/);
   assert.equal(comments[1].body, "Keep this comment");
 });
 

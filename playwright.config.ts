@@ -7,7 +7,8 @@ export default defineConfig({
     { name: "smoke", testIgnore: "**/themes.pw.ts" },
     { name: "themes", testMatch: "**/themes.pw.ts" },
   ],
-  fullyParallel: false,
+  // Without it --shard splits by file, and banned-map.pw.ts alone fills a shard.
+  fullyParallel: true,
   workers: 1,
   retries: 0,
   timeout: 45_000,

@@ -81,7 +81,26 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Run frontend tests
+        run: bun run test
+      - name: Test PR smoke summary helper
+        run: node --test .github/scripts/pr-smoke-summary.test.cjs
+
+  smoke:
+    name: smoke ${{ matrix.shard }}/${{ strategy.job-total }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # Keep the other shards running so one failure doesn't hide the rest.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       timescaledb:
         image: timescale/timescaledb-ha:pg18
@@ -100,16 +119,12 @@ jobs:
       SMOKE_ADMIN_USER: admin
       # Deliberately disposable and non-secret: Playwright traces are uploaded.
       SMOKE_ADMIN_PASSWORD: ci-smoke-password
-      SMOKE_ARTIFACT_NAME: container-smoke-${{ github.run_attempt }}
+      SMOKE_ARTIFACT_NAME: container-smoke-${{ matrix.shard }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: bun install --frozen-lockfile
-      - name: Run frontend tests
-        run: bun run test
-      - name: Test PR smoke summary helper
-        run: node --test .github/scripts/pr-smoke-summary.test.cjs
       - uses: docker/setup-buildx-action@v4
       # The step names from here through "Upload smoke artifacts" are
       # referenced verbatim by .github/scripts/pr-smoke-summary.cjs; renaming
@@ -124,7 +139,8 @@ jobs:
             APP_IMAGE_TAG=ci-${{ github.sha }}
             GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=container-smoke
-          cache-to: type=gha,mode=max,scope=container-smoke
+          # One writer per run: the shards build the same image.
+          cache-to: ${{ matrix.shard == 1 && 'type=gha,mode=max,scope=container-smoke' || '' }}
       # npx/npm here is deliberate in this otherwise-bun repo: the Playwright
       # test runner only supports the Node runtime, and bun re-executes
       # node-shebang bins under bun.
@@ -226,7 +242,7 @@ jobs:
             exit 1
           fi
       - name: Run browser smoke test
-        run: npm run test:smoke
+        run: npm run test:smoke -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Verify graceful shutdown
         shell: bash
         run: |
@@ -259,7 +275,7 @@ jobs:
           SMOKE_JOB_STATUS: ${{ job.status }}
         run: |
           {
-            echo "## Production image smoke test"
+            echo "## Production image smoke test, shard ${{ matrix.shard }}/${{ strategy.job-total }}"
             echo
             echo "| Check | Result |"
             echo "| --- | --- |"
