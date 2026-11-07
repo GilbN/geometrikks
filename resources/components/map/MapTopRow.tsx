@@ -22,14 +22,17 @@ export function MapTopRow({ liveSlotRef }: { liveSlotRef: (slot: HTMLDivElement 
       style={{ right: pillRight(side) }}
       className="pointer-events-none absolute top-(--range-chip-top) left-[max(1rem,env(safe-area-inset-left))] z-20 flex h-(--range-chip-height) items-center gap-2"
     >
-      <div ref={liveSlotRef} className="flex min-w-0" />
+      {/* The slot has a zero basis and an automatic minimum. It takes the room
+          the chip leaves, but never less than the live pill needs for its rate,
+          so on a narrow phone the chip's range label is cut instead. */}
+      <div ref={liveSlotRef} className="flex flex-1" />
       <div
         role="group"
         aria-label="Time range"
         hidden={barCovered}
         className={cn(
           TAB_BAR_SURFACE,
-          "pointer-events-auto ml-auto flex h-(--range-chip-height) shrink-0 items-center gap-0.5 rounded-full border border-border p-[3px]",
+          "pointer-events-auto flex h-(--range-chip-height) min-w-0 items-center gap-0.5 rounded-full border border-border p-[3px]",
         )}
       >
         <PhoneTimeRangeControls chip />

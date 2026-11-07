@@ -110,10 +110,11 @@ test.describe("portrait phone", () => {
     const chipBox = await box(chip(page))
     expect(Math.abs(centreY(vitals) - centreY(chipBox))).toBeLessThanOrEqual(2)
     expect(vitals.x).toBeCloseTo(16, 0)
+    await expect(page.locator("[data-live-pill]").getByText("/min", { exact: true })).toBeInViewport()
     await page.screenshot({ path: "smoke-artifacts/map-range-chip-live.png" })
   })
 
-  test("on a narrow phone the live pill gives way to a custom range", async ({ page }) => {
+  test("on a narrow phone a custom range gives way to the live rate", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 })
     await page.routeWebSocket("**/ws/live", (socket) => {
       const now = new Date().toISOString()
@@ -130,15 +131,12 @@ test.describe("portrait phone", () => {
     const chevron = await box(vitalsButton.locator("svg").last())
     expect(chevron.x + chevron.width).toBeLessThanOrEqual(vitals.x + vitals.width)
     const threatBadge = await box(vitalsButton.getByText("1,500", { exact: true }).last().locator(".."))
-    // The rpm may be cut short, so measure where its clipping ends.
-    const rpmRight = await vitalsButton.getByText("1,500", { exact: true }).first().evaluate((rpm) => {
-      let right = rpm.getBoundingClientRect().right
-      for (let parent = rpm.parentElement; parent && parent.tagName !== "BUTTON"; parent = parent.parentElement) {
-        if (getComputedStyle(parent).overflowX !== "visible") right = Math.min(right, parent.getBoundingClientRect().right)
-      }
-      return right
-    })
-    expect(rpmRight).toBeLessThanOrEqual(threatBadge.x)
+    const rpm = await box(vitalsButton.getByText("1,500", { exact: true }).first())
+    expect(rpm.x + rpm.width).toBeLessThanOrEqual(threatBadge.x)
+    // The unit and the sparkline wrap onto the clipped second line.
+    await expect(vitalsButton.getByText("/min", { exact: true })).not.toBeInViewport()
+    const rangeLabel = chip(page).getByRole("button", { name: /^Time range and refresh/ }).locator("span").first()
+    expect(await rangeLabel.evaluate((label) => label.scrollWidth > label.clientWidth)).toBe(true)
     expect(Math.abs(centreY(vitals) - centreY(chipBox))).toBeLessThanOrEqual(2)
     const pillBox = await box(actionPill(page))
     expect(Math.abs(chipBox.x + chipBox.width - (pillBox.x + pillBox.width))).toBeLessThanOrEqual(1)

@@ -1083,7 +1083,7 @@ function GeoMapInner({
           whenever live mode is on regardless of the desktop overlay preference.
           It lives in the range chip's row, which gives it the width the chip leaves. */}
       {liveMode && isMobile && liveSlot && createPortal(
-        <div data-live-pill="" className="flex min-w-0">
+        <div data-live-pill="" className="flex">
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
         </div>,
         liveSlot,

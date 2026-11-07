@@ -150,7 +150,7 @@ export function PhoneTimeRangeControls({ chip = false }: { chip?: boolean }) {
             // show against the light theme's filled pill.
             className={cn(
               "shrink-0 gap-1 rounded-full px-3 text-xs font-semibold not-dark:hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--primary-state-mix))] not-dark:active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--primary-state-mix))] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-              chip && CHIP_RANGE,
+              chip && cn(CHIP_RANGE, "min-w-0 shrink"),
             )}
           >
             <span className="max-w-28 truncate tabular-nums">{rangeLabel}</span>
