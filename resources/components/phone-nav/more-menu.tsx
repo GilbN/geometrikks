@@ -226,7 +226,11 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
         onInteractOutside={(event) => {
           const target = event.target as Element | null
           if (target?.closest("[data-tab-bar]")) {
-            if (target.closest("a[href]")) leaving.current = true
+            // A bar tab replaces More's history entry, so More stays open until the navigation closes it.
+            if (target.closest("a[href]")) {
+              leaving.current = true
+              event.preventDefault()
+            }
             return
           }
           if (target === scrimRef.current) event.preventDefault()
