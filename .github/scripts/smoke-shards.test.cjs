@@ -98,6 +98,8 @@ test("every test runs on exactly one shard, even with overlapping and unlistable
     { file: "a.pw.ts", titles: ["a", "b"] },
     { file: "a.pw.ts", titles: [" padded"] },
     { file: "a.pw.ts", titles: ["padded"] },
+    { file: "a.pw.ts", titles: ["two"] },
+    { file: "a.pw.ts", titles: ["two\nlines"] },
     ...Array.from({ length: 12 }, (_, index) => ({ file: "b.pw.ts", titles: [`test ${index}`] })),
   ];
   const report = {
@@ -128,7 +130,12 @@ test("every test runs on exactly one shard, even with overlapping and unlistable
   const lines = plan.map((_, index) => {
     const out = path.join(dir, `${index}.txt`);
     shards.shardArgs(plan, index + 1, out);
-    return fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean);
+    // Read like loadTestList: one entry per line, trimmed, no blanks or comments.
+    return fs
+      .readFileSync(out, "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
   });
 
   for (const entry of tests) {

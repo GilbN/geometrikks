@@ -21,9 +21,10 @@ const PROJECT = "smoke";
 const CACHE_WRITER_HEAD_START = 15;
 
 // Playwright reads a test-list line as a title-path prefix and trims each
-// part. No line can match a title with "›" or outer spaces, so those tests
-// stay off every list and run on the last shard.
-const listable = (title) => title !== "" && title === title.trim() && !title.includes("›");
+// part. No line can match a title with "›", a line break or outer spaces,
+// so those tests stay off every list and run on the last shard.
+const listable = (title) =>
+  title !== "" && title === title.trim() && !title.includes("›") && !/[\r\n]/.test(title);
 
 function collectTests(report) {
   const tests = [];
