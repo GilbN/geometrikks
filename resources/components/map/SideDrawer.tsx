@@ -8,7 +8,7 @@ import { usePhoneMapSide } from "@/hooks/use-phone-map"
 // Prefixed like ui/drawer's own direction classes: unprefixed ones lose to
 // them on specificity, and the drawer would stay capped at max-w-sm. The
 // 384px is the side drawer's width, written out so Tailwind finds the class.
-const SIDE_CONTENT = [
+export const SIDE_DRAWER_CONTENT = [
   "data-[vaul-drawer-direction=right]:w-[calc(384px+env(safe-area-inset-right,0px))]",
   "data-[vaul-drawer-direction=right]:max-w-none",
   "data-[vaul-drawer-direction=right]:sm:max-w-none",
@@ -34,7 +34,7 @@ export function useSideDrawer() {
   return {
     side,
     direction: side ? ("right" as const) : ("bottom" as const),
-    contentClassName: side ? SIDE_CONTENT : "",
+    contentClassName: side ? SIDE_DRAWER_CONTENT : "",
   }
 }
 
