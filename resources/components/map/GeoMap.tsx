@@ -1082,7 +1082,7 @@ function GeoMapInner({
       {liveMode && isMobile && (
         <div
           data-live-pill=""
-          className="pointer-events-none absolute top-(--range-chip-top) left-[max(1rem,env(safe-area-inset-left))] z-10 flex h-11 items-center"
+          className="pointer-events-none absolute top-(--range-chip-top) left-[max(1rem,env(safe-area-inset-left))] z-10 flex h-(--range-chip-height) items-center"
         >
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
         </div>
