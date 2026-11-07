@@ -1,8 +1,9 @@
 /**
  * Searchable, multi-select filter dropdown. A small trigger button (matching
  * the app's existing filter-bar buttons) opens either a floating combobox
- * popup with a search box (desktop) or a bottom drawer with the same search
- * + checklist body (mobile, touch-friendly). Pass `forceInline` when the
+ * popup with a search box (desktop) or a drawer with the same search +
+ * checklist body (phones, touch-friendly; from the right held sideways).
+ * Pass `forceInline` when the
  * host already provides its own on-mobile overlay (e.g. a panel that's
  * itself a Drawer) so this component doesn't nest a second one.
  */
@@ -26,7 +27,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { cn } from "@/lib/utils"
 
 interface FilterComboboxProps<T extends string | number> {
@@ -153,7 +155,12 @@ export function FilterCombobox<T extends string | number>({
   disabled = false,
   maxSelected,
 }: FilterComboboxProps<T>) {
-  const isMobile = useIsMobile()
+  const [open, setOpen] = useState(false)
+  const changeOpen = (next: boolean) => {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
+  const drawer = usePhoneDrawer("filter-combobox", open, () => changeOpen(false), forceInline ? { phone: false } : undefined)
   const count = selected.length
   const atMax = maxSelected !== undefined && count >= maxSelected
   const triggerLabel = `${label}${count > 0 ? ` (${count})` : ""}`
@@ -182,23 +189,24 @@ export function FilterCombobox<T extends string | number>({
     )
   }
 
-  if (isMobile) {
+  if (drawer.phone) {
     return (
-      <Drawer onOpenChange={onOpenChange}>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={changeOpen}>
         <DrawerTrigger asChild>
           <Button variant="outline" size="sm" disabled={disabled} className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
             {triggerLabel}
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
           </Button>
         </DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader>
+        <DrawerContent className={drawer.contentClassName}>
+          <DrawerHeader className={drawer.side ? "flex-row items-center justify-between" : undefined}>
             <DrawerTitle>{label}</DrawerTitle>
             <DrawerDescription className="sr-only">
               Search and select {label.toLowerCase()} values to filter by.
             </DrawerDescription>
+            {drawer.side && <SideDrawerClose />}
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className={drawer.side ? "min-h-0 overflow-y-auto overscroll-contain px-4 pb-6" : "px-4 pb-6"}>
             <FilterComboboxBody
               options={options}
               selected={selected}
@@ -223,7 +231,7 @@ export function FilterCombobox<T extends string | number>({
       value={selected}
       onValueChange={(value) => onChange(value as T[])}
       itemToStringLabel={labelFor}
-      onOpenChange={onOpenChange}
+      onOpenChange={changeOpen}
       disabled={disabled}
     >
       <ComboboxPrimitive.Trigger

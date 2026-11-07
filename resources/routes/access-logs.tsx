@@ -90,9 +90,9 @@ function AccessLogsPage() {
           title="Access Logs"
           subtitle="Explore request history or follow new traffic as it arrives."
         />
-        {/* Below md the filter bar is a single Filters button, so it shares
+        {/* On a phone the filter bar is a single Filters button, so it shares
             the row with the tabs. */}
-        <div className="space-y-4 max-md:flex max-md:flex-wrap max-md:items-center max-md:justify-between max-md:gap-3 max-md:space-y-0">
+        <div className="space-y-4 phone:flex phone:flex-wrap phone:items-center phone:justify-between phone:gap-3 phone:space-y-0">
           <Tabs value={mode} onValueChange={(value) => setMode(value as Mode)}>
             <TabsList>
               <TabsTrigger value="history">

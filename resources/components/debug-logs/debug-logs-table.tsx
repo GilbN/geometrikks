@@ -58,6 +58,7 @@ import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { statusBadgeClass } from "@/lib/status-badge"
@@ -316,6 +317,7 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
 export function DebugLogsTable() {
   const { range, customRange } = useTimeRange()
   const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -547,7 +549,7 @@ export function DebugLogsTable() {
     <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
       {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
       <div className="space-y-4">
-        {isMobile ? (
+        {phone ? (
           <div onClick={() => setFacetsEnabled(true)}>
             <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
               {renderFilters(true)}
