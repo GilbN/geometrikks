@@ -4,7 +4,7 @@
  * drawer with the full detail, so the verdict, the problems and every
  * component fit on the first screen instead of a stack of tall cards.
  */
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { Link } from "@tanstack/react-router"
 import { ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/drawer"
 import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import type { CardState, StatusProblem } from "@/components/settings/status-logic"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 
 export interface StatusTile {
@@ -48,6 +49,8 @@ export function StatusPhone({
   tiles: readonly StatusTile[]
 }) {
   const [open, setOpen] = useState(false)
+  const overlayId = useId()
+  useOverlayEntry(`status-detail-${overlayId}`, open, () => setOpen(false))
   // By id, so an open drawer follows the polled data rather than a copy of it.
   const [selected, setSelected] = useState<{ kind: Selection["kind"]; id: string } | null>(null)
   // The row or tile that opened the drawer gets focus back when it closes.

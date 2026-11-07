@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { ChevronRight, X } from "lucide-react"
 import type { ApiKeyView } from "@/lib/api"
 import { useRevokeApiKey } from "@/lib/queries"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -101,6 +102,11 @@ export function ApiKeyDrawer({
   }, [gone, onOpenChange])
   // A swipe away mid-revoke would skip the focus handoff that runs once it lands.
   const [revoking, setRevoking] = useState(false)
+  const overlayId = useId()
+  // Back mid-revoke leaves the drawer up, like a swipe does.
+  useOverlayEntry(`api-key-${overlayId}`, open, () => {
+    if (!revoking) onOpenChange(false)
+  })
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} dismissible={!revoking} autoFocus>

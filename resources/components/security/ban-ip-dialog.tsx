@@ -3,7 +3,7 @@
  * a preset or custom duration, and a reason. It validates before sending,
  * and the server validates again and normalizes the range and duration.
  */
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useId, useRef, useState, type RefObject } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,6 +34,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { focusDrawerTitle } from "@/components/settings/api-keys-phone"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { flushIpActions } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
@@ -247,6 +248,8 @@ export function BanIpDialog({
   returnFocusTo?: RefObject<HTMLElement | null>
 }) {
   const isMobile = useIsMobile()
+  const overlayId = useId()
+  useOverlayEntry(`ban-ip-${overlayId}`, isMobile && open, () => onOpenChange(false))
   const restoreFocus = (event: Event) => {
     if (!returnFocusTo?.current) return
     event.preventDefault()

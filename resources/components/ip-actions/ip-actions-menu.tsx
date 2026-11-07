@@ -282,7 +282,7 @@ export function IpActionsMenu({
   // element as the one to return to, and a dialog opened during the drawer's
   // close animation leaves pointer-events: none on the body after it is
   // dismissed. vaul only reports the end of a close it made itself, so every
-  // drawer action closes it through DrawerClose rather than a controlled `open`.
+  // drawer action closes it through DrawerClose rather than by setting menuOpen.
   const afterClose = useRef<(() => void) | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const banLabelId = useId()

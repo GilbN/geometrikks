@@ -211,6 +211,46 @@ describe("createOverlayHistory", () => {
     expect(history.location.href).toBe("/access-logs?ip=1")
   })
 
+  it("keeps a filter set in one overlay through its handover to the next and Back", async () => {
+    const { history, overlays, entry } = setup()
+    entry("layers")
+    entry("detail")
+    overlays.opened("layers")
+    await settle()
+    history.replace("/map?country=NO", {})
+    await settle()
+    overlays.closed("layers")
+    overlays.opened("detail")
+    await settle()
+
+    history.back()
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(0)
+    expect(history.location.href).toBe("/map?country=NO")
+  })
+
+  it("keeps a filter set under the upper of two overlays through both Backs", async () => {
+    const { history, overlays, entry } = setup()
+    entry("lower")
+    entry("upper")
+    overlays.opened("lower")
+    await settle()
+    overlays.opened("upper")
+    await settle()
+    history.replace("/map?country=NO", {})
+    await settle()
+
+    history.back()
+    await settle()
+    expect(history.location.state.overlay).toBe("lower")
+    expect(history.location.href).toBe("/map?country=NO")
+
+    history.back()
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(0)
+    expect(history.location.href).toBe("/map?country=NO")
+  })
+
   it("carries a URL only from an entry the page replaced while its overlay was open", async () => {
     const { history, overlays, entry } = setup()
     entry("layers")
@@ -257,6 +297,21 @@ describe("createOverlayHistory", () => {
     await settle()
     expect(history.location.state.__TSR_index).toBe(0)
     expect(history.location.href).toBe("/map")
+  })
+
+  it("releases an overlay closed by a navigation without going back", async () => {
+    const { history, overlays, entry } = setup()
+    entry("create")
+    overlays.opened("create")
+    await settle()
+    overlays.release("create")
+    overlays.closed("create")
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(1)
+
+    history.back()
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(0)
   })
 
   it("does nothing while inactive", async () => {
