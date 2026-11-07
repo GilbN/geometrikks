@@ -19,7 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useCrowdsecAlertScenarios, useCrowdsecAlerts, useTrimCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
@@ -87,7 +87,7 @@ export function AlertsTable() {
   const [ipText, setIpText] = useState("")
   const [scenarios, setScenarios] = useState<string[]>([])
   const [scenarioPickerOpened, setScenarioPickerOpened] = useState(false)
-  const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const kindParam = kind === "all" ? undefined : kind
   const alertParams = { since, kind: kindParam, ip, scenarios: [...scenarios].sort() }
   const {
@@ -197,8 +197,8 @@ export function AlertsTable() {
     <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
       <TabsList aria-label="Time range">
         {SINCE_OPTIONS.map((option) => (
-          <TabsTrigger key={option.key} value={option.key} aria-label={isMobile ? option.label : undefined}>
-            {isMobile ? option.shortLabel : option.label}
+          <TabsTrigger key={option.key} value={option.key} aria-label={phone ? option.label : undefined}>
+            {phone ? option.shortLabel : option.label}
           </TabsTrigger>
         ))}
       </TabsList>
@@ -206,12 +206,12 @@ export function AlertsTable() {
   )
 
   return (
-    <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 max-md:pb-2.5">
+    <Card ref={layoutRef} className="py-4 phone:gap-0 phone:pt-3">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 phone:pb-2.5">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
-        {!isMobile && sinceTabs}
+        {!phone && sinceTabs}
       </CardHeader>
-      {isMobile ? (
+      {phone ? (
         <div className="flex flex-col gap-2 px-6 pb-2.5">
           <div className="flex items-center justify-between gap-2">
             {sinceTabs}

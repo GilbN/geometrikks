@@ -3,7 +3,7 @@
  * a preset or custom duration, and a reason. It validates before sending,
  * and the server validates again and normalizes the range and duration.
  */
-import { useEffect, useId, useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,9 +32,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
 import { focusDrawerTitle } from "@/components/settings/api-keys-phone"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { useOverlayEntry } from "@/lib/overlay-history"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { flushIpActions } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
@@ -247,9 +247,7 @@ export function BanIpDialog({
    *  would otherwise drop focus on the body. */
   returnFocusTo?: RefObject<HTMLElement | null>
 }) {
-  const isMobile = useIsMobile()
-  const overlayId = useId()
-  useOverlayEntry(`ban-ip-${overlayId}`, isMobile && open, () => onOpenChange(false))
+  const drawer = usePhoneDrawer("ban-ip", open, () => onOpenChange(false))
   const restoreFocus = (event: Event) => {
     if (!returnFocusTo?.current) return
     event.preventDefault()
@@ -258,16 +256,26 @@ export function BanIpDialog({
   const title = "Ban an IP or range"
   const description = "Creates a manual CrowdSec decision with origin geometrikks. Your bouncer enforces it."
 
-  if (isMobile) {
+  if (drawer.phone) {
+    const heading = (
+      <>
+        <DrawerTitle tabIndex={-1} className="outline-none">
+          {title}
+        </DrawerTitle>
+        <DrawerDescription>{description}</DrawerDescription>
+      </>
+    )
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} autoFocus>
-        <DrawerContent onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
-          <DrawerHeader>
-            <DrawerTitle tabIndex={-1} className="outline-none">
-              {title}
-            </DrawerTitle>
-            <DrawerDescription>{description}</DrawerDescription>
-          </DrawerHeader>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} autoFocus>
+        <DrawerContent className={drawer.contentClassName} onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
+          {drawer.side ? (
+            <DrawerHeader className="flex-row items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-1">{heading}</div>
+              <SideDrawerClose />
+            </DrawerHeader>
+          ) : (
+            <DrawerHeader>{heading}</DrawerHeader>
+          )}
           <BanIpForm
             initialIp={initialIp}
             initialReason={initialReason}
@@ -281,7 +289,7 @@ export function BanIpDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={drawer.open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-sm"
         onCloseAutoFocus={restoreFocus}
