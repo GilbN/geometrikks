@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type WebSocketRoute } from "@playwright/test"
 import type { BannedMapCollection, BannedMapFeature } from "../../resources/generated/api/types.gen"
 import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS, type SafeAreaInsets } from "./safe-areas"
+import { settledToastBox } from "./toasts"
 
 test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
 
@@ -238,17 +239,6 @@ async function copyFailureToast(page: Page) {
 }
 
 /** Sonner slides a toast into place, so this measures where it settles. */
-async function settledBox(toast: Locator) {
-  let settledY = Number.NaN
-  await expect.poll(async () => {
-    const { y } = await box(toast)
-    const settled = Math.abs(y - settledY) < 0.5
-    settledY = y
-    return settled
-  }).toBe(true)
-  return box(toast)
-}
-
 test("a toast stays clear of the range chip while a portrait panel is open", async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 852 })
   await emulateSafeAreas(page, { top: 59, left: 0, right: 0, bottom: 34 })
@@ -259,7 +249,7 @@ test("a toast stays clear of the range chip while a portrait panel is open", asy
   const toast = await copyFailureToast(page)
   await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-y-position", "top")
   const chip = await box(page.getByRole("group", { name: "Time range", exact: true }))
-  const toastBox = await settledBox(toast)
+  const toastBox = await settledToastBox(toast)
   expect(toastBox.y).toBeGreaterThanOrEqual(chip.y + chip.height + 8 - 0.5)
   await page.screenshot({ path: "smoke-artifacts/banned-map-portrait-toast.png" })
 })
@@ -458,7 +448,7 @@ test.describe("landscape phone", () => {
     // The panel hides the range chip, so toasts take the top of the screen.
     await expect(page.getByRole("group", { name: "Time range", exact: true })).toBeHidden()
     expect((await box(toaster)).y).toBeCloseTo(8, 0)
-    const toastBox = await settledBox(toast)
+    const toastBox = await settledToastBox(toast)
     expect(toastBox.x).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.left, 0)
     expect(932 - (toastBox.x + toastBox.width)).toBeCloseTo(IPHONE_LANDSCAPE_INSETS.right, 0)
     await page.screenshot({ path: "smoke-artifacts/banned-map-covered-toast.png" })
@@ -472,15 +462,7 @@ test.describe("landscape phone", () => {
     await page.goto("/map?focusIp=192.0.2.250")
     const toast = page.locator("[data-sonner-toast]").filter({ hasText: "IP not on the map" })
     await expect(toast).toBeVisible()
-    // Sonner slides the toast up into place, so measure where it settles.
-    let settledY = Number.NaN
-    await expect.poll(async () => {
-      const { y } = await box(toast)
-      const settled = Math.abs(y - settledY) < 0.5
-      settledY = y
-      return settled
-    }).toBe(true)
-    const toastBox = await box(toast)
+    const toastBox = await settledToastBox(toast)
     const bar = await box(page.locator("[data-tab-bar]"))
     expect(Math.abs(toastBox.x + toastBox.width / 2 - 932 / 2)).toBeLessThanOrEqual(1)
     expect(toastBox.width).toBeCloseTo(356, 0)
