@@ -2,7 +2,8 @@
 //
 // Playwright's own --shard splits by test count, which put every slow
 // side-drawers test on the last shard. Each shard runs this on the same
-// commit, so all of them compute the same plan.
+// commit, so all of them compute the same plan. It plans test by test, so a
+// describe.configure({ mode: "serial" }) group would be split across shards.
 //
 //   node smoke-shards.cjs plan <list.json> <durations.json> <total> <shard> <out-file>
 //     Writes this shard's test list to <out-file> and prints the Playwright
@@ -19,12 +20,18 @@ const PROJECT = "smoke";
 // Shard 1 also exports the image cache, about 15 seconds on its build step.
 const CACHE_WRITER_HEAD_START = 15;
 
+// Playwright reads a test-list line as a title-path prefix and trims each
+// part. No line can match a title with "›" or outer spaces, so those tests
+// stay off every list and run on the last shard.
+const listable = (title) => title !== "" && title === title.trim() && !title.includes("›");
+
 function collectTests(report) {
   const tests = [];
   const walk = (suite, titles) => {
     for (const spec of suite.specs ?? []) {
       if (!spec.tests.some((test) => test.projectName === PROJECT)) continue;
-      tests.push({ key: [spec.file, ...titles, spec.title].join(" › "), spec });
+      const path = [...titles, spec.title];
+      tests.push({ key: [spec.file, ...path].join(" › "), listable: path.every(listable), spec });
     }
     for (const child of suite.suites ?? []) walk(child, [...titles, child.title]);
   };
@@ -38,19 +45,37 @@ function median(values) {
   return sorted[Math.floor(sorted.length / 2)];
 }
 
-function planShards(keys, durations, total) {
+// A line for "a › b" also selects "a › b › c", so tests whose paths are
+// prefixes of each other share a shard, or one of them would run twice.
+function groupByPrefix(keys) {
+  const parent = new Map(keys.map((key) => [key, key]));
+  const root = (key) => (parent.get(key) === key ? key : root(parent.get(key)));
+  for (const shorter of keys) {
+    for (const longer of keys) {
+      if (longer.startsWith(`${shorter} › `)) parent.set(root(longer), root(shorter));
+    }
+  }
+  const groups = new Map();
+  for (const key of keys) groups.set(root(key), [...(groups.get(root(key)) ?? []), key]);
+  return [...groups.values()];
+}
+
+function planShards(keys, durations, total, unlistable = new Set()) {
   const fallback = median(Object.values(durations));
-  const weighted = keys
-    .map((key) => ({ key, seconds: durations[key] ?? fallback }))
-    .sort((a, b) => b.seconds - a.seconds || a.key.localeCompare(b.key));
+  const seconds = (key) => durations[key] ?? fallback;
   const shards = Array.from({ length: total }, (_, index) => ({
     load: index === 0 ? CACHE_WRITER_HEAD_START : 0,
     keys: [],
   }));
-  for (const test of weighted) {
-    const lightest = shards.reduce((best, shard) => (shard.load < best.load ? shard : best));
-    lightest.keys.push(test.key);
-    lightest.load += test.seconds;
+  const last = shards[total - 1];
+  const groups = groupByPrefix(keys)
+    .map((group) => ({ keys: group, seconds: group.reduce((sum, key) => sum + seconds(key), 0) }))
+    .sort((a, b) => b.seconds - a.seconds || a.keys[0].localeCompare(b.keys[0]));
+  for (const group of groups) {
+    const pinned = group.keys.some((key) => unlistable.has(key));
+    const target = pinned ? last : shards.reduce((best, shard) => (shard.load < best.load ? shard : best));
+    target.keys.push(...group.keys);
+    target.load += group.seconds;
   }
   return shards.map((shard) => shard.keys.sort());
 }
@@ -87,8 +112,9 @@ function main(argv) {
   const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
   if (command === "plan") {
     const [listFile, durationsFile, total, shard, outFile] = rest;
-    const keys = collectTests(readJson(listFile)).map((test) => test.key);
-    const plan = planShards(keys, readJson(durationsFile), Number(total));
+    const tests = collectTests(readJson(listFile));
+    const unlistable = new Set(tests.filter((test) => !test.listable).map((test) => test.key));
+    const plan = planShards(tests.map((test) => test.key), readJson(durationsFile), Number(total), unlistable);
     process.stdout.write(shardArgs(plan, Number(shard), outFile));
     return;
   }
@@ -101,4 +127,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { collectTests, durationsFromReports, planShards, shardArgs, testListLines };
+module.exports = { collectTests, durationsFromReports, groupByPrefix, planShards, shardArgs, testListLines };

@@ -81,3 +81,62 @@ test("the last shard runs whatever the other lists do not claim", () => {
   assert.equal(shards.shardArgs(plan, 3, out), `--test-list-invert=${out}`);
   assert.equal(fs.readFileSync(out, "utf8"), "[smoke] › a › one\n[smoke] › b › two\n");
 });
+
+// Mirrors Playwright's loadTestList. A line selects a test in the same file
+// whose titles start with the line's trimmed parts.
+function playwrightSelects(line, test) {
+  const [, file, ...titles] = line.split("›").map((part) => part.trim());
+  return file === test.file && titles.every((title, index) => test.titles[index] === title);
+}
+
+test("every test runs on exactly one shard, even with overlapping and unlistable titles", () => {
+  const tests = [
+    { file: "a.pw.ts", titles: ["opens"] },
+    { file: "a.pw.ts", titles: ["opens", "nested"] },
+    { file: "a.pw.ts", titles: ["opens", "nested", "deeper"] },
+    { file: "a.pw.ts", titles: ["a › b"] },
+    { file: "a.pw.ts", titles: ["a", "b"] },
+    { file: "a.pw.ts", titles: [" padded"] },
+    { file: "a.pw.ts", titles: ["padded"] },
+    ...Array.from({ length: 12 }, (_, index) => ({ file: "b.pw.ts", titles: [`test ${index}`] })),
+  ];
+  const report = {
+    suites: [...new Set(tests.map((entry) => entry.file))].map((file) => ({
+      title: file,
+      file,
+      specs: [],
+      suites: [],
+    })),
+  };
+  for (const entry of tests) {
+    let suite = report.suites.find((fileSuite) => fileSuite.file === entry.file);
+    for (const describe of entry.titles.slice(0, -1)) {
+      let child = suite.suites.find((candidate) => candidate.title === describe);
+      if (!child) {
+        child = { title: describe, file: entry.file, specs: [], suites: [] };
+        suite.suites.push(child);
+      }
+      suite = child;
+    }
+    suite.specs.push(spec(entry.titles.at(-1), entry.file, []));
+  }
+  const collected = shards.collectTests(report);
+  const unlistable = new Set(collected.filter((entry) => !entry.listable).map((entry) => entry.key));
+  const total = 6;
+  const plan = shards.planShards(collected.map((entry) => entry.key), {}, total, unlistable);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-shards-"));
+  const lines = plan.map((_, index) => {
+    const out = path.join(dir, `${index}.txt`);
+    shards.shardArgs(plan, index + 1, out);
+    return fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean);
+  });
+
+  for (const entry of tests) {
+    const runs = lines.filter((shardLines, index) =>
+      index < total - 1
+        ? shardLines.some((line) => playwrightSelects(line, entry))
+        : !shardLines.some((line) => playwrightSelects(line, entry)),
+    ).length;
+    assert.equal(runs, 1, `${entry.file} › ${entry.titles.join(" › ")} runs on ${runs} shards`);
+  }
+});
