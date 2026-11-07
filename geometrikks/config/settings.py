@@ -1108,6 +1108,54 @@ class DropSettings(BaseSettings):
     )
 
 
+class AbuseIpdbSettings(BaseSettings):
+    """AbuseIPDB integration: IP checks and, separately, abuse reports."""
+
+    model_config = SettingsConfigDict(env_prefix="ABUSEIPDB_", env_file=_env_file(), extra="ignore")
+
+    api_key: SecretStr | None = Field(
+        default=None,
+        description=(
+            "AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against "
+            "api.abuseipdb.com, which sends each checked IP to AbuseIPDB."
+        ),
+    )
+    reporting_enabled: bool = Field(
+        default=False,
+        description=(
+            "Allow reporting IPs to AbuseIPDB from the UI. A report sends the IP, "
+            "your comment, the categories and the attack time to AbuseIPDB, where "
+            "they are public. Needs ABUSEIPDB_API_KEY."
+        ),
+    )
+    request_timeout: float = Field(
+        default=10.0,
+        gt=0,
+        description="AbuseIPDB request timeout in seconds",
+        json_schema_extra=ADVANCED_FIELD,
+    )
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def blank_key_is_unset(cls, value: object) -> object:
+        """Read an empty or whitespace key, such as ``ABUSEIPDB_API_KEY=`` in a compose file, as unset."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @property
+    def enabled(self) -> bool:
+        """IP checks are available: an API key is set."""
+        return self.api_key is not None
+
+    @model_validator(mode="after")
+    def validate_reporting_has_key(self) -> "AbuseIpdbSettings":
+        """Fail at startup, not at the first report."""
+        if self.reporting_enabled and self.api_key is None:
+            raise ValueError("ABUSEIPDB_REPORTING_ENABLED requires ABUSEIPDB_API_KEY")
+        return self
+
+
 class OidcSettings(BaseSettings):
     """OpenID Connect login against one identity provider.
 
@@ -1496,6 +1544,7 @@ class Settings(BaseSettings):
     map: MapSettings = Field(default_factory=MapSettings)
     crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
     drop: DropSettings = Field(default_factory=DropSettings)
+    abuseipdb: AbuseIpdbSettings = Field(default_factory=AbuseIpdbSettings)
     oidc: OidcSettings = Field(default_factory=OidcSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
 
