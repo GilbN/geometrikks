@@ -152,6 +152,11 @@ function ageLabel(ageMs: number, reportedAt: string): string {
   return `on ${new Date(reportedAt).toISOString().slice(0, 10)}`
 }
 
+/** "6 min ago", "2 h ago", "3 d ago", or "on 2026-10-28" past a week. */
+export function agoText(at: string, now: number): string {
+  return ageLabel(Math.max(0, now - Date.parse(at)), at)
+}
+
 export function reportedItemState(
   entry: ReportedIpDto | undefined,
   now: number,

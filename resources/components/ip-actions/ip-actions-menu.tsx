@@ -1,15 +1,16 @@
 /**
  * The controls after an IP in a table cell: a copy button, and a menu that
  * copies, inspects and flies to the IP, filters on the row's IP, host,
- * server, country or ASN, and bans or unbans. They replace the separate
- * inspect, fly-to and ban buttons. Desktop gets a dropdown menu. Phones get
- * the same actions in a drawer, like the Filters drawer: from the bottom, or
- * from the right on a phone held sideways. On a phone, Ban opens a second
- * drawer with the durations, the one the map panels use.
+ * server, country or ASN, bans or unbans, and reports to AbuseIPDB. They
+ * replace the separate inspect, fly-to and ban buttons. Desktop gets a
+ * dropdown menu. Phones get the same actions in a drawer, like the Filters
+ * drawer: from the bottom, or from the right on a phone held sideways. On a
+ * phone, Ban opens a second drawer with the durations, the one the map
+ * panels use.
  */
 import { Fragment, createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { Check, Copy, EllipsisVertical, Eye, EyeOff, Filter, FilterX, Loader2, LocateFixed, ScanSearch, ShieldBan, ShieldOff, Undo2 } from "lucide-react"
+import { Check, Copy, EllipsisVertical, Eye, EyeOff, Filter, FilterX, Flag, Loader2, LocateFixed, ScanSearch, ShieldBan, ShieldOff, Undo2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,11 +39,13 @@ import { CountryFlag } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
+import { AbuseIpdbReportDialog } from "@/components/abuseipdb/abuseipdb-report-dialog"
 import { SideDrawerClose } from "@/components/map/SideDrawer"
 import { BanDrawer } from "@/components/map/PanelBanButton"
 import { IpFilterToggles } from "@/components/ip-actions/ip-filter-toggles"
 import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { usePollingHold } from "@/lib/time-range-context"
+import { reportedItemState } from "@/lib/abuseipdb"
 import { copyText } from "@/lib/clipboard"
 import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
@@ -58,7 +61,17 @@ import {
   dropNetworkUnbannedText,
   type DropNetworkMatch,
 } from "@/lib/drop-lists"
-import { useBanIp, useBannedIps, useBannedRanges, useCrowdsecStatus, useDropNetwork, useIpDecisions, useUnbanIp } from "@/lib/queries"
+import {
+  useAbuseIpdbStatus,
+  useBanIp,
+  useBannedIps,
+  useBannedRanges,
+  useCrowdsecStatus,
+  useDropNetwork,
+  useIpDecisions,
+  useReportedIps,
+  useUnbanIp,
+} from "@/lib/queries"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 
@@ -332,9 +345,19 @@ export function IpActionsMenu({
   const pendingAction = usePendingIpAction(ip)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
   const [banDialogTarget, setBanDialogTarget] = useState<{ ip: string; reason: string }>({ ip, reason: "" })
-  // Auto refresh waits while this row's menu, ban drawer or ban dialog is
-  // open, so new rows can't push the row, and the open menu with it, off the page.
+  const [reportDialogOpen, setReportDialogOpen] = useState(false)
+  // Auto refresh waits while this row's menu, ban drawer or one of its dialogs
+  // is open, so new rows can't push the row, and the open menu with it, off the page.
   const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpenedAt, setMenuOpenedAt] = useState(() => Date.now())
+  const changeMenuOpen = (next: boolean) => {
+    if (next) setMenuOpenedAt(Date.now())
+    setMenuOpen(next)
+  }
+  const { data: abuseStatus } = useAbuseIpdbStatus()
+  const reportingEnabled = abuseStatus?.reportingEnabled === true
+  const { data: reportedIps } = useReportedIps(menuOpen)
+  const reportState = reportedItemState(reportedIps?.get(ip), menuOpenedAt)
   const [banDrawerOpen, setBanDrawerOpen] = useState(false)
   // The ban drawer unmounts when write access goes. Its history entry and
   // polling hold live here, so close it rather than leave them on. The hook
@@ -352,7 +375,11 @@ export function IpActionsMenu({
   // turning back to the same layout would bring the hold back.
   const [banQueuedIn, setBanQueuedIn] = useState<string | null>(null)
   if (banQueuedIn !== null && banQueuedIn !== drawer.key) setBanQueuedIn(null)
-  usePollingHold(menuOpen || banDialogOpen || banDrawerShown || banQueuedIn !== null)
+  const [reportQueuedIn, setReportQueuedIn] = useState<string | null>(null)
+  if (reportQueuedIn !== null && reportQueuedIn !== drawer.key) setReportQueuedIn(null)
+  usePollingHold(
+    menuOpen || banDialogOpen || banDrawerShown || banQueuedIn !== null || reportDialogOpen || reportQueuedIn !== null,
+  )
   // An action that opens a sheet or dialog runs once the menu or drawer has
   // closed and focus is back on the trigger. The sheet takes the focused
   // element as the one to return to, and a dialog opened during the drawer's
@@ -414,6 +441,13 @@ export function IpActionsMenu({
   const openIpBanDialog = (slot = afterClose) => openBanDialog({ ip, reason: "" }, slot)
   const openDropBanDialog = (slot = afterClose) =>
     dropNetwork && openBanDialog({ ip: dropNetwork.cidr, reason: dropBanReason(dropNetwork.sblId) }, slot)
+  const queueReportDialog = () => {
+    setReportQueuedIn(drawer.key)
+    afterClose.current = () => {
+      setReportQueuedIn(null)
+      setReportDialogOpen(true)
+    }
+  }
   const queueBanDrawer = () => {
     setBanQueuedIn(drawer.key)
     afterClose.current = () => {
@@ -449,7 +483,9 @@ export function IpActionsMenu({
       }
     })
   const sections = [navigation, filters].filter((section) => section.length > 0)
-  if (footer && sections.length === 0 && !status?.writeEnabled) return null
+  if (footer && sections.length === 0 && !status?.writeEnabled && !reportingEnabled) return null
+  // Report shares the ban rows' section, so it needs a separator only when they are gone.
+  const reportSeparated = !status?.writeEnabled && sections.length > 0
 
   const trigger = (
     <Button
@@ -474,7 +510,7 @@ export function IpActionsMenu({
           key={drawer.key}
           direction={drawer.direction}
           open={drawer.open}
-          onOpenChange={setMenuOpen}
+          onOpenChange={changeMenuOpen}
           onClosed={drawer.onClosed}
           onAnimationEnd={(open) => {
             if (!open) runAfterClose()
@@ -569,11 +605,27 @@ export function IpActionsMenu({
                 </div>
               )}
               {targets.length > 0 && <IpFilterToggles heading={ip} targets={targets} onFilter={onFilter} />}
+              {reportingEnabled && (
+                <div className="px-2">
+                  <DrawerClose asChild>
+                    <Button
+                      variant="outline"
+                      className="h-11 w-full justify-start gap-2 px-3 [&_svg:not([class*='size-'])]:size-5"
+                      disabled={reportState.disabled}
+                      onClick={queueReportDialog}
+                    >
+                      <Flag />
+                      Report to AbuseIPDB…
+                      <ActionDetail value={reportState.detail ?? undefined} />
+                    </Button>
+                  </DrawerClose>
+                </div>
+              )}
             </div>
           </DrawerContent>
         </Drawer>
       ) : (
-        <DropdownMenu open={drawer.open} onOpenChange={setMenuOpen}>
+        <DropdownMenu open={drawer.open} onOpenChange={changeMenuOpen}>
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           <DropdownMenuContent
             align={footer ? "end" : "start"}
@@ -716,6 +768,16 @@ export function IpActionsMenu({
                   ))}
               </>
             )}
+            {reportingEnabled && (
+              <>
+                {reportSeparated && <DropdownMenuSeparator />}
+                <DropdownMenuItem disabled={reportState.disabled} onSelect={queueReportDialog}>
+                  <Flag />
+                  Report to AbuseIPDB…
+                  <ActionDetail value={reportState.detail ?? undefined} />
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
@@ -750,6 +812,14 @@ export function IpActionsMenu({
         initialReason={banDialogTarget.reason}
         returnFocusTo={triggerRef}
       />
+      {reportingEnabled && (
+        <AbuseIpdbReportDialog
+          ip={ip}
+          open={reportDialogOpen}
+          onOpenChange={setReportDialogOpen}
+          returnFocusTo={triggerRef}
+        />
+      )}
     </span>
   )
 }

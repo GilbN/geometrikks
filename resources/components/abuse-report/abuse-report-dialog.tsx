@@ -25,6 +25,7 @@ import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import type { AbuseContactResponse, AbuseReportResponse } from "@/generated/api/types.gen"
 import {
   dropNoticeHeadline,
+  errorDetail,
   formatAbuseReportCsv,
   formatAbuseReportText,
   reportDropListings,
@@ -53,12 +54,6 @@ const LINES_PER_IP = [10, 20, 50, 100, 200] as const
 const MAX_IPS = [10, 25, 50, 100] as const
 const DEFAULT_LINES = { ip: 50, asn: 20 } as const
 const DEFAULT_MAX_IPS = 25
-
-/** The API error envelope's detail, else the fallback. */
-function errorDetail(err: unknown, fallback: string): string {
-  if (err && typeof err === "object" && "detail" in err && typeof err.detail === "string") return err.detail
-  return fallback
-}
 
 const asLabel = (asn: number, organization?: string | null) => `AS${asn}${organization ? ` ${organization}` : ""}`
 

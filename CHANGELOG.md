@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Access Logs and Analytics can include or exclude ASNs, as Geo Logs can. Excluding an ASN keeps lines that have no ASN data. The IP menu on both pages can filter by the IP's ASN. Each row of the Top ASNs lists on Analytics and Geo Logs has a menu that filters by or excludes that network. With an ASN filter, the Top IPs and Top Countries / Cities cards on Analytics read raw log lines, so like the other filtered cards they cover only the last `ANALYTICS_RAW_RETENTION_DAYS` days.
 - The Overview cards show how each figure moved across the range in a small area chart, by hour up to 7 days and by day above. Success shows the share of 2xx responses in each bucket. Malformed Requests and the Traffic Origin cards have no chart. Ranges shorter than 6 hours show none. The Charts switch in the page header turns them off. On a phone it is Card charts in the range drawer. The browser remembers the choice. `GET /api/v1/analytics/time-series` adds `maxRequestTime` to each bucket.
 - The Geo Logs cards chart their figures the same way, under the page's filters. Geo Logs has its own Charts switch, so turning the charts off on one page leaves the other alone. `GET /api/v1/geo-events/time-series` adds `uniqueCountries` and `uniqueCities` to each bucket.
+- With `ABUSEIPDB_API_KEY` set and `ABUSEIPDB_REPORTING_ENABLED=true`, any IP's menu has a Report to AbuseIPDB… item. It opens a report prefilled from what GeoMetrikks saw, with categories, a comment and the attack time, and you can edit all three before you send it.
+  - GeoMetrikks keeps a record of every report it sends and who sent it.
+  - The menu shows when an IP was last reported, and blocks a second report of the same IP within 15 minutes.
+  - The Check button in the report spends one AbuseIPDB check to show the IP's current score.
+  - Read/write API keys can send reports with `POST /api/v1/abuseipdb/reports`.
+  - The IP inspector links to the IP's AbuseIPDB page, which needs no key.
 
 ### Changed
 
