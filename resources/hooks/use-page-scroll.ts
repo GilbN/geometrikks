@@ -6,9 +6,10 @@ const USER_SCROLL_EVENTS = ["wheel", "touchstart", "pointerdown", "keydown"] as 
 
 const savedScrollTops = new Map<string, number>()
 
-/** Sets `main` to `top` once its content is tall enough, which a page that
- *  loads its rows can take a moment to be. Gives up after a second, or as
- *  soon as the user scrolls. Returns a function that stops it early. */
+/** Sets `main` to `top` once its content is tall enough to reach it. A page
+ *  that loads its rows grows after the commit, so this waits up to a second
+ *  and stops as soon as the user scrolls. Returns a function that stops it
+ *  early. */
 function restoreWhenTall(main: HTMLElement, top: number): () => void {
   const deadline = performance.now() + RESTORE_TIMEOUT_MS
   let frame = 0
@@ -43,20 +44,24 @@ export function usePageScroll(main: HTMLElement | null) {
     if (!main) return
     let pendingRestore: { key: string; top: number } | undefined
     let stopRestore = () => {}
+    // Not the navigation's fromLocation: the router sets that only after the
+    // commit, so a page that navigates as it mounts would save the entry just
+    // left at the reset scroll of 0.
+    let shownKey = router.state.location.state.__TSR_key
     const unsubscribers = [
-      router.subscribe("onBeforeNavigate", ({ fromLocation }) => {
+      router.subscribe("onBeforeNavigate", () => {
         stopRestore()
         pendingRestore = undefined
-        const key = fromLocation?.state.__TSR_key
-        if (key) savedScrollTops.set(key, main.scrollTop)
+        if (shownKey) savedScrollTops.set(shownKey, main.scrollTop)
       }),
-      // Before the new route renders, not in a layout effect: a page's own
-      // layout effects run before the root's and may scroll on mount (the
-      // Agents deep link does), which a later reset would undo.
+      // This runs before the new route renders, not in a layout effect. A
+      // page's own layout effects run before the root's and may scroll on
+      // mount, as the Agents deep link does, and a later reset would undo that.
       router.subscribe("onBeforeRouteMount", ({ toLocation, pathChanged }) => {
+        const key = toLocation.state.__TSR_key
+        shownKey = key
         if (!pathChanged) return
         main.scrollTop = 0
-        const key = toLocation.state.__TSR_key
         const top = key ? savedScrollTops.get(key) : undefined
         if (key && top) pendingRestore = { key, top }
       }),
