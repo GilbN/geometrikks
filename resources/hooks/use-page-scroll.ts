@@ -61,6 +61,7 @@ export function usePageScroll(main: HTMLElement | null) {
     // commit, so a page that navigates as it mounts would save the entry just
     // left at the reset scroll of 0.
     let shownKey = router.state.location.state.__TSR_key
+    let shownHref = router.state.location.href
     const unsubscribers = [
       router.subscribe("onBeforeNavigate", () => {
         if (shownKey) saveScrollTop(shownKey, pendingRestore?.top ?? restoringTop ?? main.scrollTop)
@@ -70,16 +71,19 @@ export function usePageScroll(main: HTMLElement | null) {
       // mount, as the Agents deep link does, and a later reset would undo that.
       router.subscribe("onBeforeRouteMount", ({ toLocation, pathChanged }) => {
         const key = toLocation.state.__TSR_key
+        const sameHref = toLocation.href === shownHref
         shownKey = key
-        // A restore still waiting for the rows carries on through a move that
-        // keeps the path, such as the overlay manager skipping a closed
-        // overlay's entry right after Back lands on it.
-        if (!pathChanged) {
+        shownHref = toLocation.href
+        // A restore carries on through a move to the same address, such as the
+        // overlay manager skipping a closed overlay's entry right after Back
+        // lands on it. New filters load other rows, so they end it.
+        if (sameHref) {
           if (pendingRestore && key) pendingRestore = { key, top: pendingRestore.top }
           return
         }
         stopRestore()
         pendingRestore = undefined
+        if (!pathChanged) return
         main.scrollTop = 0
         const top = key ? savedScrollTops.get(key) : undefined
         if (key && top) pendingRestore = { key, top }
