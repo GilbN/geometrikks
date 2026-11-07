@@ -18,6 +18,8 @@ export default defineConfig({
   reporter: [
     ["line"],
     ["html", { outputFolder: "smoke-artifacts/playwright-report", open: "never" }],
+    // Feeds `node .github/scripts/smoke-shards.cjs durations`.
+    ["json", { outputFile: "smoke-artifacts/results.json" }],
   ],
   outputDir: "smoke-artifacts/test-results",
   use: {
