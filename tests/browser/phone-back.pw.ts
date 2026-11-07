@@ -210,4 +210,21 @@ test.describe("phone held sideways", () => {
     await page.goBack()
     await expect(page).toHaveURL(/\/$/)
   })
+
+  test("the current page's tab tapped while More is open closes More", async ({ page }) => {
+    await login(page)
+    await page.goto("/")
+    await page.goto("/access-logs")
+    await moreCell(page).tap()
+    await expect(moreMenu(page)).toBeVisible()
+
+    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await expect(moreMenu(page)).toBeHidden()
+    await expect(page).toHaveURL(/\/access-logs$/)
+    await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
+
+    // Closing More popped its entry, so one Back reaches the previous page.
+    await page.goBack()
+    await expect(page).toHaveURL(/\/$/)
+  })
 })
