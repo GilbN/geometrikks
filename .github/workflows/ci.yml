@@ -10,8 +10,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
+  backend-unit:
+    name: backend unit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --frozen
+      - name: Type check
+        run: uv run ty check geometrikks tests
+      - name: Run unit tests
+        run: uv run pytest -v --ignore=tests/integration
+      - name: Config docs freshness
+        run: uv run python scripts/generate_config_docs.py --check
+
+  backend-integration:
+    name: backend integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       timescaledb:
         # TimescaleDB 2.31.0 rejects TRUNCATE on continuous aggregates, which
@@ -33,17 +53,13 @@ jobs:
           enable-cache: true
       - name: Sync dependencies
         run: uv sync --frozen
-      - name: Type check
-        run: uv run ty check geometrikks tests
-      - name: Run tests (unit + integration)
+      - name: Run integration tests
         env:
           IT_DB_HOST: localhost
           IT_DB_PORT: "5432"
           IT_DB_USER: geouser
           IT_DB_PASSWORD: geopass
-        run: uv run pytest -v
-      - name: Config docs freshness
-        run: uv run python scripts/generate_config_docs.py --check
+        run: uv run pytest -v tests/integration
 
   contracts:
     # The committed generated client (resources/generated/) must be exactly
@@ -100,7 +116,7 @@ jobs:
       # Keep the other shards running so one failure doesn't hide the rest.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     services:
       timescaledb:
         image: timescale/timescaledb-ha:pg18
