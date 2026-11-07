@@ -7,7 +7,7 @@ const NONE = { left: 0, right: 0, bottom: 0 }
 describe("phoneFitPadding", () => {
   it("keeps fitted points clear of the range chip, the pill and the bar in portrait", () => {
     expect(phoneFitPadding(60, { side: false, insets: NONE, topClearance: 127, barTop: 84, pillWidth: 54, pillEdge: 20 })).toEqual({
-      top: 187,
+      top: 127,
       right: 134,
       bottom: 156,
       left: 60,
@@ -16,11 +16,15 @@ describe("phoneFitPadding", () => {
 
   it("also clears the left cutout on a phone held sideways", () => {
     expect(phoneFitPadding(60, { side: true, insets: IPHONE, topClearance: 68, barTop: 65, pillWidth: 54, pillEdge: 59 })).toEqual({
-      top: 128,
+      top: 68,
       right: 173,
       bottom: 137,
       left: 119,
     })
+  })
+
+  it("keeps the base padding at the top when the chip needs less", () => {
+    expect(phoneFitPadding(60, { side: true, insets: NONE, topClearance: 40, barTop: 65, pillWidth: 54, pillEdge: 12 }).top).toBe(60)
   })
 
   it("ignores the left inset in portrait", () => {
