@@ -42,7 +42,7 @@ export function TimeRangeToolbar() {
   return (
     <>
       {/* Desktop Layout */}
-      <div className="hidden md:flex items-center gap-2">
+      <div className="hidden md:flex phone:hidden items-center gap-2">
         {/* Time Range Dropdown Menu */}
         <TimeRangePicker
           trigger={
@@ -118,7 +118,7 @@ export function TimeRangeToolbar() {
           for the range, auto refresh and chart buckets. Pages that don't
           follow the range show neither. */}
       {routeHeader.timeRange && (
-        <div className="md:hidden flex items-center gap-1.5">
+        <div className="md:hidden phone:flex flex items-center gap-1.5">
           <RefreshButton />
           <TimeRangePicker
             refreshControls={{ chartBuckets: routeHeader.chartBuckets, overviewCharts: routeHeader.overviewCharts }}

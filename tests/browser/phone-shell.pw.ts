@@ -226,6 +226,22 @@ test.describe("phone held sideways", () => {
     expect(headerHeight).toBe("48px")
   })
 
+  test("puts auto refresh and chart buckets in the range drawer, as on a portrait phone", async ({ page }) => {
+    await login(page)
+    await page.goto("/analytics")
+
+    const header = page.locator("header").first()
+    const rangeButton = header.getByRole("button", { name: /^Time range and refresh/ })
+    await expect(rangeButton).toBeVisible()
+    await expect(header.getByRole("combobox")).toHaveCount(0)
+    await expect(header.getByRole("button", { name: "Toggle theme" })).toHaveCount(0)
+
+    await rangeButton.tap()
+    const drawer = page.getByRole("dialog", { name: "Time range and refresh" })
+    await expect(drawer).toBeVisible()
+    await expect(drawer.getByRole("radiogroup", { name: "Auto refresh" })).toBeVisible()
+    await expect(drawer.getByRole("radiogroup", { name: "Chart buckets" })).toBeVisible()
+  })
 })
 
 test.describe("More on a phone held sideways", () => {

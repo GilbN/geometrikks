@@ -254,7 +254,7 @@ function RootLayout() {
                   <TimeRangeToolbar />
                   {/* Phones switch the color scheme on Settings > Appearance;
                       the header keeps its room for the range and refresh. */}
-                  <div className="hidden md:contents">
+                  <div className="hidden md:contents phone:hidden">
                     <Separator orientation="vertical" className="h-6" />
                     <ModeToggle />
                   </div>
