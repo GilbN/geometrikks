@@ -4,7 +4,18 @@ import { useRouter } from "@tanstack/react-router"
 const RESTORE_TIMEOUT_MS = 1000
 const USER_SCROLL_EVENTS = ["wheel", "touchstart", "pointerdown", "keydown"] as const
 
+const MAX_SAVED_SCROLL_TOPS = 100
+
 const savedScrollTops = new Map<string, number>()
+
+function saveScrollTop(key: string, top: number) {
+  savedScrollTops.delete(key)
+  if (!top) return
+  savedScrollTops.set(key, top)
+  if (savedScrollTops.size > MAX_SAVED_SCROLL_TOPS) {
+    savedScrollTops.delete(savedScrollTops.keys().next().value!)
+  }
+}
 
 /** Sets `main` to `top` once its content is tall enough to reach it. A page
  *  that loads its rows grows after the commit, so this waits up to a second
@@ -52,7 +63,7 @@ export function usePageScroll(main: HTMLElement | null) {
       router.subscribe("onBeforeNavigate", () => {
         stopRestore()
         pendingRestore = undefined
-        if (shownKey) savedScrollTops.set(shownKey, main.scrollTop)
+        if (shownKey) saveScrollTop(shownKey, main.scrollTop)
       }),
       // This runs before the new route renders, not in a layout effect. A
       // page's own layout effects run before the root's and may scroll on
