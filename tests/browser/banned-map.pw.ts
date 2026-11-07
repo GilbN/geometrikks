@@ -264,6 +264,31 @@ test("a toast stays clear of the range chip while a portrait panel is open", asy
   await page.screenshot({ path: "smoke-artifacts/banned-map-portrait-toast.png" })
 })
 
+test("with a banner on the phone map the chip and the toasts sit under it", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 })
+  await emulateSafeAreas(page, { top: 59, left: 0, right: 0, bottom: 34 })
+  await blockCopy(page)
+  await page.route("**/health", async (route) => {
+    const health = await (await route.fetch()).json()
+    health.geoip.available = false
+    return route.fulfill({ json: health })
+  })
+  await setup(page)
+  await expect(page.locator("[data-shell-top]")).toContainText("Geo lookups disabled")
+  const shellTop = await box(page.locator("[data-shell-top]"))
+  expect(shellTop.y).toBe(0)
+  expect(shellTop.height).toBeGreaterThan(59)
+  const chip = await box(page.getByRole("group", { name: "Time range", exact: true }))
+  expect(Math.abs(chip.y - (shellTop.y + shellTop.height + 12))).toBeLessThanOrEqual(1)
+
+  await openCenterPopup(page)
+  await copyFailureToast(page)
+  const toaster = page.locator("[data-sonner-toaster]")
+  await expect(toaster).toHaveAttribute("data-y-position", "top")
+  expect(Math.abs((await box(toaster)).y - (chip.y + chip.height + 8))).toBeLessThanOrEqual(1)
+  await page.screenshot({ path: "smoke-artifacts/banned-map-banner-toast.png" })
+})
+
 // Held sideways, the phone map stands on the right edge: the pill, the panel
 // docked there over the bar, and drawers that open from the right.
 const NO_INSETS: SafeAreaInsets = { left: 0, right: 0, bottom: 0 }
