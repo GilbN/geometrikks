@@ -12,14 +12,22 @@ export const PHONE_RAIL_EDGE = 12
 export const PHONE_PANEL_MAX_WIDTH = 400
 export const PHONE_PANEL_WIDTH_SHARE = 0.45
 
-/** Fit padding that keeps fitted points clear of the map pill on the right,
+/** Fit padding that keeps fitted points clear of the range chip at the top
+ *  (`topClearance`, the top safe area included), the map pill on the right,
  *  12px above the tab bar, and of the left cutout on a phone held sideways. */
 export function phoneFitPadding(
   base: number,
-  { side, insets, barTop, pillWidth, pillEdge }: { side: boolean; insets: Insets; barTop: number; pillWidth: number; pillEdge: number },
+  {
+    side,
+    insets,
+    topClearance,
+    barTop,
+    pillWidth,
+    pillEdge,
+  }: { side: boolean; insets: Insets; topClearance: number; barTop: number; pillWidth: number; pillEdge: number },
 ) {
   return {
-    top: base,
+    top: base + topClearance,
     right: base + pillWidth + pillEdge,
     bottom: base + barTop + 12,
     left: base + (side ? insets.left : 0),

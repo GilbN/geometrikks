@@ -120,6 +120,15 @@
   --tab-bar-top: 0px;
   --tab-bar-clear: calc(var(--tab-bar-top) + 12px);
   --tab-bar-side: 20px;
+
+  --map-top-inset: 0px;
+  --range-chip-top: calc(var(--map-top-inset) + 12px);
+}
+
+/* The phone map has no header. Unless a banner takes the top of the screen,
+   the map runs under the status bar and its overlays keep clear of it. */
+:root:has([data-shell-top]:empty) {
+  --map-top-inset: env(safe-area-inset-top, 0px);
 }
 
 /* Later blocks win at equal specificity, so the sideways cases follow portrait. */
@@ -132,6 +141,7 @@
 @media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem) {
   :root {
     --tab-bar-top: calc(max(8px, env(safe-area-inset-bottom, 0px) - 4px) + 48px);
+    --range-chip-top: max(12px, var(--map-top-inset));
   }
 }
 

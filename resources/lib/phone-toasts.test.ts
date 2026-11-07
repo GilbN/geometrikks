@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
-import { phoneToastPlacement } from "./phone-toasts"
+import { phoneToastPlacement, toastTopEdge } from "./phone-toasts"
 
-const base = { side: false, onMap: false, covered: false, barSide: 20, leftInset: 0, rightInset: 0, headerBottom: 56 }
+const base = { side: false, onMap: false, covered: false, barSide: 20, leftInset: 0, rightInset: 0, topEdge: 56 }
 
 describe("phoneToastPlacement", () => {
   it("spans the bar's width above it in portrait", () => {
@@ -26,7 +26,7 @@ describe("phoneToastPlacement", () => {
     expect(placement.offset).toEqual({ bottom: "var(--tab-bar-clear)" })
   })
 
-  it("moves under the header while a surface covers the bottom", () => {
+  it("moves to the top while a surface covers the bottom", () => {
     for (const side of [false, true]) {
       const placement = phoneToastPlacement({ ...base, side, onMap: true, covered: true })
       expect(placement.position).toBe("top-center")
@@ -47,5 +47,26 @@ describe("phoneToastPlacement", () => {
   it("gives spanning and centred placements different classes", () => {
     expect(phoneToastPlacement(base).className).not.toBe(phoneToastPlacement({ ...base, side: true }).className)
     expect(phoneToastPlacement({ ...base, covered: true }).className).toBe(phoneToastPlacement(base).className)
+  })
+})
+
+describe("toastTopEdge", () => {
+  const edges = { shellBottom: 0, chipBottom: 115, mapTopInset: 59 }
+
+  it("is the header's bottom off the map", () => {
+    expect(toastTopEdge({ ...edges, onMap: false, chipShown: false, shellBottom: 115 })).toBe(115)
+  })
+
+  it("is the range chip's bottom on the map", () => {
+    expect(toastTopEdge({ ...edges, onMap: true, chipShown: true })).toBe(115)
+  })
+
+  it("is the top safe area while the chip hides", () => {
+    expect(toastTopEdge({ ...edges, onMap: true, chipShown: false })).toBe(59)
+  })
+
+  it("starts under a banner above the map", () => {
+    expect(toastTopEdge({ onMap: true, chipShown: true, shellBottom: 89, chipBottom: 56, mapTopInset: 0 })).toBe(145)
+    expect(toastTopEdge({ onMap: true, chipShown: false, shellBottom: 89, chipBottom: 56, mapTopInset: 0 })).toBe(89)
   })
 })

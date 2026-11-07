@@ -14,15 +14,15 @@ import { useMap } from "react-map-gl/maplibre"
 import { Button } from "@/components/ui/button"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { cn } from "@/lib/utils"
-import { safeAreaInsets } from "./phone-map-actions"
+import { mapTopInset, rangeChipBottom, safeAreaInsets } from "./phone-map-actions"
 import { isPhoneSideViewport, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { MapPanelContext } from "./SideDrawer"
 import { PHONE_PANEL_MAX_WIDTH, PHONE_PANEL_WIDTH_SHARE, PHONE_RAIL_EDGE, panToBox, sideVisibleBox } from "@/lib/phone-map-geometry"
 
 /** Room kept between the point and the panel or the map's sides. */
 const VIEW_MARGIN = 24
-/** Clears the live vitals pill at the map's top. */
-const TOP_INSET = 72
+/** Room kept between the point and the range chip's row. */
+const CHIP_MARGIN = 12
 /** Pans per correction. The second covers a panel that grows as its data loads. */
 const MAX_PANS = 2
 const USER_GESTURES = ["pointerdown", "touchstart", "wheel"] as const
@@ -93,9 +93,10 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
     function bottomPan() {
       const panelTop = panel!.offsetTop - container.offsetTop
       const width = container.clientWidth
-      // A landscape phone leaves little map above the panel; the pill's
-      // inset would leave none.
-      const top = Math.min(TOP_INSET, panelTop / 3)
+      // A short map leaves little room above the panel, so the margin under
+      // the range chip gives way first.
+      const chipBottom = rangeChipBottom()
+      const top = Math.min(chipBottom + CHIP_MARGIN, Math.max(panelTop / 3, chipBottom))
       const bottom = panelTop - VIEW_MARGIN
       const { x, y } = map!.project([longitude!, latitude!])
       const dy = y < top || y > bottom ? y - (top + bottom) / 2 : 0
@@ -112,7 +113,8 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
         mapWidth: container.clientWidth,
         mapHeight: container.clientHeight,
         panelLeft: panel!.offsetLeft - container.offsetLeft,
-        topInset: pill ? TOP_INSET : VIEW_MARGIN,
+        // The panel hides the range chip, but the vitals pill keeps its row.
+        topInset: pill ? rangeChipBottom() + CHIP_MARGIN : mapTopInset() + VIEW_MARGIN,
         leftInset: insets.left,
         bottomInset: insets.bottom,
         margin: VIEW_MARGIN,

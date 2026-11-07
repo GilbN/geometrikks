@@ -8,6 +8,7 @@
 
 import { createFileRoute } from "@tanstack/react-router"
 import { lazy, Suspense } from "react"
+import { MapRangeChip } from "@/components/map/MapRangeChip"
 import { MapSkeleton } from "@/components/map/MapSkeleton"
 import { mapSearchSchema } from "@/lib/map-filters"
 
@@ -25,6 +26,7 @@ function MapPage() {
       <Suspense fallback={<MapSkeleton />}>
         <GeoMap />
       </Suspense>
+      <MapRangeChip />
     </div>
   )
 }

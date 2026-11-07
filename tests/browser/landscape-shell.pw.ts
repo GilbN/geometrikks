@@ -57,6 +57,8 @@ test.describe("phone held sideways", () => {
     expect(barBox.x).toBeGreaterThanOrEqual(left)
     expect(barBox.x + barBox.width).toBeLessThanOrEqual(932 - right)
 
+    // The phone map has no header.
+    await page.goto("/")
     const headerContent = (await page.locator("header").first().locator(":scope > *").first().boundingBox())!
     expect(headerContent.x).toBeGreaterThanOrEqual(left)
 
@@ -65,7 +67,7 @@ test.describe("phone held sideways", () => {
     expect(lastHeaderButton.x + lastHeaderButton.width).toBeLessThanOrEqual(932 - right)
 
     // The inspector is modal, so the header above is measured before it opens.
-    await page.goto("/map?inspect=192.0.2.1")
+    await page.goto("/?inspect=192.0.2.1")
     const sheet = page.getByRole("dialog").filter({ hasText: "192.0.2.1" })
     await expect(sheet).toBeVisible()
     const close = (await sheet.getByRole("button", { name: "Close" }).first().boundingBox())!

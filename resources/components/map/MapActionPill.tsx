@@ -7,7 +7,7 @@ import { useLongPressName } from "@/hooks/use-long-press-name"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
 import type { PillSize } from "@/lib/phone-pill"
 import { cn } from "@/lib/utils"
-import { measurePillSize, PILL_SIDE_EDGE, pillWidth } from "./phone-map-actions"
+import { measurePillSize, pillRight, pillWidth } from "./phone-map-actions"
 
 /** The pill's size, following the map's height. */
 export function usePillSize(map: HTMLElement | undefined): PillSize {
@@ -126,7 +126,7 @@ export function MapActionPill({
       inert={hidden}
       style={{
         width: pillWidth(size),
-        right: side ? `max(${PILL_SIDE_EDGE}px, env(safe-area-inset-right, 0px))` : "var(--tab-bar-side)",
+        right: pillRight(side),
       }}
       className={cn(
         TAB_BAR_SURFACE,
