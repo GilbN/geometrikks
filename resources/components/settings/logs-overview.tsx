@@ -4,7 +4,7 @@
  * traceback dialog for exceptions, a full-record detail dialog, and a
  * downloads tab for the raw files behind the stream.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Archive,
@@ -37,6 +37,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -56,6 +63,8 @@ import { logStream, type LogRecord, type LogStreamStatus } from "@/lib/logstream
 import { apiV1LogsRotateRotate } from "@/generated/api/sdk.gen"
 import type { LogFileView } from "@/generated/api/types.gen"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 
@@ -718,54 +727,113 @@ export function LogsOverview() {
         )}
       </Card>
 
-      <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={returnFocus}>
-          {selected && (
+      <LogDetail
+        name="log-record"
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        onCloseAutoFocus={returnFocus}
+        title={
+          selected && (
+            <span className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "gap-1 uppercase",
+                  levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.info,
+                )}
+              >
+                {selected.level ?? "info"}
+              </Badge>
+              {selected.event ?? "Log record"}
+            </span>
+          )
+        }
+        description={
+          selected && (
             <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "gap-1 uppercase",
-                      levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.info,
-                    )}
-                  >
-                    {selected.level ?? "info"}
-                  </Badge>
-                  {selected.event ?? "Log record"}
-                </DialogTitle>
-                <DialogDescription>
-                  {selected.timestamp ? new Date(selected.timestamp).toLocaleString() : "unknown time"}
-                  {selected.logger ? ` · ${selected.logger}` : ""}
-                </DialogDescription>
-              </DialogHeader>
-              <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
-                <code>{JSON.stringify(selected, null, 2)}</code>
-              </pre>
+              {selected.timestamp ? new Date(selected.timestamp).toLocaleString() : "unknown time"}
+              {selected.logger ? ` · ${selected.logger}` : ""}
             </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={tracebackRecord !== null}
-        onOpenChange={(open) => !open && setTracebackRecord(null)}
+          )
+        }
       >
-        <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={returnFocus}>
-          {tracebackRecord && (
+        {selected && JSON.stringify(selected, null, 2)}
+      </LogDetail>
+
+      <LogDetail
+        name="log-traceback"
+        open={tracebackRecord !== null}
+        onClose={() => setTracebackRecord(null)}
+        onCloseAutoFocus={returnFocus}
+        title={tracebackRecord && "Traceback"}
+        description={tracebackRecord && (tracebackRecord.event ?? "Unhandled exception")}
+      >
+        {tracebackRecord?.exception}
+      </LogDetail>
+    </div>
+  )
+}
+
+/** A log record or traceback: a dialog, or a drawer on a phone. */
+function LogDetail({
+  name,
+  open,
+  onClose,
+  onCloseAutoFocus,
+  title,
+  description,
+  children,
+}: {
+  name: string
+  open: boolean
+  onClose: () => void
+  onCloseAutoFocus: (event: Event) => void
+  title: ReactNode
+  description: ReactNode
+  children: ReactNode
+}) {
+  const drawer = usePhoneDrawer(name, open, onClose)
+  const onOpenChange = (next: boolean) => !next && onClose()
+  const code = (
+    <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
+      <code>{children}</code>
+    </pre>
+  )
+
+  if (drawer.phone) {
+    return (
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange}>
+        <DrawerContent className={drawer.contentClassName} onCloseAutoFocus={onCloseAutoFocus}>
+          {title && (
             <>
-              <DialogHeader>
-                <DialogTitle>Traceback</DialogTitle>
-                <DialogDescription>{tracebackRecord.event ?? "Unhandled exception"}</DialogDescription>
-              </DialogHeader>
-              <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
-                <code>{tracebackRecord.exception}</code>
-              </pre>
+              <DrawerHeader className="flex-row items-start gap-2 text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <DrawerTitle>{title}</DrawerTitle>
+                  <DrawerDescription>{description}</DrawerDescription>
+                </div>
+                {drawer.side && <SideDrawerClose />}
+              </DrawerHeader>
+              <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-6">{code}</div>
             </>
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  return (
+    <Dialog open={drawer.open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={onCloseAutoFocus}>
+        {title && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">{title}</DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
+            </DialogHeader>
+            {code}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
