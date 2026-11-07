@@ -25,8 +25,13 @@ function Drawer({
 
 // A Drawer keyed on its direction remounts its trigger when the phone turns,
 // and focus on the old trigger would drop to the body. The trigger's parent
-// element outlives the remount, so the new trigger there takes the focus.
-let focusedTriggerParent: ParentNode | null = null
+// element outlives the remount, so the new trigger there with the same label
+// takes the focus. The label keeps a sibling trigger from claiming it.
+let focusedTrigger: { parent: ParentNode; label: string } | null = null
+
+function triggerLabel(trigger: HTMLElement): string {
+  return trigger.getAttribute("aria-label") ?? trigger.textContent ?? ""
+}
 
 function DrawerTrigger({
   ref,
@@ -44,15 +49,21 @@ function DrawerTrigger({
   React.useLayoutEffect(() => {
     const trigger = triggerRef.current
     const focusLost = document.activeElement === null || document.activeElement === document.body
-    if (trigger && focusLost && focusedTriggerParent !== null && trigger.parentNode === focusedTriggerParent) {
-      focusedTriggerParent = null
+    if (
+      trigger &&
+      focusLost &&
+      focusedTrigger !== null &&
+      trigger.parentNode === focusedTrigger.parent &&
+      triggerLabel(trigger) === focusedTrigger.label
+    ) {
+      focusedTrigger = null
       trigger.focus({ preventScroll: true })
     }
     return () => {
-      if (!trigger || document.activeElement !== trigger) return
-      focusedTriggerParent = trigger.parentNode
+      if (!trigger || !trigger.parentNode || document.activeElement !== trigger) return
+      focusedTrigger = { parent: trigger.parentNode, label: triggerLabel(trigger) }
       queueMicrotask(() => {
-        focusedTriggerParent = null
+        focusedTrigger = null
       })
     }
   }, [])
