@@ -11,10 +11,16 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
 import { DropCredit } from "@/components/drop/drop-credit"
 import { formatBytes, formatNumber } from "@/lib/api"
-import { asnCoverage } from "@/lib/asn-coverage"
+import { asnCoverage, largestAsnCategory, type AsnCategoryTotal } from "@/lib/asn-coverage"
 import { dropAsnFreshness } from "@/lib/drop-lists"
 import { useAbout, useCrowdsecStatus, useTopAsns } from "@/lib/queries"
 import { CategoryBadge } from "./top-asns-table"
+
+const ORIGIN_PHRASE: Record<AsnCategoryTotal["category"], string> = {
+  drop: "networks on Spamhaus's ASN-DROP list",
+  hosting: "hosting and datacenter networks",
+  other: "unclassified networks",
+}
 
 export function TrafficOriginCard() {
   const { data, isError, error } = useTopAsns({ limit: 25 })
@@ -32,6 +38,7 @@ export function TrafficOriginCard() {
     data?.categories,
     totalRequests,
   )
+  const largest = largestAsnCategory(data?.categories)
 
   return (
     <Card className="@container">
@@ -48,7 +55,7 @@ export function TrafficOriginCard() {
           </p>
         ) : !data ? (
           <Skeleton className="h-32 w-full" />
-        ) : classified === 0 ? (
+        ) : classified === 0 || !largest ? (
           <p className="text-sm text-muted-foreground">
             None of the {formatNumber(totalRequests)} requests in this range
             have ASN data; requests are enriched from the time the ASN
@@ -59,10 +66,10 @@ export function TrafficOriginCard() {
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-3xl font-semibold tabular-nums">{share.toFixed(1)}%</span>
+              <span className="text-3xl font-semibold tabular-nums">{((largest.hits / classified) * 100).toFixed(1)}%</span>
               <span className="text-muted-foreground">
-                of {formatNumber(classified)} requests with ASN data came from
-                hosting and datacenter networks
+                of {formatNumber(classified)} requests with ASN data came from{" "}
+                {ORIGIN_PHRASE[largest.category]}
               </span>
             </div>
             {unenriched > 0 && (
