@@ -297,7 +297,12 @@ export function LocationPanel({
           { label: "Events", value: formatNumber(eventCount), accent: true },
           { label: "Unique IPs", value: topIPsData ? formatNumber(topIPsData.uniqueIps) : "–" },
           { label: "Of all events", value: totalEvents ? formatShare(eventCount, totalEvents) : "–" },
-          { label: "Last hit", value: lastHit ? new Date(lastHit).toLocaleString() : "Unknown", wide: true },
+          {
+            label: "Last hit",
+            value: lastHit ? new Date(lastHit).toLocaleString() : "Unknown",
+            narrowValue: lastHit ? new Date(lastHit).toLocaleTimeString() : "Unknown",
+            wide: true,
+          },
         ]}
       />
       {(isLoadingTopIPs || topIps.length > 0) && (

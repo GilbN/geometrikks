@@ -15,10 +15,34 @@ const sidebar = (page: Page) => page.locator('[data-slot="sidebar"]').first()
 test.describe("phone held sideways", () => {
   test.use({ viewport: { width: 932, height: 430 }, hasTouch: true, isMobile: true })
 
-  test("opens with the sidebar collapsed", async ({ page }) => {
+  test("shows the compact tab bar and no sidebar", async ({ page }) => {
     await login(page)
     await page.goto("/")
-    await expect(sidebar(page)).toHaveAttribute("data-state", "collapsed")
+    await expect(page.locator("[data-tab-bar]")).toHaveAttribute("data-compact")
+    await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0)
+  })
+
+  test("keeps page content clear of the notches and the map full-bleed", async ({ page }) => {
+    const { left, right } = IPHONE_LANDSCAPE_INSETS
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    await login(page)
+    await page.goto("/")
+
+    const card = page.locator('main [data-slot="card"]').first()
+    // Loading cards are swapped for loaded ones, so both edges come from one box.
+    await expect
+      .poll(async () => {
+        const box = await card.boundingBox()
+        return box && { left: box.x >= left && box.x <= left + 2, clearsRight: box.x + box.width <= 932 - right }
+      })
+      .toEqual({ left: true, clearsRight: true })
+
+    await page.goto("/map")
+    const map = page.locator(".fullscreen-map")
+    await expect(map).toBeVisible()
+    const mapBox = (await map.boundingBox())!
+    expect(mapBox.x).toBe(0)
+    expect(mapBox.width).toBe(932)
   })
 
   test("shell clears the landscape safe areas", async ({ page }) => {
@@ -27,18 +51,23 @@ test.describe("phone held sideways", () => {
     await login(page)
     await page.goto("/map")
 
-    const container = page.locator('[data-slot="sidebar-container"]')
-    const firstItem = container.locator('[data-sidebar="menu-button"]').first()
-    expect((await firstItem.boundingBox())!.x).toBeGreaterThanOrEqual(left)
-    // The strip under the notch is painted, not see-through.
-    expect(await container.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/)
+    const bar = page.locator("[data-tab-bar]")
+    await expect(bar).toBeVisible()
+    const barBox = (await bar.boundingBox())!
+    expect(barBox.x).toBeGreaterThanOrEqual(left)
+    expect(barBox.x + barBox.width).toBeLessThanOrEqual(932 - right)
+
+    // The phone map has no header.
+    await page.goto("/")
+    const headerContent = (await page.locator("header").first().locator(":scope > *").first().boundingBox())!
+    expect(headerContent.x).toBeGreaterThanOrEqual(left)
 
     const headerButtons = page.locator("header").first().getByRole("button")
     const lastHeaderButton = (await headerButtons.last().boundingBox())!
     expect(lastHeaderButton.x + lastHeaderButton.width).toBeLessThanOrEqual(932 - right)
 
     // The inspector is modal, so the header above is measured before it opens.
-    await page.goto("/map?inspect=192.0.2.1")
+    await page.goto("/?inspect=192.0.2.1")
     const sheet = page.getByRole("dialog").filter({ hasText: "192.0.2.1" })
     await expect(sheet).toBeVisible()
     const close = (await sheet.getByRole("button", { name: "Close" }).first().boundingBox())!
@@ -53,5 +82,6 @@ test.describe("desktop", () => {
     await login(page)
     await page.goto("/")
     await expect(sidebar(page)).toHaveAttribute("data-state", "expanded")
+    await expect(page.locator("[data-tab-bar]")).toHaveCount(0)
   })
 })

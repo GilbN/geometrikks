@@ -29,7 +29,7 @@ export function Summary() {
 
   return (
     <TooltipProvider>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="p-4 md:p-6 phone-side:p-4 space-y-6">
         <PageHeader
           title="Overview"
           subtitle="Traffic, status codes and response times for the selected range."

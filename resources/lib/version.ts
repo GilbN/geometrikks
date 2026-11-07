@@ -54,3 +54,8 @@ export function sameRelease(a: string, b: string): boolean {
   if (!VERSION_PATTERN.test(a) || !VERSION_PATTERN.test(b)) return a === b
   return publicVersion(a) === publicVersion(b)
 }
+
+/** The name of the Docker mark shown when the server runs in a container. */
+export function containerRuntimeLabel(imageTag: string | null | undefined): string {
+  return imageTag ? `Container image ${imageTag}` : "Running in a container"
+}

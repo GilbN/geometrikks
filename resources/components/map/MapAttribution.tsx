@@ -11,7 +11,11 @@
  * class changes after it count as the user's choice.
  *
  * With `compact` off (phones) there is no toggle: the full text always shows,
- * restyled as a line under the action card in main.css.
+ * restyled as a line above the tab bar in main.css.
+ *
+ * With `startCollapsed` (a phone held sideways) the button starts collapsed
+ * and changes are not saved, so the phone never overwrites the desktop's
+ * choice under the shared key.
  */
 
 import { AttributionControl } from "maplibre-gl"
@@ -23,7 +27,7 @@ import { loadAttributionPreference, saveAttributionPreference } from "@/lib/map-
 const COMPACT_CLASS = "maplibregl-compact"
 const SHOW_CLASS = "maplibregl-compact-show"
 
-export function MapAttribution({ compact = true }: { compact?: boolean }) {
+export function MapAttribution({ compact = true, startCollapsed = false }: { compact?: boolean; startCollapsed?: boolean }) {
   const observer = useRef<MutationObserver | null>(null)
   useControl(
     () => new AttributionControl({ compact }),
@@ -35,7 +39,8 @@ export function MapAttribution({ compact = true }: { compact?: boolean }) {
       let applied = false
       const applyStored = () => {
         applied = true
-        if (container.classList.contains(SHOW_CLASS) !== loadAttributionPreference()) {
+        const expanded = startCollapsed ? false : loadAttributionPreference()
+        if (container.classList.contains(SHOW_CLASS) !== expanded) {
           button.click()
         }
       }
@@ -43,6 +48,7 @@ export function MapAttribution({ compact = true }: { compact?: boolean }) {
       observer.current = new MutationObserver(() => {
         if (!container.classList.contains(COMPACT_CLASS)) return
         if (applied) {
+          if (startCollapsed) return
           saveAttributionPreference(container.classList.contains(SHOW_CLASS))
         } else {
           applyStored()

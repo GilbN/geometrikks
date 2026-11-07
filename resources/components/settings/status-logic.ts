@@ -41,10 +41,7 @@ export function overallState(
   }
   const advisoryCount = (health.advisories ?? []).length
   if (advisoryCount > 0 || agentAttentionCount > 0) {
-    const counts: string[] = []
-    if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
-    if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
-    return { tone: "amber", label: "Attention", detail: counts.join(" ") }
+    return { tone: "amber", label: "Attention", detail: asSentences(attentionParts(advisoryCount, agentAttentionCount)) }
   }
   return { tone: "emerald", label: "Healthy", detail: "All components operational." }
 }
@@ -156,7 +153,19 @@ export function sidebarIngestionVariant(
 }
 
 function countedAttention(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? `${singular} needs` : `${plural} need`} attention.`
+  return `${count} ${count === 1 ? `${singular} needs` : `${plural} need`} attention`
+}
+
+/** ["2 advisories need attention", "1 agent needs attention"], empty when nothing does. */
+export function attentionParts(advisoryCount: number, agentAttentionCount = 0): string[] {
+  const parts: string[] = []
+  if (advisoryCount > 0) parts.push(countedAttention(advisoryCount, "advisory", "advisories"))
+  if (agentAttentionCount > 0) parts.push(countedAttention(agentAttentionCount, "agent", "agents"))
+  return parts
+}
+
+function asSentences(parts: string[]): string {
+  return parts.map((part) => `${part}.`).join(" ")
 }
 
 export function sidebarStatusTooltip(
@@ -165,11 +174,9 @@ export function sidebarStatusTooltip(
   variant: "degraded" | "attention",
   agentAttentionCount = 0,
 ): string {
-  const counts: string[] = []
-  if (advisoryCount > 0) counts.push(countedAttention(advisoryCount, "advisory", "advisories"))
-  if (agentAttentionCount > 0) counts.push(countedAttention(agentAttentionCount, "agent", "agents"))
-  if (counts.length === 0) return base
-  const countText = counts.join(" ")
+  const parts = attentionParts(advisoryCount, agentAttentionCount)
+  if (parts.length === 0) return base
+  const countText = asSentences(parts)
   if (variant === "attention") {
     const page = advisoryCount === 0 ? "Settings > Agents" : "Settings > Status"
     return `${countText} See ${page}.`

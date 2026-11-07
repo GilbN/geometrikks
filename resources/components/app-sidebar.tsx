@@ -1,5 +1,4 @@
 import { Link, useRouterState } from "@tanstack/react-router"
-import { useQuery } from "@tanstack/react-query"
 import { useState, useEffect } from "react"
 import {
   Sidebar,
@@ -22,95 +21,24 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-  LayoutDashboard,
-  Map,
-  MapPinned,
-  FileText,
-  BarChart3,
-  Settings,
   ChevronLeft,
   Activity,
   Globe2,
   AlertCircle,
-  Bug,
   LogOut,
   PowerOff,
-  ShieldBan,
 } from "lucide-react"
-import { flushIpActions } from "@/lib/pending-ip-actions"
+import { NAV_ITEMS, SETTINGS_ITEM, type NavItem as NavItemData } from "@/lib/phone-nav"
+import { logOut } from "@/lib/log-out"
 import { cn } from "@/lib/utils"
-import { displayVersion, publicVersion } from "@/lib/version"
-import { fetchHealth, logout } from "@/lib/api"
-import { logoutThenNavigate } from "@/lib/auth-redirect"
-import { toast } from "sonner"
+import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/version"
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
-import {
-  sidebarIngestionVariant,
-  sidebarStatusTooltip,
-  type SidebarIngestionVariant,
-} from "@/components/settings/status-logic"
-import { agentsNeedingAttention } from "@/components/settings/agents-logic"
-import { useChangelogUnseen, useCrowdsecStatus, useInstances, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
+import { useServiceStatus } from "@/hooks/use-service-status"
+import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 import { useReloadNotice } from "@/lib/reload-notice"
 import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
-
-const navigationItems = [
-  {
-    title: "Overview",
-    url: "/",
-    icon: LayoutDashboard,
-    description: "Dashboard home",
-  },
-  {
-    title: "Map",
-    url: "/map",
-    icon: Map,
-    description: "Geographic view",
-  },
-  {
-    title: "Access Logs",
-    url: "/access-logs",
-    icon: FileText,
-    description: "Request logs",
-  },
-  {
-    title: "Geo Logs",
-    url: "/geo-logs",
-    icon: MapPinned,
-    description: "Geolocation logs",
-  },
-  {
-    title: "Debug Logs",
-    url: "/debug-logs",
-    icon: Bug,
-    description: "Raw & malformed lines",
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-    description: "Statistics & trends",
-  },
-  {
-    title: "Security",
-    url: "/security",
-    icon: ShieldBan,
-    description: "CrowdSec bans & alerts",
-    // Hidden until the CrowdSec integration is configured
-    requiresCrowdsec: true,
-  },
-]
-
-const secondaryItems = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    description: "Configuration",
-  },
-]
 
 function GeoLogo({ collapsed }: { collapsed: boolean }) {
   return (
@@ -143,7 +71,7 @@ function NavItem({
   warning,
   notice,
 }: {
-  item: (typeof navigationItems)[0]
+  item: NavItemData
   isActive: boolean
   warning?: string
   /** Something new to look at, in the accent color rather than amber. */
@@ -223,40 +151,8 @@ function NavItem({
 
 function LiveIndicator({ collapsed }: { collapsed: boolean }) {
   const { tooltipsSuppressed, resetTooltipSuppression } = useSidebar()
-  const { data: health, isError } = useQuery({
-    queryKey: ["health"],
-    queryFn: fetchHealth,
-    refetchInterval: 10000, // Poll every 10 seconds
-    retry: 1,
-  })
-
-  const { data: instances, isError: instancesError } = useInstances()
-  // A failed refetch keeps the last answer cached, so without the isError
-  // check the dot would keep reporting agents from a stale answer.
-  const agentAttentionCount = instancesError ? 0 : agentsNeedingAttention(instances).length
-  const headAdvisoryCount = health?.advisories?.length ?? 0
-
-  const variant = sidebarIngestionVariant(health, isError, agentAttentionCount)
+  const { variant, color, label, tooltip, statusRoute } = useServiceStatus()
   const isRunning = variant === "running"
-  const statusRoute =
-    variant === "attention" && headAdvisoryCount === 0 ? "/settings/agents" : "/settings/status"
-
-  const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
-    offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
-    degraded: { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" },
-    attention: { color: "bg-amber-400", label: "Attention", tooltip: "Advisories need attention - see Settings > Status" },
-    // Neutral, not amber: LOGPARSER_ENABLED=false is a deliberate setting
-    // (UI-head deployments); other instances or agents write the data.
-    disabled: { color: "bg-sidebar-foreground/30", label: "Ingestion off", tooltip: "Log tailing is turned off (LOGPARSER_ENABLED=false)" },
-    running: { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" },
-    inactive: { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" },
-  }
-
-  const { color, label, tooltip: baseTooltip } = INDICATOR_STYLES[variant]
-  const tooltip =
-    variant === "degraded" || variant === "attention"
-      ? sidebarStatusTooltip(baseTooltip, headAdvisoryCount, variant, agentAttentionCount)
-      : baseTooltip
 
   if (collapsed) {
     return (
@@ -335,26 +231,11 @@ function LogoutButton() {
 
   if (me?.mode !== "session") return null
 
-  async function onLogout() {
-    try {
-      // A ban or unban still in its undo window goes out while the session lives.
-      await flushIpActions()
-      // Hard navigation is deliberate, not a leftover: it discards the
-      // TanStack Query cache holding the previous session's data, which a
-      // client-side redirect would not. The /logout route does the same.
-      await logoutThenNavigate(logout, (url) => {
-        window.location.href = url
-      })
-    } catch {
-      toast.error("Logout failed. Try again.")
-    }
-  }
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
-          onClick={onLogout}
+          onClick={logOut}
           onPointerLeave={resetTooltipSuppression}
           className={cn(
             "flex items-center justify-center w-full py-2",
@@ -457,10 +338,7 @@ function RuntimeMetadata({ collapsed }: { collapsed: boolean }) {
   if (collapsed || !settings) return null
 
   const version = displayVersion(publicVersion(settings.version))
-  const imageTag = settings.runtime.imageTag
-  const runtimeLabel = imageTag
-    ? `Container image ${imageTag}`
-    : "Running in a container"
+  const runtimeLabel = containerRuntimeLabel(settings.runtime.imageTag)
 
   return (
     <div className="flex items-center justify-center gap-1.5 px-3 py-2 text-sidebar-foreground/30">
@@ -507,19 +385,11 @@ export function AppSidebar() {
   const currentPath = routerState.location.pathname
   const { data: crowdsecStatus } = useCrowdsecStatus()
   const changelogUnseen = useChangelogUnseen()
-  const visibleNavigationItems = navigationItems.filter(
-    (item) => !("requiresCrowdsec" in item) || crowdsecStatus?.enabled === true,
+  const visibleNavigationItems = NAV_ITEMS.filter(
+    (item) => !item.requiresCrowdsec || crowdsecStatus?.enabled === true,
   )
 
-  // Shares the ["health"] cache with LiveIndicator's 10s poll.
-  const { data: health } = useQuery({
-    queryKey: ["health"],
-    queryFn: fetchHealth,
-    refetchInterval: 30000,
-    retry: 1,
-  })
-  const crowdsecDown =
-    health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
+  const { crowdsecDown } = useServiceStatus()
 
   // The mobile sidebar is a full-height sheet; leaving it open after a nav
   // tap would cover the page the user just navigated to.
@@ -582,7 +452,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {secondaryItems.map((item) => (
+              {[SETTINGS_ITEM].map((item) => (
                 <NavItem
                   key={item.title}
                   item={item}

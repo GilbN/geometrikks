@@ -57,6 +57,7 @@ import {
 import { useBanIp, useBannedIps, useBannedRanges, useCrowdsecStatus, useDropNetwork, useIpDecisions, useUnbanIp } from "@/lib/queries"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
+import { useOverlayEntry } from "@/lib/overlay-history"
 
 type FilterTargetsFor = (values: IpRowValues) => FilterTarget[]
 
@@ -274,12 +275,14 @@ export function IpActionsMenu({
   // Crossing the breakpoint swaps the drawer for the dropdown or back
   // without an onOpenChange(false), which would leave the hold on.
   useEffect(() => setMenuOpen(false), [isMobile])
+  const overlayId = useId()
+  useOverlayEntry(`ip-actions-${overlayId}`, isMobile && !footer && menuOpen, () => setMenuOpen(false))
   // An action that opens a sheet or dialog runs once the menu or drawer has
   // closed and focus is back on the trigger. The sheet takes the focused
   // element as the one to return to, and a dialog opened during the drawer's
   // close animation leaves pointer-events: none on the body after it is
   // dismissed. vaul only reports the end of a close it made itself, so every
-  // drawer action closes it through DrawerClose rather than a controlled `open`.
+  // drawer action closes it through DrawerClose rather than by setting menuOpen.
   const afterClose = useRef<(() => void) | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const banLabelId = useId()
@@ -377,6 +380,7 @@ export function IpActionsMenu({
       {!footer && <CopyIpButton ip={ip} />}
       {isMobile && !footer ? (
         <Drawer
+          open={menuOpen}
           onOpenChange={setMenuOpen}
           onAnimationEnd={(open) => {
             if (!open) runAfterClose()

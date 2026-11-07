@@ -5,6 +5,7 @@ import { KeyRound, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import type { ApiKeyView, CreatedApiKey } from "@/lib/api"
 import { queryKeys, useApiKeys, useRevokeApiKey } from "@/lib/queries"
+import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 import {
   AlertDialog,
@@ -231,8 +232,13 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
   revealingRef.current = open && created !== null && copiedKeyId !== created.apiKey.id
   const revealingNow = useCallback(() => revealingRef.current, [])
   const leaveBlocker = useBlocker({ shouldBlockFn: revealingNow, enableBeforeUnload: revealingNow, withResolver: true })
+  const overlays = useOverlayHistory()
+  const createId = useId()
+  const createOverlayId = `create-api-key-${createId}`
   const leaveReveal = () => {
     revealingRef.current = false
+    // The blocked navigation carries on once it proceeds, so the close must not go back too.
+    overlays.release(createOverlayId)
     setOpen(false)
     setCreated(null)
     leaveBlocker.proceed?.()
@@ -252,6 +258,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
     setOpen(nextOpen)
   }
   const inDrawer = open ? drawerWhileOpen : narrow
+  useOverlayEntry(createOverlayId, open && inDrawer, () => changeOpen(false))
   const createButton = (
     <Button ref={triggerRef} type="button">
       <Plus />

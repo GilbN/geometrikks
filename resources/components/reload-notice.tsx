@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 import { isMobileViewport } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
 import {
   claimReloadToast,
   closeReloadToast,
@@ -99,6 +100,35 @@ export function ReloadNoticeCard() {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/** The pending reload in the phone's More menu. `stacked` puts the buttons under the text. */
+export function ReloadNoticeMenuCard({ stacked, onLater }: { stacked: boolean; onLater(): void }) {
+  const notice = useReloadNotice()
+  if (!notice.pending) return null
+
+  return (
+    <div
+      className={cn(
+        "mx-3.5 mt-1.5 mb-0.5 flex items-center gap-2.5 rounded-[10px] border border-primary/35 bg-primary/8 px-3 py-2.5 text-[13px]",
+        stacked && "mb-2 flex-wrap justify-end",
+      )}
+    >
+      <div className={cn("min-w-0 flex-1", stacked && "basis-full")}>
+        <p className="text-sm font-semibold">GeoMetrikks was updated</p>
+        <p className="text-xs text-muted-foreground">Reload to use the new version</p>
+      </div>
+      <Button variant="ghost" className="h-11 rounded-[9px] px-3.5 text-sm" onClick={onLater}>
+        Later
+      </Button>
+      <Button
+        className="h-11 rounded-[9px] px-3.5 text-sm dark:border-transparent dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/80"
+        onClick={reloadNow}
+      >
+        Reload
+      </Button>
+    </div>
   )
 }
 
