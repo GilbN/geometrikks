@@ -148,7 +148,7 @@ jobs:
           (
             for attempt in 1 2 3; do
               docker pull --quiet "${image}" && break
-              sleep $((attempt * 5))
+              [[ ${attempt} -lt 3 ]] && sleep $((attempt * 5))
             done
             docker run --detach --name smoke-timescaledb \
               --publish 5432:5432 \

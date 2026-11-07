@@ -22,7 +22,9 @@ const CACHE_WRITER_HEAD_START = 15;
 
 // Playwright reads a test-list line as a title-path prefix and trims each
 // part. No line can match a title with "›", a line break or outer spaces,
-// so those tests stay off every list and run on the last shard.
+// so those tests stay off every list. The last shard runs them unless
+// another shard's line already selects them, as it can for a test in an
+// anonymous describe.
 const listable = (title) =>
   title !== "" && title === title.trim() && !title.includes("›") && !/[\r\n]/.test(title);
 
