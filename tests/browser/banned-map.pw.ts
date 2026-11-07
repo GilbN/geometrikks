@@ -208,6 +208,8 @@ test.describe("landscape phone", () => {
       await openCenterPopup(page)
       const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
       await expect(rail(page)).toBeHidden()
+      // The panel slides in from the right, so measure it once that ends.
+      await panel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
       const panelBox = await box(panel)
       expect(panelBox.y).toBeGreaterThanOrEqual(map.y + 11)
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(map.x + map.width - edge + 1)
