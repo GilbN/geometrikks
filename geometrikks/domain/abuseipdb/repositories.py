@@ -26,6 +26,7 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
         return (await self.session.execute(statement)).scalar_one()
 
     async def list_for_ip(self, ip: str) -> list[AbuseIpdbReport]:
+        """Newest first. The rows come back detached, including instances the caller already holds in this session."""
         statement = (
             select(AbuseIpdbReport)
             .where(AbuseIpdbReport.ip_address == cast(ip, postgresql.INET))
@@ -33,7 +34,8 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
         )
         reports = list((await self.session.execute(statement)).scalars())
         for report in reports:
-            # asyncpg decodes INET into ipaddress objects. Detach first so the str is never flushed.
+            # asyncpg decodes INET into ipaddress objects; detach first so reassigning a str
+            # doesn't dirty the row and issue an UPDATE.
             self.session.expunge(report)
             report.ip_address = str(report.ip_address)
         return reports

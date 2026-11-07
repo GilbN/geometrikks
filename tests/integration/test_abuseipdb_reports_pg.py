@@ -59,9 +59,17 @@ async def test_migrated_table_matches_the_model(pg_engine):
     assert schema_diffs == []
 
 
-@pytest.mark.parametrize("overrides", [{"status": "failed"}, {"reporter_kind": "robot"}])
-async def test_status_and_reporter_kind_are_constrained(pg_session_maker, clean_abuseipdb_reports, overrides):
-    with pytest.raises(IntegrityError):
+@pytest.mark.parametrize(
+    ("overrides", "constraint"),
+    [
+        ({"status": "failed"}, "ck_abuseipdb_reports_status"),
+        ({"reporter_kind": "robot"}, "ck_abuseipdb_reports_reporter_kind"),
+    ],
+)
+async def test_status_and_reporter_kind_are_constrained(
+    pg_session_maker, clean_abuseipdb_reports, overrides, constraint
+):
+    with pytest.raises(IntegrityError, match=constraint):
         await _store(pg_session_maker, _report("3.5.140.2", datetime.now(UTC), **overrides))
 
 
@@ -120,16 +128,20 @@ async def test_latest_reported_at_matches_any_spelling_of_an_ipv6_address(pg_ses
 async def test_reported_ips_keeps_the_latest_row_per_ip_inside_the_window(pg_session_maker, clean_abuseipdb_reports):
     now = datetime.now(UTC)
     two_hours_ago = now - timedelta(hours=2)
+    since = now - timedelta(days=90)
     await _store(
         pg_session_maker,
         _report("3.5.140.2", now - timedelta(days=100)),
+        _report("3.5.140.2", now - timedelta(days=10), status="sent"),
         _report("3.5.140.2", two_hours_ago, status="unconfirmed"),
         _report("8.8.8.8", now - timedelta(days=91)),
+        _report("1.1.1.1", since),
     )
 
     async with pg_session_maker() as session:
-        reported = await AbuseIpdbReportRepository(session=session, wrap_exceptions=False).reported_ips(
-            now - timedelta(days=90)
-        )
+        reported = await AbuseIpdbReportRepository(session=session, wrap_exceptions=False).reported_ips(since)
 
-    assert reported == [ReportedIp("3.5.140.2", two_hours_ago, "unconfirmed")]
+    assert reported == [
+        ReportedIp("1.1.1.1", since, "sent"),
+        ReportedIp("3.5.140.2", two_hours_ago, "unconfirmed"),
+    ]
