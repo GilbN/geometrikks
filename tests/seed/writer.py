@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from itertools import cycle
 
 import asyncpg
 
-from geometrikks.server.timescale import ALL_CAGGS
+from geometrikks.server.timescale import ALL_CAGGS, open_bucket_start
 
 from tests.seed.catalog import SERVER_SITES
 from tests.seed.config import SeedError
@@ -58,28 +59,33 @@ class SeedWriter:
             await self.conn.execute(
                 "DELETE FROM server_locations WHERE server = ANY($1::text[]) AND source = 'auto'", list(servers)
             )
-        return await self.refresh_aggregates()
+        # The tables are empty, so refreshing through the open bucket drops it
+        # without moving any watermark forward.
+        return await self.refresh_aggregates(through_open_bucket=True)
 
-    async def refresh_aggregates(self) -> list[str]:
-        """Refresh every GeoMetrikks aggregate over all time; return the ones that failed.
+    async def refresh_aggregates(self, *, through_open_bucket: bool = False) -> list[str]:
+        """Refresh every GeoMetrikks aggregate from the start of time; return the ones that failed.
 
-        Matches the app's six-hourly full refresh. It covers today's open
-        bucket, which a bounded refresh skips. Once the app's full refresh has
-        run, the daily watermark sits at tomorrow, and real-time aggregation
-        no longer reads today's rows.
+        Matches the app's six-hourly full refresh, which stops at each view's
+        bucket that is still filling. Materializing that bucket would move the
+        watermark past it and hide its later rows from real-time queries.
         """
         existing = await self.conn.fetch(
             "SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL",
             list(ALL_CAGGS),
         )
+        now = datetime.now(timezone.utc)
         failed: list[str] = []
         for row in existing:
+            end = None if through_open_bucket else open_bucket_start(row["name"], now)
             # A refresh policy running on the same view raises "concurrent
             # refresh"; retry like refresh_caggs_range does.
             for attempt in range(5):
                 try:
                     # ALL_CAGGS names only; CALL takes no bind parameter for the view.
-                    await self.conn.execute(f"CALL refresh_continuous_aggregate('{row['name']}', NULL, NULL)")
+                    await self.conn.execute(
+                        f"CALL refresh_continuous_aggregate('{row['name']}', NULL, $1::timestamptz)", end
+                    )
                     break
                 except asyncpg.PostgresError as exc:
                     if "concurrent refresh" in str(exc) and attempt < 4:

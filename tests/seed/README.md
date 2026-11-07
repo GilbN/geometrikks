@@ -31,7 +31,7 @@ Without the ASN database the rows get no ASN, and scanners and the crawlers with
 - `access_log_debug`. Every TLS, SSH and SMB probe keeps its raw line, linked to its access log. So does `--debug-share` of normal requests, and a few lines that never parsed.
 - `server_locations`, a map beacon per server name (Frankfurt, then Oslo, Amsterdam and so on). Existing beacons stay as they are.
 
-Then it runs the full aggregate refresh the app runs every six hours, today's bucket included, and sets `geo_locations.last_hit`.
+Then it runs the full aggregate refresh the app runs every six hours, which stops at each view's bucket that is still filling, and sets `geo_locations.last_hit`. Rows in those buckets count through real-time aggregation.
 
 The traffic has three kinds of visitor:
 
@@ -56,7 +56,7 @@ Each server name owns a share of the hosts and one log format. The first is `geo
 | `--debug-share` | 0.02 | Share of normal requests that keep a raw line |
 | `--batch-size` | 20000 | Rows per COPY |
 | `--reset` | off | Empty every traffic table and aggregate first. Asks you to type the database name unless you pass `-y` |
-| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so rows outside those windows stay out of aggregate-backed charts until the app's next full refresh, which runs every six hours. After any full refresh, today's rows count as outside the daily window too |
+| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so rows outside those windows stay out of aggregate-backed charts until the app's next full refresh, which runs every six hours. |
 | `--database-url` | `DB_*` | Another database, as a `postgresql+asyncpg://` URL |
 
 `--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug`, `geo_locations` and the import history in `import_jobs` and `loki_imports`, real data included. It then refreshes the aggregates over all time, which drops their old buckets. Don't point it at a database you care about. Stop the app first, too. A running app holds location ids from before the reset, and its next batch fails until it reloads them.
