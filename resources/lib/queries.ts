@@ -68,7 +68,14 @@ import {
   fetchIpProfile,
   fetchAbuseReport,
   fetchAbuseContact,
+  fetchAbuseIpdbStatus,
+  fetchReportedIps,
+  fetchAbuseIpdbReports,
+  fetchAbuseIpdbCheck,
+  submitAbuseIpdbReport,
   type AbuseReportTarget,
+  type CustomTimeRange,
+  type TimeRangeValue,
   banIp,
   unbanIp,
   parseTimeRange,
@@ -106,7 +113,7 @@ import {
   type OverviewSparklines,
 } from "./sparklines"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
-import type { DropListsResponse } from "@/generated/api/types.gen"
+import type { DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -262,6 +269,12 @@ export const queryKeys = {
     abuse: (params: Record<string, unknown>, refreshKey?: number) =>
       ["reports", "abuse", params, refreshKey] as const,
     abuseContact: (target: AbuseReportTarget) => ["reports", "abuse-contact", target] as const,
+  },
+  abuseipdb: {
+    status: ["abuseipdb", "status"] as const,
+    reportedIps: ["abuseipdb", "reported-ips"] as const,
+    reports: (ip: string) => ["abuseipdb", "reports", ip] as const,
+    check: (ip: string) => ["abuseipdb", "check", ip] as const,
   },
 }
 
@@ -1917,5 +1930,93 @@ export function useAbuseContact(target: AbuseReportTarget, enabled: boolean) {
     enabled,
     staleTime: 60 * 60 * 1000,
     retry: false,
+  })
+}
+
+// ---- AbuseIPDB -------------------------------------------------------------
+
+export function useAbuseIpdbStatus() {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.status,
+    queryFn: fetchAbuseIpdbStatus,
+    staleTime: 60_000,
+  })
+}
+
+// Every IP menu is an observer, so the Map is cached per response like selectBannedRanges.
+const reportedIpMaps = new WeakMap<ReportedIpDto[], Map<string, ReportedIpDto>>()
+
+function selectReportedIps(reportedIps: ReportedIpDto[]): Map<string, ReportedIpDto> {
+  let reportedIpMap = reportedIpMaps.get(reportedIps)
+  if (reportedIpMap === undefined) {
+    reportedIpMap = new Map(reportedIps.map((reportedIp) => [reportedIp.ipAddress, reportedIp]))
+    reportedIpMaps.set(reportedIps, reportedIpMap)
+  }
+  return reportedIpMap
+}
+
+/** IP to its latest report, for every IP reported in the last 90 days. */
+export function useReportedIps() {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reportedIps,
+    queryFn: fetchReportedIps,
+    enabled: status?.reportingEnabled === true,
+    refetchInterval: 60_000,
+    select: selectReportedIps,
+  })
+}
+
+export function useAbuseIpdbReports(ip: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reports(ip),
+    queryFn: () => fetchAbuseIpdbReports(ip),
+    enabled,
+  })
+}
+
+/** Leaves the server and spends AbuseIPDB quota, so it runs only when asked. */
+export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.check(ip),
+    queryFn: () => fetchAbuseIpdbCheck(ip),
+    enabled,
+    staleTime: 15 * 60_000,
+    retry: false,
+  })
+}
+
+/** The evidence for one IP over the dialog's own range, not the page's. */
+export function useAbuseReportForRange(
+  target: AbuseReportTarget,
+  selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
+  enabled: boolean,
+) {
+  const { range, customRange } = selection
+  const maxIps = 1
+  const linesPerIp = 0
+  return useQuery({
+    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }),
+    queryFn: () => {
+      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+      return fetchAbuseReport({ startDate, endDate, target, maxIps, linesPerIp })
+    },
+    enabled,
+    staleTime: 60_000,
+    placeholderData: (previous) => previous,
+  })
+}
+
+export function useSubmitAbuseIpdbReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: submitAbuseIpdbReport,
+    // An unconfirmed answer is an error but still stored a row.
+    onSettled: (_result, _error, report) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.reportedIps }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.reports(report.ipAddress) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.status }),
+      ]),
   })
 }
