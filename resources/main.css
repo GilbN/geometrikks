@@ -123,6 +123,7 @@
 
   --map-top-inset: 0px;
   --range-chip-top: calc(var(--map-top-inset) + 12px);
+  --range-chip-height: 44px;
 }
 
 /* The phone map has no header. Unless a banner takes the top of the screen,
