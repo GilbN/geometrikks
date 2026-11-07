@@ -128,6 +128,7 @@ export const queryKeys = {
     oidcStatus: ["auth", "oidc-status"] as const,
     apiKeys: ["auth", "api-keys"] as const,
     createApiKey: ["auth", "api-keys", "create"] as const,
+    revokeApiKey: ["auth", "api-keys", "revoke"] as const,
   },
   system: {
     settings: ["system", "settings"] as const,
@@ -483,6 +484,7 @@ export function useCreateApiKey() {
 export function useRevokeApiKey() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: queryKeys.auth.revokeApiKey,
     mutationFn: (keyId: string) => revokeApiKey(keyId),
     // Settled, as in useDeleteInstance: a 404 means another tab already revoked it.
     onSettled: () => {

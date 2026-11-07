@@ -2,10 +2,12 @@
  * Settings > API keys on a card narrower than the table: one two-line row per
  * key, and a bottom drawer with the tapped key's details and its Revoke.
  */
-import { useEffect, useId, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { useBlocker } from "@tanstack/react-router"
 import { ChevronRight, X } from "lucide-react"
 import type { ApiKeyView } from "@/lib/api"
-import { useRevokeApiKey } from "@/lib/queries"
+import { queryKeys, useRevokeApiKey } from "@/lib/queries"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { Button } from "@/components/ui/button"
 import {
@@ -102,11 +104,17 @@ export function ApiKeyDrawer({
   }, [gone, onOpenChange])
   // A swipe away mid-revoke would skip the focus handoff that runs once it lands.
   const [revoking, setRevoking] = useState(false)
+  // Back mid-revoke has to be blocked. By the time the close runs, the
+  // drawer's history entry is already gone. `revoking` re-renders a tick
+  // after the request settles, so the guard asks the cache directly.
+  const queryClient = useQueryClient()
+  const revokingNow = useCallback(
+    () => queryClient.isMutating({ mutationKey: queryKeys.auth.revokeApiKey }) > 0,
+    [queryClient],
+  )
+  useBlocker({ shouldBlockFn: revokingNow, enableBeforeUnload: false })
   const overlayId = useId()
-  // Back mid-revoke leaves the drawer up, like a swipe does.
-  useOverlayEntry(`api-key-${overlayId}`, open, () => {
-    if (!revoking) onOpenChange(false)
-  })
+  useOverlayEntry(`api-key-${overlayId}`, open, () => onOpenChange(false))
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} dismissible={!revoking} autoFocus>

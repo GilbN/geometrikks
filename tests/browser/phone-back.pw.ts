@@ -160,6 +160,45 @@ test("Back on the new API key drawer is blocked while creating and asks first on
   await expect(page.getByRole("button", { name: "Create key" })).toBeVisible()
 })
 
+test("Back on an API key drawer is blocked while revoking, however often it is pressed", async ({ page }) => {
+  await login(page)
+  let release = () => {}
+  const revoked = new Promise<void>((resolve) => { release = resolve })
+  const now = new Date().toISOString()
+  const apiKey = {
+    id: "k1", name: "Phone test", scope: "read", displayPrefix: "gmk_test", createdAt: now, createdBy: "admin",
+    expired: false, expiresAt: null, lastUsedAt: null, lastUsedIp: null,
+  }
+  let keys = [apiKey]
+  await page.route("**/api/v1/auth/api-keys", (route) => route.fulfill({ json: { available: true, keys } }))
+  await page.route("**/api/v1/auth/api-keys/k1", async (route) => {
+    await revoked
+    keys = []
+    return route.fulfill({ status: 204 })
+  })
+  await page.goto("/")
+  await page.goto("/settings/api-keys")
+  await page.locator("[data-api-key-row='k1']").click()
+  const drawer = page.getByRole("dialog", { name: "Phone test" })
+  await expect(drawer).toBeVisible()
+  await drawer.getByRole("button", { name: "Revoke", exact: true }).click()
+  await drawer.getByRole("button", { name: "Revoke", exact: true }).click()
+  await expect(drawer.getByRole("button", { name: "Revoking" })).toBeVisible()
+
+  await page.goBack()
+  await expect(drawer).toBeVisible()
+  await expect(page).toHaveURL(/\/settings\/api-keys$/)
+  await page.goBack()
+  await expect(drawer).toBeVisible()
+  await expect(page).toHaveURL(/\/settings\/api-keys$/)
+  release()
+
+  await expect(drawer).toBeHidden()
+  await expect(page).toHaveURL(/\/settings\/api-keys$/)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/$/)
+})
+
 test("Back closes More and stays on the page", async ({ page }) => {
   await login(page)
   await page.goto("/access-logs")
