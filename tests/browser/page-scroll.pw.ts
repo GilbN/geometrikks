@@ -219,6 +219,55 @@ test.describe("desktop", () => {
   })
 })
 
+test.describe("portrait phone", () => {
+  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
+
+  test("Back past a sheet's entry left by Show on map restores the scroll once the rows load", async ({ page }) => {
+    test.slow()
+    await routeMap(page)
+    await login(page)
+    let rowsGate: Promise<void> | undefined
+    let releaseRows = () => {}
+    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", async (route) => {
+      await rowsGate
+      return route.fulfill({ json: { items: accessRows, total: accessRows.length, limit: 20, offset: 0 } })
+    })
+    await page.goto("/access-logs")
+    await expect(firstRow(page)).toBeVisible()
+    await scrollMain(page, 400)
+
+    const height = page.viewportSize()!.height
+    let opened = false
+    for (const url of await page.locator("table tr[data-index]").getByText(/^\/request\//).all()) {
+      const box = await url.boundingBox()
+      if (!box || box.y < 200 || box.y + box.height > height - 160) continue
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+      opened = true
+      break
+    }
+    expect(opened).toBe(true)
+    const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
+    await expect(sheet).toBeVisible()
+    const scrolled = await mainScrollTop(page)
+    expect(scrolled).toBeGreaterThan(50)
+
+    await sheet.getByRole("button", { name: "Show on map" }).click()
+    await expect(page).toHaveURL(/\/map$/, { timeout: 30_000 })
+    // A new refresh time misses the cached rows, so Access Logs loads them again.
+    rowsGate = new Promise<void>((resolve) => { releaseRows = resolve })
+    await page.getByRole("button", { name: "Refresh data" }).filter({ visible: true }).click()
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/access-logs$/)
+    await expect(sheet).toHaveCount(0)
+    // Back lands on the sheet's entry, and the history manager skips it.
+    await expect.poll(() => page.evaluate(() => history.state?.overlay)).toBeUndefined()
+    releaseRows()
+    await expect(firstRow(page)).toBeVisible()
+    await expect.poll(async () => Math.abs((await mainScrollTop(page)) - scrolled)).toBeLessThanOrEqual(10)
+  })
+})
+
 function agent(instanceName: string, overrides: Partial<InstanceView> = {}): InstanceView {
   const now = new Date().toISOString()
   return {

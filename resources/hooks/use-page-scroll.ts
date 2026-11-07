@@ -20,13 +20,14 @@ function saveScrollTop(key: string, top: number) {
 /** Sets `main` to `top` once its content is tall enough to reach it. A page
  *  that loads its rows grows after the commit, so this waits up to a second
  *  and stops as soon as the user scrolls. Returns a function that stops it
- *  early. */
-function restoreWhenTall(main: HTMLElement, top: number): () => void {
+ *  early, and calls `onStop` once it has stopped either way. */
+function restoreWhenTall(main: HTMLElement, top: number, onStop: () => void): () => void {
   const deadline = performance.now() + RESTORE_TIMEOUT_MS
   let frame = 0
   const stop = () => {
     cancelAnimationFrame(frame)
     for (const type of USER_SCROLL_EVENTS) main.removeEventListener(type, stop)
+    onStop()
   }
   const attempt = () => {
     if (main.scrollHeight - main.clientHeight >= top) {
@@ -54,6 +55,7 @@ export function usePageScroll(main: HTMLElement | null) {
   useEffect(() => {
     if (!main) return
     let pendingRestore: { key: string; top: number } | undefined
+    let restoringTop: number | undefined
     let stopRestore = () => {}
     // Not the navigation's fromLocation: the router sets that only after the
     // commit, so a page that navigates as it mounts would save the entry just
@@ -61,9 +63,7 @@ export function usePageScroll(main: HTMLElement | null) {
     let shownKey = router.state.location.state.__TSR_key
     const unsubscribers = [
       router.subscribe("onBeforeNavigate", () => {
-        stopRestore()
-        pendingRestore = undefined
-        if (shownKey) saveScrollTop(shownKey, main.scrollTop)
+        if (shownKey) saveScrollTop(shownKey, pendingRestore?.top ?? restoringTop ?? main.scrollTop)
       }),
       // This runs before the new route renders, not in a layout effect. A
       // page's own layout effects run before the root's and may scroll on
@@ -71,7 +71,15 @@ export function usePageScroll(main: HTMLElement | null) {
       router.subscribe("onBeforeRouteMount", ({ toLocation, pathChanged }) => {
         const key = toLocation.state.__TSR_key
         shownKey = key
-        if (!pathChanged) return
+        // A restore still waiting for the rows carries on through a move that
+        // keeps the path, such as the overlay manager skipping a closed
+        // overlay's entry right after Back lands on it.
+        if (!pathChanged) {
+          if (pendingRestore && key) pendingRestore = { key, top: pendingRestore.top }
+          return
+        }
+        stopRestore()
+        pendingRestore = undefined
         main.scrollTop = 0
         const top = key ? savedScrollTops.get(key) : undefined
         if (key && top) pendingRestore = { key, top }
@@ -79,8 +87,12 @@ export function usePageScroll(main: HTMLElement | null) {
       // After the commit, so the height it waits for is the new page's.
       router.subscribe("onResolved", ({ toLocation }) => {
         if (!pendingRestore || pendingRestore.key !== toLocation.state.__TSR_key) return
-        stopRestore = restoreWhenTall(main, pendingRestore.top)
+        const { top } = pendingRestore
         pendingRestore = undefined
+        restoringTop = top
+        stopRestore = restoreWhenTall(main, top, () => {
+          restoringTop = undefined
+        })
       }),
     ]
     return () => {
