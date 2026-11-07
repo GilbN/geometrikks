@@ -3,7 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate, useSearch } from "@tanstack/react-router"
+import { useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router"
 import { toast } from "sonner"
 import Map, {
   Source,
@@ -201,6 +201,13 @@ function GeoMapInner({
   const isMobile = useIsMobile()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
+  const router = useRouter()
+  // The router keeps the map mounted until the next page has loaded, so a
+  // late rewrite of the URL can land on that page's history entry and turn
+  // it into the map. The pathname reruns a focus skipped that way when Back
+  // returns to the map before it unmounts.
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const isMapCurrent = useCallback(() => pathname === "/map" && router.latestLocation.pathname === "/map", [pathname, router])
   const { filters, setFilters } = useUrlFilters({
     search,
     navigate,
@@ -401,7 +408,7 @@ function GeoMapInner({
   const focusIp = search.focusIp
   const focusIpQuery = useIpLocations(focusIp)
   useEffect(() => {
-    if (focusIp === undefined || focusIpQuery.isPending) return
+    if (focusIp === undefined || focusIpQuery.isPending || !isMapCurrent()) return
     const locationId = focusIpQuery.data?.items?.[0]?.locationId
     if (focusIpQuery.isError) {
       toast.error("Could not look up the IP", { description: `The locations for ${focusIp} failed to load.` })
@@ -411,7 +418,7 @@ function GeoMapInner({
       })
     }
     void navigate({ search: (prev) => ({ ...prev, focusIp: undefined, focus: locationId }), replace: true })
-  }, [focusIp, focusIpQuery.isPending, focusIpQuery.isError, focusIpQuery.data, navigate])
+  }, [focusIp, focusIpQuery.isPending, focusIpQuery.isError, focusIpQuery.data, navigate, isMapCurrent])
 
   const bannedQuery = useBannedLocations(activeLayer === "banned", {
     countryCodes: selectedCountries, cities: selectedCities, servers: selectedServers,
@@ -454,13 +461,14 @@ function GeoMapInner({
     },
   }
   useEffect(() => {
+    if (focusId === undefined || !isMapCurrent()) return
     // The inspector's fly-to lands on a traffic marker, which only exists
     // on the markers layer.
-    if (focusId !== undefined && activeLayer === "banned") {
+    if (activeLayer === "banned") {
       setLayerPreference("markers")
       return
     }
-    if (focusId === undefined || !mapLoaded || isLoadingGeoJSON || !geojson) return
+    if (!mapLoaded || isLoadingGeoJSON || !geojson) return
     const feature = geojson.features.find((f) => f.properties?.id === focusId)
     if (feature) {
       const [lng, lat] = (feature.geometry as Point).coordinates
@@ -473,7 +481,7 @@ function GeoMapInner({
       })
     }
     void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
-  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate, focusOn])
+  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate, focusOn, isMapCurrent])
   const fitData = activeLayer === "banned" ? bannedLocations : geojson
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
 
