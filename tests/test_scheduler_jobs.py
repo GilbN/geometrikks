@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -52,6 +53,23 @@ async def test_refresh_all_caggs_succeeds_quietly(monkeypatch):
     await sched.refresh_all_caggs_job(cast("Any", object()))
 
     assert called == list(ALL_CAGGS)
+
+
+async def test_full_refresh_stops_at_the_bucket_still_filling(monkeypatch):
+    bounds: dict[str, tuple[object, ...]] = {}
+
+    async def fake_call(session_factory, sql: str, *args):
+        assert "NULL, $1::timestamptz" in sql
+        bounds[sql.split("'")[1]] = args
+
+    monkeypatch.setattr(sched, "_execute_call_outside_transaction", fake_call)
+    now = datetime(2026, 1, 7, 15, 20, tzinfo=timezone.utc)
+
+    await sched.refresh_all_caggs_job(cast("Any", object()), now=now)
+
+    assert bounds["summary_hourly_stats"] == (datetime(2026, 1, 7, 15, tzinfo=timezone.utc),)
+    assert bounds["summary_daily_stats"] == (datetime(2026, 1, 7, tzinfo=timezone.utc),)
+    assert set(bounds) == set(ALL_CAGGS)
 
 
 async def test_location_refresh_job_propagates_service_failure(monkeypatch):

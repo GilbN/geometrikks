@@ -19,7 +19,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from geometrikks.server.logging import get_logger
-from geometrikks.server.timescale import ALL_CAGGS
+from geometrikks.server.timescale import ALL_CAGGS, open_bucket_start
 
 if TYPE_CHECKING:
     from litestar import Litestar
@@ -115,8 +115,9 @@ async def refresh_continuous_aggregate_job(
 
 async def refresh_all_caggs_job(
     session_factory: "Callable[[], AsyncSession]",
+    now: datetime | None = None,
 ) -> None:
-    """Refresh all continuous aggregates.
+    """Refresh all continuous aggregates up to the bucket still filling.
 
     Useful for catching up any data that might have been missed or
     after bulk data imports.
@@ -125,13 +126,18 @@ async def refresh_all_caggs_job(
 
     Args:
         session_factory: SQLAlchemy async session factory.
+        now: The current time; defaults to the clock.
     """
+    now = now or datetime.now(timezone.utc)
     failed: list[str] = []
     for cagg_name in ALL_CAGGS:
         try:
+            # Materializing the open bucket moves the watermark past it, and
+            # real-time queries then miss its later rows until the next refresh.
             await _execute_call_outside_transaction(
                 session_factory,
-                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)",
+                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, $1::timestamptz)",
+                open_bucket_start(cagg_name, now),
             )
             logger.info("cagg_refreshed", cagg_name=cagg_name)
         except Exception as exc:
