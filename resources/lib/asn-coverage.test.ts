@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { asnCoverage } from "./asn-coverage"
+import { asnCoverage, largestAsnCategory } from "./asn-coverage"
 
 const cats = (hosting: number, other: number) => [
   { category: "hosting" as const, hits: hosting },
@@ -72,5 +72,24 @@ describe("asnCoverage", () => {
     const c = asnCoverage(cats(60, 45), 100)
     expect(c.unenriched).toBe(0)
     expect(c.coverage).toBe(100)
+  })
+})
+
+describe("largestAsnCategory", () => {
+  it("picks the category with the most hits", () => {
+    const drop = { category: "drop" as const, hits: 8_389 }
+    expect(largestAsnCategory([drop, ...cats(3_931, 10_942)])?.category).toBe("other")
+    expect(largestAsnCategory([drop, ...cats(3_931, 1_000)])?.category).toBe("drop")
+    expect(largestAsnCategory(cats(60, 40))?.category).toBe("hosting")
+  })
+
+  it("breaks a tie toward DROP, then Hosting", () => {
+    expect(largestAsnCategory([...cats(50, 50), { category: "drop" as const, hits: 50 }])?.category).toBe("drop")
+    expect(largestAsnCategory(cats(50, 50))?.category).toBe("hosting")
+  })
+
+  it("returns nothing when there are no categories", () => {
+    expect(largestAsnCategory(undefined)).toBeUndefined()
+    expect(largestAsnCategory([])).toBeUndefined()
   })
 })

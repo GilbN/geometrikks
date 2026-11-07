@@ -54,3 +54,16 @@ export function asnCoverage(
     hasData: classified > 0,
   }
 }
+
+/** A tie goes to DROP, then Hosting. */
+export function largestAsnCategory(
+  categories: readonly AsnCategoryTotal[] | undefined,
+): AsnCategoryTotal | undefined {
+  const order = ["drop", "hosting", "other"] as const
+  let largest: AsnCategoryTotal | undefined
+  for (const name of order) {
+    const category = categories?.find((c) => c.category === name)
+    if (category && (!largest || category.hits > largest.hits)) largest = category
+  }
+  return largest
+}
