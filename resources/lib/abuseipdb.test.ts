@@ -112,6 +112,7 @@ describe("categories", () => {
   })
 
   test("manual and unknown fall back to 21 and 19", () => {
+    expect(categoriesForScenarios(["manual"])).toEqual({ ids: [19, 21], fromCrowdsec: false })
     expect(categoriesForScenarios(["manual 'ban' from 'cli'"])).toEqual({ ids: [19, 21], fromCrowdsec: false })
     expect(categoriesForScenarios([])).toEqual({ ids: [19, 21], fromCrowdsec: false })
   })
@@ -132,6 +133,15 @@ describe("localScenarios", () => {
       "crowdsecurity/ssh-bf",
       "crowdsecurity/appsec-vpatch",
     ])
+  })
+
+  test("manual alerts and decisions never count", () => {
+    const evidence = ipEvidence({
+      alerts: [alert("manual")],
+      decisions: [decision("crowdsec", "manual")],
+    })
+    expect(localScenarios(evidence)).toEqual([])
+    expect(buildReportComment(evidence, localScenarios(evidence))).toBe("")
   })
 
   test("CAPI and lists decisions never count", () => {
@@ -156,9 +166,7 @@ describe("buildReportComment", () => {
   })
 
   test("paths that only answered 2xx and 3xx stay out", () => {
-    const comment = buildReportComment(trafficEvidence(), [])
-    expect(comment).not.toContain("Probed /,")
-    expect(comment).not.toContain(" / ")
+    expect(buildReportComment(trafficEvidence(), [])).toContain(" Probed /.env, /.git/config. ")
   })
 
   test("strips any author prefix from scenarios", () => {
@@ -178,6 +186,52 @@ describe("buildReportComment", () => {
     expect(comment.endsWith("CrowdSec: http-probing.")).toBe(true)
     expect(comment).toContain("/0aaa")
     expect(comment).not.toContain("/9aaa")
+  })
+
+  test("a scenario's reason stays out of the comment", () => {
+    expect(buildReportComment(ipEvidence(), ["geometrikks/manual-ban: spam"])).toBe("CrowdSec: manual-ban.")
+  })
+
+  test("a user agent that does not fit is dropped", () => {
+    const evidence = trafficEvidence({
+      paths: [{ url: `/${"a".repeat(900)}`, hits: 1, errorHits: 1 }],
+      userAgents: [{ userAgent: "u".repeat(200), hits: 1 }],
+    })
+    const comment = buildReportComment(evidence, ["crowdsecurity/http-probing"])
+    expect(comment).toContain("Probed /aaa")
+    expect(comment).not.toContain("User agent")
+    expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
+  })
+
+  test("the user agent stays between the paths and CrowdSec after paths were cut", () => {
+    const longPaths = Array.from({ length: 10 }, (_, index) => ({ url: `/${index}${"a".repeat(199)}`, hits: 1, errorHits: 1 }))
+    const comment = buildReportComment(trafficEvidence({ paths: longPaths }), ["crowdsecurity/http-probing"])
+    expect(comment).not.toContain("/9aaa")
+    expect(comment).toMatch(/\. User agent: zgrab\/0\.x\. CrowdSec: http-probing\.$/)
+  })
+
+  test("many scenarios are cut whole, in order, within the limit", () => {
+    const scenarios = Array.from({ length: 60 }, (_, index) => `author/scenario-${index}-${"s".repeat(10)}`)
+    const comment = buildReportComment(ipEvidence(), scenarios)
+    expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
+    expect(comment).toContain("scenario-0-ssssssssss, scenario-1-")
+    expect(comment).not.toContain("scenario-59-")
+    expect(comment.endsWith("s.")).toBe(true)
+  })
+
+  test("non-BMP scenario names are counted in code points", () => {
+    const scenarios = Array.from({ length: 300 }, (_, index) => `author/${"😀".repeat(5)}${index}`)
+    const comment = buildReportComment(trafficEvidence(), scenarios)
+    expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
+    expect(comment.startsWith("412 HTTP requests")).toBe(true)
+    expect(comment).toContain("CrowdSec: 😀😀😀😀😀0,")
+  })
+
+  test("the counts stay when they alone fill the budget", () => {
+    const comment = buildReportComment(trafficEvidence({ totalRequests: 412 }), [`author/${"x".repeat(2000)}`])
+    expect(comment.startsWith("412 HTTP requests")).toBe(true)
+    expect(comment).not.toContain("CrowdSec")
+    expect(commentLength(comment)).toBeLessThanOrEqual(MAX_COMMENT_LENGTH)
   })
 
   test("IP without traffic gets only the CrowdSec part, or nothing", () => {
@@ -226,6 +280,10 @@ describe("reportedItemState", () => {
   test("inside the window it counts down and disables", () => {
     expect(reportedItemState(entry("2026-11-07T11:54:00Z"), now)).toEqual({ detail: "again in 9 min", disabled: true })
     expect(reportedItemState(entry("2026-11-07T11:54:00Z", "unconfirmed"), now).disabled).toBe(true)
+  })
+
+  test("a report stamped slightly in the future counts as just sent", () => {
+    expect(reportedItemState(entry("2026-11-07T12:02:00Z"), now)).toEqual({ detail: "again in 15 min", disabled: true })
   })
 
   test("after the window it shows the age", () => {

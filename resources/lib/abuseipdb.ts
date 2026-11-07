@@ -1,4 +1,5 @@
 import type { ReportedIpDto, ReportIpDto } from "@/generated/api/types.gen"
+import { scenarioName } from "@/lib/scenario-name"
 
 export const ABUSEIPDB_CATEGORIES: { id: number; name: string }[] = [
   "DNS Compromise",
@@ -34,6 +35,8 @@ export const REPORT_INTERVAL_MS = 15 * 60_000
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
+/** What the backend sends for every alert or decision a person made. */
+const MANUAL_SCENARIO = "manual"
 const COUNTED_DECISION_ORIGINS = new Set(["crowdsec", "appsec"])
 
 const SCENARIO_CATEGORY_RULES: { needles: string[]; ids: number[] }[] = [
@@ -72,7 +75,7 @@ export function localScenarios(ip: ReportIpDto): string[] {
     ...ip.alerts.map((alert) => alert.scenario),
     ...ip.decisions.filter((decision) => COUNTED_DECISION_ORIGINS.has(decision.origin)).map((decision) => decision.scenario),
   ]
-  return [...new Set(scenarios.filter(Boolean))]
+  return [...new Set(scenarios.filter((scenario) => scenario && scenario !== MANUAL_SCENARIO))]
 }
 
 export function categoriesForScenarios(scenarios: string[]): { ids: number[]; fromCrowdsec: boolean } {
@@ -85,7 +88,7 @@ export function categoriesForScenarios(scenarios: string[]): { ids: number[]; fr
       if (rule.needles.some((needle) => lowered.includes(needle))) rule.ids.forEach((id) => matched.add(id))
     }
   }
-  if (matched.size === 0) return { ids: FALLBACK_CATEGORY_IDS, fromCrowdsec: false }
+  if (matched.size === 0) return { ids: [...FALLBACK_CATEGORY_IDS], fromCrowdsec: false }
   return { ids: [...matched].sort((first, second) => first - second), fromCrowdsec: true }
 }
 
@@ -111,34 +114,35 @@ function requestCountPart(ip: ReportIpDto): string | null {
   return `${counts} ${first} to ${lastLabel} UTC, ${answered}`
 }
 
-function stripScenarioAuthor(scenario: string): string {
-  return scenario.replace(/^[^\s/]+\//, "")
-}
-
 export function buildReportComment(ip: ReportIpDto, scenarios: string[]): string {
   const countPart = requestCountPart(ip)
-  const crowdsecPart = scenarios.length ? `CrowdSec: ${scenarios.map(stripScenarioAuthor).join(", ")}.` : null
+  const scenarioNames = scenarios.map((scenario) => scenarioName(scenario).name)
   const probedPaths = ip.paths.filter((path) => path.errorHits > 0).map((path) => path.url)
   const userAgent = ip.userAgents[0]?.userAgent
   const userAgentPart = userAgent ? `User agent: ${userAgent}.` : null
 
-  const assemble = (paths: string[], withUserAgent: boolean) =>
+  const assemble = (kept: { scenarios: string[]; paths: string[]; withUserAgent: boolean }) =>
     [
       countPart,
-      paths.length ? `Probed ${paths.join(", ")}.` : null,
-      withUserAgent ? userAgentPart : null,
-      crowdsecPart,
+      kept.paths.length ? `Probed ${kept.paths.join(", ")}.` : null,
+      kept.withUserAgent ? userAgentPart : null,
+      kept.scenarios.length ? `CrowdSec: ${kept.scenarios.join(", ")}.` : null,
     ]
       .filter((part) => part !== null)
       .join(" ")
+  const fits = (kept: Parameters<typeof assemble>[0]) => commentLength(assemble(kept)) <= MAX_COMMENT_LENGTH
 
-  const keptPaths: string[] = []
-  for (const path of probedPaths) {
-    if (commentLength(assemble([...keptPaths, path], false)) > MAX_COMMENT_LENGTH) break
-    keptPaths.push(path)
+  const kept = { scenarios: [] as string[], paths: [] as string[], withUserAgent: false }
+  for (const name of scenarioNames) {
+    if (!fits({ ...kept, scenarios: [...kept.scenarios, name] })) break
+    kept.scenarios.push(name)
   }
-  const withUserAgent = userAgentPart !== null && commentLength(assemble(keptPaths, true)) <= MAX_COMMENT_LENGTH
-  return assemble(keptPaths, withUserAgent)
+  for (const path of probedPaths) {
+    if (!fits({ ...kept, paths: [...kept.paths, path] })) break
+    kept.paths.push(path)
+  }
+  kept.withUserAgent = userAgentPart !== null && fits({ ...kept, withUserAgent: true })
+  return assemble(kept)
 }
 
 function ageLabel(ageMs: number, reportedAt: string): string {
@@ -153,7 +157,7 @@ export function reportedItemState(
   now: number,
 ): { detail: string | null; disabled: boolean } {
   if (!entry) return { detail: null, disabled: false }
-  const ageMs = now - Date.parse(entry.reportedAt)
+  const ageMs = Math.max(0, now - Date.parse(entry.reportedAt))
   if (ageMs < REPORT_INTERVAL_MS) {
     const minutesLeft = Math.ceil((REPORT_INTERVAL_MS - ageMs) / MINUTE_MS)
     return { detail: `again in ${minutesLeft} min`, disabled: true }
