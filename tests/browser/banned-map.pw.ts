@@ -1,5 +1,6 @@
-import { expect, test, type Page, type WebSocketRoute } from "@playwright/test"
+import { expect, test, type Locator, type Page, type WebSocketRoute } from "@playwright/test"
 import type { BannedMapCollection, BannedMapFeature } from "../../resources/generated/api/types.gen"
+import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS, type SafeAreaInsets } from "./safe-areas"
 
 test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
 
@@ -173,6 +174,205 @@ for (const [height, reducedMotion] of [[844, false], [640, false], [844, true]] 
     await expect(card).toBeVisible()
   })
 }
+
+// Held sideways, the phone map stands on the right edge: a rail instead of
+// the card, the panel docked there, and drawers that open from the right.
+const NO_INSETS: SafeAreaInsets = { left: 0, right: 0, bottom: 0 }
+const box = async (locator: Locator) => {
+  const found = await locator.boundingBox()
+  if (!found) throw new Error("Element has no box")
+  return found
+}
+
+test.describe("landscape phone", () => {
+  test.use({ hasTouch: true, isMobile: true })
+
+  const rail = (page: Page) => page.getByRole("navigation", { name: "Map actions", exact: true })
+  const ringCenter = async (page: Page) => {
+    const ring = await box(page.locator(".maplibregl-marker"))
+    return { x: ring.x + ring.width / 2, y: ring.y + ring.height / 2 }
+  }
+
+  for (const [width, height, insets] of [[932, 430, IPHONE_LANDSCAPE_INSETS], [844, 390, IPHONE_LANDSCAPE_INSETS], [667, 375, NO_INSETS]] as const) {
+    test(`a side panel keeps its point in view at ${width}x${height}`, async ({ page }) => {
+      await page.setViewportSize({ width, height })
+      await emulateSafeAreas(page, insets)
+      await setup(page)
+      const map = await box(page.locator(".maplibregl-map"))
+      const edge = Math.max(12, insets.right)
+
+      const railBox = await box(rail(page))
+      expect(Math.abs(map.x + map.width - (railBox.x + railBox.width) - edge)).toBeLessThanOrEqual(1)
+      expect(railBox.height).toBeGreaterThan(railBox.width)
+
+      await openCenterPopup(page)
+      const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+      await expect(rail(page)).toBeHidden()
+      // The panel slides in from the right, so measure it once that ends.
+      await panel.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
+      const panelBox = await box(panel)
+      expect(panelBox.y).toBeGreaterThanOrEqual(map.y + 11)
+      expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(map.x + map.width - edge + 1)
+      expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(map.y + map.height - Math.max(12, insets.bottom) + 1)
+      await expect.poll(async () => {
+        const { x } = await ringCenter(page)
+        return x > map.x + 24 && x < panelBox.x - 24
+      }).toBe(true)
+
+      // A page lists 20 of the 25 IPs, more than a short panel shows, so its body scrolls.
+      const body = panel.locator(".overflow-y-auto").first()
+      expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)
+      await body.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+      await expect(panel.getByRole("button", { name: /^192\./ }).last()).toBeInViewport()
+
+      await page.keyboard.press("Escape")
+      await expect(panel).toBeHidden()
+      await expect(rail(page)).toBeVisible()
+    })
+  }
+
+  test("a narrow side panel puts its stats in two columns", async ({ page }) => {
+    await page.setViewportSize({ width: 667, height: 375 })
+    await setup(page)
+    await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
+      type: "FeatureCollection", stats: { events: 40, countries: 1, cities: 1, locations: 1 },
+      features: [{ type: "Feature", geometry: { type: "Point", coordinates: [10, 50] }, properties: {
+        id: 131, geohash: "u0yj", city: "Frankfurt", countryCode: "DE", countryName: "Germany", eventCount: 40, lastHit: null, topIps: [],
+      } }],
+    } }))
+    await page.evaluate(() => localStorage.setItem("geometrikks-map-layer", "markers"))
+    await page.goto("/map?focus=131")
+    const stats = page.getByRole("dialog").locator("dl").first()
+    await expect(stats).toBeVisible()
+    expect(await stats.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(2)
+  })
+
+  test("layers and the live feed open from the right", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    await setup(page)
+    const drawer = page.locator('[data-slot="drawer-content"]')
+
+    // Measured once vaul's slide-in has settled.
+    const settledRightEdge = async () => {
+      const { x, width } = await box(drawer)
+      return Math.round(x + width)
+    }
+    await rail(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await expect.poll(settledRightEdge).toBe(932)
+    const controls = await box(drawer)
+    expect(Math.abs(controls.width - (384 + IPHONE_LANDSCAPE_INSETS.right))).toBeLessThanOrEqual(1)
+    const close = await box(drawer.getByRole("button", { name: "Close", exact: true }))
+    expect(close.width).toBe(44)
+    expect(close.height).toBe(44)
+    expect(close.x + close.width).toBeLessThanOrEqual(932 - IPHONE_LANDSCAPE_INSETS.right)
+    await drawer.getByRole("button", { name: "Close", exact: true }).click()
+    await expect(drawer).toBeHidden()
+
+    await rail(page).getByRole("button", { name: "Live" }).click()
+    await page.getByRole("button", { name: /Open the live request feed/ }).click()
+    await expect.poll(settledRightEdge).toBe(932)
+    const feed = await box(drawer)
+    expect(Math.abs(feed.width - (384 + IPHONE_LANDSCAPE_INSETS.right))).toBeLessThanOrEqual(1)
+  })
+
+  test("the live pill clears the selected point", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await setup(page)
+    await rail(page).getByRole("button", { name: "Live" }).click()
+    const pill = await box(page.locator("[data-live-pill]"))
+    await openCenterPopup(page)
+    await expect.poll(async () => (await ringCenter(page)).y > pill.y + pill.height).toBe(true)
+  })
+
+  test("rotation keeps the panel and its point", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await setup(page)
+    await openCenterPopup(page)
+    await page.setViewportSize({ width: 430, height: 932 })
+    const panel = page.getByRole("dialog", { name: "Banned IPs", exact: true })
+    await expect(panel).toBeVisible()
+    await expect.poll(async () => {
+      const panelBox = await box(panel)
+      return panelBox.width > 400 && (await ringCenter(page)).y < panelBox.y
+    }).toBe(true)
+  })
+
+  test("rotation closes an open drawer", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await setup(page)
+    await rail(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    const drawer = page.locator('[data-slot="drawer-content"]')
+    await expect(drawer).toBeVisible()
+    await page.setViewportSize({ width: 430, height: 932 })
+    await expect(drawer).toBeHidden()
+    await expect.poll(() => page.evaluate(() => document.body.style.pointerEvents)).not.toBe("none")
+    await page.getByRole("button", { name: /^Layers and filters/ }).click()
+    await expect.poll(async () => {
+      const { y, height } = await box(drawer)
+      return Math.round(y + height)
+    }).toBe(932)
+    const bottom = await box(drawer)
+    expect(Math.abs(bottom.width - 430)).toBeLessThanOrEqual(1)
+  })
+
+  test("side toasts stay on the free map", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    await page.addInitScript(() => localStorage.setItem("geometrikks-map-frame-rate", "true"))
+    await setup(page)
+    await page.route("**/api/v1/geo-events/logs?*", (route) => route.fulfill({ json: { items: [], total: 0 } }))
+    await page.goto("/map?focusIp=192.0.2.250")
+    const toast = page.locator("[data-sonner-toast]").filter({ hasText: "IP not on the map" })
+    await expect(toast).toBeVisible()
+    // Sonner slides the toast up into place, so measure where it settles.
+    let settledY = Number.NaN
+    await expect.poll(async () => {
+      const { y } = await box(toast)
+      const settled = Math.abs(y - settledY) < 0.5
+      settledY = y
+      return settled
+    }).toBe(true)
+    const toastBox = await box(toast)
+    const map = await box(page.locator(".maplibregl-map"))
+    const railBox = await box(rail(page))
+    expect(toastBox.x).toBeGreaterThanOrEqual(map.x + 40)
+    expect(toastBox.x + toastBox.width).toBeLessThanOrEqual(railBox.x)
+    const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+    // The test style has no sources, so MapLibre may render no attribution.
+    const attribution = page.locator(".maplibregl-ctrl-attrib")
+    if (await attribution.isVisible()) expect(overlaps(toastBox, await box(attribution))).toBe(false)
+    const badge = page.getByTestId("map-frame-rate")
+    if (await badge.isVisible()) expect(overlaps(toastBox, await box(badge))).toBe(false)
+  })
+})
+
+test.describe("short screens that are not phones held sideways", () => {
+  test("a portrait phone with the keyboard open keeps the bottom card", async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 412, height: 400 }, hasTouch: true, isMobile: true, serviceWorkers: "block", baseURL: test.info().project.use.baseURL })
+    const page = await context.newPage()
+    await setup(page)
+    const card = await box(page.getByRole("navigation", { name: "Map actions", exact: true }))
+    expect(card.width).toBeGreaterThan(card.height)
+    await page.getByRole("button", { name: /^Layers and filters/ }).click()
+    const content = page.locator('[data-slot="drawer-content"]')
+    await expect.poll(async () => {
+      const { y, height } = await box(content)
+      return Math.round(y + height)
+    }).toBe(400)
+    const drawer = await box(content)
+    expect(Math.abs(drawer.width - 412)).toBeLessThanOrEqual(1)
+    await context.close()
+  })
+
+  test("a mouse at 932x430 keeps the desktop map", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await setup(page)
+    await expect(page.getByRole("navigation", { name: "Map actions", exact: true })).toHaveCount(0)
+    await expect(page.getByRole("complementary", { name: "Map controls" })).toBeVisible()
+  })
+})
 
 test("overlapping groups remain reachable after cluster expansion", async ({ page }) => {
   await setup(page, collection([group("2", 25), group("3", 2, 10.00000001)]))
