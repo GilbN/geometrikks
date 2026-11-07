@@ -54,10 +54,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ------------------------------------------------------------------------------
 FROM python:3.13-slim-bookworm AS production
 
-ARG APP_IMAGE_TAG=local
-# Empty on a local build; the workflows pass the commit for the About page.
-ARG GIT_SHA=""
-
 RUN groupadd --gid 1000 geometrikks \
     && useradd --uid 1000 --gid geometrikks --shell /bin/bash --create-home geometrikks
 
@@ -78,6 +74,11 @@ COPY --chown=geometrikks:geometrikks --from=python-builder /app/.venv /app/.venv
 COPY --chown=geometrikks:geometrikks --from=frontend-builder /app/public /app/public
 COPY --chown=geometrikks:geometrikks alembic.ini CHANGELOG.md ./
 COPY --chown=geometrikks:geometrikks migrations/ ./migrations/
+# Declared this late because they change on every commit, and every RUN
+# after an ARG misses the build cache when its value changes.
+ARG APP_IMAGE_TAG=local
+# Empty on a local build; the workflows pass the commit for the About page.
+ARG GIT_SHA=""
 # Not recursive: everything copied above already has --chown.
 RUN printf '%s' "${GIT_SHA}" > COMMIT \
     && mkdir -p /app/logs /app/data/geoip \
