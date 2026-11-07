@@ -150,7 +150,7 @@ export function TabBar({ compact }: { compact: boolean }) {
   const current = activeTab(pathname, slot)
   const serviceStatus = useServiceStatus()
   const more = useMoreBadge(serviceStatus)
-  const { barCovered, moreOpen, moreTriggerRef } = usePhoneChrome()
+  const { barCovered, moreOpen, setMoreOpen, moreTriggerRef } = usePhoneChrome()
   const keyboardOpen = useKeyboardOpen()
   const idPrefix = useId()
 
@@ -194,6 +194,14 @@ export function TabBar({ compact }: { compact: boolean }) {
               <Link
                 to={item.url}
                 replace={moreOpen}
+                onClick={(event) => {
+                  // Navigating to the current page over More re-stamps More's entry and
+                  // leaves More open. Closing More pops that entry instead.
+                  if (moreOpen && selected) {
+                    event.preventDefault()
+                    setMoreOpen(false)
+                  }
+                }}
                 aria-current={selected ? "page" : undefined}
                 aria-label={showLabel ? undefined : item.title}
                 aria-describedby={describe(item.id, warning)}
