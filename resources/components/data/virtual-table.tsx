@@ -26,12 +26,27 @@ export function VirtualTable({
   narrow?: boolean
 }) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
+  // A narrow table reserves its rows' height in the commit that mounts it, and
+  // Chrome would anchor <main>'s scroll on the content below and push a
+  // scrolled page down. Set here, not in an effect: the ref attaches before
+  // anything in that commit forces a layout.
+  const attachScrollElement = useCallback((element: HTMLDivElement | null) => {
+    setScrollElement(element)
+    const main = narrow ? element?.closest("main") : null
+    if (!main) return
+    const previousAnchor = main.style.overflowAnchor
+    main.style.overflowAnchor = "none"
+    return () => {
+      main.style.overflowAnchor = previousAnchor
+      setScrollElement(null)
+    }
+  }, [narrow])
   const context = useMemo(() => ({ scrollElement, resetKey, narrow }), [scrollElement, resetKey, narrow])
   return (
     <ScrollContext.Provider value={context}>
       <Table
         {...props}
-        containerRef={setScrollElement}
+        containerRef={attachScrollElement}
         containerClassName={narrow ? "overflow-visible" : "max-h-[65dvh] overflow-auto overscroll-x-contain"}
         className={narrow ? "table-fixed" : "table-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card"}
         aria-rowcount={narrow ? rowCount : rowCount + 1}
