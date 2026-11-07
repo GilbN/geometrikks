@@ -26,6 +26,11 @@ async function routeAccessLogs(page: Page) {
   } }))
 }
 
+/** The inspector's IP with no CrowdSec decision, so its shield offers a ban. */
+async function routeUnbannedInspector(page: Page) {
+  await page.route("**/api/v1/crowdsec/decisions/lookup?*", (route) => route.fulfill({ json: [] }))
+}
+
 // Only opens the form: no ban is sent.
 async function routeWritableCrowdsec(page: Page) {
   await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
@@ -340,6 +345,36 @@ test.describe("portrait phone", () => {
     await expect(page).toHaveURL(/[?&]host=/)
     await expect.poll(() => page.evaluate(() => document.body.style.pointerEvents)).not.toBe("none")
   })
+
+  test("the inspector's shield opens the ban drawer over the inspector", async ({ page }) => {
+    await login(page)
+    await routeWritableCrowdsec(page)
+    await routeUnbannedInspector(page)
+    await page.goto("/access-logs?inspect=192.0.2.1")
+    const sheet = inspectorSheet(page)
+    await expect(sheet).toBeVisible()
+    const shield = sheet.getByRole("button", { name: "Ban 192.0.2.1" })
+
+    await shield.click()
+    const drawer = openDrawer(page)
+    await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "bottom")
+    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await drawer.getByRole("button", { name: "More options…" }).click()
+    const form = page.getByRole("dialog", { name: "Ban an IP or range" })
+    await expect(form).toBeVisible()
+    await form.getByLabel("Reason").fill("typed over the inspector")
+    await expect(form.getByLabel("Reason")).toHaveValue("typed over the inspector")
+    await page.keyboard.press("Escape")
+    await expect(form).toHaveCount(0)
+    await expect(sheet).toBeVisible()
+    await expect(shield).toBeFocused()
+
+    await shield.click()
+    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
+    await expectBackCloses(page, drawer, /inspect=192\.0\.2\.1/)
+    await expect(sheet).toBeVisible()
+  })
 })
 
 test.describe("desktop", () => {
@@ -394,6 +429,21 @@ test.describe("phone held sideways at 932x430", () => {
     await page.goBack()
     await expect(sheet).toHaveCount(0)
     await expect.poll(bodyPointerEvents).not.toBe("none")
+  })
+
+  test("the inspector's shield opens the ban drawer from the right", async ({ page }) => {
+    await login(page)
+    await routeWritableCrowdsec(page)
+    await routeUnbannedInspector(page)
+    await page.goto("/access-logs?inspect=192.0.2.1")
+    const sheet = inspectorSheet(page)
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole("button", { name: "Ban 192.0.2.1" }).click()
+    const drawer = openDrawer(page)
+    await expectRightFullHeight(page, drawer)
+    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
+    await expectBackCloses(page, drawer, /inspect=192\.0\.2\.1/)
+    await expect(sheet).toBeVisible()
   })
 
   test("the new API key form fits on the screen", async ({ page }) => {

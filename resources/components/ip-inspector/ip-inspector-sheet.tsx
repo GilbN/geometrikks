@@ -115,7 +115,7 @@ function SheetRangeControls({ beforeZoom, onRestore }: { beforeZoom: RangeSelect
 // Shares the decisions query with the body via the query key; no second fetch.
 function HeaderBanAction({ ip }: { ip: string }) {
   const decisions = useIpDecisions(ip)
-  return <IpBanAction ip={ip} banned={(decisions.data?.length ?? 0) > 0} />
+  return <IpBanAction ip={ip} decision={winningDecision(decisions.data)?.type ?? null} />
 }
 
 function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to: string) => void }) {
