@@ -241,3 +241,11 @@ async def clean_api_keys(pg_engine: AsyncEngine):
     async with pg_engine.begin() as conn:
         await conn.execute(text("DELETE FROM api_keys"))
     yield
+
+
+@pytest.fixture()
+async def clean_abuseipdb_reports(pg_engine: AsyncEngine):
+    """Clear abuseipdb_reports before each test that requests this fixture."""
+    async with pg_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM abuseipdb_reports"))
+    yield
