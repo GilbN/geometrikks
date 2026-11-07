@@ -246,6 +246,67 @@ test.describe("portrait phone", () => {
     await page.getByRole("button", { name: /^Filters/ }).click()
     await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "bottom")
   })
+
+  test("Ban opens the ban drawer after the actions drawer, and closing it returns focus to the row", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await routeWritableCrowdsec(page)
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    await openDrawer(page).getByRole("button", { name: "Ban IP" }).click()
+
+    const banDrawer = openDrawer(page)
+    await expect(banDrawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
+    await expect(banDrawer.getByRole("button", { name: "Inspect IP" })).toHaveCount(0)
+    await page.keyboard.press("Escape")
+    await expect(openDrawer(page)).toHaveCount(0)
+    await expect(ipActions(page)).toBeFocused()
+    await expect.poll(() => page.evaluate(() => document.body.style.pointerEvents)).not.toBe("none")
+  })
+
+  test("More options in the ban drawer opens the ban form and leaves the page usable", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await routeWritableCrowdsec(page)
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    await openDrawer(page).getByRole("button", { name: "Ban IP" }).click()
+    await openDrawer(page).getByRole("button", { name: "More options…" }).click()
+
+    const form = page.getByRole("heading", { name: "Ban an IP or range" })
+    await expect(form).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(form).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => document.body.style.pointerEvents)).not.toBe("none")
+  })
+
+  test("Back closes the ban drawer", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await routeWritableCrowdsec(page)
+    await page.goto("/")
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    await openDrawer(page).getByRole("button", { name: "Ban IP" }).click()
+    await expect(openDrawer(page).getByText("Ban this IP in CrowdSec for")).toBeVisible()
+    await expectBackCloses(page, openDrawer(page), /\/access-logs$/)
+  })
+
+  test("a pressed filter button takes the value out again", async ({ page }) => {
+    await login(page)
+    await routeAccessLogs(page)
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    await openDrawer(page).getByRole("radio", { name: "Filter by host example.test" }).click()
+    await expect(page).toHaveURL(/[?&]host=/)
+    await expect(openDrawer(page)).toHaveCount(0)
+
+    await ipActions(page).click()
+    const pressed = openDrawer(page).getByRole("radio", { name: "Filter by host example.test" })
+    await expect(pressed).toHaveAttribute("aria-checked", "true")
+    await pressed.click()
+    await expect(page).not.toHaveURL(/host=/)
+  })
 })
 
 test.describe("desktop", () => {
