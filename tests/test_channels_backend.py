@@ -8,13 +8,14 @@ from collections.abc import Callable
 import pytest
 
 from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
+from tests.refused_port import refused_port
 
 pytestmark = pytest.mark.anyio
 
 
 async def test_startup_failure_degrades_instead_of_raising() -> None:
     backend = DegradedTolerantAsyncPgBackend(
-        dsn="postgresql://nobody:wrong@127.0.0.1:1/void"
+        dsn=f"postgresql://nobody:wrong@127.0.0.1:{refused_port()}/void"
     )
     await backend.on_startup()  # must not raise
     assert backend.degraded is True
@@ -22,7 +23,7 @@ async def test_startup_failure_degrades_instead_of_raising() -> None:
 
 async def test_degraded_backend_is_inert() -> None:
     backend = DegradedTolerantAsyncPgBackend(
-        dsn="postgresql://nobody:wrong@127.0.0.1:1/void"
+        dsn=f"postgresql://nobody:wrong@127.0.0.1:{refused_port()}/void"
     )
     await backend.on_startup()
     await backend.publish(b"{}", ["live_events"])  # no-op, must not raise

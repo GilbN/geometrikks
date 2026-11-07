@@ -27,6 +27,7 @@ from geometrikks.lib.pagination import (
 )
 from geometrikks.server.core import create_app
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+from tests.refused_port import refused_port
 
 pytestmark = pytest.mark.anyio
 
@@ -90,7 +91,7 @@ async def test_helper_rejects_an_unknown_sort_field():
 
 def _hermetic_app() -> Litestar:
     return create_app(
-        settings=Settings(auth_disabled=True, database=DatabaseSettings(host="127.0.0.1", port=59999))
+        settings=Settings(auth_disabled=True, database=DatabaseSettings(host="127.0.0.1", port=refused_port()))
     )
 
 

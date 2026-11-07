@@ -8,6 +8,7 @@ from litestar.testing import AsyncTestClient
 
 from geometrikks.config.settings import DatabaseSettings, Settings
 from geometrikks.server.core import create_app
+from tests.refused_port import refused_port
 
 pytestmark = pytest.mark.anyio
 
@@ -34,7 +35,7 @@ def _hermetic_settings(**overrides) -> Settings:
         auth_disabled=True,
         # Unroutable database -> startup takes the degraded path immediately,
         # so these tests never touch a real developer database.
-        database=DatabaseSettings(host="127.0.0.1", port=59999),
+        database=DatabaseSettings(host="127.0.0.1", port=refused_port()),
         **overrides,
     )
 
@@ -135,7 +136,7 @@ def test_agent_mode_needs_no_app_secret(monkeypatch) -> None:
     monkeypatch.setenv("APP_MODE", "agent")
     monkeypatch.delenv("APP_ADMIN_PASSWORD", raising=False)
     app = create_app(
-        settings=Settings(database=DatabaseSettings(host="127.0.0.1", port=59999))
+        settings=Settings(database=DatabaseSettings(host="127.0.0.1", port=refused_port()))
     )
     assert app is not None
 
@@ -209,7 +210,7 @@ def test_session_auth_uses_the_table_backed_session_store() -> None:
 
     settings = Settings(
         admin_password="bestpasswordintheworldnojoke",
-        database=DatabaseSettings(host="127.0.0.1", port=59999),
+        database=DatabaseSettings(host="127.0.0.1", port=refused_port()),
     )
     store = create_app(settings=settings).stores.get("sessions")
     assert isinstance(store, SessionStore)
@@ -221,5 +222,5 @@ def test_no_session_store_without_session_auth(monkeypatch) -> None:
     # registry's own mapping.
     assert "sessions" not in create_app(settings=_hermetic_settings()).stores._stores
     monkeypatch.setenv("APP_MODE", "agent")
-    agent_app = create_app(settings=Settings(database=DatabaseSettings(host="127.0.0.1", port=59999)))
+    agent_app = create_app(settings=Settings(database=DatabaseSettings(host="127.0.0.1", port=refused_port())))
     assert "sessions" not in agent_app.stores._stores

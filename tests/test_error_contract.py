@@ -6,6 +6,7 @@ from litestar.testing import AsyncTestClient
 
 from geometrikks.config.settings import DatabaseSettings, Settings
 from geometrikks.server.core import create_app
+from tests.refused_port import refused_port
 
 pytestmark = pytest.mark.anyio
 
@@ -13,8 +14,8 @@ pytestmark = pytest.mark.anyio
 def _hermetic_settings(**overrides) -> Settings:
     return Settings(
         auth_disabled=True,
-        # Unroutable database -> degraded startup; no test touches a real DB.
-        database=DatabaseSettings(host="127.0.0.1", port=59999),
+        # Refused database -> degraded startup; no test touches a real DB.
+        database=DatabaseSettings(host="127.0.0.1", port=refused_port()),
         **overrides,
     )
 
@@ -89,7 +90,7 @@ async def test_unauthenticated_api_request_is_native_401_envelope():
         settings=Settings(
             admin_user="admin",
             admin_password="bestpasswordintheworldnojoke",
-            database=DatabaseSettings(host="127.0.0.1", port=59999),
+            database=DatabaseSettings(host="127.0.0.1", port=refused_port()),
         )
     )
     async with AsyncTestClient(app=app) as client:
