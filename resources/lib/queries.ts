@@ -1904,20 +1904,32 @@ export function useIpLatestRequests(ip: string | undefined) {
 
 // ---- Abuse reports --------------------------------------------------------
 
-export function useAbuseReport(
+function abuseReportQueryOptions(
   target: AbuseReportTarget,
+  selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
   options: { maxIps: number; linesPerIp: number; enabled: boolean },
+  refreshKey?: number,
 ) {
-  const { range, customRange, lastRefresh } = useTimeRange()
+  const { range, customRange } = selection
   const { maxIps, linesPerIp, enabled } = options
-  return useQuery({
-    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, lastRefresh),
+  return {
+    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, refreshKey),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchAbuseReport({ startDate, endDate, target, maxIps, linesPerIp })
     },
     enabled,
     staleTime: 60 * 1000,
+  }
+}
+
+export function useAbuseReport(
+  target: AbuseReportTarget,
+  options: { maxIps: number; linesPerIp: number; enabled: boolean },
+) {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    ...abuseReportQueryOptions(target, { range, customRange }, options, lastRefresh),
     placeholderData: (previous) => previous,
   })
 }
@@ -1955,13 +1967,14 @@ function selectReportedIps(reportedIps: ReportedIpDto[]): Map<string, ReportedIp
   return reportedIpMap
 }
 
-/** IP to its latest report, for every IP reported in the last 90 days. */
-export function useReportedIps() {
+/** IP to its latest report, for every IP reported in the last 90 days. With
+ *  `active` false it never asks, so closed menus cost no polling. */
+export function useReportedIps(active = true) {
   const { data: status } = useAbuseIpdbStatus()
   return useQuery({
     queryKey: queryKeys.abuseipdb.reportedIps,
     queryFn: fetchReportedIps,
-    enabled: status?.reportingEnabled === true,
+    enabled: active && status?.reportingEnabled === true,
     refetchInterval: 60_000,
     select: selectReportedIps,
   })
@@ -1982,7 +1995,11 @@ export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
     queryFn: () => fetchAbuseIpdbCheck(ip),
     enabled,
     staleTime: 15 * 60_000,
+    gcTime: 15 * 60_000,
     retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   })
 }
 
@@ -1992,18 +2009,12 @@ export function useAbuseReportForRange(
   selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
   enabled: boolean,
 ) {
-  const { range, customRange } = selection
-  const maxIps = 1
-  const linesPerIp = 0
   return useQuery({
-    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }),
-    queryFn: () => {
-      const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchAbuseReport({ startDate, endDate, target, maxIps, linesPerIp })
+    ...abuseReportQueryOptions(target, selection, { maxIps: 1, linesPerIp: 0, enabled }),
+    placeholderData: (previous, previousQuery) => {
+      const previousParams = previousQuery?.queryKey[2] as { target?: AbuseReportTarget } | undefined
+      return JSON.stringify(previousParams?.target) === JSON.stringify(target) ? previous : undefined
     },
-    enabled,
-    staleTime: 60_000,
-    placeholderData: (previous) => previous,
   })
 }
 
@@ -2011,11 +2022,13 @@ export function useSubmitAbuseIpdbReport() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: submitAbuseIpdbReport,
-    // An unconfirmed answer is an error but still stored a row.
-    onSettled: (_result, _error, report) =>
+    retry: false,
+    // An unconfirmed answer is an error but still stored a row. The whole
+    // reports prefix goes stale because one IPv6 address has several spellings.
+    onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.reportedIps }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.reports(report.ipAddress) }),
+        queryClient.invalidateQueries({ queryKey: ["abuseipdb", "reports"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.status }),
       ]),
   })
