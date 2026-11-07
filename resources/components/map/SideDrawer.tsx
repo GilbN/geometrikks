@@ -2,7 +2,6 @@ import { createContext, useContext } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DrawerClose } from "@/components/ui/drawer"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
 
 // Prefixed like ui/drawer's own direction classes: unprefixed ones lose to
@@ -18,13 +17,6 @@ export const SIDE_DRAWER_CONTENT = [
 /** Set by a MapDetailPanel for what it renders: phone UI, and whether it is docked on the right.
  *  The Geo Logs card is an inline panel, so its sheets stay at the bottom. */
 export const MapPanelContext = createContext<{ side: boolean } | null>(null)
-
-/** Whether a component that also renders outside the map's panels should use its phone version. */
-export function usePanelPhone(): boolean {
-  const panel = useContext(MapPanelContext)
-  const isMobile = useIsMobile()
-  return panel !== null || isMobile
-}
 
 /** The map's drawers open from the right on a phone held sideways, from the bottom otherwise. */
 export function useSideDrawer() {

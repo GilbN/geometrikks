@@ -1,10 +1,10 @@
 /**
  * Why an IP on the map is tinted or outlined: its CrowdSec decisions, its
  * DROP listing and the actions for it. Clicking the IP opens them, in a
- * bottom sheet on a phone and a popover elsewhere, since a phone has no hover
+ * drawer on a phone and a popover elsewhere, since a phone has no hover
  * for the tooltip the tables use. An IP with neither renders as it is.
  */
-import { useId, useRef, useState, type ReactNode } from "react"
+import { useRef, useState, type ReactNode } from "react"
 import { Loader2, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -33,9 +33,9 @@ import { useBannedIps, useCrowdsecStatus, useDropNetwork, useIpDecisions } from 
 import { scenarioText } from "@/lib/scenario-name"
 import { usePollingHold } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
-import { SideDrawerClose, usePanelPhone, useSideDrawer } from "./SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
+import { SideDrawerClose } from "./SideDrawer"
 import { BanChoices, type CloseSlot } from "./PanelBanButton"
-import { useOverlayEntry } from "@/lib/overlay-history"
 
 const ORIGIN_TEXT: Record<string, string> = {
   crowdsec: "Your CrowdSec engine detected it",
@@ -227,8 +227,6 @@ function MarkedIpStatus({
   onOpenAlert,
   children,
 }: IpStatusDetailsProps & { decision: string | null }) {
-  const isMobile = usePanelPhone()
-  const drawer = useSideDrawer()
   const { data: status } = useCrowdsecStatus()
   const { unban } = useIpActions()
   const pending = usePendingIpAction(ip)
@@ -237,15 +235,8 @@ function MarkedIpStatus({
   const [choosingBan, setChoosingBan] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   usePollingHold(open || dialogOpen)
-  // A rotation remounts the drawer closed (vaul cannot turn it around). Reset
-  // during render, so the remounted drawer never mounts open.
-  const [direction, setDirection] = useState(drawer.direction)
-  if (direction !== drawer.direction) {
-    setDirection(drawer.direction)
-    setOpen(false)
-  }
-  const overlayId = useId()
-  useOverlayEntry(`ip-status-${overlayId}`, isMobile && open, () => setOpen(false))
+  const drawer = usePhoneDrawer("ip-status", open, () => setOpen(false))
+  const isMobile = drawer.phone
   // On a phone the inspector, the alert sheet and the ban dialog open once
   // the sheet has finished closing. Opened during its close animation, they
   // leave pointer-events: none on the body. A popover is not modal, so they
@@ -327,9 +318,9 @@ function MarkedIpStatus({
     <>
       {isMobile ? (
         <Drawer
-          key={drawer.direction}
+          key={drawer.key}
           direction={drawer.direction}
-          open={open}
+          open={drawer.open}
           onOpenChange={changeOpen}
           onAnimationEnd={(isOpen) => {
             if (isOpen || !afterClose.current) return
@@ -357,7 +348,7 @@ function MarkedIpStatus({
           </DrawerContent>
         </Drawer>
       ) : (
-        <Popover open={open} onOpenChange={changeOpen}>
+        <Popover open={drawer.open} onOpenChange={changeOpen}>
           <PopoverTrigger asChild>{trigger}</PopoverTrigger>
           <PopoverContent
             aria-label={`Why ${ip} is marked`}

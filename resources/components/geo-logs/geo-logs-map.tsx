@@ -25,7 +25,7 @@ import { useMapStartFailure } from "@/components/map/hooks/useMapStartFailure"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapAttribution } from "@/components/map/MapAttribution"
 import { LocationPanel, MapPopup, type PopupInfo } from "@/components/map/MapPopup"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { MapStartFailureNotice } from "@/components/map/MapStartFailureNotice"
 import {
   clusterCountLayer,
@@ -53,7 +53,7 @@ export default function GeoLogsMap() {
   const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
-  const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const didFitRef = useRef(false)
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
@@ -185,7 +185,7 @@ export default function GeoLogsMap() {
               <Layer {...unclusteredPointLabelLayer} />
             </Source>
           )}
-          {popup && !isMobile && (
+          {popup && !phone && (
             <MapPopup
               key={`${popup.longitude},${popup.latitude}`}
               longitude={popup.longitude}
@@ -196,7 +196,7 @@ export default function GeoLogsMap() {
             />
           )}
           {/* On a phone the details sit in a card under this small map, and a ring marks their point. */}
-          {popup && isMobile && (
+          {popup && phone && (
             <Marker longitude={popup.longitude} latitude={popup.latitude} anchor="center" style={{ pointerEvents: "none" }}>
               <span aria-hidden className="block size-12 rounded-full border-2 border-primary shadow-[0_0_0_6px] shadow-primary/25" />
             </Marker>
@@ -205,7 +205,7 @@ export default function GeoLogsMap() {
       </div>
       {mapFailure && <MapStartFailureNotice failure={mapFailure} />}
     </section>
-    {popup && isMobile && (
+    {popup && phone && (
       <LocationPanel
         key={`${popup.longitude},${popup.latitude}`}
         inline
