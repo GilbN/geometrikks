@@ -29,7 +29,7 @@ from tests.seed.visitors import Visitor
 
 VISITOR_ZIPF_EXPONENT = 0.9
 # Crawlers visit steadily but rarely; a crawler topping the IP list looks wrong.
-KIND_WEIGHTS = {"browser": 1.0, "scanner": 1.0, "crawler": 0.15, "lan": 1.0}
+KIND_WEIGHTS = {"browser": 1.0, "scanner": 1.0, "crawler": 0.15}
 PROBE_SHARE = 0.06
 UNPARSEABLE_SHARE = 0.002
 UNPARSEABLE_ERROR = "Line did not match expected log format"
@@ -164,8 +164,7 @@ class TrafficGenerator:
         self.config = config
         self.rng = rng
         self.location_ids = location_ids
-        self.public = [visitor for visitor in visitors if visitor.kind != "lan"]
-        self.lan = [visitor for visitor in visitors if visitor.kind == "lan"]
+        self.public = list(visitors)
         # Ranks follow list order, and the builder finds visitors of a subnet together.
         rng.shuffle(self.public)
         self._cum_weights = list(
@@ -188,14 +187,13 @@ class TrafficGenerator:
         batch = Batch()
         picks = self.rng.choices(self.public, cum_weights=self._cum_weights, k=size)
         for visitor in picks:
-            if self.lan and self.rng.random() < self.config.private_share:
-                visitor = self.rng.choice(self.lan)
             self._add_request(batch, visitor)
         return batch
 
     def _add_request(self, batch: Batch, visitor: Visitor) -> None:
         rng = self.rng
-        timestamp = datetime.fromtimestamp(self._timestamp(visitor), tz=timezone.utc)
+        # Both log formats write whole seconds.
+        timestamp = datetime.fromtimestamp(int(self._timestamp(visitor)), tz=timezone.utc)
         probe = visitor.kind == "scanner" and rng.random() < PROBE_SHARE
         log = self._probe_log(visitor, timestamp) if probe else self._request_log(visitor, timestamp)
 
@@ -208,17 +206,16 @@ class TrafficGenerator:
         else:
             batch.access_logs.append(log)
 
-        if visitor.resolved is not None:
-            batch.geo_events.append(
-                GeoEventRow(
-                    timestamp=timestamp,
-                    ip_address=visitor.ip,
-                    server=log.server,
-                    location_id=self.location_ids[visitor.resolved.place.geohash],
-                    autonomous_system_number=visitor.resolved.asn,
-                    autonomous_system_organization=visitor.resolved.asn_org,
-                )
+        batch.geo_events.append(
+            GeoEventRow(
+                timestamp=timestamp,
+                ip_address=visitor.ip,
+                server=log.server,
+                location_id=self.location_ids[visitor.resolved.place.geohash],
+                autonomous_system_number=visitor.resolved.asn,
+                autonomous_system_organization=visitor.resolved.asn_org,
             )
+        )
 
         if rng.random() < UNPARSEABLE_SHARE:
             batch.orphan_debug.append(
@@ -245,7 +242,7 @@ class TrafficGenerator:
     def _timestamp(self, visitor: Visitor) -> float:
         low, high = visitor.active_from, visitor.active_to
         moment = self.rng.uniform(low, high)
-        if visitor.kind not in ("browser", "lan"):
+        if visitor.kind != "browser":
             return moment
         for _ in range(8):
             local_hour = int((moment / 3600 + visitor.utc_offset_hours) % 24)
@@ -304,11 +301,11 @@ class TrafficGenerator:
             request_time=request_time,
             upstream_response_time=upstream,
             host=host,
-            country_code=resolved.place.country_code if resolved else None,
-            country_name=resolved.place.country_name if resolved else None,
-            city=resolved.place.city if resolved else None,
-            autonomous_system_number=resolved.asn if resolved else None,
-            autonomous_system_organization=resolved.asn_org if resolved else None,
+            country_code=resolved.place.country_code,
+            country_name=resolved.place.country_name,
+            city=resolved.place.city,
+            autonomous_system_number=resolved.asn,
+            autonomous_system_organization=resolved.asn_org,
             server=server,
             log_format=log_format,
         )
@@ -331,11 +328,11 @@ class TrafficGenerator:
             request_time=round(self.rng.uniform(0.001, 0.4), 3),
             upstream_response_time=None,
             host=None,
-            country_code=resolved.place.country_code if resolved else None,
-            country_name=resolved.place.country_name if resolved else None,
-            city=resolved.place.city if resolved else None,
-            autonomous_system_number=resolved.asn if resolved else None,
-            autonomous_system_organization=resolved.asn_org if resolved else None,
+            country_code=resolved.place.country_code,
+            country_name=resolved.place.country_name,
+            city=resolved.place.city,
+            autonomous_system_number=resolved.asn,
+            autonomous_system_organization=resolved.asn_org,
             server=server,
             log_format=log_format,
         )
