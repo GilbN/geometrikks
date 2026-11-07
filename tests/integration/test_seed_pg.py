@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import asyncpg
 import pytest
@@ -58,7 +58,8 @@ async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
 ) -> None:
     first = SeedConfig(rows=800, days=4, visitors=60, servers=SERVERS)
     await run_seed(first, FakeGeoSource(), migrated_database_url)
-    # The app's six-hourly full refresh also materializes today's open bucket.
+    # Until the six-hourly full refresh stopped at the open bucket, it
+    # materialized today's; a database can still hold one.
     conn = await asyncpg.connect(asyncpg_dsn(migrated_database_url))
     try:
         for cagg in ("summary_daily_stats", "summary_hourly_stats", "server_daily_stats"):
@@ -66,8 +67,11 @@ async def test_seed_reset_empties_earlier_traffic_and_its_buckets(
     finally:
         await conn.close()
 
-    # Ends now, so today's rows sit below the daily watermark the refresh above moved to tomorrow.
-    second = dataclasses.replace(first, rows=500, days=1, seed=7, end=datetime.now(timezone.utc))
+    # That refresh left the daily watermark at tomorrow, and a watermark never
+    # moves back, so today's rows would stay out of the daily views. Seed
+    # closed days only.
+    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
+    second = dataclasses.replace(first, rows=500, days=1, seed=7, end=end)
     stats = await run_seed(second, FakeGeoSource(), migrated_database_url, reset=True)
 
     assert stats.failed_caggs == []
