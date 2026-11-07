@@ -132,10 +132,10 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: bun install --frozen-lockfile
-      # The database pull and the browser install need nothing from the image
-      # build, so they run under it instead of before it. "Wait for TimescaleDB
-      # and the Playwright browser" joins them.
-      - name: Start TimescaleDB and the Playwright browser install
+      # The database pull, the browser install and the shard plan need nothing
+      # from the image build, so they run under it instead of before it. "Wait
+      # for the background setup" joins them.
+      - name: Start TimescaleDB, the Playwright browser install and the shard plan
         shell: bash
         run: |
           set -euo pipefail
@@ -169,6 +169,40 @@ jobs:
             echo "${status}" > "${background}/playwright.exit.tmp"
             mv "${background}/playwright.exit.tmp" "${background}/playwright.exit"
           ) < /dev/null > "${background}/playwright.log" 2>&1 &
+          # Every shard checks all six lists the same way, so they all keep the
+          # plan or all fall back to --shard. Any other error fails the shard,
+          # since one shard falling back alone would break the split.
+          total="${{ strategy.job-total }}"
+          this_shard="${{ matrix.shard }}"
+          list_tests() {
+            npx playwright test --config=playwright.config.ts --project=smoke --list --reporter=json "$@"
+          }
+          plan_shards() {
+            local dir="${background}/plan" shard verified pid pids=()
+            mkdir -p "${dir}"
+            list_tests > "${dir}/all.json" || return 1
+            node .github/scripts/smoke-shards.cjs plan "${dir}/all.json" \
+              tests/browser/smoke-durations.json "${total}" "${dir}" || return 1
+            for shard in $(seq 1 "${total}"); do
+              list_tests "$(cat "${dir}/${shard}.args")" > "${dir}/selected-${shard}.json" &
+              pids+=("$!")
+            done
+            for pid in "${pids[@]}"; do
+              wait "${pid}" || return 1
+            done
+            node .github/scripts/smoke-shards.cjs verify "${dir}/all.json" "${dir}"/selected-*.json \
+              && verified=0 || verified=$?
+            case "${verified}" in
+              0) cp "${dir}/${this_shard}.args" "${background}/shard-args" ;;
+              3) echo "--shard=${this_shard}/${total}" > "${background}/shard-args" ;;
+              *) return 1 ;;
+            esac
+          }
+          (
+            plan_shards && status=0 || status=$?
+            echo "${status}" > "${background}/plan.exit.tmp"
+            mv "${background}/plan.exit.tmp" "${background}/plan.exit"
+          ) < /dev/null > "${background}/plan.log" 2>&1 &
       - uses: docker/setup-buildx-action@v4
         with:
           # The runner is thrown away; removing the builder only adds a post step.
@@ -207,22 +241,11 @@ jobs:
           mkdir -p "${nginx_dir}"
           cp tests/valid_ipv4_log.txt "${nginx_dir}/access.log"
           echo "SMOKE_NGINX_DIR=${nginx_dir}" >> "${GITHUB_ENV}"
-      - name: Plan this shard's tests
+      - name: Wait for the background setup
         shell: bash
         run: |
           set -euo pipefail
-          npx playwright test --config=playwright.config.ts --project=smoke --list --reporter=json \
-            > "${RUNNER_TEMP}/smoke-tests.json"
-          args="$(node .github/scripts/smoke-shards.cjs plan "${RUNNER_TEMP}/smoke-tests.json" \
-            tests/browser/smoke-durations.json ${{ strategy.job-total }} ${{ matrix.shard }} \
-            "${RUNNER_TEMP}/smoke-shard-tests.txt")"
-          echo "SMOKE_SHARD_ARGS=${args}" >> "${GITHUB_ENV}"
-          cat "${RUNNER_TEMP}/smoke-shard-tests.txt"
-      - name: Wait for TimescaleDB and the Playwright browser
-        shell: bash
-        run: |
-          set -euo pipefail
-          for task in timescaledb playwright; do
+          for task in timescaledb playwright plan; do
             for _ in {1..300}; do
               [[ -f "${SMOKE_BACKGROUND}/${task}.exit" ]] && break
               sleep 1
@@ -234,6 +257,12 @@ jobs:
               exit 1
             fi
           done
+          args="$(cat "${SMOKE_BACKGROUND}/shard-args")"
+          echo "SMOKE_SHARD_ARGS=${args}" >> "${GITHUB_ENV}"
+          if [[ "${args}" == --shard=* ]]; then
+            echo "::warning::The duration-balanced shard plan did not run every test once, so this run splits by test count."
+            cat "${SMOKE_BACKGROUND}/plan.log"
+          fi
           for _ in {1..60}; do
             if [[ "$(docker inspect --format '{{.State.Health.Status}}' smoke-timescaledb)" == "healthy" ]]; then
               exit 0
@@ -381,6 +410,7 @@ jobs:
             > smoke-artifacts/container.log 2>&1 || true
           docker logs smoke-timescaledb \
             > smoke-artifacts/timescaledb.log 2>&1 || true
+          cp "${SMOKE_BACKGROUND}"/*.log smoke-artifacts/ 2>/dev/null || true
       - name: Upload smoke artifacts
         if: always()
         uses: actions/upload-artifact@v7

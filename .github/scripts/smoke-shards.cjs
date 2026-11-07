@@ -5,16 +5,23 @@
 // commit, so all of them compute the same plan. It plans test by test, so a
 // describe.configure({ mode: "serial" }) group would be split across shards.
 //
-//   node smoke-shards.cjs plan <list.json> <durations.json> <total> <shard> <out-file>
-//     Writes this shard's test list to <out-file> and prints the Playwright
-//     flag that runs it. The last shard runs every test the others' lists do
-//     not claim, so a test the durations file has never seen, or a line
-//     Playwright cannot match, still runs somewhere.
+//   node smoke-shards.cjs plan <list.json> <durations.json> <total> <dir>
+//     Writes each shard's test list to <dir>/<shard>.txt and the Playwright
+//     flag that runs it to <dir>/<shard>.args. The last shard runs every test
+//     the other lists do not claim, so a test the durations file has never
+//     seen still runs.
+//
+//   node smoke-shards.cjs verify <list.json> <selected.json>...
+//     Reads Playwright's own --list output for each shard's flag and checks
+//     that every test runs on exactly one shard. Playwright's list parser has
+//     quirks the plan can't rule out, so CI falls back to --shard when this
+//     exits with 3.
 //
 //   node smoke-shards.cjs durations <results.json>...
 //     Prints a durations file from Playwright JSON reports, such as the
 //     results.json in each shard's container-smoke artifact.
 const fs = require("node:fs");
+const path = require("node:path");
 
 const PROJECT = "smoke";
 // Shard 1 also exports the image cache, about 15 seconds on its build step.
@@ -87,14 +94,30 @@ function testListLines(keys) {
   return keys.map((key) => `[${PROJECT}] › ${key}`).join("\n") + "\n";
 }
 
-function shardArgs(plan, shard, outFile) {
+function writePlan(plan, dir) {
   const total = plan.length;
-  if (shard < total) {
-    fs.writeFileSync(outFile, testListLines(plan[shard - 1]));
-    return `--test-list=${outFile}`;
+  plan.forEach((keys, index) => {
+    const shard = index + 1;
+    const last = shard === total;
+    const listFile = path.join(dir, `${shard}.txt`);
+    fs.writeFileSync(listFile, testListLines(last ? plan.slice(0, -1).flat() : keys));
+    fs.writeFileSync(path.join(dir, `${shard}.args`), `${last ? "--test-list-invert" : "--test-list"}=${listFile}`);
+  });
+}
+
+// Returns the tests that would not run exactly once, by Playwright test id.
+function unevenTests(allReport, selectedReports) {
+  const runs = new Map(collectTests(allReport).map((test) => [test.spec.id, { key: test.key, count: 0 }]));
+  const uneven = [];
+  for (const report of selectedReports) {
+    for (const test of collectTests(report)) {
+      const entry = runs.get(test.spec.id);
+      if (entry) entry.count += 1;
+      else uneven.push(`${test.key} is not in the full list`);
+    }
   }
-  fs.writeFileSync(outFile, testListLines(plan.slice(0, total - 1).flat()));
-  return `--test-list-invert=${outFile}`;
+  for (const { key, count } of runs.values()) if (count !== 1) uneven.push(`${key} runs on ${count} shards`);
+  return uneven;
 }
 
 function durationsFromReports(reports) {
@@ -114,11 +137,20 @@ function main(argv) {
   const [command, ...rest] = argv;
   const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
   if (command === "plan") {
-    const [listFile, durationsFile, total, shard, outFile] = rest;
+    const [listFile, durationsFile, total, dir] = rest;
     const tests = collectTests(readJson(listFile));
     const unlistable = new Set(tests.filter((test) => !test.listable).map((test) => test.key));
-    const plan = planShards(tests.map((test) => test.key), readJson(durationsFile), Number(total), unlistable);
-    process.stdout.write(shardArgs(plan, Number(shard), outFile));
+    writePlan(planShards(tests.map((test) => test.key), readJson(durationsFile), Number(total), unlistable), dir);
+    return;
+  }
+  if (command === "verify") {
+    const [listFile, ...selectedFiles] = rest;
+    const uneven = unevenTests(readJson(listFile), selectedFiles.map(readJson));
+    if (uneven.length > 0) {
+      process.stderr.write(`The shard plan does not run every test once:\n${uneven.join("\n")}\n`);
+      // Not 1, so CI can tell a bad plan from a crash.
+      process.exitCode = 3;
+    }
     return;
   }
   if (command === "durations") {
@@ -130,4 +162,4 @@ function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { collectTests, durationsFromReports, groupByPrefix, planShards, shardArgs, testListLines };
+module.exports = { collectTests, durationsFromReports, groupByPrefix, planShards, testListLines, unevenTests, writePlan };

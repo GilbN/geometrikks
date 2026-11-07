@@ -72,14 +72,30 @@ test("planShards weighs an unrecorded test at the median and starts shard 1 behi
 });
 
 test("the last shard runs whatever the other lists do not claim", () => {
-  const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "smoke-shards-")), "list.txt");
-  const plan = [["a › one"], ["b › two"], ["c › three"]];
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-shards-"));
+  shards.writePlan([["a › one"], ["b › two"], ["c › three"]], dir);
 
-  assert.equal(shards.shardArgs(plan, 2, out), `--test-list=${out}`);
-  assert.equal(fs.readFileSync(out, "utf8"), "[smoke] › b › two\n");
+  assert.equal(fs.readFileSync(path.join(dir, "2.args"), "utf8"), `--test-list=${path.join(dir, "2.txt")}`);
+  assert.equal(fs.readFileSync(path.join(dir, "2.txt"), "utf8"), "[smoke] › b › two\n");
+  assert.equal(fs.readFileSync(path.join(dir, "3.args"), "utf8"), `--test-list-invert=${path.join(dir, "3.txt")}`);
+  assert.equal(fs.readFileSync(path.join(dir, "3.txt"), "utf8"), "[smoke] › a › one\n[smoke] › b › two\n");
+});
 
-  assert.equal(shards.shardArgs(plan, 3, out), `--test-list-invert=${out}`);
-  assert.equal(fs.readFileSync(out, "utf8"), "[smoke] › a › one\n[smoke] › b › two\n");
+const listed = (...specs) => ({
+  suites: [{ title: "a.pw.ts", file: "a.pw.ts", specs: specs.map(([id, title]) => ({ ...spec(title, "a.pw.ts", []), id })) }],
+});
+
+test("unevenTests accepts a plan that runs every test once", () => {
+  const all = listed(["1", "one"], ["2", "two"]);
+
+  assert.deepEqual(shards.unevenTests(all, [listed(["1", "one"]), listed(["2", "two"])]), []);
+});
+
+test("unevenTests reports tests that run twice or not at all", () => {
+  const all = listed(["1", "one"], ["2", "two"], ["3", "three"]);
+  const uneven = shards.unevenTests(all, [listed(["1", "one"], ["2", "two"]), listed(["2", "two"])]);
+
+  assert.deepEqual(uneven, ["a.pw.ts › two runs on 2 shards", "a.pw.ts › three runs on 0 shards"]);
 });
 
 // Mirrors Playwright's loadTestList. A line selects a test in the same file
@@ -127,9 +143,9 @@ test("every test runs on exactly one shard, even with overlapping and unlistable
   const total = 6;
   const plan = shards.planShards(collected.map((entry) => entry.key), {}, total, unlistable);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-shards-"));
+  shards.writePlan(plan, dir);
   const lines = plan.map((_, index) => {
-    const out = path.join(dir, `${index}.txt`);
-    shards.shardArgs(plan, index + 1, out);
+    const out = path.join(dir, `${index + 1}.txt`);
     // Read like loadTestList: one entry per line, trimmed, no blanks or comments.
     return fs
       .readFileSync(out, "utf8")
