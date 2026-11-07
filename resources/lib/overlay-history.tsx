@@ -83,8 +83,14 @@ export function createOverlayHistory(history: RouterHistory) {
         continue
       }
       const { href, state } = history.location
-      if (step.type === "replace") history.replace(href, { ...state, overlay: step.overlay }, { ignoreBlocker: true })
-      else history.push(href, { ...state, overlay: step.overlay })
+      // The browser history merges every write made before its microtask
+      // runs into one native entry, so each overlay's write lands on its own.
+      // Asking a blocker would defer the write past that flush.
+      history.flush()
+      const overlayState = { ...state, overlay: step.overlay }
+      if (step.type === "replace") history.replace(href, overlayState, { ignoreBlocker: true })
+      else history.push(href, overlayState, { ignoreBlocker: true })
+      history.flush()
     }
   }
 

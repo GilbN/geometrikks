@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest"
-import { createMemoryHistory } from "@tanstack/react-router"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { createBrowserHistory, createMemoryHistory } from "@tanstack/react-router"
 import { createOverlayHistory, overlayCloseAction, overlaysAbove, planOverlaySteps } from "./overlay-history"
 
 describe("overlayCloseAction", () => {
@@ -322,5 +322,90 @@ describe("createOverlayHistory", () => {
     await settle()
     expect(history.location.state.__TSR_index).toBe(0)
     expect(overlays.backFrom("more")).toBe(false)
+  })
+})
+
+/** A window whose history keeps native entries the way a browser does, for
+ *  TanStack's browser history, which batches its writes. */
+function fakeWindow(path: string) {
+  const entries: { url: string; state: unknown }[] = [{ url: path, state: null }]
+  let index = 0
+  const listeners = new Set<() => void>()
+  const go = (delta: number) => {
+    setTimeout(() => {
+      const next = index + delta
+      if (next < 0 || next >= entries.length) return
+      index = next
+      for (const listener of listeners) listener()
+    }, 0)
+  }
+  const win = {
+    history: {
+      get state() {
+        return entries[index].state
+      },
+      get length() {
+        return entries.length
+      },
+      pushState(state: unknown, _title: string, url?: string) {
+        entries.splice(index + 1, entries.length, { url: url ?? entries[index].url, state })
+        index += 1
+      },
+      replaceState(state: unknown, _title: string, url?: string) {
+        entries[index] = { url: url ?? entries[index].url, state }
+      },
+      go,
+      back: () => go(-1),
+      forward: () => go(1),
+    },
+    get location() {
+      return new URL(entries[index].url, "http://localhost")
+    },
+    addEventListener(type: string, listener: () => void) {
+      if (type === "popstate") listeners.add(listener)
+    },
+    removeEventListener(type: string, listener: () => void) {
+      if (type === "popstate") listeners.delete(listener)
+    },
+  }
+  return win as unknown as Window
+}
+
+describe("createOverlayHistory on the browser history", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    ["", false],
+    [" with a blocker mounted", true],
+  ])("gives each overlay opened in one commit a browser entry of its own%s", async (_, withBlocker) => {
+    const win = fakeWindow("/map")
+    const history = createBrowserHistory({ window: win })
+    if (withBlocker) {
+      // TanStack asks blockers only where a document exists.
+      vi.stubGlobal("document", {})
+      history.block({ blockerFn: () => false })
+    }
+    const overlays = createOverlayHistory(history)
+    overlays.setActive(true)
+    const stop = overlays.start()
+    const closeLayers = vi.fn(() => overlays.closed("layers"))
+    const closeDetail = vi.fn(() => overlays.closed("detail"))
+    overlays.register("layers", false, closeLayers)
+    overlays.register("detail", false, closeDetail)
+
+    overlays.opened("layers")
+    overlays.opened("detail")
+    await settle()
+    expect(win.history.length).toBe(3)
+
+    history.back()
+    await settle()
+    expect(closeDetail).toHaveBeenCalledOnce()
+    expect(closeLayers).not.toHaveBeenCalled()
+    expect(history.location.state.overlay).toBe("layers")
+    stop()
+    history.destroy()
   })
 })
