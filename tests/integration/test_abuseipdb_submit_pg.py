@@ -341,6 +341,22 @@ async def test_no_refresh_runs_after_the_settle_commit(pg_session_maker, clean_a
     assert (stored.status, stored.abuse_confidence_score) == ("sent", 52)
 
 
+async def test_no_refresh_runs_after_the_insert_commit(pg_session_maker, clean_abuseipdb_reports, monkeypatch):
+    calls: list[httpx2.Request] = []
+
+    async def refresh_that_always_fails(*args, **kwargs):
+        raise SQLAlchemyError("simulated refresh failure")
+
+    async with pg_session_maker() as session:
+        monkeypatch.setattr(session, "refresh", refresh_that_always_fails)
+        row = await submit(session, client_for(httpx2.Response(200, json=ACCEPTED), calls))
+
+    assert len(calls) == 1
+    assert (row.status, row.ip_address) == ("sent", "3.5.140.2")
+    [stored] = await stored_rows(pg_session_maker)
+    assert stored.status == "sent"
+
+
 async def test_a_failed_cleanup_still_raises_the_upstream_refusal(
     pg_session_maker, clean_abuseipdb_reports, monkeypatch
 ):

@@ -161,6 +161,8 @@ async def submit_report(
     if latest is not None and (wait := latest + REPORT_INTERVAL - now) > timedelta(0):
         raise RecentReportError(math.ceil(wait.total_seconds()))
 
+    # Skip the refresh here too. If it failed after the commit, an unsent row would block the IP.
+    # Without a reload, ip_address also stays the normalized str rather than asyncpg's ipaddress object.
     row = await repository.add(
         AbuseIpdbReport(
             ip_address=ip,
@@ -174,6 +176,7 @@ async def submit_report(
             api_key_id=reporter.api_key_id,
         ),
         auto_commit=True,
+        auto_refresh=False,
     )
     row_id = row.id
 
@@ -206,13 +209,6 @@ async def submit_report(
         _log_failure(ip, upstream_status=None, reason="settle_failed", error=error)
         raise ReportUnconfirmedError from error
 
-    # asyncpg hands INET back as an ipaddress object; detach before restoring the string
-    # so the assignment doesn't dirty the row.
-    repository.session.expunge(row)
-    row.ip_address = ip
-    row.status = "sent"
-    row.abuse_confidence_score = result.abuse_confidence_score
-    row.reported_at = now
     logger.info(
         "abuseipdb_report_sent",
         ip_address=ip,
