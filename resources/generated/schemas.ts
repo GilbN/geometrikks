@@ -6,6 +6,19 @@ export * from "./api/types.gen"
 
 // Import specific operation types for mapping
 import type {
+  ApiV1AbuseipdbCheckCheckIpData,
+  ApiV1AbuseipdbCheckCheckIpErrors,
+  ApiV1AbuseipdbCheckCheckIpResponses,
+  ApiV1AbuseipdbReportedIpsListReportedIpsData,
+  ApiV1AbuseipdbReportedIpsListReportedIpsResponses,
+  ApiV1AbuseipdbReportsCreateReportsData,
+  ApiV1AbuseipdbReportsCreateReportsErrors,
+  ApiV1AbuseipdbReportsCreateReportsResponses,
+  ApiV1AbuseipdbReportsListReportsData,
+  ApiV1AbuseipdbReportsListReportsErrors,
+  ApiV1AbuseipdbReportsListReportsResponses,
+  ApiV1AbuseipdbStatusGetAbuseipdbStatusData,
+  ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses,
   ApiV1AccessLogDebugListAccessLogDebugData,
   ApiV1AccessLogDebugListAccessLogDebugErrors,
   ApiV1AccessLogDebugListAccessLogDebugResponses,
@@ -236,14 +249,17 @@ import type {
 export type OperationName =
   | 'ban'
   | 'ban_networks'
+  | 'check_ip'
   | 'connection'
   | 'create_api_key'
+  | 'create_reports'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
   | 'get_about'
   | 'get_abuse_contact'
   | 'get_abuse_report'
+  | 'get_abuseipdb_status'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_alert'
@@ -297,6 +313,8 @@ export type OperationName =
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'list_instances'
+  | 'list_reported_ips'
+  | 'list_reports'
   | 'login'
   | 'logout'
   | 'lookup_decisions'
@@ -320,14 +338,17 @@ export type OperationName =
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksData
+  'check_ip': ApiV1AbuseipdbCheckCheckIpData
   'connection': ApiV1AuthConnectionConnectionData
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyData
+  'create_reports': ApiV1AbuseipdbReportsCreateReportsData
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactData
   'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportData
+  'get_abuseipdb_status': ApiV1AbuseipdbStatusGetAbuseipdbStatusData
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertData
@@ -381,6 +402,8 @@ export interface OperationDataTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsData
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
   'list_instances': ApiV1InstancesListInstancesData
+  'list_reported_ips': ApiV1AbuseipdbReportedIpsListReportedIpsData
+  'list_reports': ApiV1AbuseipdbReportsListReportsData
   'login': ApiV1AuthLoginLoginData
   'logout': ApiV1AuthLogoutLogoutData
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsData
@@ -405,14 +428,17 @@ export interface OperationDataTypes {
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksResponses
+  'check_ip': ApiV1AbuseipdbCheckCheckIpResponses
   'connection': ApiV1AuthConnectionConnectionResponses
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyResponses
+  'create_reports': ApiV1AbuseipdbReportsCreateReportsResponses
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactResponses
   'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportResponses
+  'get_abuseipdb_status': ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsResponses
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertResponses
@@ -466,6 +492,8 @@ export interface OperationResponseTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
   'list_instances': ApiV1InstancesListInstancesResponses
+  'list_reported_ips': ApiV1AbuseipdbReportedIpsListReportedIpsResponses
+  'list_reports': ApiV1AbuseipdbReportsListReportsResponses
   'login': ApiV1AuthLoginLoginResponses
   'logout': ApiV1AuthLogoutLogoutResponses
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses
@@ -490,14 +518,17 @@ export interface OperationResponseTypes {
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
   'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksErrors
+  'check_ip': ApiV1AbuseipdbCheckCheckIpErrors
   'connection': ApiV1AuthConnectionConnectionErrors
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyErrors
+  'create_reports': ApiV1AbuseipdbReportsCreateReportsErrors
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
   'get_abuse_contact': ApiV1ReportsAbuseContactGetAbuseContactErrors
   'get_abuse_report': ApiV1ReportsAbuseGetAbuseReportErrors
+  'get_abuseipdb_status': never
   'get_access_log_debug_stats': ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors
   'get_access_log_facets': never
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertErrors
@@ -551,6 +582,8 @@ export interface OperationErrorTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
   'list_instances': ApiV1InstancesListInstancesErrors
+  'list_reported_ips': never
+  'list_reports': ApiV1AbuseipdbReportsListReportsErrors
   'login': ApiV1AuthLoginLoginErrors
   'logout': ApiV1AuthLogoutLogoutErrors
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors

@@ -9,6 +9,19 @@ import type {
 } from "./client";
 import { client } from "./client.gen";
 import type {
+  ApiV1AbuseipdbCheckCheckIpData,
+  ApiV1AbuseipdbCheckCheckIpErrors,
+  ApiV1AbuseipdbCheckCheckIpResponses,
+  ApiV1AbuseipdbReportedIpsListReportedIpsData,
+  ApiV1AbuseipdbReportedIpsListReportedIpsResponses,
+  ApiV1AbuseipdbReportsCreateReportsData,
+  ApiV1AbuseipdbReportsCreateReportsErrors,
+  ApiV1AbuseipdbReportsCreateReportsResponses,
+  ApiV1AbuseipdbReportsListReportsData,
+  ApiV1AbuseipdbReportsListReportsErrors,
+  ApiV1AbuseipdbReportsListReportsResponses,
+  ApiV1AbuseipdbStatusGetAbuseipdbStatusData,
+  ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses,
   ApiV1AccessLogDebugListAccessLogDebugData,
   ApiV1AccessLogDebugListAccessLogDebugErrors,
   ApiV1AccessLogDebugListAccessLogDebugResponses,
@@ -241,6 +254,165 @@ export type Options<
    */
   meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Check an IP on AbuseIPDB
+ *
+ * Asks AbuseIPDB what it knows about the IP: its confidence score, report counts, usage type and ISP. Only the IP leaves the server, and each answer is cached for 15 minutes, so a repeat check spends nothing from the daily quota. A private or reserved address gets a 400 without a request.
+ */
+export const apiV1AbuseipdbCheckCheckIp = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AbuseipdbCheckCheckIpData, ThrowOnError>,
+): RequestResult<
+  ApiV1AbuseipdbCheckCheckIpResponses,
+  ApiV1AbuseipdbCheckCheckIpErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1AbuseipdbCheckCheckIpResponses,
+    ApiV1AbuseipdbCheckCheckIpErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/check",
+    ...options,
+  });
+
+/**
+ * List the IPs reported to AbuseIPDB in the last 90 days
+ *
+ * Returns each IP reported from GeoMetrikks in the last 90 days with the time and status of its latest report. Read from the local database; nothing leaves the server.
+ */
+export const apiV1AbuseipdbReportedIpsListReportedIps = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AbuseipdbReportedIpsListReportedIpsData, ThrowOnError>,
+): RequestResult<
+  ApiV1AbuseipdbReportedIpsListReportedIpsResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AbuseipdbReportedIpsListReportedIpsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/reported-ips",
+    ...options,
+  });
+
+/**
+ * List the reports sent to AbuseIPDB for an IP
+ *
+ * Returns every report sent from GeoMetrikks for the IP, newest first, with its categories, comment and who sent it. Read from the local database; nothing leaves the server.
+ */
+export const apiV1AbuseipdbReportsListReports = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AbuseipdbReportsListReportsData, ThrowOnError>,
+): RequestResult<
+  ApiV1AbuseipdbReportsListReportsResponses,
+  ApiV1AbuseipdbReportsListReportsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).get<
+    ApiV1AbuseipdbReportsListReportsResponses,
+    ApiV1AbuseipdbReportsListReportsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/reports",
+    ...options,
+  });
+
+/**
+ * Report an IP to AbuseIPDB
+ *
+ * Sends the IP, the categories, the comment and the attack time to AbuseIPDB, which publishes them on the IP's page. GeoMetrikks records the report first and keeps it as `unconfirmed` when AbuseIPDB's answer does not settle whether it landed. Needs ABUSEIPDB_REPORTING_ENABLED=true and a session or a read-write API key. An IP reported in the last 15 minutes gets a 429.
+ */
+export const apiV1AbuseipdbReportsCreateReports = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1AbuseipdbReportsCreateReportsData, ThrowOnError>,
+): RequestResult<
+  ApiV1AbuseipdbReportsCreateReportsResponses,
+  ApiV1AbuseipdbReportsCreateReportsErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    ApiV1AbuseipdbReportsCreateReportsResponses,
+    ApiV1AbuseipdbReportsCreateReportsErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/reports",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Show whether AbuseIPDB checks and reports are available
+ *
+ * Says whether ABUSEIPDB_API_KEY is set, which enables checks, and whether ABUSEIPDB_REPORTING_ENABLED=true, which enables reports. The quotas come from AbuseIPDB's latest answer to each kind of request since startup and are null before the first one. Nothing leaves the server.
+ */
+export const apiV1AbuseipdbStatusGetAbuseipdbStatus = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AbuseipdbStatusGetAbuseipdbStatusData, ThrowOnError>,
+): RequestResult<
+  ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/status",
+    ...options,
+  });
 
 /**
  * List stored raw log lines

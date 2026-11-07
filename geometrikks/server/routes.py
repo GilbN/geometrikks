@@ -9,6 +9,7 @@ from litestar.params import SkipValidation
 from litestar.response import File
 from litestar.types import ControllerRouterHandler
 
+from geometrikks.domain.abuseipdb.controllers import AbuseIpdbController
 from geometrikks.domain.drop.controllers import DropController
 from geometrikks.domain.geo.controllers.events import GeoEventController
 from geometrikks.domain.geo.controllers.locations import GeoLocationController
@@ -76,6 +77,7 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         CrowdSecController,
         DropController,
         ReportsController,
+        AbuseIpdbController,
         LogsController,
         SystemController,
         AuthController,

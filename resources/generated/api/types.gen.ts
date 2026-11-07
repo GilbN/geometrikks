@@ -125,6 +125,30 @@ export type AbuseContactResponse = {
 };
 
 /**
+ * AbuseIpdbStatusResponse
+ *
+ * Whether checks and reports are available, and the quota left for each.
+ */
+export type AbuseIpdbStatusResponse = {
+  /**
+   * The check quota from AbuseIPDB's latest answer. Null until a check since startup.
+   */
+  checks: RateLimitDto | null;
+  /**
+   * True when ABUSEIPDB_API_KEY is set, so checks work.
+   */
+  enabled: boolean;
+  /**
+   * True when ABUSEIPDB_REPORTING_ENABLED=true, so reports can be sent.
+   */
+  reportingEnabled: boolean;
+  /**
+   * The report quota from AbuseIPDB's latest answer. Null until a report since startup.
+   */
+  reports: RateLimitDto | null;
+};
+
+/**
  * AbuseReportResponse
  *
  * Evidence for an abuse report.
@@ -949,6 +973,58 @@ export type ChangelogSection = {
    * The section heading, such as `Added`, `Changed` or `Fixed`.
    */
   kind: string;
+};
+
+/**
+ * CheckResponse
+ *
+ * What AbuseIPDB knows about an IP.
+ */
+export type CheckResponse = {
+  /**
+   * AbuseIPDB's confidence from 0 to 100 that it is abusive.
+   */
+  abuseConfidenceScore: number;
+  /**
+   * The ISO 3166-1 alpha-2 country code AbuseIPDB names.
+   */
+  countryCode: string | null;
+  /**
+   * The domain AbuseIPDB ties to the IP.
+   */
+  domain: string | null;
+  /**
+   * The checked IP.
+   */
+  ipAddress: string;
+  /**
+   * True when the IP is a Tor exit node.
+   */
+  isTor: boolean;
+  /**
+   * True when AbuseIPDB whitelists the IP. Null when AbuseIPDB does not say.
+   */
+  isWhitelisted: boolean | null;
+  /**
+   * The ISP AbuseIPDB names.
+   */
+  isp: string | null;
+  /**
+   * The newest report, as ISO 8601 in UTC. Null if none.
+   */
+  lastReportedAt: string | null;
+  /**
+   * Distinct AbuseIPDB users behind those reports.
+   */
+  numDistinctUsers: number;
+  /**
+   * Reports on the IP in the last 30 days.
+   */
+  totalReports: number;
+  /**
+   * AbuseIPDB's usage type, such as `Data Center/Web Hosting/Transit`.
+   */
+  usageType: string | null;
 };
 
 /**
@@ -2914,6 +2990,26 @@ export type PeriodSummary = {
 };
 
 /**
+ * RateLimitDTO
+ *
+ * The daily quota AbuseIPDB reported on its latest answer for one endpoint.
+ */
+export type RateLimitDto = {
+  /**
+   * Requests allowed per day.
+   */
+  limit: number;
+  /**
+   * Requests left today.
+   */
+  remaining: number;
+  /**
+   * When the quota resets, as ISO 8601 in UTC.
+   */
+  resetsAt: string | null;
+};
+
+/**
  * RawLineField
  *
  * One key of a JSON log line.
@@ -3018,6 +3114,30 @@ export type ReportAlertDecisionDto = {
   duration: string;
   expired: boolean;
   type: string;
+};
+
+/**
+ * ReportBatchInput
+ *
+ * The reports to send. Exactly one for now.
+ */
+export type ReportBatchInput = {
+  /**
+   * Exactly one report.
+   */
+  reports: [ReportItemInput];
+};
+
+/**
+ * ReportBatchResponse
+ *
+ * One result per report, in request order.
+ */
+export type ReportBatchResponse = {
+  /**
+   * One result per submitted report.
+   */
+  results: Array<ReportItemResult>;
 };
 
 /**
@@ -3147,6 +3267,58 @@ export type ReportIpDto = {
 };
 
 /**
+ * ReportItemInput
+ *
+ * One report to send to AbuseIPDB. Every field becomes public there.
+ */
+export type ReportItemInput = {
+  /**
+   * When the attack happened, as ISO 8601 with a timezone. Not in the future.
+   */
+  attackTime: string;
+  /**
+   * AbuseIPDB category IDs from 1 to 23, each once.
+   */
+  categories: Array<number>;
+  /**
+   * The report text, 1 to 1,024 characters, without NUL.
+   */
+  comment: string;
+  /**
+   * The IP to report. It must be public.
+   */
+  ipAddress: string;
+};
+
+/**
+ * ReportItemResult
+ *
+ * The outcome of one report.
+ */
+export type ReportItemResult = {
+  /**
+   * The IP's confidence score from 0 to 100 that AbuseIPDB answered with.
+   */
+  abuseConfidenceScore: number | null;
+  /**
+   * Why AbuseIPDB rejected the report. Null when reported.
+   */
+  error: string | null;
+  /**
+   * The reported IP, in its canonical spelling.
+   */
+  ipAddress: string;
+  /**
+   * When the report was sent, as ISO 8601 in UTC.
+   */
+  reportedAt: string | null;
+  /**
+   * `reported` once AbuseIPDB accepted the report.
+   */
+  status: "reported" | "rejected";
+};
+
+/**
  * ReportLineDTO
  *
  * One access log line, without the Host header, server name, referrer or remote user.
@@ -3221,6 +3393,26 @@ export type ReportTarget = {
 export type ReportUserAgentDto = {
   hits: number;
   userAgent: string;
+};
+
+/**
+ * ReportedIpDTO
+ *
+ * An IP reported from GeoMetrikks, with its latest report.
+ */
+export type ReportedIpDto = {
+  /**
+   * The reported IP.
+   */
+  ipAddress: string;
+  /**
+   * When the latest report was sent, as ISO 8601 in UTC.
+   */
+  reportedAt: string;
+  /**
+   * `sent` once AbuseIPDB accepted the report. `unconfirmed` when AbuseIPDB did not confirm it, so it may have been sent.
+   */
+  status: "unconfirmed" | "sent";
 };
 
 /**
@@ -3493,6 +3685,54 @@ export type SourceReport = {
    * The server name its log lines are recorded under.
    */
   serverName?: string;
+};
+
+/**
+ * StoredReportDTO
+ *
+ * A report sent from GeoMetrikks, as stored.
+ */
+export type StoredReportDto = {
+  /**
+   * The IP's confidence score from 0 to 100 that AbuseIPDB answered with. Null if unconfirmed.
+   */
+  abuseConfidenceScore: number | null;
+  /**
+   * When the attack happened, as ISO 8601 in UTC.
+   */
+  attackTime: string;
+  /**
+   * The AbuseIPDB category IDs, from 1 to 23.
+   */
+  categories: Array<number>;
+  /**
+   * The comment sent with the report. It is public on AbuseIPDB.
+   */
+  comment: string;
+  /**
+   * The stored report's ID.
+   */
+  id: string;
+  /**
+   * The reported IP.
+   */
+  ipAddress: string;
+  /**
+   * When the report was sent, as ISO 8601 in UTC.
+   */
+  reportedAt: string;
+  /**
+   * Who sent it: `user` for a login, `api_key`, or `anonymous` with auth disabled.
+   */
+  reporterKind: "user" | "api_key" | "anonymous";
+  /**
+   * The username or API key name at the time. Null for `anonymous`.
+   */
+  reporterName: string | null;
+  /**
+   * `sent` once AbuseIPDB accepted the report. `unconfirmed` when AbuseIPDB did not confirm it, so it may have been sent.
+   */
+  status: "unconfirmed" | "sent";
 };
 
 /**
@@ -4131,6 +4371,155 @@ export type UnbanRequest = {
 export type UnbanResponse = {
   deleted: number;
 };
+
+export type ApiV1AbuseipdbCheckCheckIpData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * The IP, IPv4 or IPv6. A private, reserved or malformed address gets a 400.
+     */
+    ipAddress: string;
+  };
+  url: "/api/v1/abuseipdb/check";
+};
+
+export type ApiV1AbuseipdbCheckCheckIpErrors = {
+  /**
+   * ipAddress is not a public IP address, or AbuseIPDB rejected it.
+   */
+  400: ErrorEnvelope;
+  /**
+   * ABUSEIPDB_API_KEY is not set.
+   */
+  404: ErrorEnvelope;
+  /**
+   * AbuseIPDB's check limit is used up. Retry-After says when to retry.
+   */
+  429: ErrorEnvelope;
+  /**
+   * AbuseIPDB could not be reached or rejected ABUSEIPDB_API_KEY.
+   */
+  502: ErrorEnvelope;
+};
+
+export type ApiV1AbuseipdbCheckCheckIpError =
+  ApiV1AbuseipdbCheckCheckIpErrors[keyof ApiV1AbuseipdbCheckCheckIpErrors];
+
+export type ApiV1AbuseipdbCheckCheckIpResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: CheckResponse;
+};
+
+export type ApiV1AbuseipdbCheckCheckIpResponse =
+  ApiV1AbuseipdbCheckCheckIpResponses[keyof ApiV1AbuseipdbCheckCheckIpResponses];
+
+export type ApiV1AbuseipdbReportedIpsListReportedIpsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/abuseipdb/reported-ips";
+};
+
+export type ApiV1AbuseipdbReportedIpsListReportedIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<ReportedIpDto>;
+};
+
+export type ApiV1AbuseipdbReportedIpsListReportedIpsResponse =
+  ApiV1AbuseipdbReportedIpsListReportedIpsResponses[keyof ApiV1AbuseipdbReportedIpsListReportedIpsResponses];
+
+export type ApiV1AbuseipdbReportsListReportsData = {
+  body?: never;
+  path?: never;
+  query: {
+    /**
+     * The IP, IPv4 or IPv6. A private, reserved or malformed address gets a 400.
+     */
+    ipAddress: string;
+  };
+  url: "/api/v1/abuseipdb/reports";
+};
+
+export type ApiV1AbuseipdbReportsListReportsErrors = {
+  /**
+   * ipAddress is not a public IP address.
+   */
+  400: ErrorEnvelope;
+};
+
+export type ApiV1AbuseipdbReportsListReportsError =
+  ApiV1AbuseipdbReportsListReportsErrors[keyof ApiV1AbuseipdbReportsListReportsErrors];
+
+export type ApiV1AbuseipdbReportsListReportsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<StoredReportDto>;
+};
+
+export type ApiV1AbuseipdbReportsListReportsResponse =
+  ApiV1AbuseipdbReportsListReportsResponses[keyof ApiV1AbuseipdbReportsListReportsResponses];
+
+export type ApiV1AbuseipdbReportsCreateReportsData = {
+  body: ReportBatchInput;
+  path?: never;
+  query?: never;
+  url: "/api/v1/abuseipdb/reports";
+};
+
+export type ApiV1AbuseipdbReportsCreateReportsErrors = {
+  /**
+   * The body is invalid, the IP is not public, the attack time is in the future, or AbuseIPDB rejected the report.
+   */
+  400: ErrorEnvelope;
+  /**
+   * Reporting is off, or the API key is read-only.
+   */
+  403: ErrorEnvelope;
+  /**
+   * The IP was reported in the last 15 minutes, or AbuseIPDB's report limit is used up. Retry-After says when to retry.
+   */
+  429: ErrorEnvelope;
+  /**
+   * AbuseIPDB could not be reached, refused ABUSEIPDB_API_KEY, or did not confirm the report. Code `abuseipdb_unconfirmed` means it may have been sent.
+   */
+  502: ErrorEnvelope;
+};
+
+export type ApiV1AbuseipdbReportsCreateReportsError =
+  ApiV1AbuseipdbReportsCreateReportsErrors[keyof ApiV1AbuseipdbReportsCreateReportsErrors];
+
+export type ApiV1AbuseipdbReportsCreateReportsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ReportBatchResponse;
+};
+
+export type ApiV1AbuseipdbReportsCreateReportsResponse =
+  ApiV1AbuseipdbReportsCreateReportsResponses[keyof ApiV1AbuseipdbReportsCreateReportsResponses];
+
+export type ApiV1AbuseipdbStatusGetAbuseipdbStatusData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/abuseipdb/status";
+};
+
+export type ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AbuseIpdbStatusResponse;
+};
+
+export type ApiV1AbuseipdbStatusGetAbuseipdbStatusResponse =
+  ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses[keyof ApiV1AbuseipdbStatusGetAbuseipdbStatusResponses];
 
 export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;

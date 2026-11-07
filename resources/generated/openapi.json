@@ -278,6 +278,49 @@
         "title": "AbuseContactResponse",
         "type": "object"
       },
+      "AbuseIpdbStatusResponse": {
+        "description": "Whether checks and reports are available, and the quota left for each.",
+        "properties": {
+          "checks": {
+            "description": "The check quota from AbuseIPDB's latest answer. Null until a check since startup.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RateLimitDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "description": "True when ABUSEIPDB_API_KEY is set, so checks work.",
+            "type": "boolean"
+          },
+          "reportingEnabled": {
+            "description": "True when ABUSEIPDB_REPORTING_ENABLED=true, so reports can be sent.",
+            "type": "boolean"
+          },
+          "reports": {
+            "description": "The report quota from AbuseIPDB's latest answer. Null until a report since startup.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RateLimitDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "checks",
+          "enabled",
+          "reportingEnabled",
+          "reports"
+        ],
+        "title": "AbuseIpdbStatusResponse",
+        "type": "object"
+      },
       "AbuseReportResponse": {
         "description": "Evidence for an abuse report.\n\nIts times are in UTC, apart from `startDate` and `endDate`, which echo the request.",
         "properties": {
@@ -1917,6 +1960,113 @@
           "kind"
         ],
         "title": "ChangelogSection",
+        "type": "object"
+      },
+      "CheckResponse": {
+        "description": "What AbuseIPDB knows about an IP.",
+        "properties": {
+          "abuseConfidenceScore": {
+            "description": "AbuseIPDB's confidence from 0 to 100 that it is abusive.",
+            "type": "integer"
+          },
+          "countryCode": {
+            "description": "The ISO 3166-1 alpha-2 country code AbuseIPDB names.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "domain": {
+            "description": "The domain AbuseIPDB ties to the IP.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ipAddress": {
+            "description": "The checked IP.",
+            "type": "string"
+          },
+          "isTor": {
+            "description": "True when the IP is a Tor exit node.",
+            "type": "boolean"
+          },
+          "isWhitelisted": {
+            "description": "True when AbuseIPDB whitelists the IP. Null when AbuseIPDB does not say.",
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "isp": {
+            "description": "The ISP AbuseIPDB names.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastReportedAt": {
+            "description": "The newest report, as ISO 8601 in UTC. Null if none.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "numDistinctUsers": {
+            "description": "Distinct AbuseIPDB users behind those reports.",
+            "type": "integer"
+          },
+          "totalReports": {
+            "description": "Reports on the IP in the last 30 days.",
+            "type": "integer"
+          },
+          "usageType": {
+            "description": "AbuseIPDB's usage type, such as `Data Center/Web Hosting/Transit`.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "abuseConfidenceScore",
+          "countryCode",
+          "domain",
+          "ipAddress",
+          "isTor",
+          "isWhitelisted",
+          "isp",
+          "lastReportedAt",
+          "numDistinctUsers",
+          "totalReports",
+          "usageType"
+        ],
+        "title": "CheckResponse",
         "type": "object"
       },
       "CountryFacet": {
@@ -6068,6 +6218,38 @@
         "title": "PeriodSummary",
         "type": "object"
       },
+      "RateLimitDTO": {
+        "description": "The daily quota AbuseIPDB reported on its latest answer for one endpoint.",
+        "properties": {
+          "limit": {
+            "description": "Requests allowed per day.",
+            "type": "integer"
+          },
+          "remaining": {
+            "description": "Requests left today.",
+            "type": "integer"
+          },
+          "resetsAt": {
+            "description": "When the quota resets, as ISO 8601 in UTC.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "remaining",
+          "resetsAt"
+        ],
+        "title": "RateLimitDTO",
+        "type": "object"
+      },
       "RawLineField": {
         "description": "One key of a JSON log line.",
         "properties": {
@@ -6279,6 +6461,42 @@
           "type"
         ],
         "title": "ReportAlertDecisionDTO",
+        "type": "object"
+      },
+      "ReportBatchInput": {
+        "description": "The reports to send. Exactly one for now.",
+        "properties": {
+          "reports": {
+            "description": "Exactly one report.",
+            "items": {
+              "$ref": "#/components/schemas/ReportItemInput"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "reports"
+        ],
+        "title": "ReportBatchInput",
+        "type": "object"
+      },
+      "ReportBatchResponse": {
+        "description": "One result per report, in request order.",
+        "properties": {
+          "results": {
+            "description": "One result per submitted report.",
+            "items": {
+              "$ref": "#/components/schemas/ReportItemResult"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "ReportBatchResponse",
         "type": "object"
       },
       "ReportCrowdSec": {
@@ -6557,6 +6775,103 @@
         "title": "ReportIpDTO",
         "type": "object"
       },
+      "ReportItemInput": {
+        "description": "One report to send to AbuseIPDB. Every field becomes public there.",
+        "properties": {
+          "attackTime": {
+            "description": "When the attack happened, as ISO 8601 with a timezone. Not in the future.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "categories": {
+            "description": "AbuseIPDB category IDs from 1 to 23, each once.",
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 23,
+            "minItems": 1,
+            "type": "array"
+          },
+          "comment": {
+            "description": "The report text, 1 to 1,024 characters, without NUL.",
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "ipAddress": {
+            "description": "The IP to report. It must be public.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "attackTime",
+          "categories",
+          "comment",
+          "ipAddress"
+        ],
+        "title": "ReportItemInput",
+        "type": "object"
+      },
+      "ReportItemResult": {
+        "description": "The outcome of one report.",
+        "properties": {
+          "abuseConfidenceScore": {
+            "description": "The IP's confidence score from 0 to 100 that AbuseIPDB answered with.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "description": "Why AbuseIPDB rejected the report. Null when reported.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ipAddress": {
+            "description": "The reported IP, in its canonical spelling.",
+            "type": "string"
+          },
+          "reportedAt": {
+            "description": "When the report was sent, as ISO 8601 in UTC.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "`reported` once AbuseIPDB accepted the report.",
+            "enum": [
+              "reported",
+              "rejected"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "abuseConfidenceScore",
+          "error",
+          "ipAddress",
+          "reportedAt",
+          "status"
+        ],
+        "title": "ReportItemResult",
+        "type": "object"
+      },
       "ReportLineDTO": {
         "description": "One access log line, without the Host header, server name, referrer or remote user.",
         "properties": {
@@ -6749,6 +7064,35 @@
           "userAgent"
         ],
         "title": "ReportUserAgentDTO",
+        "type": "object"
+      },
+      "ReportedIpDTO": {
+        "description": "An IP reported from GeoMetrikks, with its latest report.",
+        "properties": {
+          "ipAddress": {
+            "description": "The reported IP.",
+            "type": "string"
+          },
+          "reportedAt": {
+            "description": "When the latest report was sent, as ISO 8601 in UTC.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`sent` once AbuseIPDB accepted the report. `unconfirmed` when AbuseIPDB did not confirm it, so it may have been sent.",
+            "enum": [
+              "unconfirmed",
+              "sent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "ipAddress",
+          "reportedAt",
+          "status"
+        ],
+        "title": "ReportedIpDTO",
         "type": "object"
       },
       "RuntimeSettingsView": {
@@ -7315,6 +7659,94 @@
         },
         "required": [],
         "title": "SourceReport",
+        "type": "object"
+      },
+      "StoredReportDTO": {
+        "description": "A report sent from GeoMetrikks, as stored.",
+        "properties": {
+          "abuseConfidenceScore": {
+            "description": "The IP's confidence score from 0 to 100 that AbuseIPDB answered with. Null if unconfirmed.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attackTime": {
+            "description": "When the attack happened, as ISO 8601 in UTC.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "categories": {
+            "description": "The AbuseIPDB category IDs, from 1 to 23.",
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "comment": {
+            "description": "The comment sent with the report. It is public on AbuseIPDB.",
+            "type": "string"
+          },
+          "id": {
+            "description": "The stored report's ID.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "ipAddress": {
+            "description": "The reported IP.",
+            "type": "string"
+          },
+          "reportedAt": {
+            "description": "When the report was sent, as ISO 8601 in UTC.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "reporterKind": {
+            "description": "Who sent it: `user` for a login, `api_key`, or `anonymous` with auth disabled.",
+            "enum": [
+              "user",
+              "api_key",
+              "anonymous"
+            ],
+            "type": "string"
+          },
+          "reporterName": {
+            "description": "The username or API key name at the time. Null for `anonymous`.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "`sent` once AbuseIPDB accepted the report. `unconfirmed` when AbuseIPDB did not confirm it, so it may have been sent.",
+            "enum": [
+              "unconfirmed",
+              "sent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "abuseConfidenceScore",
+          "attackTime",
+          "categories",
+          "comment",
+          "id",
+          "ipAddress",
+          "reportedAt",
+          "reporterKind",
+          "reporterName",
+          "status"
+        ],
+        "title": "StoredReportDTO",
         "type": "object"
       },
       "SummaryResponse": {
@@ -8562,6 +8994,260 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/abuseipdb/check": {
+      "get": {
+        "deprecated": false,
+        "description": "Asks AbuseIPDB what it knows about the IP: its confidence score, report counts, usage type and ISP. Only the IP leaves the server, and each answer is cached for 15 minutes, so a repeat check spends nothing from the daily quota. A private or reserved address gets a 400 without a request.",
+        "operationId": "ApiV1AbuseipdbCheckCheckIp",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The IP, IPv4 or IPv6. A private, reserved or malformed address gets a 400.",
+            "in": "query",
+            "name": "ipAddress",
+            "required": true,
+            "schema": {
+              "description": "The IP, IPv4 or IPv6. A private, reserved or malformed address gets a 400.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "ipAddress is not a public IP address, or AbuseIPDB rejected it."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "ABUSEIPDB_API_KEY is not set."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AbuseIPDB's check limit is used up. Retry-After says when to retry."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AbuseIPDB could not be reached or rejected ABUSEIPDB_API_KEY."
+          }
+        },
+        "summary": "Check an IP on AbuseIPDB",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      }
+    },
+    "/api/v1/abuseipdb/reported-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns each IP reported from GeoMetrikks in the last 90 days with the time and status of its latest report. Read from the local database; nothing leaves the server.",
+        "operationId": "ApiV1AbuseipdbReportedIpsListReportedIps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportedIpDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "List the IPs reported to AbuseIPDB in the last 90 days",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      }
+    },
+    "/api/v1/abuseipdb/reports": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns every report sent from GeoMetrikks for the IP, newest first, with its categories, comment and who sent it. Read from the local database; nothing leaves the server.",
+        "operationId": "ApiV1AbuseipdbReportsListReports",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The IP, IPv4 or IPv6. A private, reserved or malformed address gets a 400.",
+            "in": "query",
+            "name": "ipAddress",
+            "required": true,
+            "schema": {
+              "description": "The IP, IPv4 or IPv6. A private, reserved or malformed address gets a 400.",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StoredReportDTO"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "ipAddress is not a public IP address."
+          }
+        },
+        "summary": "List the reports sent to AbuseIPDB for an IP",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "description": "Sends the IP, the categories, the comment and the attack time to AbuseIPDB, which publishes them on the IP's page. GeoMetrikks records the report first and keeps it as `unconfirmed` when AbuseIPDB's answer does not settle whether it landed. Needs ABUSEIPDB_REPORTING_ENABLED=true and a session or a read-write API key. An IP reported in the last 15 minutes gets a 429.",
+        "operationId": "ApiV1AbuseipdbReportsCreateReports",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportBatchInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportBatchResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The body is invalid, the IP is not public, the attack time is in the future, or AbuseIPDB rejected the report."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Reporting is off, or the API key is read-only."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The IP was reported in the last 15 minutes, or AbuseIPDB's report limit is used up. Retry-After says when to retry."
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "AbuseIPDB could not be reached, refused ABUSEIPDB_API_KEY, or did not confirm the report. Code `abuseipdb_unconfirmed` means it may have been sent."
+          }
+        },
+        "summary": "Report an IP to AbuseIPDB",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      }
+    },
+    "/api/v1/abuseipdb/status": {
+      "get": {
+        "deprecated": false,
+        "description": "Says whether ABUSEIPDB_API_KEY is set, which enables checks, and whether ABUSEIPDB_REPORTING_ENABLED=true, which enables reports. The quotas come from AbuseIPDB's latest answer to each kind of request since startup and are null before the first one. Nothing leaves the server.",
+        "operationId": "ApiV1AbuseipdbStatusGetAbuseipdbStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbuseIpdbStatusResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Show whether AbuseIPDB checks and reports are available",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      }
+    },
     "/api/v1/access-log-debug": {
       "get": {
         "deprecated": false,
@@ -19253,6 +19939,10 @@
     {
       "description": "Abuse reports for one IP or one ASN, and the RDAP abuse contact to send them to.",
       "name": "Reports"
+    },
+    {
+      "description": "Check IPs on AbuseIPDB and report them there. Checks need ABUSEIPDB_API_KEY, and reports also need ABUSEIPDB_REPORTING_ENABLED=true.",
+      "name": "AbuseIPDB"
     },
     {
       "description": "The head and every agent that sends heartbeats, with the problems each one reports.",

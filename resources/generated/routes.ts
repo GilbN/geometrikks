@@ -23,14 +23,17 @@ export type UUID = string;
 export type RouteName =
   | 'ban'
   | 'ban_networks'
+  | 'check_ip'
   | 'connection'
   | 'create_api_key'
+  | 'create_reports'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
   | 'get_about'
   | 'get_abuse_contact'
   | 'get_abuse_report'
+  | 'get_abuseipdb_status'
   | 'get_access_log_debug_stats'
   | 'get_access_log_facets'
   | 'get_alert'
@@ -84,6 +87,8 @@ export type RouteName =
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'list_instances'
+  | 'list_reported_ips'
+  | 'list_reports'
   | 'login'
   | 'logout'
   | 'lookup_decisions'
@@ -108,8 +113,10 @@ export type RouteName =
 export interface RoutePathParams {
   'ban': Record<string, never>;
   'ban_networks': Record<string, never>;
+  'check_ip': Record<string, never>;
   'connection': Record<string, never>;
   'create_api_key': Record<string, never>;
+  'create_reports': Record<string, never>;
   'delete_instance': {
     instance_name: string;
   };
@@ -123,6 +130,7 @@ export interface RoutePathParams {
   'get_about': Record<string, never>;
   'get_abuse_contact': Record<string, never>;
   'get_abuse_report': Record<string, never>;
+  'get_abuseipdb_status': Record<string, never>;
   'get_access_log_debug_stats': Record<string, never>;
   'get_access_log_facets': Record<string, never>;
   'get_alert': {
@@ -182,6 +190,8 @@ export interface RoutePathParams {
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'list_instances': Record<string, never>;
+  'list_reported_ips': Record<string, never>;
+  'list_reports': Record<string, never>;
   'login': Record<string, never>;
   'logout': Record<string, never>;
   'lookup_decisions': Record<string, never>;
@@ -211,8 +221,12 @@ export interface RoutePathParams {
 export interface RouteQueryParams {
   'ban': Record<string, never>;
   'ban_networks': Record<string, never>;
+  'check_ip': {
+    ipAddress: string;
+  };
   'connection': Record<string, never>;
   'create_api_key': Record<string, never>;
+  'create_reports': Record<string, never>;
   'delete_instance': Record<string, never>;
   'delete_server_location': Record<string, never>;
   'download': Record<string, never>;
@@ -229,6 +243,7 @@ export interface RouteQueryParams {
     maxIps?: number;
     startDate: DateTime;
   };
+  'get_abuseipdb_status': Record<string, never>;
   'get_access_log_debug_stats': {
     fromTimestamp?: DateTime;
     toTimestamp?: DateTime;
@@ -569,6 +584,10 @@ export interface RouteQueryParams {
     pageSize?: number;
   };
   'list_instances': Record<string, never>;
+  'list_reported_ips': Record<string, never>;
+  'list_reports': {
+    ipAddress: string;
+  };
   'login': Record<string, never>;
   'logout': Record<string, never>;
   'lookup_decisions': {
@@ -624,6 +643,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'check_ip': {
+    path: '/api/v1/abuseipdb/check',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['ipAddress'] as const,
+  },
   'connection': {
     path: '/api/v1/auth/connection',
     methods: ['GET'] as const,
@@ -633,6 +659,13 @@ export const routeDefinitions = {
   },
   'create_api_key': {
     path: '/api/v1/auth/api-keys',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'create_reports': {
+    path: '/api/v1/abuseipdb/reports',
     methods: ['POST'] as const,
     method: 'post',
     pathParams: [] as const,
@@ -679,6 +712,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: ['asn', 'endDate', 'ipAddress', 'linesPerIp', 'maxIps', 'startDate'] as const,
+  },
+  'get_abuseipdb_status': {
+    path: '/api/v1/abuseipdb/status',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
   },
   'get_access_log_debug_stats': {
     path: '/api/v1/access-log-debug/stats',
@@ -1050,6 +1090,20 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'list_reported_ips': {
+    path: '/api/v1/abuseipdb/reported-ips',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'list_reports': {
+    path: '/api/v1/abuseipdb/reports',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['ipAddress'] as const,
   },
   'login': {
     path: '/api/v1/auth/login',
