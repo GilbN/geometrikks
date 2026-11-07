@@ -33,9 +33,9 @@ test.describe("phone held sideways", () => {
     await expect
       .poll(async () => {
         const box = await card.boundingBox()
-        return box && { clearsLeft: box.x >= left, clearsRight: box.x + box.width <= 932 - right }
+        return box && { left: box.x >= left && box.x <= left + 2, clearsRight: box.x + box.width <= 932 - right }
       })
-      .toEqual({ clearsLeft: true, clearsRight: true })
+      .toEqual({ left: true, clearsRight: true })
 
     await page.goto("/map")
     const map = page.locator(".fullscreen-map")

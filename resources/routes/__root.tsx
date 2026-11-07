@@ -265,7 +265,7 @@ function RootLayout() {
                   and --table-header-height on it, so content below can keep clear
                   of them. relative keeps sr-only text inside it; placed against an
                   outer box, that text makes the document scroll the app bar away. */}
-              <main className="relative min-h-0 flex-1 overflow-auto phone:pb-[var(--tab-bar-clear)] phone:scroll-pb-[var(--tab-bar-clear)] phone-side:pl-[env(safe-area-inset-left,0px)] phone-side:pr-[env(safe-area-inset-right,0px)] phone-side:has-[.fullscreen-map]:px-0 phone:has-[.fullscreen-map]:pb-0">
+              <main className="relative min-h-0 flex-1 overflow-auto phone:pb-[var(--tab-bar-clear)] phone:scroll-pb-[var(--tab-bar-clear)] phone-side:pl-[max(0px,calc(env(safe-area-inset-left,0px)-1rem))] phone-side:pr-[max(0px,calc(env(safe-area-inset-right,0px)-1rem))] phone-side:has-[.fullscreen-map]:px-0 phone:has-[.fullscreen-map]:pb-0">
                 <Outlet />
               </main>
             </PageInset>
