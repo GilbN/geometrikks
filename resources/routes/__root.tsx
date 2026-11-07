@@ -41,6 +41,7 @@ import { isChromelessRoute } from "@/lib/auth-redirect"
 import { RELOAD_NOTICE_MENU_DESCRIPTION_ID, ReloadNotice, ReloadNoticeMenuDot } from "@/components/reload-notice"
 import { TabBar } from "@/components/phone-nav/tab-bar"
 import { PhoneChromeProvider, usePhoneChrome } from "@/lib/phone-chrome"
+import { usePageScroll } from "@/hooks/use-page-scroll"
 
 export const Route = createRootRoute({
   validateSearch: (search: Record<string, unknown>) => inspectSearchSchema.parse(search),
@@ -212,6 +213,8 @@ function RootLayout() {
   const phone = usePhoneLayout()
   const phoneSide = usePhoneMapSide()
   const [shellTop, setShellTop] = useState<HTMLDivElement | null>(null)
+  const [main, setMain] = useState<HTMLElement | null>(null)
+  usePageScroll(main)
 
   // No sidebar or data providers on these routes; see isChromelessRoute.
   if (isChromeless) {
@@ -265,7 +268,7 @@ function RootLayout() {
                   and --table-header-height on it, so content below can keep clear
                   of them. relative keeps sr-only text inside it; placed against an
                   outer box, that text makes the document scroll the app bar away. */}
-              <main className="relative min-h-0 flex-1 overflow-auto phone:pb-[var(--tab-bar-clear)] phone:scroll-pb-[var(--tab-bar-clear)] phone-side:pl-[max(0px,calc(env(safe-area-inset-left,0px)-1rem))] phone-side:pr-[max(0px,calc(env(safe-area-inset-right,0px)-1rem))] phone-side:has-[.fullscreen-map]:px-0 phone:has-[.fullscreen-map]:pb-0">
+              <main ref={setMain} className="relative min-h-0 flex-1 overflow-auto phone:pb-[var(--tab-bar-clear)] phone:scroll-pb-[var(--tab-bar-clear)] phone-side:pl-[max(0px,calc(env(safe-area-inset-left,0px)-1rem))] phone-side:pr-[max(0px,calc(env(safe-area-inset-right,0px)-1rem))] phone-side:has-[.fullscreen-map]:px-0 phone:has-[.fullscreen-map]:pb-0">
                 <Outlet />
               </main>
             </PageInset>
