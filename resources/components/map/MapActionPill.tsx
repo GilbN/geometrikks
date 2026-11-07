@@ -130,7 +130,7 @@ export function MapActionPill({
       }}
       className={cn(
         TAB_BAR_SURFACE,
-        "absolute bottom-(--tab-bar-clear) z-10 grid gap-0.5 rounded-full border border-foreground/10 p-1",
+        "absolute bottom-(--tab-bar-clear) z-10 grid gap-0.5 rounded-full border border-border p-1",
         hidden && "invisible",
       )}
     >

@@ -43,9 +43,9 @@ const BAR_FRAME = "rounded-full p-1"
 
 /** The bar's surface, shared with the map's action pill. */
 export const TAB_BAR_SURFACE =
-  "bg-card/88 shadow-[0_10px_30px_rgb(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/6%)] backdrop-blur-[14px] backdrop-saturate-[1.4]"
+  "bg-floating shadow-[0_10px_30px_rgb(0_0_0/0.45)] backdrop-blur"
 
-const BAR_SURFACE = cn("fixed z-40 ring-1 ring-foreground/10", TAB_BAR_SURFACE)
+const BAR_SURFACE = cn("fixed z-40 ring-1 ring-border", TAB_BAR_SURFACE)
 
 const PORTRAIT_BAR =
   "inset-x-[var(--tab-bar-side)] bottom-[max(12px,calc(env(safe-area-inset-bottom,0px)_-_12px))] grid h-[62px] grid-cols-5"
