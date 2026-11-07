@@ -1,4 +1,4 @@
-import { useRef } from "react"
+import { useId, useRef } from "react"
 import { XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -9,6 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 
 // An IP inspector can replace a record sheet. Keep the original row as a
@@ -25,6 +26,7 @@ export function DetailSheet({
   children,
   footer,
   className,
+  historyEntry = true,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -33,8 +35,12 @@ export function DetailSheet({
   children: React.ReactNode
   footer?: React.ReactNode
   className?: string
+  /** Off for a sheet whose opener pushes a history entry of its own. */
+  historyEntry?: boolean
 }) {
   const openerRef = useRef<HTMLElement[]>([])
+  const overlayId = useId()
+  useOverlayEntry(`detail-sheet-${overlayId}`, historyEntry && open, () => onOpenChange(false))
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent

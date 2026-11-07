@@ -56,8 +56,11 @@ export function createOverlayHistory(history: RouterHistory) {
   // history.back() lands a tick later; a second close before then must not pop twice.
   let backingFromKey: string | undefined
   // An overlay entry whose URL changed while it was open (a filter set in the
-  // Layers drawer) hands that URL to the entry below when Back pops it.
+  // Layers drawer) hands that URL to the entry below when Back pops it. Only
+  // the entries re-stamped after such a change count: other same-path entries
+  // (a GO across several) differ for their own reasons.
   let carriedHref: string | undefined
+  const restampedKeys = new Set<string>()
   let last = history.location
 
   const isStale = (id: string) => !registered.get(id)?.adopt && !stack.some((open) => open.id === id)
@@ -93,20 +96,24 @@ export function createOverlayHistory(history: RouterHistory) {
   function keepOverlayOnReplace(previous: HistoryLocation, location: HistoryLocation) {
     const id = previous.state.overlay
     if (!id || location.state.overlay || previous.pathname !== location.pathname) return
-    queueMicrotask(() => {
-      const current = history.location
-      if (current.state.__TSR_key !== location.state.__TSR_key || isStale(id)) return
-      history.replace(current.href, { ...current.state, overlay: id })
-    })
+    // At once, not in a microtask: an action that filters and then closes its
+    // drawer in one click renders the close before a microtask would run.
+    if (isStale(id)) return
+    history.replace(location.href, { ...location.state, overlay: id })
+    const key = history.location.state.__TSR_key
+    if (key) restampedKeys.add(key)
   }
 
   function onPop(previous: HistoryLocation, location: HistoryLocation, backwards: boolean) {
     backingFromKey = undefined
     const previousId = previous.state.overlay
+    const previousKey = previous.state.__TSR_key
     if (
       backwards &&
       previousId &&
       !registered.get(previousId)?.adopt &&
+      previousKey !== undefined &&
+      restampedKeys.has(previousKey) &&
       previous.pathname === location.pathname &&
       previous.href !== location.href
     ) {
@@ -180,6 +187,12 @@ export function createOverlayHistory(history: RouterHistory) {
         last = location
         if (action.type === "PUSH") return
         if (action.type === "REPLACE") return keepOverlayOnReplace(previous, location)
+        // A blocker that cancels a pop still reports it, with the location unchanged.
+        if (location.state.__TSR_key === previous.state.__TSR_key) {
+          backingFromKey = undefined
+          carriedHref = undefined
+          return
+        }
         onPop(previous, location, action.type === "BACK" || (action.type === "GO" && action.index < 0))
       })
     },

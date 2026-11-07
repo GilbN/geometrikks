@@ -70,6 +70,50 @@ test("Back closes the inspector, then the map panel, without leaving the map", a
   await expect(page.locator(".maplibregl-canvas")).toBeVisible()
 })
 
+test("Back closes a ban drawer over the map panel and leaves the panel open", async ({ page }) => {
+  await login(page)
+  await routeMap(page)
+  // Only opens the drawer: no ban is sent.
+  await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
+    enabled: true, writeEnabled: true, lapiReachable: true, liveUpdates: true,
+  } }))
+  await page.goto("/map?focus=131")
+
+  const panel = page.getByRole("dialog", { name: "Oslo" })
+  await expect(panel).toBeVisible()
+  await panel.getByRole("button", { name: `Ban ${IP}` }).click()
+  const drawer = page.getByRole("dialog", { name: IP, exact: true })
+  await expect(drawer).toBeVisible()
+
+  await page.goBack()
+  await expect(drawer).toBeHidden()
+  await expect(page).toHaveURL(/\/map$/)
+  await expect(panel).toBeVisible()
+})
+
+test("Back closes a log row's detail sheet and stays on Access Logs", async ({ page }) => {
+  await login(page)
+  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
+    items: [{
+      id: 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: IP, remoteUser: null,
+      method: "GET", url: "/request/detail", httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
+      referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
+      host: "example.test", server: null, logFormat: null, countryCode: "NO",
+      countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
+    }],
+    total: 1, limit: 20, offset: 0,
+  } }))
+  await page.goto("/access-logs")
+  await page.locator("table tr[data-index='0']").getByText("/request/detail").click()
+  const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
+  await expect(sheet).toBeVisible()
+
+  await page.goBack()
+  await expect(sheet).toHaveCount(0)
+  await expect(page).toHaveURL(/\/access-logs$/)
+  await expect(page.locator("table tr[data-index='0']")).toBeVisible()
+})
+
 test("Back closes More and stays on the page", async ({ page }) => {
   await login(page)
   await page.goto("/access-logs")

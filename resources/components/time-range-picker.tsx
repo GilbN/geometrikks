@@ -6,7 +6,7 @@
  * also sets auto refresh and, on chart pages, the chart buckets, which the
  * phone header has no room for.
  */
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -39,6 +39,7 @@ import {
 } from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
+import { useOverlayEntry } from "@/lib/overlay-history"
 
 /** Trigger text for the current selection: the preset, or the custom span's dates. */
 export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRange | null): string {
@@ -106,6 +107,8 @@ export function TimeRangePicker({
   const [overviewCharts, setOverviewCharts] = useOverviewCharts()
   const isMobile = useIsMobile()
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
+  const overlayId = useId()
+  useOverlayEntry(`time-range-${overlayId}`, isMobile && rangeDrawerOpen, () => setRangeDrawerOpen(false))
   const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
   // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
   useEffect(() => {

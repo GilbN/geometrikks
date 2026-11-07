@@ -54,6 +54,7 @@ export function IpInspectorSheet() {
 
   return (
     <DetailSheet
+      historyEntry={false}
       open={open}
       onOpenChange={(next) => !next && close()}
       title={
