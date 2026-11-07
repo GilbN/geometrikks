@@ -12,7 +12,7 @@ It writes to the database in your `DB_*` settings and prints its name before it 
 
 ## Where the locations come from
 
-Visitor IPs are random public addresses, kept only when the GeoLite2 City database places them. Every marker therefore sits on a city MaxMind actually reports, with the state, postal code, timezone and ASN the app would have stored. An IP keeps its location, ASN and user agent for the whole run, so the IP inspector and the per-IP views stay consistent.
+Visitor IPs are random public addresses, kept only when the GeoLite2 City database places them. Every marker therefore sits on a place MaxMind actually reports: a city, or the country's centre for some IPv4 and most IPv6, with the state, postal code, timezone and ASN the app would have stored. An IP keeps its location, ASN and user agent for the whole run, so the IP inspector and the per-IP views stay consistent.
 
 The seeder reads the same databases as the app (`GEOIP_DB_PATH` and `GEOIP_ASN_DB_PATH`). A fresh worktree has no `data/geoip`, so point it at your main checkout:
 
@@ -22,16 +22,16 @@ uv run python -m tests.seed \
   --asn-db ~/dev/geometrikks/data/geoip/GeoLite2-ASN.mmdb
 ```
 
-Without the ASN database the rows get no ASN. The City database is required. The `*-Test.mmdb` fixtures in `tests/` cover too few addresses to sample from.
+Without the ASN database the rows get no ASN, and scanners and the crawlers without published ranges come from any network instead of hosting ones. The City database is required. The `*-Test.mmdb` fixtures in `tests/` cover too few addresses to sample from.
 
 ## What a run writes
 
-- `access_logs`, one row per request, plus a `geo_events` row for every public IP. LAN requests from `192.168.1.0/24` get an access log only, as with real ingestion.
+- `access_logs` and `geo_events`, one of each per request, from public IPs GeoIP places. Ingestion writes no access log or geo event for LAN addresses, and the seeder has none.
 - `geo_locations`, one row per distinct place.
 - `access_log_debug`. Every TLS, SSH and SMB probe keeps its raw line, linked to its access log. So does `--debug-share` of normal requests, and a few lines that never parsed.
 - `server_locations`, a map beacon per server name (Frankfurt, then Oslo, Amsterdam and so on). Existing beacons stay as they are.
 
-Then it refreshes the continuous aggregates over the seeded range and sets `geo_locations.last_hit`, the work the scheduler would otherwise do over the next hour.
+Then it runs the full aggregate refresh the app runs every six hours, today's bucket included, and sets `geo_locations.last_hit`.
 
 The traffic has three kinds of visitor:
 
@@ -54,19 +54,18 @@ Each server name owns a share of the hosts and one log format. The first is `geo
 | `--home-country` | none | ISO code that 40% of people come from |
 | `-s`, `--seed` | 42 | The same seed and GeoLite2 build give the same visitors |
 | `--debug-share` | 0.02 | Share of normal requests that keep a raw line |
-| `--private-share` | 0.03 | Share of requests from LAN addresses |
 | `--batch-size` | 20000 | Rows per COPY |
 | `--reset` | off | Empty every traffic table and aggregate first. Asks you to type the database name unless you pass `-y` |
-| `--no-refresh` | off | Skip the aggregate refresh |
+| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so rows outside those windows stay out of aggregate-backed charts until the app's next full refresh, which runs every six hours. After any full refresh, today's rows count as outside the daily window too |
 | `--database-url` | `DB_*` | Another database, as a `postgresql+asyncpg://` URL |
 
-`--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug` and `geo_locations`, real data included. Don't point it at a database you care about.
+`--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug`, `geo_locations` and the import history in `import_jobs` and `loki_imports`, real data included. It then refreshes the aggregates over all time, which drops their old buckets. Don't point it at a database you care about. Stop the app first, too. A running app holds location ids from before the reset, and its next batch fails until it reloads them.
 
-Raw retention and the hourly aggregate retention still apply. If `--days` reaches past them, the next retention job drops the oldest seeded rows.
+Retention still applies: 180 days for raw rows, 60 for hourly aggregates and 30 for debug lines by default. If `--days` reaches past them, the next retention job drops the oldest seeded rows.
 
 ## Speed
 
-On the dev box, 100k requests take about 30 seconds: 3 to sample visitors, 12 to write and 15 to refresh the aggregates. Writes run at about 10k requests a second, with access logs and geo events going through COPY on two connections.
+On the dev box, 100k requests take about 45 seconds, including the full aggregate refresh. Each batch goes in through COPY in one transaction, so a failed run never leaves a batch's geo events without their access logs.
 
 ## Layout
 

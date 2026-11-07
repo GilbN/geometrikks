@@ -10,10 +10,9 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 from geometrikks.config.settings import get_settings
-from tests.seed.config import SeedConfig
+from tests.seed.config import SeedConfig, SeedError
 from tests.seed.seeder import run_seed
 from tests.seed.visitors import MaxMindGeoSource
-from tests.seed.writer import SeedError
 
 EXAMPLES = """
 examples:
@@ -45,7 +44,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--debug-share", type=float, default=0.02, help="share of normal requests that keep a raw debug line"
     )
-    parser.add_argument("--private-share", type=float, default=0.03, help="share of requests from LAN addresses")
     parser.add_argument("--reset", action="store_true", help="empty all traffic tables before seeding")
     parser.add_argument("-y", "--yes", action="store_true", help="skip the --reset confirmation")
     parser.add_argument("--no-refresh", action="store_true", help="skip the continuous aggregate refresh")
@@ -93,7 +91,6 @@ async def main(argv: list[str] | None = None) -> int:
             visitors=args.visitors,
             servers=tuple(name.strip() for name in args.servers.split(",") if name.strip()),
             home_country=args.home_country,
-            private_share=args.private_share,
             debug_share=args.debug_share,
             batch_size=args.batch_size,
         )
@@ -122,7 +119,8 @@ async def main(argv: list[str] | None = None) -> int:
         f"{stats.debug_rows:,} debug lines, {stats.locations:,} locations from {stats.visitors:,} visitors"
     )
     if stats.failed_caggs:
-        print(f"These continuous aggregates did not refresh: {', '.join(stats.failed_caggs)}", file=sys.stderr)
+        failed = ", ".join(dict.fromkeys(stats.failed_caggs))
+        print(f"These continuous aggregates did not refresh: {failed}", file=sys.stderr)
         return 1
     return 0
 
