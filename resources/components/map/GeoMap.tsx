@@ -920,8 +920,13 @@ function GeoMapInner({
         {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
         {/* On a portrait phone the attribution is a line of text above the
-            tab bar. Held sideways it is the compact button at the pill's foot. */}
-        <MapAttribution key={isMobile && !phoneSide ? "line" : "pill"} compact={!isMobile || phoneSide} />
+            tab bar. Held sideways it is the compact button at the pill's foot,
+            collapsed at first. */}
+        <MapAttribution
+          key={isMobile && !phoneSide ? "line" : phoneSide ? "side" : "pill"}
+          compact={!isMobile || phoneSide}
+          startCollapsed={phoneSide}
+        />
 
         {/* GeoJSON data source */}
         {/* The `key` only flips when the clustering requirement changes (markers

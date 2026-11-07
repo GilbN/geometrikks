@@ -261,6 +261,25 @@ test.describe("phone held sideways", () => {
     await page.screenshot({ path: "smoke-artifacts/map-pill-landscape-credit.png" })
   })
 
+  test("the credit starts collapsed and leaves the saved choice alone", async ({ page }) => {
+    await page.setViewportSize({ width: 932, height: 430 })
+    await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
+    await showFrameRate(page)
+    await setup(page)
+    const savedChoice = () => page.evaluate(() => localStorage.getItem("geometrikks-map-attribution"))
+    await expect(credit(page)).toHaveClass(/maplibregl-compact/)
+    await expect(credit(page)).not.toHaveClass(/maplibregl-compact-show/)
+    expect(await savedChoice()).toBeNull()
+
+    await credit(page).locator(".maplibregl-ctrl-attrib-button").tap()
+    await expect(credit(page)).toHaveClass(/maplibregl-compact-show/)
+    await expect.poll(async () => {
+      const [button, badge] = await Promise.all([box(credit(page)), box(frameRate(page))])
+      return Math.round(badge.x - (button.x + button.width))
+    }).toBe(8)
+    expect(await savedChoice()).toBeNull()
+  })
+
   test("the Layers drawer covers the bar while it is open", async ({ page }) => {
     await page.setViewportSize({ width: 932, height: 430 })
     await setup(page)
