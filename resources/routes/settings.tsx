@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react"
+import { useRef } from "react"
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router"
 import { MapBackdrop } from "@/components/brand/backdrops"
 import { useChipReveal, useChipRowFades } from "@/hooks/use-chip-reveal"
@@ -39,18 +39,12 @@ function SettingsLayout() {
     return null
   }
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const layoutRef = useRef<HTMLDivElement>(null)
   const chipRowRef = useRef<HTMLUListElement>(null)
   useChipReveal(chipRowRef, pathname)
   const fades = useChipRowFades(chipRowRef)
 
-  useLayoutEffect(() => {
-    const main = layoutRef.current?.closest("main")
-    if (main) main.scrollTop = 0
-  }, [pathname])
-
   return (
-    <div ref={layoutRef} className="relative min-h-full min-w-0">
+    <div className="relative min-h-full min-w-0">
       <MapBackdrop mode="viewport" />
       {/* Glass cards, scoped to Settings: the backdrop shows through them
           softly instead of only between them. */}
