@@ -106,8 +106,8 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
 
     // Held sideways, the panel docks on the right and the point goes left of it.
     function sidePan() {
-      // The vitals pill is GeoMap's, a sibling of the map container.
-      const pill = container.closest("[data-geo-map]")?.querySelector("[data-live-pill]")
+      // The vitals pill sits in the range chip's row, outside GeoMap.
+      const pill = container.closest(".fullscreen-map")?.querySelector("[data-live-pill]")
       const insets = safeAreaInsets()
       const box = sideVisibleBox({
         mapWidth: container.clientWidth,

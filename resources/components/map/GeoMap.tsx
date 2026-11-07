@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router"
 import { toast } from "sonner"
 import Map, {
@@ -60,6 +61,7 @@ import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { LocationPanel, MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPanel, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
+import { useMapLiveSlot } from "./map-live-slot"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
 import { MapBackdrop } from "@/components/brand/backdrops"
@@ -213,6 +215,7 @@ function GeoMapInner({
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
   const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
   const isMobile = usePhoneLayout()
+  const liveSlot = useMapLiveSlot()
   const phoneSide = usePhoneMapSide()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
@@ -1078,14 +1081,12 @@ function GeoMapInner({
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts
           whenever live mode is on regardless of the desktop overlay preference.
-          It centres in the range chip's row. */}
-      {liveMode && isMobile && (
-        <div
-          data-live-pill=""
-          className="pointer-events-none absolute top-(--range-chip-top) left-[max(1rem,env(safe-area-inset-left))] z-10 flex h-(--range-chip-height) items-center"
-        >
+          It lives in the range chip's row, which gives it the width the chip leaves. */}
+      {liveMode && isMobile && liveSlot && createPortal(
+        <div data-live-pill="" className="flex min-w-0">
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
-        </div>
+        </div>,
+        liveSlot,
       )}
 
       {liveMode && isMobile && (

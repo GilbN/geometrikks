@@ -30,7 +30,7 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
           : `${vitals.rpm} requests per minute, ${vitals.threatCount} threats. Open the live request feed`
       }
       className={cn(
-        "pointer-events-auto flex min-h-9 items-center gap-2 rounded-full border pl-3 pr-2 pointer-coarse:min-h-11",
+        "pointer-events-auto flex min-h-9 min-w-0 items-center gap-2 overflow-hidden rounded-full border pl-3 pr-2 pointer-coarse:min-h-11",
         // A neutral press, not the cyan accent: unpaired with its foreground
         // token the accent flashes brighter than anything else on the map.
         "bg-floating text-xs backdrop-blur transition-colors active:bg-foreground/10",
@@ -46,24 +46,24 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
       />
 
       {disconnected ? (
-        <span className="text-muted-foreground">
+        <span className="truncate text-muted-foreground">
           {feedState === "paused" ? "Live feed paused" : "Reconnecting"}
         </span>
       ) : (
         <>
-          <span className="flex items-baseline gap-1">
+          <span className="truncate">
             <span className="text-sm font-semibold leading-none tabular-nums">
               {formatNumber(vitals.rpm)}
             </span>
-            <span className="text-[10px] text-muted-foreground">/min</span>
+            <span className="ml-1 text-[10px] text-muted-foreground">/min</span>
           </span>
 
           {/* Ambient rhythm: the shape says "busy" or "quiet" faster than the
-              number changing does. */}
-          <Sparkline values={vitals.sparkline} className="block h-3.5 w-10 shrink-0" />
+              number changing does. On a narrow row it gives way first. */}
+          <Sparkline values={vitals.sparkline} className="block h-3.5 w-10 min-w-0 shrink-100" />
 
           {underAttack && (
-            <span className="flex items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-red-400">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-1.5 py-0.5 text-red-400">
               <ShieldAlert className="h-3 w-3" aria-hidden />
               <span className="text-[10px] font-semibold tabular-nums">
                 {formatNumber(vitals.threatCount)}
