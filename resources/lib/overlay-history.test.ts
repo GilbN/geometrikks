@@ -198,6 +198,67 @@ describe("createOverlayHistory", () => {
     expect(history.location.href).toBe("/map?country=NO")
   })
 
+  it("goes back with the new URL when a drawer filters and closes in one go", async () => {
+    const { history, overlays, entry } = setup(["/access-logs"])
+    entry("actions")
+    overlays.opened("actions")
+    await settle()
+
+    history.replace("/access-logs?ip=1", {})
+    overlays.closed("actions")
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(0)
+    expect(history.location.href).toBe("/access-logs?ip=1")
+  })
+
+  it("carries a URL only from an entry the page replaced while its overlay was open", async () => {
+    const { history, overlays, entry } = setup()
+    entry("layers")
+    history.push("/map?country=NO", {})
+    overlays.opened("layers")
+    await settle()
+
+    history.go(-2)
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(0)
+    expect(history.location.href).toBe("/map")
+  })
+
+  it("ignores a pop the blocker cancelled and drops the URL it would have carried", async () => {
+    const { history, overlays, entry } = setup()
+    const closeLayers = entry("layers")
+    const closeDetail = entry("detail")
+    overlays.opened("layers")
+    await settle()
+    overlays.opened("detail")
+    await settle()
+    history.replace("/map?country=NO", {})
+    await settle()
+    overlays.closed("layers")
+    await settle()
+
+    history.back()
+    // The manager's own Back past the closed layers entry is the one blocked.
+    const back = history.back
+    history.back = () => {
+      history.back = back
+      history.notify({ type: "BACK" })
+    }
+    await settle()
+    expect(closeDetail).toHaveBeenCalledOnce()
+    expect(history.location.state.__TSR_index).toBe(1)
+
+    history.notify({ type: "BACK" })
+    await settle()
+    expect(closeLayers).not.toHaveBeenCalled()
+    expect(history.location.state.__TSR_index).toBe(1)
+
+    history.back()
+    await settle()
+    expect(history.location.state.__TSR_index).toBe(0)
+    expect(history.location.href).toBe("/map")
+  })
+
   it("does nothing while inactive", async () => {
     const { history, overlays, entry } = setup()
     overlays.setActive(false)

@@ -21,6 +21,7 @@ const INSPECTOR_OVERLAY = "inspector"
 export function IpInspectorProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const overlays = useOverlayHistory()
+  const inspectedIp = useInspectedIp()
   const [originLocationId, setOrigin] = useState<number | null>(null)
 
   const open = useCallback(
@@ -46,7 +47,7 @@ export function IpInspectorProvider({ children }: { children: React.ReactNode })
     })
   }, [navigate, overlays, setOrigin])
 
-  useOverlayEntry(INSPECTOR_OVERLAY, useInspectedIp() !== undefined, close, { adopt: true })
+  useOverlayEntry(INSPECTOR_OVERLAY, inspectedIp !== undefined, close, { adopt: true })
 
   const actions = useMemo(() => ({ open, close }), [open, close])
   return (

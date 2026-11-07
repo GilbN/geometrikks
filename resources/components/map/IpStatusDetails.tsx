@@ -4,7 +4,7 @@
  * bottom sheet on a phone and a popover elsewhere, since a phone has no hover
  * for the tooltip the tables use. An IP with neither renders as it is.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { Loader2, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -35,6 +35,7 @@ import { usePollingHold } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
 import { SideDrawerClose, usePanelPhone, useSideDrawer } from "./SideDrawer"
 import { BanChoices, type CloseSlot } from "./PanelBanButton"
+import { useOverlayEntry } from "@/lib/overlay-history"
 
 const ORIGIN_TEXT: Record<string, string> = {
   crowdsec: "Your CrowdSec engine detected it",
@@ -238,6 +239,8 @@ function MarkedIpStatus({
   usePollingHold(open || dialogOpen)
   // A rotation remounts the drawer closed (vaul cannot turn it around).
   useEffect(() => setOpen(false), [drawer.direction])
+  const overlayId = useId()
+  useOverlayEntry(`ip-status-${overlayId}`, isMobile && open, () => setOpen(false))
   // On a phone the inspector, the alert sheet and the ban dialog open once
   // the sheet has finished closing. Opened during its close animation, they
   // leave pointer-events: none on the body. A popover is not modal, so they
@@ -321,6 +324,7 @@ function MarkedIpStatus({
         <Drawer
           key={drawer.direction}
           direction={drawer.direction}
+          open={open}
           onOpenChange={changeOpen}
           onAnimationEnd={(isOpen) => {
             if (isOpen || !afterClose.current) return
