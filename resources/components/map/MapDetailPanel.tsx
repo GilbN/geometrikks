@@ -184,7 +184,7 @@ export function MapDetailPanel({
   const panelRef = useRef<HTMLElement>(null)
   const titleId = useId()
   const side = usePhoneMapSide() && !inline
-  const panelContext = useMemo(() => ({ side }), [side])
+  const panelContext = useMemo(() => ({ side, inline }), [side, inline])
   const { default: mapRef } = useMap()
   useKeepPointInView(inline ? undefined : point, panelRef)
   // Under a map in a scrolling page the card can open below the fold.

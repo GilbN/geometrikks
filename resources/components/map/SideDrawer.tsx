@@ -15,14 +15,14 @@ export const SIDE_DRAWER_CONTENT = [
 ].join(" ")
 
 /** Set by a MapDetailPanel for what it renders: phone UI, and whether it is docked on the right.
- *  The Geo Logs card is an inline panel, so its sheets stay at the bottom. */
-export const MapPanelContext = createContext<{ side: boolean } | null>(null)
+ *  An inline panel, such as the Geo Logs card, sits in the page, so its sheets follow the page. */
+export const MapPanelContext = createContext<{ side: boolean; inline: boolean } | null>(null)
 
 /** The map's drawers open from the right on a phone held sideways, from the bottom otherwise. */
 export function useSideDrawer() {
   const panel = useContext(MapPanelContext)
   const pageSide = usePhoneMapSide()
-  const side = panel ? panel.side : pageSide
+  const side = panel && !panel.inline ? panel.side : pageSide
   return {
     side,
     direction: side ? ("right" as const) : ("bottom" as const),
