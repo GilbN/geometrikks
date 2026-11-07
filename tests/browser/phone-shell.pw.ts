@@ -20,15 +20,16 @@ const moreMenu = (page: Page) => page.getByRole("dialog", { name: "More" })
 async function settledToast(page: Page, text: string | RegExp) {
   const toast = page.locator("[data-sonner-toast]").filter({ hasText: text })
   await expect(toast).toBeVisible()
-  // Sonner slides the toast up into place, so measure where it settles.
-  let lastY = Number.NaN
-  await expect.poll(async () => {
-    const { y } = (await toast.boundingBox())!
-    const settled = Math.abs(y - lastY) < 0.5
-    lastY = y
-    return settled
-  }).toBe(true)
-  return (await toast.boundingBox())!
+  // Sonner slides the toast up into place, so measure where it settles. Polling from the
+  // test can outlast the toast's 4s life on a slow page, so the wait runs in the page.
+  return toast.evaluate(async (el) => {
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve))
+    while (el.getAttribute("data-mounted") !== "true") await frame()
+    await frame()
+    await Promise.all(el.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
+    const { x, y, width, height } = el.getBoundingClientRect()
+    return { x, y, width, height }
+  })
 }
 
 async function degradeHealth(page: Page) {
