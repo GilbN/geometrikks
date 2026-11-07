@@ -19,12 +19,7 @@ from litestar.status_codes import (
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.abuseipdb.dependencies import provide_abuseipdb_client, provide_abuseipdb_reports
-from geometrikks.domain.abuseipdb.errors import (
-    AbuseIpdbDisabledError,
-    UpstreamFailedError,
-    UpstreamRateLimitedError,
-    UpstreamRejectedError,
-)
+from geometrikks.domain.abuseipdb.errors import AbuseIpdbDisabledError
 from geometrikks.domain.abuseipdb.models import AbuseIpdbReport, ReporterKind, ReportStatus
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbReportRepository
 from geometrikks.domain.abuseipdb.schemas import (
@@ -43,6 +38,7 @@ from geometrikks.domain.abuseipdb.service import (
     normalize_public_ip,
     reporter_from_user,
     submit_report,
+    upstream_http_error,
 )
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
@@ -111,20 +107,8 @@ def _check_response(result: CheckResult) -> CheckResponse:
 async def _check(client: AbuseIpdbClient, ip: str) -> CheckResult:
     try:
         return await client.check(ip)
-    except AbuseIpdbRateLimitedError as error:
-        detail = error.detail
-        if error.daily and error.resets_at is not None:
-            resets_at = error.resets_at.astimezone(UTC).strftime("%H:%M")
-            detail = f"AbuseIPDB's daily check limit is used up. It resets at {resets_at} UTC."
-        raise UpstreamRateLimitedError(detail, retry_after=error.retry_after) from error
-    except AbuseIpdbRejectedError as error:
-        if error.status == 422:
-            raise UpstreamRejectedError(detail=error.detail) from error
-        raise UpstreamFailedError(detail=error.detail) from error
-    except AbuseIpdbAuthError as error:
-        raise UpstreamFailedError(detail="AbuseIPDB rejected ABUSEIPDB_API_KEY") from error
-    except AbuseIpdbUnavailableError as error:
-        raise UpstreamFailedError(detail=error.detail) from error
+    except (AbuseIpdbRateLimitedError, AbuseIpdbRejectedError, AbuseIpdbAuthError, AbuseIpdbUnavailableError) as error:
+        raise upstream_http_error(error, quota="check") from error
 
 
 class AbuseIpdbController(Controller):

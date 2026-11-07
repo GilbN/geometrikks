@@ -6,6 +6,7 @@ import ipaddress
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from litestar.exceptions import HTTPException
@@ -117,23 +118,36 @@ async def _rollback(repository: AbuseIpdbReportRepository) -> None:
         await repository.session.rollback()
 
 
-def _clear_rejection(
-    error: AbuseIpdbRateLimitedError | AbuseIpdbRejectedError | AbuseIpdbAuthError | AbuseIpdbUnavailableError,
-) -> tuple[HTTPException, int | None, str]:
-    """The HTTP error, upstream status and log reason for an answer that proves AbuseIPDB recorded nothing."""
+UpstreamError = AbuseIpdbRateLimitedError | AbuseIpdbRejectedError | AbuseIpdbAuthError | AbuseIpdbUnavailableError
+
+
+def upstream_http_error(error: UpstreamError, *, quota: Literal["check", "report"]) -> HTTPException:
+    """The HTTP error for an AbuseIPDB failure; ``quota`` names the daily limit a 429 spent."""
     if isinstance(error, AbuseIpdbRateLimitedError):
         detail = error.detail
         if error.daily and error.resets_at is not None:
             resets_at = error.resets_at.astimezone(UTC).strftime("%H:%M")
-            detail = f"AbuseIPDB's daily report limit is used up. It resets at {resets_at} UTC."
-        return UpstreamRateLimitedError(detail, retry_after=error.retry_after), 429, "rate_limited"
+            detail = f"AbuseIPDB's daily {quota} limit is used up. It resets at {resets_at} UTC."
+        return UpstreamRateLimitedError(detail, retry_after=error.retry_after)
     if isinstance(error, AbuseIpdbRejectedError):
         if error.status == 422:
-            return UpstreamRejectedError(detail=error.detail), error.status, "rejected"
-        return UpstreamFailedError(detail=error.detail), error.status, "rejected"
+            return UpstreamRejectedError(detail=error.detail)
+        return UpstreamFailedError(detail=error.detail)
     if isinstance(error, AbuseIpdbAuthError):
-        return UpstreamFailedError(detail="AbuseIPDB rejected ABUSEIPDB_API_KEY"), None, "key_rejected"
-    return UpstreamFailedError(detail=error.detail), None, "unreachable"
+        return UpstreamFailedError(detail="AbuseIPDB rejected ABUSEIPDB_API_KEY")
+    return UpstreamFailedError(detail=error.detail)
+
+
+def _clear_rejection(error: UpstreamError) -> tuple[HTTPException, int | None, str]:
+    """The HTTP error, upstream status and log reason for an answer that proves AbuseIPDB recorded nothing."""
+    rejection = upstream_http_error(error, quota="report")
+    if isinstance(error, AbuseIpdbRateLimitedError):
+        return rejection, 429, "rate_limited"
+    if isinstance(error, AbuseIpdbRejectedError):
+        return rejection, error.status, "rejected"
+    if isinstance(error, AbuseIpdbAuthError):
+        return rejection, None, "key_rejected"
+    return rejection, None, "unreachable"
 
 
 async def submit_report(

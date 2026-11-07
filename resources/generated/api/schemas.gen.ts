@@ -6754,7 +6754,8 @@ export const ReportItemResultSchema = {
       ],
     },
     error: {
-      description: "Why AbuseIPDB rejected the report. Null when reported.",
+      description:
+        "Why AbuseIPDB rejected the report, with `rejected`. Null when reported. A failed report comes back as an error response, so this is null today.",
       oneOf: [
         {
           type: "string",
@@ -6781,7 +6782,8 @@ export const ReportItemResultSchema = {
       ],
     },
     status: {
-      description: "`reported` once AbuseIPDB accepted the report.",
+      description:
+        "`reported` once AbuseIPDB accepted the report. `rejected` is reserved for requests with more than one report, which the API does not take yet. A failed report comes back as an error response.",
       enum: ["reported", "rejected"],
       type: "string",
     },

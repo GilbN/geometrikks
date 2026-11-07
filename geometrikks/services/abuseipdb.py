@@ -286,7 +286,7 @@ class AbuseIpdbClient:
         except (_BadPayloadError, ValueError) as exc:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from exc
         self._store_check(ip, result)
-        logger.info("abuseipdb_check", ip=ip, score=result.abuse_confidence_score)
+        logger.info("abuseipdb_check_fetched", ip_address=ip, score=result.abuse_confidence_score)
         return result
 
     async def report(self, ip: str, categories: Sequence[int], comment: str, timestamp: datetime) -> ReportResult:
@@ -307,7 +307,9 @@ class AbuseIpdbClient:
             result = ReportResult(_required_str(data, "ipAddress"), _required_int(data, "abuseConfidenceScore"))
         except _BadPayloadError as exc:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=True) from exc
-        logger.info("abuseipdb_report", ip=ip, categories=list(categories), score=result.abuse_confidence_score)
+        logger.info(
+            "abuseipdb_report_upstream", ip_address=ip, categories=list(categories), score=result.abuse_confidence_score
+        )
         return result
 
 

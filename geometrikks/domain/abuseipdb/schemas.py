@@ -122,13 +122,27 @@ class ReportItemResult(msgspec.Struct, rename="camel", kw_only=True):
 
     ip_address: Annotated[str, Meta(description="The reported IP, in its canonical spelling.")]
     status: Annotated[
-        Literal["reported", "rejected"], Meta(description="`reported` once AbuseIPDB accepted the report.")
+        Literal["reported", "rejected"],
+        Meta(
+            description=(
+                "`reported` once AbuseIPDB accepted the report. `rejected` is reserved for requests with more "
+                "than one report, which the API does not take yet. A failed report comes back as an error response."
+            )
+        ),
     ]
     abuse_confidence_score: Annotated[
         int | None, Meta(description="The IP's confidence score from 0 to 100 that AbuseIPDB answered with.")
     ]
     reported_at: Annotated[datetime | None, Meta(description=f"When the report was sent, {IN_UTC}.")]
-    error: Annotated[str | None, Meta(description="Why AbuseIPDB rejected the report. Null when reported.")]
+    error: Annotated[
+        str | None,
+        Meta(
+            description=(
+                "Why AbuseIPDB rejected the report, with `rejected`. Null when reported. A failed report comes "
+                "back as an error response, so this is null today."
+            )
+        ),
+    ]
 
 
 class ReportBatchResponse(msgspec.Struct, rename="camel", kw_only=True):

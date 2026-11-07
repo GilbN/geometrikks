@@ -111,7 +111,7 @@ async def test_check_returns_the_score_and_spends_one_check():
         "countryCode": "US",
     }
     assert len(calls) == 1
-    check_logs = [entry for entry in captured_logs if entry["event"] == "abuseipdb_check" and "ip_address" in entry]
+    check_logs = [entry for entry in captured_logs if entry["event"] == "abuseipdb_check"]
     assert [(entry["ip_address"], entry["score"]) for entry in check_logs] == [("3.5.140.2", 37)] * 2
     assert not any(API_KEY in str(entry) for entry in captured_logs)
 
@@ -151,6 +151,7 @@ async def test_post_takes_exactly_one_item(reports: list[dict[str, object]]):
     async with AsyncTestClient(make_app(None)) as http:
         resp = await http.post("/api/v1/abuseipdb/reports", json={"reports": reports})
     assert resp.status_code == 400
+    assert resp.json()["code"] == "validation_failed"
 
 
 @pytest.mark.parametrize(

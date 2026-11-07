@@ -3301,7 +3301,7 @@ export type ReportItemResult = {
    */
   abuseConfidenceScore: number | null;
   /**
-   * Why AbuseIPDB rejected the report. Null when reported.
+   * Why AbuseIPDB rejected the report, with `rejected`. Null when reported. A failed report comes back as an error response, so this is null today.
    */
   error: string | null;
   /**
@@ -3313,7 +3313,7 @@ export type ReportItemResult = {
    */
   reportedAt: string | null;
   /**
-   * `reported` once AbuseIPDB accepted the report.
+   * `reported` once AbuseIPDB accepted the report. `rejected` is reserved for requests with more than one report, which the API does not take yet. A failed report comes back as an error response.
    */
   status: "reported" | "rejected";
 };
