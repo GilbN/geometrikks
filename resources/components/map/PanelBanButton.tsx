@@ -1,9 +1,8 @@
 /**
- * Ban and unban for a MapDetailPanel: a button that opens a bottom sheet with
- * the ban durations, the way the phone IP actions menu offers them. Renders
- * nothing without CrowdSec write access.
+ * Ban and unban for a MapDetailPanel: a button that opens BanDrawer with the
+ * ban durations. Renders nothing without CrowdSec write access.
  */
-import { useId, useRef, useState, type ComponentType, type ReactNode } from "react"
+import { useId, useRef, useState, type ComponentType, type ReactNode, type RefObject } from "react"
 import { Loader2, ShieldBan, ShieldOff, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -75,9 +74,10 @@ export function PanelBanButton({
 
   return (
     <>
-      <Drawer
-        key={drawer.direction}
-        direction={drawer.direction}
+      <BanDrawer
+        ip={ip}
+        decision={decision}
+        layout={{ key: drawer.direction, ...drawer }}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         onAnimationEnd={(open) => {
@@ -86,8 +86,8 @@ export function PanelBanButton({
           triggerRef.current?.focus({ preventScroll: true })
           setDialogOpen(true)
         }}
-      >
-        <DrawerTrigger asChild>
+        onMoreOptions={() => (openDialogAfterClose.current = true)}
+        trigger={
           <Button
             ref={triggerRef}
             variant={footer ? "outline" : "ghost"}
@@ -104,34 +104,106 @@ export function PanelBanButton({
             {icon}
             {footer && (banned ? "Unban" : "Ban")}
           </Button>
-        </DrawerTrigger>
-        <DrawerContent className={drawer.contentClassName}>
-          <DrawerHeader>
-            {drawer.side ? (
-              <div className="flex items-center gap-2">
-                <DrawerTitle className="flex min-w-0 flex-1 flex-wrap items-center gap-2 font-mono">
-                  <span className="min-w-0 break-all">{ip}</span>
-                  {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
-                </DrawerTitle>
-                <SideDrawerClose />
-              </div>
-            ) : (
-              <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
-                {ip}
-                {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
-              </DrawerTitle>
-            )}
-            <DrawerDescription>
-              {waiting ? "Waiting to send to CrowdSec" : banned ? "CrowdSec has a decision on this IP" : "Ban this IP in CrowdSec for"}
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="px-4 pb-6">
-            <BanChoices ip={ip} banned={banned} onMoreOptions={() => (openDialogAfterClose.current = true)} />
-          </div>
-        </DrawerContent>
-      </Drawer>
+        }
+      />
       <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />
     </>
+  )
+}
+
+/** Where a ban drawer opens from, as usePhoneDrawer or useSideDrawer gives it. */
+export interface BanDrawerLayout {
+  /** For the Drawer's `key`: vaul can't change direction while mounted. */
+  key: string
+  direction: "bottom" | "right"
+  contentClassName: string
+  side: boolean
+}
+
+/**
+ * The ban durations for one IP in a drawer, or Undo or Unban when those
+ * apply. The caller owns the open state and the layout. Without a `trigger`,
+ * `returnFocusTo` takes focus when it closes, since the drawer has no trigger
+ * of its own to return it to.
+ */
+export function BanDrawer({
+  ip,
+  decision,
+  layout,
+  open,
+  onOpenChange,
+  onClosed,
+  onAnimationEnd,
+  onMoreOptions,
+  trigger,
+  returnFocusTo,
+  badges,
+  children,
+}: {
+  ip: string
+  decision: string | null
+  layout: BanDrawerLayout
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onClosed?: () => void
+  onAnimationEnd?: (open: boolean) => void
+  /** "More options…" closes the drawer; open the ban dialog after it has. */
+  onMoreOptions: () => void
+  trigger?: ReactNode
+  returnFocusTo?: RefObject<HTMLElement | null>
+  /** More badges beside the IP, after its decision. */
+  badges?: ReactNode
+  /** More choices under the IP's own. */
+  children?: ReactNode
+}) {
+  const pending = usePendingIpAction(ip)
+  const banned = decision !== null
+  const waiting = pending !== null && !pending.sending
+  return (
+    <Drawer
+      key={layout.key}
+      direction={layout.direction}
+      open={open}
+      onOpenChange={onOpenChange}
+      onClosed={onClosed}
+      onAnimationEnd={onAnimationEnd}
+    >
+      {trigger && <DrawerTrigger asChild>{trigger}</DrawerTrigger>}
+      <DrawerContent
+        className={layout.contentClassName}
+        onCloseAutoFocus={(event) => {
+          if (!returnFocusTo) return
+          event.preventDefault()
+          returnFocusTo.current?.focus({ preventScroll: true })
+        }}
+      >
+        <DrawerHeader>
+          {layout.side ? (
+            <div className="flex items-center gap-2">
+              <DrawerTitle className="flex min-w-0 flex-1 flex-wrap items-center gap-2 font-mono">
+                <span className="min-w-0 break-all">{ip}</span>
+                {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                {badges}
+              </DrawerTitle>
+              <SideDrawerClose />
+            </div>
+          ) : (
+            <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
+              {ip}
+              {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+              {badges}
+            </DrawerTitle>
+          )}
+          <DrawerDescription>
+            {waiting ? "Waiting to send to CrowdSec" : banned ? "CrowdSec has a decision on this IP" : "Ban this IP in CrowdSec for"}
+          </DrawerDescription>
+        </DrawerHeader>
+        <div className="flex flex-col overflow-y-auto overscroll-contain px-4 pb-6">
+          <BanChoices ip={ip} banned={banned} onMoreOptions={onMoreOptions} />
+          {children}
+        </div>
+      </DrawerContent>
+    </Drawer>
   )
 }
 

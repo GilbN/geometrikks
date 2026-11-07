@@ -161,7 +161,8 @@ for (const viewport of viewports) {
       // The filter bar sits above the scrolled-away top, and click() would scroll to it.
       await (await inViewActionsButton(page)).click()
       const filtered = page.waitForResponse((response) => new URL(response.url()).searchParams.has("ipAddressNotIn"))
-      await page.getByText("Exclude IP", { exact: true }).filter({ visible: true }).click()
+      // The phone drawer has a Filter and an Exclude button per value; desktop a menu item.
+      await page.getByRole(viewport.name === "desktop" ? "menuitem" : "radio", { name: "Exclude IP", exact: true }).click()
       await expect.poll(() => new URL(page.url()).searchParams.get("ipx")).toMatch(/192\.0\.2\./)
       await filtered
       await expect(firstRow(page)).toBeVisible()
@@ -173,7 +174,7 @@ for (const viewport of viewports) {
       const scrolled = await scrollMain(page, 400)
 
       await (await inViewActionsButton(page)).click()
-      await page.getByText("Inspect IP", { exact: true }).filter({ visible: true }).click()
+      await page.getByRole(viewport.name === "desktop" ? "menuitem" : "button", { name: "Inspect IP", exact: true }).click()
       await expect(page).toHaveURL(/inspect=/)
       await expect(page.getByRole("dialog").filter({ visible: true }).first()).toBeVisible()
       expect(await settledScrollTop(page)).toBe(scrolled)
