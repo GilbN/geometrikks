@@ -1,7 +1,7 @@
 /**
  * Filter controls for the access-logs history table. Renders in a FilterRail
  * on desktop (text inputs on one row, selects on the next) and as a flat list
- * inside a FiltersDrawer on mobile. State
+ * inside a FiltersDrawer on phones. State
  * lives in the URL via AccessLogFiltersContext, so every control is a
  * controlled input over the route's search params.
  */
@@ -16,7 +16,7 @@ import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAccessLogFacets } from "@/lib/queries"
 import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { isValidIp } from "@/lib/crowdsec"
 import { HTTP_METHODS } from "@/lib/http-methods"
 import { cn } from "@/lib/utils"
@@ -38,7 +38,7 @@ type ListKey = "ips" | "ipsExclude" | "hostsExclude" | "serversExclude"
 type AsnKey = "asns" | "asnsExclude"
 
 export function AccessLogsFilterBar() {
-  const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const { filters, setFilters } = useAccessLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   // Selected ASNs need the facets for their organization labels.
@@ -317,7 +317,7 @@ export function AccessLogsFilterBar() {
     setFilters(() => EMPTY_ACCESS_LOG_FILTERS)
   }
 
-  if (isMobile) {
+  if (phone) {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
         <FiltersDrawer activeCount={activeCount} onClear={clear}>

@@ -3,7 +3,7 @@
  * chart and top-list on the page via AnalyticsFiltersContext (not
  * geo-time-series, which stays unfiltered). Country/city/ASN options are
  * lazy-loaded facets.
- * Renders in a FilterRail on desktop and inside a FiltersDrawer on mobile.
+ * Renders in a FilterRail on desktop and inside a FiltersDrawer on phones.
  */
 import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
@@ -12,7 +12,7 @@ import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAsnLabel } from "@/hooks/use-asn-label"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useAccessLogFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
 import {
@@ -25,7 +25,7 @@ type IpKey = "ips" | "ipsExclude"
 type AsnKey = "asns" | "asnsExclude"
 
 export function AnalyticsFilterBar() {
-  const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const { filters, setFilters } = useAnalyticsFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   // Selected ASNs need the facets for their organization labels.
@@ -161,7 +161,7 @@ export function AnalyticsFilterBar() {
   const activeCount = countActiveAnalyticsFilters(filters)
   const clear = () => setFilters(() => EMPTY_FILTERS)
 
-  if (isMobile) {
+  if (phone) {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
         <FiltersDrawer activeCount={activeCount} onClear={clear}>

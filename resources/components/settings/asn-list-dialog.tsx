@@ -3,7 +3,7 @@
  * About page. Fetched lazily on first open and cached for the session;
  * the list only changes with a release.
  */
-import { useId, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -24,9 +24,9 @@ import {
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
 import { focusDrawerTitle } from "@/components/settings/api-keys-phone"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { useOverlayEntry } from "@/lib/overlay-history"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { useAsnClassification } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -34,10 +34,8 @@ const TITLE = "Hosting ASN list"
 const DESCRIPTION = "Networks on this list are badged Hosting in analytics; everything else shows as Other."
 
 export function AsnListDialog() {
-  const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
-  const overlayId = useId()
-  useOverlayEntry(`asn-list-${overlayId}`, isMobile && open, () => setOpen(false))
+  const drawer = usePhoneDrawer("asn-list", open, () => setOpen(false))
   const [query, setQuery] = useState("")
   const { data, isLoading, isError } = useAsnClassification(open)
 
@@ -75,7 +73,7 @@ export function AsnListDialog() {
           <div
             className={cn(
               "overflow-y-auto overscroll-contain rounded-md border border-border/40",
-              isMobile ? "min-h-0 flex-1" : "max-h-[50vh]",
+              drawer.phone ? "min-h-0 flex-1" : "max-h-[50vh]",
             )}
           >
             {filtered.length === 0 ? (
@@ -107,17 +105,33 @@ export function AsnListDialog() {
     </>
   )
 
-  if (isMobile) {
+  if (drawer.phone) {
+    const heading = (
+      <>
+        <DrawerTitle tabIndex={-1} className="outline-none">
+          {TITLE}
+        </DrawerTitle>
+        <DrawerDescription>{DESCRIPTION}</DrawerDescription>
+      </>
+    )
     return (
-      <Drawer open={open} onOpenChange={setOpen} autoFocus>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setOpen} onClosed={drawer.onClosed} autoFocus>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent className="h-[85dvh] data-[vaul-drawer-direction=bottom]:max-h-[85dvh]" onOpenAutoFocus={focusDrawerTitle}>
-          <DrawerHeader>
-            <DrawerTitle tabIndex={-1} className="outline-none">
-              {TITLE}
-            </DrawerTitle>
-            <DrawerDescription>{DESCRIPTION}</DrawerDescription>
-          </DrawerHeader>
+        <DrawerContent
+          className={cn(
+            "data-[vaul-drawer-direction=bottom]:h-[85dvh] data-[vaul-drawer-direction=bottom]:max-h-[85dvh]",
+            drawer.contentClassName,
+          )}
+          onOpenAutoFocus={focusDrawerTitle}
+        >
+          {drawer.side ? (
+            <DrawerHeader className="flex-row items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-1">{heading}</div>
+              <SideDrawerClose />
+            </DrawerHeader>
+          ) : (
+            <DrawerHeader>{heading}</DrawerHeader>
+          )}
           <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">{body}</div>
         </DrawerContent>
       </Drawer>
@@ -125,7 +139,7 @@ export function AsnListDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={drawer.open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>

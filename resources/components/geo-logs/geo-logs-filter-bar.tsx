@@ -2,7 +2,7 @@
  * Filter bar for the geo-logs page: IP include/exclude, country, city and
  * server multiselects, and an ASN include/exclude combobox pair
  * (lazy-loaded facets). Renders in a FilterRail on desktop and inside a
- * FiltersDrawer on mobile. Everything on the page (map, stats, chart, top
+ * FiltersDrawer on phones. Everything on the page (map, stats, chart, top
  * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
  * the URL search params.
  */
@@ -13,7 +13,7 @@ import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAsnLabel } from "@/hooks/use-asn-label"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useGeoEventFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
 import {
@@ -25,7 +25,7 @@ import {
 type IpKey = "ips" | "ipsExclude"
 
 export function GeoLogsFilterBar() {
-  const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const { filters, setFilters } = useGeoLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useGeoEventFacets({
@@ -176,7 +176,7 @@ export function GeoLogsFilterBar() {
   const activeCount = countActiveGeoLogFilters(filters)
   const clear = () => setFilters(() => EMPTY_GEO_LOG_FILTERS)
 
-  if (isMobile) {
+  if (phone) {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
         <FiltersDrawer activeCount={activeCount} onClear={clear}>

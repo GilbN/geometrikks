@@ -3,7 +3,8 @@
  * copies, inspects and flies to the IP, filters on the row's IP, host,
  * server, country or ASN, and bans or unbans. They replace the separate
  * inspect, fly-to and ban buttons. Desktop gets a dropdown menu. Phones get
- * the same actions in a bottom drawer, like the Filters drawer.
+ * the same actions in a drawer, like the Filters drawer: from the bottom, or
+ * from the right on a phone held sideways.
  */
 import { Fragment, createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { useNavigate } from "@tanstack/react-router"
@@ -37,7 +38,8 @@ import { CountryFlag } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { usePollingHold } from "@/lib/time-range-context"
 import { copyText } from "@/lib/clipboard"
 import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
@@ -57,7 +59,6 @@ import {
 import { useBanIp, useBannedIps, useBannedRanges, useCrowdsecStatus, useDropNetwork, useIpDecisions, useUnbanIp } from "@/lib/queries"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
-import { useOverlayEntry } from "@/lib/overlay-history"
 
 type FilterTargetsFor = (values: IpRowValues) => FilterTarget[]
 
@@ -257,7 +258,6 @@ export function IpActionsMenu({
   onFilter?: () => void
 }) {
   const { ip } = values
-  const isMobile = useIsMobile()
   const { open: inspect } = useIpInspectorActions()
   const navigate = useNavigate()
   const targetsFor = useContext(FilterTargetsContext)
@@ -272,11 +272,9 @@ export function IpActionsMenu({
   // rows can't push the row, and the open menu with it, off the page.
   const [menuOpen, setMenuOpen] = useState(false)
   usePollingHold(menuOpen || banDialogOpen)
-  // Crossing the breakpoint swaps the drawer for the dropdown or back
-  // without an onOpenChange(false), which would leave the hold on.
-  useEffect(() => setMenuOpen(false), [isMobile])
-  const overlayId = useId()
-  useOverlayEntry(`ip-actions-${overlayId}`, isMobile && !footer && menuOpen, () => setMenuOpen(false))
+  // A rotation swaps the drawer for the dropdown, or turns it around, without
+  // an onOpenChange(false). The hook closes it instead, or the hold stays on.
+  const drawer = usePhoneDrawer("ip-actions", menuOpen, () => setMenuOpen(false), footer ? { phone: false } : undefined)
   // An action that opens a sheet or dialog runs once the menu or drawer has
   // closed and focus is back on the trigger. The sheet takes the focused
   // element as the one to return to, and a dialog opened during the drawer's
@@ -284,6 +282,10 @@ export function IpActionsMenu({
   // dismissed. vaul only reports the end of a close it made itself, so every
   // drawer action closes it through DrawerClose rather than by setting menuOpen.
   const afterClose = useRef<(() => void) | null>(null)
+  // Armed for one close: after a turn remounts the drawer, it must not run on a later one.
+  useEffect(() => {
+    afterClose.current = null
+  }, [drawer.key])
   const triggerRef = useRef<HTMLButtonElement>(null)
   const banLabelId = useId()
   const dropBanLabelId = useId()
@@ -378,26 +380,45 @@ export function IpActionsMenu({
     // from reaching the sheet's focus trap.
     <span {...(footer ? {} : stopRowActivation)}>
       {!footer && <CopyIpButton ip={ip} />}
-      {isMobile && !footer ? (
+      {drawer.phone ? (
         <Drawer
-          open={menuOpen}
+          key={drawer.key}
+          direction={drawer.direction}
+          open={drawer.open}
           onOpenChange={setMenuOpen}
+          onClosed={drawer.onClosed}
           onAnimationEnd={(open) => {
             if (!open) runAfterClose()
           }}
         >
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-          <DrawerContent>
-            <DrawerHeader>
-              <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
-                {ip}
-                {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
-                {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
-              </DrawerTitle>
-              <DrawerDescription className="flex flex-col items-center justify-center gap-0.5">
-                <IpContext values={values} decision={decision} />
-              </DrawerDescription>
-            </DrawerHeader>
+          <DrawerContent className={drawer.contentClassName}>
+            {drawer.side ? (
+              <DrawerHeader className="flex-row items-start gap-2">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <DrawerTitle className="flex flex-wrap items-center gap-2 font-mono">
+                    <span className="[overflow-wrap:anywhere]">{ip}</span>
+                    {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                    {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+                  </DrawerTitle>
+                  <DrawerDescription className="flex flex-col gap-0.5">
+                    <IpContext values={values} decision={decision} wrap />
+                  </DrawerDescription>
+                </div>
+                <SideDrawerClose />
+              </DrawerHeader>
+            ) : (
+              <DrawerHeader>
+                <DrawerTitle className="flex flex-wrap items-center justify-center gap-2 font-mono">
+                  {ip}
+                  {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
+                  {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+                </DrawerTitle>
+                <DrawerDescription className="flex flex-col items-center justify-center gap-0.5">
+                  <IpContext values={values} decision={decision} />
+                </DrawerDescription>
+              </DrawerHeader>
+            )}
             <div className="flex flex-col overflow-y-auto overscroll-contain px-2 pb-6">
               {sections.map((section, index) => (
                 <div key={index} className="flex flex-col">
@@ -530,7 +551,7 @@ export function IpActionsMenu({
           </DrawerContent>
         </Drawer>
       ) : (
-        <DropdownMenu onOpenChange={setMenuOpen}>
+        <DropdownMenu open={drawer.open} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           <DropdownMenuContent
             align={footer ? "end" : "start"}

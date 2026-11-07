@@ -3,7 +3,7 @@
  * a preset or custom duration, and a reason. It validates before sending,
  * and the server validates again and normalizes the range and duration.
  */
-import { useEffect, useId, useRef, useState, type RefObject } from "react"
+import { useEffect, useRef, useState, type RefObject } from "react"
 import { Loader2, ShieldBan } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,9 +32,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
 import { focusDrawerTitle } from "@/components/settings/api-keys-phone"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { useOverlayEntry } from "@/lib/overlay-history"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { flushIpActions } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
@@ -54,12 +54,15 @@ function BanIpForm({
   initialReason,
   open,
   inDrawer,
+  onEdit,
   onDone,
 }: {
   initialIp: string
   initialReason: string
   open: boolean
   inDrawer: boolean
+  /** Runs on every change and on submit. */
+  onEdit: () => void
   onDone: () => void
 }) {
   const [ip, setIp] = useState(initialIp)
@@ -87,6 +90,7 @@ function BanIpForm({
   }, [open])
   const submit = async () => {
     if (submitting.current || ban.isPending) return
+    onEdit()
     const target = ip.trim()
     if (!isValidBanTarget(target)) {
       setError("Enter a full IPv4 or IPv6 address, or a range such as 203.0.113.0/24.")
@@ -148,7 +152,10 @@ function BanIpForm({
           <Input
             id="ban-ip"
             value={ip}
-            onChange={(event) => setIp(event.target.value)}
+            onChange={(event) => {
+              setIp(event.target.value)
+              onEdit()
+            }}
             onKeyDown={submitOnEnter}
             placeholder="203.0.113.7 or 203.0.113.0/24"
             className="font-mono"
@@ -161,7 +168,11 @@ function BanIpForm({
             type="single"
             variant="outline"
             value={type}
-            onValueChange={(value) => value && setType(value as BanDecisionType)}
+            onValueChange={(value) => {
+              if (!value) return
+              setType(value as BanDecisionType)
+              onEdit()
+            }}
           >
             {DECISION_TYPES.map((d) => (
               <ToggleGroupItem key={d.value} value={d.value}>
@@ -177,7 +188,13 @@ function BanIpForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="ban-duration">Duration</Label>
-          <Select value={preset} onValueChange={setPreset}>
+          <Select
+            value={preset}
+            onValueChange={(value) => {
+              setPreset(value)
+              onEdit()
+            }}
+          >
             <SelectTrigger id="ban-duration" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -194,7 +211,10 @@ function BanIpForm({
             <Input
               aria-label="Custom duration"
               value={customDuration}
-              onChange={(event) => setCustomDuration(event.target.value)}
+              onChange={(event) => {
+                setCustomDuration(event.target.value)
+                onEdit()
+              }}
               onKeyDown={submitOnEnter}
               placeholder="90m, 12h, 3d, 1d12h"
               className="font-mono"
@@ -207,7 +227,10 @@ function BanIpForm({
           <Input
             id="ban-reason"
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              setReason(event.target.value)
+              onEdit()
+            }}
             onKeyDown={submitOnEnter}
             placeholder={`manual ${type} from GeoMetrikks`}
             maxLength={200}
@@ -247,9 +270,11 @@ export function BanIpDialog({
    *  would otherwise drop focus on the body. */
   returnFocusTo?: RefObject<HTMLElement | null>
 }) {
-  const isMobile = useIsMobile()
-  const overlayId = useId()
-  useOverlayEntry(`ban-ip-${overlayId}`, isMobile && open, () => onOpenChange(false))
+  // Once edited or sent, the form holds its layout through a turn rather than close and lose it.
+  const [edited, setEdited] = useState(false)
+  if (!open && edited) setEdited(false)
+  const markEdited = () => setEdited(true)
+  const drawer = usePhoneDrawer("ban-ip", open, () => onOpenChange(false), { keepWhileOpen: edited })
   const restoreFocus = (event: Event) => {
     if (!returnFocusTo?.current) return
     event.preventDefault()
@@ -258,21 +283,32 @@ export function BanIpDialog({
   const title = "Ban an IP or range"
   const description = "Creates a manual CrowdSec decision with origin geometrikks. Your bouncer enforces it."
 
-  if (isMobile) {
+  if (drawer.phone) {
+    const heading = (
+      <>
+        <DrawerTitle tabIndex={-1} className="outline-none">
+          {title}
+        </DrawerTitle>
+        <DrawerDescription>{description}</DrawerDescription>
+      </>
+    )
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} autoFocus>
-        <DrawerContent onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
-          <DrawerHeader>
-            <DrawerTitle tabIndex={-1} className="outline-none">
-              {title}
-            </DrawerTitle>
-            <DrawerDescription>{description}</DrawerDescription>
-          </DrawerHeader>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed} autoFocus>
+        <DrawerContent className={drawer.contentClassName} onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
+          {drawer.side ? (
+            <DrawerHeader className="flex-row items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-1">{heading}</div>
+              <SideDrawerClose />
+            </DrawerHeader>
+          ) : (
+            <DrawerHeader>{heading}</DrawerHeader>
+          )}
           <BanIpForm
             initialIp={initialIp}
             initialReason={initialReason}
             open={open}
             inDrawer
+            onEdit={markEdited}
             onDone={() => onOpenChange(false)}
           />
         </DrawerContent>
@@ -281,7 +317,7 @@ export function BanIpDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={drawer.open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-sm"
         onCloseAutoFocus={restoreFocus}
@@ -295,6 +331,7 @@ export function BanIpDialog({
           initialReason={initialReason}
           open={open}
           inDrawer={false}
+          onEdit={markEdited}
           onDone={() => onOpenChange(false)}
         />
       </DialogContent>

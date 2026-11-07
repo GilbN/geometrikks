@@ -1,9 +1,9 @@
 /**
  * The menu in a Top ASNs row, which filters the page by the network or
- * excludes it. Desktop gets a dropdown menu and phones a bottom drawer, like
- * the IP actions menu.
+ * excludes it. Desktop gets a dropdown menu and phones a drawer, like the IP
+ * actions menu.
  */
-import { useEffect, useId, useState } from "react"
+import { useState } from "react"
 import { EllipsisVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,9 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { filterActions } from "@/components/ip-actions/ip-actions-menu"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import type { FilterTarget } from "@/lib/ip-filter-targets"
-import { useOverlayEntry } from "@/lib/overlay-history"
 import { usePollingHold } from "@/lib/time-range-context"
 
 export function AsnActionsMenu({
@@ -37,14 +37,11 @@ export function AsnActionsMenu({
   organization?: string | null
   target: FilterTarget
 }) {
-  const isMobile = useIsMobile()
   // Auto refresh waits while the menu is open, so a reordered list can't
   // move the row out from under it.
   const [menuOpen, setMenuOpen] = useState(false)
   usePollingHold(menuOpen)
-  useEffect(() => setMenuOpen(false), [isMobile])
-  const overlayId = useId()
-  useOverlayEntry(`asn-actions-${overlayId}`, isMobile && menuOpen, () => setMenuOpen(false))
+  const drawer = usePhoneDrawer("asn-actions", menuOpen, () => setMenuOpen(false))
 
   const label = `AS${asn}`
   const actions = filterActions(label, target)
@@ -60,15 +57,25 @@ export function AsnActionsMenu({
     </Button>
   )
 
-  if (isMobile) {
+  if (drawer.phone) {
+    const heading = (
+      <>
+        <DrawerTitle className="font-mono">{label}</DrawerTitle>
+        <DrawerDescription className="[overflow-wrap:anywhere]">{organization ?? "Unknown organization"}</DrawerDescription>
+      </>
+    )
     return (
-      <Drawer open={menuOpen} onOpenChange={setMenuOpen}>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setMenuOpen} onClosed={drawer.onClosed}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle className="font-mono">{label}</DrawerTitle>
-            <DrawerDescription className="[overflow-wrap:anywhere]">{organization ?? "Unknown organization"}</DrawerDescription>
-          </DrawerHeader>
+        <DrawerContent className={drawer.contentClassName}>
+          {drawer.side ? (
+            <DrawerHeader className="flex-row items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-1">{heading}</div>
+              <SideDrawerClose />
+            </DrawerHeader>
+          ) : (
+            <DrawerHeader>{heading}</DrawerHeader>
+          )}
           <div className="flex flex-col px-2 pb-6">
             {actions.map((action) => (
               <DrawerClose key={action.key} asChild>
@@ -89,7 +96,7 @@ export function AsnActionsMenu({
   }
 
   return (
-    <DropdownMenu onOpenChange={setMenuOpen}>
+    <DropdownMenu open={drawer.open} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-48">
         <DropdownMenuLabel className="flex flex-col items-start gap-0.5">

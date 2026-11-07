@@ -22,6 +22,7 @@ import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip
 import { useBannedIps, useCrowdsecStatus } from "@/lib/queries"
 import { usePollingHold } from "@/lib/time-range-context"
 import { useOverlayEntry } from "@/lib/overlay-history"
+import { useCoverBar } from "@/lib/phone-chrome"
 import { cn } from "@/lib/utils"
 import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
 
@@ -61,6 +62,7 @@ export function PanelBanButton({
   }
   const overlayId = useId()
   useOverlayEntry(`ban-drawer-${overlayId}`, sheetOpen, () => setSheetOpen(false))
+  useCoverBar(sheetOpen && drawer.side)
 
   if (!status?.writeEnabled) return null
 

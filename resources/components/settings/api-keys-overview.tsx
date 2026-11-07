@@ -5,7 +5,9 @@ import { KeyRound, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import type { ApiKeyView, CreatedApiKey } from "@/lib/api"
 import { queryKeys, useApiKeys, useRevokeApiKey } from "@/lib/queries"
-import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
+import { useOverlayHistory } from "@/lib/overlay-history"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { cn } from "@/lib/utils"
 import {
   AlertDialog,
@@ -206,14 +208,13 @@ function LeaveRevealInDrawer({ onStay, onLeave }: { onStay: () => void; onLeave:
 }
 
 /**
- * The Create key button and its dialog, or its bottom drawer on a narrow
- * card: the form, then the one-time reveal.
+ * The Create key button and its dialog, or its drawer on a narrow card or a
+ * phone: the form, then the one-time reveal.
  */
 export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerRef?: React.Ref<HTMLButtonElement> }) {
   const [open, setOpen] = useState(false)
   const [created, setCreated] = useState<CreatedApiKey | null>(null)
-  // Fixed while open, so a rotated tablet doesn't remount the form mid-request.
-  const [drawerWhileOpen, setDrawerWhileOpen] = useState(narrow)
+  const phoneLayout = usePhoneLayout()
   // Closing or leaving the page mid-request would unmount the form and lose
   // the only response that carries the key. `creating` re-renders a tick
   // after the form shows Creating, so the guards ask the cache directly.
@@ -233,12 +234,15 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
   const revealingNow = useCallback(() => revealingRef.current, [])
   const leaveBlocker = useBlocker({ shouldBlockFn: revealingNow, enableBeforeUnload: revealingNow, withResolver: true })
   const overlays = useOverlayHistory()
-  const createId = useId()
-  const createOverlayId = `create-api-key-${createId}`
+  // Fixed while open, so a rotation doesn't remount the form mid-request.
+  const drawer = usePhoneDrawer("create-api-key", open, () => changeOpen(false), {
+    phone: narrow || phoneLayout,
+    keepWhileOpen: true,
+  })
   const leaveReveal = () => {
     revealingRef.current = false
     // The blocked navigation carries on once it proceeds, so the close must not go back too.
-    overlays.release(createOverlayId)
+    overlays.release(drawer.overlayId)
     setOpen(false)
     setCreated(null)
     leaveBlocker.proceed?.()
@@ -254,11 +258,8 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
 
   const changeOpen = (nextOpen: boolean) => {
     if (!nextOpen && creatingNow()) return
-    if (nextOpen) setDrawerWhileOpen(narrow)
     setOpen(nextOpen)
   }
-  const inDrawer = open ? drawerWhileOpen : narrow
-  useOverlayEntry(createOverlayId, open && inDrawer, () => changeOpen(false))
   const createButton = (
     <Button ref={triggerRef} type="button">
       <Plus />
@@ -266,13 +267,24 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
     </Button>
   )
 
-  if (inDrawer) {
+  if (drawer.phone) {
     return (
       // A swipe or a tap beside the reveal would throw the key away, so only Done closes it.
-      <Drawer open={open} onOpenChange={changeOpen} dismissible={!creating && !created} autoFocus>
+      <Drawer
+        key={drawer.key}
+        direction={drawer.direction}
+        open={drawer.open}
+        onOpenChange={changeOpen}
+        onClosed={drawer.onClosed}
+        dismissible={!creating && !created}
+        autoFocus
+      >
         <DrawerTrigger asChild>{createButton}</DrawerTrigger>
         <DrawerContent
-          className="data-[vaul-drawer-direction=bottom]:max-h-[calc(100dvh-92px)] md:mx-auto md:w-full md:max-w-lg"
+          className={cn(
+            "data-[vaul-drawer-direction=bottom]:max-h-[calc(100dvh-92px)] data-[vaul-drawer-direction=bottom]:md:mx-auto data-[vaul-drawer-direction=bottom]:md:w-full data-[vaul-drawer-direction=bottom]:md:max-w-lg",
+            drawer.contentClassName,
+          )}
           onOpenAutoFocus={focusDrawerTitle}
           onCloseAutoFocus={() => setCreated(null)}
         >
@@ -316,7 +328,7 @@ export function CreateApiKey({ narrow, triggerRef }: { narrow: boolean; triggerR
 
   return (
     <>
-      <Dialog open={open} onOpenChange={changeOpen}>
+      <Dialog open={drawer.open} onOpenChange={changeOpen}>
         <DialogTrigger asChild>{createButton}</DialogTrigger>
         <DialogContent
           className="sm:max-w-xl"

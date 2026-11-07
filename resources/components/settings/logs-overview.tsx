@@ -4,7 +4,7 @@
  * traceback dialog for exceptions, a full-record detail dialog, and a
  * downloads tab for the raw files behind the stream.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Archive,
@@ -37,6 +37,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -56,6 +63,8 @@ import { logStream, type LogRecord, type LogStreamStatus } from "@/lib/logstream
 import { apiV1LogsRotateRotate } from "@/generated/api/sdk.gen"
 import type { LogFileView } from "@/generated/api/types.gen"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { rowActivation, stopRowActivation } from "@/components/data/row-activation"
 import { VirtualTable, VirtualTableBody } from "@/components/data/virtual-table"
 
@@ -273,6 +282,8 @@ export function LogsOverview() {
 
   const [selected, setSelected] = useState<LogRecord | null>(null)
   const [tracebackRecord, setTracebackRecord] = useState<LogRecord | null>(null)
+  const [shownRecord, clearShownRecord] = useClosingRecord(selected)
+  const [shownTraceback, clearShownTraceback] = useClosingRecord(tracebackRecord)
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>(LOG_NARROW_WIDTH)
   const listRef = useRef<HTMLDivElement | null>(null)
   const wrapperRef = useCallback(
@@ -718,54 +729,131 @@ export function LogsOverview() {
         )}
       </Card>
 
-      <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
-        <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={returnFocus}>
-          {selected && (
+      <LogDetail
+        name="log-record"
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        onCloseAutoFocus={returnFocus}
+        onClosed={clearShownRecord}
+        title={
+          shownRecord && (
+            <span className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "gap-1 uppercase",
+                  levelBadgeClasses[shownRecord.level ?? ""] ?? levelBadgeClasses.info,
+                )}
+              >
+                {shownRecord.level ?? "info"}
+              </Badge>
+              {shownRecord.event ?? "Log record"}
+            </span>
+          )
+        }
+        description={
+          shownRecord && (
             <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "gap-1 uppercase",
-                      levelBadgeClasses[selected.level ?? ""] ?? levelBadgeClasses.info,
-                    )}
-                  >
-                    {selected.level ?? "info"}
-                  </Badge>
-                  {selected.event ?? "Log record"}
-                </DialogTitle>
-                <DialogDescription>
-                  {selected.timestamp ? new Date(selected.timestamp).toLocaleString() : "unknown time"}
-                  {selected.logger ? ` · ${selected.logger}` : ""}
-                </DialogDescription>
-              </DialogHeader>
-              <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
-                <code>{JSON.stringify(selected, null, 2)}</code>
-              </pre>
+              {shownRecord.timestamp ? new Date(shownRecord.timestamp).toLocaleString() : "unknown time"}
+              {shownRecord.logger ? ` · ${shownRecord.logger}` : ""}
             </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={tracebackRecord !== null}
-        onOpenChange={(open) => !open && setTracebackRecord(null)}
+          )
+        }
       >
-        <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={returnFocus}>
-          {tracebackRecord && (
+        {shownRecord && JSON.stringify(shownRecord, null, 2)}
+      </LogDetail>
+
+      <LogDetail
+        name="log-traceback"
+        open={tracebackRecord !== null}
+        onClose={() => setTracebackRecord(null)}
+        onCloseAutoFocus={returnFocus}
+        onClosed={clearShownTraceback}
+        title={shownTraceback && "Traceback"}
+        description={shownTraceback && (shownTraceback.event ?? "Unhandled exception")}
+      >
+        {shownTraceback?.exception}
+      </LogDetail>
+    </div>
+  )
+}
+
+/** The record while it is set, and the last one until its panel has closed,
+ *  so the panel keeps its content while it slides out. */
+function useClosingRecord(record: LogRecord | null): [LogRecord | null, () => void] {
+  const [last, setLast] = useState(record)
+  if (record !== null && record !== last) setLast(record)
+  const clear = useCallback(() => setLast(null), [])
+  return [record ?? last, clear]
+}
+
+/** A log record or traceback: a dialog, or a drawer on a phone. */
+function LogDetail({
+  name,
+  open,
+  onClose,
+  onCloseAutoFocus,
+  onClosed,
+  title,
+  description,
+  children,
+}: {
+  name: string
+  open: boolean
+  onClose: () => void
+  onCloseAutoFocus: (event: Event) => void
+  /** Runs once the panel has closed and its content is gone. */
+  onClosed: () => void
+  title: ReactNode
+  description: ReactNode
+  children: ReactNode
+}) {
+  const drawer = usePhoneDrawer(name, open, onClose)
+  const onOpenChange = (next: boolean) => !next && onClose()
+  const closeAutoFocus = (event: Event) => {
+    onCloseAutoFocus(event)
+    onClosed()
+  }
+  const code = (
+    <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
+      <code>{children}</code>
+    </pre>
+  )
+
+  if (drawer.phone) {
+    return (
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed}>
+        <DrawerContent className={drawer.contentClassName} onCloseAutoFocus={closeAutoFocus}>
+          {title && (
             <>
-              <DialogHeader>
-                <DialogTitle>Traceback</DialogTitle>
-                <DialogDescription>{tracebackRecord.event ?? "Unhandled exception"}</DialogDescription>
-              </DialogHeader>
-              <pre className="overflow-auto rounded-md bg-muted p-3 text-xs">
-                <code>{tracebackRecord.exception}</code>
-              </pre>
+              <DrawerHeader className="flex-row items-start gap-2 text-left group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <DrawerTitle>{title}</DrawerTitle>
+                  <DrawerDescription>{description}</DrawerDescription>
+                </div>
+                {drawer.side && <SideDrawerClose />}
+              </DrawerHeader>
+              <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-6">{code}</div>
             </>
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  return (
+    <Dialog open={drawer.open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl" onCloseAutoFocus={closeAutoFocus}>
+        {title && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">{title}</DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
+            </DialogHeader>
+            {code}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
