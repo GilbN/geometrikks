@@ -237,7 +237,7 @@ function RootLayout() {
               <OfflineBanner />
               <GeoDegradedBanner />
               {/* Top header bar */}
-              <header className="relative z-10 flex h-14 shrink-0 items-center phone-side:h-12 justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] md:pl-4 phone-side:pl-[max(1rem,env(safe-area-inset-left,0px))]">
+              <header className="relative z-10 flex h-14 shrink-0 items-center phone-side:h-12 justify-between gap-1 border-b border-border/50 bg-background px-2 pt-[env(safe-area-inset-top,0px)] pl-[max(0.5rem,env(safe-area-inset-left,0px))] pr-[max(0.5rem,env(safe-area-inset-right,0px))] box-content sm:gap-2 sm:px-4 sm:pl-[max(1rem,env(safe-area-inset-left,0px))] sm:pr-[max(1rem,env(safe-area-inset-right,0px))] md:pl-4 phone:pl-[max(1rem,env(safe-area-inset-left,0px))] phone:pr-[max(1rem,env(safe-area-inset-right,0px))]">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   {!phone && (
                     <>

@@ -52,6 +52,9 @@ test.describe("portrait phone", () => {
     await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0)
     await expect(page.locator("header").first().getByRole("button", { name: "Toggle Sidebar" })).toHaveCount(0)
 
+    const title = (await page.locator("header").first().locator('[aria-current="page"]').boundingBox())!
+    expect(title.x).toBe(16)
+
     const box = (await bar.boundingBox())!
     expect(box.height).toBe(62)
     expect(box.x).toBe(20)
