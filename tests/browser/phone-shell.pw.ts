@@ -185,6 +185,8 @@ test.describe("portrait phone", () => {
     await expect(moreCell(page).locator(".bg-amber-400")).toHaveCount(1)
     await moreCell(page).click()
     await expect(moreMenu(page).getByRole("link", { name: /Degraded/ })).toHaveAttribute("href", "/settings/status")
+    // A health poll still in the route when the test ends fails the next test.
+    await page.unrouteAll({ behavior: "ignoreErrors" })
   })
 })
 
