@@ -70,6 +70,8 @@ test.describe("phone held sideways", () => {
     await page.goto("/?inspect=192.0.2.1")
     const sheet = page.getByRole("dialog").filter({ hasText: "192.0.2.1" })
     await expect(sheet).toBeVisible()
+    // The sheet slides in from the right, so measure it once that ends.
+    await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined))))
     const close = (await sheet.getByRole("button", { name: "Close" }).first().boundingBox())!
     expect(close.x + close.width).toBeLessThanOrEqual(932 - right)
   })
