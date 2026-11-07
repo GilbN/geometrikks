@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { DROP_OUTLINE_CLASS, DropMarkSrText } from "@/components/drop/drop-mark"
+import { SrOnlySuffix } from "@/components/sr-only-suffix"
 import { useBannedIps, useDropNetwork } from "@/lib/queries"
 import { decisionLabel } from "@/lib/crowdsec"
 import { dropMarkTitle } from "@/lib/drop-lists"
@@ -57,7 +58,7 @@ export function IpLabel({
     >
       {prefix}
       {ip}
-      <span className="sr-only"> ({decisionLabel(decision)})</span>
+      <SrOnlySuffix text={` (${decisionLabel(decision)})`} />
       {dropNetwork && <DropMarkSrText sblId={dropNetwork.sblId} />}
     </span>
   )

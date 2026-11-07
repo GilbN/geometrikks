@@ -7,6 +7,7 @@
 import type { CSSProperties, ReactNode } from "react"
 import { dropMarkSrText, dropMarkTitle } from "@/lib/drop-lists"
 import { useDropNetwork } from "@/lib/queries"
+import { SrOnlySuffix } from "@/components/sr-only-suffix"
 
 export const DROP_OUTLINE_CLASS = "outline-[1.5px] outline-dashed outline-destructive -outline-offset-[1.5px]"
 
@@ -17,7 +18,7 @@ const DROP_CHIP_STYLE: CSSProperties = {
 }
 
 export function DropMarkSrText({ sblId }: { sblId: string }) {
-  return <span className="sr-only">{dropMarkSrText(sblId)}</span>
+  return <SrOnlySuffix text={dropMarkSrText(sblId)} />
 }
 
 /** An IP chip in a map popup's IP list, with a dashed red edge when the IP is on DROP. */
