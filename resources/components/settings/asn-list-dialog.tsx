@@ -3,7 +3,7 @@
  * About page. Fetched lazily on first open and cached for the session;
  * the list only changes with a release.
  */
-import { useMemo, useState } from "react"
+import { useId, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { focusDrawerTitle } from "@/components/settings/api-keys-phone"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { useAsnClassification } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -35,6 +36,8 @@ const DESCRIPTION = "Networks on this list are badged Hosting in analytics; ever
 export function AsnListDialog() {
   const isMobile = useIsMobile()
   const [open, setOpen] = useState(false)
+  const overlayId = useId()
+  useOverlayEntry(`asn-list-${overlayId}`, isMobile && open, () => setOpen(false))
   const [query, setQuery] = useState("")
   const { data, isLoading, isError } = useAsnClassification(open)
 

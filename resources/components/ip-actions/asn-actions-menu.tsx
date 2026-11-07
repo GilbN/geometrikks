@@ -3,7 +3,7 @@
  * excludes it. Desktop gets a dropdown menu and phones a bottom drawer, like
  * the IP actions menu.
  */
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { EllipsisVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -25,6 +25,7 @@ import {
 import { filterActions } from "@/components/ip-actions/ip-actions-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import type { FilterTarget } from "@/lib/ip-filter-targets"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { usePollingHold } from "@/lib/time-range-context"
 
 export function AsnActionsMenu({
@@ -42,6 +43,8 @@ export function AsnActionsMenu({
   const [menuOpen, setMenuOpen] = useState(false)
   usePollingHold(menuOpen)
   useEffect(() => setMenuOpen(false), [isMobile])
+  const overlayId = useId()
+  useOverlayEntry(`asn-actions-${overlayId}`, isMobile && menuOpen, () => setMenuOpen(false))
 
   const label = `AS${asn}`
   const actions = filterActions(label, target)
@@ -59,7 +62,7 @@ export function AsnActionsMenu({
 
   if (isMobile) {
     return (
-      <Drawer onOpenChange={setMenuOpen}>
+      <Drawer open={menuOpen} onOpenChange={setMenuOpen}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>

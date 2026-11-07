@@ -114,6 +114,52 @@ test("Back closes a log row's detail sheet and stays on Access Logs", async ({ p
   await expect(page.locator("table tr[data-index='0']")).toBeVisible()
 })
 
+test("Back on the new API key drawer is blocked while creating and asks first on the reveal", async ({ page }) => {
+  await login(page)
+  let release = () => {}
+  const created = new Promise<void>((resolve) => { release = resolve })
+  await page.route("**/api/v1/auth/api-keys", async (route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: { available: true, keys: [] } })
+    await created
+    const now = new Date().toISOString()
+    return route.fulfill({ status: 201, json: {
+      key: "gmk_test_only_not_a_real_key",
+      apiKey: {
+        id: "k1", name: "Phone test", scope: "read", displayPrefix: "gmk_test", createdAt: now, createdBy: "admin",
+        expired: false, expiresAt: null, lastUsedAt: null, lastUsedIp: null,
+      },
+    } })
+  })
+  await page.goto("/settings/api-keys")
+  await page.getByRole("button", { name: "Create key" }).click()
+  const drawer = page.getByRole("dialog", { name: "Create API key" })
+  await expect(drawer).toBeVisible()
+  await drawer.getByLabel("Name").fill("Phone test")
+  await drawer.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(drawer.getByRole("button", { name: "Creating" })).toBeVisible()
+
+  await page.goBack()
+  await expect(drawer).toBeVisible()
+  await expect(page).toHaveURL(/\/settings\/api-keys$/)
+  release()
+
+  const reveal = page.getByRole("dialog", { name: "Key created" })
+  await expect(reveal).toBeVisible()
+  await page.goBack()
+  const leave = reveal.getByRole("alertdialog")
+  await expect(leave).toBeVisible()
+  await leave.getByRole("button", { name: "Stay" }).click()
+  await expect(leave).toBeHidden()
+  await expect(reveal).toBeVisible()
+  await expect(page).toHaveURL(/\/settings\/api-keys$/)
+
+  await page.goBack()
+  await leave.getByRole("button", { name: "Leave" }).click()
+  await expect(reveal).toBeHidden()
+  await expect(page).toHaveURL(/\/settings\/api-keys$/)
+  await expect(page.getByRole("button", { name: "Create key" })).toBeVisible()
+})
+
 test("Back closes More and stays on the page", async ({ page }) => {
   await login(page)
   await page.goto("/access-logs")

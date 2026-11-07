@@ -4,7 +4,7 @@
  * bottom sheet on a phone and a popover elsewhere, since a phone has no hover
  * for the tooltip the tables use. An IP with neither renders as it is.
  */
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { useId, useRef, useState, type ReactNode } from "react"
 import { Loader2, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -237,8 +237,13 @@ function MarkedIpStatus({
   const [choosingBan, setChoosingBan] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   usePollingHold(open || dialogOpen)
-  // A rotation remounts the drawer closed (vaul cannot turn it around).
-  useEffect(() => setOpen(false), [drawer.direction])
+  // A rotation remounts the drawer closed (vaul cannot turn it around). Reset
+  // during render, so the remounted drawer never mounts open.
+  const [direction, setDirection] = useState(drawer.direction)
+  if (direction !== drawer.direction) {
+    setDirection(drawer.direction)
+    setOpen(false)
+  }
   const overlayId = useId()
   useOverlayEntry(`ip-status-${overlayId}`, isMobile && open, () => setOpen(false))
   // On a phone the inspector, the alert sheet and the ban dialog open once

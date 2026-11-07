@@ -83,7 +83,8 @@ export function createOverlayHistory(history: RouterHistory) {
         continue
       }
       const { href, state } = history.location
-      history[step.type](href, { ...state, overlay: step.overlay })
+      if (step.type === "replace") history.replace(href, { ...state, overlay: step.overlay }, { ignoreBlocker: true })
+      else history.push(href, { ...state, overlay: step.overlay })
     }
   }
 
@@ -93,15 +94,25 @@ export function createOverlayHistory(history: RouterHistory) {
     queueMicrotask(flush)
   }
 
+  function recordRestamp() {
+    const key = history.location.state.__TSR_key
+    if (key) restampedKeys.add(key)
+  }
+
   function keepOverlayOnReplace(previous: HistoryLocation, location: HistoryLocation) {
+    const previousKey = previous.state.__TSR_key
+    // A replace mints a new key, so a changed URL's entry keeps counting as
+    // changed through the manager's own replaces (a handover, a carry).
+    if (previousKey && restampedKeys.has(previousKey) && previous.pathname === location.pathname) {
+      recordRestamp()
+    }
     const id = previous.state.overlay
     if (!id || location.state.overlay || previous.pathname !== location.pathname) return
     // At once, not in a microtask: an action that filters and then closes its
     // drawer in one click renders the close before a microtask would run.
     if (isStale(id)) return
-    history.replace(location.href, { ...location.state, overlay: id })
-    const key = history.location.state.__TSR_key
-    if (key) restampedKeys.add(key)
+    history.replace(location.href, { ...location.state, overlay: id }, { ignoreBlocker: true })
+    recordRestamp()
   }
 
   function onPop(previous: HistoryLocation, location: HistoryLocation, backwards: boolean) {
@@ -136,7 +147,9 @@ export function createOverlayHistory(history: RouterHistory) {
       }
       const href = carriedHref
       carriedHref = undefined
-      if (href && href !== location.href) history.replace(href, location.state)
+      if (!href || href === location.href) return
+      history.replace(href, location.state)
+      if (location.state.overlay) recordRestamp()
     })
   }
 
@@ -166,6 +179,13 @@ export function createOverlayHistory(history: RouterHistory) {
       if (open.adopt) return
       if (!pendingOpen.delete(id)) pendingClose.add(id)
       queueFlush()
+    },
+    /** Drops an overlay without touching history, for a close that is part of
+     *  a navigation the router is already making. */
+    release(id: string) {
+      stack = stack.filter((overlay) => overlay.id !== id)
+      pendingOpen.delete(id)
+      pendingClose.delete(id)
     },
     /** For an adopted overlay closing in the app: goes back when it owns the
      *  current entry and says whether it did. */

@@ -3,7 +3,7 @@
  * the ban durations, the way the phone IP actions menu offers them. Renders
  * nothing without CrowdSec write access.
  */
-import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react"
+import { useId, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { Loader2, ShieldBan, ShieldOff, Undo2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -52,8 +52,13 @@ export function PanelBanButton({
   const openDialogAfterClose = useRef(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const drawer = useSideDrawer()
-  // A rotation remounts the drawer closed (vaul cannot turn it around).
-  useEffect(() => setSheetOpen(false), [drawer.direction])
+  // A rotation remounts the drawer closed (vaul cannot turn it around). Reset
+  // during render, so the remounted drawer never mounts open.
+  const [direction, setDirection] = useState(drawer.direction)
+  if (direction !== drawer.direction) {
+    setDirection(drawer.direction)
+    setSheetOpen(false)
+  }
   const overlayId = useId()
   useOverlayEntry(`ban-drawer-${overlayId}`, sheetOpen, () => setSheetOpen(false))
 
