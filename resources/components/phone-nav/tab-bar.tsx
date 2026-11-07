@@ -188,7 +188,7 @@ export function TabBar({ compact }: { compact: boolean }) {
         return (
           <CellName
             key={item.id}
-            name={item.title}
+            name={item.barTitle ?? item.title}
             enabled={!showLabel}
             cell={
               <Link
@@ -203,12 +203,12 @@ export function TabBar({ compact }: { compact: boolean }) {
                   }
                 }}
                 aria-current={selected ? "page" : undefined}
-                aria-label={showLabel ? undefined : item.title}
+                aria-label={showLabel ? undefined : (item.barTitle ?? item.title)}
                 aria-describedby={describe(item.id, warning)}
                 onContextMenu={suppressContextMenu}
                 className={cellClass(layout, selected)}
               >
-                <CellContent icon={item.icon} label={item.title} badge={warning ? "amber" : null} showLabel={showLabel} />
+                <CellContent icon={item.icon} label={item.barTitle ?? item.title} badge={warning ? "amber" : null} showLabel={showLabel} />
               </Link>
             }
           />
@@ -239,7 +239,7 @@ export function TabBar({ compact }: { compact: boolean }) {
       {descriptions}
       {compact && (
         <div ref={probeRef} aria-hidden inert className={cn(BAR_FRAME, "invisible absolute top-0 left-0 flex h-12 w-max gap-0.5 phone-short:h-11")}>
-          {[...items.map((item) => ({ key: item.id, icon: item.icon, title: item.title })), { key: "more", icon: MoreHorizontal, title: "More" }].map(
+          {[...items.map((item) => ({ key: item.id, icon: item.icon, title: item.barTitle ?? item.title })), { key: "more", icon: MoreHorizontal, title: "More" }].map(
             (cell) => (
               <span key={cell.key} className={cellClass("compact", false)}>
                 <CellContent icon={cell.icon} label={cell.title} showLabel />

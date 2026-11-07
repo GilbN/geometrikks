@@ -197,7 +197,7 @@ test.describe("phone held sideways", () => {
     await moreCell(page).tap()
     await expect(moreMenu(page)).toBeVisible()
 
-    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await tabBar(page).getByRole("link", { name: "Logs", exact: true }).tap()
     await expect(page).toHaveURL(/\/access-logs$/)
     await expect(moreMenu(page)).toBeHidden()
     // A stale More entry under the new page would be one more; Back skips it unseen.
@@ -218,7 +218,7 @@ test.describe("phone held sideways", () => {
     await moreCell(page).tap()
     await expect(moreMenu(page)).toBeVisible()
 
-    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await tabBar(page).getByRole("link", { name: "Logs", exact: true }).tap()
     await expect(moreMenu(page)).toBeHidden()
     await expect(page).toHaveURL(/\/access-logs$/)
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")

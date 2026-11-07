@@ -62,12 +62,12 @@ test.describe("portrait phone", () => {
 
     await expect(barCells(page)).toHaveCount(5)
     const names = await barCells(page).allInnerTexts()
-    expect(names.slice(0, 3)).toEqual(["Overview", "Map", "Access Logs"])
+    expect(names.slice(0, 3)).toEqual(["Overview", "Map", "Logs"])
     expect(["Security", "Analytics"]).toContain(names[3])
     await expect(barCells(page).nth(4)).toHaveText("More")
     expect(await barCells(page).nth(4).evaluate((el) => el.tagName)).toBe("BUTTON")
 
-    await expect(bar.getByRole("link", { name: "Access Logs" })).toHaveAttribute("aria-current", "page")
+    await expect(bar.getByRole("link", { name: "Logs", exact: true })).toHaveAttribute("aria-current", "page")
     await expect(bar.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current", "page")
 
     const paddingBottom = await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => getComputedStyle(el).paddingBottom)
@@ -147,7 +147,7 @@ test.describe("portrait phone", () => {
     await expect(tabBar(page)).toBeVisible()
     expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") === null)).toBe(true)
 
-    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await tabBar(page).getByRole("link", { name: "Logs", exact: true }).tap()
     await expect(page).toHaveURL(/\/access-logs$/)
   })
 
@@ -333,10 +333,10 @@ test.describe("More on a phone held sideways", () => {
     await moreCell(page).tap()
     await expect(moreMenu(page)).toBeVisible()
 
-    await tabBar(page).locator("a", { hasText: "Access Logs" }).tap()
+    await tabBar(page).getByRole("link", { name: "Logs", exact: true }).tap()
     await expect(page).toHaveURL(/\/access-logs$/)
     await expect(moreMenu(page)).toBeHidden()
-    await expect(tabBar(page).locator("a", { hasText: "Access Logs" })).toHaveAttribute("aria-current", "page")
+    await expect(tabBar(page).getByRole("link", { name: "Logs", exact: true })).toHaveAttribute("aria-current", "page")
     await expect(moreCell(page)).not.toBeFocused()
   })
 })
