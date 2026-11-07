@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test"
 
-export type SafeAreaInsets = { left: number; right: number; bottom: number }
+export type SafeAreaInsets = { top?: number; left: number; right: number; bottom: number }
 
 /** A large iPhone held sideways: the notch side and the opposite side both report about 59px. */
 export const IPHONE_LANDSCAPE_INSETS: SafeAreaInsets = { left: 59, right: 59, bottom: 21 }

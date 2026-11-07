@@ -3,6 +3,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router"
 import { toast } from "sonner"
 import Map, {
@@ -47,7 +48,7 @@ import {
 } from "./layers"
 import { MapControls, type BannedSummary } from "./MapControls"
 import { FOCUS_SETTLED, FOCUSING_ATTRIBUTE } from "./MapDetailPanel"
-import { phoneActionCardTop, safeAreaInsets } from "./phone-action-card"
+import { measurePillSize, pillRightEdge, pillWidth, rangeChipBottom, safeAreaInsets, tabBarTop } from "./phone-map-actions"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
@@ -60,6 +61,7 @@ import { crowdsecErrorMessage } from "@/lib/crowdsec"
 import { LocationPanel, MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPanel, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
+import { useMapLiveSlot } from "./map-live-slot"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
 import { MapBackdrop } from "@/components/brand/backdrops"
@@ -78,11 +80,11 @@ import {
 } from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { isPhoneMapViewport, isPhoneSideViewport, usePhoneMap, usePhoneMapSide } from "@/hooks/use-phone-map"
-import { sideFitPadding, sideToastArea } from "@/lib/phone-map-geometry"
+import { isPhoneLayout, isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { phoneFitPadding } from "@/lib/phone-map-geometry"
+import { useCoverBar, useCoverToasts } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
-import { cn } from "@/lib/utils"
 
 export type LayerType = "heatmap" | "markers" | "banned"
 export type MapProjection = "mercator" | "globe"
@@ -109,15 +111,25 @@ function weightedPoints(
 }
 
 /** The padding that keeps fitted locations clear of the map's edges, of the
- *  controls panel on the right from md up, of the action card at the bottom
- *  on a phone, and of the action rail on a phone held sideways. */
-function fitPadding() {
-  if (isPhoneSideViewport()) return sideFitPadding(FIT_PADDING, safeAreaInsets())
-  const isMobile = isPhoneMapViewport()
+ *  controls panel on the right from md up, and of the map pill and the tab
+ *  bar on a phone. */
+function fitPadding(map: HTMLElement) {
+  if (isPhoneLayout()) {
+    const side = isPhoneSideViewport()
+    const insets = safeAreaInsets()
+    return phoneFitPadding(FIT_PADDING, {
+      side,
+      insets,
+      topClearance: rangeChipBottom() + 12,
+      barTop: tabBarTop(),
+      pillWidth: pillWidth(measurePillSize(map)),
+      pillEdge: pillRightEdge(side, insets),
+    })
+  }
   return {
     top: FIT_PADDING,
-    right: FIT_PADDING + (isMobile ? 0 : DESKTOP_CONTROLS_INSET),
-    bottom: FIT_PADDING + (isMobile ? phoneActionCardTop() : 0),
+    right: FIT_PADDING + DESKTOP_CONTROLS_INSET,
+    bottom: FIT_PADDING,
     left: FIT_PADDING,
   }
 }
@@ -202,10 +214,9 @@ function GeoMapInner({
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
   const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
-  const isMobile = usePhoneMap()
+  const isMobile = usePhoneLayout()
+  const liveSlot = useMapLiveSlot()
   const phoneSide = usePhoneMapSide()
-  // Under 48rem the map starts at the screen's left edge; wider, the sidebar covers the left inset.
-  const phoneShell = useIsMobile()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
   const router = useRouter()
@@ -288,7 +299,6 @@ function GeoMapInner({
   // placeholder and jump. On failure, both queries settle after one retry.
   const [initialViewResolved, setInitialViewResolved] = useState(false)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
   const [projection, setProjection] = useState<MapProjection>(loadMapProjectionPreference)
   const [routeEffectsEnabled, setRouteEffectsEnabled] = useState(loadRouteEffectsPreference)
   const [frameRateEnabled, setFrameRateEnabled] = useState(loadFrameRatePreference)
@@ -503,9 +513,11 @@ function GeoMapInner({
     const defaultView = runtimeSettings?.map.defaultView
     const onTraffic = isMobile && !defaultView
     if (onTraffic && isLoadingGeoJSON) return
-    const rect = mapContainerRef.current?.getBoundingClientRect()
-    const size = { width: rect?.width ?? 0, height: rect?.height ?? 0 }
-    const padding = fitPadding()
+    const container = mapContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const size = { width: rect.width, height: rect.height }
+    const padding = fitPadding(container)
     const view =
       (onTraffic ? trafficView(weightedPoints(geojson), size, padding) : null) ??
       initialMapView({
@@ -605,8 +617,9 @@ function GeoMapInner({
   // of traffic from the US to Japan centred a phone on the South Atlantic.
   const fitToBounds = useCallback(() => {
     if (!fitData?.features.length || !mapRef.current) return
-    const rect = mapRef.current.getContainer().getBoundingClientRect()
-    const padding = fitPadding()
+    const container = mapRef.current.getContainer()
+    const rect = container.getBoundingClientRect()
+    const padding = fitPadding(container)
     const window = trafficWindow(weightedPoints(fitData), { width: rect.width, height: rect.height }, padding)
     if (!window) return
     let south = Infinity
@@ -856,7 +869,7 @@ function GeoMapInner({
     cancelFocus()
     setPopup(null)
   }
-  // On a phone the open popup is a MapDetailPanel over the action card, and
+  // On a phone the open popup is a MapDetailPanel over the map, and
   // a ring marks its point instead of the popup's tip.
   const phoneDetailOpen = isMobile && (bannedOpen || locationOpen || livePopup !== null)
   const phoneDetailPoint: Coordinate | null = !isMobile
@@ -867,33 +880,13 @@ function GeoMapInner({
         ? [popup.longitude, popup.latitude]
         : livePopup?.coordinates ?? null
 
-  // Toasts live outside the map, so the map tells them where its free area is:
-  // right of the attribution pill and left of the rail or an open panel.
-  useEffect(() => {
-    const root = rootRef.current
-    if (!phoneSide || !root) return
-    const style = document.documentElement.style
-    const update = () => {
-      const rect = root.getBoundingClientRect()
-      const area = sideToastArea({
-        viewportWidth: window.innerWidth,
-        mapLeft: rect.left,
-        mapRight: rect.right,
-        insets: safeAreaInsets(),
-        panelOpen: phoneDetailOpen,
-      })
-      style.setProperty("--map-toast-left", `${area.left}px`)
-      style.setProperty("--map-toast-right", `${area.right}px`)
-    }
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(root)
-    return () => {
-      observer.disconnect()
-      style.removeProperty("--map-toast-left")
-      style.removeProperty("--map-toast-right")
-    }
-  }, [phoneSide, phoneDetailOpen, mapReady, initialViewResolved])
+  useCoverBar(phoneDetailOpen && phoneSide)
+  useCoverToasts(phoneDetailOpen && !phoneSide)
+  useOverlayEntry("map-detail", phoneDetailOpen, () => {
+    closeBannedPopup()
+    setLivePopup(null)
+    closeLocation()
+  })
 
   if (!mapReady || !initialViewResolved) {
     return (
@@ -905,7 +898,7 @@ function GeoMapInner({
 
   return (
     <MapProvider>
-    <div ref={rootRef} data-geo-map="" data-phone-side={phoneSide ? "" : undefined} className="h-full w-full relative">
+    <div data-geo-map="" data-phone-side={phoneSide ? "" : undefined} className="h-full w-full relative">
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -927,12 +920,17 @@ function GeoMapInner({
         cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
-        {/* Phones pinch to zoom and turn; the action card takes this corner. */}
+        {/* Phones pinch to zoom and turn; the map pill takes this corner. */}
         {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
-        {/* On a portrait phone the attribution is a line of text under the
-            action card. Held sideways, the bottom edge is free for the pill. */}
-        <MapAttribution key={isMobile && !phoneSide ? "line" : "pill"} compact={!isMobile || phoneSide} />
+        {/* On a portrait phone the attribution is a line of text above the
+            tab bar. Held sideways it is the compact button at the pill's foot,
+            collapsed at first. */}
+        <MapAttribution
+          key={isMobile && !phoneSide ? "line" : phoneSide ? "side" : "pill"}
+          compact={!isMobile || phoneSide}
+          startCollapsed={phoneSide}
+        />
 
         {/* GeoJSON data source */}
         {/* The `key` only flips when the clustering requirement changes (markers
@@ -1082,17 +1080,13 @@ function GeoMapInner({
       )}
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts
-          whenever live mode is on regardless of the desktop overlay preference. */}
-      {liveMode && isMobile && (
-        <div
-          data-live-pill=""
-          className={cn(
-            "pointer-events-none absolute top-4 z-10",
-            phoneShell ? "left-[max(1rem,env(safe-area-inset-left))]" : "left-4",
-          )}
-        >
+          whenever live mode is on regardless of the desktop overlay preference.
+          It lives in the range chip's row, which gives it the width the chip leaves. */}
+      {liveMode && isMobile && liveSlot && createPortal(
+        <div data-live-pill="" className="flex">
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
-        </div>
+        </div>,
+        liveSlot,
       )}
 
       {liveMode && isMobile && (

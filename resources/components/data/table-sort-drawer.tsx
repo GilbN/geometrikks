@@ -2,6 +2,7 @@
  * Sorting for a narrow table, which has no header row to click. The trigger
  * names the current sort, and the drawer lists the sortable fields and the order.
  */
+import { useId, useState } from "react"
 import { ArrowDown, ArrowUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +17,7 @@ import { FilterField } from "@/components/data/filter-rail"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { sortOrderLabel, type SortOption } from "@/components/data/sort-options"
+import { useOverlayEntry } from "@/lib/overlay-history"
 
 export function TableSortDrawer<F extends string>({
   options,
@@ -30,8 +32,11 @@ export function TableSortDrawer<F extends string>({
 }) {
   const current = options.find((option) => option.field === sortField) ?? options[0]
   const orderLabel = sortOrderLabel(current.kind, sortOrder)
+  const [open, setOpen] = useState(false)
+  const overlayId = useId()
+  useOverlayEntry(`sort-drawer-${overlayId}`, open, () => setOpen(false))
   return (
-    <Drawer>
+    <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <Button variant="outline" size="sm" className="h-8" aria-label={`Sort by ${current.label}, ${orderLabel.toLowerCase()}`}>
           {sortOrder === "asc" ? <ArrowUp /> : <ArrowDown />}

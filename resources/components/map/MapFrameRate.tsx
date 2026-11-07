@@ -1,17 +1,19 @@
 import { useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useMap } from "react-map-gl/maplibre"
 
-import { useIsMobile } from "@/hooks/use-mobile"
-import { usePhoneMap, usePhoneMapSide } from "@/hooks/use-phone-map"
-import { abovePhoneActionCard } from "./phone-action-card"
+import { usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { cn } from "@/lib/utils"
 
 /** Passive render counter: it must never request a map repaint itself. */
 export function MapFrameRate() {
   const { current: map } = useMap()
   const counterRef = useRef<HTMLDivElement>(null)
-  const isMobile = usePhoneMap()
+  const isMobile = usePhoneLayout()
   const side = usePhoneMapSide()
-  const phoneShell = useIsMobile()
+  // Held sideways the badge joins the credit in MapLibre's corner, so it
+  // stays beside the credit however wide that is.
+  const corner = side ? map?.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-bottom-left") : null
 
   useEffect(() => {
     const instance = map?.getMap()
@@ -46,28 +48,26 @@ export function MapFrameRate() {
       disposed = true
       remove?.()
     }
-  }, [map])
+  }, [map, corner])
 
-  return (
+  const badge = (
     <div
       ref={counterRef}
       data-testid="map-frame-rate"
       title="Map renders per second. Zero is normal when idle. This counter does not measure CPU usage."
       style={
-        side
-          ? {
-              // Beside the attribution pill, below the toasts.
-              left: phoneShell ? "calc(3rem + env(safe-area-inset-left, 0px))" : "3rem",
-              bottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
-              translate: "none",
-            }
-          : isMobile
-            ? { bottom: abovePhoneActionCard(8) }
-            : undefined
+        !corner && isMobile
+          ? { left: "var(--tab-bar-side)", bottom: "calc(var(--tab-bar-top) + 28px)", translate: "none" }
+          : undefined
       }
-      className="pointer-events-none absolute bottom-[max(3rem,env(safe-area-inset-bottom))] left-1/2 z-10 min-w-20 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1 text-center font-mono text-xs tabular-nums text-foreground shadow-sm lg:bottom-[max(1rem,env(safe-area-inset-bottom))]"
+      className={cn(
+        "pointer-events-none z-10 min-w-20 rounded-full border border-border bg-background/90 px-3 py-1 text-center font-mono text-xs tabular-nums text-foreground shadow-sm",
+        !corner &&
+          "absolute bottom-[max(3rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 lg:bottom-[max(1rem,env(safe-area-inset-bottom))]",
+      )}
     >
       0.0 FPS
     </div>
   )
+  return corner ? createPortal(badge, corner) : badge
 }

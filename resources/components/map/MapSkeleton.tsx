@@ -12,7 +12,7 @@ export function MapSkeleton() {
       <MapBackdrop tone="quiet" />
 
       {/* Controls placeholder */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 phone:hidden">
         <Skeleton className="h-20 w-10 rounded-lg" />
         <Skeleton className="h-10 w-10 rounded-lg" />
       </div>

@@ -399,11 +399,13 @@ test("access-logs mobile: rows that arrive late leave a scrolled page where it i
     main.scrollTop = 150
     return main.scrollTop
   })
-  expect(scrolledTo).toBeGreaterThan(0)
+  expect(scrolledTo).toBeGreaterThan(100)
   release()
   await expect(page.locator("table[aria-rowcount] tr[data-index]").first()).toBeVisible()
-  expect(await page.evaluate(() => {
+  const after = await page.evaluate(() => {
     const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
     return main.scrollTop
-  })).toBe(scrolledTo)
+  })
+  // Measuring the rows nudges the offset by a few pixels.
+  expect(Math.abs(after - scrolledTo)).toBeLessThanOrEqual(10)
 })

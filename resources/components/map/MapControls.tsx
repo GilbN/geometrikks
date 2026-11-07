@@ -4,13 +4,14 @@
  * The mobile drawer puts Filters last.
  * Toggles are switch rows rather than buttons so it fits without scrolling.
  * Desktop: a collapsible MapOverlay docked top-right.
- * Mobile: a labelled action card floating over the bottom of the map, whose
- * Layers button opens a bottom drawer with the same sections.
+ * Phone: an icon pill on the map's right edge, above the tab bar, whose
+ * Layers button opens a drawer with the same sections.
  */
 
 import { useEffect, useState } from "react"
+import { useMap } from "react-map-gl/maplibre"
+import { MapActionPill, usePillSize } from "./MapActionPill"
 import { MapOverlay } from "./MapOverlay"
-import { PHONE_ACTION_CARD_BOTTOM, PHONE_ACTION_CARD_HEIGHT } from "./phone-action-card"
 import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -32,22 +33,24 @@ import {
 } from "@/components/ui/drawer"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { CountryFlag } from "@/components/country-flag"
-import { usePhoneMap } from "@/hooks/use-phone-map"
-import { PHONE_RAIL_EDGE, PHONE_RAIL_WIDTH } from "@/lib/phone-map-geometry"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { useCoverBar, usePhoneChrome } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Activity,
   Flame,
+  Focus,
   Globe2,
   Home,
-  Layers,
   Loader2,
   MapPin,
   Maximize2,
   MoreHorizontal,
   Radio,
+  Server,
   SlidersHorizontal,
   Sparkles,
   ShieldBan,
@@ -111,7 +114,7 @@ interface MapControlsProps {
   selectedServers: string[]
   onServersChange: (values: string[]) => void
   serversLoading?: boolean
-  /** The phone action card hides while a MapDetailPanel covers it. */
+  /** The phone action pill hides while a MapDetailPanel covers it. */
   phoneDetailOpen?: boolean
 }
 
@@ -260,10 +263,18 @@ export function MapControls({
   const activeFilterCount =
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const isMobile = usePhoneMap()
+  const isMobile = usePhoneLayout()
   const drawer = useSideDrawer()
   // vaul cannot turn an open drawer around, so a rotation closes it.
   useEffect(() => setDrawerOpen(false), [drawer.direction])
+  useCoverBar(drawerOpen && drawer.side)
+  useOverlayEntry("map-layers", drawerOpen, () => setDrawerOpen(false))
+  const { default: map } = useMap()
+  const pillSize = usePillSize(isMobile ? map?.getContainer() : undefined)
+  const { barCovered } = usePhoneChrome()
+  const canFit = !isLoading && hasMapData
+  const canGoToServer = serverLocationAvailable && !!onGoToServerLocation
+  const actionsInMenu = isMobile && pillSize === "two"
 
   const toolsMenu = (
     <DropdownMenu>
@@ -273,14 +284,37 @@ export function MapControls({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
-        {/* On a phone the action card has these as All traffic and Server. */}
-        {!isMobile && serverLocationAvailable && onGoToServerLocation && (
+        {actionsInMenu && (
+          <DropdownMenuItem
+            disabled={!canFit}
+            onSelect={() => {
+              setDrawerOpen(false)
+              onFitBounds()
+            }}
+          >
+            <Focus className="h-4 w-4" />
+            Show all traffic
+          </DropdownMenuItem>
+        )}
+        {actionsInMenu && (
+          <DropdownMenuItem
+            disabled={!canGoToServer}
+            onSelect={() => {
+              setDrawerOpen(false)
+              onGoToServerLocation?.()
+            }}
+          >
+            <Server className="h-4 w-4" />
+            Go to server
+          </DropdownMenuItem>
+        )}
+        {!isMobile && canGoToServer && (
           <DropdownMenuItem onSelect={onGoToServerLocation}>
             <Home className="h-4 w-4" />
             Go to server location
           </DropdownMenuItem>
         )}
-        {!isMobile && serverLocationAvailable && onGoToServerLocation && <DropdownMenuSeparator />}
+        {(actionsInMenu || (!isMobile && canGoToServer)) && <DropdownMenuSeparator />}
         <DropdownMenuCheckboxItem
           checked={frameRateEnabled}
           onCheckedChange={onFrameRateChange}
@@ -297,7 +331,7 @@ export function MapControls({
         variant="ghost"
         size="icon-sm"
         onClick={onFitBounds}
-        disabled={isLoading || !hasMapData}
+        disabled={!canFit}
         title="Fit to data bounds"
         className="cursor-pointer"
       >
@@ -496,77 +530,25 @@ export function MapControls({
     </>
   )
 
-  // Mobile: a labelled card floating over the bottom of the map, in thumb
-  // reach. Layers opens the full controls in a bottom drawer; the other three
-  // are the actions a phone reaches for most. Pinch zooms, so there are no
-  // zoom buttons.
+  // Phone: Layers opens the full controls in a drawer; the other buttons are
+  // the actions a phone reaches for most. Pinch zooms, so there are no zoom
+  // buttons.
   if (isMobile) {
-    const cardButton = "h-full flex-col gap-1 rounded-lg px-1 text-[11px] font-medium"
     return (
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction={drawer.direction}>
-        <nav
-          aria-label="Map actions"
-          inert={phoneDetailOpen}
-          style={
-            drawer.side
-              ? {
-                  top: "calc(50% - env(safe-area-inset-bottom, 0px) / 2)",
-                  right: `max(${PHONE_RAIL_EDGE}px, env(safe-area-inset-right, 0px))`,
-                  width: PHONE_RAIL_WIDTH,
-                }
-              : {
-                  bottom: `calc(${PHONE_ACTION_CARD_BOTTOM}px + env(safe-area-inset-bottom, 0px))`,
-                  height: PHONE_ACTION_CARD_HEIGHT,
-                }
-          }
-          className={cn(
-            "absolute z-10 grid rounded-xl border border-border bg-floating p-1 backdrop-blur-sm",
-            drawer.side
-              ? "-translate-y-1/2 grid-rows-[repeat(4,60px)] gap-0.5"
-              : "left-[max(0.75rem,env(safe-area-inset-left))] right-[max(0.75rem,env(safe-area-inset-right))] grid-cols-4 gap-1",
-            phoneDetailOpen && "invisible",
-          )}
-        >
-          <DrawerTrigger asChild>
-            <Button
-              variant="ghost"
-              className={cardButton}
-              aria-label={
-                activeFilterCount > 0 ? `Layers and filters, ${activeFilterCount} active filter groups` : "Layers and filters"
-              }
-            >
-              <span className="relative">
-                <Layers className="size-5" />
-                {activeFilterCount > 0 && (
-                  <span aria-hidden className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />
-                )}
-              </span>
-              Layers
-            </Button>
-          </DrawerTrigger>
-          <Button variant="ghost" className={cardButton} onClick={onFitBounds} disabled={isLoading || !hasMapData}>
-            <Maximize2 className="size-5" />
-            All traffic
-          </Button>
-          <Button
-            variant="ghost"
-            className={cardButton}
-            onClick={onGoToServerLocation}
-            disabled={!serverLocationAvailable || !onGoToServerLocation}
-          >
-            <Home className="size-5" />
-            Server
-          </Button>
-          <Button
-            variant="ghost"
-            className={cn(cardButton, liveMode && "text-primary")}
-            aria-pressed={liveMode}
-            onClick={() => onLiveModeChange(!liveMode)}
-          >
-            <Radio className={cn("size-5", liveMode && "animate-pulse motion-reduce:animate-none")} />
-            {demoTrafficMode === "off" ? "Live" : "Demo"}
-          </Button>
-        </nav>
+        <MapActionPill
+          size={pillSize}
+          liveMode={liveMode}
+          demoTraffic={demoTrafficMode !== "off"}
+          activeFilterCount={activeFilterCount}
+          canFit={canFit}
+          canGoToServer={canGoToServer}
+          onFit={onFitBounds}
+          onGoToServer={() => onGoToServerLocation?.()}
+          onToggleLive={() => onLiveModeChange(!liveMode)}
+          layersTrigger={<DrawerTrigger asChild />}
+          hidden={phoneDetailOpen || barCovered}
+        />
         <DrawerContent className={drawer.contentClassName}>
           <DrawerHeader>
             <div className="flex items-center justify-between gap-2">

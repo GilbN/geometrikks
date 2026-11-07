@@ -4,9 +4,10 @@
  * drawer below it with the presets split into Recent, Calendar and Custom
  * tabs. The caller supplies the trigger. With `refreshControls` the drawer
  * also sets auto refresh and, on chart pages, the chart buckets, which the
- * phone header has no room for.
+ * phone header has no room for, and it is the drawer on every phone layout,
+ * a phone held sideways at 768px or wider included.
  */
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -28,6 +29,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useOverviewCharts } from "@/lib/overview-preferences"
 import {
   CHART_GRANULARITY_OPTIONS,
@@ -39,6 +41,7 @@ import {
 } from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
+import { useOverlayEntry } from "@/lib/overlay-history"
 
 /** Trigger text for the current selection: the preset, or the custom span's dates. */
 export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRange | null): string {
@@ -104,15 +107,19 @@ export function TimeRangePicker({
 }) {
   const { range, setRange, setCustomRange, pollInterval, setPollInterval, granularity, setGranularity } = useTimeRange()
   const [overviewCharts, setOverviewCharts] = useOverviewCharts()
-  const isMobile = useIsMobile()
+  const narrow = useIsMobile()
+  const phoneLayout = usePhoneLayout()
+  const asDrawer = refreshControls ? phoneLayout : narrow
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
+  const overlayId = useId()
+  useOverlayEntry(`time-range-${overlayId}`, asDrawer && rangeDrawerOpen, () => setRangeDrawerOpen(false))
   const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
   // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
   useEffect(() => {
-    if (!isMobile) setRangeDrawerOpen(false)
-  }, [isMobile])
+    if (!asDrawer) setRangeDrawerOpen(false)
+  }, [asDrawer])
 
-  if (isMobile) {
+  if (asDrawer) {
     const presetButtons = (presets: typeof TIME_RANGE_PRESETS) =>
       presets.map((preset) => (
         <Button

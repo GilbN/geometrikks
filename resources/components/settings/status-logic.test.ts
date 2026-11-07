@@ -33,6 +33,7 @@ import {
   schedulerJobState,
   sidebarIngestionVariant,
   sidebarStatusTooltip,
+  attentionParts,
   serverLocationRows,
   schedulerSummary,
   statusProblems,
@@ -359,6 +360,15 @@ describe("sidebarIngestionVariant", () => {
   it("stays running without agent problems", () => {
     expect(sidebarIngestionVariant(makeHealth(), false)).toBe("running")
     expect(sidebarIngestionVariant(makeHealth(), false, 0)).toBe("running")
+  })
+})
+
+describe("attentionParts", () => {
+  it("counts advisories and agents without punctuation, and is empty when neither needs attention", () => {
+    expect(attentionParts(0, 0)).toEqual([])
+    expect(attentionParts(2)).toEqual(["2 advisories need attention"])
+    expect(attentionParts(1, 1)).toEqual(["1 advisory needs attention", "1 agent needs attention"])
+    expect(attentionParts(0, 3)).toEqual(["3 agents need attention"])
   })
 })
 

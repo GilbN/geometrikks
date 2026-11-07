@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 
 export interface RadioMenuOption {
@@ -76,6 +77,7 @@ export function ResponsiveRadioMenu({
   useEffect(() => {
     if (!isMobile) setOpen(false)
   }, [isMobile])
+  useOverlayEntry(`radio-menu-${idPrefix}`, isMobile && open, () => setOpen(false))
 
   if (isMobile) {
     return (
