@@ -33,6 +33,7 @@ function timeSeriesPoint(index: number, total = requestsAt(index)): TimeSeriesDa
     totalGeoEvents: total,
     timedRequests: timed,
     avgRequestTime: t(0.12),
+    maxRequestTime: t(1.8),
     p50RequestTime: t(0.08),
     p95RequestTime: t(0.4),
     p99RequestTime: t(1.1),

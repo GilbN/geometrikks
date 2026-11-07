@@ -121,7 +121,7 @@ export function TimeRangeToolbar() {
         <div className="md:hidden flex items-center gap-1.5">
           <RefreshButton />
           <TimeRangePicker
-            refreshControls={{ chartBuckets: routeHeader.chartBuckets }}
+            refreshControls={{ chartBuckets: routeHeader.chartBuckets, overviewCharts: routeHeader.overviewCharts }}
             trigger={
               <Button
                 size="sm"

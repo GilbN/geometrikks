@@ -56,6 +56,7 @@ class TimeSeriesDataPoint(msgspec.Struct, rename="camel"):
     error_rate: ErrorRate
     timed_requests: TimedRequests
     avg_request_time: float | None
+    max_request_time: float | None
     p50_request_time: float | None
     p95_request_time: float | None
     p99_request_time: float | None

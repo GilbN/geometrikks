@@ -7431,6 +7431,16 @@ export const TimeSeriesDataPointSchema = {
         "The share of requests with a 4xx or 5xx status, from 0 to 1.",
       type: "number",
     },
+    maxRequestTime: {
+      oneOf: [
+        {
+          type: "number",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     p50RequestTime: {
       oneOf: [
         {
@@ -7497,6 +7507,7 @@ export const TimeSeriesDataPointSchema = {
   required: [
     "avgRequestTime",
     "errorRate",
+    "maxRequestTime",
     "p50RequestTime",
     "p95RequestTime",
     "p99RequestTime",

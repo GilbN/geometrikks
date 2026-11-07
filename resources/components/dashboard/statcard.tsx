@@ -1,5 +1,8 @@
+import { useState } from "react"
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { StatSparkline } from "@/components/dashboard/stat-sparkline"
 
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { formatPercent } from "@/lib/api"
@@ -29,7 +32,10 @@ const CARD_CLASS = "relative row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows
 const HEADER_CLASS = "flex flex-row items-center justify-between px-3 md:px-6 md:pb-2"
 const CONTENT_CLASS = "px-3 md:px-6"
 
-export function StatCardSkeleton() {
+const SPARKLINE_CLASS = "mt-2 h-10 w-full md:mt-3"
+
+/** `sparkline` reserves the chart's height so the card does not grow when it loads. */
+export function StatCardSkeleton({ sparkline = false }: { sparkline?: boolean }) {
   return (
     <Card className={CARD_CLASS}>
       <CardHeader className={HEADER_CLASS}>
@@ -39,6 +45,7 @@ export function StatCardSkeleton() {
       <CardContent className={CONTENT_CLASS}>
         <Skeleton className="mb-2 h-7 w-24 md:h-8 md:w-32" />
         <Skeleton className="h-3 w-20" />
+        {sparkline && <div className={SPARKLINE_CLASS} />}
       </CardContent>
     </Card>
   )
@@ -65,6 +72,10 @@ export function StatCard({
   valueClassName,
   iconClassName,
   info,
+  sparkline,
+  sparklineOpen = true,
+  sparklineDrawKey = "",
+  sparklineClassName,
 }: {
   title: string
   value: string
@@ -75,9 +86,25 @@ export function StatCard({
   iconClassName?: string
   /** A help button after the title, such as a StatInfo popover. */
   info?: React.ReactNode
+  /** How the value moved across the range, drawn under it. With fewer than
+   *  two points the card still reserves the chart's height. */
+  sparkline?: readonly number[]
+  /** False folds the chart away, animating the card's height. */
+  sparklineOpen?: boolean
+  /** A new value redraws the chart from scratch, so it sweeps in again. */
+  sparklineDrawKey?: string
+  /** Text colour of the line. Defaults to the accent colour. */
+  sparklineClassName?: string
 }) {
   const deltaValue = trend?.value
   const tone = deltaTone(deltaValue, trend?.positive)
+  // Counts the times the chart opened, so each opening sweeps it in again.
+  const [openings, setOpenings] = useState(0)
+  const [wasOpen, setWasOpen] = useState(sparklineOpen)
+  if (sparklineOpen !== wasOpen) {
+    setWasOpen(sparklineOpen)
+    if (sparklineOpen) setOpenings((count) => count + 1)
+  }
 
   return (
     <Card className={CARD_CLASS}>
@@ -105,6 +132,23 @@ export function StatCard({
             <DeltaBadge value={deltaValue} tone={tone} />
           )}
         </div>
+        {sparkline && (
+          <div
+            aria-hidden={!sparklineOpen}
+            className={cn(
+              "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+              sparklineOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            )}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <StatSparkline
+                key={`${sparklineDrawKey}:${openings}`}
+                values={sparkline}
+                className={cn(SPARKLINE_CLASS, sparklineClassName)}
+              />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

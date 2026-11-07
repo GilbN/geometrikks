@@ -1,7 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-import { useSummary } from "@/lib/queries"
+import { useOverviewCharts } from "@/lib/overview-preferences"
+import { useOverviewSparklines, useSummary } from "@/lib/queries"
 import { rangeCompareLabel, rangeSubtitle } from "@/lib/time-range-labels"
 import { useTimeRange } from "@/lib/time-range-context"
 import { DateTimeRange } from "@/components/dashboard/date-time-range"
@@ -19,12 +21,15 @@ export function Summary() {
   const { data: summary, isLoading, isError, error } = useSummary({
     comparePrevious: true,
   })
+  const [chartsOn, setChartsOn] = useOverviewCharts()
+  const sparklines = useOverviewSparklines({ enabled: chartsOn })
 
   const section = {
     summary,
     isLoading,
     rangeSubtitle: rangeSubtitle(range),
     compareLabel: rangeCompareLabel(range),
+    sparklines,
   }
 
   return (
@@ -41,6 +46,13 @@ export function Summary() {
               // header shows, and without it the page jumps on every refresh.
               !isError && <Skeleton className="h-6 w-72 max-w-full rounded-md" />
             )
+          }
+          actions={
+            // Phones set this in the range drawer, which keeps it off the page.
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground max-md:hidden">
+              <Switch size="sm" checked={chartsOn} onCheckedChange={setChartsOn} />
+              Charts
+            </label>
           }
         />
 
