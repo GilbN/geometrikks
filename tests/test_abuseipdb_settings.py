@@ -27,6 +27,14 @@ def test_blank_key_reads_as_unset(monkeypatch, blank):
     assert AbuseIpdbSettings().api_key is None
 
 
+@pytest.mark.parametrize("padded", ["abc \n", "  abc", "abc\r\n"])
+def test_key_is_stripped(monkeypatch, padded):
+    monkeypatch.setenv("ABUSEIPDB_API_KEY", padded)
+    api_key = AbuseIpdbSettings().api_key
+    assert api_key is not None
+    assert api_key.get_secret_value() == "abc"
+
+
 def test_reporting_without_key_fails_at_startup(monkeypatch):
     monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
     monkeypatch.setenv("ABUSEIPDB_REPORTING_ENABLED", "true")

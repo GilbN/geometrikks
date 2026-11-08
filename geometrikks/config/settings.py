@@ -1137,10 +1137,11 @@ class AbuseIpdbSettings(BaseSettings):
 
     @field_validator("api_key", mode="before")
     @classmethod
-    def blank_key_is_unset(cls, value: object) -> object:
-        """Read an empty or whitespace key, such as ``ABUSEIPDB_API_KEY=`` in a compose file, as unset."""
-        if isinstance(value, str) and not value.strip():
-            return None
+    def strip_key(cls, value: object) -> object:
+        """Strip the key, so ``ABUSEIPDB_API_KEY=`` in a compose file reads as unset."""
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
         return value
 
     @property

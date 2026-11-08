@@ -1,6 +1,7 @@
 """AbuseIPDB client: request shape, caching, rate limits and error mapping."""
 from __future__ import annotations
 
+import traceback
 from datetime import UTC, datetime
 from urllib.parse import parse_qs
 
@@ -244,6 +245,20 @@ async def test_errors_never_contain_the_key(response):
         await client.report("3.5.140.2", [21], "probing", REPORTED_AT)
     assert "test-key" not in str(exc.value)
     assert "test-key" not in exc.value.detail
+
+
+@pytest.mark.parametrize("endpoint", ["report", "check"])
+async def test_transport_error_text_never_reaches_the_traceback(endpoint):
+    client, _ = build_client(httpx2.LocalProtocolError("Illegal header value b'test-key\\n'"))
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        if endpoint == "report":
+            await client.report("3.5.140.2", [21], "probing", REPORTED_AT)
+        else:
+            await client.check("3.5.140.2")
+    assert exc.value.maybe_sent is (endpoint == "report")
+    assert "LocalProtocolError" in exc.value.detail
+    assert "test-key" not in "".join(traceback.format_exception(exc.value))
 
 
 def test_no_key_means_no_client():

@@ -216,11 +216,12 @@ class AbuseIpdbClient:
         except (httpx2.ConnectError, httpx2.ConnectTimeout, httpx2.PoolTimeout) as exc:
             raise AbuseIpdbUnavailableError(
                 f"Could not reach AbuseIPDB ({type(exc).__name__})", maybe_sent=False
-            ) from exc
+            ) from None
+        # httpx2's error text can quote the Key header, and the exception logger prints causes, so drop the cause.
         except httpx2.HTTPError as exc:
             raise AbuseIpdbUnavailableError(
                 f"AbuseIPDB request failed ({type(exc).__name__})", maybe_sent=maybe_sent
-            ) from exc
+            ) from None
 
         if 400 <= status < 500:
             detail = f"AbuseIPDB answered {status}" if body_problem else _error_detail(bytes(body), status)

@@ -1,15 +1,20 @@
 """The /api/v1/abuseipdb routes without a database: settings gates, the check and request validation."""
 from __future__ import annotations
 
+import traceback
+from typing import Any
+
 import httpx2
 import pytest
 from litestar import Litestar
 from litestar.di import Provide
+from litestar.logging.config import StructLoggingConfig
 from litestar.testing import AsyncTestClient
 from structlog.testing import capture_logs
 
 from geometrikks.domain.abuseipdb.controllers import AbuseIpdbController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+from geometrikks.server.logging import _capture_exc_info, _exception_logging_handler_factory
 from geometrikks.server.routes import create_api_v1_router
 from geometrikks.services.abuseipdb import AbuseIpdbClient
 from tests.support import ambient_settings_dependency
@@ -50,19 +55,35 @@ def recording_client(calls: list[httpx2.Request]) -> AbuseIpdbClient:
     return AbuseIpdbClient(api_key=API_KEY, timeout=5, transport=httpx2.MockTransport(handler))
 
 
-def make_app(client: AbuseIpdbClient | None) -> Litestar:
+class _UnsentReports:
+    """Just enough of the repository for a report whose AbuseIPDB call fails as maybe sent."""
+
+    async def latest_reported_at(self, ip: str) -> None:
+        return None
+
+    async def add(self, row: Any, **_: Any) -> Any:
+        row.id = 1
+        return row
+
+
+def make_app(
+    client: AbuseIpdbClient | None,
+    reports: object = None,
+    logging_config: StructLoggingConfig | None = None,
+) -> Litestar:
     class _TestController(AbuseIpdbController):
         dependencies = {
             **(AbuseIpdbController.dependencies or {}),
             "abuseipdb": Provide(lambda: client, sync_to_thread=False),
-            # Every route here fails before it reaches the database.
-            "abuseipdb_reports": Provide(lambda: None, sync_to_thread=False),
+            # Every route here except the maybe-sent report fails before it reaches the database.
+            "abuseipdb_reports": Provide(lambda: reports, sync_to_thread=False),
         }
 
     return Litestar(
         route_handlers=[create_api_v1_router([_TestController])],
         dependencies=ambient_settings_dependency(),
         exception_handlers=EXCEPTION_HANDLERS,
+        logging_config=logging_config,
     )
 
 
@@ -171,3 +192,41 @@ async def test_post_rejects_unknown_fields_and_bad_categories(body: dict[str, ob
         resp = await http.post("/api/v1/abuseipdb/reports", json=body)
     assert resp.status_code == 400
     assert resp.json()["code"] == "validation_failed"
+
+
+async def test_key_rejected_by_the_http_layer_never_reaches_the_logs(monkeypatch):
+    padded_key = f"{API_KEY}\n"
+    monkeypatch.setenv("ABUSEIPDB_API_KEY", API_KEY)
+    monkeypatch.setenv("ABUSEIPDB_REPORTING_ENABLED", "true")
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.LocalProtocolError(f"Illegal header value {padded_key.encode()!r}")
+
+    client = AbuseIpdbClient(api_key=padded_key, timeout=5, transport=httpx2.MockTransport(handler))
+    app = make_app(
+        client,
+        reports=_UnsentReports(),
+        logging_config=StructLoggingConfig(
+            log_exceptions="always",
+            exception_logging_handler=_exception_logging_handler_factory(debug=False),
+            cache_logger_on_first_use=False,
+        ),
+    )
+    # The real pipeline resolves exc_info=True to the live exception before anything renders it.
+    processors: list[Any] = [_capture_exc_info]
+    with capture_logs(processors=processors) as captured_logs:
+        async with AsyncTestClient(app) as http:
+            resp = await http.post("/api/v1/abuseipdb/reports", json={"reports": [VALID_REPORT]})
+
+    assert resp.status_code == 502
+    assert resp.json()["code"] == "abuseipdb_unconfirmed"
+    assert API_KEY not in resp.text
+    assert "Uncaught exception" in [entry["event"] for entry in captured_logs]
+    rendered = [
+        "".join(traceback.format_exception(entry["exc_info"][1]))
+        for entry in captured_logs
+        if isinstance(entry.get("exc_info"), tuple)
+    ]
+    assert rendered
+    assert not any(API_KEY in str(entry) for entry in captured_logs)
+    assert not any(API_KEY in text for text in rendered)
