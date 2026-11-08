@@ -12,8 +12,12 @@ export function sparklineGranularity(startMs: number, endMs: number): "hourly" |
   return endMs - startMs <= 7 * DAY_MS + HOUR_MS ? "hourly" : "daily"
 }
 
-export function hasSparklines(startMs: number, endMs: number): boolean {
-  const step = sparklineGranularity(startMs, endMs) === "hourly" ? HOUR_MS : DAY_MS
+export function hasSparklines(
+  startMs: number,
+  endMs: number,
+  granularity: "hourly" | "daily" = sparklineGranularity(startMs, endMs),
+): boolean {
+  const step = granularity === "hourly" ? HOUR_MS : DAY_MS
   return Math.ceil((endMs - startMs) / step) >= MIN_SPARKLINE_BUCKETS
 }
 
@@ -124,10 +128,15 @@ export function buildGeoLogSparklines(
   startMs: number,
   endMs: number,
 ): GeoLogSparklines {
-  const step = sparklineGranularity(startMs, endMs) === "hourly" ? HOUR_MS : DAY_MS
+  const step = series?.granularity === "daily" ? DAY_MS : HOUR_MS
   const rows = series?.data ?? []
+  // Past 30 days the card's total reads the daily rollup, and hourly rows may
+  // have expired. The line starts at its first row, or the expired part would
+  // read as no traffic under a total that counts it.
+  const hourlyOverLongRange = step === HOUR_MS && endMs - startMs > 30 * DAY_MS
+  const lineStartMs = !hourlyOverLongRange ? startMs : rows.length > 0 ? Date.parse(rows[0].timestamp) : endMs
   const counts = (pick: (row: (typeof rows)[number]) => number) =>
-    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), startMs, endMs, step)
+    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), lineStartMs, endMs, step)
   return {
     events: counts((row) => row.totalEvents),
     uniqueIps: counts((row) => row.uniqueIps),
