@@ -277,8 +277,8 @@ class AbuseIpdbClient:
         body = await self._request_body(endpoint, method, form)
         try:
             data = msgspec.json.decode(body)["data"]
-        except (msgspec.DecodeError, KeyError, TypeError) as exc:
-            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=maybe_sent) from exc
+        except (msgspec.DecodeError, KeyError, TypeError):
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=maybe_sent) from None
         if not isinstance(data, dict):
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=maybe_sent)
         return data
@@ -319,8 +319,9 @@ class AbuseIpdbClient:
                 is_whitelisted=_optional(data, "isWhitelisted", bool),
                 country_code=_optional(data, "countryCode", str),
             )
-        except (_BadPayloadError, ValueError) as exc:
-            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from exc
+        # fromisoformat quotes the upstream value, and the exception logger prints causes.
+        except (_BadPayloadError, ValueError):
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from None
         self._store_check(ip, result)
         logger.info("abuseipdb_check_fetched", ip_address=ip, score=result.abuse_confidence_score)
         return result
@@ -341,8 +342,8 @@ class AbuseIpdbClient:
         )
         try:
             result = ReportResult(_required_str(data, "ipAddress"), _required_int(data, "abuseConfidenceScore"))
-        except _BadPayloadError as exc:
-            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=True) from exc
+        except _BadPayloadError:
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=True) from None
         logger.info(
             "abuseipdb_report_upstream", ip_address=ip, categories=list(categories), score=result.abuse_confidence_score
         )
@@ -362,8 +363,9 @@ class AbuseIpdbClient:
             if not isinstance(entries, list):
                 raise _BadPayloadError("data")
             ips = [ip for entry in entries if (ip := _blacklist_entry_ip(entry)) is not None]
-        except (msgspec.DecodeError, _BadPayloadError, KeyError, TypeError, ValueError) as exc:
-            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from exc
+        # fromisoformat quotes the upstream value, and the exception logger prints causes.
+        except (msgspec.DecodeError, _BadPayloadError, KeyError, TypeError, ValueError):
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from None
         if not ips:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an empty blacklist", maybe_sent=False)
         return BlacklistResult(generated_at=generated_at, ips=list(dict.fromkeys(ips)))

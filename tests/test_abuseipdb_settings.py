@@ -77,3 +77,14 @@ def test_blacklist_refresh_interval_cannot_go_below_six_hours(monkeypatch):
     monkeypatch.setenv("ABUSEIPDB_BLACKLIST_REFRESH_HOURS", "5")
     with pytest.raises(ValidationError):
         AbuseIpdbSettings(_env_file=None)
+
+
+def test_blacklist_refresh_interval_cannot_go_above_36_hours(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_REFRESH_HOURS", "37")
+    with pytest.raises(ValidationError):
+        AbuseIpdbSettings(_env_file=None)
+
+
+def test_blacklist_refresh_interval_of_36_hours_is_accepted(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_REFRESH_HOURS", "36")
+    assert AbuseIpdbSettings(_env_file=None).blacklist_refresh_hours == 36

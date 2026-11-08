@@ -183,7 +183,7 @@ connection pool that runs dry or a log that rotates too often.
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
 | `DROP_REFRESH_HOURS` | `24` | Hours between DROP list downloads. A list is never fetched again within an hour of its last attempt, whatever this is set to. |
-| `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` | `24` | Hours between blacklist downloads. The list is never fetched again within 5 hours of the last attempt, since free plans get 5 calls a day. A list more than 72 hours old is no longer shown, so keep this well below that. |
+| `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` | `24` | Hours between blacklist downloads, from 6 to 36. The list is never fetched again within 5 hours of the last attempt, since free plans get 5 calls a day. If downloads keep failing, a list more than 72 hours old is no longer shown. |
 | `ABUSEIPDB_REQUEST_TIMEOUT` | `10.0` | AbuseIPDB request timeout in seconds |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |
 | `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Days after which to compress hypertable chunks |

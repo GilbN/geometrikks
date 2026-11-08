@@ -1142,10 +1142,11 @@ class AbuseIpdbSettings(BaseSettings):
     blacklist_refresh_hours: int = Field(
         default=24,
         ge=6,
+        le=36,
         description=(
-            "Hours between blacklist downloads. The list is never fetched again "
-            "within 5 hours of the last attempt, since free plans get 5 calls a day. "
-            "A list more than 72 hours old is no longer shown, so keep this well below that."
+            "Hours between blacklist downloads, from 6 to 36. The list is never fetched "
+            "again within 5 hours of the last attempt, since free plans get 5 calls a day. "
+            "If downloads keep failing, a list more than 72 hours old is no longer shown."
         ),
         json_schema_extra=ADVANCED_FIELD,
     )

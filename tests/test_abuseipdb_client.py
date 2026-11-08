@@ -524,3 +524,44 @@ async def test_blacklist_error_detail_never_contains_the_key():
     with pytest.raises(AbuseIpdbRejectedError) as exc:
         await client.blacklist()
     assert "test-key" not in exc.value.detail
+
+
+@pytest.mark.parametrize(
+    ("call", "body"),
+    [
+        (lambda client: client.blacklist(), blacklist_body("3.5.140.2", generated_at="not a time test-key")),
+        (
+            lambda client: client.check("3.5.140.2"),
+            {"data": {**CHECK_BODY["data"], "lastReportedAt": "not a time test-key"}},
+        ),
+    ],
+    ids=["blacklist-generated-at", "check-last-reported-at"],
+)
+async def test_a_malformed_timestamp_never_puts_the_key_in_a_traceback(call, body):
+    client, _ = build_client(httpx2.Response(200, json=body))
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        await call(client)
+    assert "test-key" not in "".join(traceback.format_exception(exc.value))
+
+
+@pytest.mark.parametrize(
+    ("call", "response"),
+    [
+        (lambda client: client.check("3.5.140.2"), httpx2.Response(200, content=b"<html>")),
+        (lambda client: client.check("3.5.140.2"), httpx2.Response(200, json={"data": {"ipAddress": None}})),
+        (
+            lambda client: client.report("3.5.140.2", [21], "probing", REPORTED_AT),
+            httpx2.Response(200, json={"data": {"ipAddress": None}}),
+        ),
+        (lambda client: client.blacklist(), httpx2.Response(200, content=b"<html>")),
+        (lambda client: client.blacklist(), httpx2.Response(200, json=blacklist_body(None))),
+    ],
+    ids=["request-not-json", "check-wrong-type", "report-wrong-type", "blacklist-not-json", "blacklist-wrong-type"],
+)
+async def test_a_malformed_answer_keeps_no_exception_cause(call, response):
+    client, _ = build_client(response)
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        await call(client)
+    assert exc.value.__cause__ is None

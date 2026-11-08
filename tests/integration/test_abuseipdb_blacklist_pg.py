@@ -1,6 +1,7 @@
 """The AbuseIPDB blacklist against Postgres: schema, the refresh rules and the read rules."""
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
@@ -58,6 +59,14 @@ def rate_limited(request: httpx2.Request) -> httpx2.Response:
     return httpx2.Response(
         429, json={"errors": [{"detail": "Daily rate limit of 5 requests exceeded", "status": 429}]}
     )
+
+
+def empty_list(request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, json={"meta": BLACKLIST_ANSWER["meta"], "data": []})
+
+
+def not_json(request: httpx2.Request) -> httpx2.Response:
+    return httpx2.Response(200, content=b"<html>")
 
 
 async def store_list(
@@ -175,6 +184,32 @@ async def test_never_fetches_within_five_hours_of_the_last_attempt(
         assert [entry["event"] for entry in captured_logs] == ["abuseipdb_blacklist_refresh_skipped"]
 
 
+@pytest.mark.parametrize(
+    "last_attempt_at",
+    [None, NOW - timedelta(hours=6)],
+    ids=["no-status-row", "old-status-row"],
+)
+async def test_concurrent_claims_let_exactly_one_through(
+    pg_session_maker, clean_abuseipdb_blacklist, last_attempt_at
+):
+    if last_attempt_at is not None:
+        await store_list(pg_session_maker, ["3.5.140.9"], last_attempt_at=last_attempt_at)
+
+    both_in_a_transaction = asyncio.Barrier(2)
+
+    async def claim() -> bool:
+        async with pg_session_maker() as session, session.begin():
+            # A claim is faster than opening a connection, so without this wait the two never overlap.
+            await session.execute(text("SELECT 1"))
+            await both_in_a_transaction.wait()
+            repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+            return await repository.claim_attempt(NOW, last_allowed=NOW - timedelta(hours=5))
+
+    claims = await asyncio.gather(claim(), claim())
+
+    assert sorted(claims) == [False, True]
+
+
 async def test_a_failed_attempt_also_starts_the_five_hour_wait(pg_session_maker, clean_abuseipdb_blacklist):
     failing_client, _ = blacklist_client(rate_limited)
     await refresh_blacklist(pg_session_maker, failing_client, now=NOW)
@@ -206,10 +241,21 @@ async def test_startup_fetches_a_list_older_than_the_interval(pg_session_maker, 
     assert len(calls) == 1
 
 
-async def test_a_failed_download_keeps_the_previous_list(pg_session_maker, clean_abuseipdb_blacklist):
+@pytest.mark.parametrize(
+    ("handler", "upstream_status", "reason"),
+    [
+        (rate_limited, 429, "Daily rate limit of 5 requests exceeded"),
+        (empty_list, None, "AbuseIPDB sent an empty blacklist"),
+        (not_json, None, "AbuseIPDB sent an unreadable answer"),
+    ],
+    ids=["rate-limited", "empty-list", "not-json"],
+)
+async def test_a_failed_download_keeps_the_previous_list(
+    pg_session_maker, clean_abuseipdb_blacklist, handler, upstream_status, reason
+):
     earlier = NOW - timedelta(hours=24)
     await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=earlier)
-    client, _ = blacklist_client(rate_limited)
+    client, _ = blacklist_client(handler)
 
     with capture_logs() as captured_logs:
         outcome = await refresh_blacklist(pg_session_maker, client, now=NOW)
@@ -221,8 +267,8 @@ async def test_a_failed_download_keeps_the_previous_list(pg_session_maker, clean
     assert (status.generated_at, status.refreshed_at, status.last_attempt_at) == (GENERATED_AT, earlier, NOW)
     failed_logs = [entry for entry in captured_logs if entry["event"] == "abuseipdb_blacklist_refresh_failed"]
     assert len(failed_logs) == 1
-    assert failed_logs[0]["upstream_status"] == 429
-    assert failed_logs[0]["reason"] == "Daily rate limit of 5 requests exceeded"
+    assert failed_logs[0]["upstream_status"] == upstream_status
+    assert failed_logs[0]["reason"] == reason
 
 
 async def test_a_failed_write_keeps_the_list_and_the_status_together(pg_session_maker, clean_abuseipdb_blacklist):
