@@ -2,7 +2,7 @@
  * TanStack Query hooks for GeoMetrikks API.
  */
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
@@ -105,8 +105,8 @@ import {
   fetchDropLists,
 } from "./api"
 import {
-  buildGeoLogSparklines,
   buildOverviewSparklines,
+  geoLogSparklinesFromSeries,
   hasSparklines,
   sparklineGranularity,
   type CardSparklines,
@@ -243,8 +243,6 @@ export const queryKeys = {
       [...queryKeys.geoLogs.all, "summary", params, refreshKey] as const,
     timeSeries: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geoLogs.all, "time-series", params, refreshKey] as const,
-    sparklines: (params: Record<string, unknown>, refreshKey?: number) =>
-      [...queryKeys.geoLogs.all, "sparklines", params, refreshKey] as const,
     topIps: (params: Record<string, unknown>, refreshKey?: number) =>
       [...queryKeys.geoLogs.all, "top-ips", params, refreshKey] as const,
     topCountries: (params: Record<string, unknown>, refreshKey?: number) =>
@@ -1120,66 +1118,95 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
 }
 
 /**
- * The charts on a page's stat cards, hourly up to a week and daily above,
- * whatever the page's chart granularity. Switching them off keeps the last
- * lines, so the cards can fold them away instead of dropping them. `scope`
- * holds whatever else the lines depend on, such as the page's filters; a new
- * scope sweeps the lines in again, as a new range does.
+ * The charts on a page's stat cards, at the page's chart granularity.
+ * Switching them off keeps the last lines, so the cards can fold them away
+ * instead of dropping them. `scope` holds whatever else the lines depend on,
+ * such as the page's filters; a new scope sweeps the lines in again, as a new
+ * range does.
  */
-function useCardSparklines<Lines>(
+function useCardSparklines<Data, Lines>(
   enabled: boolean,
   queryKey: (params: Record<string, unknown>, refreshKey?: number) => readonly unknown[],
   scope: Record<string, unknown>,
-  fetchLines: (window: { startDate: string; endDate: string; granularity: "hourly" | "daily" }) => Promise<Lines>,
+  fetchData: (window: { startDate: string; endDate: string; granularity: "hourly" | "daily" }) => Promise<Data>,
+  toLines: (data: Data) => Lines,
 ): CardSparklines<Lines> {
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const drawable = hasSparklines(Date.parse(startDate), Date.parse(endDate))
+  const granularity = useCardChartGranularity()
+  const drawable = hasSparklines(Date.parse(startDate), Date.parse(endDate), granularity)
   const shown = enabled && drawable
-  const granularity = sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
+
+  const key = queryKey({ range, customRange, granularity, ...scope }, lastRefresh)
 
   const query = useQuery({
-    queryKey: queryKey({ range, customRange, granularity, ...scope }, lastRefresh),
-    queryFn: async () => {
+    // A hidden card stays off a key the page's chart fills. Otherwise the
+    // chart's data for a range too short to draw becomes the next placeholder.
+    queryKey: shown ? key : [...key, "hidden"],
+    queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return {
-        lines: await fetchLines({ startDate, endDate, granularity }),
-        drawKey: JSON.stringify([range, customRange, scope]),
-      }
+      return fetchData({ startDate, endDate, granularity })
     },
+    select: toLines,
     enabled: shown,
     // Each refresh is a new key; keeping the last lines stops them blinking out.
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
     refetchInterval,
   })
-  const data = drawable ? query.data : undefined
-  return { shown, drawable, lines: data?.lines, drawKey: data?.drawKey ?? "" }
+
+  const scopeKey = JSON.stringify([range, customRange, granularity, scope])
+  const [drawnScope, setDrawnScope] = useState("")
+  if (query.data !== undefined && !query.isPlaceholderData && drawnScope !== scopeKey) {
+    setDrawnScope(scopeKey)
+  }
+
+  return {
+    shown,
+    drawable,
+    lines: drawable ? query.data : undefined,
+    drawKey: drawable ? drawnScope : "",
+  }
 }
+
+const sameLines = <Lines>(lines: Lines) => lines
 
 /** The Overview cards' charts. They ignore the Analytics page's filters, since the cards do too. */
 export function useOverviewSparklines({ enabled = true }: { enabled?: boolean } = {}): CardSparklines<OverviewSparklines> {
-  return useCardSparklines(enabled, queryKeys.analytics.overviewSparklines, {}, async ({ startDate, endDate, granularity }) => {
-    const [access, geo] = await Promise.all([
-      fetchTimeSeries({ startDate, endDate, granularity }),
-      fetchGeoTimeSeries({ startDate, endDate, granularity }),
-    ])
-    return buildOverviewSparklines(access, geo, Date.parse(startDate), Date.parse(endDate))
-  })
+  return useCardSparklines(
+    enabled,
+    queryKeys.analytics.overviewSparklines,
+    {},
+    async ({ startDate, endDate, granularity }) => {
+      const [access, geo] = await Promise.all([
+        fetchTimeSeries({ startDate, endDate, granularity }),
+        fetchGeoTimeSeries({ startDate, endDate, granularity }),
+      ])
+      return buildOverviewSparklines(access, geo, Date.parse(startDate), Date.parse(endDate))
+    },
+    sameLines,
+  )
+}
+
+/** Chart buckets for the card charts, and for Geo Logs' Over-time chart so that page sends one request. */
+function useCardChartGranularity(): "hourly" | "daily" {
+  const { range, customRange, granularity } = useTimeRange()
+  if (granularity !== "auto") return granularity
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+  return sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
 }
 
 /** The Geo Logs cards' charts, under the page's filters like the cards. */
 export function useGeoLogSparklines({ enabled = true }: { enabled?: boolean } = {}): CardSparklines<GeoLogSparklines> {
   const { filters } = useGeoLogFilters()
-  return useCardSparklines(enabled, queryKeys.geoLogs.sparklines, { filters }, async ({ startDate, endDate, granularity }) => {
-    const series = await fetchGeoLogTimeSeries({
-      fromTimestamp: startDate,
-      toTimestamp: endDate,
-      granularity,
-      ...filters,
-    })
-    return buildGeoLogSparklines(series, Date.parse(startDate), Date.parse(endDate))
-  })
+  return useCardSparklines(
+    enabled,
+    queryKeys.geoLogs.timeSeries,
+    { filters },
+    ({ startDate, endDate, granularity }) =>
+      fetchGeoLogTimeSeries({ fromTimestamp: startDate, toTimestamp: endDate, granularity, ...filters }),
+    geoLogSparklinesFromSeries,
+  )
 }
 
 /**
@@ -1594,9 +1621,9 @@ export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?:
 /** Bucketed geo-event totals + unique IPs for the geo-logs chart. */
 export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, customRange, granularity, refetchInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
-  const resolved = resolveChartGranularity(granularity, range, customRange)
+  const resolved = useCardChartGranularity()
 
   return useQuery({
     queryKey: queryKeys.geoLogs.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),
