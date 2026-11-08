@@ -29,7 +29,7 @@ async function login(page: Page) {
   expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
 }
 
-async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; rowIps?: string[] } = {}) {
+async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; rowIps?: string[]; writeEnabled?: boolean } = {}) {
   const recorded = { blacklistRequests: 0, status: options.status ?? statusOn }
   const rowIps = options.rowIps ?? [LISTED_IP]
   await login(page)
@@ -39,7 +39,7 @@ async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; ro
     return route.fulfill({ json: listed })
   })
   await page.route("**/api/v1/crowdsec/status", (route) =>
-    route.fulfill({ json: { enabled: true, writeEnabled: false, lapiReachable: true, liveUpdates: false } }),
+    route.fulfill({ json: { enabled: true, writeEnabled: options.writeEnabled ?? false, lapiReachable: true, liveUpdates: false } }),
   )
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
   await page.route(
@@ -69,6 +69,13 @@ const badgeIn = (container: Locator) => container.getByTitle("On AbuseIPDB's bla
 
 test.describe("desktop", () => {
   test.use({ viewport: { width: 1360, height: 900 } })
+
+  test("a record sheet marks a listed IP", async ({ page }) => {
+    await setup(page)
+    await page.goto("/access-logs")
+    await page.getByText("/.env").first().click()
+    await expect(badgeIn(openSheet(page))).toBeVisible()
+  })
 
   test("the inspector header marks a listed IP", async ({ page }) => {
     await setup(page)
@@ -150,6 +157,20 @@ test.describe("portrait phone", () => {
     await page.goto("/access-logs")
     await ipActions(page).click()
     const drawer = openDrawer(page)
+    await expect(badgeIn(drawer)).toBeVisible()
+  })
+})
+
+test.describe("ban drawer", () => {
+  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
+
+  test("marks a listed IP", async ({ page }) => {
+    await setup(page, { writeEnabled: true })
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    await openDrawer(page).getByRole("button", { name: "Ban IP" }).click()
+    const drawer = openDrawer(page)
+    await expect(drawer.getByText("Ban this IP in CrowdSec for")).toBeVisible()
     await expect(badgeIn(drawer)).toBeVisible()
   })
 })

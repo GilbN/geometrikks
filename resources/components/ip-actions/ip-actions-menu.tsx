@@ -810,7 +810,12 @@ export function IpActionsMenu({
           }}
           onMoreOptions={() => openIpBanDialog(afterBanClose)}
           returnFocusTo={triggerRef}
-          badges={dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+          badges={
+            <>
+              {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+              {blacklisted && <AbuseIpdbBlacklistBadge className="font-sans" />}
+            </>
+          }
         >
           {dropBanShown && (
             <DropNetworkChoices
