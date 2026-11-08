@@ -2003,6 +2003,7 @@ export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
+    refetchOnMount: (query) => query.state.status !== "error",
     retryOnMount: false,
   })
 }

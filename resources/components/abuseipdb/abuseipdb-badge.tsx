@@ -22,6 +22,17 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
   const check = useAbuseIpdbCheck(ip, true)
   const result = check.data
 
+  if (check.isError) {
+    return (
+      <>
+        <Button variant="outline" size="xs" disabled={check.isFetching} onClick={() => void check.refetch()}>
+          Retry AbuseIPDB check
+        </Button>
+        <span className="text-xs text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</span>
+      </>
+    )
+  }
+
   if (result) {
     const reports = `${formatNumber(result.totalReports)} ${result.totalReports === 1 ? "report" : "reports"}`
     const label = [
@@ -43,17 +54,6 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
       >
         {label.filter(Boolean).join(" · ")}
       </Badge>
-    )
-  }
-
-  if (check.isError) {
-    return (
-      <>
-        <Button variant="outline" size="xs" onClick={() => void check.refetch()}>
-          Retry AbuseIPDB check
-        </Button>
-        <span className="text-xs text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</span>
-      </>
     )
   }
 

@@ -26,6 +26,8 @@ interface Fixture {
   evidenceFor: (url: URL) => AbuseReportResponse
   /** How many /check requests fail before one answers. */
   checkFailures: number
+  /** Every /check request from this one on fails. */
+  checkFailsFrom: number | null
   /** The IP of the first Access Logs row. */
   rowIp: string
   /** More Access Logs rows, one per IP. */
@@ -112,6 +114,7 @@ function defaultFixture(): Fixture {
     postBody: { results: [{ ipAddress: IP, status: "reported", abuseConfidenceScore: 88, reportedAt: new Date().toISOString(), error: null }] },
     evidenceFor: () => evidence(),
     checkFailures: 0,
+    checkFailsFrom: null,
     rowIp: IP,
     extraRowIps: [],
     storedReportsFailure: null,
@@ -154,7 +157,7 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
     recorded.checks += 1
     const ipAddress = new URL(route.request().url()).searchParams.get("ipAddress") ?? ""
     recorded.checkedIps.push(ipAddress)
-    if (recorded.checks <= fixture.checkFailures) {
+    if (recorded.checks <= fixture.checkFailures || (fixture.checkFailsFrom !== null && recorded.checks >= fixture.checkFailsFrom)) {
       return route.fulfill({ status: 502, json: { status_code: 502, detail: "AbuseIPDB did not answer.", code: "abuseipdb_unavailable" } })
     }
     return route.fulfill({ json: ipAddress === IP ? check : { ...check, ipAddress, abuseConfidenceScore: 12, totalReports: 3 } })
@@ -597,6 +600,23 @@ test.describe("desktop", () => {
     await page.clock.fastForward("02:00")
     await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
     await expect.poll(() => recorded.checks).toBe(2)
+  })
+
+  test("a failed refresh shows the reason and waits for Retry", async ({ page }) => {
+    const { recorded } = await setup(page, { checkFailsFrom: 2 })
+    await page.clock.install()
+    await page.goto("/access-logs")
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await page.clock.fastForward("14:00")
+    await closeSheet(page)
+    await page.clock.fastForward("02:00")
+    await expect((await inspectFromMenu(page)).getByText("AbuseIPDB did not answer.")).toBeVisible()
+    expect(recorded.checks).toBe(2)
+    await closeSheet(page)
+    const sheet = await inspectFromMenu(page)
+    await expect(sheet.getByRole("button", { name: "Retry AbuseIPDB check" })).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(recorded.checks).toBe(2)
   })
 
   test("a score from the report dialog shows in the inspector without another check", async ({ page }) => {
