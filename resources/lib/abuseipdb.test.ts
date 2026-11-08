@@ -11,6 +11,7 @@ import {
   isPublicIp,
   localScenarios,
   MAX_COMMENT_LENGTH,
+  reportedItemRefreshIn,
   reportedItemState,
   reportItemState,
 } from "./abuseipdb"
@@ -301,6 +302,29 @@ describe("reportedItemState", () => {
     })
     expect(reportedItemState(entry("2026-11-04T12:00:00Z"), now).detail).toBe("reported 3 d ago")
     expect(reportedItemState(entry("2026-10-28T12:00:00Z"), now).detail).toBe("reported on 2026-10-28")
+  })
+})
+
+describe("reportedItemRefreshIn", () => {
+  const now = Date.parse("2026-11-07T12:00:00Z")
+  const entry = (reportedAt: string): ReportedIpDto => ({ ipAddress: "3.5.140.2", reportedAt, status: "sent" })
+
+  test("nothing to refresh without a report or past the window", () => {
+    expect(reportedItemRefreshIn(undefined, now)).toBeNull()
+    expect(reportedItemRefreshIn(entry("2026-11-07T11:45:00Z"), now)).toBeNull()
+    expect(reportedItemRefreshIn(entry("2026-11-07T11:30:00Z"), now)).toBeNull()
+  })
+
+  test("inside the window it waits for the next minute of the countdown", () => {
+    expect(reportedItemRefreshIn(entry("2026-11-07T11:54:00Z"), now)).toBe(60_000)
+    expect(reportedItemRefreshIn(entry("2026-11-07T11:45:30Z"), now)).toBe(30_000)
+  })
+
+  test("the last refresh lands when the window ends", () => {
+    const reportedAt = "2026-11-07T11:45:20Z"
+    const wait = reportedItemRefreshIn(entry(reportedAt), now)!
+    expect(reportedItemState(entry(reportedAt), now + wait - 1).disabled).toBe(true)
+    expect(reportedItemState(entry(reportedAt), now + wait).disabled).toBe(false)
   })
 })
 

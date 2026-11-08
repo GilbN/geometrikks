@@ -45,7 +45,7 @@ import { BanDrawer } from "@/components/map/PanelBanButton"
 import { IpFilterToggles } from "@/components/ip-actions/ip-filter-toggles"
 import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { usePollingHold } from "@/lib/time-range-context"
-import { canonicalIp, reportItemState } from "@/lib/abuseipdb"
+import { canonicalIp, reportedItemRefreshIn, reportItemState } from "@/lib/abuseipdb"
 import { copyText } from "@/lib/clipboard"
 import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
@@ -349,9 +349,9 @@ export function IpActionsMenu({
   // Auto refresh waits while this row's menu, ban drawer or one of its dialogs
   // is open, so new rows can't push the row, and the open menu with it, off the page.
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuOpenedAt, setMenuOpenedAt] = useState(() => Date.now())
+  const [reportClock, setReportClock] = useState(() => Date.now())
   const changeMenuOpen = (next: boolean) => {
-    if (next) setMenuOpenedAt(Date.now())
+    if (next) setReportClock(Date.now())
     setMenuOpen(next)
   }
   const { data: abuseStatus } = useAbuseIpdbStatus()
@@ -361,7 +361,13 @@ export function IpActionsMenu({
   const { data: reportedIps } = useReportedIps(menuOpen)
   const reportIp = canonicalIp(ip)
   const reportedEntry = reportIp === null ? undefined : reportedIps?.get(reportIp)
-  const reportState = reportItemState(ip, reportedEntry, menuOpenedAt)
+  const reportState = reportItemState(ip, reportedEntry, reportClock)
+  const reportRefreshIn = menuOpen ? reportedItemRefreshIn(reportedEntry, reportClock) : null
+  useEffect(() => {
+    if (reportRefreshIn === null) return
+    const timer = setTimeout(() => setReportClock(Date.now()), reportRefreshIn)
+    return () => clearTimeout(timer)
+  }, [reportRefreshIn, reportClock])
   const [banDrawerOpen, setBanDrawerOpen] = useState(false)
   // The ban drawer unmounts when write access goes. Its history entry and
   // polling hold live here, so close it rather than leave them on. The hook

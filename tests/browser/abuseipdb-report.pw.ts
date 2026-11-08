@@ -436,6 +436,19 @@ test.describe("desktop", () => {
     await expect(item).toHaveAttribute("data-disabled", "")
   })
 
+  test("the countdown follows the clock while the menu stays open", async ({ page }) => {
+    await setup(page, { reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(14), status: "sent" }] })
+    await page.clock.install()
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    const item = reportItem(page)
+    await expect(item).toContainText("again in 1 min")
+    await expect(item).toHaveAttribute("data-disabled", "")
+    await page.clock.fastForward(61_000)
+    await expect(item).toContainText("reported 15 min ago")
+    await expect(item).not.toHaveAttribute("data-disabled")
+  })
+
   test("another spelling of a reported IPv6 address finds its report", async ({ page }) => {
     const rowIp = "2600:1F18:0:0::1"
     await setup(page, { rowIp, reportedIps: [{ ipAddress: "2600:1f18::1", reportedAt: minutesAgo(6), status: "sent" }] })

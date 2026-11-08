@@ -250,6 +250,14 @@ export function agoText(at: string, now: number): string {
   return ageLabel(Math.max(0, now - Date.parse(at)), at)
 }
 
+/** How long until the item's countdown moves on, or null when nothing on it is counting down. */
+export function reportedItemRefreshIn(entry: ReportedIpDto | undefined, now: number): number | null {
+  if (!entry) return null
+  const remainingMs = REPORT_INTERVAL_MS - Math.max(0, now - Date.parse(entry.reportedAt))
+  if (remainingMs <= 0) return null
+  return remainingMs % MINUTE_MS || MINUTE_MS
+}
+
 export function reportItemState(
   ip: string,
   entry: ReportedIpDto | undefined,
