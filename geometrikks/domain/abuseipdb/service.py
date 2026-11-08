@@ -175,7 +175,7 @@ async def submit_report(
     if latest is not None and (wait := latest + REPORT_INTERVAL - now) > timedelta(0):
         raise RecentReportError(math.ceil(wait.total_seconds()))
 
-    # Skip the refresh here too. If it failed after the commit, an unsent row would block the IP.
+    # Skip the refresh. If it failed after the commit, an unsent row would block the IP.
     # Without a reload, ip_address also stays the normalized str rather than asyncpg's ipaddress object.
     row = await repository.add(
         AbuseIpdbReport(
@@ -212,7 +212,6 @@ async def submit_report(
 
     row.status = "sent"
     row.abuse_confidence_score = result.abuse_confidence_score
-    row.reported_at = now
     try:
         # Skip the refresh. If it failed after the commit, a sent row would be reported as unconfirmed.
         row = await repository.update(row, auto_commit=True, auto_refresh=False)
