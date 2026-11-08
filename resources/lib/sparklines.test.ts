@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildGeoLogSparklines, buildOverviewSparklines, fillGaps, hasSparklines, sparklineGranularity } from "./sparklines"
+import { buildGeoLogSparklines, buildOverviewSparklines, fillGaps, geoLogSparklinesFromSeries, hasSparklines, sparklineGranularity } from "./sparklines"
 import type { TimeSeriesResponse } from "./api"
 
 const HOUR = 3_600_000
@@ -110,5 +110,17 @@ describe("buildGeoLogSparklines", () => {
       uniqueCountries: [0, 3, 0, 0, 1, 0],
       uniqueCities: [0, 2, 0, 0, 1, 0],
     })
+  })
+})
+
+describe("geoLogSparklinesFromSeries", () => {
+  it("fills gaps across the window the response echoes", () => {
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-11-06T10:00:00.000000+00:00",
+      endDate: "2026-11-06T16:00:00.000000+00:00",
+      data: [{ timestamp: "2026-11-06T12:00:00Z", totalEvents: 7, uniqueIps: 3, uniqueCountries: 2, uniqueCities: 1 }],
+    }
+    expect(geoLogSparklinesFromSeries(series).events).toEqual([0, 0, 7, 0, 0, 0])
   })
 })
