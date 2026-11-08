@@ -50,6 +50,16 @@ export function fillGaps(
 }
 
 /**
+ * Past 30 days a card's total reads the daily rollup, and hourly rows may have
+ * expired. An hourly line there starts at its first row, or the expired part
+ * would read as no traffic under a total that counts it.
+ */
+function lineStartMs(rows: readonly { timestamp: string }[], step: number, startMs: number, endMs: number): number {
+  if (step !== HOUR_MS || endMs - startMs <= 30 * DAY_MS) return startMs
+  return rows.length > 0 ? Date.parse(rows[0].timestamp) : endMs
+}
+
+/**
  * A page's card charts. `drawable` is false when the range is too short to
  * draw a shape, and `shown` is also false while charts are off. `drawKey`
  * names the data the lines belong to and changes when that data's lines
@@ -89,11 +99,16 @@ export function buildOverviewSparklines(
   startMs: number,
   endMs: number,
 ): OverviewSparklines {
-  const step = sparklineGranularity(startMs, endMs) === "hourly" ? HOUR_MS : DAY_MS
+  const step = (timeSeries?.granularity ?? geoSeries?.granularity) === "daily" ? DAY_MS : HOUR_MS
   const access = timeSeries?.data ?? []
   const geo = geoSeries?.data ?? []
   const counts = <T extends { timestamp: string }>(rows: readonly T[], pick: (row: T) => number) =>
-    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), startMs, endMs, step)
+    fillGaps(
+      rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })),
+      lineStartMs(rows, step, startMs, endMs),
+      endMs,
+      step,
+    )
   const present = (pick: (row: (typeof access)[number]) => number | null | undefined) =>
     access.flatMap((row) => {
       const value = pick(row)
@@ -130,13 +145,8 @@ export function buildGeoLogSparklines(
 ): GeoLogSparklines {
   const step = series?.granularity === "daily" ? DAY_MS : HOUR_MS
   const rows = series?.data ?? []
-  // Past 30 days the card's total reads the daily rollup, and hourly rows may
-  // have expired. The line starts at its first row, or the expired part would
-  // read as no traffic under a total that counts it.
-  const hourlyOverLongRange = step === HOUR_MS && endMs - startMs > 30 * DAY_MS
-  const lineStartMs = !hourlyOverLongRange ? startMs : rows.length > 0 ? Date.parse(rows[0].timestamp) : endMs
   const counts = (pick: (row: (typeof rows)[number]) => number) =>
-    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), lineStartMs, endMs, step)
+    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), lineStartMs(rows, step, startMs, endMs), endMs, step)
   return {
     events: counts((row) => row.totalEvents),
     uniqueIps: counts((row) => row.uniqueIps),
