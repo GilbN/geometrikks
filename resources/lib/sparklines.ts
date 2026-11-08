@@ -135,3 +135,8 @@ export function buildGeoLogSparklines(
     uniqueCities: counts((row) => row.uniqueCities),
   }
 }
+
+/** Reads the window from the response, since these lines can be another range's placeholder data. */
+export function geoLogSparklinesFromSeries(series: GeoLogTimeSeriesResponse): GeoLogSparklines {
+  return buildGeoLogSparklines(series, Date.parse(series.startDate), Date.parse(series.endDate))
+}
