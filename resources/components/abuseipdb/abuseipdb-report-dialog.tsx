@@ -597,12 +597,13 @@ function ReportForm({
               }}
               aria-invalid={attackTimeError !== null || undefined}
               className={cn(
-                "h-8 py-0",
+                "h-8",
                 inDrawer
                   ? // iOS Safari sizes its native date control by its content and ignores
                     // width: 100% unless the native look is off, and it centers the value.
-                    "block w-full appearance-none text-left text-base [&::-webkit-date-and-time-value]:text-left"
-                  : "w-56 text-xs md:text-xs",
+                    // As a block it also stops centering the text vertically, so the padding does.
+                    "block w-full appearance-none py-[3px] text-left text-base [&::-webkit-date-and-time-value]:text-left"
+                  : "w-56 py-0 text-xs md:text-xs",
               )}
             />
             {prefill && <span className="text-[11px] text-muted-foreground">{prefill.attackTimeSource}</span>}
