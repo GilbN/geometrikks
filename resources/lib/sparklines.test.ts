@@ -101,6 +101,30 @@ describe("buildOverviewSparklines", () => {
   })
 })
 
+describe("buildOverviewSparklines at other granularities", () => {
+  const counted = (timestamp: string) => ({ timestamp, totalRequests: 5, status2xx: 5, status3xx: 0, status4xx: 0, status5xx: 0, totalBytesSent: 10 })
+
+  it("fills gaps a day apart when the response is daily", () => {
+    const series = {
+      granularity: "daily",
+      startDate: "2026-11-01T00:00:00Z",
+      endDate: "2026-11-08T00:00:00Z",
+      data: [counted("2026-11-03T00:00:00Z")],
+    } as TimeSeriesResponse
+    expect(buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate)).requests).toEqual([0, 0, 5, 0, 0, 0, 0])
+  })
+
+  it("starts an hourly line at its first row past 30 days", () => {
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-08-01T00:00:00Z",
+      endDate: "2026-11-08T00:00:00Z",
+      data: [counted("2026-11-07T22:00:00Z")],
+    } as TimeSeriesResponse
+    expect(buildOverviewSparklines(series, undefined, at(series.startDate), at(series.endDate)).requests).toEqual([5, 0])
+  })
+})
+
 describe("buildGeoLogSparklines", () => {
   it("zero-fills every count from the gaps between buckets", () => {
     const start = at("2026-11-06T10:00:00Z")
