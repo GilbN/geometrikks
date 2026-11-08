@@ -18,6 +18,7 @@ import { IpBanControls } from "./IpBanControls"
 import { CountryLabel } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { AbuseIpdbBlacklistPopupRow } from "./AbuseIpdbBlacklistPopupRow"
 import { DropPopupRow } from "./DropPopupRow"
 import { POPUP_OFFSET, POPUP_ROW_ICON_STYLE, PopupCard, PopupRow as Row } from "./PopupCard"
 import { ArrowDownToLine, Building2, Globe, Link2, MapPin, MapPinOff, MonitorSmartphone, Network, Server, Timer } from "lucide-react"
@@ -106,6 +107,7 @@ function LiveRequestDetail({
         }
       />
       <DropPopupRow ip={request.ip} />
+      <AbuseIpdbBlacklistPopupRow ip={request.ip} />
       {request.server && <Row label="Server" icon={<Server style={POPUP_ROW_ICON_STYLE} />} value={request.server} />}
       <Row
         label="Location"

@@ -107,7 +107,7 @@ const check: CheckResponse = {
 
 function defaultFixture(): Fixture {
   return {
-    status: { enabled: true, reportingEnabled: true, reports: { limit: 1000, remaining: 986, resetsAt: null }, checks: null },
+    status: { enabled: true, reportingEnabled: true, blacklistEnabled: false, reports: { limit: 1000, remaining: 986, resetsAt: null }, checks: null },
     reportedIps: [],
     storedReports: [],
     postStatus: 200,
@@ -637,7 +637,7 @@ test.describe("desktop", () => {
     await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
     await page.waitForTimeout(500)
     expect(privateAddress.checks).toBe(0)
-    const { recorded: noKey } = await setup(page, { status: { enabled: false, reportingEnabled: false, reports: null, checks: null } })
+    const { recorded: noKey } = await setup(page, { status: { enabled: false, reportingEnabled: false, blacklistEnabled: false, reports: null, checks: null } })
     await page.goto(`/access-logs?inspect=${IP}`)
     await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
     await page.waitForTimeout(500)
@@ -645,7 +645,7 @@ test.describe("desktop", () => {
   })
 
   test("inspector shows the AbuseIPDB link without a key", async ({ page }) => {
-    await setup(page, { status: { enabled: false, reportingEnabled: false, reports: null, checks: null } })
+    await setup(page, { status: { enabled: false, reportingEnabled: false, blacklistEnabled: false, reports: null, checks: null } })
     await page.goto(`/access-logs?inspect=${IP}`)
     const link = openSheet(page).getByRole("link", { name: "AbuseIPDB" })
     await expect(link).toHaveAttribute("href", `https://www.abuseipdb.com/check/${IP}`)

@@ -16,6 +16,7 @@ import type { BannedMapIp, DecisionView } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { AbuseIpdbBlacklistPopupRow } from "./AbuseIpdbBlacklistPopupRow"
 import { DropPopupRow } from "./DropPopupRow"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { ExternalLinkButton } from "@/components/crowdsec/external-link"
@@ -133,6 +134,7 @@ function IpDetails({
         }
       />
       <DropPopupRow ip={member.ip} />
+      <AbuseIpdbBlacklistPopupRow ip={member.ip} />
       <PopupRow label="Events" icon={<Activity style={POPUP_ROW_ICON_STYLE} />} value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>} />
       <PopupRow label="Location" icon={<MapPin style={POPUP_ROW_ICON_STYLE} />} value={member.city ?? "Unknown"} />
       {member.countryCode && (

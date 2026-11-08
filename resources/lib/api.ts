@@ -32,6 +32,7 @@ import {
   apiV1AbuseipdbReportedIpsListReportedIps,
   apiV1AbuseipdbReportsCreateReports,
   apiV1AbuseipdbReportsListReports,
+  apiV1AbuseipdbBlacklistGetBlacklist,
   apiV1AbuseipdbStatusGetAbuseipdbStatus,
   apiV1AuthApiKeysListApiKeys,
   apiV1AuthApiKeysCreateApiKey,
@@ -918,6 +919,11 @@ export async function fetchAbuseContact(target: AbuseReportTarget) {
 
 export async function fetchAbuseIpdbStatus() {
   const { data } = await apiV1AbuseipdbStatusGetAbuseipdbStatus({ throwOnError: true })
+  return data
+}
+
+export async function fetchAbuseIpdbBlacklist() {
+  const { data } = await apiV1AbuseipdbBlacklistGetBlacklist({ throwOnError: true })
   return data
 }
 

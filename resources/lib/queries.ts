@@ -68,6 +68,7 @@ import {
   fetchIpProfile,
   fetchAbuseReport,
   fetchAbuseContact,
+  fetchAbuseIpdbBlacklist,
   fetchAbuseIpdbStatus,
   fetchReportedIps,
   fetchAbuseIpdbReports,
@@ -114,7 +115,7 @@ import {
 } from "./sparklines"
 import { canonicalIp } from "./abuseipdb"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
-import type { DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
+import type { AbuseIpdbBlacklistResponse, DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -273,6 +274,7 @@ export const queryKeys = {
   },
   abuseipdb: {
     status: ["abuseipdb", "status"] as const,
+    blacklist: ["abuseipdb", "blacklist"] as const,
     reportedIps: ["abuseipdb", "reported-ips"] as const,
     reports: (ip: string) => ["abuseipdb", "reports", ip] as const,
     check: (ip: string) => ["abuseipdb", "check", ip] as const,
@@ -1954,6 +1956,34 @@ export function useAbuseIpdbStatus() {
     queryFn: fetchAbuseIpdbStatus,
     staleTime: 60_000,
   })
+}
+
+// Every IP menu is an observer, so the Set is cached per response like selectBannedRanges.
+const blacklistSets = new WeakMap<AbuseIpdbBlacklistResponse, Set<string>>()
+
+function selectBlacklist(blacklist: AbuseIpdbBlacklistResponse): Set<string> {
+  let blacklistSet = blacklistSets.get(blacklist)
+  if (blacklistSet === undefined) {
+    blacklistSet = new Set(blacklist.ips)
+    blacklistSets.set(blacklist, blacklistSet)
+  }
+  return blacklistSet
+}
+
+export function useAbuseIpdbBlacklist() {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.blacklist,
+    queryFn: fetchAbuseIpdbBlacklist,
+    enabled: status?.blacklistEnabled === true,
+    staleTime: 60 * 60_000,
+    select: selectBlacklist,
+  })
+}
+
+export function useAbuseIpdbBlacklisted(ip: string): boolean {
+  const { data: blacklist } = useAbuseIpdbBlacklist()
+  return blacklist?.has(canonicalIp(ip) ?? ip) ?? false
 }
 
 // Every IP menu is an observer, so the Map is cached per response like selectBannedRanges.
