@@ -30,6 +30,8 @@ interface Fixture {
   rowIp: string
   /** Fails the earlier-reports list with this detail. */
   storedReportsFailure: string | null
+  /** Fails the evidence request with this detail. */
+  evidenceFailure: string | null
 }
 
 interface Recorded {
@@ -109,6 +111,7 @@ function defaultFixture(): Fixture {
     checkFailures: 0,
     rowIp: IP,
     storedReportsFailure: null,
+    evidenceFailure: null,
   }
 }
 
@@ -169,6 +172,9 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
     const url = new URL(route.request().url())
     recorded.evidenceRequests.push(url)
     if (gates.evidence) await gates.evidence
+    if (fixture.evidenceFailure) {
+      return route.fulfill({ status: 500, json: { status_code: 500, detail: fixture.evidenceFailure } })
+    }
     return route.fulfill({ json: fixture.evidenceFor(url) })
   })
   await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
@@ -471,6 +477,17 @@ test.describe("desktop", () => {
     const dialog = await openReportFromMenu(page)
     await expect(dialog.getByText("The database is unavailable.")).toBeVisible()
     await expect(dialog.getByText("None from GeoMetrikks yet.")).toHaveCount(0)
+  })
+
+  test("a failed evidence load says so instead of staying on loading", async ({ page }) => {
+    await setup(page, { evidenceFailure: "The evidence query timed out." })
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    await reportItem(page).click()
+    const dialog = reportDialog(page)
+    await expect(dialog.getByText("The evidence query timed out.")).toBeVisible()
+    await expect(dialog.getByText("Loading the evidence for this window…")).toHaveCount(0)
+    await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled()
   })
 
   test("unconfirmed report reads 'may have been sent'", async ({ page }) => {

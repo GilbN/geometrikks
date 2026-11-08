@@ -2014,6 +2014,8 @@ export function useAbuseReportForRange(
 ) {
   return useQuery({
     ...abuseReportQueryOptions(target, selection, { maxIps: 1, linesPerIp: 0, enabled }),
+    // The polling hold pauses retries here too, as in useAbuseIpdbReports.
+    retry: false,
     placeholderData: (previous, previousQuery) => {
       const previousParams = previousQuery?.queryKey[2] as { target?: AbuseReportTarget } | undefined
       return JSON.stringify(previousParams?.target) === JSON.stringify(target) ? previous : undefined
