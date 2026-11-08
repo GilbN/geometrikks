@@ -356,6 +356,8 @@ export function IpActionsMenu({
   }
   const { data: abuseStatus } = useAbuseIpdbStatus()
   const reportingEnabled = abuseStatus?.reportingEnabled === true
+  // The dialog unmounts when reporting goes off, so close it rather than leave the polling hold on.
+  if (reportDialogOpen && !reportingEnabled) setReportDialogOpen(false)
   const { data: reportedIps } = useReportedIps(menuOpen)
   const reportState = reportedItemState(reportedIps?.get(ip), menuOpenedAt)
   const [banDrawerOpen, setBanDrawerOpen] = useState(false)

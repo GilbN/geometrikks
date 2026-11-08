@@ -23,6 +23,9 @@ interface Fixture {
   storedReports: StoredReportDto[]
   postStatus: number
   postBody: unknown
+  evidenceFor: (url: URL) => AbuseReportResponse
+  /** How many /check requests fail before one answers. */
+  checkFailures: number
 }
 
 interface Recorded {
@@ -48,7 +51,7 @@ function minutesAgo(minutes: number) {
 // Fixed once, so a minute that turns mid-test can't move what the test expects.
 const FIRST_SEEN = minutesAgo(180)
 
-function ipEvidence(): ReportIpDto {
+function ipEvidence(overrides: Partial<ReportIpDto> = {}): ReportIpDto {
   return {
     ipAddress: IP,
     alerts: [{
@@ -71,14 +74,15 @@ function ipEvidence(): ReportIpDto {
     status2xx: 14, status3xx: 0, status4xx: 398, status5xx: 0,
     totalBytes: 41_200, totalRequests: 412,
     userAgents: [{ userAgent: "Mozilla/5.0 zgrab/0.x", hits: 412 }],
+    ...overrides,
   }
 }
 
-function evidence(): AbuseReportResponse {
+function evidence(ipEntry = ipEvidence()): AbuseReportResponse {
   return {
     crowdsec: { status: "ok", message: null },
     startDate: minutesAgo(24 * 60), endDate: new Date().toISOString(), generatedAt: new Date().toISOString(),
-    granularity: "hourly", ipCount: 1, ips: [ipEvidence()], redactions: 3,
+    granularity: "hourly", ipCount: 1, ips: [ipEntry], redactions: 3,
     status4xx: 398, totalRequests: 412,
     target: { kind: "ip", ipAddress: IP, asn: null, asnDrop: false, asnOrganization: null },
   }
@@ -97,7 +101,14 @@ function defaultFixture(): Fixture {
     storedReports: [],
     postStatus: 200,
     postBody: { results: [{ ipAddress: IP, status: "reported", abuseConfidenceScore: 88, reportedAt: new Date().toISOString(), error: null }] },
+    evidenceFor: () => evidence(),
+    checkFailures: 0,
   }
+}
+
+function windowHours(url: URL) {
+  const span = Date.parse(url.searchParams.get("endDate")!) - Date.parse(url.searchParams.get("startDate")!)
+  return Math.round(span / (60 * MINUTE_MS))
 }
 
 async function login(page: Page) {
@@ -111,25 +122,43 @@ async function login(page: Page) {
 async function setup(page: Page, changes: Partial<Fixture> = {}) {
   const fixture = { ...defaultFixture(), ...changes }
   const recorded: Recorded = { checks: 0, evidenceRequests: [], posts: [], extraPosts: 0 }
+  const gates: { evidence: Promise<void> | null; post: Promise<void> | null } = { evidence: null, post: null }
+  /** Holds the requests that arrive from now on until the returned function releases them. */
+  const hold = (name: keyof typeof gates) => {
+    let release = () => {}
+    gates[name] = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    return () => {
+      gates[name] = null
+      release()
+    }
+  }
   await login(page)
   await page.route("**/api/v1/abuseipdb/status", (route) => route.fulfill({ json: fixture.status }))
   await page.route("**/api/v1/abuseipdb/reported-ips", (route) => route.fulfill({ json: fixture.reportedIps }))
   await page.route("**/api/v1/abuseipdb/check?*", (route) => {
     recorded.checks += 1
+    if (recorded.checks <= fixture.checkFailures) {
+      return route.fulfill({ status: 502, json: { status_code: 502, detail: "AbuseIPDB did not answer.", code: "abuseipdb_unavailable" } })
+    }
     return route.fulfill({ json: check })
   })
-  await page.route("**/api/v1/abuseipdb/reports*", (route) => {
+  await page.route("**/api/v1/abuseipdb/reports*", async (route) => {
     if (route.request().method() !== "POST") return route.fulfill({ json: fixture.storedReports })
     recorded.posts.push(route.request().postDataJSON())
+    if (gates.post) await gates.post
     if (recorded.posts.length > 1) {
       recorded.extraPosts += 1
       return route.fulfill({ status: 500, json: { status_code: 500, detail: "Sent twice." } })
     }
     return route.fulfill({ status: fixture.postStatus, json: fixture.postBody })
   })
-  await page.route("**/api/v1/reports/abuse?*", (route) => {
-    recorded.evidenceRequests.push(new URL(route.request().url()))
-    return route.fulfill({ json: evidence() })
+  await page.route("**/api/v1/reports/abuse?*", async (route) => {
+    const url = new URL(route.request().url())
+    recorded.evidenceRequests.push(url)
+    if (gates.evidence) await gates.evidence
+    return route.fulfill({ json: fixture.evidenceFor(url) })
   })
   await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
     enabled: true, writeEnabled: false, lapiReachable: true, liveUpdates: false,
@@ -145,7 +174,7 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
     }],
     total: 1, limit: 20, offset: 0,
   } }))
-  return { fixture, recorded }
+  return { fixture, recorded, hold }
 }
 
 const ipActions = (page: Page) => page.getByRole("button", { name: `Actions for ${IP}` }).first()
@@ -171,6 +200,11 @@ async function openRecordSheet(page: Page) {
   const sheet = openSheet(page)
   await expect(sheet).toBeVisible()
   return sheet
+}
+
+/** Two animation frames, so React has rendered what the last change caused. */
+async function nextFrames(page: Page) {
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 }
 
 async function expectRightFullHeight(page: Page, drawer: Locator) {
@@ -282,6 +316,106 @@ test.describe("desktop", () => {
     await expect(send).toBeDisabled()
   })
 
+  test("a new window's evidence replaces the form before Send unlocks", async ({ page }) => {
+    const firstSeen24h = minutesAgo(50)
+    const { hold } = await setup(page, {
+      evidenceFor: (url) => windowHours(url) === 24
+        ? evidence(ipEvidence({ firstSeen: firstSeen24h, totalRequests: 60, status4xx: 50, paths: [{ url: "/wp-login.php", hits: 50, errorHits: 50 }] }))
+        : evidence(),
+    })
+    const dialog = await openReportFromMenu(page)
+    const comment = dialog.getByLabel("Comment")
+    const send = dialog.getByRole("button", { name: "Send report" })
+    await expect(send).toBeEnabled()
+
+    const release = hold("evidence")
+    await dialog.getByRole("combobox", { name: "Evidence window" }).click()
+    await page.getByRole("option", { name: "Last 24h" }).click()
+    await expect(dialog.getByText("Loading the evidence for this window…")).toBeVisible()
+    await expect(send).toBeDisabled()
+    await expect(comment).toBeDisabled()
+    await expect(dialog.getByLabel("Attack time")).toBeDisabled()
+    await expect(dialog.getByRole("button", { name: "21 Web App Attack" })).toBeDisabled()
+    await expect(comment).toHaveValue(/Probed \/\.env/)
+
+    release()
+    await expect(comment).toHaveValue(/Probed \/wp-login\.php/)
+    await expect(dialog.getByLabel("Attack time")).toHaveValue(localInputValue(firstSeen24h))
+    await expect(dialog.getByText("Loading the evidence for this window…")).toHaveCount(0)
+    await expect(send).toBeEnabled()
+  })
+
+  test("an untouched prefill in a repeated DST hour sends the evidence's own instant", async ({ page }) => {
+    // At 01:00 UTC on 2026-10-25 Oslo turns 03:00 back to 02:00, so 02:30 happens twice.
+    const firstSeen = "2026-10-25T01:30:00Z"
+    const { recorded } = await setup(page, {
+      evidenceFor: () => evidence(ipEvidence({ firstSeen, lastSeen: "2026-10-25T03:00:00Z" })),
+    })
+    const dialog = await openReportFromMenu(page)
+    await expect(dialog.getByLabel("Attack time")).toHaveValue("2026-10-25T02:30")
+    await expect(dialog.getByText("sent as 2026-10-25 01:30 UTC")).toBeVisible()
+    await dialog.getByRole("button", { name: "Send report" }).click()
+    await expect(dialog).toHaveCount(0)
+    const body = recorded.posts[0] as { reports: { attackTime: string }[] }
+    expect(body.reports[0].attackTime).toBe("2026-10-25T01:30:00.000Z")
+  })
+
+  test("a local time the clocks skip is refused", async ({ page }) => {
+    await setup(page)
+    const dialog = await openReportFromMenu(page)
+    // Oslo jumps from 02:00 to 03:00 on 2026-03-29.
+    await dialog.getByLabel("Attack time").fill("2026-03-29T02:30")
+    await expect(dialog.getByText("That time doesn't exist in your time zone, because the clocks skip it.")).toBeVisible()
+    await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled()
+    await dialog.getByLabel("Attack time").fill("2026-03-29T03:30")
+    await expect(dialog.getByText(/clocks skip it/)).toHaveCount(0)
+    await expect(dialog.getByText("sent as 2026-03-29 01:30 UTC")).toBeVisible()
+  })
+
+  test("a send that finishes after Cancel leaves the reopened report alone", async ({ page }) => {
+    const { recorded, hold } = await setup(page)
+    const dialog = await openReportFromMenu(page)
+    const release = hold("post")
+    await dialog.getByRole("button", { name: "Send report" }).click()
+    await expect.poll(() => recorded.posts.length).toBe(1)
+    await dialog.getByRole("button", { name: "Cancel" }).click()
+    await expect(dialog).toHaveCount(0)
+
+    await ipActions(page).click()
+    await reportItem(page).click()
+    const reopened = reportDialog(page)
+    const comment = reopened.getByLabel("Comment")
+    await expect(comment).toBeEnabled()
+    await comment.fill("Edited after the first send.")
+
+    release()
+    await settledToastBox(page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB. Confidence score 88%.` }))
+    await expect(reopened).toBeVisible()
+    await expect(comment).toHaveValue("Edited after the first send.")
+    expect(recorded.posts).toHaveLength(1)
+  })
+
+  test("Check can retry after a failed check", async ({ page }) => {
+    const { recorded } = await setup(page, { checkFailures: 1 })
+    const dialog = await openReportFromMenu(page)
+    const checkButton = dialog.getByRole("button", { name: "Check (uses 1 check)" })
+    await checkButton.click()
+    await expect(dialog.getByText("AbuseIPDB did not answer.")).toBeVisible()
+    expect(recorded.checks).toBe(1)
+    await checkButton.click()
+    await expect(dialog.getByText("87% confidence")).toBeVisible()
+    expect(recorded.checks).toBe(2)
+  })
+
+  test("a double click on Send posts one report", async ({ page }) => {
+    const { recorded } = await setup(page)
+    const dialog = await openReportFromMenu(page)
+    await dialog.getByRole("button", { name: "Send report" }).dblclick()
+    await settledToastBox(page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB.` }))
+    expect(recorded.posts).toHaveLength(1)
+    expect(recorded.extraPosts).toBe(0)
+  })
+
   test("reported within 15 minutes is disabled with a countdown", async ({ page }) => {
     await setup(page, { reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(6), status: "sent" }] })
     await page.goto("/access-logs")
@@ -365,12 +499,15 @@ test.describe("portrait phone", () => {
     await expect(report).toBeDisabled()
   })
 
-  test("phone width opens a drawer and Escape closes only it", async ({ page }) => {
+  test("phone width opens the record sheet's menu drawer, and Escape closes only the report", async ({ page }) => {
     await setup(page)
     const sheet = await openRecordSheet(page)
     await sheet.getByRole("button", { name: `Actions for ${IP}` }).click()
-    await reportItem(page).click()
     const drawer = openDrawer(page)
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await expect(drawer.getByRole("button", { name: "Inspect IP" })).toHaveCount(0)
+    await expect(drawer.getByRole("button").last()).toHaveAccessibleName(/^Report to AbuseIPDB…/)
+    await reportButton(drawer).click()
     await expect(drawer.getByRole("heading", { name: REPORT_TITLE })).toBeVisible()
     await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "bottom")
     await expect(drawer.getByLabel("Comment")).not.toHaveValue("")
@@ -393,14 +530,10 @@ test.describe("portrait phone", () => {
     const picker = drawer.getByRole("combobox", { name: "Evidence window" })
     expect(await picker.evaluate((element) => element.tagName)).toBe("SELECT")
 
-    const windowHours = () => {
-      const latest = recorded.evidenceRequests.at(-1)!
-      const span = Date.parse(latest.searchParams.get("endDate")!) - Date.parse(latest.searchParams.get("startDate")!)
-      return Math.round(span / (60 * MINUTE_MS))
-    }
+    const latestWindowHours = () => windowHours(recorded.evidenceRequests.at(-1)!)
     await picker.selectOption("24h")
     await expect(picker).toHaveValue("24h")
-    await expect.poll(windowHours).toBe(24)
+    await expect.poll(latestWindowHours).toBe(24)
 
     await comment.fill("Edited by hand.")
     await picker.selectOption("30d")
@@ -412,8 +545,30 @@ test.describe("portrait phone", () => {
     await picker.selectOption("30d")
     await confirm.getByRole("button", { name: "Discard" }).click()
     await expect(picker).toHaveValue("30d")
-    await expect.poll(windowHours).toBe(30 * 24)
+    await expect.poll(latestWindowHours).toBe(30 * 24)
     await expect(comment).toHaveValue(prefilled)
+  })
+
+  test("Back with Discard your changes? open leaves the page usable", async ({ page }) => {
+    await setup(page)
+    await page.goto("/")
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    const drawer = openDrawer(page)
+    await reportButton(drawer).click()
+    const comment = drawer.getByLabel("Comment")
+    await expect(comment).toBeEnabled()
+    await comment.fill("Edited by hand.")
+    await drawer.getByRole("combobox", { name: "Evidence window" }).selectOption("24h")
+    const confirm = page.getByRole("alertdialog", { name: "Discard your changes?" })
+    await expect(confirm).toBeVisible()
+
+    await page.goBack()
+    await expect(confirm).toHaveCount(0)
+    await expect(page).toHaveURL(/\/access-logs$/)
+    await expect.poll(() => page.evaluate(() => document.body.style.pointerEvents)).not.toBe("none")
+    await ipActions(page).click()
+    await expect(reportButton(openDrawer(page))).toBeVisible()
   })
 })
 
@@ -443,8 +598,9 @@ test.describe("phone held sideways", () => {
     await page.goto("/")
     const sheet = await openRecordSheet(page)
     await sheet.getByRole("button", { name: `Actions for ${IP}` }).click()
-    await reportItem(page).click()
     const drawer = openDrawer(page)
+    await expect(page.getByRole("menu")).toHaveCount(0)
+    await reportButton(drawer).click()
     await expect(drawer.getByRole("heading", { name: REPORT_TITLE })).toBeVisible()
     await expectRightFullHeight(page, drawer)
     await expect(drawer.getByRole("button", { name: "Close" })).toBeVisible()
@@ -465,7 +621,7 @@ test.describe("turning a phone with the report open", () => {
     const drawer = openDrawer(page)
     const openReport = async () => {
       await sheet.getByRole("button", { name: `Actions for ${IP}` }).click()
-      await reportItem(page).click()
+      await reportButton(drawer).click()
       await expect(drawer.getByRole("heading", { name: REPORT_TITLE })).toBeVisible()
       await expect(drawer.getByLabel("Comment")).not.toHaveValue("")
     }
@@ -479,8 +635,9 @@ test.describe("turning a phone with the report open", () => {
     await openReport()
     await drawer.getByLabel("Comment").fill("Probed /.env for credentials.")
     await page.setViewportSize({ width: 932, height: 430 })
-    await page.waitForTimeout(600)
-    await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "bottom")
+    await expect.poll(() => page.evaluate(() => matchMedia("(orientation: landscape)").matches)).toBe(true)
+    await nextFrames(page)
+    await expect.poll(() => drawer.getAttribute("data-vaul-drawer-direction")).toBe("bottom")
     await expect(drawer.getByLabel("Comment")).toHaveValue("Probed /.env for credentials.")
 
     await page.goBack()

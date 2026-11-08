@@ -79,6 +79,8 @@ interface Prefill {
   fromCrowdsec: boolean
   comment: string
   attackTime: string
+  /** The evidence's own instant behind `attackTime`. */
+  attackTimeIso: string | null
   attackTimeSource: string
 }
 
@@ -98,10 +100,17 @@ function localInputValue(iso: string): string {
 }
 
 /** Null for an empty or incomplete value, which only disables Send. */
-function parseAttackTime(localValue: string): { iso: string } | { error: string } | null {
+function parseAttackTime(localValue: string, prefilledIso: string | null): { iso: string } | { error: string } | null {
   if (!localValue) return null
-  const attackTime = new Date(localValue)
+  // In the hour a DST change repeats, one wall-clock time names two instants,
+  // so an untouched prefill sends the evidence's own instant.
+  const untouched = prefilledIso !== null && localValue === localInputValue(prefilledIso)
+  const attackTime = new Date(untouched ? prefilledIso : localValue)
   if (Number.isNaN(attackTime.getTime())) return null
+  // A time the clocks skip comes back moved by the length of the gap.
+  if (localInputValue(attackTime.toISOString()) !== localValue.slice(0, 16)) {
+    return { error: "That time doesn't exist in your time zone, because the clocks skip it." }
+  }
   if (attackTime.getTime() > Date.now()) return { error: "The attack time can't be in the future." }
   return { iso: attackTime.toISOString() }
 }
@@ -113,6 +122,7 @@ function prefillFrom(ipEvidence: ReportIpDto | undefined): Prefill {
       fromCrowdsec: false,
       comment: "",
       attackTime: "",
+      attackTimeIso: null,
       attackTimeSource: "nothing in the window to date it",
     }
   }
@@ -124,6 +134,7 @@ function prefillFrom(ipEvidence: ReportIpDto | undefined): Prefill {
     fromCrowdsec,
     comment: buildReportComment(ipEvidence, scenarios),
     attackTime: attackTime ? localInputValue(attackTime) : "",
+    attackTimeIso: attackTime,
     attackTimeSource: ipEvidence.firstSeen
       ? "first request in the window"
       : attackTime
@@ -206,7 +217,7 @@ function CheckResult({ ip }: { ip: string }) {
           size="xs"
           className="normal-case tracking-normal"
           disabled={check.isFetching || result !== undefined}
-          onClick={() => setRequested(true)}
+          onClick={() => (check.isError ? void check.refetch() : setRequested(true))}
         >
           {check.isFetching && <Loader2 data-icon="inline-start" className="animate-spin" />}
           Check (uses 1 check)
@@ -261,6 +272,7 @@ function EarlierReports({ reports, loading }: { reports: StoredReportDto[] | und
 function ReportForm({
   ip,
   open,
+  session,
   inDrawer,
   side,
   onEdit,
@@ -268,6 +280,8 @@ function ReportForm({
 }: {
   ip: string
   open: boolean
+  /** Counts the dialog's openings, so a send knows whether its dialog is still the open one. */
+  session: number
   inDrawer: boolean
   side: boolean
   /** Runs on every change to the report and on Send. */
@@ -296,7 +310,7 @@ function ReportForm({
 
   const report = evidence.data
   const ipEvidence = report?.ips[0]
-  if (report !== undefined && report !== prefilledFrom && !touched) {
+  if (report !== undefined && !evidence.isPlaceholderData && report !== prefilledFrom && !touched) {
     const next = prefillFrom(ipEvidence)
     setPrefilledFrom(report)
     setPrefill(next)
@@ -306,7 +320,12 @@ function ReportForm({
     setAttackTime(next.attackTime)
   }
 
+  // The previous window's evidence stays on screen while the new one loads, and must not be sent.
+  const ready = prefilledFrom !== null && !evidence.isPlaceholderData
+
   const submitting = useRef(false)
+  const sessionRef = useRef(session)
+  sessionRef.current = session
   // Radix keeps the form mounted through the close animation, so a closed
   // dialog shows up as open=false before it unmounts.
   const live = useRef(open)
@@ -352,12 +371,13 @@ function ReportForm({
   const alertCount = ipEvidence?.alerts.length ?? 0
 
   const length = commentLength(comment)
-  const parsedAttackTime = parseAttackTime(attackTime)
+  const parsedAttackTime = parseAttackTime(attackTime, prefill?.attackTimeIso ?? null)
   const attackTimeError = parsedAttackTime && "error" in parsedAttackTime ? parsedAttackTime.error : null
   const attackTimeIso = parsedAttackTime && "iso" in parsedAttackTime ? parsedAttackTime.iso : null
   const latestReport = earlierReports.data?.[0]
   const windowOpen = latestReport !== undefined && Date.now() - Date.parse(latestReport.reportedAt) < REPORT_INTERVAL_MS
   const canSend =
+    ready &&
     prefill !== null &&
     categories.length > 0 &&
     comment.trim().length > 0 &&
@@ -370,6 +390,8 @@ function ReportForm({
     if (submitting.current || !canSend || attackTimeIso === null) return
     onEdit()
     submitting.current = true
+    const startedIn = sessionRef.current
+    const stillOpen = () => live.current && sessionRef.current === startedIn
     setError(null)
     try {
       const response = await submitReport.mutateAsync({
@@ -379,12 +401,12 @@ function ReportForm({
         attackTime: attackTimeIso,
       })
       const score = response.results[0]?.abuseConfidenceScore
-      onDone()
+      if (stillOpen()) onDone()
       toast.success(
         score == null ? `Reported ${ip} to AbuseIPDB.` : `Reported ${ip} to AbuseIPDB. Confidence score ${score}%.`,
       )
     } catch (err) {
-      if (live.current) setError(errorDetail(err, "The report failed; AbuseIPDB may be unreachable."))
+      if (stillOpen()) setError(errorDetail(err, "The report failed; AbuseIPDB may be unreachable."))
     } finally {
       submitting.current = false
     }
@@ -493,8 +515,10 @@ function ReportForm({
             />
             <Fact value={`${alertCount}${ipEvidence?.alertsTruncated ? "+" : ""}`} label="CrowdSec alerts" />
           </div>
-          {evidence.isError && (
+          {evidence.isError ? (
             <p className="text-sm text-red-500">{errorDetail(evidence.error, "Could not load the evidence for this window.")}</p>
+          ) : (
+            !ready && <p className="text-[11px] text-muted-foreground">Loading the evidence for this window…</p>
           )}
         </Section>
 
@@ -506,6 +530,7 @@ function ReportForm({
                 variant="outline"
                 size="sm"
                 pressed={categories.includes(id)}
+                disabled={!ready}
                 onPressedChange={(pressed) => toggleCategory(id, pressed)}
                 className="h-6 min-w-0 rounded-full px-2.5 text-xs font-normal shadow-none aria-pressed:border-primary/70 aria-pressed:bg-primary/20"
               >
@@ -529,6 +554,7 @@ function ReportForm({
           <Textarea
             id="abuseipdb-comment"
             value={comment}
+            disabled={!ready}
             onChange={(event) => {
               setComment(event.target.value)
               edit()
@@ -552,7 +578,9 @@ function ReportForm({
               id="abuseipdb-attack-time"
               type="datetime-local"
               required
+              max={localInputValue(new Date().toISOString())}
               value={attackTime}
+              disabled={!ready}
               onChange={(event) => {
                 setAttackTime(event.target.value)
                 edit()
@@ -647,6 +675,12 @@ export function AbuseIpdbReportDialog({
   const [edited, setEdited] = useState(false)
   if (!open && edited) setEdited(false)
   const markEdited = () => setEdited(true)
+  const [session, setSession] = useState(0)
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setSession((current) => current + 1)
+  }
   const drawer = usePhoneDrawer("abuseipdb-report", open, () => onOpenChange(false), { keepWhileOpen: edited })
   const restoreFocus = (event: Event) => {
     if (!returnFocusTo?.current) return
@@ -657,6 +691,7 @@ export function AbuseIpdbReportDialog({
     <ReportForm
       ip={ip}
       open={open}
+      session={session}
       inDrawer={drawer.phone}
       side={drawer.side}
       onEdit={markEdited}
