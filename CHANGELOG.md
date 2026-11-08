@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Totals and charts over ranges longer than 24 hours include the last few hours of traffic. The aggregate refresh that runs every six hours also counted the day and the hour still in progress. Requests that arrived after it were left out of daily figures until the next day and of hourly ones for up to two hours. On an install that ran an earlier version, the daily figures for the day of the upgrade catch up by 01:00 UTC the next day.
 - On ranges over 24 hours, `GET /api/v1/analytics/summary` and `GET /api/v1/integration/summary` return request counts, status counts and the error rate as numbers. They used to come back as strings, and the Overview failed with a 500 when one of the two periods it compares had no requests.
 - On a phone held sideways, the header and side panels such as the IP inspector stay clear of the notch.
+- Map popups no longer cut off the left edge of the dashed DROP outline and the CrowdSec decision color around an IP.
 - The large figure on the Traffic origin card on Analytics is the share of whichever category sent the most requests, and the text beside it says which category that is. It used to show the Hosting share even when Other sent more.
 - On a develop image, View on GitHub on Settings > Changelog opens the changelog on the develop branch. It used to open the main branch, which lacks the changes listed under Unreleased.
 - Startup no longer logs `` `uuid-utils` not installed, falling back to `uuid4` for UUID v7 generation. ``

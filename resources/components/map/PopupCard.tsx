@@ -267,7 +267,11 @@ export function PopupCard({
       >
         {header}
       </div>
-      <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>{children}</div>
+      {/* A scroll box clips sideways too, so it reaches 6px into the card's
+          padding for the IP pill's -ml-1.5 to stay visible. */}
+      <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", margin: "0 -6px", padding: "0 6px" }}>
+        {children}
+      </div>
     </div>
   )
 }
