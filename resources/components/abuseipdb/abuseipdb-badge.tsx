@@ -31,7 +31,7 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
       result.isWhitelisted ? "whitelisted" : null,
     ]
     const title = [
-      `${result.abuseConfidenceScore}% confidence from ${formatNumber(result.numDistinctUsers)} users`,
+      `${result.abuseConfidenceScore}% confidence from ${formatNumber(result.numDistinctUsers)} ${result.numDistinctUsers === 1 ? "user" : "users"}`,
       result.lastReportedAt ? `last reported ${agoText(result.lastReportedAt, Date.now())}` : "never reported",
       result.usageType,
     ]
@@ -49,13 +49,10 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
   if (check.isError) {
     return (
       <>
-        <Button variant="outline" size="xs" disabled={check.isFetching} onClick={() => void check.refetch()}>
-          {check.isFetching && <Loader2 data-icon="inline-start" className="animate-spin" />}
+        <Button variant="outline" size="xs" onClick={() => void check.refetch()}>
           Retry AbuseIPDB check
         </Button>
-        {!check.isFetching && (
-          <span className="text-xs text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</span>
-        )}
+        <span className="text-xs text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</span>
       </>
     )
   }

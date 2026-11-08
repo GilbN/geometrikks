@@ -112,7 +112,7 @@ Set these only for a feature you use, or to change a default.
 
 | Variable | Default | Description |
 |---|---|---|
-| `ABUSEIPDB_API_KEY` | - | AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against api.abuseipdb.com. Opening an IP in the inspector sends it to AbuseIPDB and uses one daily check. |
+| `ABUSEIPDB_API_KEY` | - | AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB and uses one daily check, at most once per IP every 15 minutes. |
 | `ABUSEIPDB_REPORTING_ENABLED` | `false` | Allow reporting IPs to AbuseIPDB from the UI. A report sends the IP, your comment, the categories and the attack time to AbuseIPDB, where they are public. Needs ABUSEIPDB_API_KEY. |
 
 ### OpenID Connect
