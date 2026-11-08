@@ -116,7 +116,7 @@ function requestCountPart(ip: ReportIpDto): string | null {
 
 export function buildReportComment(ip: ReportIpDto, scenarios: string[]): string {
   const countPart = requestCountPart(ip)
-  const scenarioNames = scenarios.map((scenario) => scenarioName(scenario).name)
+  const scenarioNames = [...new Set(scenarios.map((scenario) => scenarioName(scenario).name))]
   const probedPaths = ip.paths.filter((path) => path.errorHits > 0).map((path) => path.url)
   const userAgent = ip.userAgents[0]?.userAgent
   const userAgentPart = userAgent ? `User agent: ${userAgent}.` : null

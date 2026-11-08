@@ -188,6 +188,10 @@ describe("buildReportComment", () => {
     expect(comment).not.toContain("/9aaa")
   })
 
+  test("names a scenario once when two authors share it", () => {
+    expect(buildReportComment(ipEvidence(), ["crowdsecurity/ssh-bf", "custom/ssh-bf"])).toBe("CrowdSec: ssh-bf.")
+  })
+
   test("a scenario's reason stays out of the comment", () => {
     expect(buildReportComment(ipEvidence(), ["geometrikks/manual-ban: spam"])).toBe("CrowdSec: manual-ban.")
   })
