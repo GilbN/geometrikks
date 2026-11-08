@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import { PHONE_QUERY, PHONE_SIDE_QUERY } from "@/hooks/use-phone-map"
-import { drawerLayout, isKeyboardOpen, isPortraitList, settleDrawerLayout } from "./phone-layout"
+import { drawerLayout, isKeyboardOpen, isPortraitList, isViewportStuck, settleDrawerLayout } from "./phone-layout"
 
 describe("isPortraitList", () => {
   it("is the narrow portrait case only", () => {
@@ -26,6 +26,17 @@ describe("isKeyboardOpen", () => {
     expect(isKeyboardOpen({ ...base, scale: 1.02 })).toBe(false)
   })
   it("ignores small shrinks such as the URL bar", () => expect(isKeyboardOpen({ ...base, viewportHeight: 760 })).toBe(false))
+})
+
+describe("isViewportStuck", () => {
+  const stuck = { focusedEditable: false, scale: 1, tallestHeight: 844, innerHeight: 797 }
+  it("is stuck when the page stays one status bar short", () => expect(isViewportStuck(stuck)).toBe(true))
+  it("waits while a field has focus", () => expect(isViewportStuck({ ...stuck, focusedEditable: true })).toBe(false))
+  it("ignores a pinch zoom", () => expect(isViewportStuck({ ...stuck, scale: 1.6 })).toBe(false))
+  it("ignores a difference of 4px or less", () => {
+    expect(isViewportStuck({ ...stuck, innerHeight: 840 })).toBe(false)
+    expect(isViewportStuck({ ...stuck, innerHeight: 839 })).toBe(true)
+  })
 })
 
 describe("main.css phone variants", () => {

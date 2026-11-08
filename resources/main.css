@@ -132,6 +132,20 @@
   --map-top-inset: env(safe-area-inset-top, 0px);
 }
 
+/* An installed iOS app tints the blur over the status bar with the page color.
+   These are the water colors of the two CARTO basemaps. */
+@media (display-mode: standalone) {
+  :root:has([data-shell-top]:empty),
+  :root:has([data-shell-top]:empty) body {
+    background-color: #d4dadc;
+  }
+
+  :root.dark:has([data-shell-top]:empty),
+  :root.dark:has([data-shell-top]:empty) body {
+    background-color: #2c353c;
+  }
+}
+
 /* Later blocks win at equal specificity, so the sideways cases follow portrait. */
 @media (width < 48rem) {
   :root {

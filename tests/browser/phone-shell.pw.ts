@@ -24,6 +24,9 @@ async function settledToast(page: Page, text: string | RegExp) {
   return settledToastBox(toast)
 }
 
+const MAP_WATER_DARK = "rgb(44, 53, 60)"
+const bodyColor = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+
 async function degradeHealth(page: Page) {
   await page.route("**/health", async (route) => {
     const response = await route.fetch()
@@ -155,6 +158,30 @@ test.describe("portrait phone", () => {
     expect(bar.y - (toast.y + toast.height)).toBeCloseTo(12, 0)
     expect(toast.x).toBeCloseTo(20, 0)
     expect(toast.width).toBeCloseTo(393 - 40, 0)
+  })
+
+  test("gives an installed app's page the water color on the map only", async ({ page }) => {
+    await login(page)
+    // Chromium accepts a display-mode emulation request and ignores it.
+    await page.route(/\/assets\/main-[^/]+\.css/, async (route) => {
+      const response = await route.fetch()
+      await route.fulfill({ response, body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0") })
+    })
+
+    await page.goto("/map")
+    await expect.poll(() => bodyColor(page)).toBe(MAP_WATER_DARK)
+
+    await barCells(page).filter({ hasText: "Overview" }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect.poll(() => bodyColor(page)).not.toBe(MAP_WATER_DARK)
+  })
+
+  test("keeps the page color in a browser tab on the map", async ({ page }) => {
+    await login(page)
+    await page.goto("/map")
+    await expect(page.locator(".maplibregl-canvas")).toBeVisible()
+    await expect(page.locator("[data-shell-top]")).toBeEmpty()
+    expect(await bodyColor(page)).not.toBe(MAP_WATER_DARK)
   })
 
   test("stops toasts on the map short of the pill", async ({ page }) => {
