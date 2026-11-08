@@ -141,7 +141,7 @@ export function PhoneTimeRangeControls({ chip = false }: { chip?: boolean }) {
     <>
       <RefreshButton className={chip ? CHIP_REFRESH : undefined} />
       <TimeRangePicker
-        refreshControls={{ chartBuckets: routeHeader.chartBuckets, overviewCharts: routeHeader.overviewCharts }}
+        refreshControls={{ chartBuckets: routeHeader.chartBuckets, cardCharts: routeHeader.cardCharts }}
         trigger={
           <Button
             size="sm"

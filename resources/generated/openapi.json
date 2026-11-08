@@ -3740,7 +3740,7 @@
         "type": "object"
       },
       "GeoLogTimeSeriesPoint": {
-        "description": "Geo events and unique IPs for one bucket.",
+        "description": "Geo events and unique IPs, countries and cities for one bucket.",
         "properties": {
           "timestamp": {
             "description": "The bucket start, in UTC.",
@@ -3750,6 +3750,12 @@
           "totalEvents": {
             "type": "integer"
           },
+          "uniqueCities": {
+            "type": "integer"
+          },
+          "uniqueCountries": {
+            "type": "integer"
+          },
           "uniqueIps": {
             "type": "integer"
           }
@@ -3757,13 +3763,15 @@
         "required": [
           "timestamp",
           "totalEvents",
+          "uniqueCities",
+          "uniqueCountries",
           "uniqueIps"
         ],
         "title": "GeoLogTimeSeriesPoint",
         "type": "object"
       },
       "GeoLogTimeSeriesResponse": {
-        "description": "Geo events and unique IPs per bucket, oldest first. Buckets without events are left out.",
+        "description": "Geo events and unique IPs, countries and cities per bucket, oldest first. Buckets without events are left out.",
         "properties": {
           "data": {
             "items": {
@@ -15672,7 +15680,7 @@
     "/api/v1/geo-events/time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique IPs are estimates. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `fromTimestamp` and run through the last hour that starts before `toTimestamp`. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.",
+        "description": "Returns events and unique IPs, countries and cities for each bucket that has events, oldest first. Unfiltered ranges over 24 hours read the aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`, and their unique counts are estimates. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `fromTimestamp` and run through the last hour that starts before `toTimestamp`. A server filter reads the raw rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets applies `tz` at any range length.",
         "operationId": "ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeries",
         "parameters": [
           {
@@ -15987,7 +15995,7 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
-        "summary": "Get geo events and unique IPs per hour or day",
+        "summary": "Get geo events and unique IPs, countries and cities per hour or day",
         "tags": [
           "Geo Events"
         ]

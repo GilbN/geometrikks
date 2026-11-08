@@ -99,15 +99,17 @@ class GeoLogSummaryResponse(msgspec.Struct, rename="camel"):
 
 
 class GeoLogTimeSeriesPoint(msgspec.Struct, rename="camel"):
-    """Geo events and unique IPs for one bucket."""
+    """Geo events and unique IPs, countries and cities for one bucket."""
 
     timestamp: Annotated[datetime, msgspec.Meta(description="The bucket start, in UTC.")]
     total_events: int
     unique_ips: int
+    unique_countries: int
+    unique_cities: int
 
 
 class GeoLogTimeSeriesResponse(msgspec.Struct, rename="camel"):
-    """Geo events and unique IPs per bucket, oldest first. Buckets without events are left out."""
+    """Geo events and unique IPs, countries and cities per bucket, oldest first. Buckets without events are left out."""
 
     granularity: Annotated[str, msgspec.Meta(description="The bucket size used, `hourly` or `daily`.")]
     start_date: EchoedFrom

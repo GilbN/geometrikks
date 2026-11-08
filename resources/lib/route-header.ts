@@ -4,6 +4,8 @@
  */
 import { useMatches } from "@tanstack/react-router"
 
+import type { CardChartsPage } from "@/lib/card-charts"
+
 declare module "@tanstack/react-router" {
   interface StaticDataRouteOption {
     /** The page follows the global time range: the phone header shows the
@@ -11,14 +13,18 @@ declare module "@tanstack/react-router" {
     timeRange?: boolean
     /** The page draws time-series charts: the range drawer offers chart buckets. */
     chartBuckets?: boolean
-    /** The Overview: the range drawer can turn its card charts off. */
-    overviewCharts?: boolean
+    /** The page's stat cards draw charts: the range drawer can turn them off. */
+    cardCharts?: CardChartsPage
   }
 }
 
-export function useRouteHeader(): { timeRange: boolean; chartBuckets: boolean; overviewCharts: boolean } {
+export function useRouteHeader(): {
+  timeRange: boolean
+  chartBuckets: boolean
+  cardCharts: CardChartsPage | undefined
+} {
   const timeRange = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.timeRange })
   const chartBuckets = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.chartBuckets })
-  const overviewCharts = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.overviewCharts })
-  return { timeRange, chartBuckets, overviewCharts }
+  const cardCharts = useMatches({ select: (matches) => matches.at(-1)?.staticData.cardCharts })
+  return { timeRange, chartBuckets, cardCharts }
 }

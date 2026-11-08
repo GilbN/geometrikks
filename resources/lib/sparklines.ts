@@ -1,4 +1,5 @@
 import type { GeoEventsTimeSeriesResponse, TimeSeriesResponse } from "@/lib/api"
+import type { GeoLogTimeSeriesResponse } from "@/generated/api/types.gen"
 
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
@@ -42,6 +43,19 @@ export function fillGaps(
   })
   filled.push(...zeros(bucketsBetween(times[times.length - 1], endMs) - 1))
   return filled
+}
+
+/**
+ * A page's card charts. `drawable` is false when the range is too short to
+ * draw a shape, and `shown` is also false while charts are off. `drawKey`
+ * names the data the lines belong to and changes when that data's lines
+ * arrive, not when it is picked.
+ */
+export interface CardSparklines<Lines> {
+  shown: boolean
+  drawable: boolean
+  lines: Lines | undefined
+  drawKey: string
 }
 
 export interface OverviewSparklines {
@@ -95,5 +109,29 @@ export function buildOverviewSparklines(
     avgRequestTime: present((row) => row.avgRequestTime),
     maxRequestTime: present((row) => row.maxRequestTime),
     avgRequestSize: present((row) => (row.totalRequests > 0 ? row.totalBytesSent / row.totalRequests : null)),
+  }
+}
+
+export interface GeoLogSparklines {
+  events: number[]
+  uniqueIps: number[]
+  uniqueCountries: number[]
+  uniqueCities: number[]
+}
+
+export function buildGeoLogSparklines(
+  series: GeoLogTimeSeriesResponse | undefined,
+  startMs: number,
+  endMs: number,
+): GeoLogSparklines {
+  const step = sparklineGranularity(startMs, endMs) === "hourly" ? HOUR_MS : DAY_MS
+  const rows = series?.data ?? []
+  const counts = (pick: (row: (typeof rows)[number]) => number) =>
+    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), startMs, endMs, step)
+  return {
+    events: counts((row) => row.totalEvents),
+    uniqueIps: counts((row) => row.uniqueIps),
+    uniqueCountries: counts((row) => row.uniqueCountries),
+    uniqueCities: counts((row) => row.uniqueCities),
   }
 }

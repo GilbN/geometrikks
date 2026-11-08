@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { buildOverviewSparklines, fillGaps, hasSparklines, sparklineGranularity } from "./sparklines"
+import { buildGeoLogSparklines, buildOverviewSparklines, fillGaps, hasSparklines, sparklineGranularity } from "./sparklines"
 import type { TimeSeriesResponse } from "./api"
 
 const HOUR = 3_600_000
@@ -88,5 +88,27 @@ describe("buildOverviewSparklines", () => {
     expect(lines.avgRequestSize).toEqual([100, 100])
     expect(lines.successRate).toEqual([1, 1])
     expect(lines.geoEvents).toEqual([0, 0, 0, 0, 0, 0])
+  })
+})
+
+describe("buildGeoLogSparklines", () => {
+  it("zero-fills every count from the gaps between buckets", () => {
+    const start = at("2026-11-06T10:00:00Z")
+    const end = at("2026-11-06T16:00:00Z")
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-11-06T10:00:00Z",
+      endDate: "2026-11-06T16:00:00Z",
+      data: [
+        { timestamp: "2026-11-06T11:00:00Z", totalEvents: 9, uniqueIps: 4, uniqueCountries: 3, uniqueCities: 2 },
+        { timestamp: "2026-11-06T14:00:00Z", totalEvents: 5, uniqueIps: 2, uniqueCountries: 1, uniqueCities: 1 },
+      ],
+    }
+    expect(buildGeoLogSparklines(series, start, end)).toEqual({
+      events: [0, 9, 0, 0, 5, 0],
+      uniqueIps: [0, 4, 0, 0, 2, 0],
+      uniqueCountries: [0, 3, 0, 0, 1, 0],
+      uniqueCities: [0, 2, 0, 0, 1, 0],
+    })
   })
 })
