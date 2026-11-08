@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The menu shows when an IP was last reported, and blocks a second report of the same IP within 15 minutes.
   - The Check button in the report spends one AbuseIPDB check to show the IP's current score.
   - Read/write API keys can send reports with `POST /api/v1/abuseipdb/reports`.
-  - The IP inspector links to the IP's AbuseIPDB page, which needs no key.
+  - The IP inspector links to the IP's page on AbuseIPDB, even without an API key.
 
 ### Changed
 
