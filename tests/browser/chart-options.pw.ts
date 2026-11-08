@@ -173,6 +173,8 @@ test.describe("geo events chart", () => {
       timestamp: new Date(START + i * HOUR).toISOString(),
       totalEvents: 100 + i * 10,
       uniqueIps: 40 + i,
+      uniqueCountries: 5,
+      uniqueCities: 8,
     }))
     await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/time-series",
       (route) => route.fulfill({ json: {

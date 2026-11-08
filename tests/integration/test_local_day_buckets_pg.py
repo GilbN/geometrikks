@@ -179,9 +179,10 @@ class TestGeoTimeSeries:
             points = await GeoEventService(session=session).get_time_series(
                 LOCAL_MIDNIGHT, WINDOW_END, GeoStatsGranularity.DAILY, GeoEventFilters(), tz=TZ
             )
-        assert [(p.timestamp, p.total_events, p.unique_ips) for p in points] == [
-            (LOCAL_MIDNIGHT, 2, 2)
-        ]
+        assert [
+            (p.timestamp, p.total_events, p.unique_ips, p.unique_countries, p.unique_cities)
+            for p in points
+        ] == [(LOCAL_MIDNIGHT, 2, 2, 1, 1)]
 
     async def test_filtered_daily_buckets_are_local_days(self, pg_engine, pg_session_maker, clean_tables):
         """Country-filtered daily buckets ride the hourly stitched CAGGs."""

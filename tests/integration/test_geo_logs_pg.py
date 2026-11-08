@@ -368,6 +368,17 @@ class TestTimeSeries:
         assert [(p.total_events, p.unique_ips) for p in points] == [(3, 1), (1, 1)]
         assert points[0].timestamp < points[1].timestamp
 
+    async def test_raw_buckets_count_countries_and_cities(self, pg_session_maker, clean_tables):
+        await seed_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            points = await GeoEventService(session=session).get_time_series(
+                RAW_START, NOW, StatsGranularity.HOURLY, GeoEventFilters()
+            )
+        # The US location has no city, so the first hour counts one city.
+        assert [
+            (p.total_events, p.unique_ips, p.unique_countries, p.unique_cities) for p in points
+        ] == [(4, 2, 2, 1), (3, 2, 2, 2)]
+
     async def test_unfiltered_cagg_buckets(self, pg_engine, pg_session_maker, clean_tables):
         await seed_multiday(pg_session_maker)
         await refresh_caggs_range(
@@ -379,7 +390,7 @@ class TestTimeSeries:
                 GeoEventFilters(),
             )
         assert sum(p.total_events for p in points) == 9
-        assert all(p.unique_ips == 2 for p in points)
+        assert all((p.unique_ips, p.unique_countries, p.unique_cities) == (2, 2, 2) for p in points)
 
 
 class TestTopN:
@@ -788,7 +799,9 @@ class TestFilteredSummaryAndSeriesCaggPath:
                 B_START, B_END, StatsGranularity.HOURLY,
                 GeoEventFilters(ip_include=["1.1.1.1"]),
             )
-        assert [(p.total_events, p.unique_ips) for p in points] == [(1, 1), (3, 1)]
+        assert [
+            (p.total_events, p.unique_ips, p.unique_countries, p.unique_cities) for p in points
+        ] == [(1, 1, 1, 1), (3, 1, 1, 1)]
         assert points[0].timestamp < points[1].timestamp
 
     async def test_server_filter_still_raw_and_exact(self, pg_engine, pg_session_maker, clean_tables):

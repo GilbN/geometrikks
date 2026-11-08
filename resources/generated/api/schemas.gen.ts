@@ -3684,7 +3684,8 @@ export const GeoLogSummaryResponseSchema = {
 } as const;
 
 export const GeoLogTimeSeriesPointSchema = {
-  description: "Geo events and unique IPs for one bucket.",
+  description:
+    "Geo events and unique IPs, countries and cities for one bucket.",
   properties: {
     timestamp: {
       description: "The bucket start, in UTC.",
@@ -3694,18 +3695,30 @@ export const GeoLogTimeSeriesPointSchema = {
     totalEvents: {
       type: "integer",
     },
+    uniqueCities: {
+      type: "integer",
+    },
+    uniqueCountries: {
+      type: "integer",
+    },
     uniqueIps: {
       type: "integer",
     },
   },
-  required: ["timestamp", "totalEvents", "uniqueIps"],
+  required: [
+    "timestamp",
+    "totalEvents",
+    "uniqueCities",
+    "uniqueCountries",
+    "uniqueIps",
+  ],
   title: "GeoLogTimeSeriesPoint",
   type: "object",
 } as const;
 
 export const GeoLogTimeSeriesResponseSchema = {
   description:
-    "Geo events and unique IPs per bucket, oldest first. Buckets without events are left out.",
+    "Geo events and unique IPs, countries and cities per bucket, oldest first. Buckets without events are left out.",
   properties: {
     data: {
       items: {

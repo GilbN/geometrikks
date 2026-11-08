@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
-import { useOverviewCharts } from "@/lib/overview-preferences"
+import { useCardCharts, type CardChartsPage } from "@/lib/card-charts"
 import {
   CHART_GRANULARITY_OPTIONS,
   POLL_INTERVAL_OPTIONS,
@@ -102,10 +102,9 @@ export function TimeRangePicker({
 }: {
   trigger: React.ReactNode
   align?: "start" | "end"
-  refreshControls?: { chartBuckets: boolean; overviewCharts?: boolean }
+  refreshControls?: { chartBuckets: boolean; cardCharts?: CardChartsPage }
 }) {
   const { range, setRange, setCustomRange, pollInterval, setPollInterval, granularity, setGranularity } = useTimeRange()
-  const [overviewCharts, setOverviewCharts] = useOverviewCharts()
   const asDrawer = usePhoneLayout()
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
   const overlayId = useId()
@@ -215,21 +214,7 @@ export function TimeRangePicker({
                 </ToggleGroup>
               </RefreshControl>
             )}
-            {refreshControls?.overviewCharts && (
-              <RefreshControl label="Card charts">
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  aria-label="Card charts"
-                  value={overviewCharts ? "on" : "off"}
-                  onValueChange={(value) => value && setOverviewCharts(value === "on")}
-                  className="w-full"
-                >
-                  <ToggleGroupItem value="on" className="flex-1 text-xs">On</ToggleGroupItem>
-                  <ToggleGroupItem value="off" className="flex-1 text-xs">Off</ToggleGroupItem>
-                </ToggleGroup>
-              </RefreshControl>
-            )}
+            {refreshControls?.cardCharts && <CardChartsControl page={refreshControls.cardCharts} />}
           </div>
         </DrawerContent>
       </Drawer>
@@ -259,6 +244,25 @@ export function TimeRangePicker({
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function CardChartsControl({ page }: { page: CardChartsPage }) {
+  const [chartsOn, setChartsOn] = useCardCharts(page)
+  return (
+    <RefreshControl label="Card charts">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        aria-label="Card charts"
+        value={chartsOn ? "on" : "off"}
+        onValueChange={(value) => value && setChartsOn(value === "on")}
+        className="w-full"
+      >
+        <ToggleGroupItem value="on" className="flex-1 text-xs">On</ToggleGroupItem>
+        <ToggleGroupItem value="off" className="flex-1 text-xs">Off</ToggleGroupItem>
+      </ToggleGroup>
+    </RefreshControl>
   )
 }
 

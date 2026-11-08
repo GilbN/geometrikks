@@ -1864,7 +1864,7 @@ export type GeoLogSummaryResponse = {
 /**
  * GeoLogTimeSeriesPoint
  *
- * Geo events and unique IPs for one bucket.
+ * Geo events and unique IPs, countries and cities for one bucket.
  */
 export type GeoLogTimeSeriesPoint = {
   /**
@@ -1872,13 +1872,15 @@ export type GeoLogTimeSeriesPoint = {
    */
   timestamp: string;
   totalEvents: number;
+  uniqueCities: number;
+  uniqueCountries: number;
   uniqueIps: number;
 };
 
 /**
  * GeoLogTimeSeriesResponse
  *
- * Geo events and unique IPs per bucket, oldest first. Buckets without events are left out.
+ * Geo events and unique IPs, countries and cities per bucket, oldest first. Buckets without events are left out.
  */
 export type GeoLogTimeSeriesResponse = {
   data: Array<GeoLogTimeSeriesPoint>;

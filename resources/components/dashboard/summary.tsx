@@ -1,11 +1,11 @@
 import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-import { useOverviewCharts } from "@/lib/overview-preferences"
+import { useCardCharts } from "@/lib/card-charts"
 import { useOverviewSparklines, useSummary } from "@/lib/queries"
 import { rangeCompareLabel, rangeSubtitle } from "@/lib/time-range-labels"
 import { useTimeRange } from "@/lib/time-range-context"
+import { CardChartsSwitch } from "@/components/dashboard/card-charts-switch"
 import { DateTimeRange } from "@/components/dashboard/date-time-range"
 import {
   HttpStatusSection,
@@ -21,7 +21,7 @@ export function Summary() {
   const { data: summary, isLoading, isError, error } = useSummary({
     comparePrevious: true,
   })
-  const [chartsOn, setChartsOn] = useOverviewCharts()
+  const [chartsOn] = useCardCharts("overview")
   const sparklines = useOverviewSparklines({ enabled: chartsOn })
 
   const section = {
@@ -47,13 +47,7 @@ export function Summary() {
               !isError && <Skeleton className="h-6 w-72 max-w-full rounded-md" />
             )
           }
-          actions={
-            // Phones set this in the range drawer, which keeps it off the page.
-            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-muted-foreground max-md:hidden">
-              <Switch size="sm" checked={chartsOn} onCheckedChange={setChartsOn} />
-              Charts
-            </label>
-          }
+          actions={<CardChartsSwitch page="overview" />}
         />
 
         {isError && (

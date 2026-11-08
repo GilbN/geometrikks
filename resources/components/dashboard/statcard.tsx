@@ -7,6 +7,7 @@ import { StatSparkline } from "@/components/dashboard/stat-sparkline"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { formatPercent } from "@/lib/api"
 import { FLAT_DELTA_LABEL, deltaDirection, deltaTone } from "@/lib/stat-delta"
+import type { CardSparklines } from "@/lib/sparklines"
 import { cn } from "@/lib/utils"
 
 /**
@@ -33,6 +34,20 @@ const HEADER_CLASS = "flex flex-row items-center justify-between px-3 md:px-6 md
 const CONTENT_CLASS = "px-3 md:px-6"
 
 const SPARKLINE_CLASS = "mt-2 h-10 w-full md:mt-3"
+
+/** A card's chart props. The chart is empty while loading so the card keeps
+ *  its height, and absent when the range is too short to draw one. */
+export function sparklineProps<Lines extends Record<Key, number[]>, Key extends keyof Lines>(
+  sparklines: CardSparklines<Lines>,
+  key: Key,
+) {
+  if (!sparklines.drawable) return {}
+  return {
+    sparkline: sparklines.lines?.[key] ?? [],
+    sparklineOpen: sparklines.shown,
+    sparklineDrawKey: sparklines.drawKey,
+  }
+}
 
 /** `sparkline` reserves the chart's height so the card does not grow when it loads. */
 export function StatCardSkeleton({ sparkline = false }: { sparkline?: boolean }) {

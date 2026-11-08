@@ -373,11 +373,11 @@ class GeoEventController(Controller):
     @get(
         "/time-series",
         return_dto=None,
-        summary="Get geo events and unique IPs per hour or day",
+        summary="Get geo events and unique IPs, countries and cities per hour or day",
         description=(
-            "Returns events and unique IPs for each bucket that has events, oldest first. Unfiltered ranges "
-            f"over 24 hours read the aggregates, which {GEO_WHOLE_BUCKETS_NOTE}, and their unique IPs are "
-            f"estimates. {local_days_edge_note('fromTimestamp', 'toTimestamp')} A server filter reads the raw "
+            "Returns events and unique IPs, countries and cities for each bucket that has events, oldest first. "
+            f"Unfiltered ranges over 24 hours read the aggregates, which {GEO_WHOLE_BUCKETS_NOTE}, and their "
+            f"unique counts are estimates. {local_days_edge_note('fromTimestamp', 'toTimestamp')} A server filter reads the raw "
             "rows, and so does any other filter with hourly buckets on a range over 30 days. Raw reads go back "
             "only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default, and a server filter with daily buckets "
             "applies `tz` at any range length."
@@ -392,7 +392,7 @@ class GeoEventController(Controller):
         granularity: ChartGranularity = None,
         tz: Timezone = None,
     ) -> GeoLogTimeSeriesResponse:
-        """Bucketed totals + unique IPs.
+        """Bucketed totals and unique IPs, countries and cities.
 
         Server-filtered ranges scan raw geo_events; country/city/IP filters
         use per-IP CAGGs (exact uniques); unfiltered ranges > 24h use HLL

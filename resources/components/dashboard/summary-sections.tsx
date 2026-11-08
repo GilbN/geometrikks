@@ -21,11 +21,11 @@ import {
   CornerUpRight,
 } from "lucide-react"
 
-import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid, sparklineProps } from "@/components/dashboard/statcard"
 import { SectionHeader } from "@/components/section-header"
 import { formatNumber, formatBytes, type SummaryResponse } from "@/lib/api"
 import { formatDurationOrNa, timingCoverage, TIMING_HINT } from "@/lib/timing"
-import type { OverviewSparklines } from "@/lib/sparklines"
+import type { CardSparklines, OverviewSparklines } from "@/lib/sparklines"
 
 interface SectionProps {
   summary: SummaryResponse | undefined
@@ -34,18 +34,7 @@ interface SectionProps {
   rangeSubtitle: string
   /** Wording for a trend against the span before, e.g. "vs last 24h". */
   compareLabel: string
-  sparklines: { shown: boolean; drawable: boolean; lines: OverviewSparklines | undefined; drawKey: string }
-}
-
-/** A card's chart props. The chart is empty while loading so the card keeps
- *  its height, and absent when the range is too short to draw one. */
-function chartFor(sparklines: SectionProps["sparklines"], key: keyof OverviewSparklines) {
-  if (!sparklines.drawable) return {}
-  return {
-    sparkline: sparklines.lines?.[key] ?? [],
-    sparklineOpen: sparklines.shown,
-    sparklineDrawKey: sparklines.drawKey,
-  }
+  sparklines: CardSparklines<OverviewSparklines>
 }
 
 /** Header plus grid; skeletons while loading, nothing on error (the page
@@ -98,7 +87,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle, spar
             value={formatNumber(cur.totalRequests)}
             subtitle={rangeSubtitle}
             icon={Activity}
-            {...chartFor(sparklines, "requests")}
+            {...sparklineProps(sparklines, "requests")}
             trend={{
               value: chg?.logRecords ?? null,
               positive: (chg?.logRecords ?? 0) >= 0,
@@ -109,7 +98,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle, spar
             value={formatNumber(cur.totalGeoEvents)}
             subtitle={rangeSubtitle}
             icon={FileText}
-            {...chartFor(sparklines, "geoEvents")}
+            {...sparklineProps(sparklines, "geoEvents")}
             trend={{
               value: chg?.geoRecords ?? null,
               positive: (chg?.geoRecords ?? 0) >= 0,
@@ -120,7 +109,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle, spar
             value={formatNumber(cur.uniqueCountries)}
             subtitle="Active locations"
             icon={Globe2}
-            {...chartFor(sparklines, "uniqueCountries")}
+            {...sparklineProps(sparklines, "uniqueCountries")}
           />
           <StatCard
             title="Malformed Requests"
@@ -158,7 +147,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines
             icon={CheckCircle2}
             iconClassName="text-emerald-500/70"
             valueClassName="text-emerald-500"
-            {...chartFor(sparklines, "successRate")}
+            {...sparklineProps(sparklines, "successRate")}
             sparklineClassName="text-emerald-500"
           />
           <StatCard
@@ -168,7 +157,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines
             icon={CornerUpRight}
             iconClassName="text-blue-500/70"
             valueClassName="text-blue-500"
-            {...chartFor(sparklines, "status3xx")}
+            {...sparklineProps(sparklines, "status3xx")}
             sparklineClassName="text-blue-500"
           />
           <StatCard
@@ -178,7 +167,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines
             icon={AlertCircle}
             iconClassName="text-amber-500/70"
             valueClassName="text-amber-500"
-            {...chartFor(sparklines, "status4xx")}
+            {...sparklineProps(sparklines, "status4xx")}
             sparklineClassName="text-amber-500"
           />
           <StatCard
@@ -188,7 +177,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines
             icon={XCircle}
             iconClassName="text-red-500/70"
             valueClassName="text-red-500"
-            {...chartFor(sparklines, "status5xx")}
+            {...sparklineProps(sparklines, "status5xx")}
             sparklineClassName="text-red-500"
           />
           <StatCard
@@ -198,7 +187,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines
               chg?.uniqueIps != null ? compareLabel : "Active visitors"
             }
             icon={Users}
-            {...chartFor(sparklines, "uniqueIps")}
+            {...sparklineProps(sparklines, "uniqueIps")}
             iconClassName="text-primary/70"
             valueClassName="text-primary"
             trend={{
@@ -238,7 +227,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel, sparkline
             value={formatDurationOrNa(cur.avgRequestTime)}
             subtitle={timingSubtitle(coverage, chg?.avgRequestTime != null ? compareLabel : "Response time")}
             icon={Clock}
-            {...chartFor(sparklines, "avgRequestTime")}
+            {...sparklineProps(sparklines, "avgRequestTime")}
             iconClassName="text-primary/70"
             trend={
               coverage.state === "empty" || coverage.state === "none"
@@ -253,7 +242,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel, sparkline
             icon={Zap}
             iconClassName="text-amber-500/70"
             valueClassName="text-amber-500"
-            {...chartFor(sparklines, "maxRequestTime")}
+            {...sparklineProps(sparklines, "maxRequestTime")}
             sparklineClassName="text-amber-500"
           />
           <StatCard
@@ -263,7 +252,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel, sparkline
               chg?.bytesSent != null ? compareLabel : "Data transferred"
             }
             icon={HardDrive}
-            {...chartFor(sparklines, "bytesSent")}
+            {...sparklineProps(sparklines, "bytesSent")}
             iconClassName="text-primary/70"
             trend={{
               value: chg?.bytesSent ?? null,
@@ -275,7 +264,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel, sparkline
             value={formatBytes(cur.avgBytesPerRequest)}
             subtitle="Per request"
             icon={ArrowRightLeft}
-            {...chartFor(sparklines, "avgRequestSize")}
+            {...sparklineProps(sparklines, "avgRequestSize")}
           />
         </>
       )}
