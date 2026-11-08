@@ -15,6 +15,18 @@ export function isKeyboardOpen(probe: KeyboardProbe): boolean {
   return probe.focusedEditable && Math.abs(probe.scale - 1) < 0.01 && probe.innerHeight - probe.viewportHeight > 120
 }
 
+export interface ViewportHeightProbe {
+  focusedEditable: boolean
+  scale: number
+  tallestHeight: number
+  innerHeight: number
+}
+
+/** Whether the page stayed shorter than it has been with the keyboard gone. */
+export function isViewportStuck(probe: ViewportHeightProbe): boolean {
+  return !probe.focusedEditable && Math.abs(probe.scale - 1) < 0.01 && probe.tallestHeight - probe.innerHeight > 4
+}
+
 /** What an overlay with a phone version renders as: the desktop dialog or
  *  menu, a bottom drawer, or a drawer on the right of a phone held sideways. */
 export type DrawerLayout = "desktop" | "bottom" | "right"
