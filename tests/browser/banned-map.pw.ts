@@ -726,7 +726,6 @@ test.describe("AbuseIPDB blacklist", () => {
     await ipRow(panel).click()
     await expect(panel.getByTitle(BLACKLIST_TITLE)).toBeVisible()
     await expect(panel.getByTitle("On the DROP list as SBL000001")).toBeVisible()
-    await settled(panel)
   })
 
   test("a phone live request panel marks a listed IP", async ({ page }) => {
