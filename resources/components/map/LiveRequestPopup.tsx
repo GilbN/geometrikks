@@ -30,9 +30,10 @@ import type { DecisionRef } from "@/components/security/alert-detail-sheet"
 import { PanelBanButton } from "./PanelBanButton"
 import { countryLabel } from "@/lib/ip-filter-targets"
 import { DetailField } from "@/components/data/detail-sheet"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { resolveDecision } from "@/lib/crowdsec"
-import { useBannedIps, useDropNetwork } from "@/lib/queries"
+import { useAbuseIpdbBlacklisted, useBannedIps, useDropNetwork } from "@/lib/queries"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
 function asnText(log: LiveRequest["log"]): string | null {
@@ -197,6 +198,7 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
 }) {
   const log = request.log
   const dropNetwork = useDropNetwork(request.ip)
+  const blacklisted = useAbuseIpdbBlacklisted(request.ip)
   const { data: bannedIps } = useBannedIps()
   const decision = resolveDecision(bannedIps, request.ip, request.decisionType)
   const asn = asnText(log)
@@ -229,6 +231,7 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
             <span className="min-w-0 break-all font-mono text-xl">{request.ip}</span>
             {decision !== null && <DecisionBadge type={decision} />}
             {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} />}
+            {blacklisted && <AbuseIpdbBlacklistBadge />}
           </span>
         </IpStatusDetails>
         <CopyIpButton ip={request.ip} className="ml-auto size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />

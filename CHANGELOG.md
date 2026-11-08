@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Read/write API keys can send reports with `POST /api/v1/abuseipdb/reports`.
   - The IP inspector links to the IP's page on AbuseIPDB, even without an API key.
   - With a key, the IP inspector shows the IP's AbuseIPDB score when it opens. Each lookup uses one daily AbuseIPDB check, at most once per IP every 15 minutes.
-  - With a key and `ABUSEIPDB_BLACKLIST_ENABLED=true`, GeoMetrikks downloads AbuseIPDB's blacklist once a day and marks listed IPs in the IP inspector, the IP menu and map popups. `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` changes the interval. A list more than 72 hours old stops showing. The list is for your own use: AbuseIPDB forbids republishing it, and free plans can't be used commercially.
+  - With a key and `ABUSEIPDB_BLACKLIST_ENABLED=true`, GeoMetrikks downloads AbuseIPDB's blacklist once a day and marks listed IPs in the IP inspector, the IP menu and map popups about one IP. `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` changes the interval, from 6 to 36 hours. A list more than 72 hours old stops showing. The list is for your own use: AbuseIPDB forbids republishing it, and free plans can't be used commercially.
 
 ### Changed
 

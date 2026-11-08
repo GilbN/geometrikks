@@ -1970,19 +1970,29 @@ function selectBlacklist(blacklist: AbuseIpdbBlacklistResponse): Set<string> {
   return blacklistSet
 }
 
-export function useAbuseIpdbBlacklist() {
-  const { data: status } = useAbuseIpdbStatus()
-  return useQuery({
+export function abuseIpdbBlacklistQueryOptions(enabled: boolean) {
+  return {
     queryKey: queryKeys.abuseipdb.blacklist,
     queryFn: fetchAbuseIpdbBlacklist,
-    enabled: status?.blacklistEnabled === true,
-    staleTime: 60 * 60_000,
+    enabled,
+    // An empty answer means no download yet or an expired list, so it goes stale fast.
+    staleTime: (query: Query<AbuseIpdbBlacklistResponse>) => (query.state.data?.refreshedAt ? 60 * 60_000 : 60_000),
+    // A map popup can be the only observer. With the default five minutes, reopening one downloads the list again.
+    gcTime: 60 * 60_000,
     select: selectBlacklist,
-  })
+  }
+}
+
+export function useAbuseIpdbBlacklist() {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery(abuseIpdbBlacklistQueryOptions(status?.blacklistEnabled === true))
 }
 
 export function useAbuseIpdbBlacklisted(ip: string): boolean {
+  const { data: status } = useAbuseIpdbStatus()
   const { data: blacklist } = useAbuseIpdbBlacklist()
+  // A disabled query keeps its cached data, so turning the feature off has to be checked here too.
+  if (status?.blacklistEnabled !== true) return false
   return blacklist?.has(canonicalIp(ip) ?? ip) ?? false
 }
 

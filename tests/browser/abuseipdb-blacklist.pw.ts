@@ -9,6 +9,7 @@ const LISTED_IPV6 = "2600:1f18::1"
 const UNLISTED_IP = "3.5.140.9"
 const BADGE_LABEL = "AbuseIPDB blacklist"
 const SCREENSHOT_DIR = process.env.BLACKLIST_SCREENSHOT_DIR
+const SETTLE_MS = 300
 
 const statusOn: AbuseIpdbStatusResponse = {
   enabled: false,
@@ -31,10 +32,10 @@ async function login(page: Page) {
 }
 
 async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; rowIps?: string[] } = {}) {
-  const recorded = { blacklistRequests: 0 }
+  const recorded = { blacklistRequests: 0, status: options.status ?? statusOn }
   const rowIps = options.rowIps ?? [LISTED_IP]
   await login(page)
-  await page.route("**/api/v1/abuseipdb/status", (route) => route.fulfill({ json: options.status ?? statusOn }))
+  await page.route("**/api/v1/abuseipdb/status", (route) => route.fulfill({ json: recorded.status }))
   await page.route("**/api/v1/abuseipdb/blacklist", (route) => {
     recorded.blacklistRequests += 1
     return route.fulfill({ json: listed })
@@ -98,9 +99,12 @@ test.describe("desktop", () => {
 
   test("the inspector leaves an unlisted IP unmarked", async ({ page }) => {
     await setup(page, { rowIps: [UNLISTED_IP] })
+    const blacklistAnswered = page.waitForResponse("**/api/v1/abuseipdb/blacklist")
     await page.goto(`/access-logs?inspect=${UNLISTED_IP}`)
+    await blacklistAnswered
     const sheet = openSheet(page)
     await expect(sheet).toBeVisible()
+    await page.waitForTimeout(SETTLE_MS)
     await expect(badgeIn(sheet)).toHaveCount(0)
   })
 
@@ -121,12 +125,30 @@ test.describe("desktop", () => {
 
   test("with the feature off nothing is fetched or marked", async ({ page }) => {
     const recorded = await setup(page, { status: { ...statusOn, blacklistEnabled: false } })
+    const statusAnswered = page.waitForResponse("**/api/v1/abuseipdb/status")
     await page.goto(`/access-logs?inspect=${LISTED_IP}`)
+    await statusAnswered
     const sheet = openSheet(page)
     await expect(sheet).toBeVisible()
     await expect(sheet.getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
+    await page.waitForTimeout(SETTLE_MS)
     await expect(badgeIn(sheet)).toHaveCount(0)
     expect(recorded.blacklistRequests).toBe(0)
+  })
+
+  test("turning the feature off mid-session removes the mark", async ({ page }) => {
+    await page.clock.install()
+    const recorded = await setup(page)
+    await page.goto(`/access-logs?inspect=${LISTED_IP}`)
+    const badge = badgeIn(openSheet(page))
+    await expect(badge).toBeVisible()
+
+    recorded.status = { ...statusOn, blacklistEnabled: false }
+    const statusAnswered = page.waitForResponse("**/api/v1/abuseipdb/status")
+    await page.clock.fastForward("01:05")
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange", { bubbles: true })))
+    await statusAnswered
+    await expect(badge).toHaveCount(0)
   })
 
   test("every row shares one download", async ({ page }) => {
