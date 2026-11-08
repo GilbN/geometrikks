@@ -26,6 +26,8 @@ interface Fixture {
   evidenceFor: (url: URL) => AbuseReportResponse
   /** How many /check requests fail before one answers. */
   checkFailures: number
+  /** The IP of the one Access Logs row. */
+  rowIp: string
   /** Fails the earlier-reports list with this detail. */
   storedReportsFailure: string | null
 }
@@ -105,6 +107,7 @@ function defaultFixture(): Fixture {
     postBody: { results: [{ ipAddress: IP, status: "reported", abuseConfidenceScore: 88, reportedAt: new Date().toISOString(), error: null }] },
     evidenceFor: () => evidence(),
     checkFailures: 0,
+    rowIp: IP,
     storedReportsFailure: null,
   }
 }
@@ -174,7 +177,7 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
   await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
     items: [{
-      id: 1, timestamp: minutesAgo(30), ipAddress: IP, remoteUser: null,
+      id: 1, timestamp: minutesAgo(30), ipAddress: fixture.rowIp, remoteUser: null,
       method: "GET", url: "/.env", httpVersion: "HTTP/1.1", statusCode: 404, bytesSent: 100,
       referrer: null, userAgent: "Mozilla/5.0 zgrab/0.x", requestTime: 10, upstreamResponseTime: null,
       host: "example.test", server: null, logFormat: null, countryCode: "US",
@@ -185,7 +188,7 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
   return { fixture, recorded, hold }
 }
 
-const ipActions = (page: Page) => page.getByRole("button", { name: `Actions for ${IP}` }).first()
+const ipActions = (page: Page, ip = IP) => page.getByRole("button", { name: `Actions for ${ip}` }).first()
 const reportItem = (page: Page) => page.getByRole("menuitem", { name: /^Report to AbuseIPDB…/ })
 const reportButton = (drawer: Locator) => drawer.getByRole("button", { name: /^Report to AbuseIPDB…/ })
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
@@ -433,6 +436,23 @@ test.describe("desktop", () => {
     await expect(item).toHaveAttribute("data-disabled", "")
   })
 
+  test("another spelling of a reported IPv6 address finds its report", async ({ page }) => {
+    const rowIp = "2600:1F18:0:0::1"
+    await setup(page, { rowIp, reportedIps: [{ ipAddress: "2600:1f18::1", reportedAt: minutesAgo(6), status: "sent" }] })
+    await page.goto("/access-logs")
+    await ipActions(page, rowIp).click()
+    await expect(reportItem(page)).toContainText("again in 9 min")
+    await expect(reportItem(page)).toHaveAttribute("data-disabled", "")
+  })
+
+  test("a private address has Report disabled", async ({ page }) => {
+    await setup(page, { rowIp: "10.0.0.5" })
+    await page.goto("/access-logs")
+    await ipActions(page, "10.0.0.5").click()
+    await expect(reportItem(page)).toContainText("not a public address")
+    await expect(reportItem(page)).toHaveAttribute("data-disabled", "")
+  })
+
   test("a failed history load says so instead of showing no reports", async ({ page }) => {
     await setup(page, { storedReportsFailure: "The database is unavailable." })
     const dialog = await openReportFromMenu(page)
@@ -527,6 +547,15 @@ test.describe("portrait phone", () => {
     await ipActions(page).click()
     const report = reportButton(openDrawer(page))
     await expect(report).toContainText("again in 9 min")
+    await expect(report).toBeDisabled()
+  })
+
+  test("the phone menu's Report is disabled for a private address", async ({ page }) => {
+    await setup(page, { rowIp: "10.0.0.5" })
+    await page.goto("/access-logs")
+    await ipActions(page, "10.0.0.5").click()
+    const report = reportButton(openDrawer(page))
+    await expect(report).toContainText("not a public address")
     await expect(report).toBeDisabled()
   })
 

@@ -4,12 +4,15 @@ import {
   abuseipdbCheckUrl,
   ABUSEIPDB_CATEGORIES,
   buildReportComment,
+  canonicalIp,
   categoriesForScenarios,
   commentLength,
   defaultAttackTime,
+  isPublicIp,
   localScenarios,
   MAX_COMMENT_LENGTH,
   reportedItemState,
+  reportItemState,
 } from "./abuseipdb"
 
 function ipEvidence(overrides: Partial<ReportIpDto> = {}): ReportIpDto {
@@ -298,6 +301,68 @@ describe("reportedItemState", () => {
     })
     expect(reportedItemState(entry("2026-11-04T12:00:00Z"), now).detail).toBe("reported 3 d ago")
     expect(reportedItemState(entry("2026-10-28T12:00:00Z"), now).detail).toBe("reported on 2026-10-28")
+  })
+})
+
+describe("canonicalIp", () => {
+  test.each([
+    ["3.5.140.2", "3.5.140.2"],
+    [" 8.8.8.8 ", "8.8.8.8"],
+    ["2600:1F18:0:0::1", "2600:1f18::1"],
+    ["2600:1f18:0000:0000:0000:0000:0000:0001", "2600:1f18::1"],
+    ["2001:4860:4860:0:0:0:0:8888", "2001:4860:4860::8888"],
+    ["2001:0:0:1:0:0:0:1", "2001:0:0:1::1"],
+    ["2001:0:0:1:0:0:1:1", "2001::1:0:0:1:1"],
+    ["1:0:1:0:1:0:1:0", "1:0:1:0:1:0:1:0"],
+    ["::", "::"],
+    ["::1", "::1"],
+    ["fe80::", "fe80::"],
+    ["::ffff:8.8.8.8", "8.8.8.8"],
+    ["::FFFF:808:808", "8.8.8.8"],
+    ["::1.2.3.4", "::102:304"],
+  ])("%s reads as %s", (input, expected) => {
+    expect(canonicalIp(input)).toBe(expected)
+  })
+
+  test.each(["", "not-an-ip", "1.2.3", "1.2.3.256", "01.2.3.4", "1:2:3:4:5:6:7:8:9", "2600::1::2", "2600:1f18::1%eth0", "12345::1"])(
+    "%s is not an address",
+    (input) => {
+      expect(canonicalIp(input)).toBeNull()
+    },
+  )
+})
+
+describe("isPublicIp", () => {
+  test.each(["3.5.140.2", "8.8.8.8", "2600:1f18::1", "2001:4860:4860::8888", "::ffff:8.8.8.8", "192.0.0.9", "2001:3::1", "64:ff9b::808:808"])(
+    "%s is public",
+    (ip) => {
+      expect(isPublicIp(ip)).toBe(true)
+    },
+  )
+
+  // The first row matches tests/test_abuseipdb_service.py's refusals.
+  test.each([
+    "10.0.0.1", "127.0.0.2", "::1", "203.0.113.7", "2001:db8::1", "fe80::1%eth0", "not-an-ip", "2600:1f18::1%eth0", "::ffff:10.0.0.1",
+    "10.0.0.5", "172.16.0.1", "192.168.1.34", "100.64.0.1", "169.254.1.1", "192.0.2.1", "198.51.100.7", "198.18.0.1",
+    "0.0.0.0", "255.255.255.255", "240.0.0.1", "224.0.0.1", "239.255.255.250",
+    "::", "fc00::1", "fd12:3456::1", "fe80::1", "ff02::1", "2001::1", "2002::1", "3fff::1",
+  ])("%s is refused", (ip) => {
+    expect(isPublicIp(ip)).toBe(false)
+  })
+})
+
+describe("reportItemState", () => {
+  const now = Date.parse("2026-11-07T12:00:00Z")
+
+  test("a non-public address is disabled whatever its history", () => {
+    expect(reportItemState("10.0.0.5", undefined, now)).toEqual({ detail: "not a public address", disabled: true })
+  })
+
+  test("a public address follows its latest report", () => {
+    expect(reportItemState("3.5.140.2", undefined, now)).toEqual({ detail: null, disabled: false })
+    expect(
+      reportItemState("3.5.140.2", { ipAddress: "3.5.140.2", reportedAt: "2026-11-07T11:54:00Z", status: "sent" }, now),
+    ).toEqual({ detail: "again in 9 min", disabled: true })
   })
 })
 

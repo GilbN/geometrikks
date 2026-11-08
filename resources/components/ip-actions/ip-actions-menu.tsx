@@ -45,7 +45,7 @@ import { BanDrawer } from "@/components/map/PanelBanButton"
 import { IpFilterToggles } from "@/components/ip-actions/ip-filter-toggles"
 import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { usePollingHold } from "@/lib/time-range-context"
-import { reportedItemState } from "@/lib/abuseipdb"
+import { canonicalIp, reportItemState } from "@/lib/abuseipdb"
 import { copyText } from "@/lib/clipboard"
 import { BAN_DURATIONS, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
@@ -359,7 +359,9 @@ export function IpActionsMenu({
   // The dialog unmounts when reporting goes off, so close it rather than leave the polling hold on.
   if (reportDialogOpen && !reportingEnabled) setReportDialogOpen(false)
   const { data: reportedIps } = useReportedIps(menuOpen)
-  const reportState = reportedItemState(reportedIps?.get(ip), menuOpenedAt)
+  const reportIp = canonicalIp(ip)
+  const reportedEntry = reportIp === null ? undefined : reportedIps?.get(reportIp)
+  const reportState = reportItemState(ip, reportedEntry, menuOpenedAt)
   const [banDrawerOpen, setBanDrawerOpen] = useState(false)
   // The ban drawer unmounts when write access goes. Its history entry and
   // polling hold live here, so close it rather than leave them on. The hook

@@ -1,4 +1,5 @@
 import type { ReportedIpDto, ReportIpDto } from "@/generated/api/types.gen"
+import { ipv6Value, parseIpv4Number, parseIpv6Groups } from "@/lib/drop-lists"
 import { scenarioName } from "@/lib/scenario-name"
 
 export const ABUSEIPDB_CATEGORIES: { id: number; name: string }[] = [
@@ -61,6 +62,98 @@ const SCENARIO_CATEGORY_RULES: { needles: string[]; ids: number[] }[] = [
   { needles: ["port-scan", "portscan"], ids: [14] },
   { needles: ["open-proxy"], ids: [9] },
 ]
+
+type ParsedIp = { version: 4; value: number } | { version: 6; groups: number[] }
+
+/** An IPv4-mapped IPv6 address parses as its IPv4 address, as the backend reads it. */
+function parseIp(ip: string): ParsedIp | null {
+  const text = ip.trim()
+  if (!text.includes(":")) {
+    const value = parseIpv4Number(text)
+    return value === null ? null : { version: 4, value }
+  }
+  const groups = parseIpv6Groups(text)
+  if (groups === null) return null
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return { version: 4, value: groups[6] * 0x10000 + groups[7] }
+  }
+  return { version: 6, groups }
+}
+
+function formatIpv6(groups: readonly number[]): string {
+  let bestStart = -1
+  let bestLength = 1
+  for (let start = 0; start < groups.length; ) {
+    if (groups[start] !== 0) {
+      start++
+      continue
+    }
+    let end = start
+    while (end < groups.length && groups[end] === 0) end++
+    if (end - start > bestLength) {
+      bestStart = start
+      bestLength = end - start
+    }
+    start = end
+  }
+  const hex = groups.map((group) => group.toString(16))
+  if (bestStart === -1) return hex.join(":")
+  return `${hex.slice(0, bestStart).join(":")}::${hex.slice(bestStart + bestLength).join(":")}`
+}
+
+/** The address as Python's `ipaddress` prints it, which is how the backend keys reported IPs. Null when it isn't an address. */
+export function canonicalIp(ip: string): string | null {
+  const parsed = parseIp(ip)
+  if (parsed === null) return null
+  if (parsed.version === 6) return formatIpv6(parsed.groups)
+  const value = parsed.value
+  return [value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join(".")
+}
+
+function ipv4Range(cidr: string): [number, number] {
+  const [address, prefix] = cidr.split("/")
+  const size = 2 ** (32 - Number(prefix))
+  const start = parseIpv4Number(address)!
+  return [start, start + size - 1]
+}
+
+function ipv6Range(cidr: string): [bigint, bigint] {
+  const [address, prefix] = cidr.split("/")
+  const hostBits = BigInt(128 - Number(prefix))
+  const start = ipv6Value(parseIpv6Groups(address)!)
+  return [start, start | ((1n << hostBits) - 1n)]
+}
+
+// Python's private networks and their exceptions, plus CGNAT, which is_global
+// also refuses. Multicast is refused here, though the backend's is_global takes it.
+const NON_PUBLIC_V4 = [
+  "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24",
+  "192.0.0.170/31", "192.0.2.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24",
+  "224.0.0.0/4", "240.0.0.0/4", "255.255.255.255/32",
+].map(ipv4Range)
+const PUBLIC_V4_EXCEPTIONS = ["192.0.0.9/32", "192.0.0.10/32"].map(ipv4Range)
+const NON_PUBLIC_V6 = [
+  "::1/128", "::/128", "64:ff9b:1::/48", "100::/64", "2001::/23", "2001:db8::/32", "2002::/16", "3fff::/20", "fc00::/7",
+  "fe80::/10", "ff00::/8",
+].map(ipv6Range)
+const PUBLIC_V6_EXCEPTIONS = [
+  "2001:1::1/128", "2001:1::2/128", "2001:3::/32", "2001:4:112::/48", "2001:20::/28", "2001:30::/28",
+].map(ipv6Range)
+
+function inRanges<Address extends number | bigint>(ranges: [Address, Address][], value: Address): boolean {
+  return ranges.some(([start, end]) => start <= value && value <= end)
+}
+
+/** Whether the backend's public-address check, Python's `is_global`, would take `ip`. Multicast is refused too. */
+export function isPublicIp(ip: string): boolean {
+  const parsed = parseIp(ip)
+  if (parsed === null) return false
+  if (parsed.version === 4) {
+    return !inRanges(NON_PUBLIC_V4, parsed.value) || inRanges(PUBLIC_V4_EXCEPTIONS, parsed.value)
+  }
+  const value = ipv6Value(parsed.groups)
+  return !inRanges(NON_PUBLIC_V6, value) || inRanges(PUBLIC_V6_EXCEPTIONS, value)
+}
 
 export function abuseipdbCheckUrl(ip: string): string {
   return `https://www.abuseipdb.com/check/${ip}`
@@ -155,6 +248,15 @@ function ageLabel(ageMs: number, reportedAt: string): string {
 /** "6 min ago", "2 h ago", "3 d ago", or "on 2026-10-28" past a week. */
 export function agoText(at: string, now: number): string {
   return ageLabel(Math.max(0, now - Date.parse(at)), at)
+}
+
+export function reportItemState(
+  ip: string,
+  entry: ReportedIpDto | undefined,
+  now: number,
+): { detail: string | null; disabled: boolean } {
+  if (!isPublicIp(ip)) return { detail: "not a public address", disabled: true }
+  return reportedItemState(entry, now)
 }
 
 export function reportedItemState(
