@@ -50,3 +50,30 @@ def test_timeout_must_be_positive(monkeypatch):
 
 def test_settings_exposes_the_section():
     assert isinstance(Settings().abuseipdb, AbuseIpdbSettings)
+
+
+def test_blacklist_is_off_by_default_and_refreshes_daily(monkeypatch):
+    monkeypatch.delenv("ABUSEIPDB_BLACKLIST_ENABLED", raising=False)
+    monkeypatch.delenv("ABUSEIPDB_BLACKLIST_REFRESH_HOURS", raising=False)
+    settings = AbuseIpdbSettings(_env_file=None)
+    assert settings.blacklist_enabled is False
+    assert settings.blacklist_refresh_hours == 24
+
+
+def test_blacklist_without_key_fails_at_startup(monkeypatch):
+    monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_ENABLED", "true")
+    with pytest.raises(ValidationError, match="ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY"):
+        AbuseIpdbSettings(_env_file=None)
+
+
+def test_blacklist_with_key_starts(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_API_KEY", "k" * 80)
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_ENABLED", "true")
+    assert AbuseIpdbSettings(_env_file=None).blacklist_enabled is True
+
+
+def test_blacklist_refresh_interval_cannot_go_below_six_hours(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_REFRESH_HOURS", "5")
+    with pytest.raises(ValidationError):
+        AbuseIpdbSettings(_env_file=None)

@@ -1,4 +1,4 @@
-"""AbuseIPDB endpoints: availability, the stored reports, IP checks and sending a report."""
+"""AbuseIPDB endpoints: availability, the blacklist, the stored reports, IP checks and sending a report."""
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -11,6 +11,7 @@ from litestar.params import JSONBody, QueryParameter, SkipValidation
 from litestar.status_codes import (
     HTTP_200_OK,
     HTTP_400_BAD_REQUEST,
+    HTTP_401_UNAUTHORIZED,
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_429_TOO_MANY_REQUESTS,
@@ -18,11 +19,17 @@ from litestar.status_codes import (
 )
 
 from geometrikks.config.settings import Settings
-from geometrikks.domain.abuseipdb.dependencies import provide_abuseipdb_client, provide_abuseipdb_reports
+from geometrikks.domain.abuseipdb.blacklist import current_blacklist
+from geometrikks.domain.abuseipdb.dependencies import (
+    provide_abuseipdb_blacklist,
+    provide_abuseipdb_client,
+    provide_abuseipdb_reports,
+)
 from geometrikks.domain.abuseipdb.errors import AbuseIpdbDisabledError
 from geometrikks.domain.abuseipdb.models import AbuseIpdbReport, ReporterKind, ReportStatus
-from geometrikks.domain.abuseipdb.repositories import AbuseIpdbReportRepository
+from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository, AbuseIpdbReportRepository
 from geometrikks.domain.abuseipdb.schemas import (
+    AbuseIpdbBlacklistResponse,
     AbuseIpdbStatusResponse,
     CheckResponse,
     RateLimitDTO,
@@ -118,6 +125,7 @@ class AbuseIpdbController(Controller):
     tags = ["AbuseIPDB"]
     dependencies = {
         "abuseipdb_reports": Provide(provide_abuseipdb_reports),
+        "abuseipdb_blacklist": Provide(provide_abuseipdb_blacklist),
         "abuseipdb": Provide(provide_abuseipdb_client, sync_to_thread=False),
     }
 
@@ -125,8 +133,9 @@ class AbuseIpdbController(Controller):
         "/status",
         summary="Show whether AbuseIPDB checks and reports are available",
         description=(
-            "Says whether ABUSEIPDB_API_KEY is set, which enables checks, and whether "
-            "ABUSEIPDB_REPORTING_ENABLED=true, which enables reports. The quotas come from AbuseIPDB's latest "
+            "Says whether ABUSEIPDB_API_KEY is set, which enables checks, whether "
+            "ABUSEIPDB_REPORTING_ENABLED=true, which enables reports, and whether "
+            "ABUSEIPDB_BLACKLIST_ENABLED=true, which enables the blacklist. The quotas come from AbuseIPDB's latest "
             "answer to each kind of request since startup and are null before the first one. Nothing leaves the "
             "server."
         ),
@@ -139,8 +148,35 @@ class AbuseIpdbController(Controller):
         return AbuseIpdbStatusResponse(
             enabled=settings.abuseipdb.enabled,
             reporting_enabled=settings.abuseipdb.reporting_enabled,
+            blacklist_enabled=settings.abuseipdb.blacklist_enabled,
             reports=_rate_limit_dto(abuseipdb.rate_limit("report")) if abuseipdb else None,
             checks=_rate_limit_dto(abuseipdb.rate_limit("check")) if abuseipdb else None,
+        )
+
+    @get(
+        "/blacklist",
+        summary="List the IPs on AbuseIPDB's blacklist",
+        description=(
+            "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every "
+            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default. Read from the local database; nothing leaves "
+            "the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the "
+            "first download, and when the last download is more than 72 hours old. The list is for your own use, "
+            "and AbuseIPDB forbids republishing it."
+        ),
+        responses={HTTP_401_UNAUTHORIZED: _error("The request has no valid session or API key.")},
+    )
+    async def get_blacklist(
+        self,
+        settings: NamedDependency[SkipValidation[Settings]],
+        abuseipdb_blacklist: NamedDependency[SkipValidation[AbuseIpdbBlacklistRepository]],
+    ) -> AbuseIpdbBlacklistResponse:
+        blacklist_view = await current_blacklist(
+            abuseipdb_blacklist, enabled=settings.abuseipdb.blacklist_enabled, now=datetime.now(UTC)
+        )
+        return AbuseIpdbBlacklistResponse(
+            generated_at=blacklist_view.generated_at,
+            refreshed_at=blacklist_view.refreshed_at,
+            ips=blacklist_view.ips,
         )
 
     @get(

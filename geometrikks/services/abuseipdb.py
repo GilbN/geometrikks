@@ -2,10 +2,11 @@
 
 A check sends the queried IP to api.abuseipdb.com. A report sends the IP, the
 categories, the comment and the attack timestamp, which AbuseIPDB publishes.
-The API key travels only in the ``Key`` header and appears in no error text.
+A blacklist download sends only the key. The API key travels only in the ``Key`` header and appears in no error text.
 """
 from __future__ import annotations
 
+import ipaddress
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
@@ -24,10 +25,12 @@ logger = get_logger(__name__)
 
 API_BASE = "https://api.abuseipdb.com/api/v2/"
 MAX_RESPONSE_BYTES = 256 * 1024
+MAX_BLACKLIST_RESPONSE_BYTES = 4 * 1024 * 1024
+BLACKLIST_LIMIT = 10_000
 CHECK_CACHE_TTL_SECONDS = 15 * 60
 CHECK_CACHE_SIZE = 512
 
-Endpoint = Literal["check", "report"]
+Endpoint = Literal["check", "report", "blacklist"]
 
 
 class AbuseIpdbError(Exception):
@@ -99,6 +102,12 @@ class ReportResult:
     abuse_confidence_score: int
 
 
+@dataclass(frozen=True)
+class BlacklistResult:
+    generated_at: datetime
+    ips: list[str]
+
+
 def default_transport() -> httpx2.AsyncBaseTransport | None:
     """None selects httpx2's real transport; the test guard replaces this."""
     return None
@@ -157,6 +166,24 @@ def _optional(data: dict[str, Any], key: str, kind: type) -> Any:
     return value
 
 
+def _canonical_global_ip(value: str) -> str | None:
+    try:
+        address = ipaddress.ip_address(value.strip())
+    except ValueError:
+        return None
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.scope_id is not None:
+            return None
+        address = address.ipv4_mapped or address
+    return str(address) if address.is_global else None
+
+
+def _blacklist_entry_ip(entry: object) -> str | None:
+    if not isinstance(entry, dict):
+        raise _BadPayloadError("data")
+    return _canonical_global_ip(_required_str(entry, "ipAddress"))
+
+
 class AbuseIpdbClient:
     """One httpx2 client is opened per call, so there is nothing to close."""
 
@@ -186,8 +213,10 @@ class AbuseIpdbClient:
             return
         self._rate_limits[endpoint] = RateLimit(limit, remaining, _epoch_header(headers, "X-RateLimit-Reset"))
 
-    async def _request(self, endpoint: Endpoint, method: str, form: dict[str, str]) -> dict[str, Any]:
-        """Send one request and return the ``data`` object of a 2xx answer."""
+    async def _request_body(
+        self, endpoint: Endpoint, method: str, form: dict[str, str], *, max_bytes: int = MAX_RESPONSE_BYTES
+    ) -> bytes:
+        """Send one request and return the body of a 2xx answer."""
         maybe_sent = endpoint == "report"
         headers = {"Key": self.api_key, "Accept": "application/json", "User-Agent": USER_AGENT}
         url = API_BASE + endpoint
@@ -208,7 +237,7 @@ class AbuseIpdbClient:
                     try:
                         async for chunk in resp.aiter_bytes():
                             body += chunk
-                            if len(body) > MAX_RESPONSE_BYTES:
+                            if len(body) > max_bytes:
                                 body_problem = "sent an oversized answer"
                                 break
                     except httpx2.HTTPError:
@@ -240,8 +269,14 @@ class AbuseIpdbClient:
             raise AbuseIpdbUnavailableError(f"AbuseIPDB {body_problem}", maybe_sent=maybe_sent)
         if not 200 <= status < 300:
             raise AbuseIpdbUnavailableError(f"AbuseIPDB answered {status}", maybe_sent=maybe_sent)
+        return bytes(body)
+
+    async def _request(self, endpoint: Endpoint, method: str, form: dict[str, str]) -> dict[str, Any]:
+        """Send one request and return the ``data`` object of a 2xx answer."""
+        maybe_sent = endpoint == "report"
+        body = await self._request_body(endpoint, method, form)
         try:
-            data = msgspec.json.decode(bytes(body))["data"]
+            data = msgspec.json.decode(body)["data"]
         except (msgspec.DecodeError, KeyError, TypeError) as exc:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=maybe_sent) from exc
         if not isinstance(data, dict):
@@ -312,6 +347,26 @@ class AbuseIpdbClient:
             "abuseipdb_report_upstream", ip_address=ip, categories=list(categories), score=result.abuse_confidence_score
         )
         return result
+
+    async def blacklist(self) -> BlacklistResult:
+        """AbuseIPDB's blacklist, keeping only canonical global addresses. An empty list counts as unreadable."""
+        body = await self._request_body(
+            "blacklist", "GET", {"limit": str(BLACKLIST_LIMIT)}, max_bytes=MAX_BLACKLIST_RESPONSE_BYTES
+        )
+        try:
+            payload = msgspec.json.decode(body)
+            generated_at = datetime.fromisoformat(payload["meta"]["generatedAt"])
+            if generated_at.tzinfo is None:
+                raise _BadPayloadError("generatedAt")
+            entries = payload["data"]
+            if not isinstance(entries, list):
+                raise _BadPayloadError("data")
+            ips = [ip for entry in entries if (ip := _blacklist_entry_ip(entry)) is not None]
+        except (msgspec.DecodeError, _BadPayloadError, KeyError, TypeError, ValueError) as exc:
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from exc
+        if not ips:
+            raise AbuseIpdbUnavailableError("AbuseIPDB sent an empty blacklist", maybe_sent=False)
+        return BlacklistResult(generated_at=generated_at, ips=list(dict.fromkeys(ips)))
 
 
 _client: AbuseIpdbClient | None = None

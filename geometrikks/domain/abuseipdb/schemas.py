@@ -35,6 +35,9 @@ class AbuseIpdbStatusResponse(msgspec.Struct, rename="camel", kw_only=True):
     reporting_enabled: Annotated[
         bool, Meta(description="True when ABUSEIPDB_REPORTING_ENABLED=true, so reports can be sent.")
     ]
+    blacklist_enabled: Annotated[
+        bool, Meta(description="True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.")
+    ]
     reports: Annotated[
         RateLimitDTO | None,
         Meta(description="The report quota from AbuseIPDB's latest answer. Null until a report since startup."),
@@ -43,6 +46,18 @@ class AbuseIpdbStatusResponse(msgspec.Struct, rename="camel", kw_only=True):
         RateLimitDTO | None,
         Meta(description="The check quota from AbuseIPDB's latest answer. Null until a check since startup."),
     ]
+
+
+class AbuseIpdbBlacklistResponse(msgspec.Struct, rename="camel", kw_only=True):
+    """The IPs on AbuseIPDB's blacklist, as of the last download."""
+
+    generated_at: Annotated[
+        datetime | None, Meta(description=f"When AbuseIPDB generated the list, {IN_UTC}. Null when `ips` is empty.")
+    ]
+    refreshed_at: Annotated[
+        datetime | None, Meta(description=f"When GeoMetrikks downloaded the list, {IN_UTC}. Null when `ips` is empty.")
+    ]
+    ips: Annotated[list[str], Meta(description="The listed IPs in their canonical spelling.")]
 
 
 class ReportedIpDTO(msgspec.Struct, rename="camel", kw_only=True):

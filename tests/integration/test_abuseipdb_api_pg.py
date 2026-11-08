@@ -125,7 +125,13 @@ async def test_status_reports_remaining_after_a_report(app_settings, use_upstrea
         await client.post("/api/v1/abuseipdb/reports", json={"reports": [REPORT]})
         body = (await client.get("/api/v1/abuseipdb/status")).json()
 
-    assert before == {"enabled": True, "reportingEnabled": True, "reports": None, "checks": None}
+    assert before == {
+        "enabled": True,
+        "reportingEnabled": True,
+        "blacklistEnabled": False,
+        "reports": None,
+        "checks": None,
+    }
     assert body["enabled"] is True and body["reportingEnabled"] is True
     assert body["reports"] == {"limit": 1000, "remaining": 986, "resetsAt": "2025-11-08T00:00:00Z"}
     assert body["checks"] is None

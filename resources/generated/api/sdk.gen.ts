@@ -9,6 +9,9 @@ import type {
 } from "./client";
 import { client } from "./client.gen";
 import type {
+  ApiV1AbuseipdbBlacklistGetBlacklistData,
+  ApiV1AbuseipdbBlacklistGetBlacklistErrors,
+  ApiV1AbuseipdbBlacklistGetBlacklistResponses,
   ApiV1AbuseipdbCheckCheckIpData,
   ApiV1AbuseipdbCheckCheckIpErrors,
   ApiV1AbuseipdbCheckCheckIpResponses,
@@ -256,6 +259,37 @@ export type Options<
 };
 
 /**
+ * List the IPs on AbuseIPDB's blacklist
+ *
+ * Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the last download is more than 72 hours old. The list is for your own use, and AbuseIPDB forbids republishing it.
+ */
+export const apiV1AbuseipdbBlacklistGetBlacklist = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1AbuseipdbBlacklistGetBlacklistData, ThrowOnError>,
+): RequestResult<
+  ApiV1AbuseipdbBlacklistGetBlacklistResponses,
+  ApiV1AbuseipdbBlacklistGetBlacklistErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AbuseipdbBlacklistGetBlacklistResponses,
+    ApiV1AbuseipdbBlacklistGetBlacklistErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/blacklist",
+    ...options,
+  });
+
+/**
  * Check an IP on AbuseIPDB
  *
  * Asks AbuseIPDB what it knows about the IP: its confidence score, report counts, usage type and ISP. Only the IP leaves the server, and each answer is cached for 15 minutes, so a repeat check spends nothing from the daily quota. A private or reserved address gets a 400 without a request.
@@ -386,7 +420,7 @@ export const apiV1AbuseipdbReportsCreateReports = <
 /**
  * Show whether AbuseIPDB checks and reports are available
  *
- * Says whether ABUSEIPDB_API_KEY is set, which enables checks, and whether ABUSEIPDB_REPORTING_ENABLED=true, which enables reports. The quotas come from AbuseIPDB's latest answer to each kind of request since startup and are null before the first one. Nothing leaves the server.
+ * Says whether ABUSEIPDB_API_KEY is set, which enables checks, whether ABUSEIPDB_REPORTING_ENABLED=true, which enables reports, and whether ABUSEIPDB_BLACKLIST_ENABLED=true, which enables the blacklist. The quotas come from AbuseIPDB's latest answer to each kind of request since startup and are null before the first one. Nothing leaves the server.
  */
 export const apiV1AbuseipdbStatusGetAbuseipdbStatus = <
   ThrowOnError extends boolean = false,

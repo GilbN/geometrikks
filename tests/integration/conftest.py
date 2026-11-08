@@ -249,3 +249,11 @@ async def clean_abuseipdb_reports(pg_engine: AsyncEngine):
     async with pg_engine.begin() as conn:
         await conn.execute(text("DELETE FROM abuseipdb_reports"))
     yield
+
+
+@pytest.fixture()
+async def clean_abuseipdb_blacklist(pg_engine: AsyncEngine):
+    """Clear the AbuseIPDB blacklist tables before each test that requests this fixture."""
+    async with pg_engine.begin() as conn:
+        await conn.execute(text("TRUNCATE abuseipdb_blacklist, abuseipdb_blacklist_status"))
+    yield

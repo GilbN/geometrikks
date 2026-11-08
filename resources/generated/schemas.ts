@@ -6,6 +6,9 @@ export * from "./api/types.gen"
 
 // Import specific operation types for mapping
 import type {
+  ApiV1AbuseipdbBlacklistGetBlacklistData,
+  ApiV1AbuseipdbBlacklistGetBlacklistErrors,
+  ApiV1AbuseipdbBlacklistGetBlacklistResponses,
   ApiV1AbuseipdbCheckCheckIpData,
   ApiV1AbuseipdbCheckCheckIpErrors,
   ApiV1AbuseipdbCheckCheckIpResponses,
@@ -264,6 +267,7 @@ export type OperationName =
   | 'get_access_log_facets'
   | 'get_alert'
   | 'get_asn_classification'
+  | 'get_blacklist'
   | 'get_changelog'
   | 'get_cumulative_time_series'
   | 'get_database_info'
@@ -353,6 +357,7 @@ export interface OperationDataTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsData
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertData
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationData
+  'get_blacklist': ApiV1AbuseipdbBlacklistGetBlacklistData
   'get_changelog': ApiV1SystemChangelogGetChangelogData
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
@@ -443,6 +448,7 @@ export interface OperationResponseTypes {
   'get_access_log_facets': ApiV1AccessLogsFacetsGetAccessLogFacetsResponses
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertResponses
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationResponses
+  'get_blacklist': ApiV1AbuseipdbBlacklistGetBlacklistResponses
   'get_changelog': ApiV1SystemChangelogGetChangelogResponses
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
@@ -533,6 +539,7 @@ export interface OperationErrorTypes {
   'get_access_log_facets': never
   'get_alert': ApiV1CrowdsecAlertsAlertIdGetAlertErrors
   'get_asn_classification': never
+  'get_blacklist': ApiV1AbuseipdbBlacklistGetBlacklistErrors
   'get_changelog': never
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never

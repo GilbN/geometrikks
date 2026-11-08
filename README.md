@@ -13,7 +13,8 @@ every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
 hardware from one Docker image. Outbound traffic is the GeoLite2 download
 and, unless you disable it, a public-IP lookup for the map's server location.
-With an AbuseIPDB key set, the IPs you open in the inspector are checked there too.
+With an AbuseIPDB key set, the IPs you open in the inspector are checked there too,
+and `ABUSEIPDB_BLACKLIST_ENABLED=true` also downloads AbuseIPDB's blacklist on a schedule.
 If you run CrowdSec, connect its Local API and manage bans next to the
 traffic that caused them.
 

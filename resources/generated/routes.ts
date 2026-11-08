@@ -38,6 +38,7 @@ export type RouteName =
   | 'get_access_log_facets'
   | 'get_alert'
   | 'get_asn_classification'
+  | 'get_blacklist'
   | 'get_changelog'
   | 'get_cumulative_time_series'
   | 'get_database_info'
@@ -137,6 +138,7 @@ export interface RoutePathParams {
     alert_id: number;
   };
   'get_asn_classification': Record<string, never>;
+  'get_blacklist': Record<string, never>;
   'get_changelog': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_database_info': Record<string, never>;
@@ -251,6 +253,7 @@ export interface RouteQueryParams {
   'get_access_log_facets': Record<string, never>;
   'get_alert': Record<string, never>;
   'get_asn_classification': Record<string, never>;
+  'get_blacklist': Record<string, never>;
   'get_changelog': Record<string, never>;
   'get_cumulative_time_series': {
     endDate?: DateTime;
@@ -743,6 +746,13 @@ export const routeDefinitions = {
   },
   'get_asn_classification': {
     path: '/api/v1/system/asn-classification',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_blacklist': {
+    path: '/api/v1/abuseipdb/blacklist',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

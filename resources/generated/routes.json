@@ -165,6 +165,13 @@
       ],
       "uri": "/api/v1/system/asn-classification"
     },
+    "get_blacklist": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/abuseipdb/blacklist"
+    },
     "get_changelog": {
       "method": "get",
       "methods": [

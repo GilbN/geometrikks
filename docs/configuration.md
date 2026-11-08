@@ -114,6 +114,7 @@ Set these only for a feature you use, or to change a default.
 |---|---|---|
 | `ABUSEIPDB_API_KEY` | - | AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB and uses one daily check, at most once per IP every 15 minutes. |
 | `ABUSEIPDB_REPORTING_ENABLED` | `false` | Allow reporting IPs to AbuseIPDB from the UI. A report sends the IP, your comment, the categories and the attack time to AbuseIPDB, where they are public. Needs ABUSEIPDB_API_KEY. |
+| `ABUSEIPDB_BLACKLIST_ENABLED` | `false` | Download AbuseIPDB's blacklist from api.abuseipdb.com every ABUSEIPDB_BLACKLIST_REFRESH_HOURS and mark listed IPs in the UI. The request sends your key and no IPs. Needs ABUSEIPDB_API_KEY and the scheduler. The list is for your own use: AbuseIPDB forbids republishing it, and free plans can't be used commercially. |
 
 ### OpenID Connect
 
@@ -182,6 +183,7 @@ connection pool that runs dry or a log that rotates too often.
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
 | `DROP_REFRESH_HOURS` | `24` | Hours between DROP list downloads. A list is never fetched again within an hour of its last attempt, whatever this is set to. |
+| `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` | `24` | Hours between blacklist downloads. The list is never fetched again within 5 hours of the last attempt, since free plans get 5 calls a day. A list more than 72 hours old is no longer shown, so keep this well below that. |
 | `ABUSEIPDB_REQUEST_TIMEOUT` | `10.0` | AbuseIPDB request timeout in seconds |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |
 | `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Days after which to compress hypertable chunks |
