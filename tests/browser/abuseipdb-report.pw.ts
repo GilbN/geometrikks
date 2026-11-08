@@ -535,6 +535,56 @@ test.describe("desktop", () => {
     await expect(footerActions).toBeFocused()
   })
 
+  test("the inspector loads the score when it opens and spends one check", async ({ page }) => {
+    const { recorded } = await setup(page)
+    await page.goto(`/access-logs?inspect=${IP}`)
+    await expect(openSheet(page).getByText("AbuseIPDB 87% · 1,204 reports")).toBeVisible()
+    expect(recorded.checks).toBe(1)
+    await page.keyboard.press("Escape")
+    await expect(openSheet(page)).toHaveCount(0)
+    await ipActions(page).click()
+    await page.getByRole("menuitem", { name: "Inspect IP", exact: true }).click()
+    await expect(openSheet(page).getByText("AbuseIPDB 87% · 1,204 reports")).toBeVisible()
+    expect(recorded.checks).toBe(1)
+  })
+
+  test("a failed inspector check says why and retries on a click", async ({ page }) => {
+    const { recorded } = await setup(page, { checkFailures: 1 })
+    await page.goto(`/access-logs?inspect=${IP}`)
+    const sheet = openSheet(page)
+    await expect(sheet.getByText("AbuseIPDB did not answer.")).toBeVisible()
+    expect(recorded.checks).toBe(1)
+    await sheet.getByRole("button", { name: "Retry AbuseIPDB check" }).click()
+    await expect(sheet.getByText("AbuseIPDB 87% · 1,204 reports")).toBeVisible()
+    expect(recorded.checks).toBe(2)
+  })
+
+  test("a score from the report dialog shows in the inspector without another check", async ({ page }) => {
+    const { recorded } = await setup(page)
+    const dialog = await openReportFromMenu(page)
+    await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
+    await expect(dialog.getByText("87% confidence")).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(dialog).toHaveCount(0)
+    await ipActions(page).click()
+    await page.getByRole("menuitem", { name: "Inspect IP", exact: true }).click()
+    await expect(openSheet(page).getByText("AbuseIPDB 87% · 1,204 reports")).toBeVisible()
+    expect(recorded.checks).toBe(1)
+  })
+
+  test("the inspector runs no check for a private address or without a key", async ({ page }) => {
+    const { recorded: privateAddress } = await setup(page)
+    await page.goto("/access-logs?inspect=10.0.0.5")
+    await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(privateAddress.checks).toBe(0)
+    const { recorded: noKey } = await setup(page, { status: { enabled: false, reportingEnabled: false, reports: null, checks: null } })
+    await page.goto(`/access-logs?inspect=${IP}`)
+    await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(noKey.checks).toBe(0)
+  })
+
   test("inspector shows the AbuseIPDB link without a key", async ({ page }) => {
     await setup(page, { status: { enabled: false, reportingEnabled: false, reports: null, checks: null } })
     await page.goto(`/access-logs?inspect=${IP}`)

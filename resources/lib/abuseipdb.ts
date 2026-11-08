@@ -144,6 +144,13 @@ function inRanges<Address extends number | bigint>(ranges: [Address, Address][],
   return ranges.some(([start, end]) => start <= value && value <= end)
 }
 
+export type AbuseScoreTone = "high" | "medium" | "low"
+
+export function abuseScoreTone(score: number): AbuseScoreTone {
+  if (score >= 75) return "high"
+  return score >= 25 ? "medium" : "low"
+}
+
 /** Whether the backend's public-address check, Python's `is_global`, would take `ip`. Multicast is refused too. */
 export function isPublicIp(ip: string): boolean {
   const parsed = parseIp(ip)

@@ -1991,7 +1991,7 @@ export function useAbuseIpdbReports(ip: string, enabled: boolean) {
   })
 }
 
-/** Leaves the server and spends AbuseIPDB quota, so it runs only when asked. */
+/** Leaves the server and spends AbuseIPDB quota, so it never refetches on its own. */
 export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.abuseipdb.check(ip),

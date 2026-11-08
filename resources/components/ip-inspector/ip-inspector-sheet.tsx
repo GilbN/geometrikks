@@ -4,6 +4,7 @@ import { BarChart3, Bug, ChevronDown, FileText, RotateCcw, RotateCw, type Lucide
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AbuseReportButton } from "@/components/abuse-report/abuse-report-dialog"
+import { AbuseIpdbBadge } from "@/components/abuseipdb/abuseipdb-badge"
 import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
@@ -16,10 +17,10 @@ import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } f
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
-import { abuseipdbCheckUrl } from "@/lib/abuseipdb"
+import { abuseipdbCheckUrl, isPublicIp } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
-import { useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
+import { useAbuseIpdbStatus, useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
@@ -126,6 +127,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
   const latestAlert = useIpLatestAlert(ip)
   const locations = useIpLocations(ip)
   const dropNetwork = useDropNetwork(ip)
+  const abuseChecksOn = useAbuseIpdbStatus().data?.enabled === true && isPublicIp(ip)
 
   const profile = profileQuery.data
   const decision = winningDecision(decisions.data)
@@ -156,7 +158,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
           {(primary || profile?.asn != null || crowdsecEnabled) && " · "}
           <ExternalLink href={abuseipdbCheckUrl(ip)}>AbuseIPDB</ExternalLink>
         </p>
-        {(decision || dropNetwork) && (
+        {(decision || dropNetwork || abuseChecksOn) && (
           <div className="flex flex-wrap items-center gap-2">
             {decision && (
               <DecisionBadge
@@ -168,6 +170,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
               </DecisionBadge>
             )}
             {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
+            {abuseChecksOn && <AbuseIpdbBadge key={ip} ip={ip} />}
           </div>
         )}
       </header>
