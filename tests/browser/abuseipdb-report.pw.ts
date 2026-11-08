@@ -454,6 +454,22 @@ test.describe("desktop", () => {
     expect(recorded.posts).toHaveLength(1)
   })
 
+  test("a record sheet's menu reports from a dropdown, and Escape returns to its button", async ({ page }) => {
+    await setup(page)
+    const sheet = await openRecordSheet(page)
+    const footerActions = sheet.getByRole("button", { name: `Actions for ${IP}` })
+    await footerActions.click()
+    await expect(page.getByRole("menu")).toBeVisible()
+    await expect(openDrawer(page)).toHaveCount(0)
+    await reportItem(page).click()
+    const dialog = reportDialog(page)
+    await expect(dialog.getByLabel("Comment")).not.toHaveValue("")
+    await page.keyboard.press("Escape")
+    await expect(dialog).toHaveCount(0)
+    await expect(sheet).toBeVisible()
+    await expect(footerActions).toBeFocused()
+  })
+
   test("inspector shows the AbuseIPDB link without a key", async ({ page }) => {
     await setup(page, { status: { enabled: false, reportingEnabled: false, reports: null, checks: null } })
     await page.goto(`/access-logs?inspect=${IP}`)
@@ -514,7 +530,7 @@ test.describe("portrait phone", () => {
     await page.keyboard.press("Escape")
     await expect(drawer).toHaveCount(0)
     await expect(sheet).toBeVisible()
-    await expect.poll(() => sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true)
+    await expect(sheet.getByRole("button", { name: `Actions for ${IP}` })).toBeFocused()
   })
 
   test("the window picker is a native select that still changes the window", async ({ page }) => {
