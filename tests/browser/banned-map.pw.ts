@@ -727,8 +727,6 @@ test.describe("AbuseIPDB blacklist", () => {
     await expect(panel.getByTitle(BLACKLIST_TITLE)).toBeVisible()
     await expect(panel.getByTitle("On the DROP list as SBL000001")).toBeVisible()
     await settled(panel)
-    const screenshotDir = process.env.BLACKLIST_SCREENSHOT_DIR
-    if (screenshotDir) await page.screenshot({ path: `${screenshotDir}/phone-map-panel.png` })
   })
 
   test("a phone live request panel marks a listed IP", async ({ page }) => {

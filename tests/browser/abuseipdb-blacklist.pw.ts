@@ -1,4 +1,3 @@
-import { mkdirSync } from "node:fs"
 import { expect, test, type Locator, type Page } from "@playwright/test"
 import type { AbuseIpdbBlacklistResponse, AbuseIpdbStatusResponse } from "../../resources/generated/api/types.gen"
 
@@ -8,7 +7,6 @@ const LISTED_IP = "3.5.140.2"
 const LISTED_IPV6 = "2600:1f18::1"
 const UNLISTED_IP = "3.5.140.9"
 const BADGE_LABEL = "AbuseIPDB blacklist"
-const SCREENSHOT_DIR = process.env.BLACKLIST_SCREENSHOT_DIR
 const SETTLE_MS = 300
 
 const statusOn: AbuseIpdbStatusResponse = {
@@ -69,21 +67,6 @@ const openSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data
 const openMenu = (page: Page) => page.locator('[data-slot="dropdown-menu-content"][data-state="open"]')
 const badgeIn = (container: Locator) => container.getByTitle("On AbuseIPDB's blacklist")
 
-async function screenshot(page: Page, name: string, target?: Locator) {
-  if (!SCREENSHOT_DIR) return
-  mkdirSync(SCREENSHOT_DIR, { recursive: true })
-  const path = `${SCREENSHOT_DIR}/${name}.png`
-  if (target) await target.screenshot({ path })
-  else await page.screenshot({ path })
-}
-
-async function screenshotTopOf(page: Page, name: string, target: Locator) {
-  if (!SCREENSHOT_DIR) return
-  mkdirSync(SCREENSHOT_DIR, { recursive: true })
-  const box = (await target.boundingBox())!
-  await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png`, clip: { x: box.x, y: box.y, width: box.width, height: 320 } })
-}
-
 test.describe("desktop", () => {
   test.use({ viewport: { width: 1360, height: 900 } })
 
@@ -94,7 +77,6 @@ test.describe("desktop", () => {
     const badge = badgeIn(sheet)
     await expect(badge).toBeVisible()
     await expect(badge).toHaveText(BADGE_LABEL)
-    await screenshotTopOf(page, "inspector-header", sheet)
   })
 
   test("the inspector leaves an unlisted IP unmarked", async ({ page }) => {
@@ -120,7 +102,6 @@ test.describe("desktop", () => {
     await ipActions(page).click()
     const menu = openMenu(page)
     await expect(badgeIn(menu)).toBeVisible()
-    await screenshot(page, "menu-desktop", menu)
   })
 
   test("with the feature off nothing is fetched or marked", async ({ page }) => {
@@ -170,7 +151,6 @@ test.describe("portrait phone", () => {
     await ipActions(page).click()
     const drawer = openDrawer(page)
     await expect(badgeIn(drawer)).toBeVisible()
-    await screenshot(page, "menu-phone", drawer)
   })
 })
 
@@ -184,6 +164,5 @@ test.describe("phone held sideways", () => {
     const drawer = openDrawer(page)
     await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "right")
     await expect(badgeIn(drawer)).toBeVisible()
-    await screenshot(page, "menu-phone-side", drawer)
   })
 })

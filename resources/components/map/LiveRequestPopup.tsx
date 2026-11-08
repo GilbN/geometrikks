@@ -221,6 +221,7 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
         {log?.url ?? "No access log url data for this event"}
       </p>
       <div className="mb-1 flex items-center gap-1 border-b border-border/60 pb-3">
+        <CopyIpButton ip={request.ip} className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />
         <IpStatusDetails
           ip={request.ip}
           context={[[request.city, request.countryCode && countryLabel(request.countryCode)].filter(Boolean).join(", "), asn].filter(Boolean).join(" · ")}
@@ -234,7 +235,6 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
             {blacklisted && <AbuseIpdbBlacklistBadge />}
           </span>
         </IpStatusDetails>
-        <CopyIpButton ip={request.ip} className="ml-auto size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />
       </div>
       <dl>
         {request.server && <DetailField label="Server" value={request.server} />}

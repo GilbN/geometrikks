@@ -352,10 +352,12 @@ function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAl
   const blacklisted = useAbuseIpdbBlacklisted(member.ip)
   return (
     <>
-      <PanelIp ip={member.ip}>
+      <PanelIp
+        ip={member.ip}
+        copyButton={<CopyIpButton ip={member.ip} className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />}
+      >
         {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
         {blacklisted && <AbuseIpdbBlacklistBadge />}
-        <CopyIpButton ip={member.ip} className="ml-auto size-11 [&_svg:not([class*='size-'])]:size-5" />
       </PanelIp>
       <dl>
         <DetailField label="Events" value={formatNumber(member.eventCount)} />

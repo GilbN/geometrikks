@@ -348,10 +348,11 @@ export function PanelSection({ icon, title, children }: { icon?: ReactNode; titl
   )
 }
 
-/** The panel's IP in large monospace type, with its badges after it. */
-export function PanelIp({ ip, children }: { ip: string; children?: ReactNode }) {
+/** The panel's IP in large monospace type, with its copy button before it and its badges after it. */
+export function PanelIp({ ip, copyButton, children }: { ip: string; copyButton?: ReactNode; children?: ReactNode }) {
   return (
     <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/60 pb-3">
+      {copyButton}
       <span className="min-w-0 break-all font-mono text-xl">{ip}</span>
       {children}
     </div>
