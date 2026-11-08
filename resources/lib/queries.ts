@@ -1985,6 +1985,9 @@ export function useAbuseIpdbReports(ip: string, enabled: boolean) {
     queryKey: queryKeys.abuseipdb.reports(ip),
     queryFn: () => fetchAbuseIpdbReports(ip),
     enabled,
+    // The report dialog holds polling, which tells TanStack the window is unfocused and so
+    // pauses retries. A retry would leave the query paused with neither data nor an error.
+    retry: false,
   })
 }
 

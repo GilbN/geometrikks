@@ -251,7 +251,15 @@ function CheckResult({ ip }: { ip: string }) {
   )
 }
 
-function EarlierReports({ reports, loading }: { reports: StoredReportDto[] | undefined; loading: boolean }) {
+function EarlierReports({
+  reports,
+  loading,
+  error,
+}: {
+  reports: StoredReportDto[] | undefined
+  loading: boolean
+  error: unknown
+}) {
   return (
     <Section label="Your earlier reports">
       {loading ? (
@@ -262,6 +270,8 @@ function EarlierReports({ reports, loading }: { reports: StoredReportDto[] | und
             <li key={report.id}>{earlierReportText(report)}</li>
           ))}
         </ul>
+      ) : error ? (
+        <p className="text-sm text-red-500">{errorDetail(error, "Could not load your earlier reports.")}</p>
       ) : (
         <p className="text-[11px] text-muted-foreground">None from GeoMetrikks yet.</p>
       )}
@@ -606,7 +616,7 @@ function ReportForm({
 
         {status?.enabled && <CheckResult ip={ip} />}
 
-        <EarlierReports reports={earlierReports.data} loading={earlierReports.isLoading} />
+        <EarlierReports reports={earlierReports.data} loading={earlierReports.isLoading} error={earlierReports.error} />
 
         {windowOpen && (
           <p className="text-xs text-muted-foreground">

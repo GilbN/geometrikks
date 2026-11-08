@@ -26,6 +26,8 @@ interface Fixture {
   evidenceFor: (url: URL) => AbuseReportResponse
   /** How many /check requests fail before one answers. */
   checkFailures: number
+  /** Fails the earlier-reports list with this detail. */
+  storedReportsFailure: string | null
 }
 
 interface Recorded {
@@ -103,6 +105,7 @@ function defaultFixture(): Fixture {
     postBody: { results: [{ ipAddress: IP, status: "reported", abuseConfidenceScore: 88, reportedAt: new Date().toISOString(), error: null }] },
     evidenceFor: () => evidence(),
     checkFailures: 0,
+    storedReportsFailure: null,
   }
 }
 
@@ -145,7 +148,12 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
     return route.fulfill({ json: check })
   })
   await page.route("**/api/v1/abuseipdb/reports*", async (route) => {
-    if (route.request().method() !== "POST") return route.fulfill({ json: fixture.storedReports })
+    if (route.request().method() !== "POST") {
+      if (fixture.storedReportsFailure) {
+        return route.fulfill({ status: 503, json: { status_code: 503, detail: fixture.storedReportsFailure, code: "service_unavailable" } })
+      }
+      return route.fulfill({ json: fixture.storedReports })
+    }
     recorded.posts.push(route.request().postDataJSON())
     if (gates.post) await gates.post
     if (recorded.posts.length > 1) {
@@ -423,6 +431,13 @@ test.describe("desktop", () => {
     const item = reportItem(page)
     await expect(item).toContainText("again in 9 min")
     await expect(item).toHaveAttribute("data-disabled", "")
+  })
+
+  test("a failed history load says so instead of showing no reports", async ({ page }) => {
+    await setup(page, { storedReportsFailure: "The database is unavailable." })
+    const dialog = await openReportFromMenu(page)
+    await expect(dialog.getByText("The database is unavailable.")).toBeVisible()
+    await expect(dialog.getByText("None from GeoMetrikks yet.")).toHaveCount(0)
   })
 
   test("unconfirmed report reads 'may have been sent'", async ({ page }) => {
