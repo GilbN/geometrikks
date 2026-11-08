@@ -16,12 +16,12 @@ async function login(page: Page) {
   expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
 }
 
-async function openGeoLogs(page: Page, { range, pollInterval, chartsOn = true }: { range: string; pollInterval: number; chartsOn?: boolean }) {
+async function openGeoLogs(page: Page, { range, pollInterval, chartsOn = true, granularity = "auto" }: { range: string; pollInterval: number; chartsOn?: boolean; granularity?: string }) {
   await login(page)
-  await page.addInitScript(({ range, pollInterval, chartsOn }) => {
-    localStorage.setItem("geometrikks-time-range", JSON.stringify({ range, pollInterval }))
+  await page.addInitScript(({ range, pollInterval, chartsOn, granularity }) => {
+    localStorage.setItem("geometrikks-time-range", JSON.stringify({ range, pollInterval, granularity }))
     localStorage.setItem("geometrikks-geo-logs-charts", String(chartsOn))
-  }, { range, pollInterval, chartsOn })
+  }, { range, pollInterval, chartsOn, granularity })
   await page.goto("/geo-logs")
 }
 
@@ -37,7 +37,8 @@ async function mockSeries(page: Page) {
     const startDate = url.searchParams.get("fromTimestamp")!
     const endDate = url.searchParams.get("toTimestamp")!
     const step = granularity === "daily" ? 86_400_000 : 3_600_000
-    const buckets = Math.floor((Date.parse(endDate) - Date.parse(startDate)) / step)
+    // A day that crosses local midnight comes back as two daily buckets.
+    const buckets = Math.max(Math.floor((Date.parse(endDate) - Date.parse(startDate)) / step), granularity === "daily" ? 2 : 0)
     const data = Array.from({ length: buckets }, (_, index) => ({
       timestamp: new Date(Date.parse(startDate) + index * step).toISOString(),
       totalEvents: 100 + index + requests.length,
@@ -93,12 +94,42 @@ test.describe("geo logs card charts", () => {
     expect(requests.map((request) => request.granularity)).toEqual(["hourly"])
   })
 
-  test("send their own request when the granularities differ", async ({ page }) => {
+  test("share the request at 7d, where Auto is hourly for both", async ({ page }) => {
     const { requests } = await mockSeries(page)
     await openGeoLogs(page, { range: "7d", pollInterval: 0 })
     await expect(totalEventsChart(page).locator(".recharts-area")).toBeVisible()
     await page.waitForLoadState("networkidle")
-    expect(requests.map((request) => request.granularity).sort()).toEqual(["daily", "hourly"])
+    expect(requests.map((request) => request.granularity)).toEqual(["hourly"])
+  })
+
+  test("follow Chart buckets with the same single request", async ({ page }) => {
+    const { requests } = await mockSeries(page)
+    await openGeoLogs(page, { range: "7d", pollInterval: 0, granularity: "daily" })
+    await expect(totalEventsChart(page).locator(".recharts-area")).toBeVisible()
+    await page.waitForLoadState("networkidle")
+    expect(requests.map((request) => request.granularity)).toEqual(["daily"])
+  })
+
+  test("sweep again when Chart buckets changes", async ({ page }) => {
+    const { requests } = await mockSeries(page)
+    await openGeoLogs(page, { range: "7d", pollInterval: 0 })
+    const chart = totalEventsChart(page)
+    await expect(chart.locator(".recharts-area")).toBeVisible()
+    await markChart(chart)
+
+    await page.getByRole("combobox").filter({ hasText: "Auto" }).click()
+    await page.getByRole("option", { name: "Daily", exact: true }).click()
+    await expect.poll(() => requests.map((request) => request.granularity)).toEqual(["hourly", "daily"])
+    await expect.poll(() => isMarked(chart)).toBe(false)
+  })
+
+  test("hide when Chart buckets leaves too few points to draw", async ({ page }) => {
+    const { requests } = await mockSeries(page)
+    await openGeoLogs(page, { range: "24h", pollInterval: 0, granularity: "daily" })
+    await expect(page.getByText("Total Events", { exact: true })).toBeVisible()
+    await page.waitForLoadState("networkidle")
+    await expect(totalEventsChart(page)).toHaveCount(0)
+    expect(requests.map((request) => request.granularity)).toEqual(["daily"])
   })
 
   test("redraw in place on a poll and sweep once a new range's data arrives", async ({ page }) => {

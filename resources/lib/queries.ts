@@ -1102,8 +1102,8 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
 }
 
 /**
- * The charts on a page's stat cards, hourly up to a week and daily above,
- * whatever the page's chart granularity. Switching them off keeps the last
+ * The charts on a page's stat cards, hourly up to a week and daily above
+ * unless `fixedGranularity` says otherwise. Switching them off keeps the last
  * lines, so the cards can fold them away instead of dropping them. `scope`
  * holds whatever else the lines depend on, such as the page's filters; a new
  * scope sweeps the lines in again, as a new range does.
@@ -1114,12 +1114,13 @@ function useCardSparklines<Data, Lines>(
   scope: Record<string, unknown>,
   fetchData: (window: { startDate: string; endDate: string; granularity: "hourly" | "daily" }) => Promise<Data>,
   toLines: (data: Data) => Lines,
+  fixedGranularity?: "hourly" | "daily",
 ): CardSparklines<Lines> {
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const drawable = hasSparklines(Date.parse(startDate), Date.parse(endDate))
+  const granularity = fixedGranularity ?? sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
+  const drawable = hasSparklines(Date.parse(startDate), Date.parse(endDate), granularity)
   const shown = enabled && drawable
-  const granularity = sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
 
   const key = queryKey({ range, customRange, granularity, ...scope }, lastRefresh)
 
@@ -1172,20 +1173,26 @@ export function useOverviewSparklines({ enabled = true }: { enabled?: boolean } 
   )
 }
 
-/**
- * The Geo Logs cards' charts, under the page's filters like the cards. They
- * share the Over-time chart's query, so when the two use the same granularity
- * the page sends one request.
- */
+/** The granularity the Geo Logs chart and cards both use, so the page sends one request. */
+function useGeoLogGranularity(): "hourly" | "daily" {
+  const { range, customRange, granularity } = useTimeRange()
+  if (granularity !== "auto") return granularity
+  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+  return sparklineGranularity(Date.parse(startDate), Date.parse(endDate))
+}
+
+/** The Geo Logs cards' charts, under the page's filters like the cards. */
 export function useGeoLogSparklines({ enabled = true }: { enabled?: boolean } = {}): CardSparklines<GeoLogSparklines> {
   const { filters } = useGeoLogFilters()
+  const granularity = useGeoLogGranularity()
   return useCardSparklines(
     enabled,
     queryKeys.geoLogs.timeSeries,
-    { filters },
+    { filters, granularity },
     ({ startDate, endDate, granularity }) =>
       fetchGeoLogTimeSeries({ fromTimestamp: startDate, toTimestamp: endDate, granularity, ...filters }),
     geoLogSparklinesFromSeries,
+    granularity,
   )
 }
 
@@ -1601,9 +1608,9 @@ export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?:
 /** Bucketed geo-event totals + unique IPs for the geo-logs chart. */
 export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
-  const { range, customRange, granularity, refetchInterval, lastRefresh } = useTimeRange()
+  const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
-  const resolved = resolveChartGranularity(granularity, range, customRange)
+  const resolved = useGeoLogGranularity()
 
   return useQuery({
     queryKey: queryKeys.geoLogs.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),

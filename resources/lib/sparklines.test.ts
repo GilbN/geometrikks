@@ -21,6 +21,16 @@ describe("hasSparklines", () => {
   })
 })
 
+describe("hasSparklines with a chosen granularity", () => {
+  const start = at("2026-11-07T00:00:00Z")
+
+  it("needs enough buckets at that granularity", () => {
+    expect(hasSparklines(start, start + 24 * 3_600_000, "hourly")).toBe(true)
+    expect(hasSparklines(start, start + 24 * 3_600_000, "daily")).toBe(false)
+    expect(hasSparklines(start, start + 7 * 24 * 3_600_000, "daily")).toBe(true)
+  })
+})
+
 describe("fillGaps", () => {
   const start = at("2026-11-06T10:37:00Z")
   const end = at("2026-11-06T16:37:00Z")
@@ -110,6 +120,63 @@ describe("buildGeoLogSparklines", () => {
       uniqueCountries: [0, 3, 0, 0, 1, 0],
       uniqueCities: [0, 2, 0, 0, 1, 0],
     })
+  })
+})
+
+describe("buildGeoLogSparklines at a daily granularity", () => {
+  it("fills gaps a day apart on a range Auto draws hourly", () => {
+    const series = {
+      granularity: "daily",
+      startDate: "2026-11-01T00:00:00Z",
+      endDate: "2026-11-08T00:00:00Z",
+      data: [{ timestamp: "2026-11-03T00:00:00Z", totalEvents: 7, uniqueIps: 3, uniqueCountries: 2, uniqueCities: 1 }],
+    }
+    expect(geoLogSparklinesFromSeries(series).events).toEqual([0, 0, 7, 0, 0, 0, 0])
+  })
+})
+
+describe("buildGeoLogSparklines on an hourly range over 30 days", () => {
+  const row = { totalEvents: 4, uniqueIps: 2, uniqueCountries: 1, uniqueCities: 1 }
+
+  it("keeps a quiet start at 30 days or less, where no hourly rows have expired", () => {
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-10-16T00:00:00Z",
+      endDate: "2026-11-15T00:00:00Z",
+      data: [{ timestamp: "2026-11-14T23:00:00Z", ...row }],
+    }
+    const events = geoLogSparklinesFromSeries(series).events
+    expect(events).toHaveLength(720)
+    expect(events[0]).toBe(0)
+    expect(events[719]).toBe(4)
+  })
+
+  it("starts at the first bucket an hour past 30 days", () => {
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-10-16T00:00:00Z",
+      endDate: "2026-11-15T01:00:00Z",
+      data: [{ timestamp: "2026-11-14T23:00:00Z", ...row }],
+    }
+    expect(geoLogSparklinesFromSeries(series).events).toEqual([4, 0])
+  })
+
+  it("draws nothing when every hourly row has expired", () => {
+    const series = { granularity: "hourly", startDate: "2026-08-01T00:00:00Z", endDate: "2026-11-08T00:00:00Z", data: [] }
+    expect(geoLogSparklinesFromSeries(series).events).toEqual([])
+  })
+
+  it("starts at the first bucket, since older hourly rows have expired", () => {
+    const series = {
+      granularity: "hourly",
+      startDate: "2026-08-01T00:00:00Z",
+      endDate: "2026-11-08T00:00:00Z",
+      data: [
+        { timestamp: "2026-11-07T21:00:00Z", totalEvents: 4, uniqueIps: 2, uniqueCountries: 1, uniqueCities: 1 },
+        { timestamp: "2026-11-07T23:00:00Z", totalEvents: 6, uniqueIps: 3, uniqueCountries: 1, uniqueCities: 1 },
+      ],
+    }
+    expect(geoLogSparklinesFromSeries(series).events).toEqual([4, 0, 6])
   })
 })
 
