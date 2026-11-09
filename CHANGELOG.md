@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The map runs behind the status bar in the app installed to an iPhone's home screen, instead of stopping below a solid band. Add the app to the home screen again to get this.
 - The app installed to an iPhone's home screen fills the screen again after the keyboard closes. It used to stay short by the height of the status bar until force-quit.
+- On an iPhone, a drawer with text fields moves above the keyboard, so the field you are typing in stays visible.
 - Totals and charts over ranges longer than 24 hours include the last few hours of traffic. The aggregate refresh that runs every six hours also counted the day and the hour still in progress. Requests that arrived after it were left out of daily figures until the next day and of hourly ones for up to two hours. On an install that ran an earlier version, the daily figures for the day of the upgrade catch up by 01:00 UTC the next day.
 - On ranges over 24 hours, `GET /api/v1/analytics/summary` and `GET /api/v1/integration/summary` return request counts, status counts and the error rate as numbers. They used to come back as strings, and the Overview failed with a 500 when one of the two periods it compares had no requests.
 - On a phone held sideways, the header and side panels such as the IP inspector stay clear of the notch.

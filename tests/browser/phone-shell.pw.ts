@@ -219,6 +219,53 @@ test.describe("portrait phone", () => {
     expect((await sheet.getByRole("button", { name: "Close" }).boundingBox())!.y).toBeGreaterThanOrEqual(47)
   })
 
+  test("lifts a drawer above a keyboard iOS only reports through scroll events", async ({ page }) => {
+    await page.addInitScript(() => {
+      const viewport = Object.assign(new EventTarget(), { width: 393, offsetTop: 0, offsetLeft: 0, pageTop: 0, pageLeft: 0, scale: 1 })
+      let height: number | undefined
+      Object.defineProperty(viewport, "height", { get: () => height ?? window.innerHeight, set: (value: number) => { height = value } })
+      Object.defineProperty(window, "visualViewport", { value: viewport })
+    })
+    const reportKeyboard = (height: number) => page.evaluate((visibleHeight) => {
+      const viewport = window.visualViewport as unknown as EventTarget & { height: number }
+      viewport.dispatchEvent(new Event("resize"))
+      viewport.height = visibleHeight
+      viewport.dispatchEvent(new Event("scroll"))
+    }, height)
+    await login(page)
+    await emulateSafeAreas(page, { top: 47, left: 0, right: 0, bottom: 34 })
+    await page.goto("/access-logs")
+    await page.getByRole("button", { name: /^Filters/ }).click()
+
+    const drawer = page.locator('[data-slot="drawer-content"]')
+    await expect(drawer).toBeVisible()
+    await drawer.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
+    const excludeHost = drawer.getByPlaceholder("Exclude").nth(1)
+    await excludeHost.focus()
+    await reportKeyboard(448)
+
+    await expect.poll(async () => (await drawer.boundingBox())!.y + (await drawer.boundingBox())!.height).toBeCloseTo(448, 0)
+    expect((await drawer.boundingBox())!.y).toBeGreaterThanOrEqual(47)
+    await expect.poll(async () => {
+      const field = (await excludeHost.boundingBox())!
+      return field.y >= 47 && field.y + field.height <= 448
+    }).toBe(true)
+    // vaul writes a pixel height here when its own keyboard handling is on.
+    expect(await drawer.evaluate((element) => element.style.height)).toBe("")
+
+    await page.evaluate(() => {
+      const viewport = window.visualViewport as unknown as EventTarget & { offsetTop: number }
+      viewport.offsetTop = 40
+      viewport.dispatchEvent(new Event("scroll"))
+    })
+    await expect.poll(async () => (await drawer.boundingBox())!.y + (await drawer.boundingBox())!.height).toBeCloseTo(488, 0)
+    await page.evaluate(() => { (window.visualViewport as unknown as { offsetTop: number }).offsetTop = 0 })
+
+    await excludeHost.blur()
+    await reportKeyboard(852)
+    await expect.poll(async () => (await drawer.boundingBox())!.y + (await drawer.boundingBox())!.height).toBeCloseTo(852, 0)
+  })
+
   test("keeps the page color in a browser tab on the map", async ({ page }) => {
     await login(page)
     await page.goto("/map")

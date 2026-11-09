@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
+import { useDrawerAboveKeyboard } from "@/hooks/use-keyboard-open"
 import { cn } from "@/lib/utils"
 
 const DrawerClosedContext = React.createContext<(() => void) | undefined>(undefined)
@@ -18,7 +19,9 @@ function Drawer({
 }) {
   return (
     <DrawerClosedContext.Provider value={onClosed}>
-      <DrawerPrimitive.Root data-slot="drawer" {...props} />
+      {/* vaul only follows resize events, which iOS doesn't always send for the
+          keyboard. useDrawerAboveKeyboard handles it instead. */}
+      <DrawerPrimitive.Root data-slot="drawer" repositionInputs={false} {...props} />
     </DrawerClosedContext.Provider>
   )
 }
@@ -100,8 +103,10 @@ function DrawerContent({
   children,
   onCloseAutoFocus,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+}: React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>) {
   const onClosed = React.useContext(DrawerClosedContext)
+  const [drawer, setDrawer] = React.useState<HTMLDivElement | null>(null)
+  useDrawerAboveKeyboard(drawer)
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay />
@@ -116,6 +121,7 @@ function DrawerContent({
           onClosed?.()
         }}
         {...props}
+        ref={setDrawer}
       >
         <div
           data-slot="drawer-handle"
