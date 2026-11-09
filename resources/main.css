@@ -124,12 +124,29 @@
   --map-top-inset: 0px;
   --range-chip-top: calc(var(--map-top-inset) + 12px);
   --range-chip-height: 44px;
+
+  --app-height: 100dvh;
 }
 
 /* The phone map has no header. Unless a banner takes the top of the screen,
    the map runs under the status bar and its overlays keep clear of it. */
 :root:has([data-shell-top]:empty) {
   --map-top-inset: env(safe-area-inset-top, 0px);
+}
+
+/* With a translucent status bar, iOS can lay out an installed app one status bar
+   short of the screen, in dvh, svh and fixed positioning alike. A document as
+   tall as the large viewport makes it use the whole screen. */
+@media (display-mode: standalone) {
+  :root {
+    --app-height: 100lvh;
+  }
+
+  html,
+  body,
+  #app {
+    height: var(--app-height);
+  }
 }
 
 /* An installed iOS app tints the blur over the status bar with the page color.
