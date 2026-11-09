@@ -75,6 +75,9 @@ test("a tap on a decision badge in an expandable row leaves the row closed", asy
   await row.locator('[data-badge-hint]').tap()
   await expect(hint(page)).toHaveText(DECISION_HINT)
   await expect(page.getByText("crowdsecurity/ssh-bf")).toHaveCount(0)
+  // A real tap focuses a button in Chromium, and that closes the hint. iOS moves no focus on a tap.
+  await row.locator("span", { has: page.getByRole("button", { name: /copy/i }) }).last().dispatchEvent("click")
+  await expect(hint(page)).toHaveCount(0)
 })
 
 test("the DROP badge's explanation and its record link stay separate taps", async ({ page }) => {
