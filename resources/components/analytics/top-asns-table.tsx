@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge"
 import { AsnCategoryInfo } from "@/components/analytics/asn-category-info"
+import { DropBadge } from "@/components/drop/drop-badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -12,12 +13,16 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopAsns } from "@/lib/queries"
+import { useAnalyticsFilters } from "@/lib/analytics-filters-context"
+import { asnFilterTarget } from "@/lib/ip-filter-targets"
+import { AsnActionsMenu } from "@/components/ip-actions/asn-actions-menu"
 import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
 import { useFitLayout } from "@/components/data/narrow-layout"
 import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
 
-export function CategoryBadge({ category }: { category: "hosting" | "other" }) {
+export function CategoryBadge({ category }: { category: "drop" | "hosting" | "other" }) {
+  if (category === "drop") return <DropBadge variant="short" list="asn-drop" />
   return category === "hosting" ? (
     <Badge variant="secondary" className="gap-1.5">
       <span className="size-1.5 rounded-full bg-primary" />
@@ -34,6 +39,13 @@ export function TopAsnsTable() {
   const { data, isError, error } = useTopAsns({ limit: 25 })
   const { pageItems, ...pagination } = usePagedRows(data?.items)
   const report = useAbuseReportDialog()
+  const { filters, setFilters } = useAnalyticsFilters()
+  const actions = (asn: number, organization: string | null | undefined) => (
+    <span className="inline-flex items-center">
+      <AsnReportButton asn={asn} organization={organization} onOpen={report.openFor} />
+      <AsnActionsMenu asn={asn} organization={organization} target={asnFilterTarget(asn, filters, setFilters)} />
+    </span>
+  )
   const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => row.asn).join())
 
   return (
@@ -74,7 +86,7 @@ export function TopAsnsTable() {
                     </TableHead>
                     <TableHead className="text-right">Hits</TableHead>
                     <TableHead className="text-right">Bytes</TableHead>
-                    <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
+                    <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>
                   </TableRow>
                 </TableHeader>
               )}
@@ -84,7 +96,7 @@ export function TopAsnsTable() {
                     <RankedNarrowCell
                       primary={<span className="line-clamp-2" title={row.organization ?? undefined}>{row.organization ?? "Unknown"}</span>}
                       value={formatNumber(row.hits)}
-                      trailing={<AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />}
+                      trailing={actions(row.asn, row.organization)}
                       secondary={
                         <>
                           <span className="font-mono">AS{row.asn}</span>
@@ -103,9 +115,7 @@ export function TopAsnsTable() {
                     <TableCell><CategoryBadge category={row.category} /></TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
-                    <TableCell className="py-0 text-right">
-                      <AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />
-                    </TableCell>
+                    <TableCell className="py-0 text-right">{actions(row.asn, row.organization)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

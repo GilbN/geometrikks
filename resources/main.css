@@ -19,6 +19,9 @@
 }
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant phone (@media (width < 48rem), @media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
+@custom-variant phone-side (@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem));
+@custom-variant phone-short (@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 22rem));
 
 /* The phone refresh button's auto refresh ring: one fill per interval. The
    button sets the interval as an inline animation-duration. */
@@ -113,6 +116,63 @@
   -moz-osx-font-smoothing: grayscale;
 
   --radius: 0.625rem;
+
+  --tab-bar-top: 0px;
+  --tab-bar-clear: calc(var(--tab-bar-top) + 12px);
+  --tab-bar-side: 20px;
+
+  --map-top-inset: 0px;
+  --range-chip-top: calc(var(--map-top-inset) + 12px);
+  --range-chip-height: 44px;
+
+  --app-height: 100dvh;
+}
+
+/* The phone map has no header. Unless a banner takes the top of the screen,
+   the map runs under the status bar and its overlays keep clear of it. */
+:root:has([data-shell-top]:empty) {
+  --map-top-inset: env(safe-area-inset-top, 0px);
+}
+
+/* With a translucent status bar, iOS can lay out an installed app one status bar
+   short of the screen, in dvh, svh and fixed positioning alike. A document as
+   tall as the large viewport makes it use the whole screen. */
+@media (display-mode: standalone) {
+  :root {
+    --app-height: 100lvh;
+  }
+
+  html,
+  body,
+  #app {
+    height: var(--app-height);
+  }
+}
+
+/* Later blocks win at equal specificity, so the sideways cases follow portrait. */
+@media (width < 48rem) {
+  :root {
+    --tab-bar-top: calc(max(12px, env(safe-area-inset-bottom, 0px) - 12px) + 62px);
+  }
+}
+
+@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 30rem) {
+  :root {
+    --tab-bar-top: calc(max(8px, env(safe-area-inset-bottom, 0px) - 4px) + 48px);
+    --range-chip-top: max(12px, var(--map-top-inset));
+  }
+}
+
+@media (pointer: coarse) and (min-aspect-ratio: 4/3) and (height < 22rem) {
+  :root {
+    --tab-bar-top: calc(max(8px, env(safe-area-inset-bottom, 0px) - 4px) + 44px);
+  }
+}
+
+@media (width < 390px) {
+  :root {
+    --tab-bar-side: 16px;
+  }
 }
 
 /* Shared component styling consumes palette values without knowing theme IDs. */
@@ -364,29 +424,43 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent) !important;
 }
 
-/* On a phone the full-page map's attribution (MapAttribution, not compact)
-   is a small centred line under the floating action card, above the
-   safe-area inset. Scoped to .fullscreen-map so embedded card maps
-   (geo-logs) are unaffected. The query matches useIsMobile. */
-@media (width < 48rem) {
-  .fullscreen-map .maplibregl-ctrl-bottom-left {
-    left: 0;
-    right: 0;
-    bottom: env(safe-area-inset-bottom, 0px);
-    display: flex;
-    justify-content: center;
+/* On a portrait phone the full-page map's attribution (MapAttribution, not
+   compact) is a small line at the bottom left, 10px above the tab bar.
+   Scoped to .fullscreen-map so embedded card maps (geo-logs) are unaffected. */
+.fullscreen-map .maplibregl-ctrl-bottom-left {
+  @variant phone {
+    left: var(--tab-bar-side);
+    right: auto;
+    bottom: calc(var(--tab-bar-top) + 10px);
   }
+}
 
-  .fullscreen-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+.fullscreen-map .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+  @variant phone {
     float: none;
-    margin: 0 0.75rem 8px;
+    margin: 0;
     padding: 0;
     background: transparent;
     color: var(--muted-foreground);
     font-size: 10px;
     line-height: 1.2;
-    text-align: center;
   }
+}
+
+/* Held sideways (GeoMap sets data-phone-side), the compact button mirrors the
+   map pill: same edge gap, foot on the same line. MapFrameRate renders into
+   this corner, 8px after the credit. */
+.fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left {
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: var(--tab-bar-clear);
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.fullscreen-map [data-phone-side] .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib {
+  margin: 0;
 }
 
 /* iOS Safari force-zooms the page when a focused input has a font-size below
@@ -439,6 +513,36 @@
   .toaster [data-sonner-toast][data-styled='false'] {
     width: var(--width);
   }
+}
+
+/* Phone toasters. Sonner's stylesheet is inserted after this one, hence the
+   extra attribute. A spanning toaster runs between its left and right offsets,
+   which differ beside the map pill; Sonner's phone layout assumes equal sides.
+   A centred one keeps Sonner's width even where its phone layout would stretch it.
+   The spanning toast rule ties with the 601px custom-toast width rule above and
+   wins only by coming after it. */
+.toaster.toaster-span[data-sonner-toaster] {
+  left: var(--offset-left);
+  right: var(--offset-right);
+  width: auto;
+  transform: none;
+}
+
+.toaster.toaster-span [data-sonner-toast] {
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+
+.toaster.toaster-centred[data-sonner-toaster] {
+  left: 50%;
+  right: auto;
+  width: var(--width);
+  transform: translateX(-50%);
+}
+
+.toaster.toaster-centred [data-sonner-toast] {
+  width: var(--width);
 }
 
 .toaster .toast-surface > * {

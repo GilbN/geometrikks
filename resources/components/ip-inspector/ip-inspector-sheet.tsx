@@ -7,6 +7,7 @@ import { AbuseReportButton } from "@/components/abuse-report/abuse-report-dialog
 import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { DropBadge } from "@/components/drop/drop-badge"
 import { ExternalLink } from "@/components/crowdsec/external-link"
 import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
 import { TimeRangePicker } from "@/components/time-range-picker"
@@ -15,7 +16,9 @@ import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } f
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
-import { useCrowdsecStatus, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
+import { useCoverBar } from "@/lib/phone-chrome"
+import { usePhoneMapSide } from "@/hooks/use-phone-map"
+import { useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
@@ -30,8 +33,10 @@ import { scenarioText } from "@/lib/scenario-name"
 export function IpInspectorSheet() {
   const { ip, close } = useIpInspector()
   const { range, customRange, setRange, setCustomRange } = useTimeRange()
+  const side = usePhoneMapSide()
   const open = ip !== undefined
   const valid = open && isValidIp(ip)
+  useCoverBar(open && side)
 
   // What was selected before the first bar zoom, so "Back" restores it exactly.
   const [beforeZoom, setBeforeZoom] = useState<RangeSelection | null>(null)
@@ -49,6 +54,7 @@ export function IpInspectorSheet() {
 
   return (
     <DetailSheet
+      historyEntry={false}
       open={open}
       onOpenChange={(next) => !next && close()}
       title={
@@ -109,7 +115,7 @@ function SheetRangeControls({ beforeZoom, onRestore }: { beforeZoom: RangeSelect
 // Shares the decisions query with the body via the query key; no second fetch.
 function HeaderBanAction({ ip }: { ip: string }) {
   const decisions = useIpDecisions(ip)
-  return <IpBanAction ip={ip} banned={(decisions.data?.length ?? 0) > 0} />
+  return <IpBanAction ip={ip} decision={winningDecision(decisions.data)?.type ?? null} />
 }
 
 function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to: string) => void }) {
@@ -118,6 +124,7 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
   const decisions = useIpDecisions(ip)
   const latestAlert = useIpLatestAlert(ip)
   const locations = useIpLocations(ip)
+  const dropNetwork = useDropNetwork(ip)
 
   const profile = profileQuery.data
   const decision = winningDecision(decisions.data)
@@ -146,14 +153,19 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
             </>
           )}
         </p>
-        {decision && (
-          <DecisionBadge
-            type={decision.type}
-            className="h-auto max-w-full whitespace-normal break-words text-left"
-            title={`Origin: ${decision.origin}`}
-          >
-            {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
-          </DecisionBadge>
+        {(decision || dropNetwork) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {decision && (
+              <DecisionBadge
+                type={decision.type}
+                className="h-auto max-w-full whitespace-normal break-words text-left"
+                title={`Origin: ${decision.origin}`}
+              >
+                {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
+              </DecisionBadge>
+            )}
+            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
+          </div>
         )}
       </header>
 

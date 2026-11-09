@@ -21,10 +21,11 @@ import {
   CornerUpRight,
 } from "lucide-react"
 
-import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid, sparklineProps } from "@/components/dashboard/statcard"
 import { SectionHeader } from "@/components/section-header"
 import { formatNumber, formatBytes, type SummaryResponse } from "@/lib/api"
 import { formatDurationOrNa, timingCoverage, TIMING_HINT } from "@/lib/timing"
+import type { CardSparklines, OverviewSparklines } from "@/lib/sparklines"
 
 interface SectionProps {
   summary: SummaryResponse | undefined
@@ -33,6 +34,7 @@ interface SectionProps {
   rangeSubtitle: string
   /** Wording for a trend against the span before, e.g. "vs last 24h". */
   compareLabel: string
+  sparklines: CardSparklines<OverviewSparklines>
 }
 
 /** Header plus grid; skeletons while loading, nothing on error (the page
@@ -41,12 +43,14 @@ function Section({
   title,
   gridClassName,
   skeletons,
+  sparklines,
   isLoading,
   children,
 }: {
   title: string
   gridClassName: string
   skeletons: number
+  sparklines: boolean
   isLoading: boolean
   children: React.ReactNode | null
 }) {
@@ -56,7 +60,7 @@ function Section({
       <SectionHeader>{title}</SectionHeader>
       <StatGrid className={gridClassName}>
         {children ??
-          Array.from({ length: skeletons }, (_, i) => <StatCardSkeleton key={i} />)}
+          Array.from({ length: skeletons }, (_, i) => <StatCardSkeleton key={i} sparkline={sparklines} />)}
       </StatGrid>
     </>
   )
@@ -65,7 +69,7 @@ function Section({
 const calcPercent = (part: number, total: number) =>
   total > 0 ? ((part / total) * 100).toFixed(1) : "0"
 
-export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: SectionProps) {
+export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle, sparklines }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   return (
@@ -73,6 +77,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: Se
       title="Traffic Overview"
       gridClassName="lg:grid-cols-4"
       skeletons={4}
+      sparklines={sparklines.shown}
       isLoading={isLoading}
     >
       {cur && (
@@ -82,6 +87,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: Se
             value={formatNumber(cur.totalRequests)}
             subtitle={rangeSubtitle}
             icon={Activity}
+            {...sparklineProps(sparklines, "requests")}
             trend={{
               value: chg?.logRecords ?? null,
               positive: (chg?.logRecords ?? 0) >= 0,
@@ -92,6 +98,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: Se
             value={formatNumber(cur.totalGeoEvents)}
             subtitle={rangeSubtitle}
             icon={FileText}
+            {...sparklineProps(sparklines, "geoEvents")}
             trend={{
               value: chg?.geoRecords ?? null,
               positive: (chg?.geoRecords ?? 0) >= 0,
@@ -102,6 +109,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: Se
             value={formatNumber(cur.uniqueCountries)}
             subtitle="Active locations"
             icon={Globe2}
+            {...sparklineProps(sparklines, "uniqueCountries")}
           />
           <StatCard
             title="Malformed Requests"
@@ -119,7 +127,7 @@ export function TrafficOverviewSection({ summary, isLoading, rangeSubtitle }: Se
   )
 }
 
-export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionProps) {
+export function HttpStatusSection({ summary, isLoading, compareLabel, sparklines }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   return (
@@ -127,6 +135,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
       title="HTTP Status Codes"
       gridClassName="md:grid-cols-3 lg:grid-cols-5"
       skeletons={5}
+      sparklines={sparklines.shown}
       isLoading={isLoading}
     >
       {cur && (
@@ -138,6 +147,8 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
             icon={CheckCircle2}
             iconClassName="text-emerald-500/70"
             valueClassName="text-emerald-500"
+            {...sparklineProps(sparklines, "successRate")}
+            sparklineClassName="text-emerald-500"
           />
           <StatCard
             title="Redirects (3xx)"
@@ -146,6 +157,8 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
             icon={CornerUpRight}
             iconClassName="text-blue-500/70"
             valueClassName="text-blue-500"
+            {...sparklineProps(sparklines, "status3xx")}
+            sparklineClassName="text-blue-500"
           />
           <StatCard
             title="Client Errors (4xx)"
@@ -154,6 +167,8 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
             icon={AlertCircle}
             iconClassName="text-amber-500/70"
             valueClassName="text-amber-500"
+            {...sparklineProps(sparklines, "status4xx")}
+            sparklineClassName="text-amber-500"
           />
           <StatCard
             title="Server Errors (5xx)"
@@ -162,6 +177,8 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
             icon={XCircle}
             iconClassName="text-red-500/70"
             valueClassName="text-red-500"
+            {...sparklineProps(sparklines, "status5xx")}
+            sparklineClassName="text-red-500"
           />
           <StatCard
             title="Unique IPs"
@@ -170,6 +187,7 @@ export function HttpStatusSection({ summary, isLoading, compareLabel }: SectionP
               chg?.uniqueIps != null ? compareLabel : "Active visitors"
             }
             icon={Users}
+            {...sparklineProps(sparklines, "uniqueIps")}
             iconClassName="text-primary/70"
             valueClassName="text-primary"
             trend={{
@@ -190,7 +208,7 @@ function timingSubtitle(coverage: ReturnType<typeof timingCoverage>, whenFull: s
   return whenFull
 }
 
-export function PerformanceSection({ summary, isLoading, compareLabel }: SectionProps) {
+export function PerformanceSection({ summary, isLoading, compareLabel, sparklines }: SectionProps) {
   const cur = summary?.currentPeriod
   const chg = summary?.percentChanges
   const coverage = cur ? timingCoverage(cur.timedRequests, cur.totalRequests) : timingCoverage(0, 0)
@@ -199,6 +217,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel }: Section
       title="Performance & Bandwidth"
       gridClassName="lg:grid-cols-4"
       skeletons={4}
+      sparklines={sparklines.shown}
       isLoading={isLoading}
     >
       {cur && (
@@ -208,6 +227,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel }: Section
             value={formatDurationOrNa(cur.avgRequestTime)}
             subtitle={timingSubtitle(coverage, chg?.avgRequestTime != null ? compareLabel : "Response time")}
             icon={Clock}
+            {...sparklineProps(sparklines, "avgRequestTime")}
             iconClassName="text-primary/70"
             trend={
               coverage.state === "empty" || coverage.state === "none"
@@ -222,6 +242,8 @@ export function PerformanceSection({ summary, isLoading, compareLabel }: Section
             icon={Zap}
             iconClassName="text-amber-500/70"
             valueClassName="text-amber-500"
+            {...sparklineProps(sparklines, "maxRequestTime")}
+            sparklineClassName="text-amber-500"
           />
           <StatCard
             title="Total Bandwidth"
@@ -230,6 +252,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel }: Section
               chg?.bytesSent != null ? compareLabel : "Data transferred"
             }
             icon={HardDrive}
+            {...sparklineProps(sparklines, "bytesSent")}
             iconClassName="text-primary/70"
             trend={{
               value: chg?.bytesSent ?? null,
@@ -241,6 +264,7 @@ export function PerformanceSection({ summary, isLoading, compareLabel }: Section
             value={formatBytes(cur.avgBytesPerRequest)}
             subtitle="Per request"
             icon={ArrowRightLeft}
+            {...sparklineProps(sparklines, "avgRequestSize")}
           />
         </>
       )}

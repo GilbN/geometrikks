@@ -14,15 +14,33 @@ function statusLabel(conclusion) {
   return STATUS_LABELS[conclusion] ?? "⏭️ not run";
 }
 
-// The step names below must match the display names of the frontend job's
-// steps in .github/workflows/ci.yml. Renaming a step there silently turns
-// its row into "not run" here.
+// The step names below must match the display names of the smoke job's
+// steps in .github/workflows/ci.yml, and the job names its matrix name.
+// Renaming either there silently turns a cell into "not run" here.
+const SMOKE_JOB_NAME = /^smoke (\d+)\/(\d+)$/;
+const SMOKE_STEPS = [
+  "Build production image",
+  "Run HTTP smoke checks",
+  "Run browser smoke test",
+  "Upload smoke artifacts",
+];
+
+const shardNumber = (job) => Number(job.name.match(SMOKE_JOB_NAME)[1]);
+
+function shardRow(job) {
+  const steps = new Map((job.steps ?? []).map((step) => [step.name, step.conclusion]));
+  const [, shard, total] = job.name.match(SMOKE_JOB_NAME);
+  const cells = SMOKE_STEPS.map((name) => statusLabel(steps.get(name)));
+  return `| ${shard}/${total} | ${statusLabel(job.conclusion)} | ${cells.join(" | ")} |`;
+}
+
 function buildComment({ workflowRun, jobs }) {
-  const frontend = jobs.find((job) => job.name === "frontend");
-  const steps = new Map(
-    (frontend?.steps ?? []).map((step) => [step.name, step.conclusion]),
-  );
-  const artifactName = `container-smoke-${workflowRun.run_attempt}`;
+  const shards = jobs
+    .filter((job) => SMOKE_JOB_NAME.test(job.name))
+    .sort((a, b) => shardNumber(a) - shardNumber(b));
+  const shardRows = shards.length > 0
+    ? shards.map(shardRow).join("\n")
+    : `| all | ${statusLabel(undefined)} | ${SMOKE_STEPS.map(() => statusLabel(undefined)).join(" | ")} |`;
 
   return `${COMMENT_MARKER}
 ## Production image smoke test
@@ -30,13 +48,12 @@ function buildComment({ workflowRun, jobs }) {
 | Check | Result |
 | --- | --- |
 | Overall CI | ${statusLabel(workflowRun.conclusion)} |
-| Frontend job | ${statusLabel(frontend?.conclusion)} |
-| Build production image | ${statusLabel(steps.get("Build production image"))} |
-| HTTP smoke checks | ${statusLabel(steps.get("Run HTTP smoke checks"))} |
-| Browser smoke test | ${statusLabel(steps.get("Run browser smoke test"))} |
-| Artifact upload | ${statusLabel(steps.get("Upload smoke artifacts"))} |
 
-[View workflow run and download \`${artifactName}\`](${workflowRun.html_url})`;
+| Shard | Job | Build production image | HTTP smoke checks | Browser smoke test | Artifact upload |
+| --- | --- | --- | --- | --- | --- |
+${shardRows}
+
+[View the workflow run and its \`container-smoke-<shard>-<attempt>\` artifacts](${workflowRun.html_url})`;
 }
 
 async function main({ github, context, core }) {

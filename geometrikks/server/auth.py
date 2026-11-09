@@ -19,7 +19,6 @@ from litestar.middleware.session.server_side import (
     ServerSideSessionBackend,
     ServerSideSessionConfig,
 )
-from litestar.security.session_auth import SessionAuth
 from litestar.types import Empty
 from litestar.utils.dataclass import extract_dataclass_items
 from pwdlib import PasswordHash
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
     from litestar.types import Message, ScopeSession
 
     from geometrikks.config.settings import Settings
+    from geometrikks.server.api_key_auth import GeoSessionAuth
 
 logger = get_logger(__name__)
 
@@ -372,14 +372,22 @@ class RotatingServerSideSessionConfig(ServerSideSessionConfig):
         self.next_sweep_at = 0.0
 
 
-def create_session_auth(settings: "Settings") -> SessionAuth[AdminUser, ServerSideSessionBackend]:
+def create_session_auth(settings: "Settings") -> "GeoSessionAuth":
     """Build the SessionAuth component applied via on_app_init in create_app().
 
     Server-side sessions in the ``sessions`` store. create_app() backs that
     store with the auth_sessions table, so logins survive a restart.
+    ApiKeyAuthMiddleware checks ``gmk_`` bearer tokens inside the same
+    middleware, so keys and cookies share one exclude list.
     """
-    session_auth = SessionAuth[AdminUser, ServerSideSessionBackend](
+    from geometrikks.server.api_key_auth import ApiKeyAuthMiddleware, GeoSessionAuth
+
+    session_auth = GeoSessionAuth(
         retrieve_user_handler=retrieve_user_handler,
+        authentication_middleware_class=ApiKeyAuthMiddleware,
+        # Litestar also skips HEAD by default, which would leave any HEAD handler
+        # public and never check a key sent with it.
+        exclude_http_methods=["OPTIONS"],
         session_backend_config=RotatingServerSideSessionConfig(
             max_age=settings.session_max_age_seconds,
             secure=settings.session_secure,

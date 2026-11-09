@@ -12,8 +12,13 @@ from litestar.config.compression import CompressionConfig
 
 from geometrikks.config.settings import Settings, get_settings
 from geometrikks.server import plugins
+from geometrikks.server.api_key_auth import api_key_scope_guard
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.server.routes import API_VERSION, get_agent_route_handlers, get_route_handlers
+from geometrikks.server.openapi_docs import API_INTRO, API_TAGS
+from geometrikks.server.openapi_render import LiveRangeExamplesJsonPlugin
+from geometrikks.server.openapi_schema_plugins import DOCSTRING_SCHEMA_PLUGINS, document_error_codes
+from geometrikks.server.api_version import API_VERSION
+from geometrikks.server.routes import get_agent_route_handlers, get_route_handlers
 from geometrikks.server.dependencies import create_settings_provider
 from geometrikks.server.logging import get_logger
 
@@ -100,9 +105,10 @@ def create_app(
         openapi_config = OpenAPIConfig(
             title=settings.name,
             version=API_VERSION,
-            description=settings.description,
+            description=API_INTRO,
+            tags=API_TAGS,
             create_examples=False,
-            render_plugins=[ScalarRenderPlugin()],
+            render_plugins=[ScalarRenderPlugin(), LiveRangeExamplesJsonPlugin()],
         )
 
     compression_config = CompressionConfig(
@@ -124,22 +130,26 @@ def create_app(
     app = Litestar(
         debug=settings.debug,
         route_handlers=route_handlers,
-        plugins=plugins.create_plugins(
-            settings, db_config=db_config, include_vite=not settings.is_agent
-        ),
+        plugins=[
+            *plugins.create_plugins(settings, db_config=db_config, include_vite=not settings.is_agent),
+            *DOCSTRING_SCHEMA_PLUGINS,
+        ],
         dependencies=dependency_map,
         openapi_config=openapi_config,
         compression_config=compression_config,
         exception_handlers=EXCEPTION_HANDLERS,
         on_app_init=on_app_init,
+        guards=[api_key_scope_guard],
     )
     if session_auth_enabled:
+        from geometrikks.server.api_key_store import SqlApiKeyRepository, install_api_key_store
         from geometrikks.server.session_store import (
             create_session_table_store,
             install_session_store,
         )
 
         install_session_store(app, create_session_table_store(db_config))
+        install_api_key_store(app, SqlApiKeyRepository(db_config))
     app.state.auth_state = auth_state
     app.state.oidc_client = oidc_client
     # Lifecycle hooks and other non-request code read the composed settings
@@ -147,5 +157,8 @@ def create_app(
     # process-cached factories.
     app.state.settings = settings
     app.state.db_config = db_config
+
+    if openapi_config is not None:
+        document_error_codes(app)
 
     return app

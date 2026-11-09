@@ -15,7 +15,7 @@ export const SIGNAL_THRESHOLDS = {
 
 export type SignalTone = "red" | "amber" | "gray"
 
-export type SignalKey = "errors" | "hosting" | "after-ban" | "paths" | "malformed" | "burst"
+export type SignalKey = "errors" | "drop-asn" | "hosting" | "after-ban" | "paths" | "malformed" | "burst"
 
 export interface Signal {
   key: SignalKey
@@ -31,6 +31,9 @@ export const SIGNAL_DESCRIPTIONS: Record<SignalKey, string> = {
     `${pct(SIGNAL_THRESHOLDS.errorShareMin)} or more of this IP's requests got a 4xx response, ` +
     `counted from ${SIGNAL_THRESHOLDS.errorShareMinRequests} requests up. Red from ${pct(SIGNAL_THRESHOLDS.errorShareRed)}. ` +
     "Mostly-failing traffic is what scanners and brute-force tools produce.",
+  "drop-asn":
+    "The address belongs to an autonomous system on the DROP list. The list names networks hijacked " +
+    "or run by spam and cybercrime operations, which send no legitimate traffic.",
   hosting:
     "The address belongs to a hosting or cloud provider's network rather than a residential or mobile ISP. " +
     "Bots and scanners usually run from hosting.",
@@ -91,6 +94,10 @@ export function computeSignals({
         tone: share >= t.errorShareRed ? "red" : "amber",
       })
     }
+  }
+
+  if (profile.asnCategory === "drop") {
+    out.push({ key: "drop-asn", label: "DROP ASN", tone: "red" })
   }
 
   if (profile.asnCategory === "hosting") {

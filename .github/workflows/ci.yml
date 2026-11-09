@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # develop too, so its image cache is there for PRs to start from.
+    branches: [main, develop]
   pull_request:
 
 concurrency:
@@ -10,8 +11,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend:
+  backend-unit:
+    name: backend unit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --frozen
+      - name: Type check
+        run: uv run ty check geometrikks tests
+      - name: Run unit tests
+        run: uv run pytest -v --ignore=tests/integration
+      - name: Config docs freshness
+        run: uv run python scripts/generate_config_docs.py --check
+
+  backend-integration:
+    name: backend integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       timescaledb:
         # TimescaleDB 2.31.0 rejects TRUNCATE on continuous aggregates, which
@@ -33,17 +54,13 @@ jobs:
           enable-cache: true
       - name: Sync dependencies
         run: uv sync --frozen
-      - name: Type check
-        run: uv run ty check geometrikks tests
-      - name: Run tests (unit + integration)
+      - name: Run integration tests
         env:
           IT_DB_HOST: localhost
           IT_DB_PORT: "5432"
           IT_DB_USER: geouser
           IT_DB_PASSWORD: geopass
-        run: uv run pytest -v
-      - name: Config docs freshness
-        run: uv run python scripts/generate_config_docs.py --check
+        run: uv run pytest -v tests/integration
 
   contracts:
     # The committed generated client (resources/generated/) must be exactly
@@ -81,26 +98,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    services:
-      timescaledb:
-        image: timescale/timescaledb-ha:pg18
-        env:
-          POSTGRES_USER: geouser
-          POSTGRES_PASSWORD: geopass
-          POSTGRES_DB: geometrikks
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U geouser -d geometrikks"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      SMOKE_IMAGE: geometrikks:ci
-      SMOKE_BASE_URL: http://127.0.0.1:8000
-      SMOKE_ADMIN_USER: admin
-      # Deliberately disposable and non-secret: Playwright traces are uploaded.
-      SMOKE_ADMIN_PASSWORD: ci-smoke-password
-      SMOKE_ARTIFACT_NAME: container-smoke-${{ github.run_attempt }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -110,12 +108,113 @@ jobs:
         run: bun run test
       - name: Test PR smoke summary helper
         run: node --test .github/scripts/pr-smoke-summary.test.cjs
+      - name: Test smoke shard planner
+        run: node --test .github/scripts/smoke-shards.test.cjs
+
+  smoke:
+    name: smoke ${{ matrix.shard }}/${{ strategy.job-total }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Keep the other shards running so one failure doesn't hide the rest.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    env:
+      SMOKE_IMAGE: geometrikks:ci
+      SMOKE_BASE_URL: http://127.0.0.1:8000
+      SMOKE_ADMIN_USER: admin
+      # Deliberately disposable and non-secret: Playwright traces are uploaded.
+      SMOKE_ADMIN_PASSWORD: ci-smoke-password
+      SMOKE_ARTIFACT_NAME: container-smoke-${{ matrix.shard }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - name: Install
+        run: bun install --frozen-lockfile
+      # The database pull, the browser install and the shard plan need nothing
+      # from the image build, so they run under it instead of before it. "Wait
+      # for the background setup" joins them.
+      - name: Start TimescaleDB, the Playwright browser install and the shard plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          background="${RUNNER_TEMP}/smoke-background"
+          mkdir -p "${background}"
+          echo "SMOKE_BACKGROUND=${background}" >> "${GITHUB_ENV}"
+          image=timescale/timescaledb-ha:pg18
+          # The exit files appear by rename, so the wait step never reads one
+          # half written.
+          (
+            for attempt in 1 2 3; do
+              docker pull --quiet "${image}" && break
+              [[ ${attempt} -lt 3 ]] && sleep $((attempt * 5))
+            done
+            docker run --detach --name smoke-timescaledb \
+              --publish 5432:5432 \
+              --env POSTGRES_USER=geouser \
+              --env POSTGRES_PASSWORD=geopass \
+              --env POSTGRES_DB=geometrikks \
+              --health-cmd "pg_isready -U geouser -d geometrikks" \
+              --health-interval 2s --health-timeout 5s --health-retries 30 \
+              "${image}" && status=0 || status=$?
+            echo "${status}" > "${background}/timescaledb.exit.tmp"
+            mv "${background}/timescaledb.exit.tmp" "${background}/timescaledb.exit"
+          ) < /dev/null > "${background}/timescaledb.log" 2>&1 &
+          # npx/npm here is deliberate in this otherwise-bun repo: the
+          # Playwright test runner only supports the Node runtime, and bun
+          # re-executes node-shebang bins under bun.
+          (
+            npx playwright install --with-deps --only-shell chromium && status=0 || status=$?
+            echo "${status}" > "${background}/playwright.exit.tmp"
+            mv "${background}/playwright.exit.tmp" "${background}/playwright.exit"
+          ) < /dev/null > "${background}/playwright.log" 2>&1 &
+          # Every shard checks all six lists the same way, so they all keep the
+          # plan or all fall back to --shard. Any other error fails the shard,
+          # since one shard falling back alone would break the split.
+          total="${{ strategy.job-total }}"
+          this_shard="${{ matrix.shard }}"
+          list_tests() {
+            npx playwright test --config=playwright.config.ts --project=smoke --list --reporter=json "$@"
+          }
+          plan_shards() {
+            local dir="${background}/plan" shard verified pid pids=()
+            mkdir -p "${dir}"
+            list_tests > "${dir}/all.json" || return 1
+            node .github/scripts/smoke-shards.cjs plan "${dir}/all.json" \
+              tests/browser/smoke-durations.json "${total}" "${dir}" || return 1
+            for shard in $(seq 1 "${total}"); do
+              list_tests "$(cat "${dir}/${shard}.args")" > "${dir}/selected-${shard}.json" &
+              pids+=("$!")
+            done
+            for pid in "${pids[@]}"; do
+              wait "${pid}" || return 1
+            done
+            node .github/scripts/smoke-shards.cjs verify "${dir}/all.json" "${dir}"/selected-*.json \
+              && verified=0 || verified=$?
+            case "${verified}" in
+              0) cp "${dir}/${this_shard}.args" "${background}/shard-args" ;;
+              3) echo "--shard=${this_shard}/${total}" > "${background}/shard-args" ;;
+              *) return 1 ;;
+            esac
+          }
+          (
+            plan_shards && status=0 || status=$?
+            echo "${status}" > "${background}/plan.exit.tmp"
+            mv "${background}/plan.exit.tmp" "${background}/plan.exit"
+          ) < /dev/null > "${background}/plan.log" 2>&1 &
       - uses: docker/setup-buildx-action@v4
+        with:
+          # The runner is thrown away; removing the builder only adds a post step.
+          cleanup: false
       # The step names from here through "Upload smoke artifacts" are
       # referenced verbatim by .github/scripts/pr-smoke-summary.cjs; renaming
       # one silently shows it as "not run" in the sticky PR comment.
       - name: Build production image
         uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_SUMMARY: "false"
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
         with:
           context: .
           load: true
@@ -124,12 +223,8 @@ jobs:
             APP_IMAGE_TAG=ci-${{ github.sha }}
             GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=container-smoke
-          cache-to: type=gha,mode=max,scope=container-smoke
-      # npx/npm here is deliberate in this otherwise-bun repo: the Playwright
-      # test runner only supports the Node runtime, and bun re-executes
-      # node-shebang bins under bun.
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+          # One writer per run: the shards build the same image.
+          cache-to: ${{ matrix.shard == 1 && 'type=gha,mode=max,scope=container-smoke' || '' }}
       - name: Prepare smoke-test fixtures
         shell: bash
         run: |
@@ -146,6 +241,37 @@ jobs:
           mkdir -p "${nginx_dir}"
           cp tests/valid_ipv4_log.txt "${nginx_dir}/access.log"
           echo "SMOKE_NGINX_DIR=${nginx_dir}" >> "${GITHUB_ENV}"
+      - name: Wait for the background setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          for task in timescaledb playwright plan; do
+            for _ in {1..300}; do
+              [[ -f "${SMOKE_BACKGROUND}/${task}.exit" ]] && break
+              sleep 1
+            done
+            status="$(cat "${SMOKE_BACKGROUND}/${task}.exit" 2>/dev/null || echo "still running after 300s")"
+            if [[ "${status}" != "0" ]]; then
+              echo "The background ${task} step failed (${status}):"
+              tail -50 "${SMOKE_BACKGROUND}/${task}.log"
+              exit 1
+            fi
+          done
+          args="$(cat "${SMOKE_BACKGROUND}/shard-args")"
+          echo "SMOKE_SHARD_ARGS=${args}" >> "${GITHUB_ENV}"
+          if [[ "${args}" == --shard=* ]]; then
+            echo "::warning::The duration-balanced shard plan did not run every test once, so this run splits by test count."
+            cat "${SMOKE_BACKGROUND}/plan.log"
+          fi
+          for _ in {1..60}; do
+            if [[ "$(docker inspect --format '{{.State.Health.Status}}' smoke-timescaledb)" == "healthy" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "TimescaleDB did not become healthy within 60 seconds."
+          docker logs --tail 50 smoke-timescaledb
+          exit 1
       - name: Start production image
         shell: bash
         run: |
@@ -226,7 +352,7 @@ jobs:
             exit 1
           fi
       - name: Run browser smoke test
-        run: npm run test:smoke
+        run: npm run test:smoke -- ${SMOKE_SHARD_ARGS}
       - name: Verify graceful shutdown
         shell: bash
         run: |
@@ -259,7 +385,7 @@ jobs:
           SMOKE_JOB_STATUS: ${{ job.status }}
         run: |
           {
-            echo "## Production image smoke test"
+            echo "## Production image smoke test, shard ${{ matrix.shard }}/${{ strategy.job-total }}"
             echo
             echo "| Check | Result |"
             echo "| --- | --- |"
@@ -268,8 +394,7 @@ jobs:
               echo "| Docker health | healthy |"
               echo "| Database readiness | ready |"
               echo "| GeoIP fixture and ingestion | healthy |"
-              echo "| Authentication and dashboard | passed |"
-              echo "| Browser console/network errors | none |"
+              echo "| Browser smoke tests in this shard | passed |"
             fi
             echo
             echo "Diagnostics and screenshots: artifact \`${SMOKE_ARTIFACT_NAME}\`."
@@ -283,6 +408,9 @@ jobs:
             > smoke-artifacts/container-state.json 2>&1 || true
           docker logs geometrikks-smoke \
             > smoke-artifacts/container.log 2>&1 || true
+          docker logs smoke-timescaledb \
+            > smoke-artifacts/timescaledb.log 2>&1 || true
+          cp "${SMOKE_BACKGROUND}"/*.log smoke-artifacts/ 2>/dev/null || true
       - name: Upload smoke artifacts
         if: always()
         uses: actions/upload-artifact@v7

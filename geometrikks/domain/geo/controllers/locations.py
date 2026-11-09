@@ -43,7 +43,9 @@ from geometrikks.lib.parameters import (
     IpAddressIn,
     IpAddressNotIn,
     FromTimestamp,
+    GEO_WHOLE_BUCKETS_NOTE,
 )
+from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, limit_offset_provider
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
@@ -71,13 +73,20 @@ class GeoLocationController(Controller):
         # No config here: constructing it needs Settings(), which must not run
         # at import time. The service provider falls back to the request-scoped
         # ``db_session`` dependency registered by SQLAlchemyInitPlugin.
-        filters={
-            "pagination_type": "limit_offset",   # -> ?currentPage & ?pageSize
-            "pagination_size": 10,               # matches the old global provider
-        },
-    )
+        # Kept so the aggregate ``filters`` asks for the provider replaced
+        # below, which caps pageSize.
+        filters={"pagination_type": "limit_offset"},
+    ) | {LIMIT_OFFSET_KEY: limit_offset_provider(default_size=10)}
 
-    @get("/")
+    @get(
+        "/",
+        summary="List the stored locations",
+        description=(
+            "Returns every location GeoMetrikks has resolved, paged with `currentPage` and `pageSize`. It takes "
+            "no time range or filters. Pass an item's `id` to "
+            "`/api/v1/geo-locations/{location_id}/top-ips`."
+        ),
+    )
     async def list_geo_locations(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
@@ -87,7 +96,18 @@ class GeoLocationController(Controller):
         results, total = await geo_location_service.get_many_and_count(*filters)
         return geo_location_service.to_schema(results, total, filters=filters)
 
-    @get("/geojson", return_dto=None, description="Get all locations with event counts as GeoJSON FeatureCollection.")
+    @get(
+        "/geojson",
+        return_dto=None,
+        summary="Get the locations with events as GeoJSON",
+        description=(
+            "Returns a GeoJSON FeatureCollection with one point per location that had events in the range, "
+            "busiest first, and totals in `stats`. Ranges over 24 hours read the location aggregates, which "
+            f"{GEO_WHOLE_BUCKETS_NOTE}. An IP or ASN filter reads the raw "
+            "rows instead, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. A server "
+            "filter does the same on a database whose location aggregates predate server tracking."
+        ),
+    )
     async def get_geojson(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
@@ -164,7 +184,15 @@ class GeoLocationController(Controller):
         ]
         return GeoJSONFeatureCollection(type="FeatureCollection", features=features, stats=stats)
 
-    @get("/server-locations", return_dto=None, description="Where each server sits on the map.")
+    @get(
+        "/server-locations",
+        return_dto=None,
+        summary="Get the map location of every server",
+        description=(
+            "Returns the location recorded for each server, and this instance's own location in `default`. The "
+            "map puts a server without a recorded location at `default`."
+        ),
+    )
     async def server_locations(
         self,
         request: Request,
@@ -212,9 +240,11 @@ class GeoLocationController(Controller):
     @delete(
         "/server-locations/{server:str}",
         return_dto=None,
+        summary="Remove a retired server's location",
         description=(
-            "Remove a retired server's auto-detected location. "
-            "Locations pinned by MAP_SERVER_LOCATIONS cannot be removed here."
+            "Deletes the auto-detected location of a server you no longer run and answers 204. If the server's "
+            "instance still runs, it records the location again at its next location refresh. A location that "
+            "MAP_SERVER_LOCATIONS pins gets a 409. Needs a Read/write API key or a browser session."
         ),
         responses={
             HTTP_404_NOT_FOUND: ResponseSpec(
@@ -230,12 +260,25 @@ class GeoLocationController(Controller):
         self,
         request: Request,
         db_session: NamedDependency[AsyncSession],
-        server: Annotated[str, PathParameter(description="Server whose location to remove")],
+        server: Annotated[
+            str,
+            PathParameter(description="The server name, as `/api/v1/geo-locations/server-locations` lists it."),
+        ],
     ) -> None:
         user = request.scope.get("user")
         await remove_server_location(db_session, server, actor=str(user) if user else "unknown")
 
-    @get("/top-ips", return_dto=None, description="Get global top IPs by event count with their primary locations.")
+    @get(
+        "/top-ips",
+        return_dto=None,
+        summary="List the busiest IPs with their main location",
+        description=(
+            "Returns client IPs, each with the location where it had the most events in the range. The ranking "
+            "and `eventCount` use that one location's events only, so an IP spread over several locations "
+            "ranks lower than its total suggests. The server ranks `limit` times 10 location and IP pairs "
+            "before it drops repeated IPs, so the list can hold fewer than `limit` IPs while more exist."
+        ),
+    )
     async def get_global_top_ips(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
@@ -243,7 +286,7 @@ class GeoLocationController(Controller):
         to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
+            QueryParameter(description="How many IPs to return, from 1 to 20. Defaults to 5.", ge=1, le=20),
         ] = 5,
     ) -> GlobalTopIPsResponse:
         """Get global top IPs by event count with their primary locations.
@@ -274,16 +317,29 @@ class GeoLocationController(Controller):
         ]
         return GlobalTopIPsResponse(top_ips=top_ips)
 
-    @get("/{location_id:int}/top-ips", return_dto=None, description="Get top IPs for a specific location.")
+    @get(
+        "/{location_id:int}/top-ips",
+        return_dto=None,
+        summary="List the busiest IPs at one location",
+        description=(
+            "Returns the client IPs with the most events at the location in the range, most first. The items "
+            "carry no `location`. An unknown `location_id` gets an empty list."
+        ),
+    )
     async def get_location_top_ips(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
-        location_id: Annotated[int, PathParameter()],
+        location_id: Annotated[
+            int,
+            PathParameter(
+                description="The location's `id`, from `/api/v1/geo-locations` or a GeoJSON feature's `properties.id`."
+            ),
+        ],
         from_timestamp: FromTimestamp,
         to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of IPs to return", ge=1, le=20),
+            QueryParameter(description="How many IPs to return, from 1 to 20. Defaults to 5.", ge=1, le=20),
         ] = 5,
     ) -> LocationTopIPsResponse:
         """Get top IPs for a specific location.
@@ -293,16 +349,30 @@ class GeoLocationController(Controller):
         from_timestamp = ensure_utc(from_timestamp)
         to_timestamp = ensure_utc(to_timestamp)
 
-        top_ips_data = await geo_location_service.get_location_top_ips(
+        result = await geo_location_service.get_location_top_ips(
             location_id, from_timestamp, to_timestamp, limit=limit
         )
         top_ips = [
-            TopIPDTO(ip_address=ip.ip_address, event_count=ip.event_count)
-            for ip in top_ips_data
+            TopIPDTO(
+                ip_address=ip.ip_address,
+                event_count=ip.event_count,
+                asn=ip.asn,
+                as_organization=ip.as_organization,
+            )
+            for ip in result.top_ips
         ]
-        return LocationTopIPsResponse(location_id=location_id, top_ips=top_ips)
+        return LocationTopIPsResponse(location_id=location_id, unique_ips=result.unique_ips, top_ips=top_ips)
 
-    @get("/top-countries", return_dto=None, description="Get top countries by event count.")
+    @get(
+        "/top-countries",
+        return_dto=None,
+        summary="List the countries with the most events, unfiltered",
+        description=(
+            "Returns countries ordered by event count. Ranges over 24 hours read the location aggregates, which "
+            f"{GEO_WHOLE_BUCKETS_NOTE}. `/api/v1/geo-events/top-countries` also counts unique IPs and takes "
+            "filters."
+        ),
+    )
     async def get_top_countries(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
@@ -310,7 +380,7 @@ class GeoLocationController(Controller):
         to_timestamp: ToTimestamp,
         limit: Annotated[
             int,
-            QueryParameter(description="Maximum number of countries to return", ge=1, le=50),
+            QueryParameter(description="How many countries to return, from 1 to 50. Defaults to 10.", ge=1, le=50),
         ] = 10,
     ) -> TopCountriesResponse:
         """Get top countries by event count.

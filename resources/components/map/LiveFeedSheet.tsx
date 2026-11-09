@@ -14,6 +14,10 @@ import {
 import { useLiveWindow } from "@/lib/live-traffic/context"
 import { describeDecisions } from "@/lib/live-traffic/summary"
 import { LiveSummary } from "./LiveSummary"
+import { SideDrawerClose, useSideDrawer } from "./SideDrawer"
+import { useCoverBar } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
+import { cn } from "@/lib/utils"
 import { LiveFeedList, LiveFeedTabs, type FeedLane } from "./LiveFeedList"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
@@ -31,15 +35,25 @@ export function LiveFeedSheet({
   const [lane, setLane] = useState<FeedLane>("all")
   const rows = lane === "threats" ? requests.filter((request) => request.threat) : requests
   const decisions = describeDecisions(summary.decisions)
+  const drawer = useSideDrawer()
+  useCoverBar(open && drawer.side)
+  useOverlayEntry("live-feed", open, () => onOpenChange(false))
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer open={open} onOpenChange={onOpenChange} direction={drawer.direction}>
       {/* A fixed height rather than the default auto: the feed is the point of
           this sheet, and an auto-height drawer leaves the list whatever the
           summary does not use, which is a row or two on a short phone. */}
-      <DrawerContent className="h-[80vh]">
+      <DrawerContent className={cn(drawer.side ? drawer.contentClassName : "h-[80vh]")}>
         <DrawerHeader className="pb-2">
-          <DrawerTitle>Live traffic</DrawerTitle>
+          {drawer.side ? (
+            <div className="flex items-center justify-between gap-2">
+              <DrawerTitle>Live traffic</DrawerTitle>
+              <SideDrawerClose />
+            </div>
+          ) : (
+            <DrawerTitle>Live traffic</DrawerTitle>
+          )}
           <DrawerDescription className="sr-only">
             Requests arriving now, with a separate lane for refused requests and banned IPs.
           </DrawerDescription>

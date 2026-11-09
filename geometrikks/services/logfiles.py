@@ -23,19 +23,24 @@ if TYPE_CHECKING:
     from geometrikks.config.settings import Settings
 
 _LOGIN_LINE_RE = re.compile(
-    r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)$'
+    r'^(?P<timestamp>\S+) (?P<event>[A-Za-z0-9_]+) user="(?P<user>[^"]*)" ip=(?P<ip>\S+)'
+    r'(?: key="(?P<key>[^"]*)")?$'
 )
+
+_WARNING_LOGIN_EVENTS = frozenset({"login_failed", "api_key_rejected"})
 
 LogFileKind = Literal["app", "login", "access"]
 
 
+# App-log records are structlog JSONL events, so they carry arbitrary
+# additional context keys at runtime; a TypedDict is a plain dict, so
+# those keys pass through the API untouched while the schema documents
+# the fields every record can be expected to have.
 class LogTailRecord(TypedDict, total=False):
-    """Stable fields of a tailed log record.
+    """One log record.
 
-    App-log records are structlog JSONL events, so they carry arbitrary
-    additional context keys at runtime; a TypedDict is a plain dict, so
-    those keys pass through the API untouched while the schema documents
-    the fields every record can be expected to have.
+    An app log record holds the JSON event as GeoMetrikks wrote it, with more keys than these. A login log
+    record has `timestamp`, `level`, `event`, `logger` and `user`, plus `ip` and `key` when the line has them.
     """
 
     timestamp: str
@@ -45,6 +50,7 @@ class LogTailRecord(TypedDict, total=False):
     exception: str
     user: str
     ip: str
+    key: str
 
 
 @dataclass
@@ -140,13 +146,16 @@ class LogFilesService:
             ip = match.group("ip")
             record: LogTailRecord = {
                 "timestamp": match.group("timestamp"),
-                "level": "warning" if event == "login_failed" else "info",
+                "level": "warning" if event in _WARNING_LOGIN_EVENTS else "info",
                 "event": event,
                 "logger": LOGIN_LOGGER_NAME,
                 "user": match.group("user"),
             }
             if ip != "-":
                 record["ip"] = ip
+            key_name = match.group("key")
+            if key_name is not None:
+                record["key"] = key_name
             records.append(record)
         return records
 

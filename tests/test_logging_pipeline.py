@@ -213,6 +213,61 @@ class TestLoginLineFormat:
         assert LOGIN_LINE_RE.match(line), line
 
 
+class TestApiKeyLoginLines:
+    @pytest.mark.parametrize(
+        ("event", "expected_line"),
+        [
+            ("login_success", '2026-11-02T10:00:00Z login_success user="admin" ip=192.168.1.5'),
+            ("login_failed", '2026-11-02T10:00:00Z login_failed user="admin" ip=192.168.1.5'),
+            ("logout", '2026-11-02T10:00:00Z logout user="admin" ip=192.168.1.5'),
+        ],
+    )
+    def test_existing_login_lines_unchanged(self, event, expected_line):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "info",
+            {"timestamp": "2026-11-02T10:00:00.123", "event": event, "user": "admin",
+             "ip": "192.168.1.5", "key": "homepage"},
+        )
+        assert line == expected_line
+
+    def test_api_key_line_appends_key_last(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "info",
+            {"event": "api_key_created", "user": "admin", "ip": "192.168.1.5",
+             "key": "homepage", "timestamp": "2026-11-02T10:00:00.123"},
+        )
+        assert line == '2026-11-02T10:00:00Z api_key_created user="admin" ip=192.168.1.5 key="homepage"'
+
+    def test_api_key_line_without_key_has_no_field(self):
+        from geometrikks.server.logging import render_login_line
+        line = render_login_line(
+            None, "warning",
+            {"event": "api_key_rejected", "user": "gmk_7Hq2", "ip": "192.168.1.20",
+             "timestamp": "2026-11-02T10:06:00.000"},
+        )
+        assert line == '2026-11-02T10:06:00Z api_key_rejected user="gmk_7Hq2" ip=192.168.1.20'
+
+    def test_key_name_cannot_forge_fields(self, tmp_path):
+        from geometrikks.server.logging import render_login_line
+        from geometrikks.services.logfiles import LogFilesService
+        line = render_login_line(
+            None, "info",
+            {"event": "api_key_revoked", "user": "admin", "ip": "192.168.1.5",
+             "key": 'a" ip=1.2.3.4\nX\\', "timestamp": "2026-11-02T10:05:00.000"},
+        )
+        assert line == '2026-11-02T10:05:00Z api_key_revoked user="admin" ip=192.168.1.5 key="a ip=1.2.3.4X"'
+
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        (log_dir / "login.log").write_text(line + "\n", encoding="utf-8")
+        records = LogFilesService(log_dir=log_dir, access_log_paths=[]).tail_login(lines=10)
+        assert len(records) == 1
+        assert records[0]["ip"] == "192.168.1.5"
+        assert records[0]["key"] == "a ip=1.2.3.4X"
+
+
 class TestLoginOnlyFilter:
     def test_passes_only_login_logger(self):
         from geometrikks.server.logging import LOGIN_LOGGER_NAME, LoginOnlyFilter
@@ -371,6 +426,25 @@ class TestCreateLoggingConfig:
         # And the same event also lands in the main log.
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "login_failed" in main.read_text(encoding="utf-8"))
+
+    def test_api_key_rejection_reaches_login_file_with_contract_format(self, configured_logging):
+        from geometrikks.server.api_key_auth import login_logger
+        login_logger.warning(
+            "api_key_rejected", user="gmk_Ve8s", ip="192.168.1.20", key="test-curl", reason="expired"
+        )
+        login = configured_logging / "login.log"
+        assert _wait_for(lambda: "api_key_rejected" in login.read_text(encoding="utf-8"))
+        line = login.read_text(encoding="utf-8").splitlines()[-1]
+        assert re.fullmatch(
+            r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z api_key_rejected user="gmk_Ve8s" ip=192\.168\.1\.20 key="test-curl"',
+            line,
+        ), line
+        main = configured_logging / "geometrikks.log"
+        assert _wait_for(lambda: "api_key_rejected" in main.read_text(encoding="utf-8"))
+        main_line = [
+            logged_line for logged_line in main.read_text(encoding="utf-8").splitlines() if "api_key_rejected" in logged_line
+        ][-1]
+        assert json.loads(main_line)["reason"] == "expired"
 
     def test_other_loggers_do_not_reach_login_file(self, configured_logging):
         import structlog

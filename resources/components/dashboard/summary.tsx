@@ -1,9 +1,11 @@
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-import { useSummary } from "@/lib/queries"
+import { useCardCharts } from "@/lib/card-charts"
+import { useOverviewSparklines, useSummary } from "@/lib/queries"
 import { rangeCompareLabel, rangeSubtitle } from "@/lib/time-range-labels"
 import { useTimeRange } from "@/lib/time-range-context"
+import { CardChartsSwitch } from "@/components/dashboard/card-charts-switch"
 import { DateTimeRange } from "@/components/dashboard/date-time-range"
 import {
   HttpStatusSection,
@@ -19,17 +21,20 @@ export function Summary() {
   const { data: summary, isLoading, isError, error } = useSummary({
     comparePrevious: true,
   })
+  const [chartsOn] = useCardCharts("overview")
+  const sparklines = useOverviewSparklines({ enabled: chartsOn })
 
   const section = {
     summary,
     isLoading,
     rangeSubtitle: rangeSubtitle(range),
     compareLabel: rangeCompareLabel(range),
+    sparklines,
   }
 
   return (
     <TooltipProvider>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="p-4 md:p-6 phone-side:p-4 space-y-6">
         <PageHeader
           title="Overview"
           subtitle="Traffic, status codes and response times for the selected range."
@@ -42,6 +47,7 @@ export function Summary() {
               !isError && <Skeleton className="h-6 w-72 max-w-full rounded-md" />
             )
           }
+          actions={<CardChartsSwitch page="overview" />}
         />
 
         {isError && (

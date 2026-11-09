@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { ChevronDown, ChevronRight, Trash2, X } from "lucide-react"
 import type { HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { useDeleteInstance } from "@/lib/queries"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -143,6 +144,8 @@ export function AgentDrawer({
   useEffect(() => {
     if (gone) onOpenChange(false)
   }, [gone, onOpenChange])
+  const overlayId = useId()
+  useOverlayEntry(`agent-${overlayId}`, open, () => onOpenChange(false))
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} autoFocus>
@@ -312,7 +315,7 @@ function SectionBody({
     case "last-error":
       return <LastErrorBlock instance={instance} />
     case "sources":
-      return <SourcesList instance={instance} />
+      return <SourcesList instance={instance} now={now} />
     case "jobs":
       return <JobsList instance={instance} now={now} />
     case "geoip":

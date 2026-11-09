@@ -2,17 +2,19 @@
  * Filter bar for the geo-logs page: IP include/exclude, country, city and
  * server multiselects, and an ASN include/exclude combobox pair
  * (lazy-loaded facets). Renders in a FilterRail on desktop and inside a
- * FiltersDrawer on mobile. Everything on the page (map, stats, chart, top
+ * FiltersDrawer on phones. Everything on the page (map, stats, chart, top
  * lists, table) reshapes through GeoLogFiltersContext, whose state lives in
  * the URL search params.
  */
 import { CountryFlag } from "@/components/country-flag"
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FilterExcludedIpRows, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useAsnLabel } from "@/hooks/use-asn-label"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useGeoEventFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
 import {
@@ -24,7 +26,7 @@ import {
 type IpKey = "ips" | "ipsExclude"
 
 export function GeoLogsFilterBar() {
-  const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const { filters, setFilters } = useGeoLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useGeoEventFacets({
@@ -38,15 +40,11 @@ export function GeoLogsFilterBar() {
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
 
-  // FilterCombobox calls labelFor per option per keystroke; a linear find
-  // over an unbounded ASN facet list would make that quadratic.
-  const asnOrgs = useMemo(
-    () => new Map(facets?.asns.map((a) => [a.asn, a.organization]) ?? []),
-    [facets],
-  )
-  const asnLabel = (asn: number) => {
-    const org = asnOrgs.get(asn)
-    return org ? `AS${asn} ${org}` : `AS${asn}`
+  const asnLabel = useAsnLabel(facets?.asns)
+  const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
+  const countryLabel = (code: string) => {
+    const name = countryName(code)
+    return name ? `${name} (${code})` : code
   }
   type AsnKey = "asns" | "asnsExclude"
   const setAsns = (key: AsnKey) => (values: number[]) =>
@@ -71,19 +69,16 @@ export function GeoLogsFilterBar() {
     )
   }
 
-  const ipPair = (inDrawer: boolean) => (
+  const ipPair = () => (
     <FilterPair
       label="IP address"
       excludeLabel="Exclude IP"
-      stacked={inDrawer}
-      includeChips={chipRow(["ips"])}
-      excludeChips={chipRow(["ipsExclude"])}
       include={
         <TagInput
           onAdd={addIp("ips")}
           validate={isValidIp}
           placeholder="203.0.113.7"
-          className={inDrawer ? "w-full" : "w-36"}
+          className="w-36"
         />
       }
       exclude={
@@ -92,32 +87,28 @@ export function GeoLogsFilterBar() {
           onAdd={addIp("ipsExclude")}
           validate={isValidIp}
           placeholder="Exclude"
-          className={inDrawer ? "w-full" : "w-32"}
+          className="w-32"
         />
       }
     />
   )
-  const country = (inDrawer: boolean) => (
-    <FilterField label="Country" hideLabel={!inDrawer}>
+  const country = () => (
+    <FilterField label="Country" hideLabel>
       <FilterCombobox
         label="Country"
         iconFor={(code) => <CountryFlag code={code} />}
         options={facets?.countries.map((c) => c.code) ?? []}
         selected={filters.countryCodes}
         onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
-        labelFor={(code) => {
-          const name = facets?.countries.find((c) => c.code === code)?.name
-          return name ? `${name} (${code})` : code
-        }}
+        labelFor={countryLabel}
         loading={!facets}
         emptyText="No geo data"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
-  const city = (inDrawer: boolean) => (
-    <FilterField label="City" hideLabel={!inDrawer}>
+  const city = () => (
+    <FilterField label="City" hideLabel>
       <FilterCombobox
         label="City"
         options={facets?.cities ?? []}
@@ -126,12 +117,11 @@ export function GeoLogsFilterBar() {
         loading={!facets}
         emptyText="No geo data"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
-  const server = (inDrawer: boolean) => (
-    <FilterField label="Server" hideLabel={!inDrawer}>
+  const server = () => (
+    <FilterField label="Server" hideLabel>
       <FilterCombobox
         label="Server"
         options={facets?.servers ?? []}
@@ -140,18 +130,14 @@ export function GeoLogsFilterBar() {
         loading={!facets}
         emptyText="No servers"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
 
-  const asnPair = (inDrawer: boolean) => (
+  const asnPair = () => (
     <FilterPair
       label="ASN"
       excludeLabel="Exclude ASN"
-      stacked={inDrawer}
-      includeChips={chipRow(["asns"])}
-      excludeChips={chipRow(["asnsExclude"])}
       include={
         <FilterCombobox<number>
           label="ASN"
@@ -162,7 +148,6 @@ export function GeoLogsFilterBar() {
           loading={!facets}
           emptyText="No ASN data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       }
       exclude={
@@ -175,7 +160,6 @@ export function GeoLogsFilterBar() {
           loading={!facets}
           emptyText="No ASN data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       }
     />
@@ -184,15 +168,75 @@ export function GeoLogsFilterBar() {
   const activeCount = countActiveGeoLogFilters(filters)
   const clear = () => setFilters(() => EMPTY_GEO_LOG_FILTERS)
 
-  if (isMobile) {
+  if (phone) {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
         <FiltersDrawer activeCount={activeCount} onClear={clear}>
-          {ipPair(true)}
-          {country(true)}
-          {city(true)}
-          {server(true)}
-          {asnPair(true)}
+          <TagInput
+            onAdd={addIp("ips")}
+            validate={isValidIp}
+            placeholder="203.0.113.7"
+            aria-label="IP address"
+            className="w-full"
+            inputClassName="h-10"
+          />
+          {chipRow(["ips"])}
+          <FilterSection label="Show only">
+            <FilterListRow
+              label="Country"
+              search
+              iconFor={(code) => <CountryFlag code={code} />}
+              options={facets?.countries.map((c) => c.code) ?? []}
+              selected={filters.countryCodes}
+              onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
+              labelFor={countryLabel}
+              valueFor={(code) => countryName(code) ?? code}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+            <FilterListRow
+              label="City"
+              search
+              options={facets?.cities ?? []}
+              selected={filters.cities}
+              onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+            <FilterListRow
+              label="Server"
+              options={facets?.servers ?? []}
+              selected={filters.servers}
+              onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
+              loading={!facets}
+              emptyText="No servers"
+            />
+            <FilterListRow<number>
+              label="ASN"
+              search
+              options={facets?.asns.map((a) => a.asn) ?? []}
+              selected={filters.asns}
+              onChange={setAsns("asns")}
+              labelFor={asnLabel}
+              splitLabel
+              loading={!facets}
+              emptyText="No ASN data"
+            />
+          </FilterSection>
+          <FilterSection label="Exclude">
+            <FilterExcludedIpRows values={filters.ipsExclude} onAdd={addIp("ipsExclude")} onRemove={(ip) => removeIp("ipsExclude", ip)} validate={isValidIp} />
+            <FilterListRow<number>
+              label="ASN" exclude
+              search
+              options={facets?.asns.map((a) => a.asn) ?? []}
+              selected={filters.asnsExclude}
+              onChange={setAsns("asnsExclude")}
+              labelFor={asnLabel}
+              splitLabel
+              loading={!facets}
+              emptyText="No ASN data"
+            />
+          </FilterSection>
         </FiltersDrawer>
       </div>
     )
@@ -201,11 +245,11 @@ export function GeoLogsFilterBar() {
   return (
     <FilterRail label="Location filters" activeCount={activeCount} onClear={clear}>
       <FilterRow>
-        {ipPair(false)}
-        {country(false)}
-        {city(false)}
-        {server(false)}
-        {asnPair(false)}
+        {ipPair()}
+        {country()}
+        {city()}
+        {server()}
+        {asnPair()}
       </FilterRow>
       {chipRow(["ips", "ipsExclude", "asns", "asnsExclude"])}
     </FilterRail>

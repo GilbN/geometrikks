@@ -283,6 +283,7 @@ async def test_about_database_degrades_when_db_unreachable():
         "migrationName": None,
         "migrationHead": bundled_head_revision(),
     }
+    assert resp.json()["dropLists"] is None
 
 
 async def test_system_settings_surface_computed_values(monkeypatch):

@@ -16,6 +16,9 @@ import { AsnCell } from "@/components/geo-logs/asn-cell"
 import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
 import { formatNumber } from "@/lib/api"
 import { useGeoLogTopAsns, useGeoLogTopCities, useGeoLogTopCountries } from "@/lib/queries"
+import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
+import { asnFilterTarget } from "@/lib/ip-filter-targets"
+import { AsnActionsMenu } from "@/components/ip-actions/asn-actions-menu"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 type View = "countries" | "cities" | "asns"
@@ -29,6 +32,13 @@ export function GeoTopCountriesCities() {
   const { pageItems: cityItems, ...cityPagination } = usePagedRows(cities.data?.items)
   const { pageItems: asnItems, ...asnPagination } = usePagedRows(asns.data?.items)
   const report = useAbuseReportDialog()
+  const { filters, setFilters } = useGeoLogFilters()
+  const asnActions = (asn: number, organization: string | null | undefined) => (
+    <span className="inline-flex items-center">
+      <AsnReportButton asn={asn} organization={organization} onOpen={report.openFor} />
+      <AsnActionsMenu asn={asn} organization={organization} target={asnFilterTarget(asn, filters, setFilters)} />
+    </span>
+  )
   const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(`${view}:${asnItems.map((row) => row.asn).join()}`)
 
   const active = view === "countries" ? countries : view === "cities" ? cities : asns
@@ -114,7 +124,7 @@ export function GeoTopCountriesCities() {
                     <RankedNarrowCell
                       primary={<span className="line-clamp-2" title={row.organization ?? undefined}>{row.organization ?? "Unknown"}</span>}
                       value={formatNumber(row.eventCount)}
-                      trailing={<AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />}
+                      trailing={asnActions(row.asn, row.organization)}
                       secondary={
                         <>
                           <span className="font-mono">AS{row.asn}</span>
@@ -140,7 +150,7 @@ export function GeoTopCountriesCities() {
                   </TableHead>
                   <TableHead className="text-right">Events</TableHead>
                   <TableHead className="text-right">Unique IPs</TableHead>
-                  <TableHead className="w-10"><span className="sr-only">Report</span></TableHead>
+                  <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -152,9 +162,7 @@ export function GeoTopCountriesCities() {
                     <TableCell><CategoryBadge category={row.category} /></TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.eventCount)}</TableCell>
                     <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
-                    <TableCell className="py-0 text-right">
-                      <AsnReportButton asn={row.asn} organization={row.organization} onOpen={report.openFor} />
-                    </TableCell>
+                    <TableCell className="py-0 text-right">{asnActions(row.asn, row.organization)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

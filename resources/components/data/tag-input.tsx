@@ -18,11 +18,13 @@ export function TagInput({
   placeholder,
   exclude = false,
   className,
+  inputClassName,
   ...props
 }: Omit<React.ComponentProps<typeof Input>, "value" | "onChange" | "onKeyDown"> & {
   onAdd: (value: string) => void
   validate?: (value: string) => boolean
   exclude?: boolean
+  inputClassName?: string
 }) {
   const [draft, setDraft] = useState("")
   const value = draft.trim()
@@ -48,7 +50,7 @@ export function TagInput({
         }}
         placeholder={placeholder}
         aria-invalid={invalid}
-        className={cn("h-8 w-full font-mono text-xs", exclude && "pl-7", value && "pr-7")}
+        className={cn("h-8 w-full font-mono text-xs", exclude && "pl-7", value && "pr-7", inputClassName)}
         {...props}
       />
       {value && (

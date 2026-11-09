@@ -267,6 +267,8 @@ export function AccessLogsTable({
     serverIn: filters.servers.length ? filters.servers : undefined,
     serverNotIn: filters.serversExclude.length ? filters.serversExclude : undefined,
     logFormatIn: filters.logFormats.length ? filters.logFormats : undefined,
+    asnIn: filters.asns.length ? filters.asns : undefined,
+    asnNotIn: filters.asnsExclude.length ? filters.asnsExclude : undefined,
     cityIn: filters.cities.length ? filters.cities : undefined,
     countryCodeIn: filters.countryCodes.length ? filters.countryCodes : undefined,
     statusIn: filters.statusCodes.length ? filters.statusCodes : undefined,

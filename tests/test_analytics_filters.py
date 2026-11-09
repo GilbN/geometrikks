@@ -60,3 +60,41 @@ class TestBuildFilters:
     def test_invalid_excluded_ip_raises(self) -> None:
         with pytest.raises(DomainValidationError, match="Invalid IP address"):
             _build_filters(None, None, None, ["not-an-ip"])
+
+
+class TestAsnFilters:
+    def test_asn_include_is_active(self) -> None:
+        assert AnalyticsFilters(asns=[13335]).is_active() is True
+
+    def test_asn_exclude_only_is_active(self) -> None:
+        assert AnalyticsFilters(asns_exclude=[13335]).is_active() is True
+
+    def test_only_asn_filters_need_raw_rows(self) -> None:
+        # log_ip_*_stats carries IP, country and city but no ASN, so only an
+        # ASN filter forces the per-IP lists off the aggregates.
+        assert AnalyticsFilters(country_codes=["NO"], ip_exclude=["10.0.0.1"]).needs_raw_rows() is False
+        assert AnalyticsFilters(asns=[13335]).needs_raw_rows() is True
+        assert AnalyticsFilters(asns_exclude=[13335]).needs_raw_rows() is True
+
+    def test_asn_include_emits_bigint_any(self) -> None:
+        clause, params = AnalyticsFilters(asns=[13335, 15169]).sql_conditions()
+        assert clause == "AND autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))"
+        assert params == {"filter_asns": [13335, 15169]}
+
+    def test_asn_exclude_keeps_rows_without_asn(self) -> None:
+        clause, params = AnalyticsFilters(asns_exclude=[13335]).sql_conditions()
+        assert clause == (
+            "AND (autonomous_system_number IS NULL "
+            "OR NOT (autonomous_system_number = ANY(CAST(:filter_asns_exclude AS bigint[]))))"
+        )
+        assert params == {"filter_asns_exclude": [13335]}
+
+    def test_build_filters_passes_asns_through(self) -> None:
+        filters = _build_filters(None, None, None, None, asn_in=[13335], asn_not_in=[15169])
+        assert filters.asns == [13335]
+        assert filters.asns_exclude == [15169]
+
+    def test_build_filters_empty_asn_lists_become_none(self) -> None:
+        filters = _build_filters(None, None, None, None, asn_in=[], asn_not_in=[])
+        assert filters.asns is None
+        assert filters.asns_exclude is None

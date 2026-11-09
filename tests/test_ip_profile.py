@@ -10,6 +10,7 @@ from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 
 from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.drop.snapshot import EMPTY_DROP_SNAPSHOT
 from geometrikks.domain.analytics.controllers import AnalyticsController, _to_ip_profile_response
 from geometrikks.domain.analytics.ip_profile import (
     IpProfile,
@@ -162,6 +163,7 @@ def _app(repo: _FakeIpProfileRepo) -> Litestar:
         dependencies = {
             **(AnalyticsController.dependencies or {}),
             "ip_profile_repo": Provide(lambda: repo, sync_to_thread=False),
+            "drop_snapshot": Provide(lambda: EMPTY_DROP_SNAPSHOT, sync_to_thread=False),
         }
 
     return Litestar(
@@ -208,3 +210,29 @@ async def test_endpoint_rejects_unknown_timezone():
             params={"ipAddress": "10.0.0.1", "startDate": START.isoformat(), "endDate": NOW.isoformat(), "tz": "Mars/Olympus"},
         )
     assert resp.status_code == 400
+
+
+async def test_endpoint_accepts_a_relative_window_and_echoes_its_bounds():
+    repo = _FakeIpProfileRepo(IpProfile())
+    async with AsyncTestClient(app=_app(repo)) as client:
+        response = await client.get(
+            "/api/v1/analytics/ip-profile", params={"ipAddress": "10.0.0.1", "window": "24h"},
+        )
+    assert response.status_code == 200
+    body = response.json()
+    _, start, end = repo.calls[0]
+    assert end - start == timedelta(hours=24)
+    assert body["startDate"] == start.isoformat()
+    assert body["endDate"] == end.isoformat()
+
+
+async def test_endpoint_rejects_mixed_ranges_before_querying():
+    repo = _FakeIpProfileRepo(IpProfile())
+    async with AsyncTestClient(app=_app(repo)) as client:
+        response = await client.get(
+            "/api/v1/analytics/ip-profile",
+            params={"ipAddress": "10.0.0.1", "window": "1d", "startDate": START.isoformat()},
+        )
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_range"
+    assert repo.calls == []

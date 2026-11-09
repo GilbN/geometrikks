@@ -140,6 +140,29 @@ function countryTarget<F>(
   ]
 }
 
+/** The include and exclude ASN lists in a page's filter state. */
+interface AsnFilterLists {
+  asns: number[]
+  asnsExclude: number[]
+}
+
+/** A target for one ASN, for a row that is a network rather than an IP. */
+export function asnFilterTarget<F extends AsnFilterLists>(asn: number, filters: F, setFilters: SetFilters<F>): FilterTarget {
+  return listFilterTarget<F, number>({
+    noun: "ASN",
+    value: asn,
+    label: `AS${asn}`,
+    filters,
+    setFilters,
+    includeKey: "asns" as ListKey<F, number>,
+    excludeKey: "asnsExclude" as ListKey<F, number>,
+  })
+}
+
+function asnTarget<F extends AsnFilterLists>({ asn }: IpRowValues, filters: F, setFilters: SetFilters<F>): FilterTarget[] {
+  return asn == null ? [] : [asnFilterTarget(asn, filters, setFilters)]
+}
+
 export function accessLogFilterTargets(filters: AccessLogFilterState, setFilters: SetFilters<AccessLogFilterState>) {
   return (row: IpRowValues): FilterTarget[] => {
     const target = (
@@ -153,6 +176,7 @@ export function accessLogFilterTargets(filters: AccessLogFilterState, setFilters
       ...(row.host ? [target("host", row.host, "hosts", "hostsExclude")] : []),
       ...(row.server ? [target("server", row.server, "servers", "serversExclude")] : []),
       ...countryTarget(row, filters, setFilters, "countryCodes"),
+      ...asnTarget(row, filters, setFilters),
     ]
   }
 }
@@ -161,19 +185,7 @@ export function geoLogFilterTargets(filters: GeoLogFilterState, setFilters: SetF
   return (row: IpRowValues): FilterTarget[] => [
     listFilterTarget({ noun: "IP", value: row.ip, filters, setFilters, includeKey: "ips", excludeKey: "ipsExclude" }),
     ...countryTarget(row, filters, setFilters, "countryCodes"),
-    ...(row.asn != null
-      ? [
-          listFilterTarget({
-            noun: "ASN",
-            value: row.asn,
-            label: `AS${row.asn}`,
-            filters,
-            setFilters,
-            includeKey: "asns",
-            excludeKey: "asnsExclude",
-          }),
-        ]
-      : []),
+    ...asnTarget(row, filters, setFilters),
   ]
 }
 
@@ -181,5 +193,6 @@ export function analyticsFilterTargets(filters: AnalyticsFilterState, setFilters
   return (row: IpRowValues): FilterTarget[] => [
     listFilterTarget({ noun: "IP", value: row.ip, filters, setFilters, includeKey: "ips", excludeKey: "ipsExclude" }),
     ...countryTarget(row, filters, setFilters, "countryCodes"),
+    ...asnTarget(row, filters, setFilters),
   ]
 }

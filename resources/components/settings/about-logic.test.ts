@@ -4,6 +4,8 @@ import {
   aboutDetailsText,
   buildDateLabel,
   databaseSummary,
+  dropListsStatus,
+  dropListsSummary,
   geoipSummary,
   migrationStatus,
   runtimeLabel,
@@ -12,6 +14,7 @@ import {
   splitPath,
   startsOpen,
 } from "./about-logic"
+import { formatTs } from "@/lib/datetime"
 
 function makeAbout(overrides: Partial<AboutResponse> = {}): AboutResponse {
   return {
@@ -179,6 +182,55 @@ describe("section summaries", () => {
   })
 })
 
+describe("dropListsStatus", () => {
+  const dropLists = {
+    enabled: true,
+    loaded: true,
+    stale: false,
+    updatedAt: "2026-11-01T06:14:00Z",
+    copyright: "(c) 2026 The Spamhaus Project SLU",
+    termsUrl: "https://www.spamhaus.org/drop/terms/",
+    feeds: [],
+  }
+
+  it("shows the update time in local time", () => {
+    expect(dropListsStatus(dropLists)).toEqual({
+      tone: "emerald",
+      label: `Updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
+    })
+    expect(dropListsStatus({ ...dropLists, stale: true })).toEqual({
+      tone: "amber",
+      label: `Out of date, updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
+    })
+  })
+
+  it("is grey before the first download and amber after a failed one", () => {
+    const notLoaded = { ...dropLists, loaded: false, updatedAt: null }
+    expect(dropListsStatus(notLoaded)).toEqual({ tone: "muted", label: "Not downloaded yet" })
+    const failed = {
+      ...notLoaded,
+      feeds: [{ feed: "v4", recordCount: null, upstreamTimestamp: null, fetchedAt: null, checkedAt: null, lastError: "HTTP 403" }],
+    }
+    expect(dropListsStatus(failed)).toEqual({ tone: "amber", label: "Not downloaded yet" })
+  })
+
+  it("turns amber when a feed's latest download failed after the lists loaded", () => {
+    const failing = {
+      ...dropLists,
+      feeds: [
+        { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-11-01T06:14:00Z", checkedAt: "2026-11-01T06:14:00Z", lastError: null },
+        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-31T06:14:00Z", checkedAt: "2026-11-01T06:14:00Z", lastError: "HTTP 403" },
+      ],
+    }
+    expect(dropListsStatus(failing)).toEqual({
+      tone: "amber",
+      label: `Updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
+    })
+    const healthy = { ...failing, feeds: failing.feeds.map((feedView) => ({ ...feedView, checkedAt: feedView.fetchedAt, lastError: null })) }
+    expect(dropListsStatus(healthy).tone).toBe("emerald")
+  })
+})
+
 describe("aboutDetailsText", () => {
   it("puts the versions on six lines", () => {
     expect(aboutDetailsText(makeAbout())).toBe(
@@ -228,5 +280,41 @@ describe("aboutDetailsText", () => {
     const about = makeAbout()
     const text = aboutDetailsText({ ...about, database: { ...about.database, migrationRevision: "9f1c2ab4d7e0" } })
     expect(text.split("\n")[4]).toBe("Migration 9f1c2ab4d7e0 (differs from this build, build ships a41d7e6c2b95)")
+  })
+})
+
+describe("dropListsSummary", () => {
+  const dropLists = {
+    enabled: true,
+    loaded: true,
+    stale: false,
+    updatedAt: "2026-10-30T06:00:00Z",
+    copyright: null,
+    termsUrl: "https://www.spamhaus.org/drop/terms/",
+    feeds: [
+      { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-10-30T06:00:00Z", lastError: null },
+    ],
+  }
+
+  it("reads like the status when nothing failed", () => {
+    expect(dropListsSummary(dropLists)).toEqual({ tone: "emerald", text: dropListsStatus(dropLists).label })
+    expect(dropListsSummary({ ...dropLists, stale: true }).text).toMatch(/^Out of date, updated /)
+    expect(dropListsSummary({ ...dropLists, loaded: false, updatedAt: null, feeds: [] })).toEqual({
+      tone: "muted",
+      text: "Not downloaded yet",
+    })
+  })
+
+  it("names a download that failed after the lists loaded", () => {
+    const failing = {
+      ...dropLists,
+      feeds: [
+        ...dropLists.feeds,
+        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" },
+      ],
+    }
+    const summary = dropListsSummary(failing)
+    expect(summary.tone).toBe("amber")
+    expect(summary.text).toMatch(/^Download failed, updated /)
   })
 })

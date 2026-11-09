@@ -13,8 +13,10 @@ from litestar.params import QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_502_BAD_GATEWAY
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.drop.dependencies import provide_drop_snapshot
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
-from geometrikks.domain.reports.abuse_report import AbuseReportRepository, ReportIp
+from geometrikks.domain.reports.abuse_report import AbuseReportRepository, ReportIp, mark_drop_listings
 from geometrikks.domain.reports.crowdsec import (
     ASN_ALERT_LIMIT,
     IP_ALERT_LIMIT,
@@ -29,6 +31,7 @@ from geometrikks.domain.reports.schemas import (
     ReportAlertDTO,
     ReportCrowdSec,
     ReportDecisionDTO,
+    ReportDropNetworkDTO,
     ReportIpDTO,
     ReportLineDTO,
     ReportPathDTO,
@@ -49,11 +52,20 @@ MAX_ASN = 4_294_967_295
 
 IpAddressParam = Annotated[
     str | None,
-    QueryParameter(name="ipAddress", required=False, description="The IP to report on"),
+    QueryParameter(
+        name="ipAddress",
+        required=False,
+        description="The IP, IPv4 or IPv6. Pass this or `asn`, not both. A value that is not an IP gets a 400.",
+    ),
 ]
 AsnParam = Annotated[
     int | None,
-    QueryParameter(required=False, ge=0, le=MAX_ASN, description="The AS number whose IPs to report on"),
+    QueryParameter(
+        required=False,
+        ge=0,
+        le=MAX_ASN,
+        description=f"The AS number, from 0 to {MAX_ASN}, such as `13335`. Pass this or `ipAddress`, not both.",
+    ),
 ]
 
 
@@ -160,6 +172,12 @@ def _to_ip_dto(item: ReportIp, crowdsec: IpCrowdSec | None) -> ReportIpDTO:
             for a in crowdsec.alerts
         ],
         alerts_truncated=crowdsec.alerts_truncated,
+        drop_network=(
+            ReportDropNetworkDTO(cidr=item.drop_network.cidr, sbl_id=item.drop_network.sbl_id)
+            if item.drop_network
+            else None
+        ),
+        asn_drop=item.asn_drop,
     )
 
 
@@ -188,12 +206,23 @@ class ReportsController(Controller):
     dependencies = {
         "abuse_report_repo": Provide(provide_abuse_report_repo),
         "crowdsec": Provide(provide_crowdsec_service, sync_to_thread=False),
+        "drop_snapshot": Provide(provide_drop_snapshot),
         "rdap": Provide(provide_rdap_client, sync_to_thread=False),
     }
 
     @get(
         "/abuse",
-        description="Evidence for an abuse report on one IP or the busiest IPs of an ASN (raw scan).",
+        summary="Build an abuse report for an IP or an ASN",
+        description=(
+            "Returns what an abuse desk needs about one IP, or about the busiest IPs of one ASN, in the range: "
+            "request counts, the busiest hour or day, the top paths and user agents, the newest log lines and "
+            "CrowdSec data. Times are in UTC, and the raw access logs it reads go back "
+            "ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. The report leaves out the Host header, server "
+            "name, referrer and remote user of each line, and the machine name and message of each alert. Your "
+            "host names and public addresses become `[redacted]` in URLs and user agents. In a query string, the "
+            "whole value of a parameter that names one of your hosts or carries a credential, such as `token` or "
+            "`api_key`, also becomes `[redacted]`."
+        ),
         responses={
             HTTP_400_BAD_REQUEST: ResponseSpec(
                 data_container=ErrorEnvelope, description="Neither or both of ipAddress and asn."
@@ -204,6 +233,7 @@ class ReportsController(Controller):
         self,
         abuse_report_repo: NamedDependency[AbuseReportRepository],
         crowdsec: NamedDependency[CrowdSecService | None],
+        drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         settings: NamedDependency[SkipValidation[Settings]],
         start_date: StartDate,
         end_date: EndDate,
@@ -211,11 +241,21 @@ class ReportsController(Controller):
         asn: AsnParam = None,
         max_ips: Annotated[
             int,
-            QueryParameter(name="maxIps", ge=1, le=100, description="Busiest IPs to include for an ASN"),
+            QueryParameter(
+                name="maxIps",
+                ge=1,
+                le=100,
+                description="With `asn`, how many of its busiest IPs to report on, from 1 to 100. Defaults to 25.",
+            ),
         ] = 25,
         lines_per_ip: Annotated[
             int,
-            QueryParameter(name="linesPerIp", ge=0, le=500, description="Newest log lines per IP"),
+            QueryParameter(
+                name="linesPerIp",
+                ge=0,
+                le=500,
+                description="How many of each IP's newest log lines to include, from 0 to 500. Defaults to 20.",
+            ),
         ] = 20,
     ) -> AbuseReportResponse:
         """Per-IP totals, behavior, paths, user agents, log lines and CrowdSec
@@ -236,6 +276,7 @@ class ReportsController(Controller):
         evidence = await abuse_report_repo.get_evidence(
             ips, start_date, end_date, lines_per_ip=lines_per_ip
         )
+        mark_drop_listings(evidence.ips, drop_snapshot)
         crowdsec_evidence = await gather_crowdsec(
             crowdsec, ips, start_date, end_date,
             alerts_enabled=settings.crowdsec.write_enabled,
@@ -245,14 +286,22 @@ class ReportsController(Controller):
         if selection is None:
             only = evidence.ips[0]
             target = ReportTarget(
-                kind="ip", ip_address=only.ip, asn=only.asn, asn_organization=only.asn_organization
+                kind="ip",
+                ip_address=only.ip,
+                asn=only.asn,
+                asn_organization=only.asn_organization,
+                asn_drop=only.asn_drop,
             )
             ip_count = 1 if only.total_requests else 0
             total_requests = only.total_requests
             status_4xx = only.status_4xx
         else:
             target = ReportTarget(
-                kind="asn", ip_address=None, asn=asn, asn_organization=selection.organization
+                kind="asn",
+                ip_address=None,
+                asn=asn,
+                asn_organization=selection.organization,
+                asn_drop=asn is not None and drop_snapshot.is_drop_asn(asn),
             )
             ip_count = selection.ip_count
             total_requests = selection.total_requests
@@ -265,6 +314,8 @@ class ReportsController(Controller):
             ips=len(ips),
             crowdsec=crowdsec_evidence.status,
             redactions=evidence.redactions,
+            asn_drop=target.asn_drop,
+            drop_networks=sum(item.drop_network is not None for item in evidence.ips),
         )
         return AbuseReportResponse(
             target=target,
@@ -282,7 +333,12 @@ class ReportsController(Controller):
 
     @get(
         "/abuse-contact",
-        description="RDAP lookup of the network or AS holding an address, with its abuse contact.",
+        summary="Look up the abuse contact for an IP or an ASN",
+        description=(
+            "Asks the RDAP registry that holds the IP or AS number for its network or AS record and the abuse "
+            "contact on it. Only the queried address or number leaves the server, and GeoMetrikks caches each "
+            "answer for up to 24 hours. A private or reserved address gets a 400."
+        ),
         responses={
             HTTP_400_BAD_REQUEST: ResponseSpec(
                 data_container=ErrorEnvelope,

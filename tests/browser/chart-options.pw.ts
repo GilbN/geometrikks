@@ -33,6 +33,7 @@ function timeSeriesPoint(index: number, total = requestsAt(index)): TimeSeriesDa
     totalGeoEvents: total,
     timedRequests: timed,
     avgRequestTime: t(0.12),
+    maxRequestTime: t(1.8),
     p50RequestTime: t(0.08),
     p95RequestTime: t(0.4),
     p99RequestTime: t(1.1),
@@ -172,6 +173,8 @@ test.describe("geo events chart", () => {
       timestamp: new Date(START + i * HOUR).toISOString(),
       totalEvents: 100 + i * 10,
       uniqueIps: 40 + i,
+      uniqueCountries: 5,
+      uniqueCities: 8,
     }))
     await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/time-series",
       (route) => route.fulfill({ json: {

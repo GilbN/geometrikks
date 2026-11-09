@@ -8,6 +8,27 @@
       ],
       "uri": "/api/v1/crowdsec/ban"
     },
+    "ban_networks": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/crowdsec/ban-networks"
+    },
+    "connection": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/connection"
+    },
+    "create_api_key": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/auth/api-keys"
+    },
     "delete_instance": {
       "method": "delete",
       "methods": [
@@ -133,8 +154,9 @@
         "GET"
       ],
       "queryParameters": {
-        "endDate": "DateTime",
-        "startDate": "DateTime"
+        "endDate": "DateTime | undefined",
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series/cumulative"
     },
@@ -160,6 +182,13 @@
         "ip": "string"
       },
       "uri": "/api/v1/crowdsec/decisions/{decision_id}/alert"
+    },
+    "get_drop_lists": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/drop/lists"
     },
     "get_geo_log_facets": {
       "method": "get",
@@ -311,10 +340,11 @@
         "GET"
       ],
       "queryParameters": {
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "granularity": "\"hourly\" | \"daily\" | undefined",
-        "startDate": "DateTime",
-        "tz": "string | undefined"
+        "startDate": "DateTime | undefined",
+        "tz": "string | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/geo-time-series"
     },
@@ -354,10 +384,11 @@
         "GET"
       ],
       "queryParameters": {
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string",
-        "startDate": "DateTime",
-        "tz": "string | undefined"
+        "startDate": "DateTime | undefined",
+        "tz": "string | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/ip-profile"
     },
@@ -368,8 +399,9 @@
       ],
       "queryParameters": {
         "comparePrevious": "boolean | undefined",
-        "endDate": "DateTime",
-        "startDate": "DateTime"
+        "endDate": "DateTime | undefined",
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/live-summary"
     },
@@ -426,8 +458,9 @@
       ],
       "queryParameters": {
         "comparePrevious": "boolean | undefined",
-        "endDate": "DateTime",
-        "startDate": "DateTime"
+        "endDate": "DateTime | undefined",
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/summary"
     },
@@ -444,14 +477,17 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "granularity": "\"hourly\" | \"daily\" | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
-        "startDate": "DateTime",
-        "tz": "string | undefined"
+        "startDate": "DateTime | undefined",
+        "tz": "string | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/time-series"
     },
@@ -461,13 +497,16 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-asns"
     },
@@ -477,13 +516,16 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-cities"
     },
@@ -493,13 +535,16 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-countries"
     },
@@ -521,13 +566,16 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-ips"
     },
@@ -537,13 +585,16 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-urls"
     },
@@ -553,13 +604,16 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "city": "string[] | undefined",
         "countryCode": "string[] | undefined",
-        "endDate": "DateTime",
+        "endDate": "DateTime | undefined",
         "ipAddress": "string[] | undefined",
         "ipAddressNotIn": "string[] | undefined",
         "limit": "number | undefined",
-        "startDate": "DateTime"
+        "startDate": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/analytics/top-user-agents"
     },
@@ -604,6 +658,8 @@
         "GET"
       ],
       "queryParameters": {
+        "asnIn": "number[] | undefined",
+        "asnNotIn": "number[] | undefined",
         "cityIn": "string[] | undefined",
         "countryCodeIn": "string[] | undefined",
         "currentPage": "number | undefined",
@@ -622,7 +678,8 @@
         "serverNotIn": "string[] | undefined",
         "sortOrder": "\"asc\" | \"desc\" | undefined",
         "statusIn": "number[] | undefined",
-        "toTimestamp": "DateTime | undefined"
+        "toTimestamp": "DateTime | undefined",
+        "window": "string | undefined"
       },
       "uri": "/api/v1/access-logs"
     },
@@ -653,6 +710,13 @@
       },
       "uri": "/api/v1/crowdsec/alerts"
     },
+    "list_api_keys": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/auth/api-keys"
+    },
     "list_banned_ips": {
       "method": "get",
       "methods": [
@@ -674,6 +738,13 @@
       },
       "uri": "/api/v1/crowdsec/banned-locations"
     },
+    "list_banned_ranges": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/crowdsec/banned-ranges"
+    },
     "list_decisions": {
       "method": "get",
       "methods": [
@@ -686,6 +757,18 @@
         "q": "string | undefined"
       },
       "uri": "/api/v1/crowdsec/decisions"
+    },
+    "list_drop_networks": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "days": "7 | 30 | 90 | undefined",
+        "page": "number | undefined",
+        "pageSize": "number | undefined"
+      },
+      "uri": "/api/v1/crowdsec/drop-networks"
     },
     "list_files": {
       "method": "get",
@@ -808,6 +891,19 @@
       ],
       "uri": "/api/v1/settings"
     },
+    "revoke_api_key": {
+      "method": "delete",
+      "methods": [
+        "DELETE"
+      ],
+      "parameterTypes": {
+        "key_id": "UUID"
+      },
+      "parameters": [
+        "key_id"
+      ],
+      "uri": "/api/v1/auth/api-keys/{key_id}"
+    },
     "rotate": {
       "method": "post",
       "methods": [
@@ -848,6 +944,16 @@
         "GET"
       ],
       "uri": "/api/v1/stats"
+    },
+    "summary": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "window": "string | undefined"
+      },
+      "uri": "/api/v1/integration/summary"
     },
     "tail": {
       "method": "get",

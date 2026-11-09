@@ -1,15 +1,4 @@
-"""Pins the public error envelope: Litestar's native shape.
-
-The 0.7.0 wire-format policy (docs/api-conventions.md) keeps Litestar's
-native HTTP error envelope as the public error contract:
-
-    {"status_code": <int>, "detail": <str>, "extra"?: [...]}
-
-Envelope keys are the framework's and stay snake_case even though success
-payloads are camelCase; "extra" appears only on request-validation errors.
-Every error path, framework-raised or translated from a domain exception,
-must produce this shape.
-"""
+"""API error codes alongside status, detail and validation extra."""
 from __future__ import annotations
 
 import pytest
@@ -38,6 +27,7 @@ async def test_unknown_api_route_is_native_404_envelope():
     body = resp.json()
     assert body["status_code"] == 404
     assert isinstance(body["detail"], str)
+    assert isinstance(body["code"], str)
 
 
 def test_non_api_404_keeps_empty_body():
@@ -62,6 +52,7 @@ async def test_method_not_allowed_is_native_405_envelope():
     body = resp.json()
     assert body["status_code"] == 405
     assert isinstance(body["detail"], str)
+    assert isinstance(body["code"], str)
 
 
 async def test_request_validation_error_is_native_400_envelope():
@@ -75,6 +66,7 @@ async def test_request_validation_error_is_native_400_envelope():
     body = resp.json()
     assert body["status_code"] == 400
     assert isinstance(body["detail"], str)
+    assert isinstance(body["code"], str)
     # "extra" carries the per-field breakdown on validation errors only.
     assert "extra" in body
 
@@ -106,6 +98,7 @@ async def test_unauthenticated_api_request_is_native_401_envelope():
     body = resp.json()
     assert body["status_code"] == 401
     assert isinstance(body["detail"], str)
+    assert isinstance(body["code"], str)
 
 
 @pytest.mark.parametrize(
@@ -124,4 +117,87 @@ def test_domain_lookup_errors_render_native_envelope(exc_factory, status):
     handler = EXCEPTION_HANDLERS[type(exc)]
     response = handler(RequestFactory().get("/api/v1/x"), exc)
     assert response.status_code == status
-    assert response.content == {"status_code": status, "detail": exc.detail}
+    assert response.content == {"status_code": status, "detail": exc.detail, "code": exc.code}
+
+
+@pytest.mark.parametrize(
+    ("exception_type", "expected_code"),
+    [
+        ("InvalidApiKeyError", "api_key_invalid"),
+        ("ExpiredApiKeyError", "api_key_expired"),
+        ("ReadOnlyApiKeyError", "api_key_read_only"),
+        ("SessionRequiredError", "session_required"),
+        ("ApiKeysUnavailableError", "api_keys_unavailable"),
+    ],
+)
+async def test_specific_codes_preserve_headers_and_extra(exception_type, expected_code):
+    from litestar import Litestar, get
+    from geometrikks.server import exceptions
+
+    @get("/api/v1/error")
+    async def fail() -> None:
+        raise getattr(exceptions, exception_type)(
+            detail="unchanged", headers={"Retry-After": "60"}, extra=[{"key": "field"}],
+        )
+
+    async with AsyncTestClient(app=Litestar([fail], exception_handlers=exceptions.EXCEPTION_HANDLERS)) as client:
+        response = await client.get("/api/v1/error")
+    assert response.headers["Retry-After"] == "60"
+    assert response.json() == {
+        "status_code": response.status_code, "detail": "unchanged",
+        "code": expected_code, "extra": [{"key": "field"}],
+    }
+
+
+async def test_internal_http_errors_do_not_expose_the_detail():
+    from litestar import Litestar, get
+    from litestar.exceptions import InternalServerException
+    from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+
+    @get("/api/v1/error")
+    async def fail() -> None:
+        raise InternalServerException(detail="private information")
+
+    async with AsyncTestClient(app=Litestar([fail], exception_handlers=EXCEPTION_HANDLERS)) as client:
+        response = await client.get("/api/v1/error")
+    assert response.json() == {"status_code": 500, "detail": "Internal Server Error", "code": "internal_error"}
+
+
+def test_domain_error_can_supply_a_specific_code():
+    from litestar.testing import RequestFactory
+    from geometrikks.domain.exceptions import DomainValidationError
+    from geometrikks.server.exceptions import handle_domain_validation_error
+
+    response = handle_domain_validation_error(
+        RequestFactory().get("/api/v1/x"), DomainValidationError("Invalid bounds", code="invalid_range"),
+    )
+    assert response.content["code"] == "invalid_range"
+
+
+async def test_non_api_http_errors_keep_the_framework_envelope():
+    from litestar import Litestar, get
+    from litestar.exceptions import PermissionDeniedException
+    from geometrikks.server.exceptions import EXCEPTION_HANDLERS
+
+    @get("/outside")
+    async def fail() -> None:
+        raise PermissionDeniedException(detail="denied", headers={"X-Reason": "example"})
+
+    async with AsyncTestClient(app=Litestar([fail], exception_handlers=EXCEPTION_HANDLERS)) as client:
+        response = await client.get("/outside")
+    assert response.json() == {"status_code": 403, "detail": "denied"}
+    assert response.headers["X-Reason"] == "example"
+
+
+def test_debug_http_errors_keep_the_debug_response():
+    from litestar import Litestar
+    from litestar.exceptions import InternalServerException
+    from litestar.testing import RequestFactory
+    from geometrikks.server.exceptions import handle_http_exception
+
+    app = Litestar(debug=True)
+    response = handle_http_exception(
+        RequestFactory(app=app).get("/api/v1/error"), InternalServerException(detail="debug detail"),
+    )
+    assert response.status_code == 500
+    assert response.media_type != "application/json"

@@ -13,8 +13,8 @@ from .traefik import TraefikJsonFormat
 
 # Sniffing order: the recommended format first, then the other cheap '{'
 # prefix checks, then the regex. The JSON adapters decline each other's
-# lines on required keys (client_ip vs ClientHost vs the nested request
-# object), so order is cost only.
+# lines on required keys: client_ip, ClientHost, the nested request object.
+# A line that carries the keys of two formats goes to the first one listed.
 FORMATS: dict[str, LogLineFormat] = {
     GeometrikksJsonFormat.name: GeometrikksJsonFormat(),
     TraefikJsonFormat.name: TraefikJsonFormat(),

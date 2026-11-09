@@ -200,6 +200,10 @@ def added_access_logs(repos: FakeRepos) -> list[AccessLog]:
     return [cast(AccessLog, access_log) for access_log in repos.access_log.added]
 
 
+def added_debug_rows(repos: FakeRepos) -> list[AccessLogDebug]:
+    return [cast(AccessLogDebug, debug_row) for debug_row in repos.access_log_debug.added]
+
+
 async def wait_until(predicate, timeout: float = 30.0) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -599,6 +603,60 @@ async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
         assert service.last_record_at.tzinfo is not None
     finally:
         await service.stop(timeout=5.0)
+
+
+async def test_source_activity_is_independent_and_uses_processing_time(tmp_path: Path) -> None:
+    paths = [tmp_path / name for name in ("a.log", "b.log")]
+    for path in paths:
+        path.write_text("", encoding="utf-8")
+    first, second = [make_input(path) for path in paths]
+    first.parser = LogParser(
+        source_label=str(paths[0]), send_logs=True, ignore_ips=[TEST_DB_IPS[1]],
+    )
+    service, _repos, _sessions = make_service([first, second], commit_interval=60)
+    assert first.last_read_at is None and first.last_parsed_at is None
+    assert second.last_read_at is None and second.last_parsed_at is None
+
+    await service.start(skip_validation=True)
+    try:
+        await wait_tailing(first, second)
+        before = datetime.now(timezone.utc)
+        append_line(paths[0], make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: first.last_parsed_at is not None)
+        parsed_at = first.last_parsed_at
+        assert parsed_at is not None and parsed_at >= before
+        assert first.last_read_at == parsed_at
+        assert second.last_read_at is None and second.last_parsed_at is None
+        assert service.written_records == 0
+
+        append_line(paths[1], make_log_line(TEST_DB_IPS[0]))
+        await wait_until(lambda: second.last_parsed_at is not None)
+        assert first.last_read_at == parsed_at
+        assert first.last_parsed_at == parsed_at
+
+        append_line(paths[0], "unmatched line")
+        await wait_until(lambda: first.parser.skipped_lines == 1)
+        unmatched_at = first.last_read_at
+        assert unmatched_at is not None and unmatched_at > parsed_at
+        assert first.last_parsed_at == parsed_at
+
+        append_line(paths[0], make_log_line(TEST_DB_IPS[1]))
+        await wait_until(lambda: first.parser.ignored_lines == 1)
+        assert first.last_read_at is not None and first.last_read_at > unmatched_at
+        assert first.last_parsed_at == parsed_at
+    finally:
+        await service.stop(timeout=5.0)
+
+
+async def test_format_samples_do_not_count_as_source_activity(tmp_path: Path) -> None:
+    path = tmp_path / "existing.log"
+    path.write_text(make_log_line(TEST_DB_IPS[0]) + "\n", encoding="utf-8")
+    log_input = make_input(path)
+    service, _repos, _sessions = make_service([log_input])
+    service._stop_event = asyncio.Event()
+
+    assert await service._format_validates(log_input) is FormatValidation.VALID
+    assert log_input.last_read_at is None and log_input.last_parsed_at is None
 
 
 async def test_mid_flight_file_deletion_flags_missing_and_recovers(tmp_path: Path, caplog) -> None:
@@ -1770,3 +1828,16 @@ class TestAsnWiring:
         assert service._lookups is not None and service._lookups.asn_reader is not None
         await service.stop(timeout=1.0)
         assert service._lookups is None
+
+
+async def test_debug_rows_record_the_format_that_parsed_the_line() -> None:
+    log_input = stub_input([make_log_line(TEST_DB_IPS[0])])
+    service, repos, _sessions = make_service([log_input], store_debug_lines=True)
+
+    await service.start()
+    try:
+        await wait_until(lambda: len(repos.access_log_debug.added) >= 1)
+    finally:
+        await service.stop(timeout=5.0)
+
+    assert {debug_row.log_format for debug_row in added_debug_rows(repos)} == {"nginx"}

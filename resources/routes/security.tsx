@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { AlertHistoryUnavailable, AlertsTable } from "@/components/security/alerts-table"
 import { CrowdsecUnreachableBanner } from "@/components/security/crowdsec-unreachable-banner"
 import { DecisionsTable } from "@/components/security/decisions-table"
+import { DropNetworksCard } from "@/components/security/drop-networks-card"
 import { SecurityStatCards } from "@/components/security/security-stat-cards"
 import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
@@ -74,6 +75,7 @@ function SecurityPage() {
       {header}
       <CrowdsecUnreachableBanner />
       <SecurityStatCards />
+      <DropNetworksCard />
       <DecisionsTable />
       {status.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />}
     </div>

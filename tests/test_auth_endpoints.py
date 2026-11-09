@@ -17,10 +17,14 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
+from geometrikks.server.api_key_auth import api_key_scope_guard
+from geometrikks.server.api_key_store import ApiKeyRepository, install_api_key_store
 from geometrikks.server.auth import AuthState, build_auth_state, create_session_auth
 from geometrikks.server.dependencies import create_settings_provider
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.routes import create_api_v1_router
 from geometrikks.server.session_store import install_session_store
+from tests.api_key_support import MemoryApiKeyRepository
 
 
 @get("/api/v1/protected")
@@ -39,6 +43,7 @@ def make_app(
     session_max_age: int | None = None,
     inner_store: Store | None = None,
     logging_config: BaseLoggingConfig | None = None,
+    api_key_repository: ApiKeyRepository | None = None,
     **settings_kwargs,
 ) -> Litestar:
     kwargs: dict[str, Any] = {"admin_user": "admin", "admin_password": "bestpasswordintheworldnojoke"}
@@ -57,10 +62,15 @@ def make_app(
         ],
         dependencies={"settings": create_settings_provider(settings)},
         on_app_init=[session_auth.on_app_init],
+        guards=[api_key_scope_guard],
+        exception_handlers=EXCEPTION_HANDLERS,
         plugins=[channels],
         logging_config=logging_config,
     )
     install_session_store(app, inner_store if inner_store is not None else MemoryStore())
+    install_api_key_store(
+        app, api_key_repository if api_key_repository is not None else MemoryApiKeyRepository()
+    )
     app.state.auth_state = build_auth_state(settings)
     # DB "available" so the authenticated branch streams rather than taking
     # the 1013-close (degraded) path.
@@ -68,7 +78,7 @@ def make_app(
     return app
 
 
-def make_disabled_app() -> Litestar:
+def make_disabled_app(*, extra_handlers: Sequence[Any] = ()) -> Litestar:
     """APP_AUTH_DISABLED=true: no session middleware, no auth_state.
 
     Mirrors what create_app() composes in that mode, without the lifespan
@@ -76,8 +86,10 @@ def make_disabled_app() -> Litestar:
     """
     settings = Settings(admin_user="admin", auth_disabled=True, _env_file=None)
     app = Litestar(
-        route_handlers=[create_api_v1_router([AuthController]), protected, fake_health],
+        route_handlers=[create_api_v1_router([AuthController]), protected, fake_health, *extra_handlers],
         dependencies={"settings": create_settings_provider(settings)},
+        guards=[api_key_scope_guard],
+        exception_handlers=EXCEPTION_HANDLERS,
         logging_config=None,
     )
     app.state.auth_state = None
@@ -129,8 +141,8 @@ def test_ws_feeds_rejected_without_session(path):
     from litestar.exceptions import WebSocketDisconnect
 
     with TestClient(app=make_app()) as client:
-        # The middleware's NotAuthorizedException closes the handshake
-        # (4000 + 401 = 4401), surfaced by the test client as a disconnect.
+        # The middleware's NotAuthorizedException closes the handshake with
+        # code 4500, surfaced by the test client as a disconnect.
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect(path) as ws:
                 ws.receive_json(timeout=10)

@@ -186,6 +186,16 @@ class TopIP:
 
     ip_address: str
     event_count: int
+    asn: int | None = None
+    as_organization: str | None = None
+
+
+@dataclass
+class LocationTopIPs:
+    """A location's busiest IPs, and how many distinct IPs it had in the range."""
+
+    top_ips: list[TopIP]
+    unique_ips: int
 
 
 @dataclass
@@ -384,7 +394,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
 
     async def get_location_top_ips(
         self, location_id: int, from_timestamp: datetime, to_timestamp: datetime, limit: int = 5
-    ) -> list[TopIP]:
+    ) -> LocationTopIPs:
         """Get top N IPs for a specific location by event count.
 
         Routes to optimal source based on time range:
@@ -399,7 +409,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             limit: Maximum number of IPs to return.
 
         Returns:
-            List of TopIP objects with ip_address and event_count.
+            The top IPs and the count of distinct IPs at the location. Each
+            IP's network comes from its newest event with an ASN, or on the
+            CAGG path from the newest bucket with one. The CAGGs keep the ASN
+            and the organization as separate MAX columns, so a bucket in which
+            the IP changed networks can pair one network's number with the
+            other's name.
         """
         if not isinstance(from_timestamp, datetime) or not isinstance(to_timestamp, datetime):
             raise ValueError("from_timestamp and to_timestamp must be datetime instances")
@@ -420,7 +435,12 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             stmt = text("""
                 SELECT
                     ip_address,
-                    CAST(COUNT(*) AS INTEGER) AS event_count
+                    CAST(COUNT(*) AS INTEGER) AS event_count,
+                    (ARRAY_AGG(autonomous_system_number ORDER BY timestamp DESC)
+                        FILTER (WHERE autonomous_system_number IS NOT NULL))[1] AS asn,
+                    (ARRAY_AGG(autonomous_system_organization ORDER BY timestamp DESC)
+                        FILTER (WHERE autonomous_system_number IS NOT NULL))[1] AS as_org,
+                    CAST(COUNT(*) OVER () AS INTEGER) AS unique_ips
                 FROM geo_events
                 WHERE location_id = :location_id
                   AND timestamp >= :start AND timestamp < :end
@@ -435,7 +455,10 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
                 {stitched_ip_location_cte(granularity)}
                 SELECT
                     ip_address,
-                    CAST(SUM(event_count) AS INTEGER) AS event_count
+                    CAST(SUM(event_count) AS INTEGER) AS event_count,
+                    (ARRAY_AGG(asn ORDER BY last_seen DESC) FILTER (WHERE asn IS NOT NULL))[1] AS asn,
+                    (ARRAY_AGG(as_org ORDER BY last_seen DESC) FILTER (WHERE asn IS NOT NULL))[1] AS as_org,
+                    CAST(COUNT(*) OVER () AS INTEGER) AS unique_ips
                 FROM combined
                 WHERE location_id = :location_id
                 GROUP BY ip_address
@@ -452,7 +475,20 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         )
         rows = result.fetchall()
 
-        return [TopIP(ip_address=str(row.ip_address), event_count=row.event_count) for row in rows]
+        # COUNT(*) OVER () runs before LIMIT, so every row carries the location's
+        # distinct IP count.
+        return LocationTopIPs(
+            top_ips=[
+                TopIP(
+                    ip_address=str(row.ip_address),
+                    event_count=row.event_count,
+                    asn=row.asn,
+                    as_organization=row.as_org,
+                )
+                for row in rows
+            ],
+            unique_ips=rows[0].unique_ips if rows else 0,
+        )
 
     async def get_global_top_ips(
         self, from_timestamp: datetime, to_timestamp: datetime, limit: int = 5

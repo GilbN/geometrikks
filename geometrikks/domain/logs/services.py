@@ -11,10 +11,12 @@ from sqlalchemy import func, select, text
 from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
+from geometrikks.domain.logs.raw_line_fields import raw_line_fields
 from geometrikks.domain.logs.schemas import (
     AccessLogDebugEntry,
     AccessLogDebugStats,
     AccessLogFacets,
+    AsnFacet,
     CountryFacet,
     ParseErrorCount,
 )
@@ -41,11 +43,12 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
     count_with_window_function = False
 
     async def get_facets(self) -> AccessLogFacets:
-        """Distinct country/city/host/server/log-format values, for filter dropdowns.
+        """Distinct country/city/host/server/log-format/ASN values, for filter dropdowns.
 
         Countries and cities come from log_ip_daily_stats, hosts from
-        host_daily_stats, and servers and log formats from
-        log_source_daily_stats (all real-time aggregated), not the raw
+        host_daily_stats, servers and log formats from
+        log_source_daily_stats, and ASNs from asn_daily_stats (all real-time
+        aggregated), not the raw
         hypertable: the facet query cost then scales with distinct values per
         day instead of total log volume. Values persist beyond raw retention
         (daily CAGGs keep history), which is the desired behavior for filter
@@ -88,12 +91,19 @@ class AccessLogService(SQLAlchemyAsyncRepositoryService[AccessLog]):
                 "WHERE log_format IS NOT NULL ORDER BY log_format"
             ))
         ).scalars().all()
+        asn_rows = (
+            await session.execute(text(
+                "SELECT asn, MAX(as_org) AS organization FROM asn_daily_stats "
+                "GROUP BY asn ORDER BY MAX(as_org) NULLS LAST, asn"
+            ))
+        ).all()
         return AccessLogFacets(
             countries=[CountryFacet(code=code, name=name or code) for code, name in country_rows],
             cities=list(cities),
             hosts=list(hosts),
             servers=list(servers),
             log_formats=list(log_formats),
+            asns=[AsnFacet(asn=int(row.asn), organization=row.organization) for row in asn_rows],
         )
 
 
@@ -106,6 +116,7 @@ DEBUG_SORT_COLUMNS = {
     "created_at": AccessLogDebug.created_at,
     "is_malformed": AccessLogDebug.is_malformed,
     "parse_error": AccessLogDebug.parse_error,
+    "log_format": AccessLogDebug.log_format,
     "timestamp": AccessLogDebug.log_timestamp,
     "status_code": AccessLogDebug.status_code,
     "ip_address": AccessLogDebug.ip_address,
@@ -161,6 +172,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
             AccessLogDebug.raw_line,
             AccessLogDebug.is_malformed,
             AccessLogDebug.parse_error,
+            AccessLogDebug.log_format,
             AccessLogDebug.log_timestamp,
             AccessLogDebug.ip_address,
             AccessLogDebug.method,
@@ -211,6 +223,7 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 raw_line=row.raw_line,
                 is_malformed=row.is_malformed,
                 parse_error=row.parse_error,
+                log_format=row.log_format,
                 timestamp=row.log_timestamp,
                 # INET comes back as an ipaddress object, not str
                 ip_address=str(row.ip_address) if row.ip_address is not None else None,
@@ -222,6 +235,11 @@ class AccessLogDebugService(SQLAlchemyAsyncRepositoryService[AccessLogDebug]):
                 country_name=row.country_name,
                 city=row.city,
                 user_agent=row.user_agent,
+                raw_fields=raw_line_fields(
+                    row.raw_line,
+                    linked=row.access_log_id is not None,
+                    log_format=row.log_format,
+                ),
             )
             for row in rows
         ], total

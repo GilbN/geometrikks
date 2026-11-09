@@ -3,11 +3,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useNavigate, useSearch } from "@tanstack/react-router"
+import { createPortal } from "react-dom"
+import { useNavigate, useRouter, useRouterState, useSearch } from "@tanstack/react-router"
 import { toast } from "sonner"
 import Map, {
   Source,
   Layer,
+  MapProvider,
+  Marker,
   NavigationControl,
   type MapRef,
   type ViewStateChangeEvent,
@@ -44,19 +47,21 @@ import {
   unclusteredPointLayer,
 } from "./layers"
 import { MapControls, type BannedSummary } from "./MapControls"
-import { phoneActionCardTop } from "./phone-action-card"
+import { FOCUS_SETTLED, FOCUSING_ATTRIBUTE } from "./MapDetailPanel"
+import { measurePillSize, pillRightEdge, pillWidth, rangeChipBottom, safeAreaInsets, tabBarTop } from "./phone-map-actions"
 import { MapFrameRate } from "./MapFrameRate"
 import { LivePulses } from "./LivePulses"
 import { ServerMarker } from "./ServerMarker"
-import { BannedMapPopup } from "./BannedMapPopup"
+import { BannedMapPanel, BannedMapPopup } from "./BannedMapPopup"
 import { DecisionAlertSheet, type DecisionRef } from "@/components/security/alert-detail-sheet"
 import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps, type BannedPopupInfo } from "@/lib/banned-map"
 import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom } from "@/lib/map-clusters"
 import type { TopIPDTO } from "@/lib/api"
 import { crowdsecErrorMessage } from "@/lib/crowdsec"
-import { MapPopup, type PopupInfo } from "./MapPopup"
-import { LiveRequestCard, LiveRequestPopup } from "./LiveRequestPopup"
+import { LocationPanel, MapPopup, type PopupInfo } from "./MapPopup"
+import { LiveRequestCard, LiveRequestPanel, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"
+import { useMapLiveSlot } from "./map-live-slot"
 import { LiveRail } from "./LiveRail"
 import { LiveFeedSheet } from "./LiveFeedSheet"
 import { MapBackdrop } from "@/components/brand/backdrops"
@@ -75,7 +80,10 @@ import {
 } from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
-import { isMobileViewport, useIsMobile } from "@/hooks/use-mobile"
+import { isPhoneLayout, isPhoneSideViewport, usePhoneLayout, usePhoneMapSide } from "@/hooks/use-phone-map"
+import { phoneFitPadding } from "@/lib/phone-map-geometry"
+import { useCoverBar, useCoverToasts } from "@/lib/phone-chrome"
+import { useOverlayEntry } from "@/lib/overlay-history"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
 
 export type LayerType = "heatmap" | "markers" | "banned"
@@ -103,14 +111,25 @@ function weightedPoints(
 }
 
 /** The padding that keeps fitted locations clear of the map's edges, of the
- *  controls panel on the right from md up, and of the action card at the
- *  bottom on a phone. */
-function fitPadding() {
-  const isMobile = isMobileViewport()
+ *  controls panel on the right from md up, and of the map pill and the tab
+ *  bar on a phone. */
+function fitPadding(map: HTMLElement) {
+  if (isPhoneLayout()) {
+    const side = isPhoneSideViewport()
+    const insets = safeAreaInsets()
+    return phoneFitPadding(FIT_PADDING, {
+      side,
+      insets,
+      topClearance: rangeChipBottom() + 12,
+      barTop: tabBarTop(),
+      pillWidth: pillWidth(measurePillSize(map)),
+      pillEdge: pillRightEdge(side, insets),
+    })
+  }
   return {
     top: FIT_PADDING,
-    right: FIT_PADDING + (isMobile ? 0 : DESKTOP_CONTROLS_INSET),
-    bottom: FIT_PADDING + (isMobile ? phoneActionCardTop() : 0),
+    right: FIT_PADDING + DESKTOP_CONTROLS_INSET,
+    bottom: FIT_PADDING,
     left: FIT_PADDING,
   }
 }
@@ -195,9 +214,18 @@ function GeoMapInner({
   const mapRef = useRef<MapRef>(null)
   const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
   const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
-  const isMobile = useIsMobile()
+  const isMobile = usePhoneLayout()
+  const liveSlot = useMapLiveSlot()
+  const phoneSide = usePhoneMapSide()
   const search = useSearch({ from: "/map" })
   const navigate = useNavigate({ from: "/map" })
+  const router = useRouter()
+  // The router keeps the map mounted until the next page has loaded, so a
+  // late rewrite of the URL can land on that page's history entry and turn
+  // it into the map. The pathname reruns a focus skipped that way when Back
+  // returns to the map before it unmounts.
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const isMapCurrent = useCallback(() => pathname === "/map" && router.latestLocation.pathname === "/map", [pathname, router])
   const { filters, setFilters } = useUrlFilters({
     search,
     navigate,
@@ -310,17 +338,29 @@ function GeoMapInner({
     if (target) {
       let passes = 0
       let timer: number | undefined
+      let stopped = false
+      // Runs once. A descent that resolves after a newer focus started must
+      // not clear the newer one's attribute.
       const stop = () => {
+        if (stopped) return
+        stopped = true
         window.clearTimeout(timer)
         map.off("moveend", onMoveEnd)
         map.off("render", settle)
+        map.getContainer().removeAttribute(FOCUSING_ATTRIBUTE)
+      }
+      // A phone's MapDetailPanel waits for this before panning its point
+      // into view, since its pan would cancel the descent.
+      const finish = () => {
+        stop()
+        if (generation === focusGeneration.current) map.getContainer().dispatchEvent(new Event(FOCUS_SETTLED))
       }
       // Waits for the target source, not map idle. The live routes animate
       // their own source, which can hold idle off indefinitely.
       const settle = () => {
         const source = map.getSource<GeoJSONSource>(target.sourceId)
         const layers = target.layerIds.filter((id) => map.getLayer(id))
-        if (!source || layers.length === 0) return stop()
+        if (!source || layers.length === 0) return finish()
         // react-map-gl holds the camera at the last rendered view state until
         // React catches up, so wait for the landing to arrive. An ease comes
         // in from below, so a lagging 6.998 still draws zoom 6 tiles. A
@@ -345,24 +385,25 @@ function GeoMapInner({
               landingZoom = next
               map.easeTo({ center, zoom: next, duration: 800 }, eventData)
             } else {
-              stop()
+              finish()
             }
           })
           // A data refresh mid-descent retires the cluster ids. The camera
           // stays where it landed.
-          .catch(stop)
+          .catch(finish)
       }
       const onMoveEnd = (event: unknown) => {
         if ((event as { focusGeneration?: number }).focusGeneration !== generation) return
         map.on("render", settle)
         map.triggerRepaint()
         window.clearTimeout(timer)
-        timer = window.setTimeout(stop, 3000)
+        timer = window.setTimeout(finish, 3000)
       }
       // Registered before the flight: with reduced motion, flyTo jumps and
       // fires moveend synchronously.
       map.on("moveend", onMoveEnd)
       stopFocusListeners.current = stop
+      map.getContainer().setAttribute(FOCUSING_ATTRIBUTE, "")
     }
     map.flyTo({ center, zoom: landingZoom, duration: arrived ? 0 : 1500 }, eventData)
   }, [cancelFocus])
@@ -373,6 +414,8 @@ function GeoMapInner({
   const liveStore = useLiveTrafficStore()
   const [livePopup, setLivePopup] = useState<LiveRequest | null>(null)
   const [feedOpen, setFeedOpen] = useState(false)
+  // vaul cannot turn an open drawer around, so a rotation closes the feed.
+  useEffect(() => setFeedOpen(false), [phoneSide])
   // The IP inspector navigates here with ?focus=<locationId> and the data
   // filters cleared, so the feature is in this payload once it loads. The
   // GeoJSON can arrive from the query cache before the map has a style, so
@@ -385,7 +428,7 @@ function GeoMapInner({
   const focusIp = search.focusIp
   const focusIpQuery = useIpLocations(focusIp)
   useEffect(() => {
-    if (focusIp === undefined || focusIpQuery.isPending) return
+    if (focusIp === undefined || focusIpQuery.isPending || !isMapCurrent()) return
     const locationId = focusIpQuery.data?.items?.[0]?.locationId
     if (focusIpQuery.isError) {
       toast.error("Could not look up the IP", { description: `The locations for ${focusIp} failed to load.` })
@@ -395,7 +438,7 @@ function GeoMapInner({
       })
     }
     void navigate({ search: (prev) => ({ ...prev, focusIp: undefined, focus: locationId }), replace: true })
-  }, [focusIp, focusIpQuery.isPending, focusIpQuery.isError, focusIpQuery.data, navigate])
+  }, [focusIp, focusIpQuery.isPending, focusIpQuery.isError, focusIpQuery.data, navigate, isMapCurrent])
 
   const bannedQuery = useBannedLocations(activeLayer === "banned", {
     countryCodes: selectedCountries, cities: selectedCities, servers: selectedServers,
@@ -438,13 +481,14 @@ function GeoMapInner({
     },
   }
   useEffect(() => {
+    if (focusId === undefined || !isMapCurrent()) return
     // The inspector's fly-to lands on a traffic marker, which only exists
     // on the markers layer.
-    if (focusId !== undefined && activeLayer === "banned") {
+    if (activeLayer === "banned") {
       setLayerPreference("markers")
       return
     }
-    if (focusId === undefined || !mapLoaded || isLoadingGeoJSON || !geojson) return
+    if (!mapLoaded || isLoadingGeoJSON || !geojson) return
     const feature = geojson.features.find((f) => f.properties?.id === focusId)
     if (feature) {
       const [lng, lat] = (feature.geometry as Point).coordinates
@@ -457,7 +501,7 @@ function GeoMapInner({
       })
     }
     void navigate({ search: (prev) => ({ ...prev, focus: undefined }), replace: true })
-  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate, focusOn])
+  }, [focusId, activeLayer, geojson, isLoadingGeoJSON, mapLoaded, navigate, focusOn, isMapCurrent])
   const fitData = activeLayer === "banned" ? bannedLocations : geojson
   const mercatorZoomRef = useRef(INITIAL_VIEW_STATE.zoom)
 
@@ -469,9 +513,11 @@ function GeoMapInner({
     const defaultView = runtimeSettings?.map.defaultView
     const onTraffic = isMobile && !defaultView
     if (onTraffic && isLoadingGeoJSON) return
-    const rect = mapContainerRef.current?.getBoundingClientRect()
-    const size = { width: rect?.width ?? 0, height: rect?.height ?? 0 }
-    const padding = fitPadding()
+    const container = mapContainerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const size = { width: rect.width, height: rect.height }
+    const padding = fitPadding(container)
     const view =
       (onTraffic ? trafficView(weightedPoints(geojson), size, padding) : null) ??
       initialMapView({
@@ -571,8 +617,9 @@ function GeoMapInner({
   // of traffic from the US to Japan centred a phone on the South Atlantic.
   const fitToBounds = useCallback(() => {
     if (!fitData?.features.length || !mapRef.current) return
-    const rect = mapRef.current.getContainer().getBoundingClientRect()
-    const padding = fitPadding()
+    const container = mapRef.current.getContainer()
+    const rect = container.getBoundingClientRect()
+    const padding = fitPadding(container)
     const window = trafficWindow(weightedPoints(fitData), { width: rect.width, height: rect.height }, padding)
     if (!window) return
     let south = Infinity
@@ -816,6 +863,31 @@ function GeoMapInner({
     }
   }, [closeBannedPopup])
 
+  const bannedOpen = activeLayer === "banned" && bannedPopup !== null && bannedPopupIps.length > 0
+  const locationOpen = popup !== null && activeLayer === "markers"
+  const closeLocation = () => {
+    cancelFocus()
+    setPopup(null)
+  }
+  // On a phone the open popup is a MapDetailPanel over the map, and
+  // a ring marks its point instead of the popup's tip.
+  const phoneDetailOpen = isMobile && (bannedOpen || locationOpen || livePopup !== null)
+  const phoneDetailPoint: Coordinate | null = !isMobile
+    ? null
+    : bannedOpen
+      ? [bannedPopup.longitude, bannedPopup.latitude]
+      : locationOpen
+        ? [popup.longitude, popup.latitude]
+        : livePopup?.coordinates ?? null
+
+  useCoverBar(phoneDetailOpen && phoneSide)
+  useCoverToasts(phoneDetailOpen && !phoneSide)
+  useOverlayEntry("map-detail", phoneDetailOpen, () => {
+    closeBannedPopup()
+    setLivePopup(null)
+    closeLocation()
+  })
+
   if (!mapReady || !initialViewResolved) {
     return (
       <div ref={mapContainerRef} className="relative h-full w-full overflow-hidden bg-background">
@@ -825,7 +897,8 @@ function GeoMapInner({
   }
 
   return (
-    <div className="h-full w-full relative">
+    <MapProvider>
+    <div data-geo-map="" data-phone-side={phoneSide ? "" : undefined} className="h-full w-full relative">
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -847,11 +920,17 @@ function GeoMapInner({
         cursor={activeLayer !== "heatmap" ? "pointer" : "grab"}
         attributionControl={false}
       >
-        {/* Phones pinch to zoom and turn; the action card takes this corner. */}
+        {/* Phones pinch to zoom and turn; the map pill takes this corner. */}
         {!isMobile && <NavigationControl position="bottom-right" showCompass={true} />}
         {frameRateEnabled && <MapFrameRate />}
-        {/* On a phone the attribution is a line of text under the action card. */}
-        <MapAttribution key={isMobile ? "line" : "pill"} compact={!isMobile} />
+        {/* On a portrait phone the attribution is a line of text above the
+            tab bar. Held sideways it is the compact button at the pill's foot,
+            collapsed at first. */}
+        <MapAttribution
+          key={isMobile && !phoneSide ? "line" : phoneSide ? "side" : "pill"}
+          compact={!isMobile || phoneSide}
+          startCollapsed={phoneSide}
+        />
 
         {/* GeoJSON data source */}
         {/* The `key` only flips when the clustering requirement changes (markers
@@ -922,7 +1001,13 @@ function GeoMapInner({
           />
         ))}
 
-        {activeLayer === "banned" && bannedPopup && bannedPopupIps.length > 0 && (
+        {phoneDetailPoint && (
+          <Marker longitude={phoneDetailPoint[0]} latitude={phoneDetailPoint[1]} anchor="center" style={{ pointerEvents: "none" }}>
+            <span aria-hidden className="block size-12 rounded-full border-2 border-primary shadow-[0_0_0_6px] shadow-primary/25" />
+          </Marker>
+        )}
+
+        {!isMobile && bannedOpen && (
           <BannedMapPopup
             key={bannedPopup.groupIds.join("|")}
             longitude={bannedPopup.longitude}
@@ -933,30 +1018,53 @@ function GeoMapInner({
           />
         )}
 
-        {/* Popup */}
-        {popup && activeLayer === "markers" && (
+        {!isMobile && locationOpen && (
           <MapPopup
             key={`${popup.longitude},${popup.latitude}`}
             longitude={popup.longitude}
             latitude={popup.latitude}
             properties={popup.properties}
-            onClose={() => {
-              cancelFocus()
-              setPopup(null)
-            }}
+            totalEvents={geojson?.stats.events}
+            onClose={closeLocation}
+            onOpenAlert={setBannedAlert}
           />
         )}
 
-        {livePopup && livePopup.coordinates && (
-          <LiveRequestPopup key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} />
+        {!isMobile && livePopup && livePopup.coordinates && (
+          <LiveRequestPopup key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} onOpenAlert={setBannedAlert} />
         )}
       </Map>
 
       {/* A request with no GeoIP match has nowhere on the map to anchor a
           Popup, so its detail renders as a centered card instead - it stays
           reachable from the strip and the sheet alike. */}
-      {livePopup && !livePopup.coordinates && (
-        <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} />
+      {!isMobile && livePopup && !livePopup.coordinates && (
+        <LiveRequestCard request={livePopup} onClose={() => setLivePopup(null)} onOpenAlert={setBannedAlert} />
+      )}
+
+      {isMobile && bannedOpen && (
+        <BannedMapPanel
+          key={bannedPopup.groupIds.join("|")}
+          longitude={bannedPopup.longitude}
+          latitude={bannedPopup.latitude}
+          ips={bannedPopupIps}
+          onClose={closeBannedPopup}
+          onOpenAlert={setBannedAlert}
+        />
+      )}
+      {isMobile && locationOpen && (
+        <LocationPanel
+          key={`${popup.longitude},${popup.latitude}`}
+          longitude={popup.longitude}
+          latitude={popup.latitude}
+          properties={popup.properties}
+          totalEvents={geojson?.stats.events}
+          onClose={closeLocation}
+          onOpenAlert={setBannedAlert}
+        />
+      )}
+      {isMobile && livePopup && (
+        <LiveRequestPanel key={livePopup.id} request={livePopup} onClose={() => setLivePopup(null)} onOpenAlert={setBannedAlert} />
       )}
 
       {/* Fly to would clear the map filters and switch off the Banned IPs
@@ -972,11 +1080,13 @@ function GeoMapInner({
       )}
 
       {/* Mobile: the vitals pill is the only way into the feed, so it mounts
-          whenever live mode is on regardless of the desktop overlay preference. */}
-      {liveMode && isMobile && (
-        <div className="pointer-events-none absolute left-4 top-4 z-10">
+          whenever live mode is on regardless of the desktop overlay preference.
+          It lives in the range chip's row, which gives it the width the chip leaves. */}
+      {liveMode && isMobile && liveSlot && createPortal(
+        <div data-live-pill="" className="flex">
           <LiveVitalsPill onOpenFeed={() => setFeedOpen(true)} />
-        </div>
+        </div>,
+        liveSlot,
       )}
 
       {liveMode && isMobile && (
@@ -1024,6 +1134,7 @@ function GeoMapInner({
         featureStats={geojson?.stats ?? { events: 0, countries: 0, cities: 0, locations: 0 }}
         topIPs={activeLayer === "banned" ? bannedTopIps : globalTopIPs?.topIps ?? []}
         onSelectIp={selectTopIp}
+        phoneDetailOpen={phoneDetailOpen}
         countryOptions={filterOptions.countries}
         countryLabels={filterOptions.countryLabels}
         cityOptions={filterOptions.cities}
@@ -1038,6 +1149,7 @@ function GeoMapInner({
       />
 
     </div>
+    </MapProvider>
   )
 }
 

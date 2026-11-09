@@ -8,11 +8,14 @@ import type {
   AbuseReportResponse,
   ReportAlertDto,
   ReportDecisionDto,
+  ReportDropNetworkDto,
   ReportIpDto,
   ReportLineDto,
 } from "@/generated/api/types.gen"
 import { SIGNAL_THRESHOLDS } from "@/components/ip-inspector/signals"
+import type { AbuseReportTarget } from "@/lib/api"
 import { goDurationMs } from "@/lib/crowdsec-alerts"
+import { sblRecordUrl } from "@/lib/drop-lists"
 
 /** CrowdSec scenarios named in the opening paragraph of an ASN report. */
 const SUMMARY_SCENARIOS = 6
@@ -196,10 +199,106 @@ function networkLabel(ip: ReportIpDto): string | null {
   return parts.length ? parts.join(", ") : null
 }
 
+/** "Spamhaus DROP SBL000042 (198.51.100.0/24), ASN-DROP AS64500", naming only the listings that apply. */
+function listedOn(ip: ReportIpDto): string | null {
+  const listings = []
+  if (ip.dropNetwork) listings.push(`Spamhaus DROP ${ip.dropNetwork.sblId} (${ip.dropNetwork.cidr})`)
+  if (ip.asnDrop && ip.asn != null) listings.push(`ASN-DROP AS${ip.asn}`)
+  return listings.length ? listings.join(", ") : null
+}
+
+/** A DROP network that holds some of a report's addresses. */
+export interface AddressDropNetwork extends ReportDropNetworkDto {
+  addresses: number
+}
+
+/** The DROP networks holding the report's addresses, the fullest first. */
+export function addressDropNetworks(ips: ReportIpDto[]): AddressDropNetwork[] {
+  const byCidr = new Map<string, AddressDropNetwork>()
+  for (const ip of ips) {
+    if (!ip.dropNetwork) continue
+    const known = byCidr.get(ip.dropNetwork.cidr)
+    if (known) known.addresses += 1
+    else byCidr.set(ip.dropNetwork.cidr, { ...ip.dropNetwork, addresses: 1 })
+  }
+  return [...byCidr.values()].sort((a, b) => b.addresses - a.addresses || a.cidr.localeCompare(b.cidr))
+}
+
+export interface ReportDropListings {
+  dropNetwork: ReportDropNetworkDto | null
+  asnDropAsn: number | null
+  /** An ASN report's DROP networks among its addresses. Empty for an IP report. */
+  addressNetworks: AddressDropNetwork[]
+  /** How many addresses an ASN report holds. */
+  addressCount: number
+}
+
+/**
+ * The DROP listings of the report's target. An ASN report has no single
+ * network, so it names its ASN and the DROP networks its addresses sit in.
+ */
+export function reportDropListings(report: AbuseReportResponse): ReportDropListings {
+  const { target } = report
+  const asnDropAsn = target.asnDrop && target.asn != null ? target.asn : null
+  if (target.kind === "asn") {
+    return { dropNetwork: null, asnDropAsn, addressNetworks: addressDropNetworks(report.ips), addressCount: report.ips.length }
+  }
+  return { dropNetwork: report.ips[0]?.dropNetwork ?? null, asnDropAsn, addressNetworks: [], addressCount: 0 }
+}
+
+/** Which DROP badge the dialog title carries: the network listing wins, since it names the SBL record. */
+export function titleDropBadgeKind({
+  dropNetwork,
+  asnDropAsn,
+}: Pick<ReportDropListings, "dropNetwork" | "asnDropAsn">): "network" | "asn" | null {
+  if (dropNetwork) return "network"
+  return asnDropAsn != null ? "asn" : null
+}
+
+/** Whether the report covers this target, whatever its time range, line count or address cap. */
+export function reportIsFor(report: AbuseReportResponse, target: AbuseReportTarget): boolean {
+  if (target.kind === "ip") return report.target.kind === "ip" && report.target.ipAddress === target.ip
+  return report.target.kind === "asn" && report.target.asn === target.asn
+}
+
+/** The bold first sentence of the dialog's DROP notice, or null when nothing is listed. */
+export function dropNoticeHeadline({ dropNetwork, asnDropAsn, addressNetworks, addressCount }: ReportDropListings): string | null {
+  const clauses = []
+  if (dropNetwork) clauses.push(`On the DROP list as ${dropNetwork.sblId} (${dropNetwork.cidr})`)
+  if (asnDropAsn != null) clauses.push(`AS${asnDropAsn} is on ASN-DROP`)
+  if (addressNetworks.length) clauses.push(addressesInDropClause(addressNetworks, addressCount))
+  if (!clauses.length) return null
+  const headline = clauses.join(", and ")
+  return `${headline[0].toUpperCase()}${headline.slice(1)}.`
+}
+
+/** "all 25 addresses the report lists are in DROP networks" or "3 of the 25 addresses the report lists are in a DROP network". */
+function addressesInDropClause(addressNetworks: AddressDropNetwork[], addressCount: number): string {
+  const inDrop = addressNetworks.reduce((sum, network) => sum + network.addresses, 0)
+  const where = addressNetworks.length === 1 ? "in a DROP network" : "in DROP networks"
+  if (inDrop === addressCount) {
+    return addressCount === 1 ? `the one address the report lists is ${where}` : `all ${count(addressCount)} addresses the report lists are ${where}`
+  }
+  return `${count(inDrop)} of the ${count(addressCount)} addresses the report lists ${inDrop === 1 ? "is" : "are"} ${where}`
+}
+
+/** The SBL records behind the report's DROP listings, with their check.spamhaus.org links. */
+function dropRecordLines(ips: ReportIpDto[]): string[] {
+  const networks = addressDropNetworks(ips)
+  if (!networks.length) return []
+  return [
+    networks.length === 1 ? "Spamhaus DROP record:" : "Spamhaus DROP records:",
+    ...networks.map((network) => `${network.sblId} (${network.cidr}): ${sblRecordUrl(network.sblId)}`),
+    "",
+  ]
+}
+
 function ipSection(ip: ReportIpDto, report: AbuseReportResponse): string[] {
   const out = [`== ${ip.ipAddress} ==`]
   const network = networkLabel(ip)
   if (network) out.push(`Network: ${network}`)
+  const listings = listedOn(ip)
+  if (listings) out.push(`Listed on: ${listings}`)
   if (ip.totalRequests === 0) {
     out.push("No requests from this address in the reporting period.")
   } else {
@@ -325,6 +424,9 @@ export function formatAbuseReportText(report: AbuseReportResponse, contact?: Abu
   out.push(`Subject: Abuse report for ${targetLabel(report)}${scope}, ${days}`)
   if (contact?.abuseEmails.length) out.push(`To: ${contact.abuseEmails.join(", ")}`)
   out.push("", "Hello,", "", ...opening(report), "")
+  if (report.target.kind === "asn" && !report.ips.length && report.target.asnDrop && report.target.asn != null) {
+    out.push(`Listed on: ASN-DROP AS${report.target.asn}`, "")
+  }
 
   if (report.target.kind === "asn" && report.ips.length) {
     const partial = report.ipCount > report.ips.length
@@ -337,6 +439,7 @@ export function formatAbuseReportText(report: AbuseReportResponse, contact?: Abu
       "",
     )
   }
+  out.push(...dropRecordLines(report.ips))
   if (contact && (contact.name || contact.cidrs.length)) {
     const holder = [contact.name, contact.handle && contact.handle !== contact.name ? contact.handle : null].filter(Boolean).join(" / ")
     const range = contact.cidrs.length ? contact.cidrs.join(", ") : [contact.startAddress, contact.endAddress].filter(Boolean).join(" - ")
@@ -370,6 +473,8 @@ export const CSV_COLUMNS = [
   "status",
   "bytes",
   "user_agent",
+  "drop_network",
+  "drop_sbl",
 ] as const
 
 /** Every log line in the report, one row each, for providers that ask for CSV. */
@@ -390,6 +495,8 @@ export function formatAbuseReportCsv(report: AbuseReportResponse): string {
           line.statusCode,
           line.bytesSent,
           line.userAgent,
+          ip.dropNetwork?.cidr,
+          ip.dropNetwork?.sblId,
         ]
           .map(csvCell)
           .join(","),

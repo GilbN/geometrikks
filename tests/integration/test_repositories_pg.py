@@ -1,4 +1,4 @@
-"""Repository + CAGG-routing tests on real TimescaleDB, seeded via polyfactory."""
+"""Repository + CAGG-routing tests on real TimescaleDB."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -12,7 +12,7 @@ from geometrikks.domain.analytics.repositories import (
 )
 from geometrikks.domain.geo.repositories import GeoLocationRepository
 from geometrikks.server.timescale import refresh_caggs_range
-from tests.seed.factories import AccessLogFactory, GeoLocationFactory, seed_factories
+from tests.seed_support import fake_place
 
 import pytest
 
@@ -32,15 +32,15 @@ LOCATION_COLUMNS = (
 async def seed(session_maker, *, days_back: int, per_day: int) -> None:
     """Insert locations + paired access logs/geo events spread over days_back days.
 
-    Plain SQL INSERTs with factory-generated values rather than ORM add():
+    Plain SQL INSERTs rather than ORM add():
     keeps the fixture independent of the ingestion code under test. geo_events
     and access_logs are id-only bases (no created_at/updated_at columns);
     geo_locations is an audit base and has both.
     """
-    seed_factories(42)
     async with session_maker() as session:
         location_ids: list[int] = []
-        for loc in GeoLocationFactory.batch_dicts(3):
+        # Oslo, Amsterdam and Frankfurt give the filter tests three countries.
+        for place in (fake_place(0), fake_place(2), fake_place(3)):
             result = await session.execute(
                 text(
                     "INSERT INTO geo_locations "
@@ -53,14 +53,14 @@ async def seed(session_maker, *, days_back: int, per_day: int) -> None:
                     " :postal_code, :timezone, now(), now(), now()) "
                     "RETURNING id"
                 ),
-                {k: loc[k] for k in LOCATION_COLUMNS},
+                {column: getattr(place, column) for column in LOCATION_COLUMNS},
             )
             location_ids.append(result.scalar_one())
 
         for day in range(days_back):
             ts = NOW - timedelta(days=day, hours=1)
             for i in range(per_day):
-                log = AccessLogFactory.build_dict(timestamp=ts, ip_address=f"10.0.{day}.{i}")
+                ip_address = f"10.0.{day}.{i}"
                 await session.execute(
                     text(
                         "INSERT INTO access_logs (timestamp, ip_address, method, url, "
@@ -70,7 +70,7 @@ async def seed(session_maker, *, days_back: int, per_day: int) -> None:
                     ),
                     {
                         "timestamp": ts,
-                        "ip_address": log["ip_address"],
+                        "ip_address": ip_address,
                         "status_code": 200,
                         "bytes_sent": 1000,
                         "request_time": 0.01,
@@ -83,7 +83,7 @@ async def seed(session_maker, *, days_back: int, per_day: int) -> None:
                     ),
                     {
                         "timestamp": ts,
-                        "ip_address": log["ip_address"],
+                        "ip_address": ip_address,
                         "location_id": location_ids[i % len(location_ids)],
                     },
                 )

@@ -1,18 +1,22 @@
 /**
  * Stat cards for the geo-logs page: totals and uniques for the selected time
- * range and filters, with percent-change trends vs the previous period.
+ * range and filters, with percent-change trends vs the previous period and a
+ * chart of each figure across the range.
  */
 import { Activity, Building2, Globe2, Users } from "lucide-react"
-import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
+import { StatCard, StatCardSkeleton, StatGrid, sparklineProps } from "@/components/dashboard/statcard"
 import { ErrorBanner } from "@/components/error-banner"
 import { formatNumber } from "@/lib/api"
-import { useGeoLogSummary } from "@/lib/queries"
+import { useCardCharts } from "@/lib/card-charts"
+import { useGeoLogSparklines, useGeoLogSummary } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 
 export function GeoLogsStats() {
   const { range } = useTimeRange()
   const { data: summary, isLoading, isError } = useGeoLogSummary({ comparePrevious: true })
+  const [chartsOn] = useCardCharts("geo-logs")
+  const sparklines = useGeoLogSparklines({ enabled: chartsOn })
 
   const subtitle = rangeSubtitle(range)
 
@@ -23,10 +27,7 @@ export function GeoLogsStats() {
   if (isLoading || !summary) {
     return (
       <StatGrid className="lg:grid-cols-4">
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
+        {Array.from({ length: 4 }, (_, i) => <StatCardSkeleton key={i} sparkline={sparklines.shown} />)}
       </StatGrid>
     )
   }
@@ -41,6 +42,7 @@ export function GeoLogsStats() {
         subtitle={subtitle}
         icon={Activity}
         trend={{ value: changes?.totalEvents ?? null }}
+        {...sparklineProps(sparklines, "events")}
       />
       <StatCard
         title="Unique IPs"
@@ -48,6 +50,7 @@ export function GeoLogsStats() {
         subtitle={subtitle}
         icon={Users}
         trend={{ value: changes?.uniqueIps ?? null }}
+        {...sparklineProps(sparklines, "uniqueIps")}
       />
       <StatCard
         title="Countries"
@@ -55,6 +58,7 @@ export function GeoLogsStats() {
         subtitle={subtitle}
         icon={Globe2}
         trend={{ value: changes?.uniqueCountries ?? null }}
+        {...sparklineProps(sparklines, "uniqueCountries")}
       />
       <StatCard
         title="Cities"
@@ -62,6 +66,7 @@ export function GeoLogsStats() {
         subtitle={subtitle}
         icon={Building2}
         trend={{ value: changes?.uniqueCities ?? null }}
+        {...sparklineProps(sparklines, "uniqueCities")}
       />
     </StatGrid>
   )

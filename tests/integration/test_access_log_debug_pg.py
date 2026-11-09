@@ -39,6 +39,7 @@ async def _insert_debug(
     country_name: str | None = None,
     city: str | None = None,
     user_agent: str | None = None,
+    log_format: str | None = None,
 ) -> None:
     """Insert an access_log_debug row, including its denormalized context."""
     async with session_maker() as session:
@@ -46,10 +47,10 @@ async def _insert_debug(
             text(
                 "INSERT INTO access_log_debug (created_at, raw_line, access_log_id, "
                 " is_malformed, parse_error, log_timestamp, ip_address, method, url, "
-                " host, status_code, country_code, country_name, city, user_agent) "
+                " host, status_code, country_code, country_name, city, user_agent, log_format) "
                 "VALUES (:created, :raw, :log_id, :malformed, :parse_error, "
                 " :log_timestamp, :ip, :method, :url, :host, :status, "
-                " :country_code, :country_name, :city, :user_agent)"
+                " :country_code, :country_name, :city, :user_agent, :log_format)"
             ),
             {
                 "created": created, "raw": raw_line, "log_id": access_log_id,
@@ -57,7 +58,7 @@ async def _insert_debug(
                 "log_timestamp": log_timestamp, "ip": ip, "method": method,
                 "url": url, "host": host, "status": status,
                 "country_code": country_code, "country_name": country_name,
-                "city": city, "user_agent": user_agent,
+                "city": city, "user_agent": user_agent, "log_format": log_format,
             },
         )
         await session.commit()
@@ -108,6 +109,74 @@ async def test_list_returns_denormalized_context_and_nulls_when_unlinked(
     assert unlinked.status_code is None
     assert unlinked.is_malformed is True
     assert unlinked.parse_error == "regex mismatch"
+
+
+async def test_list_splits_json_lines_into_fields(pg_session_maker, clean_tables) -> None:
+    """JSON lines carry their fields; stored marks need a linked access log."""
+    ts = NOW - timedelta(hours=1)
+    traefik_line = (
+        '{"ClientHost":"10.0.0.1","DownstreamStatus":404,"RequestMethod":"GET",'
+        '"StartUTC":"2026-10-29T02:25:18Z","TLSVersion":"1.3",'
+        '"request_X-Tenant-Id":"acme"}'
+    )
+    await _insert_debug(pg_session_maker, ts, traefik_line, access_log_id=7)
+    await _insert_debug(pg_session_maker, ts, '{"event":"startup"}')
+    await _insert_debug(pg_session_maker, ts, "not json")
+
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        rows, _ = await service.list_entries(_window(), LimitOffset(50, 0))
+
+    by_line = {r.raw_line: r for r in rows}
+    traefik = by_line[traefik_line].raw_fields
+    assert traefik is not None
+    assert traefik.format == "traefik-json"
+    fields = {raw_field.key: raw_field for raw_field in traefik.fields}
+    assert fields["DownstreamStatus"].stored_as == "Status"
+    assert fields["TLSVersion"].stored_as is None
+    assert fields["X-Tenant-Id"].group == "request_header"
+    unlinked = by_line['{"event":"startup"}'].raw_fields
+    assert unlinked is not None
+    assert unlinked.format is None
+    assert by_line["not json"].raw_fields is None
+
+
+async def test_list_tags_stored_keys_with_the_recorded_format(pg_session_maker, clean_tables) -> None:
+    """A recorded format beats detection, which would try GeoMetrikks JSON first."""
+    ts = NOW - timedelta(hours=1)
+    line = (
+        '{"ClientHost":"10.0.0.1","DownstreamStatus":404,"RequestMethod":"GET",'
+        '"StartUTC":"2026-10-29T02:25:18Z","client_ip":"10.0.0.1",'
+        '"timestamp":"2026-10-29T02:25:18+00:00"}'
+    )
+    await _insert_debug(pg_session_maker, ts, line, access_log_id=8, log_format="traefik-json")
+
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        rows, _ = await service.list_entries(_window(), LimitOffset(50, 0))
+
+    assert rows[0].log_format == "traefik-json"
+    raw_fields = rows[0].raw_fields
+    assert raw_fields is not None
+    assert raw_fields.format == "traefik-json"
+    fields = {raw_field.key: raw_field for raw_field in raw_fields.fields}
+    assert fields["DownstreamStatus"].stored_as == "Status"
+    assert fields["client_ip"].stored_as is None
+
+
+async def test_list_sorts_by_log_format(pg_session_maker, clean_tables) -> None:
+    ts = NOW - timedelta(hours=1)
+    await _insert_debug(pg_session_maker, ts, "caddy line", log_format="caddy-json")
+    await _insert_debug(pg_session_maker, ts, "traefik line", log_format="traefik-json")
+    await _insert_debug(pg_session_maker, ts, "old line")
+
+    async with pg_session_maker() as session:
+        service = AccessLogDebugService(session=session)
+        rows, _ = await service.list_entries(
+            _window(), LimitOffset(50, 0), order_by="log_format", sort_order="asc"
+        )
+
+    assert [row.log_format for row in rows] == ["caddy-json", "traefik-json", None]
 
 
 async def test_time_window_on_created_at_excludes_rows(pg_session_maker, clean_tables) -> None:

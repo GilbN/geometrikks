@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import msgspec
 
@@ -28,12 +28,21 @@ _VALUE_AFTER_COLON = re.compile(r':\s*"[^"]*(?:"|$)')
 
 
 class Advisory(msgspec.Struct, rename="camel"):
-    id: str
+    """A problem that needs an operator's attention."""
+
+    id: Annotated[
+        str, msgspec.Meta(description="Names the kind of problem and stays the same, such as `asn-database-missing`.")
+    ]
     severity: Literal["warning", "critical"]
-    summary: str
-    detail: str | None = None
-    remedy: str | None = None
-    docs_url: str | None = None
+    summary: Annotated[str, msgspec.Meta(description="One or two sentences that name the problem.")]
+    detail: Annotated[str | None, msgspec.Meta(description="What the problem means and how to fix it.")] = None
+    remedy: Annotated[
+        str | None,
+        msgspec.Meta(
+            description="The settings, command or short instruction that fixes the problem, when there is one."
+        ),
+    ] = None
+    docs_url: Annotated[str | None, msgspec.Meta(description="A link to the documentation for this problem.")] = None
 
 
 class AdvisoryRegistry:

@@ -13,6 +13,10 @@ class CrowdSecUnavailableError(CrowdSecError):
     """LAPI unreachable or returned an unexpected error response."""
 
 
+class CrowdSecUnreachableError(CrowdSecUnavailableError):
+    """The LAPI did not answer: refused or dropped connection, DNS failure or timeout."""
+
+
 class CrowdSecAuthError(CrowdSecError):
     """Bouncer key or machine credentials rejected, or missing configuration."""
 

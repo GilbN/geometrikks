@@ -9,12 +9,15 @@ from litestar.params import SkipValidation
 from litestar.response import File
 from litestar.types import ControllerRouterHandler
 
+from geometrikks.domain.drop.controllers import DropController
 from geometrikks.domain.geo.controllers.events import GeoEventController
 from geometrikks.domain.geo.controllers.locations import GeoLocationController
 from geometrikks.domain.instances.controllers import InstanceController
+from geometrikks.domain.integrations.controllers import IntegrationController
 from geometrikks.domain.logs.controllers.access_logs import AccessLogController
 from geometrikks.domain.logs.controllers.access_log_debug import AccessLogDebugController
 from geometrikks.domain.analytics.controllers import AnalyticsController
+from geometrikks.domain.auth.api_key_controllers import ApiKeyController
 from geometrikks.domain.auth.controllers import AuthController
 from geometrikks.domain.reports.controllers import ReportsController
 from geometrikks.domain.security.controllers import CrowdSecController
@@ -25,6 +28,7 @@ from geometrikks.domain.system.controllers.settings import read_settings
 from geometrikks.domain.system.controllers.stats import stats
 from geometrikks.domain.system.controllers.health import health, health_ready
 from geometrikks.config.settings import Settings
+from geometrikks.server.api_version import API_V1_PREFIX, API_VERSION
 
 
 @get(
@@ -46,8 +50,6 @@ def service_worker(settings: NamedDependency[SkipValidation[Settings]]) -> File:
     return File(path=sw_path, media_type="text/javascript")
 
 
-API_V1_PREFIX = "/api/v1"
-API_VERSION = "1"
 
 
 def create_api_v1_router(handlers: list[ControllerRouterHandler]) -> Router:
@@ -67,14 +69,17 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         GeoEventController,
         GeoLocationController,
         InstanceController,
+        IntegrationController,
         AccessLogController,
         AccessLogDebugController,
         AnalyticsController,
         CrowdSecController,
+        DropController,
         ReportsController,
         LogsController,
         SystemController,
         AuthController,
+        ApiKeyController,
         read_settings,
         stats,
     ]

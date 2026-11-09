@@ -1,8 +1,9 @@
 /**
  * Searchable, multi-select filter dropdown. A small trigger button (matching
  * the app's existing filter-bar buttons) opens either a floating combobox
- * popup with a search box (desktop) or a bottom drawer with the same search
- * + checklist body (mobile, touch-friendly). Pass `forceInline` when the
+ * popup with a search box (desktop) or a drawer with the same search +
+ * checklist body (phones, touch-friendly; from the right held sideways).
+ * Pass `forceInline` when the
  * host already provides its own on-mobile overlay (e.g. a panel that's
  * itself a Drawer) so this component doesn't nest a second one.
  */
@@ -26,7 +27,8 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { cn } from "@/lib/utils"
 
 interface FilterComboboxProps<T extends string | number> {
@@ -55,7 +57,7 @@ interface FilterComboboxProps<T extends string | number> {
   maxSelected?: number
 }
 
-function FilterComboboxBody<T extends string | number>({
+export function FilterComboboxBody<T extends string | number>({
   options,
   selected,
   onChange,
@@ -65,10 +67,20 @@ function FilterComboboxBody<T extends string | number>({
   emptyText,
   label,
   maxSelected,
+  fill = false,
+  splitLabel = false,
 }: Pick<
   FilterComboboxProps<T>,
   "options" | "selected" | "onChange" | "labelFor" | "iconFor" | "loading" | "emptyText" | "label" | "maxSelected"
-> & { labelFor: (value: T) => string }) {
+> & {
+  labelFor: (value: T) => string
+  /** Stretch the checklist to the height of the parent. */
+  fill?: boolean
+  /** Mute everything after a label's first word, such as an ASN's network name. */
+  splitLabel?: boolean
+}) {
+  // ASN stays in capitals.
+  const searchName = label === label.toUpperCase() ? label : label.toLowerCase()
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
   const filtered = options.filter((o) => labelFor(o).toLowerCase().includes(q))
@@ -80,18 +92,18 @@ function FilterComboboxBody<T extends string | number>({
   const atMax = maxSelected !== undefined && selected.length >= maxSelected
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={cn("flex flex-col gap-1.5", fill && "min-h-0 flex-1")}>
       <input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={`Search ${label.toLowerCase()}`}
-        aria-label={`Search ${label.toLowerCase()}`}
+        placeholder={`Search ${searchName}`}
+        aria-label={`Search ${searchName}`}
         autoComplete="off"
         // text-base (16px) keeps iOS Safari from zooming the page on focus.
         className="border-input focus-visible:border-ring focus-visible:ring-ring/50 h-9 w-full rounded-md border bg-transparent px-2.5 text-base shadow-xs outline-none focus-visible:ring-[3px]"
       />
-      <div className="border-input max-h-56 overflow-y-auto overscroll-contain rounded-md border">
+      <div className={cn("border-input overflow-y-auto overscroll-contain rounded-md border", fill ? "min-h-0 flex-1 divide-y divide-border/60" : "max-h-56")}>
         {loading ? (
           <div className="text-muted-foreground px-2.5 py-2 text-xs">Loading…</div>
         ) : ordered.length === 0 ? (
@@ -110,6 +122,7 @@ function FilterComboboxBody<T extends string | number>({
                 disabled={atMax && !isSel}
                 className={cn(
                   "flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm disabled:opacity-50 pointer-coarse:min-h-10",
+                  fill && "min-h-[46px] gap-3 px-3 text-[15px] pointer-coarse:min-h-[46px]",
                   isSel ? "bg-accent text-accent-foreground" : "hover:bg-accent/50",
                 )}
               >
@@ -122,7 +135,16 @@ function FilterComboboxBody<T extends string | number>({
                   {isSel && <Check className="h-3 w-3" />}
                 </span>
                 {iconFor?.(o)}
-                <span className="truncate">{labelFor(o)}</span>
+                <span className="truncate">
+                  {splitLabel ? (
+                    <>
+                      {labelFor(o).split(" ")[0]}{" "}
+                      <span className="text-muted-foreground">{labelFor(o).split(" ").slice(1).join(" ")}</span>
+                    </>
+                  ) : (
+                    labelFor(o)
+                  )}
+                </span>
               </button>
             )
           })
@@ -153,7 +175,12 @@ export function FilterCombobox<T extends string | number>({
   disabled = false,
   maxSelected,
 }: FilterComboboxProps<T>) {
-  const isMobile = useIsMobile()
+  const [open, setOpen] = useState(false)
+  const changeOpen = (next: boolean) => {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
+  const drawer = usePhoneDrawer("filter-combobox", open, () => changeOpen(false), forceInline ? { phone: false } : undefined)
   const count = selected.length
   const atMax = maxSelected !== undefined && count >= maxSelected
   const triggerLabel = `${label}${count > 0 ? ` (${count})` : ""}`
@@ -182,23 +209,24 @@ export function FilterCombobox<T extends string | number>({
     )
   }
 
-  if (isMobile) {
+  if (drawer.phone) {
     return (
-      <Drawer onOpenChange={onOpenChange}>
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={changeOpen} onClosed={drawer.onClosed}>
         <DrawerTrigger asChild>
           <Button variant="outline" size="sm" disabled={disabled} className={cn("h-8 pointer-coarse:h-10", count > 0 && "border-primary/60 text-primary", className)}>
             {triggerLabel}
             <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
           </Button>
         </DrawerTrigger>
-        <DrawerContent>
-          <DrawerHeader>
+        <DrawerContent className={drawer.contentClassName}>
+          <DrawerHeader className={drawer.side ? "flex-row items-center justify-between" : undefined}>
             <DrawerTitle>{label}</DrawerTitle>
             <DrawerDescription className="sr-only">
               Search and select {label.toLowerCase()} values to filter by.
             </DrawerDescription>
+            {drawer.side && <SideDrawerClose />}
           </DrawerHeader>
-          <div className="px-4 pb-6">
+          <div className={drawer.side ? "min-h-0 overflow-y-auto overscroll-contain px-4 pb-6" : "px-4 pb-6"}>
             <FilterComboboxBody
               options={options}
               selected={selected}
@@ -223,7 +251,7 @@ export function FilterCombobox<T extends string | number>({
       value={selected}
       onValueChange={(value) => onChange(value as T[])}
       itemToStringLabel={labelFor}
-      onOpenChange={onOpenChange}
+      onOpenChange={changeOpen}
       disabled={disabled}
     >
       <ComboboxPrimitive.Trigger

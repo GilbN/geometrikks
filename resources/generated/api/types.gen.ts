@@ -6,20 +6,42 @@ export type ClientOptions = {
 
 /**
  * AboutAppView
+ *
+ * The running app.
  */
 export type AboutAppView = {
+  /**
+   * A short hash of the bundled CHANGELOG.md that changes whenever the changelog does. Null when the install has no changelog.
+   */
   changelogDigest: string | null;
+  /**
+   * The git commit the app was built from, when known.
+   */
   commit: string | null;
+  /**
+   * Whether the app runs from the GeoMetrikks container image.
+   */
   container: boolean;
+  /**
+   * APP_ENVIRONMENT, one of `development`, `staging` or `production`.
+   */
   environment: string;
+  /**
+   * The container image tag. Null outside a container.
+   */
   imageTag: string | null;
   name: string;
+  /**
+   * When this process started.
+   */
   startedAt: string | null;
   version: string;
 };
 
 /**
  * AboutLinksView
+ *
+ * Links to the GeoMetrikks repository and its issue tracker.
  */
 export type AboutLinksView = {
   issues: string;
@@ -28,13 +50,22 @@ export type AboutLinksView = {
 
 /**
  * AboutResponse
+ *
+ * Version, runtime and database details for the About page.
+ *
+ * `geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null
+ * with DROP_ENABLED=false, or when the database cannot answer.
  */
 export type AboutResponse = {
   app: AboutAppView;
   asnClassification?: AsnClassificationView | null;
   database: DatabaseVersionsView;
+  dropLists?: DropListsAboutView | null;
   geoip: GeoIpInfoView;
   geoipAsn?: GeoIpInfoView | null;
+  /**
+   * Whether ASN lookups are on. With it false, `geoipAsn` may still describe a file.
+   */
   geoipAsnEnabled?: boolean;
   links: AboutLinksView;
   runtime: RuntimeVersionsView;
@@ -42,56 +73,153 @@ export type AboutResponse = {
 
 /**
  * AbuseContactResponse
+ *
+ * The network or AS record that holds an IP or AS number, with its abuse contact, from RDAP.
  */
 export type AbuseContactResponse = {
+  /**
+   * Addresses of the abuse contact. Empty when the registry lists none.
+   */
   abuseEmails: Array<string>;
+  /**
+   * The abuse contact's name.
+   */
   abuseName: string | null;
+  /**
+   * The prefixes that make up the network, when the registry lists them.
+   */
   cidrs: Array<string>;
+  /**
+   * The country code the registry gives.
+   */
   country: string | null;
+  /**
+   * The last address of the network.
+   */
   endAddress: string | null;
+  /**
+   * The registry's handle for the record.
+   */
   handle: string | null;
   kind: "ip" | "asn";
+  /**
+   * The record's name, such as the network name.
+   */
   name: string | null;
+  /**
+   * The IP as looked up, or the AS number as `AS13335`.
+   */
   query: string;
+  /**
+   * The RDAP URL that gave the record.
+   */
   rdapUrl: string;
+  /**
+   * The host name of the registry that answered.
+   */
   registry: string;
+  /**
+   * The first address of the network.
+   */
   startAddress: string | null;
 };
 
 /**
  * AbuseReportResponse
+ *
+ * Evidence for an abuse report.
+ *
+ * Its times are in UTC, apart from `startDate` and `endDate`, which echo the request.
  */
 export type AbuseReportResponse = {
   crowdsec: ReportCrowdSec;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * When GeoMetrikks built the report, as ISO 8601 in UTC.
+   */
   generatedAt: string;
+  /**
+   * The bucket size of each `peak`. `hourly` for ranges up to 7 days, `daily` above.
+   */
   granularity: "hourly" | "daily";
+  /**
+   * The IPs of the target that sent requests in the range, which can be more than `ips` holds. 0 or 1 for an IP report.
+   */
   ipCount: number;
+  /**
+   * For an ASN report, its busiest IPs, at most `maxIps`. An IP report has one entry, with zero counts when the IP sent nothing.
+   */
   ips: Array<ReportIpDto>;
+  /**
+   * How many host names, addresses and query values became `[redacted]`.
+   */
   redactions: number;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
+  /**
+   * Those requests that got a 4xx status.
+   */
   status4xx: number;
   target: ReportTarget;
+  /**
+   * Requests from every IP of the target in the range.
+   */
   totalRequests: number;
 };
 
 /**
  * AccessLogDebugEntry
+ *
+ * One stored raw log line, with the fields of the access log line it produced.
+ *
+ * The access log fields are copies made when GeoMetrikks stored the line. They are null when the line
+ * did not parse into an access log line.
  */
 export type AccessLogDebugEntry = {
+  /**
+   * The `id` of the access log line this line produced.
+   */
   accessLogId?: number | null;
   city?: string | null;
   countryCode?: string | null;
   countryName?: string | null;
+  /**
+   * When GeoMetrikks stored the line, in UTC.
+   */
   createdAt: string;
   host?: string | null;
   id: number;
   ipAddress?: string | null;
+  /**
+   * True for a line that did not match the log format, or that looks like a probe such as a TLS handshake sent to the HTTP port.
+   */
   isMalformed: boolean;
+  /**
+   * The log format that read the line. Null on lines stored before GeoMetrikks recorded it.
+   */
+  logFormat?: string | null;
   method?: string | null;
+  /**
+   * Why the line counts as malformed. Null for a well-formed line.
+   */
   parseError?: string | null;
+  /**
+   * The line split into its keys when it is a JSON object. Null for any other line, and for an object with key paths more than six levels deep or more than 200 flattened fields.
+   */
+  rawFields?: RawLineFields | null;
+  /**
+   * The line as the log had it, with null bytes replaced.
+   */
   rawLine: string;
   statusCode?: number | null;
+  /**
+   * The request time from the line, in UTC.
+   */
   timestamp?: string | null;
   url?: string | null;
   userAgent?: string | null;
@@ -99,38 +227,86 @@ export type AccessLogDebugEntry = {
 
 /**
  * AccessLogDebugStats
+ *
+ * Counts of the raw log lines stored in a time range.
  */
 export type AccessLogDebugStats = {
+  /**
+   * Stored lines in the range that count as malformed.
+   */
   malformed: number;
+  /**
+   * The parse error the most lines carry, with ties going to the first in alphabetical order. Null when no line in the range has one.
+   */
   topParseError?: ParseErrorCount | null;
+  /**
+   * Stored lines in the range.
+   */
   total: number;
 };
 
 /**
  * AccessLogFacets
+ *
+ * The values the access log filters can take, each list sorted.
  */
 export type AccessLogFacets = {
+  /**
+   * Sorted by organization, with the ones that have none last.
+   */
+  asns: Array<AsnFacet>;
   cities: Array<string>;
+  /**
+   * Sorted by name.
+   */
   countries: Array<CountryFacet>;
+  /**
+   * The Host header values the lines carry.
+   */
   hosts: Array<string>;
+  /**
+   * The log formats the lines were read with, such as `nginx` or `traefik-json`.
+   */
   logFormats: Array<string>;
+  /**
+   * The server names that recorded access logs.
+   */
   servers: Array<string>;
 };
 
 /**
  * Advisory
+ *
+ * A problem that needs an operator's attention.
  */
 export type Advisory = {
+  /**
+   * What the problem means and how to fix it.
+   */
   detail?: string | null;
+  /**
+   * A link to the documentation for this problem.
+   */
   docsUrl?: string | null;
+  /**
+   * Names the kind of problem and stays the same, such as `asn-database-missing`.
+   */
   id: string;
+  /**
+   * The settings, command or short instruction that fixes the problem, when there is one.
+   */
   remedy?: string | null;
   severity: "warning" | "critical";
+  /**
+   * One or two sentences that name the problem.
+   */
   summary: string;
 };
 
 /**
  * AlertContextView
+ *
+ * One context key the scenario recorded, with every value it saw.
  */
 export type AlertContextView = {
   key: string;
@@ -139,108 +315,326 @@ export type AlertContextView = {
 
 /**
  * AlertDecisionView
+ *
+ * A decision an alert made, still in force or expired.
  */
 export type AlertDecisionView = {
+  /**
+   * The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired.
+   */
   duration: string;
   expired: boolean;
+  /**
+   * The LAPI's decision id.
+   */
   id: number | null;
+  /**
+   * Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here.
+   */
   origin: string;
   scenario: string;
   scope: string;
+  /**
+   * True when CrowdSec ran the scenario in simulation mode and enforces nothing.
+   */
   simulated: boolean;
+  /**
+   * The remediation, `ban`, `captcha` or a name a bouncer defines.
+   */
   type: string;
   value: string;
 };
 
 /**
  * AlertDetailView
+ *
+ * One CrowdSec alert with its context, stored events and decisions.
  */
 export type AlertDetailView = {
+  /**
+   * The decisions still in force.
+   */
   activeDecisionCount: number;
+  /**
+   * The source's network name, as the LAPI gives it.
+   */
   asName: string | null;
+  /**
+   * The source's AS number, as the LAPI gives it.
+   */
   asNumber: string | null;
   context: Array<AlertContextView>;
   countryCode: string | null;
+  /**
+   * From GeoMetrikks' own traffic or its GeoIP database. The LAPI sends only a code.
+   */
   countryName: string | null;
+  /**
+   * When the LAPI stored the alert, as RFC 3339.
+   */
   createdAt: string;
+  /**
+   * The decisions the alert made, expired ones included.
+   */
   decisionCount: number;
+  /**
+   * Each decision type once, in the order the LAPI lists the decisions.
+   */
   decisionTypes: Array<string>;
   decisions: Array<AlertDecisionView>;
+  /**
+   * A sample of the events. The LAPI keeps fewer than `eventsCount` on busy alerts.
+   */
   events: Array<AlertEventView>;
+  /**
+   * How many events set off the scenario.
+   */
   eventsCount: number;
+  /**
+   * The LAPI's alert id.
+   */
   id: number | null;
+  /**
+   * Where the alert came from, such as `crowdsec` for a log scenario, `waf` or `bot-detection`. Null from a LAPI that predates the field.
+   */
   kind: string | null;
+  /**
+   * The CrowdSec machine that sent the alert.
+   */
   machineId: string | null;
   message: string;
+  /**
+   * The source's network as a CIDR, as the LAPI gives it.
+   */
   range: string | null;
   scenario: string;
+  /**
+   * What `value` holds, such as `Ip` or `Range`.
+   */
   scope: string;
+  /**
+   * True when CrowdSec ran the scenario in simulation mode.
+   */
   simulated: boolean;
+  /**
+   * When the first event happened.
+   */
   startAt: string | null;
+  /**
+   * When the last event happened.
+   */
   stopAt: string | null;
+  /**
+   * The source the alert is about, such as an IP.
+   */
   value: string;
 };
 
 /**
  * AlertEventView
+ *
+ * One event the LAPI kept for an alert.
  */
 export type AlertEventView = {
+  /**
+   * The event's metadata, such as the log type and the source IP.
+   */
   meta: {
     [key: string]: string;
   };
+  /**
+   * When the event happened, usually as RFC 3339.
+   */
   timestamp: string;
 };
 
 /**
  * AlertPageView
+ *
+ * One page of CrowdSec alerts, newest first.
  */
 export type AlertPageView = {
   alerts: Array<AlertView>;
+  /**
+   * Pass it as `before` to get the next, older page. Null on the last page.
+   */
   nextCursor: string | null;
 };
 
 /**
  * AlertView
+ *
+ * One CrowdSec alert, a scenario that fired against a source.
  */
 export type AlertView = {
+  /**
+   * The decisions still in force.
+   */
   activeDecisionCount: number;
+  /**
+   * The source's network name, as the LAPI gives it.
+   */
   asName: string | null;
   countryCode: string | null;
+  /**
+   * From GeoMetrikks' own traffic or its GeoIP database. The LAPI sends only a code.
+   */
   countryName: string | null;
+  /**
+   * When the LAPI stored the alert, as RFC 3339.
+   */
   createdAt: string;
+  /**
+   * The decisions the alert made, expired ones included.
+   */
   decisionCount: number;
+  /**
+   * Each decision type once, in the order the LAPI lists the decisions.
+   */
   decisionTypes: Array<string>;
+  /**
+   * How many events set off the scenario.
+   */
   eventsCount: number;
+  /**
+   * The LAPI's alert id.
+   */
   id: number | null;
+  /**
+   * Where the alert came from, such as `crowdsec` for a log scenario, `waf` or `bot-detection`. Null from a LAPI that predates the field.
+   */
   kind: string | null;
+  /**
+   * The CrowdSec machine that sent the alert.
+   */
   machineId: string | null;
   message: string;
   scenario: string;
+  /**
+   * What `value` holds, such as `Ip` or `Range`.
+   */
   scope: string;
+  /**
+   * The source the alert is about, such as an IP.
+   */
   value: string;
 };
 
 /**
  * AnalyticsSettingsView
+ *
+ * How many days the database keeps each kind of data, and when it compresses it.
  */
 export type AnalyticsSettingsView = {
+  /**
+   * The age in days at which TimescaleDB compresses stored data.
+   */
   compressionAfterDays: number;
+  /**
+   * Days to keep the access log debug lines.
+   */
   debugRetentionDays: number;
+  /**
+   * Days to keep the hourly aggregates. GeoMetrikks keeps the daily aggregates forever.
+   */
   hourlyRetentionDays: number;
+  /**
+   * Days to keep raw geo events and access log lines.
+   */
   rawRetentionDays: number;
 };
 
 /**
+ * ApiKeyConnection
+ *
+ * A successfully authenticated API key. An expired key gets a 401 instead.
+ */
+export type ApiKeyConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  /**
+   * The key's expiry, or null if it never expires.
+   */
+  expiresAt: string | null;
+  mode: "apiKey";
+  name: string;
+  scope: "read" | "read_write";
+};
+
+/**
+ * ApiKeyList
+ *
+ * Every stored API key, newest first.
+ */
+export type ApiKeyList = {
+  /**
+   * False on a server with APP_AUTH_DISABLED=true, where keys cannot exist.
+   */
+  available: boolean;
+  keys: Array<ApiKeyView>;
+};
+
+/**
+ * ApiKeyView
+ *
+ * A stored API key. The key itself is never part of it.
+ */
+export type ApiKeyView = {
+  createdAt: string;
+  /**
+   * The username that created the key.
+   */
+  createdBy: string;
+  /**
+   * The first eight characters of the key. They identify it here, and an api_key_rejected line in login.log carries them in place of the key.
+   */
+  displayPrefix: string;
+  /**
+   * Whether `expiresAt` has passed. An expired key stays in the list until you revoke it.
+   */
+  expired: boolean;
+  /**
+   * When the key stops working. Null means never.
+   */
+  expiresAt: string | null;
+  id: string;
+  /**
+   * When a request last used the key, or null if none has. It updates at most once a minute while the IP stays the same.
+   */
+  lastUsedAt: string | null;
+  /**
+   * The client IP of the request that last used the key.
+   */
+  lastUsedIp: string | null;
+  name: string;
+  /**
+   * `read` allows GET and HEAD requests and the WebSocket feeds. `read_write` also allows writes.
+   */
+  scope: "read" | "read_write";
+};
+
+/**
  * AsnCategoryTotalsDTO
+ *
+ * Hits and bytes summed over every ASN of one category.
  */
 export type AsnCategoryTotalsDto = {
-  category: "hosting" | "other";
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.
+   */
+  category: "drop" | "hosting" | "other";
   hits: number;
   totalBytes: number;
 };
 
 /**
  * AsnClassificationListResponse
+ *
+ * The bundled list of hosting ASNs, with its source and license.
  */
 export type AsnClassificationListResponse = {
   dataset: string;
@@ -251,16 +645,39 @@ export type AsnClassificationListResponse = {
 
 /**
  * AsnClassificationView
+ *
+ * The bundled list of hosting ASNs that sorts ASNs into hosting and other.
  */
 export type AsnClassificationView = {
   dataset: string;
+  /**
+   * How many ASNs the list holds.
+   */
   entries: number;
   license: string;
   sourceUrl: string;
 };
 
 /**
+ * AsnFacet
+ *
+ * An autonomous system that appears in the access logs.
+ */
+export type AsnFacet = {
+  /**
+   * The autonomous system number, the value `asnIn` takes.
+   */
+  asn: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  organization: string | null;
+};
+
+/**
  * AuthDisabled
+ *
+ * The server runs with APP_AUTH_DISABLED=true, so there is no session and no user.
  */
 export type AuthDisabled = {
   mode: "disabled";
@@ -268,32 +685,119 @@ export type AuthDisabled = {
 
 /**
  * AuthOptions
+ *
+ * The login methods this server offers.
  */
 export type AuthOptions = {
   oidc: OidcOption | null;
+  /**
+   * Whether the username and password login is on.
+   */
   password: boolean;
 };
 
 /**
+ * BanNetworkResult
+ *
+ * What happened to one network.
+ */
+export type BanNetworkResult = {
+  /**
+   * True when the network already had an active decision of any type, a captcha included, and GeoMetrikks left it alone.
+   */
+  alreadyBanned: boolean;
+  /**
+   * Why the network is not banned, such as `Not on the DROP list` or the LAPI's error. It starts with `not attempted` when the run stopped before this network.
+   */
+  error: string | null;
+  /**
+   * The network as a CIDR, or as sent when it does not parse.
+   */
+  network: string;
+  /**
+   * True when the network is banned now.
+   */
+  ok: boolean;
+};
+
+/**
+ * BanNetworksRequest
+ *
+ * The DROP networks to ban, by name or as every unbanned network with traffic.
+ *
+ * Set exactly one of `networks` and `allUnbannedDays`, or the request gets a 400.
+ */
+export type BanNetworksRequest = {
+  /**
+   * Ban every DROP network that sent traffic in this many days and has no active decision of any type, `7`, `30` or `90`.
+   */
+  allUnbannedDays?: 7 | 30 | 90 | null;
+  /**
+   * How long each ban lasts, such as `4h`, `30m`, `7d` or `1d12h`.
+   */
+  duration: string;
+  /**
+   * The networks to ban, as CIDRs from the DROP list, at most 1000. A network named twice gets one result.
+   */
+  networks?: Array<string> | null;
+};
+
+/**
+ * BanNetworksResponse
+ *
+ * The outcome for each network.
+ */
+export type BanNetworksResponse = {
+  /**
+   * With `allUnbannedDays`, the networks without a decision past the first 1000, which this run did not try. 0 otherwise.
+   */
+  leftOut: number;
+  results: Array<BanNetworkResult>;
+};
+
+/**
  * BanRequest
+ *
+ * What to ban, for how long and why.
  */
 export type BanRequest = {
+  /**
+   * How long the decision lasts, such as `4h`, `30m`, `7d` or `1d12h`. Defaults to CROWDSEC_DEFAULT_BAN_DURATION, 4h by default.
+   */
   duration?: string | null;
+  /**
+   * An IP, or a range in CIDR form such as `203.0.113.0/24`. A /32 or /128 becomes an IP decision.
+   */
   ip: string;
+  /**
+   * The reason the decision carries. Defaults to `manual ban from GeoMetrikks`, or `manual captcha from GeoMetrikks` for a captcha.
+   */
   reason?: string | null;
+  /**
+   * `ban` or `captcha`. Defaults to `ban`.
+   */
   type?: "ban" | "captcha";
 };
 
 /**
  * BannedIp
+ *
+ * An IP under an active decision.
  */
 export type BannedIp = {
   ip: string;
+  /**
+   * The strongest decision type on it. `ban` beats `captcha`, and other names a bouncer defines come after both, in alphabetical order.
+   */
   type: string;
 };
 
 /**
  * BannedMapCollection
+ *
+ * A GeoJSON FeatureCollection of the IPs under an active decision.
+ *
+ * IPs at the same coordinates share one feature, and the features are sorted by longitude, then latitude.
  */
 export type BannedMapCollection = {
   features: Array<BannedMapFeature>;
@@ -303,9 +807,14 @@ export type BannedMapCollection = {
 
 /**
  * BannedMapFeature
+ *
+ * A GeoJSON feature for the IPs that share one point.
  */
 export type BannedMapFeature = {
   geometry: GeoJsonPointGeometry;
+  /**
+   * The same as `properties.groupId`.
+   */
   id: string;
   properties: BannedMapProperties;
   type: "Feature";
@@ -313,37 +822,85 @@ export type BannedMapFeature = {
 
 /**
  * BannedMapIp
+ *
+ * An IP under an active decision, at one place on the map.
  */
 export type BannedMapIp = {
   city: string | null;
   countryCode: string | null;
+  /**
+   * The IP's geo events in the window, at every location.
+   */
   eventCount: number;
   ip: string;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   locationId: number;
 };
 
 /**
  * BannedMapProperties
+ *
+ * The IPs at one point.
  */
 export type BannedMapProperties = {
+  /**
+   * The most events first.
+   */
   bannedIps: Array<BannedMapIp>;
+  /**
+   * The point's coordinates as `longitude,latitude`.
+   */
   groupId: string;
   ipCount: number;
 };
 
 /**
  * BannedMapStats
+ *
+ * Totals over the IPs on the map.
  */
 export type BannedMapStats = {
   cities: number;
   countries: number;
+  /**
+   * The geo events of every IP on the map, added up.
+   */
   events: number;
   ips: number;
+  /**
+   * The number of points, which is the number of features.
+   */
   locations: number;
 };
 
 /**
+ * BannedRangeView
+ *
+ * A range under an active decision.
+ *
+ * GeoMetrikks bans a single-address DROP network with an `Ip` decision, and that network shows as its /32 or /128.
+ */
+export type BannedRangeView = {
+  /**
+   * When the decision with that type ends, the later one when two have the same type. Null when the LAPI's time left does not parse.
+   */
+  expiresAt: string | null;
+  /**
+   * The strongest decision type on it. `ban` beats `captcha`, and other names a bouncer defines come after both, in alphabetical order.
+   */
+  type: string;
+  /**
+   * The range as a CIDR, such as `203.0.113.0/24`.
+   */
+  value: string;
+};
+
+/**
  * ChangelogEntry
+ *
+ * One changelog bullet, with its nested bullets in `children`. The text keeps its inline markdown.
  */
 export type ChangelogEntry = {
   children: Array<string>;
@@ -352,17 +909,30 @@ export type ChangelogEntry = {
 
 /**
  * ChangelogRelease
+ *
+ * One release in the changelog.
  */
 export type ChangelogRelease = {
+  /**
+   * The release date. Null when the heading has none, as for Unreleased.
+   */
   date: string | null;
   sections: Array<ChangelogSection>;
   unreleased: boolean;
+  /**
+   * The release's tag or compare page, when the changelog links one.
+   */
   url: string | null;
+  /**
+   * The version, or `Unreleased` for changes not released yet.
+   */
   version: string;
 };
 
 /**
  * ChangelogResponse
+ *
+ * Every release in the changelog, newest first.
  */
 export type ChangelogResponse = {
   releases: Array<ChangelogRelease>;
@@ -370,94 +940,235 @@ export type ChangelogResponse = {
 
 /**
  * ChangelogSection
+ *
+ * The entries of one kind within a release.
  */
 export type ChangelogSection = {
   entries: Array<ChangelogEntry>;
+  /**
+   * The section heading, such as `Added`, `Changed` or `Fixed`.
+   */
   kind: string;
 };
 
 /**
  * CountryFacet
+ *
+ * A country that appears in the access logs.
  */
 export type CountryFacet = {
+  /**
+   * The two-letter ISO 3166-1 code, such as `NO`.
+   */
   code: string;
+  /**
+   * The country name, or the code when GeoIP gave no name.
+   */
   name: string;
 };
 
 /**
+ * CreateApiKeyPayload
+ *
+ * The name, scope and expiry of a new API key.
+ */
+export type CreateApiKeyPayload = {
+  /**
+   * When the key stops working, as ISO 8601 with a timezone. It must lie in the future. Omit it or send null for a key that never expires.
+   */
+  expiresAt?: string | null;
+  /**
+   * 1 to 64 characters once surrounding whitespace is trimmed. No two keys may share a name, ignoring case.
+   */
+  name: string;
+  /**
+   * `read` allows GET and HEAD requests and the WebSocket feeds. `read_write` also allows writes. Defaults to `read`.
+   */
+  scope?: "read" | "read_write";
+};
+
+/**
+ * CreatedApiKey
+ *
+ * A new API key. This response is the only place the full key ever appears.
+ */
+export type CreatedApiKey = {
+  apiKey: ApiKeyView;
+  /**
+   * The full key, starting with gmk_. Send it as `Authorization: Bearer <key>`.
+   */
+  key: string;
+};
+
+/**
  * CrowdSecHealth
+ *
+ * The CrowdSec integration.
  */
 export type CrowdSecHealth = {
+  /**
+   * Whether the CrowdSec integration is configured.
+   */
   enabled: boolean;
+  /**
+   * Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, with SCHEDULER_ENABLED=false, while the app runs without its database, and before the first poll.
+   */
   lapiReachable: boolean | null;
 };
 
 /**
  * CrowdSecStatsResponse
+ *
+ * Counts of the active CrowdSec decisions across every origin.
  */
 export type CrowdSecStatsResponse = {
+  /**
+   * Every origin, the most decisions first.
+   */
   byOrigin: Array<OriginCount>;
+  /**
+   * The ten scenarios with the most decisions, the most first.
+   */
   topScenarios: Array<ScenarioCount>;
   total: number;
 };
 
 /**
  * CrowdSecStatusResponse
+ *
+ * Whether the CrowdSec integration is on and what it can do.
  */
 export type CrowdSecStatusResponse = {
+  /**
+   * True when CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY are set.
+   */
   enabled: boolean;
+  /**
+   * Whether the LAPI answered the last decision stream poll. Before the first poll, or with no poller, GeoMetrikks asks the LAPI during this request.
+   */
   lapiReachable: boolean;
+  /**
+   * Whether `/ws/crowdsec` streams decision changes. False when the scheduler is off or the server runs without its database.
+   */
   liveUpdates?: boolean;
+  /**
+   * True when CROWDSEC_MACHINE_ID and CROWDSEC_MACHINE_PASSWORD are set too. Banning, unbanning and the alert endpoints need them. This does not test the credentials.
+   */
+  writeEnabled: boolean;
+};
+
+/**
+ * CrowdSecSummary
+ *
+ * Current decisions across all scopes and origins, counted by one bounded LAPI request.
+ */
+export type CrowdSecSummary = {
+  activeDecisions: number;
+  checkedAt: string;
   writeEnabled: boolean;
 };
 
 /**
  * CumulativeDataPoint
+ *
+ * Running totals through the end of one bucket.
+ *
+ * Ranges up to 24 hours count from `startDate`. Longer ranges count from the start of the hour or UTC
+ * day that holds it.
  */
 export type CumulativeDataPoint = {
   cumulativeAccessLogs: number;
   cumulativeBytes: number;
   cumulativeGeoEvents: number;
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * CumulativeTimeSeriesResponse
+ *
+ * Running totals of requests, geo events and bytes, one point per bucket, oldest first.
  */
 export type CumulativeTimeSeriesResponse = {
   data?: Array<CumulativeDataPoint>;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * `raw` for ranges up to 24 hours, which have hourly buckets counted from the raw rows. Otherwise `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * DatabaseHealth
+ *
+ * The database connection.
  */
 export type DatabaseHealth = {
+  /**
+   * Whether `SELECT 1` answered within two seconds.
+   */
   reachable: boolean;
+  /**
+   * False while the app runs without its database, with the scheduler, ingestion and live feeds paused. It can stay false for a while after `reachable` turns true.
+   */
   servicesActive?: boolean;
 };
 
 /**
  * DatabaseInfoResponse
+ *
+ * Database size, versions, retention and table stats for the Status page.
  */
 export type DatabaseInfoResponse = {
+  /**
+   * Days to keep the access log debug lines.
+   */
   debugRetentionDays: number;
+  /**
+   * Empty when the database is unreachable.
+   */
   hypertables: Array<HypertableStatsView>;
   postgresVersion: string | null;
   reachable: boolean;
+  /**
+   * Days to keep raw geo events and access log lines.
+   */
   retentionDays: number;
+  /**
+   * The whole database on disk, in bytes.
+   */
   sizeBytes: number | null;
   timescaledbVersion: string | null;
 };
 
 /**
  * DatabaseVersionsView
+ *
+ * The database server, its extensions and the schema version.
+ *
+ * Everything except `migrationHead` is null when the database is unreachable.
  */
 export type DatabaseVersionsView = {
+  /**
+   * The newest migration this build ships. It differs from `migrationRevision` only after a start without the database, a rollback, or on an agent older than the head.
+   */
   migrationHead: string;
+  /**
+   * The title of that migration, when this build knows it.
+   */
   migrationName: string | null;
+  /**
+   * The migration the database schema is on. Null before the first migration ran.
+   */
   migrationRevision: string | null;
   postgisVersion: string | null;
   postgresVersion: string | null;
@@ -466,49 +1177,113 @@ export type DatabaseVersionsView = {
 
 /**
  * DecisionGroupView
+ *
+ * Every active decision on one target, as one row.
+ *
+ * CrowdSec makes one decision per scenario, so an IP that set off three scenarios holds three.
  */
 export type DecisionGroupView = {
   city: string | null;
   countryCode: string | null;
+  /**
+   * From GeoMetrikks' own traffic, else from its GeoIP database. Null for non-IP scopes.
+   */
   countryName: string | null;
   decisionCount: number;
+  /**
+   * Longest time left first.
+   */
   decisions: Array<GroupedDecisionView>;
+  /**
+   * The longest time left among the decisions, as a Go duration such as `3h59m12s`.
+   */
   duration: string;
+  /**
+   * What the decision targets. An IP for scope `Ip`, a CIDR for `Range`, and a country code or AS number for other scopes.
+   */
   ip: string;
+  /**
+   * Each origin once, in the order of `decisions`.
+   */
   origins: Array<string>;
+  /**
+   * Requests from the IP in the access logs over the last 24 hours. Null for scopes other than `Ip`.
+   */
   requestCount24h: number | null;
+  /**
+   * What `ip` holds, such as `Ip`, `Range`, `Country` or `AS`.
+   */
   scope: string;
+  /**
+   * The strongest remediation among the decisions. `ban` beats `captcha`, which beats the rest.
+   */
   type: string;
 };
 
 /**
  * DecisionView
+ *
+ * One active CrowdSec decision.
  */
 export type DecisionView = {
   city: string | null;
   countryCode: string | null;
+  /**
+   * From GeoMetrikks' own traffic, else from its GeoIP database. Null for non-IP scopes.
+   */
   countryName: string | null;
+  /**
+   * The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired.
+   */
   duration: string;
+  /**
+   * The LAPI's decision id.
+   */
   id: number | null;
+  /**
+   * What the decision targets. An IP for scope `Ip`, a CIDR for `Range`, and a country code or AS number for other scopes.
+   */
   ip: string;
+  /**
+   * Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here.
+   */
   origin: string;
+  /**
+   * Requests from the IP in the access logs over the last 24 hours. Null for scopes other than `Ip`.
+   */
   requestCount24h: number | null;
+  /**
+   * The scenario that raised the decision. A manual decision holds its reason instead, and one made in GeoMetrikks reads like `geometrikks/manual-ban: spam`.
+   */
   scenario: string;
+  /**
+   * What `ip` holds, such as `Ip`, `Range`, `Country` or `AS`.
+   */
   scope: string;
+  /**
+   * The remediation, `ban`, `captcha` or a name a bouncer defines.
+   */
   type: string;
 };
 
 /**
  * DefaultMapView
+ *
+ * Where the map opens, from MAP_DEFAULT_VIEW.
  */
 export type DefaultMapView = {
   latitude: number;
   longitude: number;
+  /**
+   * The zoom level, from 0 to 22.
+   */
   zoom: number;
 };
 
 /**
  * DefaultServerLocationView
+ *
+ * This instance's own location, which the map uses for a server without a location of its own.
  */
 export type DefaultServerLocationView = {
   latitude: number;
@@ -516,12 +1291,237 @@ export type DefaultServerLocationView = {
 };
 
 /**
+ * DisabledConnection
+ *
+ * Authentication is disabled, so this response does not validate a supplied key.
+ */
+export type DisabledConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  mode: "disabled";
+};
+
+/**
+ * DropAsnView
+ *
+ * An autonomous system on the ASN-DROP list.
+ */
+export type DropAsnView = {
+  asn: number;
+  /**
+   * The AS name the list gives.
+   */
+  name: string | null;
+};
+
+/**
+ * DropFeedView
+ *
+ * The download state of one DROP feed.
+ */
+export type DropFeedView = {
+  /**
+   * When GeoMetrikks last tried to download the feed, whether or not it worked.
+   */
+  checkedAt: string | null;
+  /**
+   * `v4` and `v6` for the network lists, `asn` for the ASN-DROP list.
+   */
+  feed: string;
+  /**
+   * When a download of the feed last worked.
+   */
+  fetchedAt: string | null;
+  /**
+   * Why the last download failed. Null once a download works.
+   */
+  lastError: string | null;
+  /**
+   * The record count the feed states. Null before the first download.
+   */
+  recordCount: number | null;
+  /**
+   * When Spamhaus generated the feed GeoMetrikks holds.
+   */
+  upstreamTimestamp: string | null;
+};
+
+/**
+ * DropListsAboutView
+ *
+ * The state of the Spamhaus DROP lists.
+ */
+export type DropListsAboutView = {
+  /**
+   * The copyright line Spamhaus ships with the feeds.
+   */
+  copyright: string | null;
+  enabled: boolean;
+  feeds: Array<DropFeedView>;
+  /**
+   * True once GeoMetrikks has downloaded at least one feed.
+   */
+  loaded: boolean;
+  /**
+   * True when `updatedAt` is more than 7 days ago.
+   */
+  stale: boolean;
+  /**
+   * Spamhaus's terms of use for the DROP lists.
+   */
+  termsUrl: string;
+  /**
+   * When the most recent feed fetch succeeded.
+   */
+  updatedAt: string | null;
+};
+
+/**
+ * DropListsResponse
+ *
+ * The Spamhaus DROP lists and the state of each feed.
+ */
+export type DropListsResponse = {
+  /**
+   * Sorted by ASN.
+   */
+  asns: Array<DropAsnView>;
+  /**
+   * The copyright line Spamhaus ships with the feeds.
+   */
+  copyright: string | null;
+  /**
+   * False with DROP_ENABLED=false.
+   */
+  enabled: boolean;
+  /**
+   * In the order `v4`, `v6`, `asn`, and only the feeds GeoMetrikks has tried.
+   */
+  feeds: Array<DropFeedView>;
+  /**
+   * True once GeoMetrikks has downloaded at least one feed.
+   */
+  loaded: boolean;
+  /**
+   * Sorted by CIDR.
+   */
+  networks: Array<DropNetworkView>;
+  /**
+   * True when `updatedAt` is more than 7 days ago.
+   */
+  stale: boolean;
+  /**
+   * When the most recent feed fetch succeeded.
+   */
+  updatedAt: string | null;
+};
+
+/**
+ * DropNetworkTrafficView
+ *
+ * One DROP network with the traffic it sent in the window.
+ */
+export type DropNetworkTrafficView = {
+  /**
+   * The name the logs give most often for that ASN.
+   */
+  asOrg: string | null;
+  /**
+   * The ASN most of the network's requests came from. Null when the raw lines have aged out or carry no ASN.
+   */
+  asn: number | null;
+  cidr: string;
+  /**
+   * The active decision on the network. Null when it has none or the LAPI did not answer.
+   */
+  decision: BannedRangeView | null;
+  /**
+   * Requests from the network in the window.
+   */
+  hits: number;
+  /**
+   * Distinct client IPs in the network that sent them.
+   */
+  ips: number;
+  /**
+   * The newest request from the network. Once its raw lines have aged out, the start of the newest hour or UTC day with traffic.
+   */
+  lastSeen: string | null;
+  /**
+   * The Spamhaus SBL record id of the listing, such as `SBL123456`.
+   */
+  sblId: string;
+};
+
+/**
+ * DropNetworkView
+ *
+ * A network on the DROP list.
+ */
+export type DropNetworkView = {
+  cidr: string;
+  /**
+   * The Spamhaus SBL record id of the listing, such as `SBL123456`.
+   */
+  sblId: string;
+};
+
+/**
+ * DropNetworksResponse
+ *
+ * One page of DROP networks with traffic, with totals over every network.
+ */
+export type DropNetworksResponse = {
+  /**
+   * Networks with traffic that hold an active decision. 0 when the LAPI did not answer.
+   */
+  bannedNetworks: number;
+  /**
+   * The window in days, as requested.
+   */
+  days: number;
+  /**
+   * False when the LAPI did not answer. Every `decision` is null then.
+   */
+  decisionsAvailable: boolean;
+  /**
+   * The most requests first.
+   */
+  items: Array<DropNetworkTrafficView>;
+  /**
+   * False until GeoMetrikks downloads a DROP network list, and always with DROP_ENABLED=false. Every count is 0 and `items` is empty then.
+   */
+  loaded: boolean;
+  /**
+   * Requests from those networks.
+   */
+  totalHits: number;
+  /**
+   * Distinct client IPs in those networks.
+   */
+  totalIps: number;
+  /**
+   * DROP networks with traffic in the window.
+   */
+  totalNetworks: number;
+};
+
+/**
  * EmbeddedLocationDTO
+ *
+ * The place and coordinates of one location.
  */
 export type EmbeddedLocationDto = {
   city?: string | null;
   countryCode?: string | null;
   countryName?: string | null;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   id: number;
   latitude: number;
   longitude: number;
@@ -529,42 +1529,79 @@ export type EmbeddedLocationDto = {
 
 /**
  * ErrorEnvelope
+ *
+ * The JSON body of an error response.
+ *
+ * Its keys are snake_case, unlike the camelCase keys of successful responses.
  */
 export type ErrorEnvelope = {
+  code: string;
   detail: string;
   status_code: number;
 };
 
 /**
  * GeoAsnFacet
+ *
+ * One autonomous system in the stored data.
  */
 export type GeoAsnFacet = {
   asn: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   organization: string | null;
 };
 
 /**
  * GeoCountryFacet
+ *
+ * One country in the stored data.
  */
 export type GeoCountryFacet = {
+  /**
+   * The two-letter ISO 3166-1 code, the value `countryCodeIn` takes.
+   */
   code: string;
+  /**
+   * The country name, or the code when GeoIP gives no name.
+   */
   name: string;
 };
 
 /**
  * GeoEventFacets
+ *
+ * The values the geo event filters accept, as found in the stored data.
  */
 export type GeoEventFacets = {
+  /**
+   * Sorted by organization, with the ones that have none last.
+   */
   asns: Array<GeoAsnFacet>;
+  /**
+   * Sorted by name.
+   */
   cities: Array<string>;
+  /**
+   * Sorted by name.
+   */
   countries: Array<GeoCountryFacet>;
+  /**
+   * Sorted by name.
+   */
   servers: Array<string>;
 };
 
 /**
  * GeoEventsDataPoint
+ *
+ * Geo event counts for one bucket. The unique counts are estimates.
  */
 export type GeoEventsDataPoint = {
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
   totalGeoEvents: number;
   uniqueCities: number;
@@ -574,92 +1611,179 @@ export type GeoEventsDataPoint = {
 
 /**
  * GeoEventsTimeSeriesResponse
+ *
+ * Geo event counts per bucket, oldest first. Buckets without events are left out.
  */
 export type GeoEventsTimeSeriesResponse = {
   data: Array<GeoEventsDataPoint>;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The bucket size used, `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * GeoIPHealth
+ *
+ * The GeoLite2 databases.
  */
 export type GeoIpHealth = {
+  /**
+   * Whether ASN lookups are on and a GeoLite2 ASN database is loaded.
+   */
   asnAvailable?: boolean;
+  /**
+   * When MaxMind built the ASN database file, as ISO 8601. Null without a file.
+   */
   asnDbBuildDate?: string | null;
+  /**
+   * Whether a usable GeoLite2 City database is loaded.
+   */
   available: boolean;
+  /**
+   * When MaxMind built the City database file, as ISO 8601. Null without a file.
+   */
   dbBuildDate: string | null;
 };
 
 /**
  * GeoIPInfoView
+ *
+ * A GeoLite2 database file.
  */
 export type GeoIpInfoView = {
+  /**
+   * Whole days since `buildDate`.
+   */
   ageDays: number | null;
+  /**
+   * Whether the file exists and opens as a MaxMind database.
+   */
   available: boolean;
+  /**
+   * When MaxMind built the file, from its metadata.
+   */
   buildDate: string | null;
+  /**
+   * The configured path, from GEOIP_DB_PATH or GEOIP_ASN_DB_PATH, even when no file is there.
+   */
   dbPath: string;
 };
 
 /**
  * GeoJSONFeature
+ *
+ * One location as a GeoJSON Feature.
  */
 export type GeoJsonFeature = {
   geometry: GeoJsonPointGeometry;
   properties: GeoJsonFeatureProperties;
+  /**
+   * Always `Feature`.
+   */
   type: string;
 };
 
 /**
  * GeoJSONFeatureCollection
+ *
+ * The locations with events in a time range, as a GeoJSON FeatureCollection, busiest first.
  */
 export type GeoJsonFeatureCollection = {
   features: Array<GeoJsonFeature>;
   stats: GeoJsonFeatureStats;
+  /**
+   * Always `FeatureCollection`.
+   */
   type: string;
 };
 
 /**
  * GeoJSONFeatureProperties
+ *
+ * One location and its events in the range.
  */
 export type GeoJsonFeatureProperties = {
   city: string | null;
   countryCode: string;
   countryName: string;
+  /**
+   * Events at this location in the range.
+   */
   eventCount: number;
   geohash: string;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   id: number;
+  /**
+   * The newest event at this location, whatever the range. A scheduler job on the head moves it forward every SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES minutes, 10 by default. Null until the job first runs for the location. It keeps its last value while SCHEDULER_ENABLED=false or while the job fails.
+   */
   lastHit: string | null;
   postalCode: string | null;
   state: string | null;
   stateCode: string | null;
+  /**
+   * The location's IANA timezone from GeoIP.
+   */
   timezone: string | null;
+  /**
+   * Always empty here. `/api/v1/geo-locations/{location_id}/top-ips` lists them.
+   */
   topIps?: Array<TopIpdto>;
 };
 
 /**
  * GeoJSONFeatureStats
+ *
+ * Totals over every feature in the collection.
  */
 export type GeoJsonFeatureStats = {
+  /**
+   * Distinct city names. Cities with the same name in different countries count once.
+   */
   cities: number;
+  /**
+   * Distinct country codes.
+   */
   countries: number;
   events: number;
+  /**
+   * The number of features.
+   */
   locations: number;
 };
 
 /**
  * GeoJSONPointGeometry
+ *
+ * A GeoJSON point.
  */
 export type GeoJsonPointGeometry = {
+  /**
+   * `[longitude, latitude]`, in GeoJSON order.
+   */
   coordinates: [number, number];
   type: "Point";
 };
 
 /**
  * GeoLogEntry
+ *
+ * The events from one IP at one location in the range.
  */
 export type GeoLogEntry = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   asOrganization: string | null;
   asn: number | null;
   city: string | null;
@@ -667,11 +1791,20 @@ export type GeoLogEntry = {
   countryName: string;
   eventCount: number;
   ipAddress: string;
+  /**
+   * The time of the last event. On ranges over 24 hours it can be the start of the hour or UTC day that held it.
+   */
   lastSeen: string | null;
   latitude: number;
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   locationId: number;
   longitude: number;
   postalCode: string | null;
+  /**
+   * The servers that recorded these events, sorted by name. Older aggregated history can lack server data, so on ranges over 24 hours this can be incomplete or empty.
+   */
   servers: Array<string>;
   state: string | null;
   stateCode: string | null;
@@ -679,6 +1812,10 @@ export type GeoLogEntry = {
 
 /**
  * GeoLogPercentChange
+ *
+ * The percent change of each figure from the previous period.
+ *
+ * 25.0 means a rise of a quarter. A figure is null when its previous value is 0.
  */
 export type GeoLogPercentChange = {
   totalEvents: number | null;
@@ -689,6 +1826,8 @@ export type GeoLogPercentChange = {
 
 /**
  * GeoLogPeriod
+ *
+ * Geo event totals for one period.
  */
 export type GeoLogPeriod = {
   totalEvents: number;
@@ -699,36 +1838,70 @@ export type GeoLogPeriod = {
 
 /**
  * GeoLogSummaryResponse
+ *
+ * Geo event totals for a time range, and optionally for the period of the same length before it.
  */
 export type GeoLogSummaryResponse = {
   currentPeriod: GeoLogPeriod;
+  /**
+   * The request's `toTimestamp`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * Null whenever `previousPeriod` is null.
+   */
   percentChanges: GeoLogPercentChange | null;
+  /**
+   * Null unless `comparePrevious` is true and the previous period has events.
+   */
   previousPeriod: GeoLogPeriod | null;
+  /**
+   * The request's `fromTimestamp`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * GeoLogTimeSeriesPoint
+ *
+ * Geo events and unique IPs, countries and cities for one bucket.
  */
 export type GeoLogTimeSeriesPoint = {
+  /**
+   * The bucket start, in UTC.
+   */
   timestamp: string;
   totalEvents: number;
+  uniqueCities: number;
+  uniqueCountries: number;
   uniqueIps: number;
 };
 
 /**
  * GeoLogTimeSeriesResponse
+ *
+ * Geo events and unique IPs, countries and cities per bucket, oldest first. Buckets without events are left out.
  */
 export type GeoLogTimeSeriesResponse = {
   data: Array<GeoLogTimeSeriesPoint>;
+  /**
+   * The request's `toTimestamp`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The bucket size used, `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `fromTimestamp`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * GlobalTopIPsResponse
+ *
+ * The client IPs with the most events, each at the location where it had the most.
  */
 export type GlobalTopIpsResponse = {
   topIps?: Array<TopIpdto>;
@@ -736,210 +1909,534 @@ export type GlobalTopIpsResponse = {
 
 /**
  * GroupedDecisionView
+ *
+ * One of the decisions on a target.
  */
 export type GroupedDecisionView = {
+  /**
+   * The time left, as a Go duration such as `3h59m12s`. Negative once the decision has expired.
+   */
   duration: string;
+  /**
+   * The LAPI's decision id.
+   */
   id: number | null;
+  /**
+   * Where the decision came from, such as `crowdsec` for a local detection, `cscli` for a ban made on the command line, `CAPI` or `lists` for a blocklist, and `geometrikks` for a ban made here.
+   */
   origin: string;
   scenario: string;
+  /**
+   * The remediation, `ban`, `captcha` or a name a bouncer defines.
+   */
   type: string;
 };
 
 /**
  * HeadIdentityView
+ *
+ * The head that answered the request.
  */
 export type HeadIdentityView = {
   appVersion: string;
   instanceName: string;
+  /**
+   * The newest database migration the head's build ships.
+   */
   schemaRevision: string;
 };
 
 /**
  * HealthResponse
+ *
+ * How the app and its parts are doing.
  */
 export type HealthResponse = {
+  /**
+   * Problems that need an operator, critical ones first. Empty when nothing does.
+   */
   advisories?: Array<Advisory>;
   crowdsec: CrowdSecHealth;
   database: DatabaseHealth;
   geoip: GeoIpHealth;
   ingestion: IngestionHealth;
+  /**
+   * `agent` for a process that only tails logs, `full` for one that also serves the API.
+   */
   mode?: "full" | "agent";
+  /**
+   * Agents only. How the wait for the database schema ended, `ready`, `newer` or `timeout`, and `waiting` until it ends. Null in full mode.
+   */
   schemaWait?: string | null;
+  /**
+   * When this process started, as ISO 8601 in UTC.
+   */
   startedAt: string | null;
+  /**
+   * `healthy` when the database answers, the app runs with it, every log source is readable and ingestion is running or turned off. GeoIP, CrowdSec and the advisories never change it.
+   */
   status: "healthy" | "degraded";
+  /**
+   * When this report was built, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * HeartbeatPayload
+ *
+ * The details an instance sends with each heartbeat.
+ *
+ * The 5-minute counts are null until the instance has run for 5 minutes.
  */
 export type HeartbeatPayload = {
+  /**
+   * Records that failed to write in the last 5 minutes.
+   */
   failed5M?: number | null;
+  /**
+   * Database writes that failed in the last 5 minutes.
+   */
   failedBatches5M?: number | null;
+  /**
+   * The instance's health report as raw JSON. The instance's `health` field holds the same report with a schema.
+   */
   health?: {
     [key: string]: unknown;
   };
+  /**
+   * `configured` when APP_INSTANCE_NAME is set, `fallback` when the name is the default.
+   */
   instanceNameSource?: string;
   jobs?: Array<JobReport>;
   lastError?: LastErrorReport | null;
+  /**
+   * Log lines parsed in the last 5 minutes.
+   */
   lines5M?: number | null;
+  /**
+   * When another process last sent heartbeats under the same instance name.
+   */
   nameConflictAt?: string | null;
+  /**
+   * When the process started, for up to its last 10 starts.
+   */
   recentStarts?: Array<string>;
+  /**
+   * The server names the instance records log lines under.
+   */
   serverNames?: Array<string>;
   sources?: Array<SourceReport>;
+  /**
+   * Records written in the last 5 minutes.
+   */
   written5M?: number | null;
 };
 
 /**
  * HostingAsnEntryView
+ *
+ * One ASN that counts as a hosting provider.
  */
 export type HostingAsnEntryView = {
   asn: number;
+  /**
+   * The organization behind the ASN, as the list names it.
+   */
   entity: string;
 };
 
 /**
  * HypertableStatsView
+ *
+ * Size and row estimates for one of the large time series tables.
  */
 export type HypertableStatsView = {
+  /**
+   * Bytes the compressed chunks take now. Null until a chunk is compressed.
+   */
   afterCompressionBytes: number | null;
+  /**
+   * TimescaleDB's estimate of the row count.
+   */
   approxRows: number | null;
+  /**
+   * Bytes the compressed chunks took before compression. Null until a chunk is compressed.
+   */
   beforeCompressionBytes: number | null;
+  /**
+   * `geo_events`, `access_logs` or `access_log_debug`.
+   */
   name: string;
+  /**
+   * The table's size on disk, indexes included, in bytes.
+   */
   totalBytes: number | null;
 };
 
 /**
  * IngestionHealth
+ *
+ * The log ingestion of this process. The counters start at zero when the process starts.
  */
 export type IngestionHealth = {
+  /**
+   * Database writes that failed. GeoMetrikks drops their records and does not retry them.
+   */
   failedBatches?: number;
+  /**
+   * Records lost in the failed writes.
+   */
   failedRecords?: number;
+  /**
+   * When ingestion last parsed a record, as ISO 8601 in UTC. Null before the first one.
+   */
   lastRecordAt: string | null;
+  /**
+   * The labels of the unavailable sources. `unavailableSources` adds the reason for each.
+   */
   missingFiles: Array<string>;
+  /**
+   * Log lines parsed, across all sources.
+   */
   parsedLines: number;
+  /**
+   * Parsed records held in memory until the next database write.
+   */
   pendingRecords: number;
+  /**
+   * Live feed events left out because they were too large to send.
+   */
   publishDropped?: number;
+  /**
+   * False when ingestion is turned off, failed to start or has stopped.
+   */
   running: boolean;
+  /**
+   * `disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.
+   */
   status?: "running" | "degraded" | "disabled";
   unavailableSources?: Array<UnavailableSourceHealth>;
 };
 
 /**
  * IngestionStatsResponse
+ *
+ * The log ingestion counters of this process. They start at zero when the process starts.
  */
 export type IngestionStatsResponse = {
+  /**
+   * False when LOGPARSER_ENABLED is false, or when ingestion failed to start or stopped.
+   */
   isRunning: boolean;
   lokiSources?: Array<LokiSourceStats>;
+  /**
+   * Log lines GeoMetrikks dropped because the client IP is in LOGPARSER_IGNORE_IPS.
+   */
   totalIgnoredLines: number;
+  /**
+   * Log lines that parsed, across all sources.
+   */
   totalParsedLines: number;
+  /**
+   * Parsed records held in memory until the next database write.
+   */
   totalPendingRecords: number;
+  /**
+   * Parsed records that ingestion has passed to a database write.
+   */
   totalProcessed: number;
+  /**
+   * Log lines that did not match the log format.
+   */
   totalSkippedLines: number;
 };
 
 /**
  * InstanceServerLocationView
+ *
+ * Where one server sits on the map.
  */
 export type InstanceServerLocationView = {
+  /**
+   * When the instance last recorded the location. Null for an override.
+   */
   detectedAt: string | null;
   latitude: number;
   longitude: number;
   server: string;
+  /**
+   * `auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.
+   */
   source: string;
 };
 
 /**
+ * InstanceSummary
+ *
+ * One instance using the same health evaluation as the instances API.
+ */
+export type InstanceSummary = {
+  checkingIn: boolean;
+  instanceName: string;
+  /**
+   * The process's last parsed-record time from its heartbeat, not a commit time.
+   */
+  lastParsedAt: string | null;
+  lastSeen: string;
+  mode: string;
+  status: "ok" | "warning" | "critical";
+};
+
+/**
  * InstanceView
+ *
+ * One instance as the Agents page shows it.
+ *
+ * `payload` is the last heartbeat as the instance sent it, or null when it does not fit the current
+ * schema. `health` is the health report from that heartbeat in the shape `/health` uses, or null when
+ * it does not fit that shape.
  */
 export type InstanceView = {
   appVersion: string;
+  /**
+   * A random id that changes every time the process starts.
+   */
   bootId: string;
+  /**
+   * False when no heartbeat has arrived for over 3 minutes.
+   */
   checkingIn: boolean;
   health: HealthResponse | null;
+  /**
+   * APP_INSTANCE_NAME, or `head` or `agent` when that is unset.
+   */
   instanceName: string;
+  /**
+   * Whether this is the head that answered the request.
+   */
   isSelf: boolean;
+  /**
+   * When the last heartbeat arrived. Instances send one every 30 seconds.
+   */
   lastSeen: string;
+  /**
+   * `full` for a head, `agent` for a process that only tails logs.
+   */
   mode: string;
   payload: HeartbeatPayload | null;
+  /**
+   * What is wrong with the instance, critical ones first.
+   */
   problems: Array<Advisory>;
+  /**
+   * The newest database migration the instance's build ships.
+   */
   schemaRevision: string;
+  /**
+   * The map locations of the servers this instance records log lines for.
+   */
   serverLocations: Array<InstanceServerLocationView>;
   startedAt: string;
+  /**
+   * The worst severity in `problems`, or `ok` when there are none.
+   */
   status: "ok" | "warning" | "critical";
 };
 
 /**
  * InstancesResponse
+ *
+ * Every instance that sends heartbeats.
  */
 export type InstancesResponse = {
+  /**
+   * The database time when GeoMetrikks built this list. It measures each heartbeat's age from it to set `checkingIn` and the problems.
+   */
   checkedAt: string;
   head: HeadIdentityView;
   instances: Array<InstanceView>;
 };
 
 /**
+ * InstancesSummary
+ *
+ * Head and agent heartbeat counts, with their individual states.
+ */
+export type InstancesSummary = {
+  checkedAt: string;
+  checkingIn: number;
+  critical: number;
+  items: Array<InstanceSummary>;
+  total: number;
+  warning: number;
+};
+
+/**
+ * IntegrationSummary
+ *
+ * A dashboard overview whose sections are observed in sequence, not one atomic snapshot.
+ */
+export type IntegrationSummary = {
+  crowdsec: SummarySectionGeometrikksDomainIntegrationsSchemasCrowdSecSummary;
+  endDate: string;
+  generatedAt: string;
+  /**
+   * This head process only. Agent ingestion freshness is in instances.items[].lastParsedAt.
+   */
+  ingestion: SummarySectionGeometrikksDomainSystemControllersHealthIngestionHealth;
+  instances: SummarySectionGeometrikksDomainIntegrationsSchemasInstancesSummary;
+  startDate: string;
+  traffic: SummarySectionGeometrikksDomainIntegrationsSchemasTrafficSummary;
+};
+
+/**
  * IpProfileBucketDTO
+ *
+ * One bucket of an IP's hit series.
  */
 export type IpProfileBucketDto = {
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * IpProfileHostDTO
+ *
+ * One host this IP sent requests to, with its hits.
  */
 export type IpProfileHostDto = {
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The Host header. Null for lines that carry none.
+   */
   host: string | null;
 };
 
 /**
  * IpProfilePathDTO
+ *
+ * One host and path this IP requested, with its hits.
  */
 export type IpProfilePathDto = {
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The Host header. Null for lines that carry none.
+   */
   host: string | null;
+  /**
+   * The request target, query string included.
+   */
   url: string;
 };
 
 /**
  * IpProfileResponse
+ *
+ * The access log profile of one client IP for a time range.
+ *
+ * An IP without requests in the range gets zero request counts and empty lists rather than a 404.
+ * Request times are in seconds over the timed requests.
  */
 export type IpProfileResponse = {
+  /**
+   * The ASN of the IP's newest request in the range that had one.
+   */
   asn: number | null;
-  asnCategory: "hosting" | "other" | null;
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential. Null without ASN data.
+   */
+  asnCategory: "drop" | "hosting" | "other" | null;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   asnOrganization: string | null;
   avgRequestTime: number | null;
+  /**
+   * How many different request targets the IP sent.
+   */
   distinctPaths: number;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The share of requests with a 4xx or 5xx status, from 0 to 1.
+   */
   errorRate: number;
+  /**
+   * The IP's first request in the range, as ISO 8601 in UTC.
+   */
   firstSeen: string | null;
+  /**
+   * `hourly` for ranges up to 7 days, `daily` above.
+   */
   granularity: "hourly" | "daily";
+  /**
+   * Up to 5 hosts, most hits first.
+   */
   hosts: Array<IpProfileHostDto>;
   ipAddress: string;
+  /**
+   * The IP's last request in the range, as ISO 8601 in UTC.
+   */
   lastSeen: string | null;
+  /**
+   * Lines from the IP that GeoMetrikks flagged as malformed, counted by when it stored them rather than by their log time.
+   */
   malformedRequests: number;
   p95RequestTime: number | null;
+  /**
+   * Up to 5 host and path pairs, most hits first.
+   */
   paths: Array<IpProfilePathDto>;
+  /**
+   * The bucket with the most hits, the earliest one on a tie.
+   */
   peak: IpProfileBucketDto | null;
+  /**
+   * Hits per bucket, oldest first. Buckets without hits are left out.
+   */
   series: Array<IpProfileBucketDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every request, timed or not.
+   */
   timedRequests: number;
   totalBytes: number;
   totalRequests: number;
+  /**
+   * Up to 3 user agents, most hits first.
+   */
   userAgents: Array<IpProfileUserAgentDto>;
 };
 
 /**
  * IpProfileUserAgentDTO
+ *
+ * One user agent this IP sent, with its hits.
  */
 export type IpProfileUserAgentDto = {
   hits: number;
@@ -948,11 +2445,19 @@ export type IpProfileUserAgentDto = {
 
 /**
  * JobReport
+ *
+ * A scheduler job on the instance.
  */
 export type JobReport = {
   id?: string;
+  /**
+   * The error of the last run, cut to 500 characters.
+   */
   lastError?: string | null;
   lastStart?: string | null;
+  /**
+   * `success`, `error` or `missed`.
+   */
   lastStatus?: string | null;
   name?: string;
   nextRunTime?: string | null;
@@ -960,6 +2465,8 @@ export type JobReport = {
 
 /**
  * LastErrorReport
+ *
+ * The last failed database write on the instance.
  */
 export type LastErrorReport = {
   at?: string | null;
@@ -968,12 +2475,26 @@ export type LastErrorReport = {
 
 /**
  * LatestReleaseView
+ *
+ * The newest GitHub release above the running version.
  */
 export type LatestReleaseView = {
+  /**
+   * The version in tag style, such as `v0.22.0-dev.4`.
+   */
   displayVersion: string;
+  /**
+   * How many releases are newer than the running version, this one included.
+   */
   newerReleaseCount: number;
+  /**
+   * False when the check stopped paging before it reached the running version, so the count is a minimum.
+   */
   newerReleaseCountExact: boolean;
   publishedAt: string;
+  /**
+   * The release page on GitHub.
+   */
   url: string;
   version: string;
 };
@@ -1063,25 +2584,53 @@ export type ListGeoLocationsGeoLocationResponseBody = {
 
 /**
  * LocationTopIPsResponse
+ *
+ * The client IPs with the most events at one location, most first.
  */
 export type LocationTopIpsResponse = {
+  /**
+   * The location's `id`, as `/api/v1/geo-locations` lists it.
+   */
   locationId: number;
   topIps?: Array<TopIpdto>;
+  /**
+   * Distinct client IPs at the location in the range.
+   */
+  uniqueIps: number;
 };
 
 /**
  * LogFileView
+ *
+ * A log file on this server.
  */
 export type LogFileView = {
+  /**
+   * Whether the file exists and is readable. The download endpoint serves only available files.
+   */
   available: boolean;
+  /**
+   * `app` for geometrikks.log, `login` for login.log, `access` for a tailed access log.
+   */
   kind: "app" | "login" | "access";
+  /**
+   * Null when the file is missing.
+   */
   modifiedAt: string | null;
+  /**
+   * The file name the download endpoint takes. A second access log with the same file name gets a `.2` suffix, a third `.3`.
+   */
   name: string;
+  /**
+   * The file size in bytes. Zero when the file is missing.
+   */
   sizeBytes: number;
 };
 
 /**
  * LogFilesResponse
+ *
+ * The log files on this server.
  */
 export type LogFilesResponse = {
   files: Array<LogFileView>;
@@ -1089,18 +2638,29 @@ export type LogFilesResponse = {
 
 /**
  * LogRotateResponse
+ *
+ * The log files that rotated.
  */
 export type LogRotateResponse = {
+  /**
+   * Their file names, such as `geometrikks.log`.
+   */
   rotated: Array<string>;
 };
 
 /**
  * LogTailRecord
+ *
+ * One log record.
+ *
+ * An app log record holds the JSON event as GeoMetrikks wrote it, with more keys than these. A login log
+ * record has `timestamp`, `level`, `event`, `logger` and `user`, plus `ip` and `key` when the line has them.
  */
 export type LogTailRecord = {
   event?: string;
   exception?: string;
   ip?: string;
+  key?: string;
   level?: string;
   logger?: string;
   timestamp?: string;
@@ -1109,6 +2669,8 @@ export type LogTailRecord = {
 
 /**
  * LogTailResponse
+ *
+ * The newest records of one log, oldest first.
  */
 export type LogTailResponse = {
   records: Array<LogTailRecord>;
@@ -1116,6 +2678,8 @@ export type LogTailResponse = {
 
 /**
  * LoginPayload
+ *
+ * The admin username and password.
  */
 export type LoginPayload = {
   password: string;
@@ -1124,66 +2688,143 @@ export type LoginPayload = {
 
 /**
  * LogoutResponse
+ *
+ * Where the browser goes after logging out.
  */
 export type LogoutResponse = {
+  /**
+   * The identity provider's sign-out URL. GeoMetrikks sets it when the session came from OIDC, OIDC_LOGOUT_IDP is on and the provider's discovery document lists an end_session_endpoint. Null means the login page.
+   */
   redirectTo: string | null;
 };
 
 /**
  * LogparserSettingsView
+ *
+ * The log ingestion settings.
  */
 export type LogparserSettingsView = {
+  /**
+   * The access log files this server tails, from LOGPARSER_LOG_PATHS.
+   */
   logPaths: Array<string>;
+  /**
+   * Whether ingestion parses each line in full and stores an access log row with its HTTP fields. When false, GeoMetrikks still stores geo events but no access log rows.
+   */
   sendLogs: boolean;
+  /**
+   * Whether every raw line goes to the debug table. When false, only malformed ones do.
+   */
   storeDebugLines: boolean;
 };
 
 /**
  * LokiSourceStats
+ *
+ * One query from LOKI_QUERIES and how ingestion is reading it.
  */
 export type LokiSourceStats = {
+  /**
+   * False while GeoMetrikks cannot reach Loki or Loki rejects the query.
+   */
   available: boolean;
+  /**
+   * `loki:` and the query's position in LOKI_QUERIES, counted from 1. `/health` names an unavailable source by this label.
+   */
   label: string;
+  /**
+   * The log format in use, such as `traefik-json`, either configured or detected from the lines. Null while a detected format has not been found yet.
+   */
   logFormat: string | null;
+  /**
+   * Lines from this query that parsed.
+   */
   parsedLines: number;
+  /**
+   * The LogQL selector as configured.
+   */
   query: string;
+  /**
+   * `unreachable` or `rejected` while the source is unavailable, otherwise null.
+   */
   reason: string | null;
+  /**
+   * The server name GeoMetrikks stores this query's lines under.
+   */
   server: string;
 };
 
 /**
  * MapSettingsView
+ *
+ * The map setup.
  */
 export type MapSettingsView = {
+  /**
+   * The CARTO basemap key from MAP_CARTO_API_KEY, or null. It is no secret, since the browser sends it with every map tile request.
+   */
   cartoApiKey: string | null;
+  /**
+   * Null means the map opens on the server locations, or on the whole world.
+   */
   defaultView: DefaultMapView | null;
+  /**
+   * Where this server sits, in decimal degrees. Null when unknown.
+   */
   serverLatitude: number | null;
+  /**
+   * `configured` when MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE set the location, `external_ip` when GeoMetrikks looked up its own public IP.
+   */
   serverLocationSource: "configured" | "external_ip" | null;
+  /**
+   * Where this server sits, in decimal degrees. Null when unknown.
+   */
   serverLongitude: number | null;
 };
 
 /**
  * OidcOption
+ *
+ * The OIDC single sign-on login.
  */
 export type OidcOption = {
+  /**
+   * The name in the Sign in with button, from OIDC_PROVIDER_NAME. Defaults to SSO.
+   */
   providerName: string;
 };
 
 /**
  * OidcStatus
+ *
+ * The state of OIDC single sign-on, as Settings > Status shows it.
  */
 export type OidcStatus = {
   configured: boolean;
+  /**
+   * The error from the last failed discovery attempt, else null.
+   */
   detail: string | null;
+  /**
+   * Whether reading the issuer's discovery document worked. `pending` means no attempt has finished yet, or OIDC is not configured.
+   */
   discovery: "ok" | "failed" | "pending";
+  /**
+   * OIDC_LOGOUT_IDP. When true, logout also ends the identity provider session if the provider lists an end_session_endpoint.
+   */
   idpLogout: boolean;
   issuer: string | null;
+  /**
+   * Whether the username and password login is on.
+   */
   passwordLogin: boolean;
   providerName: string | null;
 };
 
 /**
  * OriginCount
+ *
+ * The number of active decisions from one origin.
  */
 export type OriginCount = {
   count: number;
@@ -1192,6 +2833,8 @@ export type OriginCount = {
 
 /**
  * ParseErrorCount
+ *
+ * A parse error and how many stored lines carry it.
  */
 export type ParseErrorCount = {
   count: number;
@@ -1200,40 +2843,117 @@ export type ParseErrorCount = {
 
 /**
  * PercentChange
+ *
+ * The percent change of each figure from the previous period.
+ *
+ * 25.0 means a rise of a quarter. A figure is null when its previous value is 0 or was not measured.
  */
 export type PercentChange = {
   avgRequestTime?: number | null;
   bytesSent?: number | null;
+  /**
+   * The relative change of `errorRate` itself, not a difference in percentage points.
+   */
   errorRate?: number | null;
+  /**
+   * The change in `totalGeoEvents`.
+   */
   geoRecords?: number | null;
+  /**
+   * The change in `totalRequests`.
+   */
   logRecords?: number | null;
+  /**
+   * The change in `malformedRequests`. Always null on `/api/v1/analytics/live-summary`.
+   */
   malformedRate?: number | null;
   uniqueIps?: number | null;
 };
 
 /**
  * PeriodSummary
+ *
+ * Request and geo event totals for one period.
+ *
+ * Request times are in seconds over the requests `timedRequests` counts, and null when it is 0.
  */
 export type PeriodSummary = {
   avgBytesPerRequest: number;
   avgRequestTime: number | null;
+  /**
+   * The share of requests with a 4xx or 5xx status, from 0 to 1.
+   */
   errorRate: number;
+  /**
+   * Lines GeoMetrikks flagged as malformed, counted by when it stored them rather than by their log time.
+   */
   malformedRequests: number;
   maxRequestTime: number | null;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every request, timed or not.
+   */
   timedRequests: number;
   totalBytesSent: number;
+  /**
+   * Logged requests whose client IP has a GeoIP location.
+   */
   totalGeoEvents: number;
   totalRequests: number;
+  /**
+   * Distinct countries among the geo events.
+   */
   uniqueCountries: number;
+  /**
+   * Distinct client IPs among the geo events.
+   */
   uniqueIps: number;
 };
 
 /**
+ * RawLineField
+ *
+ * One key of a JSON log line.
+ */
+export type RawLineField = {
+  /**
+   * `request_header`, `response_header` or `origin_header` for a header the proxy logged, and `field` for any other key.
+   */
+  group: "request_header" | "response_header" | "origin_header" | "field";
+  /**
+   * The key, with dots between the levels of a nested key. A header key is the header name without its prefix, such as `User-Agent`.
+   */
+  key: string;
+  /**
+   * The access log field this key fills, as a label such as `IP address`. Null when GeoMetrikks does not store the key.
+   */
+  storedAs?: string | null;
+  /**
+   * The value as text. GeoMetrikks joins a list of strings with commas and writes other values as compact JSON.
+   */
+  value: string;
+};
+
+/**
+ * RawLineFields
+ *
+ * A JSON log line split into its keys, in the order they appear in the line.
+ */
+export type RawLineFields = {
+  fields: Array<RawLineField>;
+  /**
+   * The JSON log format that read the line into its access log line, such as `traefik-json`. Null when the line produced no access log line or no JSON format accepts it, and then no field has `storedAs`.
+   */
+  format: string | null;
+};
+
+/**
  * ReadinessResponse
+ *
+ * Whether the app is ready for traffic.
  */
 export type ReadinessResponse = {
   ready: boolean;
@@ -1241,30 +2961,60 @@ export type ReadinessResponse = {
 
 /**
  * ReleaseCheckResponse
+ *
+ * The result of the last check for a newer release. `latest` is null when none is newer.
  */
 export type ReleaseCheckResponse = {
+  /**
+   * When the last successful check ran.
+   */
   checkedAt: string | null;
   latest: LatestReleaseView | null;
+  /**
+   * `off` when this process never checks, `pending` until a check succeeds, then `checked`.
+   */
   status: "off" | "pending" | "checked";
 };
 
 /**
  * ReportAlertDTO
+ *
+ * A CrowdSec alert on the IP whose activity overlaps the range.
  */
 export type ReportAlertDto = {
+  /**
+   * When the LAPI stored the alert, as RFC 3339.
+   */
   createdAt: string;
   decisions: Array<ReportAlertDecisionDto>;
   eventsCount: number;
+  /**
+   * Where the alert came from, such as `crowdsec` or `waf`. Null from a LAPI that predates the field.
+   */
   kind: string | null;
+  /**
+   * The scenario that fired, or `manual` for an alert a person made.
+   */
   scenario: string;
+  /**
+   * When the first event happened.
+   */
   startAt: string | null;
+  /**
+   * When the last event happened.
+   */
   stopAt: string | null;
 };
 
 /**
  * ReportAlertDecisionDTO
+ *
+ * A decision an alert made, still in force or expired.
  */
 export type ReportAlertDecisionDto = {
+  /**
+   * The time left, as a Go duration such as `3h59m12s`. Negative once it has expired.
+   */
   duration: string;
   expired: boolean;
   type: string;
@@ -1272,18 +3022,34 @@ export type ReportAlertDecisionDto = {
 
 /**
  * ReportCrowdSec
+ *
+ * How much CrowdSec data the report holds.
  */
 export type ReportCrowdSec = {
+  /**
+   * Says what is missing and why. Null for `ok` and `disabled`.
+   */
   message: string | null;
+  /**
+   * `ok` with decisions and alerts, `decisions-only` without machine credentials, `disabled` with the integration off, and `unavailable` when the LAPI did not answer. The access log evidence is there in every case.
+   */
   status: "disabled" | "ok" | "decisions-only" | "unavailable";
 };
 
 /**
  * ReportDecisionDTO
+ *
+ * An active CrowdSec decision on the IP, or on a range that holds it.
  */
 export type ReportDecisionDto = {
+  /**
+   * The time left, as a Go duration such as `3h59m12s`. Negative once it has expired.
+   */
   duration: string;
   origin: string;
+  /**
+   * The scenario that made the decision, or `manual` for a decision a person made.
+   */
   scenario: string;
   scope: string;
   type: string;
@@ -1291,41 +3057,108 @@ export type ReportDecisionDto = {
 };
 
 /**
+ * ReportDropNetworkDTO
+ *
+ * The Spamhaus DROP network that holds the IP.
+ */
+export type ReportDropNetworkDto = {
+  cidr: string;
+  /**
+   * The Spamhaus SBL record id of the listing, such as `SBL123456`.
+   */
+  sblId: string;
+};
+
+/**
  * ReportIpDTO
+ *
+ * What the report says about one source IP.
  */
 export type ReportIpDto = {
+  /**
+   * Oldest first. Empty unless `crowdsec.status` is `ok`.
+   */
   alerts: Array<ReportAlertDto>;
+  /**
+   * True when the LAPI returned as many alerts as the limit allows, 1000 for an IP report and 100 per IP for an ASN report, so older alerts in the range may be missing.
+   */
   alertsTruncated: boolean;
+  /**
+   * The ASN from the IP's newest line with ASN data.
+   */
   asn: number | null;
+  /**
+   * True when the IP's ASN is on the Spamhaus ASN-DROP list.
+   */
+  asnDrop: boolean;
   asnOrganization: string | null;
   countryCode: string | null;
   countryName: string | null;
+  /**
+   * The decisions active now, whatever the range. Empty when `crowdsec.status` is `disabled` or `unavailable`.
+   */
   decisions: Array<ReportDecisionDto>;
+  /**
+   * Distinct URLs the IP requested.
+   */
   distinctPaths: number;
+  /**
+   * Null when no DROP network holds the IP.
+   */
+  dropNetwork: ReportDropNetworkDto | null;
+  /**
+   * The first request in the range, as ISO 8601 in UTC.
+   */
   firstSeen: string | null;
   ipAddress: string;
+  /**
+   * The last request in the range, as ISO 8601 in UTC.
+   */
   lastSeen: string | null;
+  /**
+   * The newest `linesPerIp` lines, oldest first.
+   */
   lines: Array<ReportLineDto>;
+  /**
+   * Malformed lines from the IP that GeoMetrikks stored in the range. These go back ANALYTICS_DEBUG_RETENTION_DAYS days, 30 by default.
+   */
   malformedRequests: number;
+  /**
+   * The ten most requested paths, the most first.
+   */
   paths: Array<ReportPathDto>;
+  /**
+   * Null when the IP sent no requests.
+   */
   peak: ReportPeakDto | null;
   status2xx: number;
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * The response bytes the server sent the IP.
+   */
   totalBytes: number;
   totalRequests: number;
+  /**
+   * The three most sent user agents, the most first.
+   */
   userAgents: Array<ReportUserAgentDto>;
 };
 
 /**
  * ReportLineDTO
+ *
+ * One access log line, without the Host header, server name, referrer or remote user.
  */
 export type ReportLineDto = {
   bytesSent: number | null;
   httpVersion: string | null;
   method: string | null;
   statusCode: number | null;
+  /**
+   * The request time, as ISO 8601 in UTC.
+   */
   timestamp: string;
   url: string | null;
   userAgent: string | null;
@@ -1333,8 +3166,13 @@ export type ReportLineDto = {
 
 /**
  * ReportPathDTO
+ *
+ * A path the IP requested.
  */
 export type ReportPathDto = {
+  /**
+   * Requests that got a status of 400 or more.
+   */
   errorHits: number;
   hits: number;
   url: string;
@@ -1342,24 +3180,43 @@ export type ReportPathDto = {
 
 /**
  * ReportPeakDTO
+ *
+ * The IP's busiest hour, or UTC day on ranges over 7 days.
  */
 export type ReportPeakDto = {
   hits: number;
+  /**
+   * The start of the hour or day, as ISO 8601 in UTC.
+   */
   timestamp: string;
 };
 
 /**
  * ReportTarget
+ *
+ * What the report is about, one IP or the IPs of one ASN.
  */
 export type ReportTarget = {
+  /**
+   * The ASN. For an IP report, the one its newest line with ASN data names.
+   */
   asn: number | null;
+  /**
+   * True when the ASN is on the Spamhaus ASN-DROP list.
+   */
+  asnDrop: boolean;
   asnOrganization: string | null;
+  /**
+   * The IP. Null for an ASN report.
+   */
   ipAddress: string | null;
   kind: "ip" | "asn";
 };
 
 /**
  * ReportUserAgentDTO
+ *
+ * A user agent the IP sent, with how often.
  */
 export type ReportUserAgentDto = {
   hits: number;
@@ -1368,14 +3225,24 @@ export type ReportUserAgentDto = {
 
 /**
  * RuntimeSettingsView
+ *
+ * Where the app runs.
  */
 export type RuntimeSettingsView = {
+  /**
+   * Whether the app runs from the GeoMetrikks container image.
+   */
   container: boolean;
+  /**
+   * The container image tag. Null outside a container.
+   */
   imageTag: string | null;
 };
 
 /**
  * RuntimeVersionsView
+ *
+ * The Python runtime and the versions of key libraries.
  */
 export type RuntimeVersionsView = {
   apschedulerVersion: string | null;
@@ -1385,9 +3252,14 @@ export type RuntimeVersionsView = {
 
 /**
  * SafeSettingsResponse
+ *
+ * The settings the web app reads to set itself up. No credentials appear here.
  */
 export type SafeSettingsResponse = {
   analytics: AnalyticsSettingsView;
+  /**
+   * APP_ENVIRONMENT, one of `development`, `staging` or `production`.
+   */
   environment: string;
   logparser: LogparserSettingsView;
   map: MapSettingsView;
@@ -1398,6 +3270,8 @@ export type SafeSettingsResponse = {
 
 /**
  * ScenarioCount
+ *
+ * The number of decisions or alerts from one scenario.
  */
 export type ScenarioCount = {
   count: number;
@@ -1406,108 +3280,337 @@ export type ScenarioCount = {
 
 /**
  * SchedulerJobView
+ *
+ * One scheduled job. The last-run fields cover runs since this process started.
  */
 export type SchedulerJobView = {
+  /**
+   * The job id that the run endpoint takes, such as `geoip-refresh`.
+   */
   id: string;
+  /**
+   * How long the last run took, in seconds.
+   */
   lastDurationSeconds: number | null;
+  /**
+   * The error of the last run when it failed.
+   */
   lastError: string | null;
+  /**
+   * When the last run started.
+   */
   lastRunTime: string | null;
+  /**
+   * `missed` means a run came due but could not start in time, so the scheduler skipped it.
+   */
   lastStatus: "success" | "error" | "missed" | null;
   name: string;
+  /**
+   * Null when no next run is scheduled.
+   */
   nextRunTime: string | null;
+  /**
+   * Whether a run is in progress.
+   */
   running: boolean;
+  /**
+   * When the job runs, as APScheduler describes its trigger.
+   */
   trigger: string;
 };
 
 /**
  * SchedulerJobsResponse
+ *
+ * The scheduler and its jobs.
  */
 export type SchedulerJobsResponse = {
   jobs: Array<SchedulerJobView>;
+  /**
+   * Whether the scheduler is turned on in this process. False with SCHEDULER_ENABLED=false and whenever the process has no scheduler, such as after a start without the database.
+   */
   schedulerEnabled: boolean;
   schedulerRunning: boolean;
+  /**
+   * `disabled` with SCHEDULER_ENABLED=false. `unavailable` when the app started without its database and has no scheduler.
+   */
   status?: "running" | "disabled" | "unavailable";
 };
 
 /**
  * ServerLocationView
+ *
+ * Where one server sits on the map.
  */
 export type ServerLocationView = {
+  /**
+   * When the instance last recorded the location, as ISO 8601. Null for an override.
+   */
   detectedAt: string | null;
+  /**
+   * The UTC day of the server's newest geo event, as `YYYY-MM-DD`. Null when it has none.
+   */
   lastEventDay: string | null;
   latitude: number;
   longitude: number;
   server: string;
+  /**
+   * `auto` when the instance that tails the server recorded its own location, from its MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE or from its public IP. `override` when MAP_SERVER_LOCATIONS on the head pins the server.
+   */
   source: "auto" | "override";
 };
 
 /**
  * ServerLocationsResponse
+ *
+ * Every server's map location, plus this instance's own location as the default.
  */
 export type ServerLocationsResponse = {
+  /**
+   * This instance's own location, found at startup or set with MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE. Null when it has neither.
+   */
   default: DefaultServerLocationView | null;
+  /**
+   * Sorted by server name.
+   */
   locations: Array<ServerLocationView>;
 };
 
 /**
+ * SessionConnection
+ *
+ * The request used an authenticated browser session.
+ */
+export type SessionConnection = {
+  apiVersion: string;
+  appVersion: string;
+  /**
+   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   */
+  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  mode: "session";
+};
+
+/**
  * SessionUser
+ *
+ * The user of the current browser session.
  */
 export type SessionUser = {
   mode: "session";
+  /**
+   * How the user logged in, with the admin password or through OIDC single sign-on.
+   */
   provider: "password" | "oidc";
   username: string;
 };
 
 /**
  * SettingFieldView
+ *
+ * One setting, or a value worked out at runtime that has no setting of its own.
  */
 export type SettingFieldView = {
+  /**
+   * Where `computedValue` came from, `runtime` or `external_ip`.
+   */
   computedSource?: string | null;
+  /**
+   * The value in effect when GeoMetrikks worked it out at runtime, else null.
+   */
   computedValue?: unknown;
+  /**
+   * The default value. Null when the setting has no fixed default.
+   */
   default: unknown;
   description: string | null;
+  /**
+   * The environment variable that sets it. Null for a value worked out at runtime.
+   */
   envVar: string | null;
   isSecret: boolean;
+  /**
+   * The setting's name inside its section, such as `raw_retention_days`.
+   */
   key: string;
+  /**
+   * The current value. A secret shows as `******` when set and null when not.
+   */
   value: unknown;
 };
 
 /**
  * SettingsSectionView
+ *
+ * A group of settings that share an environment variable prefix.
  */
 export type SettingsSectionView = {
   description: string | null;
   fields: Array<SettingFieldView>;
+  /**
+   * The section key, such as `geoip` or `crowdsec`.
+   */
   name: string;
   title: string;
 };
 
 /**
  * SourceReport
+ *
+ * A log source the instance tails.
  */
 export type SourceReport = {
   available?: boolean;
+  /**
+   * `file` or `loki`.
+   */
   kind?: string;
+  /**
+   * The file path, or the LogQL query of a Loki source.
+   */
   label?: string;
+  /**
+   * When this instance last parsed a line from this source into a record with a client IP. Unmatched lines and ignored IPs do not count. Processing time, not log time or commit time. Null until a record is parsed, or for older agents.
+   */
+  lastParsedAt?: string | null;
+  /**
+   * When this instance last read a new line from this source. Format samples and empty polls do not count. Uses the instance's clock. Null until a line is read, or for older agents.
+   */
+  lastReadAt?: string | null;
+  /**
+   * The parser's log format, such as `traefik-json`. Null until it is known.
+   */
   logFormat?: string | null;
+  /**
+   * Lines parsed from this source since the instance started.
+   */
   parsedLines?: number;
+  /**
+   * Why the source is unavailable, when it is.
+   */
   reason?: string | null;
+  /**
+   * The server name its log lines are recorded under.
+   */
   serverName?: string;
 };
 
 /**
  * SummaryResponse
+ *
+ * Totals for a time range, and optionally for the period of the same length before it.
  */
 export type SummaryResponse = {
   currentPeriod: PeriodSummary;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * Null whenever `previousPeriod` is null.
+   */
   percentChanges?: PercentChange | null;
+  /**
+   * Null unless `comparePrevious` is true and the range and the previous period each have requests or geo events.
+   */
   previousPeriod?: PeriodSummary | null;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
+ * SummarySection[CrowdSecSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasCrowdSecSummary =
+  {
+    available: boolean;
+    data?: CrowdSecSummary | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
+ * SummarySection[InstancesSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasInstancesSummary =
+  {
+    available: boolean;
+    data?: InstancesSummary | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
+ * SummarySection[TrafficSummary]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainIntegrationsSchemasTrafficSummary = {
+  available: boolean;
+  data?: TrafficSummary | null;
+  reason?:
+    | "disabled"
+    | "not_running"
+    | "not_started"
+    | "services_inactive"
+    | "database_unavailable"
+    | "crowdsec_unreachable"
+    | "crowdsec_timeout"
+    | "crowdsec_credentials_rejected"
+    | "invalid_response"
+    | null;
+};
+
+/**
+ * SummarySection[IngestionHealth]
+ *
+ * Unavailable sections have a reason and null data; available sections may contain zero counts.
+ */
+export type SummarySectionGeometrikksDomainSystemControllersHealthIngestionHealth =
+  {
+    available: boolean;
+    data?: IngestionHealth | null;
+    reason?:
+      | "disabled"
+      | "not_running"
+      | "not_started"
+      | "services_inactive"
+      | "database_unavailable"
+      | "crowdsec_unreachable"
+      | "crowdsec_timeout"
+      | "crowdsec_credentials_rejected"
+      | "invalid_response"
+      | null;
+  };
+
+/**
  * SystemSettingsResponse
+ *
+ * Every setting, grouped into sections, with secrets hidden.
  */
 export type SystemSettingsResponse = {
   sections: Array<SettingsSectionView>;
@@ -1515,10 +3618,19 @@ export type SystemSettingsResponse = {
 
 /**
  * TimeSeriesDataPoint
+ *
+ * Request metrics for one bucket.
+ *
+ * Request times are in seconds and cover the requests `timedRequests` counts. Each one is null when the
+ * bucket has none. Without a filter, the percentiles are estimates.
  */
 export type TimeSeriesDataPoint = {
   avgRequestTime: number | null;
+  /**
+   * The share of requests with a 4xx or 5xx status, from 0 to 1.
+   */
   errorRate: number;
+  maxRequestTime: number | null;
   p50RequestTime: number | null;
   p95RequestTime: number | null;
   p99RequestTime: number | null;
@@ -1526,67 +3638,137 @@ export type TimeSeriesDataPoint = {
   status3xx: number;
   status4xx: number;
   status5xx: number;
+  /**
+   * Requests with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every request, timed or not.
+   */
   timedRequests: number;
+  /**
+   * The bucket start, as ISO 8601 in UTC.
+   */
   timestamp: string;
   totalBytesSent: number;
+  /**
+   * Always 0. `/api/v1/analytics/geo-time-series` has the geo series.
+   */
   totalGeoEvents: number;
   totalRequests: number;
 };
 
 /**
  * TimeSeriesResponse
+ *
+ * Request metrics per bucket, oldest first. Buckets without requests are left out.
  */
 export type TimeSeriesResponse = {
   data: Array<TimeSeriesDataPoint>;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
+  /**
+   * The bucket size used, `hourly` or `daily`.
+   */
   granularity: string;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopAsnDTO
+ *
+ * One autonomous system with its hits and bytes.
  */
 export type TopAsnDto = {
   asn: number;
-  category: "hosting" | "other";
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.
+   */
+  category: "drop" | "hosting" | "other";
   hits: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   organization: string | null;
   totalBytes: number;
 };
 
 /**
  * TopAsnsResponse
+ *
+ * Autonomous systems ordered by hits, with totals per category.
+ *
+ * Requests without ASN data appear in `totalRequests` and `totalBytes` but in no category, so the
+ * difference is the traffic GeoMetrikks could not match to an ASN.
  */
 export type TopAsnsResponse = {
+  /**
+   * Totals over every ASN in the range, not only the listed ones. `drop` appears once the ASN-DROP list has downloaded.
+   */
   categories: Array<AsnCategoryTotalsDto>;
+  /**
+   * How many ASN-DROP listed ASNs sent traffic in the range, counting those beyond `limit`. Null until the ASN-DROP list has downloaded.
+   */
+  dropAsnCount: number | null;
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopAsnDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
+  /**
+   * The bytes of every request in the range, with or without ASN data.
+   */
   totalBytes: number;
+  /**
+   * Every request in the range, with or without ASN data.
+   */
   totalRequests: number;
 };
 
 /**
  * TopCitiesResponse
+ *
+ * Cities ordered by hits, most first.
  */
 export type TopCitiesResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopCityStatsDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopCityStatsDTO
+ *
+ * One city with its hits.
  */
 export type TopCityStatsDto = {
   city: string;
+  /**
+   * A country with a city of this name in the range. Cities with the same name in different countries share one row.
+   */
   countryCode: string | null;
   hits: number;
+  /**
+   * Distinct client IPs from the city.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopCountriesResponse
+ *
+ * Countries ordered by geo event count, most first.
  */
 export type TopCountriesResponse = {
   topCountries?: Array<TopCountryDto>;
@@ -1594,15 +3776,25 @@ export type TopCountriesResponse = {
 
 /**
  * TopCountriesStatsResponse
+ *
+ * Countries ordered by hits, most first.
  */
 export type TopCountriesStatsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopCountryStatsDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopCountryDTO
+ *
+ * One country with its geo events.
  */
 export type TopCountryDto = {
   countryCode: string;
@@ -1612,27 +3804,45 @@ export type TopCountryDto = {
 
 /**
  * TopCountryStatsDTO
+ *
+ * One country with its hits.
  */
 export type TopCountryStatsDto = {
   countryCode: string;
   countryName: string | null;
   hits: number;
+  /**
+   * Distinct client IPs from the country.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoAsn
+ *
+ * One autonomous system with its geo events.
  */
 export type TopGeoAsn = {
   asn: number;
-  category: "hosting" | "other";
+  /**
+   * `drop` when the ASN is on the Spamhaus ASN-DROP list, `hosting` when it is on the bad-asn-list of hosting and datacenter networks, and `other` for every other ASN. `other` does not mean residential.
+   */
+  category: "drop" | "hosting" | "other";
   eventCount: number;
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   organization: string | null;
+  /**
+   * Distinct client IPs among the events.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoAsnsResponse
+ *
+ * Autonomous systems ordered by geo event count, most first.
  */
 export type TopGeoAsnsResponse = {
   items: Array<TopGeoAsn>;
@@ -1640,6 +3850,8 @@ export type TopGeoAsnsResponse = {
 
 /**
  * TopGeoCitiesResponse
+ *
+ * Cities ordered by geo event count, most first.
  */
 export type TopGeoCitiesResponse = {
   items: Array<TopGeoCity>;
@@ -1647,16 +3859,26 @@ export type TopGeoCitiesResponse = {
 
 /**
  * TopGeoCity
+ *
+ * One city with its geo events.
  */
 export type TopGeoCity = {
   city: string;
+  /**
+   * A country with a city of this name in the range. Cities with the same name in different countries share one row.
+   */
   countryCode: string | null;
   eventCount: number;
+  /**
+   * Distinct client IPs among the events.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoCountriesResponse
+ *
+ * Countries ordered by geo event count, most first.
  */
 export type TopGeoCountriesResponse = {
   items: Array<TopGeoCountry>;
@@ -1664,21 +3886,37 @@ export type TopGeoCountriesResponse = {
 
 /**
  * TopGeoCountry
+ *
+ * One country with its geo events.
  */
 export type TopGeoCountry = {
   countryCode: string;
   countryName: string | null;
   eventCount: number;
+  /**
+   * Distinct client IPs among the events.
+   */
   uniqueIps: number;
 };
 
 /**
  * TopGeoIp
+ *
+ * One client IP with its geo events across every location.
  */
 export type TopGeoIp = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
   asOrganization: string | null;
   asn: number | null;
+  /**
+   * One of the IP's cities when it has events in several.
+   */
   city: string | null;
+  /**
+   * One of the IP's countries when it has events in several.
+   */
   countryCode: string | null;
   eventCount: number;
   ipAddress: string;
@@ -1686,6 +3924,8 @@ export type TopGeoIp = {
 
 /**
  * TopGeoIpsResponse
+ *
+ * Client IPs ordered by geo event count, most first.
  */
 export type TopGeoIpsResponse = {
   items: Array<TopGeoIp>;
@@ -1693,19 +3933,54 @@ export type TopGeoIpsResponse = {
 
 /**
  * TopIPDTO
+ *
+ * One client IP with its geo events at one location.
  */
 export type TopIpdto = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  asOrganization?: string | null;
+  /**
+   * The IP's network. Set only in the top IPs of a single location, and null there when GeoIP had no ASN for the IP. On ranges up to 24 hours it comes from the IP's newest event with an ASN. On longer ranges it comes from the newest hour or UTC day with one. If the IP changed networks within that hour or day, `asn` and `asOrganization` can each come from a different network.
+   */
+  asn?: number | null;
+  /**
+   * The IP's events at this one location in the range.
+   */
   eventCount: number;
   ipAddress: string;
+  /**
+   * The location where the IP had the most events, the one `eventCount` counts. Null in the top IPs of a single location.
+   */
   location?: EmbeddedLocationDto | null;
 };
 
 /**
  * TopIpDTO
+ *
+ * One client IP with its hits.
  */
 export type TopIpDto = {
+  /**
+   * The network's name from the GeoLite2 ASN database. Null when it has none.
+   */
+  asOrganization: string | null;
+  /**
+   * The autonomous system the IP belongs to. Null when the IP has no ASN data.
+   */
+  asn: number | null;
+  /**
+   * Null when GeoIP has no city for the IP.
+   */
   city: string | null;
+  /**
+   * Null when GeoIP has no country for the IP.
+   */
   countryCode: string | null;
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
   ipAddress: string;
@@ -1714,37 +3989,72 @@ export type TopIpDto = {
 
 /**
  * TopIpsResponse
+ *
+ * Client IPs ordered by hits, most first.
  */
 export type TopIpsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopIpDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopUrlDTO
+ *
+ * One host and path with its hits.
  */
 export type TopUrlDto = {
+  /**
+   * The mean request time in seconds over the `timedHits`. Null when it is 0.
+   */
   avgRequestTime: number | null;
+  /**
+   * Hits with a status of 400 or higher.
+   */
   errorHits: number;
   hits: number;
+  /**
+   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format.
+   */
   host: string | null;
+  /**
+   * Hits with a measured request time, leaving out WebSocket upgrades and status 0 lines. Aggregated buckets older than the raw retention window may predate that rule. Those still count upgrades and status 0 lines, and the oldest count every hit, timed or not.
+   */
   timedHits: number;
   totalBytes: number;
+  /**
+   * The request target, query string included.
+   */
   url: string;
 };
 
 /**
  * TopUrlsResponse
+ *
+ * Host and path pairs ordered by hits, most first.
  */
 export type TopUrlsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopUrlDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
  * TopUserAgentDTO
+ *
+ * One user agent string with its hits.
  */
 export type TopUserAgentDto = {
   hits: number;
@@ -1753,31 +4063,70 @@ export type TopUserAgentDto = {
 
 /**
  * TopUserAgentsResponse
+ *
+ * User agents ordered by hits, most first.
  */
 export type TopUserAgentsResponse = {
+  /**
+   * The request's `endDate`, echoed as ISO 8601.
+   */
   endDate: string;
   items: Array<TopUserAgentDto>;
+  /**
+   * The request's `startDate`, echoed as ISO 8601.
+   */
   startDate: string;
 };
 
 /**
+ * TrafficSummary
+ *
+ * Uses analytics/summary semantics, including whole aggregate buckets above 24 hours.
+ */
+export type TrafficSummary = {
+  /**
+   * Latest retained access-log timestamp in the requested window, not ingestion or commit time. Null when no raw rows remain in that window, even if aggregate totals are nonzero.
+   */
+  latestEventAt: string | null;
+  totals: PeriodSummary;
+};
+
+/**
  * UnavailableSourceHealth
+ *
+ * A log source that ingestion cannot read right now.
  */
 export type UnavailableSourceHealth = {
+  /**
+   * The source type, `file` or `loki`.
+   */
   kind: string;
+  /**
+   * The file path, or an opaque name such as `loki:1` for a Loki query.
+   */
   label: string;
+  /**
+   * Why the source is unavailable, when known.
+   */
   reason: string | null;
 };
 
 /**
  * UnbanRequest
+ *
+ * What to unban.
  */
 export type UnbanRequest = {
+  /**
+   * An IP, or a range in CIDR form such as `203.0.113.0/24`.
+   */
   ip: string;
 };
 
 /**
  * UnbanResponse
+ *
+ * How many decisions the unban deleted.
  */
 export type UnbanResponse = {
   deleted: number;
@@ -1787,7 +4136,13 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 1000. Defaults to 50.
+     */
     pageSize?: number;
     /**
      * Field to search
@@ -1797,13 +4152,37 @@ export type ApiV1AccessLogDebugListAccessLogDebugData = {
      * Search should be case sensitive
      */
     searchIgnoreCase?: boolean | null;
+    /**
+     * Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone.
+     */
     fromTimestamp?: string | null;
+    /**
+     * Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone.
+     */
     toTimestamp?: string | null;
+    /**
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400. Lines that did not parse into an access log line have no value and drop out.
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one. Lines that did not parse into an access log line have no value and drop out.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one. Lines that did not parse into an access log line have no value and drop out.
+     */
     cityIn?: Array<string> | null;
+    /**
+     * `true` keeps only malformed lines and `false` only well-formed ones. Leave it out to get both.
+     */
     malformed?: boolean | null;
+    /**
+     * The field to sort by, one of `created_at`, `is_malformed`, `parse_error`, `log_format`, `timestamp`, `status_code`, `ip_address`, `host`, `country_code`, `city`. `timestamp` is the request time from the line. Defaults to `created_at`, and any other value gets a 400. Lines without a value come last in both directions.
+     */
     orderBy?: string;
+    /**
+     * `asc` or `desc`. Defaults to `desc`.
+     */
     sortOrder?: "asc" | "desc";
   };
   url: "/api/v1/access-log-debug";
@@ -1814,6 +4193,10 @@ export type ApiV1AccessLogDebugListAccessLogDebugErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -1830,7 +4213,7 @@ export type ApiV1AccessLogDebugListAccessLogDebugError =
 
 export type ApiV1AccessLogDebugListAccessLogDebugResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<AccessLogDebugEntry>;
@@ -1856,7 +4239,13 @@ export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Keep only lines GeoMetrikks stored at or after this time, as ISO 8601 with a timezone.
+     */
     fromTimestamp?: string | null;
+    /**
+     * Keep only lines GeoMetrikks stored at or before this time, as ISO 8601 with a timezone.
+     */
     toTimestamp?: string | null;
   };
   url: "/api/v1/access-log-debug/stats";
@@ -1867,6 +4256,10 @@ export type ApiV1AccessLogDebugStatsGetAccessLogDebugStatsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -1895,7 +4288,13 @@ export type ApiV1AccessLogsListAccessLogsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 1000. Defaults to 50.
+     */
     pageSize?: number;
     /**
      * Field to search
@@ -1906,32 +4305,77 @@ export type ApiV1AccessLogsListAccessLogsData = {
      */
     searchIgnoreCase?: boolean | null;
     /**
-     * Order by field
+     * The field to sort by, one of `timestamp`, `id`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization`, `server`, `log_format`. Defaults to `timestamp`, and any other value gets a 400. A sort by `request_time` or `upstream_response_time` puts lines without a timing last.
      */
-    orderBy?: string | null;
+    orderBy?: string;
     /**
-     * Field to search
+     * `asc` or `desc`. Defaults to `desc`.
      */
-    sortOrder?: "asc" | "desc" | null;
+    sortOrder?: "asc" | "desc";
+    /**
+     * Keep only lines logged at or after this time, as ISO 8601 with a timezone.
+     */
     fromTimestamp?: string | null;
+    /**
+     * Keep only lines logged at or before this time, as ISO 8601 with a timezone.
+     */
     toTimestamp?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * Keep only these HTTP methods, matched exactly, such as `GET`. Repeat the parameter to pass more than one.
+     */
     methodIn?: Array<string> | null;
+    /**
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     */
     ipAddressIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these HTTP status codes, such as `404`. Repeat the parameter to pass more than one.
+     */
     statusIn?: Array<number> | null;
+    /**
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
+     */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these Host header values, matched exactly, such as `example.com`. Repeat the parameter to pass more than one.
+     */
     hostIn?: Array<string> | null;
+    /**
+     * Leave out these Host header values, matched exactly. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
     hostNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Exclude these servers (repeatable)
+     * Leave out rows recorded under these server names. Repeat the parameter to pass more than one. Rows without a server name stay in.
      */
     serverNotIn?: Array<string> | null;
+    /**
+     * Keep only lines read with these log formats, as `/facets` lists them, such as `nginx`. Repeat the parameter to pass more than one.
+     */
     logFormatIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/access-logs";
 };
@@ -1941,6 +4385,10 @@ export type ApiV1AccessLogsListAccessLogsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -1957,7 +4405,7 @@ export type ApiV1AccessLogsListAccessLogsError =
 
 export type ApiV1AccessLogsListAccessLogsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<ListAccessLogsAccessLogResponseBody>;
@@ -1999,21 +4447,25 @@ export type ApiV1AccessLogsFacetsGetAccessLogFacetsResponse =
 export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -2025,6 +4477,10 @@ export type ApiV1AnalyticsGeoTimeSeriesGetGeoTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2054,19 +4510,23 @@ export type ApiV1AnalyticsIpProfileGetIpProfileData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Client IP to profile
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * The client IP to profile. A value that is not an IP gets a 400.
      */
     ipAddress: string;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -2078,6 +4538,10 @@ export type ApiV1AnalyticsIpProfileGetIpProfileErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2105,17 +4569,21 @@ export type ApiV1AnalyticsIpProfileGetIpProfileResponse =
 export type ApiV1AnalyticsLiveSummaryGetLiveSummaryData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Include comparison with previous period of same length
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
     comparePrevious?: boolean;
   };
@@ -2127,6 +4595,10 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2154,17 +4626,21 @@ export type ApiV1AnalyticsLiveSummaryGetLiveSummaryResponse =
 export type ApiV1AnalyticsSummaryGetSummaryData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Include comparison with previous period of same length
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
     comparePrevious?: boolean;
   };
@@ -2176,6 +4652,10 @@ export type ApiV1AnalyticsSummaryGetSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2203,37 +4683,49 @@ export type ApiV1AnalyticsSummaryGetSummaryResponse =
 export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
+    /**
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -2245,6 +4737,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2272,15 +4768,19 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesResponse =
 export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
   };
   url: "/api/v1/analytics/time-series/cumulative";
 };
@@ -2290,6 +4790,10 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2318,35 +4822,47 @@ export type ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponse =
 export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Maximum number of ASNs to return
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * How many ASNs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-asns";
 };
@@ -2356,6 +4872,10 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2383,35 +4903,47 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsResponse =
 export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Maximum number of cities
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * How many cities to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -2421,6 +4953,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2448,35 +4984,47 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesResponse =
 export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Maximum number of countries
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * How many countries to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -2486,6 +5034,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2513,35 +5065,47 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesResponse =
 export type ApiV1AnalyticsTopIpsGetTopIpsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Maximum number of IPs
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * How many IPs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -2551,6 +5115,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2578,35 +5146,47 @@ export type ApiV1AnalyticsTopIpsGetTopIpsResponse =
 export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Maximum number of URLs to return
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * How many URLs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -2616,6 +5196,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2643,35 +5227,47 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsResponse =
 export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
   body?: never;
   path?: never;
-  query: {
+  query?: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`. Requires endDate; omit with window.
      */
-    startDate: string;
+    startDate?: string | null;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`. Requires startDate; omit with window.
      */
-    endDate: string;
+    endDate?: string | null;
     /**
-     * Maximum number of user agents to return
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+    /**
+     * How many user agents to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these client IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddress?: Array<string> | null;
     /**
-     * Exclude these client IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
+    /**
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
+     */
+    asnIn?: Array<number> | null;
+    /**
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
+     */
+    asnNotIn?: Array<number> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };
@@ -2681,6 +5277,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2705,6 +5305,185 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses = {
 export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponse =
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses[keyof ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses];
 
+export type ApiV1AuthApiKeysListApiKeysData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/api-keys";
+};
+
+export type ApiV1AuthApiKeysListApiKeysErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+  /**
+   * The API key store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthApiKeysListApiKeysError =
+  ApiV1AuthApiKeysListApiKeysErrors[keyof ApiV1AuthApiKeysListApiKeysErrors];
+
+export type ApiV1AuthApiKeysListApiKeysResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ApiKeyList;
+};
+
+export type ApiV1AuthApiKeysListApiKeysResponse =
+  ApiV1AuthApiKeysListApiKeysResponses[keyof ApiV1AuthApiKeysListApiKeysResponses];
+
+export type ApiV1AuthApiKeysCreateApiKeyData = {
+  body: CreateApiKeyPayload;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/api-keys";
+};
+
+export type ApiV1AuthApiKeysCreateApiKeyErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+  /**
+   * A key with this name exists, ignoring case, or APP_AUTH_DISABLED=true.
+   */
+  409: ErrorEnvelope;
+  /**
+   * The body is not sent as application/json.
+   */
+  415: ErrorEnvelope;
+  /**
+   * The API key store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthApiKeysCreateApiKeyError =
+  ApiV1AuthApiKeysCreateApiKeyErrors[keyof ApiV1AuthApiKeysCreateApiKeyErrors];
+
+export type ApiV1AuthApiKeysCreateApiKeyResponses = {
+  /**
+   * Document created, URL follows
+   */
+  201: CreatedApiKey;
+};
+
+export type ApiV1AuthApiKeysCreateApiKeyResponse =
+  ApiV1AuthApiKeysCreateApiKeyResponses[keyof ApiV1AuthApiKeysCreateApiKeyResponses];
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyData = {
+  body?: never;
+  path: {
+    /**
+     * The `id` of the key, from the key list.
+     */
+    key_id: string;
+  };
+  query?: never;
+  url: "/api/v1/auth/api-keys/{key_id}";
+};
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+  /**
+   * No key has this id.
+   */
+  404: ErrorEnvelope;
+  /**
+   * APP_AUTH_DISABLED=true, where API keys cannot exist.
+   */
+  409: ErrorEnvelope;
+  /**
+   * The API key store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyError =
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors[keyof ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors];
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1AuthApiKeysKeyIdRevokeApiKeyResponse =
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses[keyof ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses];
+
+export type ApiV1AuthConnectionConnectionData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/auth/connection";
+};
+
+export type ApiV1AuthConnectionConnectionErrors = {
+  /**
+   * Missing or invalid credentials.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The authentication store is unavailable.
+   */
+  503: ErrorEnvelope;
+};
+
+export type ApiV1AuthConnectionConnectionError =
+  ApiV1AuthConnectionConnectionErrors[keyof ApiV1AuthConnectionConnectionErrors];
+
+export type ApiV1AuthConnectionConnectionResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ApiKeyConnection | SessionConnection | DisabledConnection;
+};
+
+export type ApiV1AuthConnectionConnectionResponse =
+  ApiV1AuthConnectionConnectionResponses[keyof ApiV1AuthConnectionConnectionResponses];
+
 export type ApiV1AuthLoginLoginData = {
   body: LoginPayload;
   path?: never;
@@ -2717,6 +5496,10 @@ export type ApiV1AuthLoginLoginErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2726,6 +5509,14 @@ export type ApiV1AuthLoginLoginErrors = {
       | Array<unknown>;
     status_code: number;
   };
+  /**
+   * Wrong credentials, or password login is off because only OIDC is set up.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The database is down, so nobody can log in.
+   */
+  503: ErrorEnvelope;
 };
 
 export type ApiV1AuthLoginLoginError =
@@ -2748,6 +5539,16 @@ export type ApiV1AuthLogoutLogoutData = {
   url: "/api/v1/auth/logout";
 };
 
+export type ApiV1AuthLogoutLogoutErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthLogoutLogoutError =
+  ApiV1AuthLogoutLogoutErrors[keyof ApiV1AuthLogoutLogoutErrors];
+
 export type ApiV1AuthLogoutLogoutResponses = {
   /**
    * Request fulfilled, document follows
@@ -2765,6 +5566,19 @@ export type ApiV1AuthMeMeData = {
   url: "/api/v1/auth/me";
 };
 
+export type ApiV1AuthMeMeErrors = {
+  /**
+   * The request has no session.
+   */
+  401: ErrorEnvelope;
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthMeMeError = ApiV1AuthMeMeErrors[keyof ApiV1AuthMeMeErrors];
+
 export type ApiV1AuthMeMeResponses = {
   /**
    * Request fulfilled, document follows
@@ -2781,6 +5595,16 @@ export type ApiV1AuthOidcStatusOidcStatusData = {
   query?: never;
   url: "/api/v1/auth/oidc/status";
 };
+
+export type ApiV1AuthOidcStatusOidcStatusErrors = {
+  /**
+   * The request used an API key.
+   */
+  403: ErrorEnvelope;
+};
+
+export type ApiV1AuthOidcStatusOidcStatusError =
+  ApiV1AuthOidcStatusOidcStatusErrors[keyof ApiV1AuthOidcStatusOidcStatusErrors];
 
 export type ApiV1AuthOidcStatusOidcStatusResponses = {
   /**
@@ -2813,26 +5637,32 @@ export type ApiV1CrowdsecAlertsListAlertsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Alerts per page, from 1 to 500. Defaults to 50.
+     */
     limit?: number;
+    /**
+     * Keep only alerts that hold a decision covering this IP. The filter excludes alerts on this IP that have no decision. A value that is not an IP gets a 400.
+     */
     ip?: string | null;
     /**
-     * Filter to these scenarios. Repeat the parameter for several, at most 5.
+     * Keep only these scenarios, such as `crowdsecurity/http-probing`. Repeat the parameter for more than one, at most 5. With `kind=bot` it gets a 400.
      */
     scenario?: Array<string> | null;
     /**
-     * Go duration lookback, e.g. 24h
+     * Keep only alerts that started within this long before now, as a Go duration of hours, minutes and seconds such as `24h` or `1h30m`.
      */
     since?: string | null;
     /**
-     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces
+     * Keep only alerts of one kind, `crowdsec`, `waf`, `bot-detection`, `capi`, `papi` or `cscli`. `bot` keeps everything the AppSec bot challenge produces. Needs CrowdSec 1.7 or newer, and an older LAPI gets a 400.
      */
     kind?: string | null;
     /**
-     * true keeps alerts with a decision still in force; false keeps alerts that never had one
+     * `true` keeps alerts with a decision still in force, and `false` keeps alerts that hold no decision, active or expired.
      */
     hasActiveDecision?: boolean | null;
     /**
-     * Cursor from nextCursor; returns alerts older than it
+     * The `nextCursor` of the previous page, to get the alerts older than it. A malformed cursor gets a 400.
      */
     before?: string | null;
   };
@@ -2844,6 +5674,10 @@ export type ApiV1CrowdsecAlertsListAlertsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2877,11 +5711,11 @@ export type ApiV1CrowdsecAlertsScenariosListAlertScenariosData = {
   path?: never;
   query?: {
     /**
-     * Go duration lookback, e.g. 24h
+     * Keep only alerts that started within this long before now, as a Go duration of hours, minutes and seconds such as `24h` or `1h30m`.
      */
     since?: string | null;
     /**
-     * Alert origin: crowdsec, waf, bot-detection, capi, papi or cscli, or bot for everything the AppSec bot challenge produces
+     * Keep only alerts of one kind, `crowdsec`, `waf`, `bot-detection`, `capi`, `papi` or `cscli`. `bot` keeps everything the AppSec bot challenge produces. Needs CrowdSec 1.7 or newer, and an older LAPI gets a 400.
      */
     kind?: string | null;
   };
@@ -2893,6 +5727,10 @@ export type ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2920,6 +5758,9 @@ export type ApiV1CrowdsecAlertsScenariosListAlertScenariosResponse =
 export type ApiV1CrowdsecAlertsAlertIdGetAlertData = {
   body?: never;
   path: {
+    /**
+     * The alert's `id`.
+     */
     alert_id: number;
   };
   query?: never;
@@ -2931,6 +5772,10 @@ export type ApiV1CrowdsecAlertsAlertIdGetAlertErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2971,6 +5816,10 @@ export type ApiV1CrowdsecBanBanErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -2995,6 +5844,46 @@ export type ApiV1CrowdsecBanBanResponses = {
 export type ApiV1CrowdsecBanBanResponse =
   ApiV1CrowdsecBanBanResponses[keyof ApiV1CrowdsecBanBanResponses];
 
+export type ApiV1CrowdsecBanNetworksBanNetworksData = {
+  body: BanNetworksRequest;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/ban-networks";
+};
+
+export type ApiV1CrowdsecBanNetworksBanNetworksErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecBanNetworksBanNetworksError =
+  ApiV1CrowdsecBanNetworksBanNetworksErrors[keyof ApiV1CrowdsecBanNetworksBanNetworksErrors];
+
+export type ApiV1CrowdsecBanNetworksBanNetworksResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: BanNetworksResponse;
+};
+
+export type ApiV1CrowdsecBanNetworksBanNetworksResponse =
+  ApiV1CrowdsecBanNetworksBanNetworksResponses[keyof ApiV1CrowdsecBanNetworksBanNetworksResponses];
+
 export type ApiV1CrowdsecBannedIpsListBannedIpsData = {
   body?: never;
   path?: never;
@@ -3016,18 +5905,24 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Start of the window, inclusive, as ISO 8601 with a timezone. Defaults to 30 days before now.
+     */
     fromTimestamp?: string | null;
+    /**
+     * End of the window, exclusive, as ISO 8601 with a timezone. Defaults to now.
+     */
     toTimestamp?: string | null;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
   };
@@ -3039,6 +5934,10 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3063,15 +5962,41 @@ export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponses = {
 export type ApiV1CrowdsecBannedLocationsListBannedLocationsResponse =
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses[keyof ApiV1CrowdsecBannedLocationsListBannedLocationsResponses];
 
+export type ApiV1CrowdsecBannedRangesListBannedRangesData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/crowdsec/banned-ranges";
+};
+
+export type ApiV1CrowdsecBannedRangesListBannedRangesResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<BannedRangeView>;
+};
+
+export type ApiV1CrowdsecBannedRangesListBannedRangesResponse =
+  ApiV1CrowdsecBannedRangesListBannedRangesResponses[keyof ApiV1CrowdsecBannedRangesListBannedRangesResponses];
+
 export type ApiV1CrowdsecDecisionsListDecisionsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 10.
+     */
     pageSize?: number;
+    /**
+     * A comma-separated list of origins to keep, such as `crowdsec,cscli,CAPI`. Defaults to `crowdsec,cscli,geometrikks`, which leaves out the blocklists. An IP or CIDR in `q` ignores it.
+     */
     origins?: string | null;
     /**
-     * Search. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name.
+     * Search, up to 200 characters. An IP or CIDR matches decisions on addresses inside it and ranges that hold it, across every origin. Other text matches the start of the target or any part of a scenario name, ignoring case.
      */
     q?: string | null;
   };
@@ -3083,6 +6008,10 @@ export type ApiV1CrowdsecDecisionsListDecisionsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3099,7 +6028,7 @@ export type ApiV1CrowdsecDecisionsListDecisionsError =
 
 export type ApiV1CrowdsecDecisionsListDecisionsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<DecisionGroupView>;
@@ -3126,7 +6055,7 @@ export type ApiV1CrowdsecDecisionsLookupLookupDecisionsData = {
   path?: never;
   query: {
     /**
-     * IP address to look up
+     * The IP to look up. A value that is not an IP gets a 400.
      */
     ip: string;
   };
@@ -3138,6 +6067,10 @@ export type ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3165,11 +6098,14 @@ export type ApiV1CrowdsecDecisionsLookupLookupDecisionsResponse =
 export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData = {
   body?: never;
   path: {
+    /**
+     * The decision's `id`, as `/decisions` lists it.
+     */
     decision_id: number;
   };
   query: {
     /**
-     * The decision's IP address
+     * The IP the decision targets. A value that is not an IP gets a 400.
      */
     ip: string;
   };
@@ -3181,6 +6117,10 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3191,7 +6131,7 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors = {
     status_code: number;
   };
   /**
-   * No alert holds this decision, as with blocklist decisions.
+   * None of the IP's alerts holds the decision. A blocklist decision always gets this.
    */
   404: ErrorEnvelope;
 };
@@ -3208,6 +6148,59 @@ export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses = {
 
 export type ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponse =
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses[keyof ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses];
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * The window in days, ending now. `7`, `30` or `90`. Defaults to 30.
+     */
+    days?: 7 | 30 | 90;
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
+    page?: number;
+    /**
+     * Networks per page, from 1 to 100. Defaults to 25.
+     */
+    pageSize?: number;
+  };
+  url: "/api/v1/crowdsec/drop-networks";
+};
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksError =
+  ApiV1CrowdsecDropNetworksListDropNetworksErrors[keyof ApiV1CrowdsecDropNetworksListDropNetworksErrors];
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: DropNetworksResponse;
+};
+
+export type ApiV1CrowdsecDropNetworksListDropNetworksResponse =
+  ApiV1CrowdsecDropNetworksListDropNetworksResponses[keyof ApiV1CrowdsecDropNetworksListDropNetworksResponses];
 
 export type ApiV1CrowdsecStatsGetStatsData = {
   body?: never;
@@ -3255,6 +6248,10 @@ export type ApiV1CrowdsecUnbanUnbanErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3279,32 +6276,61 @@ export type ApiV1CrowdsecUnbanUnbanResponses = {
 export type ApiV1CrowdsecUnbanUnbanResponse =
   ApiV1CrowdsecUnbanUnbanResponses[keyof ApiV1CrowdsecUnbanUnbanResponses];
 
+export type ApiV1DropListsGetDropListsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/drop/lists";
+};
+
+export type ApiV1DropListsGetDropListsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: DropListsResponse;
+};
+
+export type ApiV1DropListsGetDropListsResponse =
+  ApiV1DropListsGetDropListsResponses[keyof ApiV1DropListsGetDropListsResponses];
+
 export type ApiV1GeoEventsListGeoEventsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 50.
+     */
     pageSize?: number;
     /**
-     * Order by field
+     * The field to sort by, one of `timestamp`, `id`, `ip_address`, `server`, `location_id`, `autonomous_system_number`, `autonomous_system_organization`. Defaults to `timestamp`, and any other value gets a 400.
      */
-    orderBy?: string | null;
+    orderBy?: string;
     /**
-     * Field to search
+     * `asc` or `desc`. Defaults to `desc`.
      */
-    sortOrder?: "asc" | "desc" | null;
+    sortOrder?: "asc" | "desc";
+    /**
+     * Keep only events at or after this time, as ISO 8601 with a timezone.
+     */
     fromTimestamp?: string | null;
+    /**
+     * Keep only events at or before this time, as ISO 8601 with a timezone.
+     */
     toTimestamp?: string | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
   };
@@ -3316,6 +6342,10 @@ export type ApiV1GeoEventsListGeoEventsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3332,7 +6362,7 @@ export type ApiV1GeoEventsListGeoEventsError =
 
 export type ApiV1GeoEventsListGeoEventsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<ListGeoEventsGeoEventResponseBody>;
@@ -3375,44 +6405,56 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 50.
+     */
     pageSize?: number;
     /**
-     * Sort column (snake_case, e.g. event_count, city, ip_address, last_seen); validated against the service allowlist
+     * The column to sort by: `event_count`, `last_seen`, `ip_address`, `city`, `postal_code`, `state`, `country_code`, `country_name`, `latitude`, `longitude` or `asn`. Defaults to `event_count`. Any other value gets a 400.
      */
     orderBy?: string;
     /**
-     * Sort direction
+     * `asc` or `desc`. Defaults to `desc`.
      */
     sortOrder?: "asc" | "desc";
   };
@@ -3424,6 +6466,10 @@ export type ApiV1GeoEventsLogsGetGeoLogsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3440,7 +6486,7 @@ export type ApiV1GeoEventsLogsGetGeoLogsError =
 
 export type ApiV1GeoEventsLogsGetGeoLogsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<GeoLogEntry>;
@@ -3466,38 +6512,44 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Include comparison with previous period of same length
+     * Also return the period of the same length just before the range, and the percent change from it. Defaults to false.
      */
     comparePrevious?: boolean;
   };
@@ -3509,6 +6561,10 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3537,42 +6593,48 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Bucket size override. Omit to auto-select (hourly <= 30 days, daily above). RAW is never available.
+     * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
     /**
-     * IANA timezone for daily buckets (e.g. Europe/Oslo). When set, daily buckets are local days in this zone for ranges the hourly source data can serve (<= 30 days); longer ranges keep UTC days. Hourly buckets are unaffected.
+     * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
   };
@@ -3584,6 +6646,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3612,38 +6678,44 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of ASNs
+     * How many ASNs to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -3655,6 +6727,10 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3683,38 +6759,44 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of cities
+     * How many cities to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -3726,6 +6808,10 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3754,38 +6840,44 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of countries
+     * How many countries to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -3797,6 +6889,10 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3825,38 +6921,44 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
+     */
     countryCodeIn?: Array<string> | null;
+    /**
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
+     */
     cityIn?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of IPs
+     * How many IPs to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -3868,6 +6970,10 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3896,7 +7002,13 @@ export type ApiV1GeoLocationsListGeoLocationsData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
     currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 10.
+     */
     pageSize?: number;
   };
   url: "/api/v1/geo-locations";
@@ -3907,6 +7019,10 @@ export type ApiV1GeoLocationsListGeoLocationsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -3923,7 +7039,7 @@ export type ApiV1GeoLocationsListGeoLocationsError =
 
 export type ApiV1GeoLocationsListGeoLocationsResponses = {
   /**
-   * Request fulfilled, document follows
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
    */
   200: {
     items?: Array<ListGeoLocationsGeoLocationResponseBody>;
@@ -3950,39 +7066,39 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Filter to these ISO country codes (repeatable)
+     * Keep only these countries, as uppercase two-letter ISO 3166-1 codes such as `NO`. Repeat the parameter to pass more than one.
      */
     countryCode?: Array<string> | null;
     /**
-     * Filter to these city names (repeatable)
+     * Keep only these cities, by the exact name GeoIP gives, such as `Oslo`. Repeat the parameter to pass more than one.
      */
     city?: Array<string> | null;
     /**
-     * Filter to these IPs (repeatable)
+     * Keep only these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressIn?: Array<string> | null;
     /**
-     * Exclude these IPs (repeatable)
+     * Leave out these client IPs. Repeat the parameter to pass more than one. A value that is not an IP gets a 400.
      */
     ipAddressNotIn?: Array<string> | null;
     /**
-     * Filter to these servers (repeatable)
+     * Keep only rows recorded under these server names. Repeat the parameter to pass more than one.
      */
     serverIn?: Array<string> | null;
     /**
-     * Filter to these autonomous system numbers (repeatable)
+     * Keep only these autonomous system numbers, such as `13335`. Repeat the parameter to pass more than one. Rows without ASN data are left out.
      */
     asnIn?: Array<number> | null;
     /**
-     * Exclude these autonomous system numbers (repeatable); rows without ASN data are kept
+     * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
   };
@@ -3994,6 +7110,10 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4039,7 +7159,7 @@ export type ApiV1GeoLocationsServerLocationsDeleteServerLocationData = {
   body?: never;
   path: {
     /**
-     * Server whose location to remove
+     * The server name, as `/api/v1/geo-locations/server-locations` lists it.
      */
     server: string;
   };
@@ -4052,6 +7172,10 @@ export type ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4089,15 +7213,15 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of countries to return
+     * How many countries to return, from 1 to 50. Defaults to 10.
      */
     limit?: number;
   };
@@ -4109,6 +7233,10 @@ export type ApiV1GeoLocationsTopCountriesGetTopCountriesErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4138,15 +7266,15 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of IPs to return
+     * How many IPs to return, from 1 to 20. Defaults to 5.
      */
     limit?: number;
   };
@@ -4158,6 +7286,10 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4185,19 +7317,22 @@ export type ApiV1GeoLocationsTopIpsGetGlobalTopIpsResponse =
 export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsData = {
   body?: never;
   path: {
+    /**
+     * The location's `id`, from `/api/v1/geo-locations` or a GeoJSON feature's `properties.id`.
+     */
     location_id: number;
   };
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     toTimestamp: string;
     /**
-     * Maximum number of IPs to return
+     * How many IPs to return, from 1 to 20. Defaults to 5.
      */
     limit?: number;
   };
@@ -4209,6 +7344,10 @@ export type ApiV1GeoLocationsLocationIdTopIpsGetLocationTopIpsErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4264,7 +7403,7 @@ export type ApiV1InstancesInstanceNameDeleteInstanceData = {
   body?: never;
   path: {
     /**
-     * Name of the instance to remove
+     * The `instanceName` from the instance list.
      */
     instance_name: string;
   };
@@ -4277,6 +7416,10 @@ export type ApiV1InstancesInstanceNameDeleteInstanceErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4313,6 +7456,51 @@ export type ApiV1InstancesInstanceNameDeleteInstanceResponses = {
 export type ApiV1InstancesInstanceNameDeleteInstanceResponse =
   ApiV1InstancesInstanceNameDeleteInstanceResponses[keyof ApiV1InstancesInstanceNameDeleteInstanceResponses];
 
+export type ApiV1IntegrationSummarySummaryData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
+     */
+    window?: string | null;
+  };
+  url: "/api/v1/integration/summary";
+};
+
+export type ApiV1IntegrationSummarySummaryErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+};
+
+export type ApiV1IntegrationSummarySummaryError =
+  ApiV1IntegrationSummarySummaryErrors[keyof ApiV1IntegrationSummarySummaryErrors];
+
+export type ApiV1IntegrationSummarySummaryResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: IntegrationSummary;
+};
+
+export type ApiV1IntegrationSummarySummaryResponse =
+  ApiV1IntegrationSummarySummaryResponses[keyof ApiV1IntegrationSummarySummaryResponses];
+
 export type ApiV1LogsFilesListFilesData = {
   body?: never;
   path?: never;
@@ -4333,7 +7521,13 @@ export type ApiV1LogsFilesListFilesResponse =
 export type ApiV1LogsFilesKindNameDownloadData = {
   body?: never;
   path: {
+    /**
+     * `app`, `login` or `access`, as the file list gives it.
+     */
     kind: string;
+    /**
+     * The file's `name` from the file list.
+     */
     name: string;
   };
   query?: never;
@@ -4345,6 +7539,10 @@ export type ApiV1LogsFilesKindNameDownloadErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4391,11 +7589,11 @@ export type ApiV1LogsTailTailData = {
   path?: never;
   query?: {
     /**
-     * Number of records to return (capped)
+     * How many lines to read from the end of the log, from 1 to 2000. The server clamps a value outside that range to the nearest end. Defaults to 500.
      */
     lines?: number;
     /**
-     * Which log to tail
+     * `app` reads geometrikks.log, `login` reads login.log. Defaults to `app`.
      */
     source?: "app" | "login";
   };
@@ -4407,6 +7605,10 @@ export type ApiV1LogsTailTailErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null
@@ -4436,27 +7638,27 @@ export type ApiV1ReportsAbuseGetAbuseReportData = {
   path?: never;
   query: {
     /**
-     * Start datetime (ISO 8601 with timezone, e.g., 2024-01-01T00:00:00Z)
+     * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     startDate: string;
     /**
-     * End datetime (ISO 8601 with timezone, e.g., 2024-12-31T23:59:59Z)
+     * End of the range, exclusive, as ISO 8601 with a timezone, such as `2026-11-02T00:00:00Z`.
      */
     endDate: string;
     /**
-     * The IP to report on
+     * The IP, IPv4 or IPv6. Pass this or `asn`, not both. A value that is not an IP gets a 400.
      */
     ipAddress?: string | null;
     /**
-     * The AS number whose IPs to report on
+     * The AS number, from 0 to 4294967295, such as `13335`. Pass this or `ipAddress`, not both.
      */
     asn?: number | null;
     /**
-     * Busiest IPs to include for an ASN
+     * With `asn`, how many of its busiest IPs to report on, from 1 to 100. Defaults to 25.
      */
     maxIps?: number;
     /**
-     * Newest log lines per IP
+     * How many of each IP's newest log lines to include, from 0 to 500. Defaults to 20.
      */
     linesPerIp?: number;
   };
@@ -4488,11 +7690,11 @@ export type ApiV1ReportsAbuseContactGetAbuseContactData = {
   path?: never;
   query?: {
     /**
-     * The IP to report on
+     * The IP, IPv4 or IPv6. Pass this or `asn`, not both. A value that is not an IP gets a 400.
      */
     ipAddress?: string | null;
     /**
-     * The AS number whose IPs to report on
+     * The AS number, from 0 to 4294967295, such as `13335`. Pass this or `ipAddress`, not both.
      */
     asn?: number | null;
   };
@@ -4666,6 +7868,9 @@ export type ApiV1SystemSchedulerJobsGetSchedulerJobsResponse =
 export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData = {
   body?: never;
   path: {
+    /**
+     * The job's `id` from the job list, such as `geoip-refresh`.
+     */
     job_id: string;
   };
   query?: never;
@@ -4677,6 +7882,10 @@ export type ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors = {
    * Validation Exception
    */
   400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
     detail: string;
     extra?:
       | null

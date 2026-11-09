@@ -5,6 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { saveSidebarOpenPreference } from "@/lib/sidebar-preference"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -24,8 +25,6 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { PanelLeftIcon } from "lucide-react"
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = "16rem"
 const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
@@ -84,8 +83,7 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      saveSidebarOpenPreference(openState)
     },
     [setOpenProp, open]
   )
@@ -239,6 +237,17 @@ function Sidebar({
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      // On a phone held sideways the notch is a left safe-area inset. Both
+      // widths grow by it so the gap and the off-canvas offset follow, and the
+      // container pads and paints that strip.
+      style={
+        side === "left"
+          ? ({
+              "--sidebar-width": `calc(${SIDEBAR_WIDTH} + env(safe-area-inset-left, 0px))`,
+              "--sidebar-width-icon": `calc(${SIDEBAR_WIDTH_ICON} + env(safe-area-inset-left, 0px))`,
+            } as React.CSSProperties)
+          : undefined
+      }
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
@@ -257,7 +266,7 @@ function Sidebar({
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
-            ? "left-0 group-data-[collapsible=offExamples]:left-[calc(var(--sidebar-width)*-1)]"
+            ? "left-0 bg-sidebar pl-[env(safe-area-inset-left,0px)] group-data-[collapsible=offExamples]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offExamples]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"

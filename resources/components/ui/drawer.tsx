@@ -5,16 +5,70 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
 
+const DrawerClosedContext = React.createContext<(() => void) | undefined>(undefined)
+
 function Drawer({
+  onClosed,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />
+}: React.ComponentProps<typeof DrawerPrimitive.Root> & {
+  /** Runs once the content has unmounted, however the drawer closed. vaul's
+   *  onAnimationEnd only reports closes it made itself. Called before Radix
+   *  moves focus back to the trigger: a state update here renders after it. */
+  onClosed?: () => void
+}) {
+  return (
+    <DrawerClosedContext.Provider value={onClosed}>
+      {/* vaul's handling stops iOS scrolling the focused field above the keyboard. */}
+      <DrawerPrimitive.Root data-slot="drawer" repositionInputs={false} {...props} />
+    </DrawerClosedContext.Provider>
+  )
+}
+
+// A Drawer keyed on its direction remounts its trigger when the phone turns,
+// and focus on the old trigger would drop to the body. The trigger's parent
+// element outlives the remount, so the new trigger there with the same label
+// takes the focus. The label keeps a sibling trigger from claiming it.
+let focusedTrigger: { parent: ParentNode; label: string } | null = null
+
+function triggerLabel(trigger: HTMLElement): string {
+  return trigger.getAttribute("aria-label") ?? trigger.textContent ?? ""
 }
 
 function DrawerTrigger({
+  ref,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
-  return <DrawerPrimitive.Trigger data-slot="drawer-trigger" {...props} />
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
+  const setRefs = React.useCallback(
+    (node: HTMLButtonElement | null) => {
+      triggerRef.current = node
+      if (typeof ref === "function") ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref]
+  )
+  React.useLayoutEffect(() => {
+    const trigger = triggerRef.current
+    const focusLost = document.activeElement === null || document.activeElement === document.body
+    if (
+      trigger &&
+      focusLost &&
+      focusedTrigger !== null &&
+      trigger.parentNode === focusedTrigger.parent &&
+      triggerLabel(trigger) === focusedTrigger.label
+    ) {
+      focusedTrigger = null
+      trigger.focus({ preventScroll: true })
+    }
+    return () => {
+      if (!trigger || !trigger.parentNode || document.activeElement !== trigger) return
+      focusedTrigger = { parent: trigger.parentNode, label: triggerLabel(trigger) }
+      queueMicrotask(() => {
+        focusedTrigger = null
+      })
+    }
+  }, [])
+  return <DrawerPrimitive.Trigger data-slot="drawer-trigger" ref={setRefs} {...props} />
 }
 
 function DrawerPortal({
@@ -45,8 +99,10 @@ function DrawerOverlay({
 function DrawerContent({
   className,
   children,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+  const onClosed = React.useContext(DrawerClosedContext)
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay />
@@ -56,6 +112,10 @@ function DrawerContent({
           "bg-panel flex h-auto flex-col text-sm data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:max-h-[80vh] data-[vaul-drawer-direction=bottom]:rounded-t-xl data-[vaul-drawer-direction=bottom]:border-t data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-3/4 data-[vaul-drawer-direction=left]:rounded-r-xl data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-3/4 data-[vaul-drawer-direction=right]:rounded-l-xl data-[vaul-drawer-direction=right]:border-l data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[80vh] data-[vaul-drawer-direction=top]:rounded-b-xl data-[vaul-drawer-direction=top]:border-b data-[vaul-drawer-direction=left]:sm:max-w-sm data-[vaul-drawer-direction=right]:sm:max-w-sm group/drawer-content fixed z-50 pb-[env(safe-area-inset-bottom,0px)]",
           className
         )}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event)
+          onClosed?.()
+        }}
         {...props}
       >
         <div

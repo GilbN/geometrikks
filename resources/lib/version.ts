@@ -20,6 +20,12 @@ export function isLocalBuild(version: string): boolean {
   return match !== null && match[1].split(".").every((part) => Number(part) === 0)
 }
 
+/** True for a develop image, whose version has a .devN segment. */
+export function isDevBuild(version: string): boolean {
+  const match = VERSION_PATTERN.exec(version)
+  return match !== null && match[2] !== undefined && !isLocalBuild(version)
+}
+
 /** The version without its +local suffix. */
 export function publicVersion(version: string): string {
   const suffixStart = version.indexOf("+")
@@ -47,4 +53,9 @@ export function sameRelease(a: string, b: string): boolean {
   if (isLocalBuild(a) || isLocalBuild(b)) return true
   if (!VERSION_PATTERN.test(a) || !VERSION_PATTERN.test(b)) return a === b
   return publicVersion(a) === publicVersion(b)
+}
+
+/** The name of the Docker mark shown when the server runs in a container. */
+export function containerRuntimeLabel(imageTag: string | null | undefined): string {
+  return imageTag ? `Container image ${imageTag}` : "Running in a container"
 }

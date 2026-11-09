@@ -16,7 +16,7 @@ os.environ["GEOMETRIKKS_ENV_FILE"] = ""
 # baseline_settings_env below; tests needing others use monkeypatch.setenv.
 _SETTINGS_ENV_PREFIXES = (
     "APP_", "API_", "DB_", "GEOIP_", "LOG_", "LOGPARSER_", "LOKI_", "ANALYTICS_",
-    "SCHEDULER_", "MAP_", "CROWDSEC_", "OIDC_", "VITE_", "MAXMINDDB_",
+    "SCHEDULER_", "MAP_", "CROWDSEC_", "OIDC_", "VITE_", "MAXMINDDB_", "DROP_",
 )
 for _key in [k for k in os.environ if k.startswith(_SETTINGS_ENV_PREFIXES)]:
     del os.environ[_key]
@@ -84,6 +84,16 @@ def disable_heartbeat_writer(request: pytest.FixtureRequest, monkeypatch: pytest
 
         monkeypatch.setattr(HeartbeatWriter, "start", lambda self: None)
     yield
+
+
+@pytest.fixture(autouse=True)
+def reset_drop_snapshot_between_tests():
+    """The DROP snapshot is process-global; keep one test's data out of the next."""
+    from geometrikks.domain.drop.snapshot import reset_drop_snapshot
+
+    reset_drop_snapshot()
+    yield
+    reset_drop_snapshot()
 
 
 @pytest.fixture(autouse=True)

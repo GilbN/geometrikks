@@ -1,6 +1,7 @@
 /**
- * Complete record for one debug line: the full raw line (copyable), the
- * parse result, and the access-log context when the line parsed into one.
+ * Complete record for one debug line. The raw line is copyable and splits into
+ * fields when it is JSON. The parse result follows, then the access-log
+ * context when the line parsed into one.
  */
 import { useEffect, useRef, useState } from "react"
 import { AlertTriangle, Check, Copy } from "lucide-react"
@@ -8,10 +9,12 @@ import { CountryLabel } from "@/components/country-flag"
 import { DetailField, DetailSheet } from "@/components/data/detail-sheet"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { copyText } from "@/lib/clipboard"
 import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
 import type { AccessLogDebugEntry } from "@/lib/api"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
+import { RawLineFieldsView } from "./raw-line-fields"
 
 /** The linked access log's IP, or null for a line that never parsed. */
 function ipValues(entry: AccessLogDebugEntry | null): IpRowValues | null {
@@ -19,15 +22,16 @@ function ipValues(entry: AccessLogDebugEntry | null): IpRowValues | null {
   return { ip: entry.ipAddress, countryCode: entry.countryCode, countryName: entry.countryName, city: entry.city }
 }
 
-export function DebugLogDetailSheet({
+/** Keyed by entry, so every entry opens on Fields with a fresh copy state. */
+function RawLineBlock({
   entry,
-  onOpenChange,
+  containerRef,
 }: {
-  entry: AccessLogDebugEntry | null
-  onOpenChange: (open: boolean) => void
+  entry: AccessLogDebugEntry
+  containerRef: React.RefObject<HTMLDivElement | null>
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle")
-  const contentRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState<"fields" | "raw">("fields")
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -37,16 +41,91 @@ export function DebugLogDetailSheet({
   }, [])
 
   async function copyRawLine() {
-    if (!entry) return
     // The fallback textarea has to live inside the sheet, or its focus trap
     // steals the selection before the copy runs.
-    const copied = await copyText(entry.rawLine, { container: contentRef.current })
+    const copied = await copyText(entry.rawLine, { container: containerRef.current })
     setCopyState(copied ? "copied" : "failed")
+    // The manual-copy hint points at the raw text, so show it.
+    if (!copied) setView("raw")
     // Drop any pending reset, or an earlier click's timer clears this state early.
     if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
     resetTimerRef.current = setTimeout(() => setCopyState("idle"), copied ? 1500 : 4000)
   }
 
+  const rawText = (
+    <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-all rounded-md border bg-muted/50 p-3 font-mono text-xs">
+      {entry.rawLine}
+    </pre>
+  )
+  const header = (
+    <div className="flex items-center justify-between gap-3">
+      <h3 id="raw-line-heading" className="text-xs font-medium text-muted-foreground">
+        Raw line
+      </h3>
+      <div className="flex items-center gap-1">
+        {entry.rawFields && (
+          <TabsList aria-label="Raw line view" className="pointer-fine:group-data-horizontal/tabs:h-7">
+            <TabsTrigger value="fields" className="px-2 text-xs">
+              Fields
+            </TabsTrigger>
+            <TabsTrigger value="raw" className="px-2 text-xs">
+              Raw
+            </TabsTrigger>
+          </TabsList>
+        )}
+        <Button variant="ghost" size="sm" className="h-7 px-2 pointer-coarse:h-11" onClick={copyRawLine}>
+          {copyState === "copied" ? (
+            <Check className="h-3.5 w-3.5" />
+          ) : copyState === "failed" ? (
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
+          <span className="ml-1 text-xs">
+            {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy"}
+          </span>
+        </Button>
+      </div>
+    </div>
+  )
+  const copyFailedHint = copyState === "failed" && (
+    <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
+      Clipboard access was blocked, usually because this page is served over plain HTTP.
+      Select the line below to copy it manually.
+    </p>
+  )
+
+  if (!entry.rawFields) {
+    return (
+      <section className="space-y-2" aria-labelledby="raw-line-heading">
+        {header}
+        {copyFailedHint}
+        {rawText}
+      </section>
+    )
+  }
+  return (
+    <section aria-labelledby="raw-line-heading">
+      <Tabs value={view} onValueChange={(value) => setView(value as "fields" | "raw")}>
+        {header}
+        {copyFailedHint}
+        <TabsContent value="fields">
+          <RawLineFieldsView rawFields={entry.rawFields} />
+        </TabsContent>
+        <TabsContent value="raw">{rawText}</TabsContent>
+      </Tabs>
+    </section>
+  )
+}
+
+export function DebugLogDetailSheet({
+  entry,
+  onOpenChange,
+}: {
+  entry: AccessLogDebugEntry | null
+  onOpenChange: (open: boolean) => void
+}) {
+  const contentRef = useRef<HTMLDivElement>(null)
   const ip = ipValues(entry)
   return (
     <DetailSheet
@@ -59,34 +138,7 @@ export function DebugLogDetailSheet({
       {entry && (
         <div ref={contentRef} className="space-y-6">
           {ip && <DetailIpBlock values={ip} />}
-          <section className="space-y-2" aria-labelledby="raw-line-heading">
-            <div className="flex items-center justify-between gap-3">
-              <h3 id="raw-line-heading" className="text-xs font-medium text-muted-foreground">
-                Raw line
-              </h3>
-              <Button variant="ghost" size="sm" className="h-7 px-2 pointer-coarse:h-11" onClick={copyRawLine}>
-                {copyState === "copied" ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : copyState === "failed" ? (
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-                <span className="ml-1 text-xs">
-                  {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy"}
-                </span>
-              </Button>
-            </div>
-            {copyState === "failed" && (
-              <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
-                Clipboard access was blocked, usually because this page is served over plain HTTP.
-                Select the line below to copy it manually.
-              </p>
-            )}
-            <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-all rounded-md border bg-muted/50 p-3 font-mono text-xs">
-              {entry.rawLine}
-            </pre>
-          </section>
+          <RawLineBlock key={entry.id} entry={entry} containerRef={contentRef} />
 
           <section className="space-y-1" aria-labelledby="parse-heading">
             <h3 id="parse-heading" className="text-xs font-medium text-muted-foreground">
@@ -108,6 +160,7 @@ export function DebugLogDetailSheet({
                 }
               />
               <DetailField label="Parse error" value={entry.parseError} mono />
+              <DetailField label="Source format" value={entry.logFormat} mono />
             </dl>
           </section>
 

@@ -6,6 +6,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { useOverlayEntry, useOverlayHistory } from "@/lib/overlay-history"
 
 interface ActionsState {
   open: (ip: string, fromLocationId?: number) => void
@@ -15,27 +16,38 @@ interface ActionsState {
 const ActionsContext = createContext<ActionsState | null>(null)
 const OriginContext = createContext<number | null | undefined>(undefined)
 
+const INSPECTOR_OVERLAY = "inspector"
+
 export function IpInspectorProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
+  const overlays = useOverlayHistory()
+  const inspectedIp = useInspectedIp()
   const [originLocationId, setOrigin] = useState<number | null>(null)
 
   const open = useCallback(
     (nextIp: string, fromLocationId?: number) => {
       setOrigin(fromLocationId ?? null)
       // Pushed, not replaced: Back closes the sheet.
-      void navigate({ to: ".", search: (prev: Record<string, unknown>) => ({ ...prev, inspect: nextIp }) })
+      void navigate({
+        to: ".",
+        search: (prev: Record<string, unknown>) => ({ ...prev, inspect: nextIp }),
+        state: overlays.stateFor(INSPECTOR_OVERLAY),
+      })
     },
-    [navigate, setOrigin],
+    [navigate, overlays, setOrigin],
   )
 
   const close = useCallback(() => {
     setOrigin(null)
+    if (overlays.backFrom(INSPECTOR_OVERLAY)) return
     void navigate({
       to: ".",
       search: (prev: Record<string, unknown>) => ({ ...prev, inspect: undefined }),
       replace: true,
     })
-  }, [navigate, setOrigin])
+  }, [navigate, overlays, setOrigin])
+
+  useOverlayEntry(INSPECTOR_OVERLAY, inspectedIp !== undefined, close, { adopt: true })
 
   const actions = useMemo(() => ({ open, close }), [open, close])
   return (
@@ -67,11 +79,15 @@ export function useInspectOnNavigate(ip: string): string | undefined {
   return sheetFillsScreen ? undefined : ip
 }
 
-export function useIpInspector() {
+function useInspectedIp(): string | undefined {
   const inspect = useSearch({ strict: false, select: (search) => search.inspect })
+  return typeof inspect === "string" && inspect ? inspect : undefined
+}
+
+export function useIpInspector() {
+  const ip = useInspectedIp()
   const actions = useIpInspectorActions()
   const originLocationId = useIpInspectorOrigin()
-  const ip = typeof inspect === "string" && inspect ? inspect : undefined
 
   return { ip, originLocationId, ...actions }
 }

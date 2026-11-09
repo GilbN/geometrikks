@@ -53,14 +53,29 @@ import type {
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData,
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsErrors,
   ApiV1AnalyticsTopUserAgentsGetTopUserAgentsResponses,
+  ApiV1AuthApiKeysCreateApiKeyData,
+  ApiV1AuthApiKeysCreateApiKeyErrors,
+  ApiV1AuthApiKeysCreateApiKeyResponses,
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyData,
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors,
+  ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses,
+  ApiV1AuthApiKeysListApiKeysData,
+  ApiV1AuthApiKeysListApiKeysErrors,
+  ApiV1AuthApiKeysListApiKeysResponses,
+  ApiV1AuthConnectionConnectionData,
+  ApiV1AuthConnectionConnectionErrors,
+  ApiV1AuthConnectionConnectionResponses,
   ApiV1AuthLoginLoginData,
   ApiV1AuthLoginLoginErrors,
   ApiV1AuthLoginLoginResponses,
   ApiV1AuthLogoutLogoutData,
+  ApiV1AuthLogoutLogoutErrors,
   ApiV1AuthLogoutLogoutResponses,
   ApiV1AuthMeMeData,
+  ApiV1AuthMeMeErrors,
   ApiV1AuthMeMeResponses,
   ApiV1AuthOidcStatusOidcStatusData,
+  ApiV1AuthOidcStatusOidcStatusErrors,
   ApiV1AuthOidcStatusOidcStatusResponses,
   ApiV1AuthOptionsOptionsData,
   ApiV1AuthOptionsOptionsResponses,
@@ -76,11 +91,16 @@ import type {
   ApiV1CrowdsecBanBanData,
   ApiV1CrowdsecBanBanErrors,
   ApiV1CrowdsecBanBanResponses,
+  ApiV1CrowdsecBanNetworksBanNetworksData,
+  ApiV1CrowdsecBanNetworksBanNetworksErrors,
+  ApiV1CrowdsecBanNetworksBanNetworksResponses,
   ApiV1CrowdsecBannedIpsListBannedIpsData,
   ApiV1CrowdsecBannedIpsListBannedIpsResponses,
   ApiV1CrowdsecBannedLocationsListBannedLocationsData,
   ApiV1CrowdsecBannedLocationsListBannedLocationsErrors,
   ApiV1CrowdsecBannedLocationsListBannedLocationsResponses,
+  ApiV1CrowdsecBannedRangesListBannedRangesData,
+  ApiV1CrowdsecBannedRangesListBannedRangesResponses,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors,
   ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses,
@@ -90,6 +110,9 @@ import type {
   ApiV1CrowdsecDecisionsLookupLookupDecisionsData,
   ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors,
   ApiV1CrowdsecDecisionsLookupLookupDecisionsResponses,
+  ApiV1CrowdsecDropNetworksListDropNetworksData,
+  ApiV1CrowdsecDropNetworksListDropNetworksErrors,
+  ApiV1CrowdsecDropNetworksListDropNetworksResponses,
   ApiV1CrowdsecStatsGetStatsData,
   ApiV1CrowdsecStatsGetStatsResponses,
   ApiV1CrowdsecStatusGetStatusData,
@@ -97,6 +120,8 @@ import type {
   ApiV1CrowdsecUnbanUnbanData,
   ApiV1CrowdsecUnbanUnbanErrors,
   ApiV1CrowdsecUnbanUnbanResponses,
+  ApiV1DropListsGetDropListsData,
+  ApiV1DropListsGetDropListsResponses,
   ApiV1GeoEventsFacetsGetGeoLogFacetsData,
   ApiV1GeoEventsFacetsGetGeoLogFacetsResponses,
   ApiV1GeoEventsListGeoEventsData,
@@ -149,6 +174,9 @@ import type {
   ApiV1InstancesListInstancesData,
   ApiV1InstancesListInstancesErrors,
   ApiV1InstancesListInstancesResponses,
+  ApiV1IntegrationSummarySummaryData,
+  ApiV1IntegrationSummarySummaryErrors,
+  ApiV1IntegrationSummarySummaryResponses,
   ApiV1LogsFilesKindNameDownloadData,
   ApiV1LogsFilesKindNameDownloadErrors,
   ApiV1LogsFilesKindNameDownloadResponses,
@@ -207,6 +235,9 @@ import type {
  */
 export type OperationName =
   | 'ban'
+  | 'ban_networks'
+  | 'connection'
+  | 'create_api_key'
   | 'delete_instance'
   | 'delete_server_location'
   | 'download'
@@ -221,6 +252,7 @@ export type OperationName =
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_decision_alert'
+  | 'get_drop_lists'
   | 'get_geo_log_facets'
   | 'get_geo_log_summary'
   | 'get_geo_log_time_series'
@@ -255,9 +287,12 @@ export type OperationName =
   | 'list_access_logs'
   | 'list_alert_scenarios'
   | 'list_alerts'
+  | 'list_api_keys'
   | 'list_banned_ips'
   | 'list_banned_locations'
+  | 'list_banned_ranges'
   | 'list_decisions'
+  | 'list_drop_networks'
   | 'list_files'
   | 'list_geo_events'
   | 'list_geo_locations'
@@ -269,10 +304,12 @@ export type OperationName =
   | 'oidc_status'
   | 'options'
   | 'read_settings'
+  | 'revoke_api_key'
   | 'rotate'
   | 'run_scheduler_job'
   | 'server_locations'
   | 'stats'
+  | 'summary'
   | 'tail'
   | 'unban'
 
@@ -282,6 +319,9 @@ export type OperationName =
  */
 export interface OperationDataTypes {
   'ban': ApiV1CrowdsecBanBanData
+  'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksData
+  'connection': ApiV1AuthConnectionConnectionData
+  'create_api_key': ApiV1AuthApiKeysCreateApiKeyData
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
@@ -296,6 +336,7 @@ export interface OperationDataTypes {
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData
+  'get_drop_lists': ApiV1DropListsGetDropListsData
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsData
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryData
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData
@@ -330,9 +371,12 @@ export interface OperationDataTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsData
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosData
   'list_alerts': ApiV1CrowdsecAlertsListAlertsData
+  'list_api_keys': ApiV1AuthApiKeysListApiKeysData
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsData
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsData
+  'list_banned_ranges': ApiV1CrowdsecBannedRangesListBannedRangesData
   'list_decisions': ApiV1CrowdsecDecisionsListDecisionsData
+  'list_drop_networks': ApiV1CrowdsecDropNetworksListDropNetworksData
   'list_files': ApiV1LogsFilesListFilesData
   'list_geo_events': ApiV1GeoEventsListGeoEventsData
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
@@ -344,10 +388,12 @@ export interface OperationDataTypes {
   'oidc_status': ApiV1AuthOidcStatusOidcStatusData
   'options': ApiV1AuthOptionsOptionsData
   'read_settings': ApiV1SettingsReadSettingsData
+  'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyData
   'rotate': ApiV1LogsRotateRotateData
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobData
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsData
   'stats': ApiV1StatsStatsData
+  'summary': ApiV1IntegrationSummarySummaryData
   'tail': ApiV1LogsTailTailData
   'unban': ApiV1CrowdsecUnbanUnbanData
 }
@@ -358,6 +404,9 @@ export interface OperationDataTypes {
  */
 export interface OperationResponseTypes {
   'ban': ApiV1CrowdsecBanBanResponses
+  'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksResponses
+  'connection': ApiV1AuthConnectionConnectionResponses
+  'create_api_key': ApiV1AuthApiKeysCreateApiKeyResponses
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
@@ -372,6 +421,7 @@ export interface OperationResponseTypes {
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses
+  'get_drop_lists': ApiV1DropListsGetDropListsResponses
   'get_geo_log_facets': ApiV1GeoEventsFacetsGetGeoLogFacetsResponses
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryResponses
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesResponses
@@ -406,9 +456,12 @@ export interface OperationResponseTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsResponses
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosResponses
   'list_alerts': ApiV1CrowdsecAlertsListAlertsResponses
+  'list_api_keys': ApiV1AuthApiKeysListApiKeysResponses
   'list_banned_ips': ApiV1CrowdsecBannedIpsListBannedIpsResponses
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsResponses
+  'list_banned_ranges': ApiV1CrowdsecBannedRangesListBannedRangesResponses
   'list_decisions': ApiV1CrowdsecDecisionsListDecisionsResponses
+  'list_drop_networks': ApiV1CrowdsecDropNetworksListDropNetworksResponses
   'list_files': ApiV1LogsFilesListFilesResponses
   'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
@@ -420,10 +473,12 @@ export interface OperationResponseTypes {
   'oidc_status': ApiV1AuthOidcStatusOidcStatusResponses
   'options': ApiV1AuthOptionsOptionsResponses
   'read_settings': ApiV1SettingsReadSettingsResponses
+  'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyResponses
   'rotate': ApiV1LogsRotateRotateResponses
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobResponses
   'server_locations': ApiV1GeoLocationsServerLocationsServerLocationsResponses
   'stats': ApiV1StatsStatsResponses
+  'summary': ApiV1IntegrationSummarySummaryResponses
   'tail': ApiV1LogsTailTailResponses
   'unban': ApiV1CrowdsecUnbanUnbanResponses
 }
@@ -434,6 +489,9 @@ export interface OperationResponseTypes {
  */
 export interface OperationErrorTypes {
   'ban': ApiV1CrowdsecBanBanErrors
+  'ban_networks': ApiV1CrowdsecBanNetworksBanNetworksErrors
+  'connection': ApiV1AuthConnectionConnectionErrors
+  'create_api_key': ApiV1AuthApiKeysCreateApiKeyErrors
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
@@ -448,6 +506,7 @@ export interface OperationErrorTypes {
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors
+  'get_drop_lists': never
   'get_geo_log_facets': never
   'get_geo_log_summary': ApiV1GeoEventsSummaryGetGeoLogSummaryErrors
   'get_geo_log_time_series': ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesErrors
@@ -482,24 +541,29 @@ export interface OperationErrorTypes {
   'list_access_logs': ApiV1AccessLogsListAccessLogsErrors
   'list_alert_scenarios': ApiV1CrowdsecAlertsScenariosListAlertScenariosErrors
   'list_alerts': ApiV1CrowdsecAlertsListAlertsErrors
+  'list_api_keys': ApiV1AuthApiKeysListApiKeysErrors
   'list_banned_ips': never
   'list_banned_locations': ApiV1CrowdsecBannedLocationsListBannedLocationsErrors
+  'list_banned_ranges': never
   'list_decisions': ApiV1CrowdsecDecisionsListDecisionsErrors
+  'list_drop_networks': ApiV1CrowdsecDropNetworksListDropNetworksErrors
   'list_files': never
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
   'list_instances': ApiV1InstancesListInstancesErrors
   'login': ApiV1AuthLoginLoginErrors
-  'logout': never
+  'logout': ApiV1AuthLogoutLogoutErrors
   'lookup_decisions': ApiV1CrowdsecDecisionsLookupLookupDecisionsErrors
-  'me': never
-  'oidc_status': never
+  'me': ApiV1AuthMeMeErrors
+  'oidc_status': ApiV1AuthOidcStatusOidcStatusErrors
   'options': never
   'read_settings': never
+  'revoke_api_key': ApiV1AuthApiKeysKeyIdRevokeApiKeyErrors
   'rotate': never
   'run_scheduler_job': ApiV1SystemSchedulerJobsJobIdRunRunSchedulerJobErrors
   'server_locations': never
   'stats': never
+  'summary': ApiV1IntegrationSummarySummaryErrors
   'tail': ApiV1LogsTailTailErrors
   'unban': ApiV1CrowdsecUnbanUnbanErrors
 }

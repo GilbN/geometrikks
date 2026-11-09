@@ -10,13 +10,27 @@ from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotAuthorizedException, NotFoundException
 from litestar.params import JSONBody, QueryParameter, SkipValidation
+from litestar.openapi.datastructures import ResponseSpec
 from litestar.response import Redirect
-from litestar.status_codes import HTTP_200_OK
+from litestar.status_codes import (
+    HTTP_200_OK,
+    HTTP_401_UNAUTHORIZED,
+    HTTP_403_FORBIDDEN,
+    HTTP_503_SERVICE_UNAVAILABLE,
+)
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.auth.connection import ConnectionResponse, connection_info
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
+from geometrikks.server.api_key_auth import (
+    NO_CREDENTIALS_SECURITY,
+    SESSION_ONLY_RESPONSE,
+    SESSION_ONLY_SECURITY,
+    requires_session_user,
+)
 from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
+from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
     OidcForbidden,
@@ -30,19 +44,24 @@ login_logger = get_logger(LOGIN_LOGGER_NAME)
 
 
 class LoginPayload(msgspec.Struct, rename="camel"):
+    """The admin username and password."""
+
     username: str
     password: str
 
 
 class SessionUser(msgspec.Struct, tag_field="mode", tag="session", rename="camel"):
-    """Someone is logged in through the built-in session auth."""
+    """The user of the current browser session."""
 
     username: str
-    provider: Literal["password", "oidc"]
+    provider: Annotated[
+        Literal["password", "oidc"],
+        msgspec.Meta(description="How the user logged in, with the admin password or through OIDC single sign-on."),
+    ]
 
 
 class AuthDisabled(msgspec.Struct, tag_field="mode", tag="disabled", rename="camel"):
-    """APP_AUTH_DISABLED=true: there is no session and no user to describe."""
+    """The server runs with APP_AUTH_DISABLED=true, so there is no session and no user."""
 
 
 # A tagged union rather than one struct with a nullable username: it makes the
@@ -52,32 +71,63 @@ MeResponse = SessionUser | AuthDisabled
 
 
 class OidcOption(msgspec.Struct, rename="camel"):
-    provider_name: str
+    """The OIDC single sign-on login."""
+
+    provider_name: Annotated[
+        str, msgspec.Meta(description="The name in the Sign in with button, from OIDC_PROVIDER_NAME. Defaults to SSO.")
+    ]
 
 
 class AuthOptions(msgspec.Struct, rename="camel"):
-    """Which login methods exist, readable before anyone is logged in."""
+    """The login methods this server offers."""
 
-    password: bool
+    password: Annotated[bool, msgspec.Meta(description="Whether the username and password login is on.")]
     oidc: OidcOption | None
 
 
 class LogoutResponse(msgspec.Struct, rename="camel"):
-    """Where the browser should go next; null means the login page."""
+    """Where the browser goes after logging out."""
 
-    redirect_to: str | None
+    redirect_to: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "The identity provider's sign-out URL. GeoMetrikks sets it when the session came from OIDC, "
+                "OIDC_LOGOUT_IDP is on and the provider's discovery document lists an end_session_endpoint. "
+                "Null means the login page."
+            )
+        ),
+    ]
 
 
 class OidcStatus(msgspec.Struct, rename="camel"):
-    """Discovery outcome for Settings > Status."""
+    """The state of OIDC single sign-on, as Settings > Status shows it."""
 
     configured: bool
     provider_name: str | None
     issuer: str | None
-    discovery: Literal["ok", "failed", "pending"]
-    detail: str | None
-    password_login: bool
-    idp_logout: bool
+    discovery: Annotated[
+        Literal["ok", "failed", "pending"],
+        msgspec.Meta(
+            description=(
+                "Whether reading the issuer's discovery document worked. `pending` means no attempt has "
+                "finished yet, or OIDC is not configured."
+            )
+        ),
+    ]
+    detail: Annotated[
+        str | None, msgspec.Meta(description="The error from the last failed discovery attempt, else null.")
+    ]
+    password_login: Annotated[bool, msgspec.Meta(description="Whether the username and password login is on.")]
+    idp_logout: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "OIDC_LOGOUT_IDP. When true, logout also ends the identity provider session if the provider "
+                "lists an end_session_endpoint."
+            )
+        ),
+    ]
 
 
 class AuthController(Controller):
@@ -94,7 +144,28 @@ class AuthController(Controller):
     path = "/auth"
     tags = ["Auth"]
 
-    @post("/login", status_code=HTTP_200_OK, exclude_from_auth=True)
+    @post(
+        "/login",
+        status_code=HTTP_200_OK,
+        exclude_from_auth=True,
+        security=NO_CREDENTIALS_SECURITY,
+        summary="Log in with the admin username and password",
+        description=(
+            "Checks the admin username and password, starts a browser session and sets its cookie. "
+            "Wrong credentials get a 401, and so does every attempt while password login is off because "
+            "only OIDC is set up. A 503 means the database is down and nobody can log in. With "
+            "APP_AUTH_DISABLED=true it checks nothing and answers with `mode` set to `disabled`."
+        ),
+        responses={
+            HTTP_401_UNAUTHORIZED: ResponseSpec(
+                data_container=ErrorEnvelope,
+                description="Wrong credentials, or password login is off because only OIDC is set up.",
+            ),
+            HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(
+                data_container=ErrorEnvelope, description="The database is down, so nobody can log in."
+            ),
+        },
+    )
     async def login(
         self,
         request: Request,
@@ -126,7 +197,19 @@ class AuthController(Controller):
         login_logger.info("login_success", provider="password", user=data.username, ip=client_ip)
         return SessionUser(username=data.username, provider="password")
 
-    @post("/logout", status_code=HTTP_200_OK)
+    @post(
+        "/logout",
+        status_code=HTTP_200_OK,
+        guards=[requires_session_user],
+        security=SESSION_ONLY_SECURITY,
+        summary="Log out and end the browser session",
+        description=(
+            "Ends the current session. After an OIDC login with OIDC_LOGOUT_IDP on, `redirectTo` holds the "
+            "identity provider's sign-out URL, as long as the provider lists an end_session_endpoint. "
+            "API keys get a 403 here; use a browser session."
+        ),
+        responses={HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE},
+    )
     async def logout(
         self,
         request: Request,
@@ -154,7 +237,21 @@ class AuthController(Controller):
         request.clear_session()
         return LogoutResponse(redirect_to=redirect_to)
 
-    @get("/me")
+    @get(
+        "/me",
+        guards=[requires_session_user],
+        security=SESSION_ONLY_SECURITY,
+        summary="Get the logged-in user",
+        description=(
+            "Returns the username and how the user logged in. A request without a session gets a 401. "
+            "With APP_AUTH_DISABLED=true it answers with `mode` set to `disabled`. API keys get a 403 here; "
+            "use a browser session."
+        ),
+        responses={
+            HTTP_401_UNAUTHORIZED: ResponseSpec(data_container=ErrorEnvelope, description="The request has no session."),
+            HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE,
+        },
+    )
     async def me(
         self,
         request: Request,
@@ -167,7 +264,37 @@ class AuthController(Controller):
         user: AdminUser = request.user
         return SessionUser(username=user.username, provider=user.provider)
 
-    @get("/options", exclude_from_auth=True)
+    @get(
+        "/connection",
+        summary="Check credentials and configured API features",
+        description=(
+            "Returns the app/API version and configured features without checking external services. "
+            "API-key requests also return that key's name, scope and expiry. Invalid or expired keys get "
+            "a coded 401 before this handler runs. Browser sessions return mode=session. With "
+            "APP_AUTH_DISABLED=true, mode=disabled means a supplied key has not been validated."
+        ),
+        response_headers={"Cache-Control": "no-store"},
+        responses={
+            HTTP_401_UNAUTHORIZED: ResponseSpec(data_container=ErrorEnvelope, description="Missing or invalid credentials."),
+            HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(data_container=ErrorEnvelope, description="The authentication store is unavailable."),
+        },
+    )
+    async def connection(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]],
+    ) -> ConnectionResponse:
+        return connection_info(settings, request.scope.get("user"))
+
+    @get(
+        "/options",
+        exclude_from_auth=True,
+        security=NO_CREDENTIALS_SECURITY,
+        summary="List the login methods this server offers",
+        description=(
+            "Says whether password login is on and, when OIDC single sign-on is set up, gives the provider's "
+            "name. It needs no credentials, so the login page can call it first. With APP_AUTH_DISABLED=true "
+            "both are off."
+        ),
+    )
     async def options(
         self,
         settings: NamedDependency[SkipValidation[Settings]],
@@ -177,7 +304,18 @@ class AuthController(Controller):
         oidc = OidcOption(provider_name=settings.oidc.provider_name) if settings.oidc.enabled else None
         return AuthOptions(password=settings.password_login_enabled, oidc=oidc)
 
-    @get("/oidc/status")
+    @get(
+        "/oidc/status",
+        guards=[requires_session_user],
+        security=SESSION_ONLY_SECURITY,
+        summary="Get the OIDC single sign-on status",
+        description=(
+            "Reports whether OIDC is configured, whether discovery against the issuer worked and the last "
+            "discovery error. It also says whether password login and identity provider logout are on. "
+            "API keys get a 403 here; use a browser session."
+        ),
+        responses={HTTP_403_FORBIDDEN: SESSION_ONLY_RESPONSE},
+    )
     async def oidc_status(
         self,
         request: Request,
@@ -211,7 +349,7 @@ class AuthController(Controller):
             idp_logout=settings.oidc.logout_idp,
         )
 
-    @get("/oidc/start", exclude_from_auth=True, include_in_schema=False)
+    @get("/oidc/start", exclude_from_auth=True, include_in_schema=False, security=NO_CREDENTIALS_SECURITY)
     async def oidc_start(self, request: Request) -> Redirect:
         """Browser navigation from the login button: send it to the provider."""
         client = runtime.get_oidc_client(request.app)
@@ -229,7 +367,7 @@ class AuthController(Controller):
         request.set_session(session)
         return Redirect(url, headers={"Cache-Control": "no-store"})
 
-    @get("/oidc/callback", exclude_from_auth=True, include_in_schema=False)
+    @get("/oidc/callback", exclude_from_auth=True, include_in_schema=False, security=NO_CREDENTIALS_SECURITY)
     async def oidc_callback(
         self,
         request: Request,

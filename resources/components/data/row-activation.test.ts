@@ -2,9 +2,9 @@ import type { MouseEvent } from "react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { rowActivation, stopRowActivation } from "./row-activation"
 
-const inside = { id: "cell text" }
+const inside = { id: "cell text", closest: () => null }
 const portaled = { id: "drawer item" }
-const row = { contains: (node: unknown) => node === inside }
+const row = { contains: (node: unknown) => node === inside || (node as { closest?: unknown } | null)?.closest !== undefined }
 
 function click(selection: { isCollapsed: boolean; anchorNode: unknown } | null, target: unknown = inside) {
   vi.stubGlobal("window", { getSelection: () => selection })
@@ -34,6 +34,11 @@ describe("stopRowActivation", () => {
 })
 
 describe("rowActivation", () => {
+  it("leaves a tap on a badge hint to the hint", () => {
+    const badgeHint = { closest: (selector: string) => (selector === "[data-badge-hint]" ? {} : null) }
+    expect(click({ isCollapsed: true, anchorNode: inside }, badgeHint)).not.toHaveBeenCalled()
+  })
+
   it("opens on a plain click", () => {
     expect(click({ isCollapsed: true, anchorNode: inside })).toHaveBeenCalledOnce()
   })

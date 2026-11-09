@@ -11,6 +11,7 @@
 import { lazy, Suspense } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { PageHeader } from "@/components/page-header"
+import { CardChartsSwitch } from "@/components/dashboard/card-charts-switch"
 import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
@@ -30,6 +31,7 @@ import {
   type GeoLogsSearch,
 } from "@/lib/geo-logs-search"
 import { useCrowdsecLiveUpdates } from "@/lib/queries"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import type { GeoLogSortField, GeoLogSortOrder } from "@/lib/api"
 
 const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
@@ -37,7 +39,7 @@ const GeoLogsMap = lazy(() => import("@/components/geo-logs/geo-logs-map"))
 export const Route = createFileRoute("/geo-logs")({
   validateSearch: (search: Record<string, unknown>): GeoLogsSearch =>
     geoLogsSearchSchema.parse(search),
-  staticData: { timeRange: true, chartBuckets: true },
+  staticData: { timeRange: true, chartBuckets: true, cardCharts: "geo-logs" },
   component: GeoLogsPage,
 })
 
@@ -58,6 +60,7 @@ function GeoLogsPage() {
   // Keep banned badges (Top IPs card + geo-logs table) in sync with external
   // cscli/console decisions; one subscription for the whole page.
   useCrowdsecLiveUpdates()
+  const phoneLayout = usePhoneLayout()
 
   const { filters, setFilters, patchSearch } = useUrlFilters({
     search,
@@ -78,6 +81,9 @@ function GeoLogsPage() {
         <PageHeader
           title="Geo Logs"
           subtitle="Trace where traffic originates, how locations change over time, and which clients recur."
+          // Phones set this in the range drawer. Leaving it out there lets the
+          // header, which has nothing else to show on a phone, take no space.
+          actions={phoneLayout ? undefined : <CardChartsSwitch page="geo-logs" />}
         />
         <JumpBar sections={SECTIONS} />
         <GeoLogsFilterBar />

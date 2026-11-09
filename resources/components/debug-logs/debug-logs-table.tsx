@@ -46,6 +46,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
 import { DataTableFrame } from "@/components/data/data-table-frame"
@@ -58,6 +59,7 @@ import { useAccessLogDebug, useAccessLogFacets, useCrowdsecLiveUpdates } from "@
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { isValidIp } from "@/lib/crowdsec"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import type { AccessLogDebugEntry, AccessLogDebugSortField, SortOrder } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { statusBadgeClass } from "@/lib/status-badge"
@@ -119,6 +121,14 @@ const COLUMNS: ColumnDef[] = [
         {r.parseError ?? "-"}
       </span>
     ),
+  },
+  {
+    key: "logFormat",
+    label: "Source format",
+    sortField: "logFormat",
+    defaultVisible: false,
+    mobileHidden: true,
+    render: (r) => <span className="whitespace-nowrap font-mono">{r.logFormat ?? "-"}</span>,
   },
   {
     key: "rawLine",
@@ -308,6 +318,7 @@ const DebugLogTableBody = memo(function DebugLogTableBody({
 export function DebugLogsTable() {
   const { range, customRange } = useTimeRange()
   const isMobile = useIsMobile()
+  const phone = usePhoneLayout()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -452,7 +463,7 @@ export function DebugLogsTable() {
       </FilterField>
     )
     const countryField = (
-      <FilterField label="Country" hideLabel={!inDrawer}>
+      <FilterField label="Country" hideLabel>
         <FilterCombobox
           label="Country"
           iconFor={(code) => <CountryFlag code={code} />}
@@ -466,12 +477,11 @@ export function DebugLogsTable() {
           loading={!facets}
           emptyText="No geo data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       </FilterField>
     )
     const cityField = (
-      <FilterField label="City" hideLabel={!inDrawer}>
+      <FilterField label="City" hideLabel>
         <FilterCombobox
           label="City"
           options={facets?.cities ?? []}
@@ -480,7 +490,6 @@ export function DebugLogsTable() {
           loading={!facets}
           emptyText="No geo data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       </FilterField>
     )
@@ -490,8 +499,32 @@ export function DebugLogsTable() {
           {searchField}
           {ipField}
           {malformedField}
-          {countryField}
-          {cityField}
+          <FilterSection>
+            <FilterListRow
+              label="Country"
+              search
+              iconFor={(code) => <CountryFlag code={code} />}
+              options={facets?.countries.map((c) => c.code) ?? []}
+              selected={countries}
+              onChange={setCountries}
+              labelFor={(code) => {
+                const name = facets?.countries.find((c) => c.code === code)?.name
+                return name ? `${name} (${code})` : code
+              }}
+              valueFor={(code) => facets?.countries.find((c) => c.code === code)?.name ?? code}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+            <FilterListRow
+              label="City"
+              search
+              options={facets?.cities ?? []}
+              selected={cities}
+              onChange={setCities}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+          </FilterSection>
         </>
       )
     }
@@ -539,7 +572,7 @@ export function DebugLogsTable() {
     <IpFilterTargetsProvider targetsFor={filterTargetsFor}>
       {/* Around the sheet too, so its IP actions menu gets the page's filters. */}
       <div className="space-y-4">
-        {isMobile ? (
+        {phone ? (
           <div onClick={() => setFacetsEnabled(true)}>
             <FiltersDrawer activeCount={activeFilterCount} onClear={clearFilters}>
               {renderFilters(true)}

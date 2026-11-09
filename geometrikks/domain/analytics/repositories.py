@@ -121,6 +121,35 @@ LATENCY_PCT = latency_col("latency_pct_agg", "pct_agg")
 URL_LATENCY_HITS = "COALESCE(latency_hits, timed_hits, hits)"
 URL_LATENCY_TOTAL = latency_col("total_latency", "total_request_time", count="latency_hits")
 
+# TimescaleDB costs a compressed-chunk scan far below what decompressing it
+# takes, so Postgres keeps wide scans on one core. Zero worker costs restore
+# the parallel plans. The Analytics page sends its wide scans together, and
+# without a cap the first one took every worker and left the chart serial,
+# so each takes a quarter of the pool. 64MB keeps the parallel sorts and
+# hashes in memory; 128MB measured slower on a 12M-row install. asyncpg
+# reuses prepared statements. After five runs on one connection Postgres may
+# switch to a cached generic plan, made without the request's range and
+# maybe before these settings applied, so each run is planned fresh. The
+# settings end with the transaction.
+_WIDE_SCAN_PLANNER_SQL = text("""
+    SELECT set_config('plan_cache_mode', 'force_custom_plan', true),
+           set_config('parallel_setup_cost', '0', true),
+           set_config('parallel_tuple_cost', '0', true),
+           set_config('max_parallel_workers_per_gather', LEAST(
+               current_setting('max_parallel_workers_per_gather')::int,
+               GREATEST(1, current_setting('max_parallel_workers')::int / 4)
+           )::text, true),
+           set_config('work_mem', CASE
+               WHEN pg_size_bytes(current_setting('work_mem')) < pg_size_bytes('64MB') THEN '64MB'
+               ELSE current_setting('work_mem')
+           END, true)
+""")
+
+
+async def plan_for_wide_scan(session: AsyncSession) -> None:
+    """Let the next access_logs scan in this transaction run in parallel."""
+    await session.execute(_WIDE_SCAN_PLANNER_SQL)
+
 
 def _floor_to_hour(dt: datetime) -> datetime:
     """Truncate datetime to the start of its hour."""
@@ -205,6 +234,14 @@ class SummaryStatsRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def latest_event_at(self, start: datetime, end: datetime) -> datetime | None:
+        """Latest retained access-log event time in the inclusive/exclusive range."""
+        result = await self.session.execute(
+            text("SELECT max(timestamp) FROM access_logs WHERE timestamp >= :start AND timestamp < :end"),
+            {"start": start, "end": end},
+        )
+        return result.scalar_one()
 
     async def get_summary(
         self,
@@ -370,12 +407,12 @@ class SummaryStatsRepository:
                 mal.malformed_requests
             FROM (
                 SELECT
-                    COALESCE(SUM(total_requests), 0) AS total_log_records,
+                    CAST(COALESCE(SUM(total_requests), 0) AS BIGINT) AS total_log_records,
                     COALESCE(SUM(total_bytes), 0) AS total_bytes,
-                    COALESCE(SUM(status_2xx), 0) AS status_2xx,
-                    COALESCE(SUM(status_3xx), 0) AS status_3xx,
-                    COALESCE(SUM(status_4xx), 0) AS status_4xx,
-                    COALESCE(SUM(status_5xx), 0) AS status_5xx,
+                    CAST(COALESCE(SUM(status_2xx), 0) AS BIGINT) AS status_2xx,
+                    CAST(COALESCE(SUM(status_3xx), 0) AS BIGINT) AS status_3xx,
+                    CAST(COALESCE(SUM(status_4xx), 0) AS BIGINT) AS status_4xx,
+                    CAST(COALESCE(SUM(status_5xx), 0) AS BIGINT) AS status_5xx,
                     COALESCE(SUM({LATENCY_COUNT}), 0) AS timed_requests,
                     SUM({LATENCY_AVG} * {LATENCY_COUNT})
                         / NULLIF(SUM({LATENCY_COUNT}), 0) AS avg_request_time,
@@ -389,7 +426,7 @@ class SummaryStatsRepository:
             ) log
             CROSS JOIN (
                 SELECT
-                    COALESCE(SUM(total_events), 0) AS total_geo_records,
+                    CAST(COALESCE(SUM(total_events), 0) AS BIGINT) AS total_geo_records,
                     COALESCE(distinct_count(rollup(hll_ips)), 0) AS unique_ips,
                     COALESCE(distinct_count(rollup(hll_countries)), 0) AS unique_countries,
                     COALESCE(distinct_count(rollup(hll_cities)), 0) AS unique_cities
@@ -773,6 +810,7 @@ class SummaryStatsRepository:
             ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {**_stitch_params(start, end, granularity), "limit": limit}
         )
@@ -909,6 +947,7 @@ class SummaryStatsRepository:
                 WHERE timestamp >= :start AND timestamp < :end
                 {filter_sql}
             """)
+            await plan_for_wide_scan(self.session)
             row = (await self.session.execute(
                 stmt, {"start": start, "end": end, **filter_params}
             )).one()
@@ -972,11 +1011,12 @@ class SummaryStatsRepository:
         """Top client IPs: stitched log_ip CAGG read above 24h, raw otherwise.
 
         Country/city/IP filters apply on the CAGG path (its columns carry the
-        dimensions), so filtered long ranges stay fast.
+        dimensions), so filtered long ranges stay fast. The CAGG has no ASN
+        column, so an ASN filter reads raw rows at any range.
         """
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_ips(
                 start, end, limit, filters=filters
             )
@@ -999,7 +1039,61 @@ class SummaryStatsRepository:
         result = await self.session.execute(
             stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
-        return [TopIpRow(**row._mapping) for row in result.fetchall()]
+        top_ips = [TopIpRow(**row._mapping) for row in result.fetchall()]
+        await self._attach_asns(top_ips, start, end, granularity)
+        return top_ips
+
+    async def _attach_asns(
+        self, top_ips: list[TopIpRow], start: datetime, end: datetime, granularity: StatsGranularity
+    ) -> None:
+        """Fill each row's ASN, which log_ip_*_stats does not carry.
+
+        The per-IP geo rollup answers most IPs. Only its whole buckets inside
+        the window count, since a partial last bucket also aggregates events
+        after ``end``. Some IPs have no geo event, because GeoIP gave them an
+        ASN but no location. Those, and IPs seen only in a partial bucket,
+        take the ASN of their newest access log in the window.
+        """
+        if not top_ips:
+            return
+        window = _stitch_params(start, end, granularity)
+        geo_rows = await self.session.execute(
+            text(f"""
+                SELECT DISTINCT ON (ip_address)
+                    host(ip_address) AS ip, asn, as_org
+                FROM ip_location_{granularity.value}_stats
+                WHERE ip_address = ANY(CAST(:ips AS inet[]))
+                  AND asn IS NOT NULL
+                  AND bucket >= :a_start AND bucket < :a_end
+                ORDER BY ip_address, bucket DESC
+            """),
+            {"ips": [top_ip.ip_address for top_ip in top_ips], **window},
+        )
+        networks = {row.ip: (int(row.asn), row.as_org) for row in geo_rows.fetchall()}
+        unresolved = [top_ip.ip_address for top_ip in top_ips if top_ip.ip_address not in networks]
+        if unresolved:
+            # LIMIT 1 over rows ordered by time stops at the first chunk that
+            # holds the IP, so a busy IP's lines are not all read.
+            log_rows = await self.session.execute(
+                text("""
+                    SELECT host(ips.ip) AS ip, latest.asn, latest.as_org
+                    FROM unnest(CAST(:ips AS inet[])) AS ips(ip)
+                    CROSS JOIN LATERAL (
+                        SELECT autonomous_system_number AS asn,
+                               autonomous_system_organization AS as_org
+                        FROM access_logs
+                        WHERE ip_address = ips.ip
+                          AND timestamp >= :start AND timestamp < :end
+                          AND autonomous_system_number IS NOT NULL
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) latest
+                """),
+                {"ips": unresolved, "start": start, "end": end},
+            )
+            networks.update({row.ip: (int(row.asn), row.as_org) for row in log_rows.fetchall()})
+        for top_ip in top_ips:
+            top_ip.asn, top_ip.as_organization = networks.get(top_ip.ip_address, (None, None))
 
     async def get_top_countries(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
@@ -1007,7 +1101,7 @@ class SummaryStatsRepository:
         """Top countries with exact unique-IP counts (combined is IP-keyed)."""
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_countries(
                 start, end, limit, filters=filters
             )
@@ -1036,7 +1130,7 @@ class SummaryStatsRepository:
         """Top cities with exact unique-IP counts (NULL cities excluded)."""
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW:
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
             return await LiveStatsRepository(self.session).get_top_cities(
                 start, end, limit, filters=filters
             )
@@ -1101,6 +1195,8 @@ class TopIpRow:
     total_bytes: int
     country_code: str | None
     city: str | None
+    asn: int | None = None
+    as_organization: str | None = None
 
 
 @dataclass
@@ -1128,7 +1224,7 @@ class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
     Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP. An exclude-only filter counts as
+    cannot be sliced by country/city/IP/ASN. An exclude-only filter counts as
     active for exactly that reason.
     """
 
@@ -1136,9 +1232,18 @@ class AnalyticsFilters:
     cities: Sequence[str] | None = None
     ip_addresses: Sequence[str] | None = None
     ip_exclude: Sequence[str] | None = None
+    asns: Sequence[int] | None = None
+    asns_exclude: Sequence[int] | None = None
 
     def is_active(self) -> bool:
-        return bool(self.country_codes or self.cities or self.ip_addresses or self.ip_exclude)
+        return bool(
+            self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
+            or self.asns or self.asns_exclude
+        )
+
+    def needs_raw_rows(self) -> bool:
+        """True when a filter has no column on the per-IP log_ip CAGGs."""
+        return bool(self.asns or self.asns_exclude)
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -1156,6 +1261,15 @@ class AnalyticsFilters:
         if self.ip_exclude:
             clauses.append("AND NOT (ip_address = ANY(CAST(:filter_ips_exclude AS inet[])))")
             params["filter_ips_exclude"] = list(self.ip_exclude)
+        if self.asns:
+            clauses.append("AND autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))")
+            params["filter_asns"] = [int(asn) for asn in self.asns]
+        if self.asns_exclude:
+            clauses.append(
+                "AND (autonomous_system_number IS NULL "
+                "OR NOT (autonomous_system_number = ANY(CAST(:filter_asns_exclude AS bigint[]))))"
+            )
+            params["filter_asns_exclude"] = [int(asn) for asn in self.asns_exclude]
         return " ".join(clauses), params
 
 
@@ -1318,39 +1432,63 @@ class LiveStatsRepository:
         bucket_interval is '1 hour' or '1 day' (validated by the caller).
         With a non-UTC ``tz``, daily buckets are local days; raw rows carry
         exact timestamps, so this needs no range restriction.
+
+        The scan groups by UTC quarter hours and rolls those up, because a
+        per-row time_bucket with a timezone costs more than the scan itself
+        and PERCENTILE_CONT cannot run in parallel. Every zone offset in use
+        is a whole number of quarter hours, so no quarter straddles a local
+        day.
+        Percentiles come from percentile_agg, as on the CAGG path.
         """
         if bucket_interval not in ("1 hour", "1 day"):
             raise ValueError("bucket_interval must be '1 hour' or '1 day'")
         local_days = bucket_interval == "1 day" and tz is not None and tz != "UTC"
         bucket_expr = (
-            "time_bucket('1 day', timestamp, CAST(:tz AS TEXT))"
+            "time_bucket('1 day', quarter, CAST(:tz AS TEXT))"
             if local_days
-            else f"time_bucket('{bucket_interval}', timestamp)"
+            else f"time_bucket('{bucket_interval}', quarter)"
         )
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
         if local_days:
             filter_params = {**filter_params, "tz": tz}
         stmt = text(f"""
+            WITH quarters AS (
+                SELECT
+                    time_bucket('15 minutes', timestamp) AS quarter,
+                    COUNT(*) AS total_requests,
+                    SUM(bytes_sent) AS total_bytes,
+                    COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
+                    COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
+                    COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
+                    COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
+                    COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
+                    SUM(request_time) FILTER (WHERE {LATENCY_FILTER}) AS total_request_time,
+                    MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
+                    percentile_agg(request_time) FILTER (WHERE {LATENCY_FILTER}) AS pct_agg
+                FROM access_logs
+                WHERE timestamp >= :start AND timestamp < :end
+                {filter_sql}
+                GROUP BY quarter
+            )
             SELECT
                 {bucket_expr} AS bucket,
-                CAST(COUNT(*) AS BIGINT) AS total_requests,
-                CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
-                COUNT(*) FILTER (WHERE status_code >= 200 AND status_code < 300) AS status_2xx,
-                COUNT(*) FILTER (WHERE status_code >= 300 AND status_code < 400) AS status_3xx,
-                COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500) AS status_4xx,
-                COUNT(*) FILTER (WHERE status_code >= 500 AND status_code < 600) AS status_5xx,
-                COUNT(request_time) FILTER (WHERE {LATENCY_FILTER}) AS timed_requests,
-                AVG(request_time) FILTER (WHERE {LATENCY_FILTER}) AS avg_request_time,
-                MAX(request_time) FILTER (WHERE {LATENCY_FILTER}) AS max_request_time,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p50_request_time,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p95_request_time,
-                PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY request_time) FILTER (WHERE {LATENCY_FILTER}) AS p99_request_time
-            FROM access_logs
-            WHERE timestamp >= :start AND timestamp < :end
-            {filter_sql}
+                CAST(SUM(total_requests) AS BIGINT) AS total_requests,
+                CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
+                CAST(SUM(status_2xx) AS BIGINT) AS status_2xx,
+                CAST(SUM(status_3xx) AS BIGINT) AS status_3xx,
+                CAST(SUM(status_4xx) AS BIGINT) AS status_4xx,
+                CAST(SUM(status_5xx) AS BIGINT) AS status_5xx,
+                CAST(SUM(timed_requests) AS BIGINT) AS timed_requests,
+                SUM(total_request_time) / NULLIF(SUM(timed_requests), 0) AS avg_request_time,
+                MAX(max_request_time) AS max_request_time,
+                approx_percentile(0.50, rollup(pct_agg)) AS p50_request_time,
+                approx_percentile(0.95, rollup(pct_agg)) AS p95_request_time,
+                approx_percentile(0.99, rollup(pct_agg)) AS p99_request_time
+            FROM quarters
             GROUP BY bucket
             ORDER BY bucket ASC
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, **filter_params}
         )
@@ -1398,6 +1536,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, host, url
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1428,6 +1567,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, user_agent
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1450,6 +1590,7 @@ class LiveStatsRepository:
             GROUP BY autonomous_system_number
             ORDER BY hits DESC, asn
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, **filter_params}
         )
@@ -1475,7 +1616,9 @@ class LiveStatsRepository:
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(bytes_sent), 0) AS BIGINT) AS total_bytes,
                 MAX(country_code) AS country_code,
-                MAX(city) AS city
+                MAX(city) AS city,
+                MAX(autonomous_system_number) AS asn,
+                MAX(autonomous_system_organization) AS as_organization
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}
@@ -1483,6 +1626,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, ip_address
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1506,6 +1650,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, country_code
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
@@ -1529,6 +1674,7 @@ class LiveStatsRepository:
             ORDER BY hits DESC, city
             LIMIT :limit
         """)
+        await plan_for_wide_scan(self.session)
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )

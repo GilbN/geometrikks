@@ -1,5 +1,7 @@
-import type { AboutResponse, GeoIpInfoView } from "@/generated/api/types.gen"
+import type { AboutResponse, DropListsAboutView, GeoIpInfoView } from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
+import { formatTs } from "@/lib/datetime"
+import { dropListsState } from "@/lib/drop-lists"
 import { displayVersion, publicVersion } from "@/lib/version"
 
 export interface SectionSummary {
@@ -76,12 +78,37 @@ function geoipPart(name: string, info: GeoIpInfoView): string {
   return `${name} ${info.ageDays} ${info.ageDays === 1 ? "day" : "days"} old`
 }
 
+/**
+ * The DROP lists' light and state. Before the first download the light is
+ * grey, and amber once a download has failed, so a blocked host shows up.
+ * After that it turns amber again whenever a feed's latest download failed.
+ */
+export function dropListsStatus(dropLists: DropListsAboutView): { tone: LedTone; label: string } {
+  const state = dropListsState(dropLists)
+  if (state === "not-downloaded") {
+    const anyError = dropLists.feeds.some((feedView) => feedView.lastError)
+    return { tone: anyError ? "amber" : "muted", label: "Not downloaded yet" }
+  }
+  const updatedAt = dropLists.updatedAt ? formatTs(dropLists.updatedAt, "hourly") : null
+  if (state === "stale") {
+    return { tone: "amber", label: updatedAt ? `Out of date, updated ${updatedAt}` : "Out of date" }
+  }
+  return { tone: state === "failing" ? "amber" : "emerald", label: updatedAt ? `Updated ${updatedAt}` : "Downloaded" }
+}
+
 export function geoipSummary(about: Pick<AboutResponse, "geoip" | "geoipAsn" | "geoipAsnEnabled">): SectionSummary {
   const asn = about.geoipAsnEnabled && about.geoipAsn ? about.geoipAsn : null
   const tones = [geoipFreshness(about.geoip.available, about.geoip.ageDays).tone]
   if (asn) tones.push(geoipFreshness(asn.available, asn.ageDays).tone)
-  const asnPart = asn ? geoipPart("ASN", asn) : "ASN disabled"
-  return { tone: worstTone(tones), text: `${geoipPart("City", about.geoip)}, ${asnPart}` }
+  const parts = [geoipPart("City", about.geoip), asn ? geoipPart("ASN", asn) : "ASN disabled"]
+  return { tone: worstTone(tones), text: parts.join(", ") }
+}
+
+/** The phone row's line: the status, with a failed download named ahead of the last good one. */
+export function dropListsSummary(dropLists: DropListsAboutView): SectionSummary {
+  const status = dropListsStatus(dropLists)
+  if (dropListsState(dropLists) !== "failing") return { tone: status.tone, text: status.label }
+  return { tone: status.tone, text: `Download failed, ${status.label.charAt(0).toLowerCase()}${status.label.slice(1)}` }
 }
 
 /** A row with a red or amber light starts open, so the problem shows without a tap. */

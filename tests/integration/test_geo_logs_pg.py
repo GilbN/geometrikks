@@ -368,6 +368,17 @@ class TestTimeSeries:
         assert [(p.total_events, p.unique_ips) for p in points] == [(3, 1), (1, 1)]
         assert points[0].timestamp < points[1].timestamp
 
+    async def test_raw_buckets_count_countries_and_cities(self, pg_session_maker, clean_tables):
+        await seed_raw(pg_session_maker)
+        async with pg_session_maker() as session:
+            points = await GeoEventService(session=session).get_time_series(
+                RAW_START, NOW, StatsGranularity.HOURLY, GeoEventFilters()
+            )
+        # The US location has no city, so the first hour counts one city.
+        assert [
+            (p.total_events, p.unique_ips, p.unique_countries, p.unique_cities) for p in points
+        ] == [(4, 2, 2, 1), (3, 2, 2, 2)]
+
     async def test_unfiltered_cagg_buckets(self, pg_engine, pg_session_maker, clean_tables):
         await seed_multiday(pg_session_maker)
         await refresh_caggs_range(
@@ -379,7 +390,7 @@ class TestTimeSeries:
                 GeoEventFilters(),
             )
         assert sum(p.total_events for p in points) == 9
-        assert all(p.unique_ips == 2 for p in points)
+        assert all((p.unique_ips, p.unique_countries, p.unique_cities) == (2, 2, 2) for p in points)
 
 
 class TestTopN:
@@ -655,12 +666,13 @@ class TestLocationTopIpsMisaligned:
         locs = await seed_boundary(pg_session_maker)
         await self._refresh(pg_engine)
         async with pg_session_maker() as session:
-            rows = await GeoLocationRepository(session=session).get_location_top_ips(
+            result = await GeoLocationRepository(session=session).get_location_top_ips(
                 locs["no"], B_START, B_END, limit=10
             )
-        assert [(r.ip_address, r.event_count) for r in rows] == [
+        assert [(r.ip_address, r.event_count) for r in result.top_ips] == [
             ("1.1.1.1", 4),
         ], "9.9.9.9 (head edge, same day bucket) must not appear"
+        assert result.unique_ips == 1
 
     async def test_global_top_ips_excludes_edge_events(self, pg_engine, pg_session_maker, clean_tables):
         from geometrikks.domain.geo.repositories import GeoLocationRepository
@@ -675,6 +687,67 @@ class TestLocationTopIpsMisaligned:
             ("1.1.1.1", 4, locs["no"]),
             ("2.2.2.2", 3, locs["se"]),
         ], "9.9.9.9 / 8.8.8.8 edge events are outside the window"
+
+
+class TestLocationTopIpsNetwork:
+    """The top IPs of one location carry the network of each IP's newest event
+    that has one, and the location's distinct IP count past the limit."""
+
+    async def _seed(self, session_maker, *, base: datetime) -> int:
+        async with session_maker() as session:
+            locs = await _seed_locations(session)
+            rows = [
+                (base - timedelta(hours=10), "1.1.1.1", 64500, "Old Net"),
+                (base - timedelta(hours=5), "1.1.1.1", 64501, "New Net"),
+                # Newest, but without an ASN: the network comes from the row before it.
+                (base - timedelta(hours=1), "1.1.1.1", None, None),
+                (base - timedelta(hours=2), "2.2.2.2", None, None),
+            ]
+            for ts, ip, asn, org in rows:
+                await session.execute(
+                    text(
+                        "INSERT INTO geo_events (timestamp, ip_address, server, location_id, "
+                        "autonomous_system_number, autonomous_system_organization) "
+                        "VALUES (:ts, :ip, 'web1', :loc, :asn, :org)"
+                    ),
+                    {"ts": ts, "ip": ip, "loc": locs["no"], "asn": asn, "org": org},
+                )
+            await session.commit()
+        return locs["no"]
+
+    async def test_raw_range(self, pg_session_maker, clean_tables):
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        location_id = await self._seed(pg_session_maker, base=NOW)
+        async with pg_session_maker() as session:
+            result = await GeoLocationRepository(session=session).get_location_top_ips(
+                location_id, NOW - timedelta(hours=12), NOW, limit=1
+            )
+        assert [(r.ip_address, r.event_count, r.asn, r.as_organization) for r in result.top_ips] == [
+            ("1.1.1.1", 3, 64501, "New Net"),
+        ]
+        assert result.unique_ips == 2
+
+    async def test_stitched_range(self, pg_engine, pg_session_maker, clean_tables):
+        from geometrikks.domain.geo.repositories import GeoLocationRepository
+
+        location_id = await self._seed(pg_session_maker, base=NOW - timedelta(days=1))
+        await refresh_caggs_range(pg_engine, start=NOW - timedelta(days=4), end=NOW + timedelta(hours=1))
+        async with pg_session_maker() as session:
+            result = await GeoLocationRepository(session=session).get_location_top_ips(
+                location_id, NOW - timedelta(days=3), NOW, limit=5
+            )
+        assert [(r.ip_address, r.event_count, r.asn, r.as_organization) for r in result.top_ips] == [
+            ("1.1.1.1", 3, 64501, "New Net"),
+            ("2.2.2.2", 1, None, None),
+        ]
+        assert result.unique_ips == 2
+        async with pg_session_maker() as session:
+            limited = await GeoLocationRepository(session=session).get_location_top_ips(
+                location_id, NOW - timedelta(days=3), NOW, limit=1
+            )
+        assert [r.ip_address for r in limited.top_ips] == ["1.1.1.1"]
+        assert limited.unique_ips == 2, "the count covers IPs past the limit"
 
 
 class TestFacets:
@@ -726,7 +799,9 @@ class TestFilteredSummaryAndSeriesCaggPath:
                 B_START, B_END, StatsGranularity.HOURLY,
                 GeoEventFilters(ip_include=["1.1.1.1"]),
             )
-        assert [(p.total_events, p.unique_ips) for p in points] == [(1, 1), (3, 1)]
+        assert [
+            (p.total_events, p.unique_ips, p.unique_countries, p.unique_cities) for p in points
+        ] == [(1, 1, 1, 1), (3, 1, 1, 1)]
         assert points[0].timestamp < points[1].timestamp
 
     async def test_server_filter_still_raw_and_exact(self, pg_engine, pg_session_maker, clean_tables):

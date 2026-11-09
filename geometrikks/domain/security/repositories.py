@@ -16,7 +16,7 @@ from geometrikks.domain.geo.repositories import (
 )
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.lib.time import ensure_utc
-from geometrikks.domain.security.schemas import IpEnrichment, IpLocation
+from geometrikks.domain.security.schemas import DropNetworkHits, DropNetworkOrigin, IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -166,6 +166,176 @@ class SecurityEnrichmentRepository:
             )
             for row in rows
         ]
+
+
+def _client_ip_sql(column: str) -> str:
+    """SQL for ``column`` with an IPv4-mapped address (::ffff:192.0.2.10) in its IPv4 form.
+
+    PostgreSQL never matches a mapped address against an IPv4 network, and
+    ingest stores client addresses as logged. Matching the unwrapped form
+    against ``drop_networks.cidr`` keeps the join on its GiST index, and
+    counting it makes the two forms of one client a single IP.
+    """
+    return (
+        f"CASE WHEN {column} <<= '::ffff:0:0/96'::inet "
+        f"THEN '0.0.0.0'::inet + ({column} - '::ffff:0:0'::inet) ELSE {column} END"
+    )
+
+
+def _narrowest_network_sql(client_ip: str) -> str:
+    """LATERAL subquery giving the narrowest DROP network that holds ``client_ip``.
+
+    Each client counts under one network, the narrowest, as in the Python
+    snapshot and the browser. ``>>=`` keeps the probe on the GiST index.
+    """
+    return f"""(
+        SELECT cidr, sbl_id
+        FROM drop_networks
+        WHERE cidr >>= {client_ip}
+        ORDER BY masklen(cidr) DESC
+        LIMIT 1
+    )"""
+
+
+DROP_ORIGINS_STMT = text(
+    f"""
+    SELECT
+        dn.cidr::text AS cidr,
+        al.autonomous_system_number AS asn,
+        al.autonomous_system_organization AS as_org,
+        COUNT(*) AS row_count,
+        MAX(al.timestamp) AS last_seen
+    FROM drop_networks dn
+    JOIN (
+        SELECT {_client_ip_sql("ip_address")} AS client_ip, timestamp,
+            autonomous_system_number, autonomous_system_organization
+        FROM access_logs
+        WHERE timestamp >= :start AND timestamp < :end
+    ) al ON dn.cidr >>= al.client_ip
+    WHERE dn.cidr = ANY(:cidrs)
+        AND NOT EXISTS (
+            SELECT 1 FROM drop_networks narrower
+            WHERE narrower.cidr >>= al.client_ip AND masklen(narrower.cidr) > masklen(dn.cidr)
+        )
+    GROUP BY dn.cidr, al.autonomous_system_number, al.autonomous_system_organization
+    """
+).bindparams(bindparam("cidrs", type_=postgresql.ARRAY(postgresql.CIDR)))
+
+
+class DropTrafficRepository:
+    """Access-log traffic from the networks on the DROP list."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def network_hits(self, start: datetime, end: datetime) -> list[DropNetworkHits]:
+        """Hits and distinct IPs per DROP network with traffic in ``[start, end)``.
+
+        Rows come busiest first. Windows over 24h read the per-IP CAGG and
+        stitch raw access_logs for the edges the whole buckets do not cover,
+        the way ``/analytics/top-ips`` does, so the result equals a raw scan.
+        An IPv4-mapped client and its plain IPv4 form count as one IP, and a
+        client inside nested networks counts under the narrowest only.
+        Each client's rows are summed before the network lookup, because the
+        CAGG holds a row per IP per bucket and a lookup per row took seconds.
+        ``last_seen`` is exact when the newest request is in a raw edge and
+        the start of its bucket otherwise.
+        """
+        start_ts, end_ts = ensure_utc(start), ensure_utc(end)
+        granularity = get_stats_granularity(start_ts, end_ts)
+        if granularity == StatsGranularity.RAW:
+            params: dict = {"start": start_ts, "end": end_ts, "a_start": end_ts, "a_end": end_ts}
+            cagg_leg = ""
+        else:
+            params = stitch_params(start_ts, end_ts, granularity)
+            cagg_leg = f"""
+                SELECT {_client_ip_sql("ip_address")} AS client_ip, hits, bucket AS seen_at
+                FROM log_ip_{granularity.value}_stats
+                WHERE bucket >= :a_start AND bucket < :a_end
+                UNION ALL
+            """
+        raw_leg = f"""
+                SELECT {_client_ip_sql("ip_address")} AS client_ip, CAST(1 AS BIGINT) AS hits, timestamp AS seen_at
+                FROM access_logs
+                WHERE timestamp >= :{{leg_start}} AND timestamp < :{{leg_end}}
+        """
+        stmt = text(f"""
+            WITH combined AS (
+                {cagg_leg}
+                {raw_leg.format(leg_start="start", leg_end="a_start")}
+                UNION ALL
+                {raw_leg.format(leg_start="a_end", leg_end="end")}
+            ),
+            per_client AS (
+                SELECT client_ip, SUM(hits) AS client_hits, MAX(seen_at) AS client_seen_at
+                FROM combined
+                GROUP BY client_ip
+            )
+            SELECT
+                dn.cidr::text AS cidr,
+                dn.sbl_id,
+                CAST(SUM(per_client.client_hits) AS BIGINT) AS hits,
+                CAST(COUNT(*) AS BIGINT) AS ips,
+                MAX(per_client.client_seen_at) AS last_seen
+            FROM per_client
+            CROSS JOIN LATERAL {_narrowest_network_sql("per_client.client_ip")} dn
+            GROUP BY dn.cidr, dn.sbl_id
+            ORDER BY hits DESC, cidr
+        """)
+        result = await self.session.execute(stmt, params)
+        return [
+            DropNetworkHits(
+                cidr=network_row.cidr,
+                sbl_id=network_row.sbl_id,
+                hits=network_row.hits,
+                ips=network_row.ips,
+                last_seen=network_row.last_seen,
+            )
+            for network_row in result
+        ]
+
+    async def network_origins(
+        self, cidrs: list[str], start: datetime, end: datetime
+    ) -> dict[str, DropNetworkOrigin]:
+        """Most common ASN and the newest request per network, from raw access_logs.
+
+        Takes the page's networks only. The ASN with the most rows wins and
+        its organization is the commonest label among those rows, so an ASN
+        logged under two organization names still counts once. A network whose
+        raw rows have aged out of retention is absent from the result.
+        """
+        if not cidrs:
+            return {}
+        result = await self.session.execute(
+            DROP_ORIGINS_STMT, {"cidrs": cidrs, "start": ensure_utc(start), "end": ensure_utc(end)}
+        )
+        row_counts_by_cidr: dict[str, dict[tuple[int | None, str | None], int]] = {}
+        newest_by_cidr: dict[str, datetime] = {}
+        for origin_row in result:
+            row_counts = row_counts_by_cidr.setdefault(origin_row.cidr, {})
+            row_counts[(origin_row.asn, origin_row.as_org)] = origin_row.row_count
+            newest_by_cidr[origin_row.cidr] = max(
+                origin_row.last_seen, newest_by_cidr.get(origin_row.cidr, origin_row.last_seen)
+            )
+        origins: dict[str, DropNetworkOrigin] = {}
+        for cidr, row_counts in row_counts_by_cidr.items():
+            rows_per_asn: dict[int, int] = {}
+            for (row_asn, _), row_count in row_counts.items():
+                if row_asn is not None:
+                    rows_per_asn[row_asn] = rows_per_asn.get(row_asn, 0) + row_count
+            top_asn: int | None = None
+            top_org: str | None = None
+            if rows_per_asn:
+                top_asn = min(rows_per_asn, key=lambda asn: (-rows_per_asn[asn], asn))
+                rows_per_org = {
+                    row_org: row_count
+                    for (row_asn, row_org), row_count in row_counts.items()
+                    if row_asn == top_asn and row_org is not None
+                }
+                if rows_per_org:
+                    top_org = min(rows_per_org, key=lambda org: (-rows_per_org[org], org))
+            origins[cidr] = DropNetworkOrigin(asn=top_asn, as_org=top_org, last_seen=newest_by_cidr[cidr])
+        return origins
 
 
 def _is_ip(value: str) -> bool:

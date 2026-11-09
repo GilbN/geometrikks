@@ -42,7 +42,7 @@ export function TimeRangeToolbar() {
   return (
     <>
       {/* Desktop Layout */}
-      <div className="hidden md:flex items-center gap-2">
+      <div className="hidden md:flex phone:hidden items-center gap-2">
         {/* Time Range Dropdown Menu */}
         <TimeRangePicker
           trigger={
@@ -118,25 +118,46 @@ export function TimeRangeToolbar() {
           for the range, auto refresh and chart buckets. Pages that don't
           follow the range show neither. */}
       {routeHeader.timeRange && (
-        <div className="md:hidden flex items-center gap-1.5">
-          <RefreshButton />
-          <TimeRangePicker
-            refreshControls={{ chartBuckets: routeHeader.chartBuckets }}
-            trigger={
-              <Button
-                size="sm"
-                aria-label={`Time range and refresh, ${rangeLabel}`}
-                // The focus ring is the primary colour too and needs a gap to
-                // show against the light theme's filled pill.
-                className="shrink-0 gap-1 rounded-full px-3 text-xs font-semibold not-dark:hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--primary-state-mix))] not-dark:active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--primary-state-mix))] focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              >
-                <span className="max-w-28 truncate tabular-nums">{rangeLabel}</span>
-                <ChevronDown aria-hidden className="size-3.5" />
-              </Button>
-            }
-          />
+        <div className="md:hidden phone:flex flex items-center gap-1.5">
+          <PhoneTimeRangeControls />
         </div>
       )}
+    </>
+  )
+}
+
+const CHIP_REFRESH = "size-9 pointer-coarse:min-h-9 pointer-coarse:min-w-9"
+const CHIP_RANGE =
+  "h-9 pointer-coarse:min-h-9 bg-primary/14 text-primary dark:border-transparent dark:bg-primary/14 hover:bg-primary/22 dark:hover:bg-primary/22 not-dark:hover:bg-primary/22 active:bg-primary/28 not-dark:active:bg-primary/28"
+
+/** The phone's refresh button and range pill, in the header or, on the map, in
+ *  the floating range chip, where both are 36px and the pill is tinted. */
+export function PhoneTimeRangeControls({ chip = false }: { chip?: boolean }) {
+  const { range, customRange } = useTimeRange()
+  const routeHeader = useRouteHeader()
+  const rangeLabel = timeRangeLabel(range, customRange)
+
+  return (
+    <>
+      <RefreshButton className={chip ? CHIP_REFRESH : undefined} />
+      <TimeRangePicker
+        refreshControls={{ chartBuckets: routeHeader.chartBuckets, cardCharts: routeHeader.cardCharts }}
+        trigger={
+          <Button
+            size="sm"
+            aria-label={`Time range and refresh, ${rangeLabel}`}
+            // The focus ring is the primary colour too and needs a gap to
+            // show against the light theme's filled pill.
+            className={cn(
+              "shrink-0 gap-1 rounded-full px-3 text-xs font-semibold not-dark:hover:bg-[color-mix(in_oklab,var(--primary)_85%,var(--primary-state-mix))] not-dark:active:bg-[color-mix(in_oklab,var(--primary)_70%,var(--primary-state-mix))] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              chip && cn(CHIP_RANGE, "min-w-0 shrink"),
+            )}
+          >
+            <span className="max-w-28 truncate tabular-nums">{rangeLabel}</span>
+            <ChevronDown aria-hidden className="size-3.5" />
+          </Button>
+        }
+      />
     </>
   )
 }
@@ -144,7 +165,7 @@ export function TimeRangeToolbar() {
 /** Refresh now. While auto refresh is on, a ring around the button fills
  *  once per interval. It runs on its own clock, so it shows the cadence
  *  rather than the exact moment each query refetches. */
-function RefreshButton() {
+function RefreshButton({ className }: { className?: string }) {
   const { refresh, pollInterval, lastRefresh } = useTimeRange()
   const isFetching = useIsFetching()
   // A new page's queries start their poll timers when they mount.
@@ -155,7 +176,7 @@ function RefreshButton() {
       size="icon-sm"
       onClick={refresh}
       disabled={isFetching > 0}
-      className="relative shrink-0 rounded-full"
+      className={cn("relative shrink-0 rounded-full", className)}
     >
       {pollInterval > 0 && (
         <svg

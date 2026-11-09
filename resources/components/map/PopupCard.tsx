@@ -2,17 +2,17 @@
  * Shared chrome for the map's anchored popups: glass card, close button and
  * a header row. Inline styles, matching the rest of the popup content.
  *
+ * The full-page map shows the same content in a MapDetailPanel on phones;
+ * the Geo Logs card uses these popups at every width.
+ *
  * Callers leave the Popup's anchor unset so MapLibre flips it to whichever
- * side keeps it inside the map, and pass POPUP_OFFSET and usePopupPadding().
+ * side keeps it inside the map, and pass POPUP_OFFSET.
  * Side anchors keep their tip, colored in main.css; corner anchors hide it
  * and sit a few pixels off the point so the marker stays visible.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react"
-import type { Offset, PaddingOptions } from "maplibre-gl"
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react"
+import type { Popup as MapLibrePopup, Offset } from "maplibre-gl"
 import { useMap } from "react-map-gl/maplibre"
-
-import { useIsMobile } from "@/hooks/use-mobile"
-import { phoneActionCardTop } from "./phone-action-card"
 
 export const POPUP_OFFSET: Offset = {
   center: [0, 0],
@@ -24,107 +24,6 @@ export const POPUP_OFFSET: Offset = {
   "top-right": [-8, 8],
   "bottom-left": [8, -8],
   "bottom-right": [-8, -8],
-}
-
-/** On a phone, makes MapLibre open a popup above its point rather than behind
- *  the action card. MapLibre reads it when the popup opens. */
-export function usePopupPadding(): PaddingOptions | undefined {
-  const isMobile = useIsMobile()
-  return useMemo(() => (isMobile ? { bottom: phoneActionCardTop() } : undefined), [isMobile])
-}
-
-/** Room kept between a popup and the map's top edge or the action card. */
-const ACTION_CARD_GAP = 8
-/** MapLibre's popup tip, drawn outside the card. */
-const POPUP_TIP = 10
-/** Pans per correction. The second covers MapLibre flipping the popup to
- *  the other side of its point after the first. */
-const MAX_PANS = 2
-const USER_GESTURES = ["pointerdown", "touchstart", "wheel"] as const
-
-/**
- * On a phone, keeps an open popup whole between the map's top edge and the
- * action card. MapLibre picks the popup's side when it opens, so a tall one
- * can open below its point and run behind the card. When the popup opens or
- * grows past the card, the map pans up by the overlap. Returns the tallest
- * the popup may be, so one taller than that room scrolls instead.
- *
- * Only the popup's own changes pan the map. A user's pan is left alone, and
- * a correction the user interrupts is dropped. A popup that moves to another
- * item must remount (callers key it) to be checked again.
- */
-function useClearOfActionCard(cardRef: RefObject<HTMLDivElement | null>): number | undefined {
-  const { current: mapRef } = useMap()
-  const isMobile = useIsMobile()
-  const [maxHeight, setMaxHeight] = useState<number>()
-
-  useEffect(() => {
-    const map = mapRef?.getMap()
-    const card = cardRef.current
-    if (!map || !card || !isMobile) {
-      setMaxHeight(undefined)
-      return
-    }
-    const container = map.getContainer()
-    const measureRoom = () =>
-      setMaxHeight(container.clientHeight - phoneActionCardTop() - 2 * ACTION_CARD_GAP - POPUP_TIP)
-
-    let pans = 0
-    let lastOverlap = Infinity
-    // A user's gesture ends with an originalEvent; only camera moves without
-    // one (a flight that opened the popup, or this hook's own pan) recheck.
-    const onMoveEnd = (event: { originalEvent?: unknown }) => {
-      if (!event.originalEvent) keepClear()
-    }
-    const waitForMoveEnd = () => {
-      map.off("moveend", onMoveEnd)
-      map.once("moveend", onMoveEnd)
-    }
-    const cancel = () => {
-      map.off("moveend", onMoveEnd)
-    }
-
-    function keepClear() {
-      // Wait for a flight or zoom that opened the popup, rather than cut it short.
-      if (map!.isMoving()) {
-        waitForMoveEnd()
-        return
-      }
-      const bounds = container.getBoundingClientRect()
-      const rect = card!.getBoundingClientRect()
-      const overlap = rect.bottom - (bounds.bottom - phoneActionCardTop() - ACTION_CARD_GAP)
-      const pan = Math.min(overlap, rect.top - bounds.top - ACTION_CARD_GAP)
-      // Stop when the last pan didn't help: the camera can be pinned by its
-      // zoom or latitude limits.
-      if (pan < 1 || pans >= MAX_PANS || overlap > lastOverlap - 1) return
-      pans += 1
-      lastOverlap = overlap
-      // Registered first: with reduced motion the pan ends before panBy returns.
-      waitForMoveEnd()
-      map!.panBy([0, pan], { duration: 250 })
-    }
-
-    const correct = () => {
-      pans = 0
-      lastOverlap = Infinity
-      keepClear()
-    }
-
-    measureRoom()
-    map.on("resize", measureRoom)
-    const canvas = map.getCanvasContainer()
-    for (const gesture of USER_GESTURES) canvas.addEventListener(gesture, cancel, { passive: true })
-    const observer = new ResizeObserver(correct)
-    observer.observe(card)
-    return () => {
-      observer.disconnect()
-      for (const gesture of USER_GESTURES) canvas.removeEventListener(gesture, cancel)
-      map.off("resize", measureRoom)
-      cancel()
-    }
-  }, [mapRef, cardRef, isMobile])
-
-  return maxHeight
 }
 
 export const POPUP_CODE_STYLE: CSSProperties = {
@@ -183,21 +82,137 @@ export function PopupBadge({ children }: { children: ReactNode }) {
   )
 }
 
+/** Room kept between a popup and the map's edges. */
+const MAP_EDGE_GAP = 8
+/** MapLibre's popup tip, drawn outside the card. */
+const POPUP_TIP = 10
+/** Sideways pans per correction. The second covers MapLibre flipping the
+ *  popup to the other side of its point after the first. */
+const MAX_PANS = 2
+const USER_GESTURES = ["pointerdown", "touchstart", "wheel"] as const
+
+/**
+ * Keeps an open popup inside a map too small for it, such as the Geo Logs
+ * card. The card's height is capped at the larger of the room above and below
+ * its point, before MapLibre picks a side, so MapLibre places it on that side
+ * and it scrolls rather than run off the map. The cap follows the point as the
+ * map moves. MapLibre picks the side only when the popup moves, so a card that
+ * grows or widens (its top IPs loading) asks it to pick again. A card wider
+ * than half the map, which MapLibre cannot keep inside by flipping it, pans
+ * the map sideways until a user's gesture. Outside a <Map> (LiveRequestCard),
+ * or without a point, it does nothing.
+ */
+function useFitInMap(
+  cardRef: RefObject<HTMLDivElement | null>,
+  point: readonly [number, number] | undefined,
+  popupRef: RefObject<MapLibrePopup | null> | undefined,
+) {
+  const { current: mapRef } = useMap()
+  const longitude = point?.[0]
+  const latitude = point?.[1]
+
+  // A layout effect, so the cap is on the card before the Popup's own effect
+  // adds it to the map and MapLibre measures it to pick a side.
+  useLayoutEffect(() => {
+    const map = mapRef?.getMap()
+    const card = cardRef.current
+    if (!map || !card || longitude === undefined || latitude === undefined) return
+    const container = map.getContainer()
+    let pans = 0
+    let userMoved = false
+
+    const capHeight = () => {
+      const { y } = map.project([longitude, latitude])
+      const height = container.clientHeight
+      card.style.maxHeight = `${Math.max(y, height - y) - MAP_EDGE_GAP - POPUP_TIP}px`
+    }
+
+    // Only camera moves without an originalEvent (this hook's own pan) recheck.
+    const onMoveEnd = (event: { originalEvent?: unknown }) => {
+      if (event.originalEvent) return
+      map.off("moveend", onMoveEnd)
+      panSideways()
+    }
+    function panSideways() {
+      if (userMoved || pans >= MAX_PANS) return
+      if (map!.isMoving()) {
+        map!.off("moveend", onMoveEnd)
+        map!.on("moveend", onMoveEnd)
+        return
+      }
+      const bounds = container.getBoundingClientRect()
+      const rect = card!.getBoundingClientRect()
+      // MapLibre flips a narrower card to the side with room. Before it has
+      // placed the card the rect is stale, so a pan then would move the camera
+      // for nothing.
+      if (rect.width * 2 <= bounds.width) return
+      const before = bounds.left + MAP_EDGE_GAP - rect.left
+      const after = rect.right - (bounds.right - MAP_EDGE_GAP)
+      const dx = before > 0 ? -before : after > 0 ? after : 0
+      if (Math.abs(dx) < 1) return
+      pans += 1
+      // Registered first: with reduced motion the pan ends before panBy returns.
+      map!.off("moveend", onMoveEnd)
+      map!.on("moveend", onMoveEnd)
+      map!.panBy([dx, 0], { duration: 250 })
+    }
+    const onGesture = () => {
+      userMoved = true
+      map.off("moveend", onMoveEnd)
+    }
+
+    capHeight()
+    map.on("move", capHeight)
+    map.on("resize", capHeight)
+    const canvas = map.getCanvasContainer()
+    for (const gesture of USER_GESTURES) canvas.addEventListener(gesture, onGesture, { passive: true })
+    let lastSize = [card.offsetWidth, card.offsetHeight]
+    let placeFrame = 0
+    const observer = new ResizeObserver(() => {
+      const size = [card.offsetWidth, card.offsetHeight]
+      const popup = popupRef?.current
+      if (popup && (Math.abs(size[0] - lastSize[0]) >= 1 || Math.abs(size[1] - lastSize[1]) >= 1)) {
+        lastSize = size
+        // setLngLat runs MapLibre's placement again, which picks the side anew.
+        cancelAnimationFrame(placeFrame)
+        placeFrame = requestAnimationFrame(() => popup.setLngLat(popup.getLngLat()))
+      }
+      pans = 0
+      panSideways()
+    })
+    observer.observe(card)
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(placeFrame)
+      for (const gesture of USER_GESTURES) canvas.removeEventListener(gesture, onGesture)
+      map.off("move", capHeight)
+      map.off("resize", capHeight)
+      map.off("moveend", onMoveEnd)
+    }
+  }, [mapRef, cardRef, popupRef, longitude, latitude])
+}
+
 export function PopupCard({
   header,
   onClose,
   closeLabel = "Close popup",
   minWidth = "220px",
+  point,
+  popupRef,
   children,
 }: {
   header: ReactNode
+  /** The popup's [longitude, latitude]; sizes the card to the room beside it. */
+  point?: readonly [number, number]
+  /** The Popup holding the card, so a card that grows can be placed again. */
+  popupRef?: RefObject<MapLibrePopup | null>
   onClose: () => void
   closeLabel?: string
   minWidth?: string
   children: ReactNode
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
-  const maxHeight = useClearOfActionCard(cardRef)
+  useFitInMap(cardRef, point, popupRef)
   return (
     <div
       ref={cardRef}
@@ -213,7 +228,8 @@ export function PopupCard({
         boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
         border: "1px solid var(--popup-border)",
         minWidth,
-        ...(maxHeight !== undefined && { maxHeight, display: "flex", flexDirection: "column" }),
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <button
@@ -251,7 +267,9 @@ export function PopupCard({
       >
         {header}
       </div>
-      <div style={maxHeight === undefined ? undefined : { minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
+      {/* A scroll box clips sideways too, so it reaches 6px into the card's
+          padding for the IP pill's -ml-1.5 to stay visible. */}
+      <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", margin: "0 -6px", padding: "0 6px" }}>
         {children}
       </div>
     </div>

@@ -152,6 +152,8 @@ def render_login_line(_: Any, __: str, event_dict: dict[str, Any]) -> str:
 
     Contract (do not change without a deprecation cycle):
     YYYY-MM-DDTHH:MM:SSZ <event> user="<user>" ip=<ip>
+
+    api_key_* events given a key name append key="<name>" as the last field.
     """
     ts = str(event_dict.get("timestamp", ""))[:19] + "Z"
     raw_event = str(event_dict.get("event", ""))
@@ -162,7 +164,11 @@ def render_login_line(_: Any, __: str, event_dict: dict[str, Any]) -> str:
         ip = str(ipaddress.ip_address(raw_ip))
     except ValueError:
         ip = "-"
-    return f'{ts} {event} user="{user}" ip={ip}'
+    line = f'{ts} {event} user="{user}" ip={ip}'
+    key_name = event_dict.get("key")
+    if event.startswith("api_key_") and key_name is not None:
+        line += f' key="{_sanitize_login_field(str(key_name))}"'
+    return line
 
 
 class LoginOnlyFilter(logging.Filter):

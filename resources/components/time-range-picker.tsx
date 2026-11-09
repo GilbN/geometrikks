@@ -1,12 +1,13 @@
 /**
  * Time-range picker shared by the toolbar and the IP inspector: a dropdown
- * with the preset list and custom from/to fields from `md` up, a bottom
- * drawer below it with the presets split into Recent, Calendar and Custom
- * tabs. The caller supplies the trigger. With `refreshControls` the drawer
- * also sets auto refresh and, on chart pages, the chart buckets, which the
- * phone header has no room for.
+ * with the preset list and custom from/to fields off a phone, and on every
+ * phone layout, a phone held sideways at 768px or wider included, a bottom
+ * drawer with the presets split into Recent, Calendar and Custom tabs. The
+ * caller supplies the trigger. With `refreshControls` the drawer also sets
+ * auto refresh and, on chart pages, the chart buckets, which the phone header
+ * has no room for.
  */
-import { useEffect, useState } from "react"
+import { useEffect, useId, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Drawer,
@@ -27,7 +28,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { useCardCharts, type CardChartsPage } from "@/lib/card-charts"
 import {
   CHART_GRANULARITY_OPTIONS,
   POLL_INTERVAL_OPTIONS,
@@ -38,6 +40,7 @@ import {
 } from "@/lib/api"
 import { useTimeRange } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
+import { useOverlayEntry } from "@/lib/overlay-history"
 
 /** Trigger text for the current selection: the preset, or the custom span's dates. */
 export function timeRangeLabel(range: TimeRangeValue, customRange: CustomTimeRange | null): string {
@@ -99,18 +102,20 @@ export function TimeRangePicker({
 }: {
   trigger: React.ReactNode
   align?: "start" | "end"
-  refreshControls?: { chartBuckets: boolean }
+  refreshControls?: { chartBuckets: boolean; cardCharts?: CardChartsPage }
 }) {
   const { range, setRange, setCustomRange, pollInterval, setPollInterval, granularity, setGranularity } = useTimeRange()
-  const isMobile = useIsMobile()
+  const asDrawer = usePhoneLayout()
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
+  const overlayId = useId()
+  useOverlayEntry(`time-range-${overlayId}`, asDrawer && rangeDrawerOpen, () => setRangeDrawerOpen(false))
   const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
   // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
   useEffect(() => {
-    if (!isMobile) setRangeDrawerOpen(false)
-  }, [isMobile])
+    if (!asDrawer) setRangeDrawerOpen(false)
+  }, [asDrawer])
 
-  if (isMobile) {
+  if (asDrawer) {
     const presetButtons = (presets: typeof TIME_RANGE_PRESETS) =>
       presets.map((preset) => (
         <Button
@@ -209,6 +214,7 @@ export function TimeRangePicker({
                 </ToggleGroup>
               </RefreshControl>
             )}
+            {refreshControls?.cardCharts && <CardChartsControl page={refreshControls.cardCharts} />}
           </div>
         </DrawerContent>
       </Drawer>
@@ -238,6 +244,25 @@ export function TimeRangePicker({
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+function CardChartsControl({ page }: { page: CardChartsPage }) {
+  const [chartsOn, setChartsOn] = useCardCharts(page)
+  return (
+    <RefreshControl label="Card charts">
+      <ToggleGroup
+        type="single"
+        variant="outline"
+        aria-label="Card charts"
+        value={chartsOn ? "on" : "off"}
+        onValueChange={(value) => value && setChartsOn(value === "on")}
+        className="w-full"
+      >
+        <ToggleGroupItem value="on" className="flex-1 text-xs">On</ToggleGroupItem>
+        <ToggleGroupItem value="off" className="flex-1 text-xs">Off</ToggleGroupItem>
+      </ToggleGroup>
+    </RefreshControl>
   )
 }
 

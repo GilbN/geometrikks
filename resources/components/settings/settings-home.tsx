@@ -1,7 +1,8 @@
 /**
- * /settings on a phone: the eight sections in three groups, each with one
- * live line, instead of a dropdown above whichever page opened first. From
- * md up /settings still redirects to Status and the side nav lists sections.
+ * /settings on a portrait phone: the nine sections in three groups, each
+ * with one live line, instead of a dropdown above whichever page opened
+ * first. Elsewhere /settings redirects to Status, and the side nav or, on a
+ * phone held sideways, the chip row lists the sections.
  */
 import { useEffect, useId } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
@@ -12,6 +13,7 @@ import {
   CircleArrowUp,
   FileClock,
   Info,
+  KeyRound,
   Network,
   Palette,
   ScrollText,
@@ -21,6 +23,7 @@ import { GlowDot } from "@/components/reload-notice"
 import { useTheme } from "@/components/theme-provider"
 import { StatusLed, type LedTone } from "@/components/settings/status-led"
 import { agentAdvisoryCards, agentsNeedingAttention, agentSummary } from "@/components/settings/agents-logic"
+import { apiKeysSummary } from "@/components/settings/api-keys-logic"
 import { envSettingCount, isOverridden } from "@/components/settings/environment-fields"
 import {
   advisoryCards,
@@ -31,6 +34,7 @@ import {
 } from "@/components/settings/status-logic"
 import {
   useAbout,
+  useApiKeys,
   useChangelogUnseen,
   useHealth,
   useInstances,
@@ -39,7 +43,7 @@ import {
   useUnseenRelease,
 } from "@/lib/queries"
 import { THEME_CATALOG } from "@/lib/theme"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { usePortraitList } from "@/hooks/use-phone-map"
 import { displayVersion, publicVersion } from "@/lib/version"
 
 interface SectionLink {
@@ -58,17 +62,18 @@ export function SettingsHome() {
   const { data: schedulerData, isError: jobsError } = useSchedulerJobs()
   const { data: settings } = useSystemSettings()
   const { data: about } = useAbout()
+  const { data: apiKeyList } = useApiKeys()
   const changelogUnseen = useChangelogUnseen()
   const unseenRelease = useUnseenRelease()
   const { resolvedTheme, colorTheme } = useTheme()
   const idPrefix = useId()
-  const isMobile = useIsMobile()
+  const portraitList = usePortraitList()
   const navigate = useNavigate()
-  // From md up the side nav lists the sections; a window widened past md
-  // goes where /settings goes there.
+  // A window widened past md or a phone turned sideways goes where
+  // /settings goes there.
   useEffect(() => {
-    if (!isMobile) void navigate({ to: "/settings/status", replace: true })
-  }, [isMobile, navigate])
+    if (!portraitList) void navigate({ to: "/settings/status", replace: true })
+  }, [portraitList, navigate])
 
   const overall = overallState(health, healthError, instancesError ? 0 : agentsNeedingAttention(instances).length)
   const problems = statusProblems(advisoryCards(health), instancesError ? [] : agentAdvisoryCards(instances))
@@ -121,6 +126,7 @@ export function SettingsHome() {
             ? `${settings.sections.flatMap((section) => section.fields).filter(isOverridden).length} of ${envSettingCount(settings.sections)} settings overridden`
             : "Settings from the environment",
         },
+        { to: "/settings/api-keys", label: "API keys", icon: KeyRound, line: apiKeysSummary(apiKeyList) },
         {
           to: "/settings/appearance",
           label: "Appearance",

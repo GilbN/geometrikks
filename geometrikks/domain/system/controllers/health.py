@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import msgspec
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
 from litestar import Litestar, Request, Response, get
 from litestar.di import NamedDependency, Provide
@@ -34,6 +34,7 @@ from geometrikks.lib.advisories import (
     legacy_env_advisory,
 )
 from geometrikks.server import runtime
+from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
@@ -46,65 +47,158 @@ WRITE_FAILURE_WINDOW = timedelta(minutes=5)
 
 
 class UnavailableSourceHealth(msgspec.Struct, rename="camel"):
-    kind: str
-    label: str
-    reason: str | None
+    """A log source that ingestion cannot read right now."""
+
+    kind: Annotated[str, msgspec.Meta(description="The source type, `file` or `loki`.")]
+    label: Annotated[
+        str, msgspec.Meta(description="The file path, or an opaque name such as `loki:1` for a Loki query.")
+    ]
+    reason: Annotated[str | None, msgspec.Meta(description="Why the source is unavailable, when known.")]
 
 
 class IngestionHealth(msgspec.Struct, rename="camel"):
-    running: bool
-    parsed_lines: int
-    pending_records: int
-    missing_files: list[str]
-    last_record_at: str | None
+    """The log ingestion of this process. The counters start at zero when the process starts."""
+
+    running: Annotated[
+        bool, msgspec.Meta(description="False when ingestion is turned off, failed to start or has stopped.")
+    ]
+    parsed_lines: Annotated[int, msgspec.Meta(description="Log lines parsed, across all sources.")]
+    pending_records: Annotated[
+        int, msgspec.Meta(description="Parsed records held in memory until the next database write.")
+    ]
+    missing_files: Annotated[
+        list[str],
+        msgspec.Meta(
+            description="The labels of the unavailable sources. `unavailableSources` adds the reason for each."
+        ),
+    ]
+    last_record_at: Annotated[
+        str | None,
+        msgspec.Meta(description="When ingestion last parsed a record, as ISO 8601 in UTC. Null before the first one."),
+    ]
     # Additive: kept alongside `running` for wire compatibility.
-    status: Literal["running", "degraded", "disabled"] = "running"
-    publish_dropped: int = 0
-    failed_batches: int = 0
-    failed_records: int = 0
+    status: Annotated[
+        Literal["running", "degraded", "disabled"],
+        msgspec.Meta(
+            description=(
+                "`disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, "
+                "else `running`."
+            )
+        ),
+    ] = "running"
+    publish_dropped: Annotated[
+        int, msgspec.Meta(description="Live feed events left out because they were too large to send.")
+    ] = 0
+    failed_batches: Annotated[
+        int,
+        msgspec.Meta(
+            description="Database writes that failed. GeoMetrikks drops their records and does not retry them."
+        ),
+    ] = 0
+    failed_records: Annotated[int, msgspec.Meta(description="Records lost in the failed writes.")] = 0
     # Additive: richer than missing_files, which keeps the labels for older clients.
     unavailable_sources: list[UnavailableSourceHealth] = []
 
 
 class DatabaseHealth(msgspec.Struct, rename="camel"):
-    reachable: bool
+    """The database connection."""
+
+    reachable: Annotated[bool, msgspec.Meta(description="Whether `SELECT 1` answered within two seconds.")]
     # Additive: False while the app runs DB-degraded (scheduler, ingestion
     # and live feeds paused) even though `reachable` may already be True.
-    services_active: bool = True
+    services_active: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "False while the app runs without its database, with the scheduler, ingestion and live feeds "
+                "paused. It can stay false for a while after `reachable` turns true."
+            )
+        ),
+    ] = True
 
 
 class GeoIPHealth(msgspec.Struct, rename="camel"):
-    available: bool
-    db_build_date: str | None
+    """The GeoLite2 databases."""
+
+    available: Annotated[bool, msgspec.Meta(description="Whether a usable GeoLite2 City database is loaded.")]
+    db_build_date: Annotated[
+        str | None,
+        msgspec.Meta(description="When MaxMind built the City database file, as ISO 8601. Null without a file."),
+    ]
     # Additive: optional ASN edition state; never flips overall status.
-    asn_available: bool = False
-    asn_db_build_date: str | None = None
+    asn_available: Annotated[
+        bool, msgspec.Meta(description="Whether ASN lookups are on and a GeoLite2 ASN database is loaded.")
+    ] = False
+    asn_db_build_date: Annotated[
+        str | None,
+        msgspec.Meta(description="When MaxMind built the ASN database file, as ISO 8601. Null without a file."),
+    ] = None
 
 
 class CrowdSecHealth(msgspec.Struct, rename="camel"):
-    enabled: bool
-    lapi_reachable: bool | None
+    """The CrowdSec integration."""
+
+    enabled: Annotated[bool, msgspec.Meta(description="Whether the CrowdSec integration is configured.")]
+    lapi_reachable: Annotated[
+        bool | None,
+        msgspec.Meta(
+            description=(
+                "Whether the last poll reached the CrowdSec LAPI. Null when CrowdSec is off, with "
+                "SCHEDULER_ENABLED=false, while the app runs without its database, and before the first poll."
+            )
+        ),
+    ]
 
 
 class HealthResponse(msgspec.Struct, rename="camel"):
-    status: Literal["healthy", "degraded"]
-    started_at: str | None
+    """How the app and its parts are doing."""
+
+    status: Annotated[
+        Literal["healthy", "degraded"],
+        msgspec.Meta(
+            description=(
+                "`healthy` when the database answers, the app runs with it, every log source is readable and "
+                "ingestion is running or turned off. GeoIP, CrowdSec and the advisories never change it."
+            )
+        ),
+    ]
+    started_at: Annotated[
+        str | None, msgspec.Meta(description="When this process started, as ISO 8601 in UTC.")
+    ]
     ingestion: IngestionHealth
     database: DatabaseHealth
     geoip: GeoIPHealth
     crowdsec: CrowdSecHealth
-    timestamp: str
+    timestamp: Annotated[str, msgspec.Meta(description="When this report was built, as ISO 8601 in UTC.")]
     # Additive: agent-mode reporting (Task 5/6). schema_wait is None in full
     # mode, since only agent startup ever sets app.state.schema_wait_result,
     # and "waiting" in an agent that has not recorded a result yet.
-    mode: Literal["full", "agent"] = "full"
-    schema_wait: str | None = None
+    mode: Annotated[
+        Literal["full", "agent"],
+        msgspec.Meta(
+            description="`agent` for a process that only tails logs, `full` for one that also serves the API."
+        ),
+    ] = "full"
+    schema_wait: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "Agents only. How the wait for the database schema ended, `ready`, `newer` or `timeout`, "
+                "and `waiting` until it ends. Null in full mode."
+            )
+        ),
+    ] = None
     # Additive: generic operator advisories; empty when nothing needs
     # attention. Producers append here rather than growing bespoke fields.
-    advisories: list[Advisory] = msgspec.field(default_factory=list)
+    advisories: Annotated[
+        list[Advisory],
+        msgspec.Meta(description="Problems that need an operator, critical ones first. Empty when nothing does."),
+    ] = msgspec.field(default_factory=list)
 
 
 class ReadinessResponse(msgspec.Struct, rename="camel"):
+    """Whether the app is ready for traffic."""
+
     ready: bool
 
 
@@ -469,6 +563,41 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
+def build_ingestion_health(settings: Settings, ingestion_service: LogIngestionService | None) -> IngestionHealth:
+    """The local parser's health, independent of agents and database totals."""
+    is_running = ingestion_service.is_running if ingestion_service else False
+    # A tailer keeps waiting for an unavailable source through log rotation,
+    # so running can stay true while some sources are unreadable.
+    unavailable_sources = ingestion_service.unavailable_sources if ingestion_service else []
+    missing_files = [source.label for source in unavailable_sources]
+    # Disabling parsing is an operator choice, not an outage.
+    ingestion_status = "disabled" if not settings.logparser.enabled else "running" if is_running else "degraded"
+    last_record_at = ingestion_service.last_record_at if ingestion_service else None
+    return IngestionHealth(
+        running=is_running,
+        parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
+        pending_records=ingestion_service.pending_records if ingestion_service else 0,
+        missing_files=missing_files,
+        unavailable_sources=[
+            UnavailableSourceHealth(
+                kind=source.kind, label=source.label, reason=source.reason
+            )
+            for source in unavailable_sources
+        ],
+        last_record_at=last_record_at.isoformat() if last_record_at else None,
+        status=ingestion_status,
+        publish_dropped=(
+            ingestion_service.publish_dropped if ingestion_service else 0
+        ),
+        failed_batches=(
+            ingestion_service.failed_batches if ingestion_service else 0
+        ),
+        failed_records=(
+            ingestion_service.failed_records if ingestion_service else 0
+        ),
+    )
+
+
 def build_health_response(
     app: Litestar,
     settings: Settings,
@@ -480,27 +609,10 @@ def build_health_response(
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
-    is_running = ingestion_service.is_running if ingestion_service else False
-    # Sources that became unavailable mid-flight: the tailer keeps waiting for
-    # them (log rotation resilience), so `running` stays true, but nothing is
-    # being ingested from those sources and status must not read as healthy.
-    unavailable_sources = (
-        ingestion_service.unavailable_sources if ingestion_service else []
-    )
-    missing_files = [source.label for source in unavailable_sources]
+    ingestion_health = build_ingestion_health(settings, ingestion_service)
     services_active = runtime.is_db_available(app, default=True)
 
     poller = runtime.get_crowdsec_poller(app)
-
-    # LOGPARSER_ENABLED=false is an operator choice, not an outage: it must
-    # report "disabled", not "degraded", and must not flip overall status.
-    ingestion_status: Literal["running", "degraded", "disabled"]
-    if not settings.logparser.enabled:
-        ingestion_status = "disabled"
-    elif is_running:
-        ingestion_status = "running"
-    else:
-        ingestion_status = "degraded"
 
     return HealthResponse(
         # geoip does not flip status on its own: without a GeoLite2 database
@@ -509,36 +621,12 @@ def build_health_response(
         if (
             db_reachable
             and services_active
-            and not missing_files
-            and ingestion_status != "degraded"
+            and not ingestion_health.missing_files
+            and ingestion_health.status != "degraded"
         )
         else "degraded",
         started_at=_iso(runtime.get_started_at(app)),
-        ingestion=IngestionHealth(
-            running=is_running,
-            parsed_lines=ingestion_service.parsed_lines if ingestion_service else 0,
-            pending_records=ingestion_service.pending_records if ingestion_service else 0,
-            missing_files=missing_files,
-            unavailable_sources=[
-                UnavailableSourceHealth(
-                    kind=source.kind, label=source.label, reason=source.reason
-                )
-                for source in unavailable_sources
-            ],
-            last_record_at=_iso(
-                ingestion_service.last_record_at if ingestion_service else None
-            ),
-            status=ingestion_status,
-            publish_dropped=(
-                ingestion_service.publish_dropped if ingestion_service else 0
-            ),
-            failed_batches=(
-                ingestion_service.failed_batches if ingestion_service else 0
-            ),
-            failed_records=(
-                ingestion_service.failed_records if ingestion_service else 0
-            ),
-        ),
+        ingestion=ingestion_health,
         database=DatabaseHealth(
             reachable=db_reachable,
             services_active=services_active,
@@ -576,6 +664,13 @@ def build_health_response(
 @get(
     "/health",
     tags=["Health"],
+    security=NO_CREDENTIALS_SECURITY,
+    summary="Check that the app is up and how its parts are doing",
+    description=(
+        "Answers 200 whenever the process serves requests, so Docker and load balancers can use it as a "
+        "liveness probe. Read `status` and the component objects to find a problem, and `advisories` for what "
+        "needs fixing. No credentials needed."
+    ),
     dependencies={"ingestion_service": Provide(pis, sync_to_thread=False)},
 )
 async def health(
@@ -593,6 +688,16 @@ async def health(
 @get(
     "/health/ready",
     tags=["Health"],
+    security=NO_CREDENTIALS_SECURITY,
+    summary="Check that the app is ready for traffic",
+    description=(
+        "Answers 200 with `ready` true when `SELECT 1` against the database returns within two seconds, and "
+        "503 with `ready` false otherwise. The head runs the query on every request, so a ready app goes back "
+        "to 503 when the database drops. An agent answers 503 without querying until its startup schema check "
+        "passes. After that it queries like the head, and an agent whose check timed out stays at 503 until "
+        "it restarts. "
+        "No credentials needed."
+    ),
     responses={
         HTTP_503_SERVICE_UNAVAILABLE: ResponseSpec(
             data_container=ReadinessResponse,

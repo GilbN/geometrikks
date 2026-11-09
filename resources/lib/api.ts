@@ -27,10 +27,14 @@ import {
   apiV1AnalyticsIpProfileGetIpProfile,
   apiV1ReportsAbuseGetAbuseReport,
   apiV1ReportsAbuseContactGetAbuseContact,
+  apiV1AuthApiKeysListApiKeys,
+  apiV1AuthApiKeysCreateApiKey,
+  apiV1AuthApiKeysKeyIdRevokeApiKey,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
+  AsnFacet,
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
   SystemSettingsResponse,
@@ -49,7 +53,11 @@ import type {
   DecisionView,
   DecisionGroupView,
   BannedIp,
+  BannedRangeView,
   BannedMapCollection,
+  BanNetworksRequest,
+  BanNetworksResponse,
+  DropNetworksResponse,
   SessionUser,
   AuthDisabled,
   AuthOptions,
@@ -58,6 +66,12 @@ import type {
   ServerLocationsResponse,
   LokiSourceStats,
   InstancesResponse,
+  RawLineFields,
+  DropListsResponse,
+  ApiKeyList,
+  ApiKeyView,
+  CreateApiKeyPayload,
+  CreatedApiKey,
 } from "@/generated/api/types.gen"
 
 export type {
@@ -69,10 +83,15 @@ export type {
   ScenarioCount,
   DecisionView,
   BannedIp,
+  BannedRangeView,
   BannedMapCollection,
   AuthOptions,
   OidcStatus,
   LogoutResponse,
+  ApiKeyList,
+  ApiKeyView,
+  CreateApiKeyPayload,
+  CreatedApiKey,
 }
 
 // Create axios instance with base configuration
@@ -136,6 +155,21 @@ export async function fetchOidcStatus(): Promise<OidcStatus> {
 export async function fetchMe(): Promise<MeResponse> {
   const { data } = await api.get<MeResponse>("/auth/me")
   return data
+}
+
+export async function fetchApiKeys(): Promise<ApiKeyList> {
+  const { data } = await apiV1AuthApiKeysListApiKeys({ throwOnError: true })
+  return data
+}
+
+/** The response is the only place the full key ever appears. */
+export async function createApiKey(payload: CreateApiKeyPayload): Promise<CreatedApiKey> {
+  const { data } = await apiV1AuthApiKeysCreateApiKey({ body: payload, throwOnError: true })
+  return data
+}
+
+export async function revokeApiKey(keyId: string): Promise<void> {
+  await apiV1AuthApiKeysKeyIdRevokeApiKey({ path: { key_id: keyId }, throwOnError: true })
 }
 
 // ============================================================================
@@ -259,6 +293,9 @@ export interface TopIPDTO {
   ipAddress: string
   eventCount: number
   location: EmbeddedLocationDTO | null
+  /** Set only in a single location's top IPs. */
+  asn?: number | null
+  asOrganization?: string | null
 }
 
 // GeoJSON shapes come from the generated client; the aliases keep the
@@ -340,6 +377,11 @@ export async function fetchAbout(): Promise<AboutResponse> {
   return data
 }
 
+export async function fetchDropLists(): Promise<DropListsResponse> {
+  const { data } = await api.get<DropListsResponse>("/drop/lists")
+  return data
+}
+
 export async function fetchReleaseCheck(): Promise<ReleaseCheckResponse> {
   const { data } = await api.get<ReleaseCheckResponse>("/system/release-check")
   return data
@@ -395,6 +437,28 @@ export async function fetchCrowdsecDecisions(params?: {
 /** IPs under a current decision with the type to badge them as. */
 export async function fetchCrowdsecBannedIps(): Promise<BannedIp[]> {
   const { data } = await api.get<BannedIp[]>("/crowdsec/banned-ips")
+  return data
+}
+
+/** Every CIDR under a current Range decision, which /crowdsec/banned-ips leaves out. */
+export async function fetchCrowdsecBannedRanges(): Promise<BannedRangeView[]> {
+  const { data } = await api.get<BannedRangeView[]>("/crowdsec/banned-ranges")
+  return data
+}
+
+/** Traffic from DROP-listed networks in the last `days`, busiest first, with each network's Range decision. */
+export async function fetchDropNetworks(params: {
+  days: 7 | 30 | 90
+  page: number
+  pageSize: number
+}): Promise<DropNetworksResponse> {
+  const { data } = await api.get<DropNetworksResponse>("/crowdsec/drop-networks", { params })
+  return data
+}
+
+/** Bans DROP networks as Range decisions and reports each one; one failure never stops the rest. */
+export async function banDropNetworks(body: BanNetworksRequest): Promise<BanNetworksResponse> {
+  const { data } = await api.post<BanNetworksResponse>("/crowdsec/ban-networks", body)
   return data
 }
 
@@ -615,6 +679,7 @@ export interface CumulativeTimeSeriesResponse {
 
 export interface LocationTopIPsResponse {
   locationId: number
+  uniqueIps: number
   topIps: TopIPDTO[]
 }
 
@@ -678,7 +743,7 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 // ============================================================================
 
 /**
- * Country/city/IP filters shared by the analytics page's six filterable
+ * Country/city/IP/ASN filters shared by the analytics page's seven filterable
  * endpoints (not geo-time-series, which stays unfiltered). The generated
  * fetch client serializes arrays as repeated keys (?countryCode=NO&countryCode=SE)
  * by default, matching what Litestar expects.
@@ -688,6 +753,19 @@ export interface AnalyticsFilterParams {
   cities?: string[]
   ips?: string[]
   ipsExclude?: string[]
+  asns?: number[]
+  asnsExclude?: number[]
+}
+
+function analyticsFilterQuery(params: AnalyticsFilterParams) {
+  return {
+    countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
+    city: params.cities?.length ? params.cities : undefined,
+    ipAddress: params.ips?.length ? params.ips : undefined,
+    ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    asnIn: params.asns?.length ? params.asns : undefined,
+    asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+  }
 }
 
 export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilterParams) {
@@ -697,10 +775,7 @@ export async function fetchTimeSeries(params: TimeSeriesParams & AnalyticsFilter
       endDate: params.endDate,
       granularity: params.granularity,
       tz: BROWSER_TZ,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -726,10 +801,7 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -742,10 +814,7 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -758,10 +827,7 @@ export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number }
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -774,10 +840,7 @@ export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: numbe
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -790,10 +853,7 @@ export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: 
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -806,10 +866,7 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
       startDate: params.startDate,
       endDate: params.endDate,
       limit: params.limit ?? 25,
-      countryCode: params.countryCodes?.length ? params.countryCodes : undefined,
-      city: params.cities?.length ? params.cities : undefined,
-      ipAddress: params.ips?.length ? params.ips : undefined,
-      ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+      ...analyticsFilterQuery(params),
     },
     throwOnError: true,
   })
@@ -1152,6 +1209,10 @@ export interface AccessLogsParams {
   serverNotIn?: string[]
   /** Exact log-format match(es), chosen from the facets list. */
   logFormatIn?: string[]
+  /** Autonomous system number(s) to include. */
+  asnIn?: number[]
+  /** Autonomous system numbers to exclude. */
+  asnNotIn?: number[]
   /** Exact city match(es). */
   cityIn?: string[]
   /** Exact ISO-3166 alpha-2 country code match(es). */
@@ -1177,6 +1238,8 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       serverIn: params.serverIn?.length ? params.serverIn : undefined,
       serverNotIn: params.serverNotIn?.length ? params.serverNotIn : undefined,
       logFormatIn: params.logFormatIn?.length ? params.logFormatIn : undefined,
+      asnIn: params.asnIn?.length ? params.asnIn : undefined,
+      asnNotIn: params.asnNotIn?.length ? params.asnNotIn : undefined,
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
@@ -1205,9 +1268,11 @@ export interface AccessLogFacets {
   servers: string[]
   /** Sorted alphabetically. */
   logFormats: string[]
+  /** Sorted by organization, unnamed last. */
+  asns: AsnFacet[]
 }
 
-/** Distinct country/city/host/server/log-format values present in the data, for the filter dropdowns. */
+/** Distinct country/city/host/server/log-format/ASN values present in the data, for the filter dropdowns. */
 export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
   const { data } = await api.get<AccessLogFacets>("/access-logs/facets")
   return data
@@ -1217,6 +1282,8 @@ export async function fetchAccessLogFacets(): Promise<AccessLogFacets> {
 // Access log debug (raw/malformed lines)
 // ============================================================================
 
+export type { RawLineField, RawLineFields } from "@/generated/api/types.gen"
+
 export interface AccessLogDebugEntry {
   id: number
   createdAt: string
@@ -1224,6 +1291,8 @@ export interface AccessLogDebugEntry {
   isMalformed: boolean
   accessLogId: number | null
   parseError: string | null
+  /** The format that parsed the line. Null on rows from before it was recorded. */
+  logFormat: string | null
   /** Denormalized access-log fields; null when the line never parsed into a log. */
   timestamp: string | null
   ipAddress: string | null
@@ -1235,6 +1304,8 @@ export interface AccessLogDebugEntry {
   countryName: string | null
   city: string | null
   userAgent: string | null
+  /** The raw line as fields when it is a JSON object, else null. */
+  rawFields: RawLineFields | null
 }
 
 export interface AccessLogDebugPage {
@@ -1246,7 +1317,7 @@ export interface AccessLogDebugPage {
 
 /** Columns the debug table can sort by (must match the backend allowlist). */
 export type AccessLogDebugSortField =
-  | "createdAt" | "isMalformed" | "parseError"
+  | "createdAt" | "isMalformed" | "parseError" | "logFormat"
   | "timestamp" | "statusCode" | "ipAddress" | "host" | "countryCode" | "city"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */
@@ -1254,6 +1325,7 @@ const DEBUG_SORT_FIELD_TO_COLUMN: Record<AccessLogDebugSortField, string> = {
   createdAt: "created_at",
   isMalformed: "is_malformed",
   parseError: "parse_error",
+  logFormat: "log_format",
   timestamp: "timestamp",
   statusCode: "status_code",
   ipAddress: "ip_address",

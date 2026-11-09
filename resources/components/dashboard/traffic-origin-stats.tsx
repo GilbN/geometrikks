@@ -10,22 +10,68 @@
  * The hook depends on AnalyticsFiltersContext, whose default is EMPTY_FILTERS
  * precisely so dashboard-shared hooks work outside the analytics provider.
  */
-import { Network, Server } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { Network, OctagonX, Server } from "lucide-react"
 
 import { ErrorBanner } from "@/components/error-banner"
 import { SectionHeader } from "@/components/section-header"
 import { StatCard, StatCardSkeleton, StatGrid } from "@/components/dashboard/statcard"
+import { StatInfo } from "@/components/dashboard/stat-info"
 import { formatNumber } from "@/lib/api"
 import { asnCoverage } from "@/lib/asn-coverage"
-import { useTopAsns } from "@/lib/queries"
+import { dropTrafficSubtitle } from "@/lib/drop-lists"
+import { useCrowdsecStatus, useTopAsns } from "@/lib/queries"
+
+const HELP_LINK_CLASS =
+  "tap-area underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
+
+function DropTrafficHelp({ securityLink }: { securityLink: boolean }) {
+  return (
+    <>
+      <p>
+        Requests from networks on Spamhaus's ASN-DROP list. DROP stands for
+        Don't Route Or Peer. It names networks run by spam and cybercrime
+        operations, so traffic from them is almost never legitimate.
+      </p>
+      <p>
+        The name is the list's. GeoMetrikks has not dropped or blocked these
+        requests.
+        {securityLink && (
+          <>
+            {" "}You can ban the networks under{" "}
+            <Link to="/security" hash="drop-networks" className={HELP_LINK_CLASS}>
+              Security &gt; DROP networks
+            </Link>
+            .
+          </>
+        )}
+      </p>
+    </>
+  )
+}
+
+function HostingTrafficHelp({ dropShown }: { dropShown: boolean }) {
+  return (
+    <>
+      <p>
+        Requests from networks on a bundled community list of hosting, VPN and
+        datacenter operators. Traffic from these is mostly bots, scanners and
+        VPN users rather than people browsing from home. Browse the list under
+        Settings &gt; About.
+      </p>
+      {dropShown && <p>Networks on Spamhaus DROP count on the Spamhaus DROP card instead.</p>}
+    </>
+  )
+}
 
 export function TrafficOriginStats() {
   // Default limit on purpose: a different limit would be a different query
   // key and the analytics page's cached response could not be reused. Only
   // items[0] is shown; category totals are exact regardless of limit.
   const { data, isLoading, isError, error } = useTopAsns()
+  const { data: crowdsecStatus } = useCrowdsecStatus()
 
-  const { classified, hostingShare, coverage, hasData } = asnCoverage(
+  const { classified, hostingShare, dropShare, dropHits, coverage, hasData } = asnCoverage(
     data?.categories,
     data?.totalRequests ?? 0,
   )
@@ -66,13 +112,34 @@ export function TrafficOriginStats() {
   if (!data || !hasData) return null
 
   const top = data.items[0]
+  const dropAsnCount = data.dropAsnCount
 
   return (
     <>
       <SectionHeader>Traffic Origin</SectionHeader>
-      <StatGrid>
+      <StatGrid className={dropShare !== null ? "md:grid-cols-3" : undefined}>
+        {dropShare !== null && (
+          <StatCard
+            title="Spamhaus DROP"
+            info={
+              <StatInfo label="What Spamhaus DROP traffic is">
+                <DropTrafficHelp securityLink={crowdsecStatus?.enabled === true} />
+              </StatInfo>
+            }
+            value={`${dropShare.toFixed(1)}%`}
+            valueClassName="text-destructive"
+            subtitle={dropTrafficSubtitle(dropHits, dropAsnCount, classified, coverage)}
+            icon={OctagonX}
+            iconClassName="text-destructive"
+          />
+        )}
         <StatCard
           title="Hosting Traffic"
+          info={
+            <StatInfo label="What hosting traffic is">
+              <HostingTrafficHelp dropShown={dropShare !== null} />
+            </StatInfo>
+          }
           value={`${hostingShare.toFixed(1)}%`}
           subtitle={
             coverage < 99.5

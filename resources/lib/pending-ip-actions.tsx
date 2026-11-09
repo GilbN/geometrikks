@@ -22,7 +22,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { banIp, unbanIp, type DecisionView } from "@/lib/api"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
+import { crowdsecErrorMessage, forDuration } from "@/lib/crowdsec"
 
 export const UNDO_WINDOW_MS = 5000
 /** The lookup query's staleTime: an unban counts decisions only from an answer this fresh. */
@@ -76,11 +76,6 @@ export function undoIpAction(ip: string) {
   entries.delete(ip)
   publish()
   toast.dismiss(entry.toastId)
-}
-
-/** "for 4 hours", or "for good" rather than "for Forever". */
-function forDuration(durationLabel: string): string {
-  return durationLabel === "Forever" ? "for good" : `for ${durationLabel}`
 }
 
 function done(action: PendingIpAction): string {

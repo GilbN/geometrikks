@@ -2,9 +2,9 @@ import { useEffect, useState } from "react"
 import { ChevronDown, ExternalLink } from "lucide-react"
 import type { ChangelogEntry, ChangelogRelease, ChangelogSection } from "@/generated/api/types.gen"
 import { useAbout, useChangelog } from "@/lib/queries"
-import { currentBuildKey, saveSeenBuild } from "@/lib/changelog-seen"
+import { pageBuildKey, saveSeenBuild } from "@/lib/changelog-seen"
 import { cn } from "@/lib/utils"
-import { publicVersion } from "@/lib/version"
+import { isDevBuild, publicVersion } from "@/lib/version"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -115,7 +115,7 @@ function ReleaseCard({
 export function ChangelogPage() {
   const { data, isLoading, isError, refetch } = useChangelog()
   const { data: about } = useAbout()
-  const buildKey = about ? currentBuildKey(about.app) : null
+  const buildKey = about ? pageBuildKey(about.app) : null
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
 
   // Opening this page is what "seen" means.
@@ -154,6 +154,7 @@ export function ChangelogPage() {
   const isThisBuild = (release: ChangelogRelease) =>
     ahead ? release.unreleased : release.version === publicVersion(about.app.version)
   const isOpen = (release: ChangelogRelease) => overrides[release.version] ?? isThisBuild(release)
+  const changelogBranch = isDevBuild(about.app.version) ? "develop" : "main"
   const setAll = (open: boolean) =>
     setOverrides(Object.fromEntries(releases.map((release) => [release.version, open])))
 
@@ -177,7 +178,7 @@ export function ChangelogPage() {
           Collapse all
         </Button>
         <Button variant="outline" size="sm" asChild>
-          <a href={`${about.links.repository}/blob/main/CHANGELOG.md`} target="_blank" rel="noreferrer">
+          <a href={`${about.links.repository}/blob/${changelogBranch}/CHANGELOG.md`} target="_blank" rel="noreferrer">
             View on GitHub
             <ExternalLink className="h-3.5 w-3.5" />
           </a>

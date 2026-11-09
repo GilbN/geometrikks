@@ -19,13 +19,14 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from geometrikks.server.logging import get_logger
-from geometrikks.server.timescale import ALL_CAGGS
+from geometrikks.server.timescale import ALL_CAGGS, open_bucket_start
 
 if TYPE_CHECKING:
     from litestar import Litestar
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
     from geometrikks.config.settings import Settings
+    from geometrikks.domain.drop.refresh import FirstRunFlag
     from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
     from geometrikks.services.release_check import ReleaseChecker
 
@@ -114,8 +115,9 @@ async def refresh_continuous_aggregate_job(
 
 async def refresh_all_caggs_job(
     session_factory: "Callable[[], AsyncSession]",
+    now: datetime | None = None,
 ) -> None:
-    """Refresh all continuous aggregates.
+    """Refresh all continuous aggregates up to the bucket still filling.
 
     Useful for catching up any data that might have been missed or
     after bulk data imports.
@@ -124,13 +126,18 @@ async def refresh_all_caggs_job(
 
     Args:
         session_factory: SQLAlchemy async session factory.
+        now: The current time; defaults to the clock.
     """
+    now = now or datetime.now(timezone.utc)
     failed: list[str] = []
     for cagg_name in ALL_CAGGS:
         try:
+            # Materializing the open bucket moves the watermark past it, and
+            # real-time queries then miss its later rows until the next refresh.
             await _execute_call_outside_transaction(
                 session_factory,
-                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, NULL)",
+                f"CALL refresh_continuous_aggregate('{cagg_name}', NULL, $1::timestamptz)",
+                open_bucket_start(cagg_name, now),
             )
             logger.info("cagg_refreshed", cagg_name=cagg_name)
         except Exception as exc:
@@ -203,6 +210,30 @@ async def release_check_job(release_checker: "ReleaseChecker") -> None:
     await release_checker.run()
 
 
+async def drop_refresh_job(
+    session_factory: "Callable[[], AsyncSession]",
+    settings: "Settings",
+    first_run: "FirstRunFlag | None" = None,
+) -> None:
+    """Refresh the DROP lists; raise when every feed that was attempted failed.
+
+    The first run after startup skips feeds fetched within the refresh
+    interval, so restart loops do not hit the host.
+    """
+    from geometrikks.domain.drop.refresh import refresh_drop_lists
+
+    feed_outcomes = await refresh_drop_lists(
+        session_factory,
+        now=datetime.now(timezone.utc),
+        startup=first_run.consume() if first_run is not None else False,
+        refresh_hours=settings.drop.refresh_hours,
+    )
+    attempted_outcomes = [feed_outcome for feed_outcome in feed_outcomes if feed_outcome.status != "skipped"]
+    if attempted_outcomes and all(feed_outcome.status == "failed" for feed_outcome in attempted_outcomes):
+        failures = "; ".join(f"{feed_outcome.feed}: {feed_outcome.reason}" for feed_outcome in attempted_outcomes)
+        raise RuntimeError(f"DROP lists refresh failed: {failures}")
+
+
 async def agent_health_check_job(
     session_factory: "async_sessionmaker[AsyncSession]", app: "Litestar"
 ) -> None:
@@ -268,7 +299,7 @@ async def create_scheduler(
     """Create and configure the APScheduler instance.
 
     Scheduled Jobs (mode="full"):
-    - Location last_hit refresh: Every 5 minutes (configurable)
+    - Location last_hit refresh: every 10 minutes by default (SCHEDULER_LOCATION_REFRESH_INTERVAL_MINUTES)
     - Full CAGG refresh: Every 6 hours (catches up any missed data)
     - GeoLite2 refresh: weekly by default
     - Proxy peer scan: every 5 minutes, when APP_PROXY_ADVISORY is on
@@ -305,7 +336,7 @@ async def create_scheduler(
         return scheduler
 
     if mode != "agent":
-        # Location last_hit refresh (default: every 5 minutes)
+        # Location last_hit refresh (default: every 10 minutes)
         # This updates the regular geo_locations table with data from the geo_events hypertable
         scheduler.add_job(
             refresh_location_last_hits_job,
@@ -419,6 +450,22 @@ async def create_scheduler(
             replace_existing=True,
         )
         logger.info("Scheduled release check every 12 hours")
+
+    if mode != "agent" and settings.drop.enabled:
+        from geometrikks.domain.drop.refresh import FirstRunFlag
+
+        scheduler.add_job(
+            drop_refresh_job,
+            IntervalTrigger(hours=settings.drop.refresh_hours),
+            id="drop-refresh",
+            name="DROP lists refresh",
+            args=[session_factory, settings, FirstRunFlag()],
+            next_run_time=datetime.now(timezone.utc) + timedelta(minutes=1),
+            misfire_grace_time=3600,
+            max_instances=1,
+            replace_existing=True,
+        )
+        logger.info("Scheduled DROP lists refresh every %d hour(s)", settings.drop.refresh_hours)
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;

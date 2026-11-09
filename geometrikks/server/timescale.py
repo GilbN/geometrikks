@@ -1636,7 +1636,7 @@ def whole_day_window(start: datetime, end: datetime) -> tuple[datetime, datetime
     return day_start, day_end
 
 
-def _open_bucket_start(cagg: str, now: datetime) -> datetime:
+def open_bucket_start(cagg: str, now: datetime) -> datetime:
     """Start of the cagg's bucket that contains now and is still filling."""
     hour = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
     return hour if cagg in HOURLY_CAGGS else hour.replace(hour=0)
@@ -1694,7 +1694,7 @@ async def refresh_caggs_range(
         # Materializing the open bucket moves the watermark past it, and
         # real-time queries then miss its later rows until the policy
         # refreshes it. Rows in it are already served in real time.
-        cagg_end = min(end, _open_bucket_start(cagg, now))
+        cagg_end = min(end, open_bucket_start(cagg, now))
         if cagg_end <= start:
             continue
         # A background refresh-policy job on an overlapping window makes

@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Map, {
   Layer,
+  MapProvider,
+  Marker,
   NavigationControl,
   Source,
   type MapRef,
@@ -22,7 +24,8 @@ import { dataState } from "@/components/data/types"
 import { useMapStartFailure } from "@/components/map/hooks/useMapStartFailure"
 import { useMapStyle } from "@/components/map/hooks/useMapStyle"
 import { MapAttribution } from "@/components/map/MapAttribution"
-import { MapPopup, type PopupInfo } from "@/components/map/MapPopup"
+import { LocationPanel, MapPopup, type PopupInfo } from "@/components/map/MapPopup"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { MapStartFailureNotice } from "@/components/map/MapStartFailureNotice"
 import {
   clusterCountLayer,
@@ -50,6 +53,7 @@ export default function GeoLogsMap() {
   const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const phone = usePhoneLayout()
   const didFitRef = useRef(false)
 
   const onMove = useCallback((evt: ViewStateChangeEvent) => {
@@ -141,7 +145,9 @@ export default function GeoLogsMap() {
     )
   }
 
+  // The provider lets the phone's details card, outside <Map>, hand focus back to the map when it closes.
   return (
+    <MapProvider>
     <section aria-label="Spatial preview" className={cn(FRAME_SURFACE, "relative min-h-[320px]")}>
       <div className="absolute inset-0">
         <Map
@@ -179,17 +185,37 @@ export default function GeoLogsMap() {
               <Layer {...unclusteredPointLabelLayer} />
             </Source>
           )}
-          {popup && (
+          {popup && !phone && (
             <MapPopup
+              key={`${popup.longitude},${popup.latitude}`}
               longitude={popup.longitude}
               latitude={popup.latitude}
               properties={popup.properties}
+              totalEvents={geojson?.stats.events}
               onClose={() => setPopup(null)}
             />
+          )}
+          {/* On a phone the details sit in a card under this small map, and a ring marks their point. */}
+          {popup && phone && (
+            <Marker longitude={popup.longitude} latitude={popup.latitude} anchor="center" style={{ pointerEvents: "none" }}>
+              <span aria-hidden className="block size-12 rounded-full border-2 border-primary shadow-[0_0_0_6px] shadow-primary/25" />
+            </Marker>
           )}
         </Map>
       </div>
       {mapFailure && <MapStartFailureNotice failure={mapFailure} />}
     </section>
+    {popup && phone && (
+      <LocationPanel
+        key={`${popup.longitude},${popup.latitude}`}
+        inline
+        longitude={popup.longitude}
+        latitude={popup.latitude}
+        properties={popup.properties}
+        totalEvents={geojson?.stats.events}
+        onClose={() => setPopup(null)}
+      />
+    )}
+    </MapProvider>
   )
 }

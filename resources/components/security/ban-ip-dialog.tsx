@@ -14,6 +14,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -24,6 +32,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { SideDrawerClose } from "@/components/map/SideDrawer"
+import { focusDrawerTitle } from "@/components/settings/api-keys-phone"
+import { usePhoneDrawer } from "@/hooks/use-phone-drawer"
 import { flushIpActions } from "@/lib/pending-ip-actions"
 import { useBanIp } from "@/lib/queries"
 import {
@@ -38,12 +49,27 @@ import {
 
 const CUSTOM_DURATION = "custom"
 
-function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boolean; onDone: () => void }) {
+function BanIpForm({
+  initialIp,
+  initialReason,
+  open,
+  inDrawer,
+  onEdit,
+  onDone,
+}: {
+  initialIp: string
+  initialReason: string
+  open: boolean
+  inDrawer: boolean
+  /** Runs on every change and on submit. */
+  onEdit: () => void
+  onDone: () => void
+}) {
   const [ip, setIp] = useState(initialIp)
   const [type, setType] = useState<BanDecisionType>("ban")
   const [preset, setPreset] = useState<string>("4h")
   const [customDuration, setCustomDuration] = useState("")
-  const [reason, setReason] = useState("")
+  const [reason, setReason] = useState(initialReason)
   const [error, setError] = useState<string | null>(null)
   const ban = useBanIp()
   const rangeSize = rangeSizeLabel(ip.trim())
@@ -64,6 +90,7 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
   }, [open])
   const submit = async () => {
     if (submitting.current || ban.isPending) return
+    onEdit()
     const target = ip.trim()
     if (!isValidBanTarget(target)) {
       setError("Enter a full IPv4 or IPv6 address, or a range such as 203.0.113.0/24.")
@@ -100,15 +127,35 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
 
   const submitOnEnter = (event: React.KeyboardEvent) => event.key === "Enter" && void submit()
 
+  const cancelButton = (
+    <Button variant="outline" className={inDrawer ? "h-11" : undefined} onClick={onDone}>
+      Cancel
+    </Button>
+  )
+  const submitButton = (
+    <Button
+      variant="destructive"
+      className={inDrawer ? "h-11" : undefined}
+      onClick={submit}
+      disabled={flushing || ban.isPending || !ip.trim()}
+    >
+      {ban.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+      {type === "ban" ? "Ban" : "Require captcha"}
+    </Button>
+  )
+
   return (
     <>
-      <div className="space-y-3">
+      <div className={inDrawer ? "space-y-3 overflow-y-auto overscroll-contain px-4 py-1" : "space-y-3"}>
         <div className="space-y-1.5">
           <Label htmlFor="ban-ip">IP address or range</Label>
           <Input
             id="ban-ip"
             value={ip}
-            onChange={(event) => setIp(event.target.value)}
+            onChange={(event) => {
+              setIp(event.target.value)
+              onEdit()
+            }}
             onKeyDown={submitOnEnter}
             placeholder="203.0.113.7 or 203.0.113.0/24"
             className="font-mono"
@@ -121,7 +168,11 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
             type="single"
             variant="outline"
             value={type}
-            onValueChange={(value) => value && setType(value as BanDecisionType)}
+            onValueChange={(value) => {
+              if (!value) return
+              setType(value as BanDecisionType)
+              onEdit()
+            }}
           >
             {DECISION_TYPES.map((d) => (
               <ToggleGroupItem key={d.value} value={d.value}>
@@ -137,7 +188,13 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="ban-duration">Duration</Label>
-          <Select value={preset} onValueChange={setPreset}>
+          <Select
+            value={preset}
+            onValueChange={(value) => {
+              setPreset(value)
+              onEdit()
+            }}
+          >
             <SelectTrigger id="ban-duration" className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -154,7 +211,10 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
             <Input
               aria-label="Custom duration"
               value={customDuration}
-              onChange={(event) => setCustomDuration(event.target.value)}
+              onChange={(event) => {
+                setCustomDuration(event.target.value)
+                onEdit()
+              }}
               onKeyDown={submitOnEnter}
               placeholder="90m, 12h, 3d, 1d12h"
               className="font-mono"
@@ -167,7 +227,10 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
           <Input
             id="ban-reason"
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              setReason(event.target.value)
+              onEdit()
+            }}
             onKeyDown={submitOnEnter}
             placeholder={`manual ${type} from GeoMetrikks`}
             maxLength={200}
@@ -175,15 +238,17 @@ function BanIpForm({ initialIp, open, onDone }: { initialIp: string; open: boole
         </div>
         {error && <p className="text-sm text-red-500">{error}</p>}
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button variant="destructive" onClick={submit} disabled={flushing || ban.isPending || !ip.trim()}>
-          {ban.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
-          {type === "ban" ? "Ban" : "Require captcha"}
-        </Button>
-      </DialogFooter>
+      {inDrawer ? (
+        <DrawerFooter>
+          {submitButton}
+          {cancelButton}
+        </DrawerFooter>
+      ) : (
+        <DialogFooter>
+          {cancelButton}
+          {submitButton}
+        </DialogFooter>
+      )}
     </>
   )
 }
@@ -193,33 +258,82 @@ export function BanIpDialog({
   open,
   onOpenChange,
   initialIp = "",
+  initialReason = "",
   returnFocusTo,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** An IP or a CIDR range. */
   initialIp?: string
+  initialReason?: string
   /** Gets focus back on close. Without a trigger of its own the dialog
    *  would otherwise drop focus on the body. */
   returnFocusTo?: RefObject<HTMLElement | null>
 }) {
+  // Once edited or sent, the form holds its layout through a turn rather than close and lose it.
+  const [edited, setEdited] = useState(false)
+  if (!open && edited) setEdited(false)
+  const markEdited = () => setEdited(true)
+  const drawer = usePhoneDrawer("ban-ip", open, () => onOpenChange(false), { keepWhileOpen: edited })
+  const restoreFocus = (event: Event) => {
+    if (!returnFocusTo?.current) return
+    event.preventDefault()
+    returnFocusTo.current.focus({ preventScroll: true })
+  }
+  const title = "Ban an IP or range"
+  const description = "Creates a manual CrowdSec decision with origin geometrikks. Your bouncer enforces it."
+
+  if (drawer.phone) {
+    const heading = (
+      <>
+        <DrawerTitle tabIndex={-1} className="outline-none">
+          {title}
+        </DrawerTitle>
+        <DrawerDescription>{description}</DrawerDescription>
+      </>
+    )
+    return (
+      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed} autoFocus>
+        <DrawerContent className={drawer.contentClassName} onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
+          {drawer.side ? (
+            <DrawerHeader className="flex-row items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-1">{heading}</div>
+              <SideDrawerClose />
+            </DrawerHeader>
+          ) : (
+            <DrawerHeader>{heading}</DrawerHeader>
+          )}
+          <BanIpForm
+            initialIp={initialIp}
+            initialReason={initialReason}
+            open={open}
+            inDrawer
+            onEdit={markEdited}
+            onDone={() => onOpenChange(false)}
+          />
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={drawer.open} onOpenChange={onOpenChange}>
       <DialogContent
         className="sm:max-w-sm"
-        onCloseAutoFocus={(event) => {
-          if (!returnFocusTo?.current) return
-          event.preventDefault()
-          returnFocusTo.current.focus({ preventScroll: true })
-        }}
+        onCloseAutoFocus={restoreFocus}
       >
         <DialogHeader>
-          <DialogTitle>Ban an IP or range</DialogTitle>
-          <DialogDescription>
-            Creates a manual CrowdSec decision with origin geometrikks.
-            Your bouncer enforces it.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <BanIpForm initialIp={initialIp} open={open} onDone={() => onOpenChange(false)} />
+        <BanIpForm
+          initialIp={initialIp}
+          initialReason={initialReason}
+          open={open}
+          inDrawer={false}
+          onEdit={markEdited}
+          onDone={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   )

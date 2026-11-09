@@ -1,229 +1,82 @@
-# Data Seeding Module
+# Seed data
 
-High-performance test data generation for GeoMetrikks using [Polyfactory](https://github.com/litestar-org/polyfactory).
-
-## Quick Start
+Fills a development database with traffic that looks like what live ingestion writes, so you can try the map, analytics, logs and IP views without real logs.
 
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
-
-# Preview what will be created (no database writes)
-python -m tests.seed --dry-run --rows 100000
-
-# Seed 100k rows (default)
-python -m tests.seed
-
-# Seed 1 million rows
-python -m tests.seed --rows 1000000
+uv run python -m tests.seed                      # 100k requests over the last 30 days
+uv run python -m tests.seed -r 1000000 -d 90     # a million requests over 90 days
+uv run python -m tests.seed --reset --home-country NO
 ```
 
-## CLI Options
+It writes to the database in your `DB_*` settings and prints its name before it starts. Run the app once first so the migrations and continuous aggregates exist.
 
-```
-python -m tests.seed [OPTIONS]
+## Where the locations come from
 
-Options:
-  --rows, -r          Number of access logs to generate (default: 100000)
-  --num-locations, -l Number of unique locations (default: 5000)
-  --seed, -s          Random seed for reproducibility (default: 42)
-  --batch-size, -b    Batch size for bulk inserts (default: 10000)
-  --days, -d          Days of historical data (default: 30)
-  --database-url      Override database URL
-  --locations-only    Only seed locations table
-  --skip-aggregates   Skip refreshing TimescaleDB continuous aggregates
-  --quiet, -q         Suppress progress output
-  --dry-run           Show config without seeding
-```
+Visitor IPs are random public addresses, kept only when the GeoLite2 City database places them. Every marker therefore sits on a place MaxMind actually reports: a city, or the country's centre for some IPv4 and most IPv6, with the state, postal code, timezone and ASN the app would have stored. An IP keeps its location, ASN and user agent for the whole run, so the IP inspector and the per-IP views stay consistent.
 
-## Examples
+The seeder reads the same databases as the app (`GEOIP_DB_PATH` and `GEOIP_ASN_DB_PATH`). A fresh worktree has no `data/geoip`, so point it at your main checkout:
 
 ```bash
-# Reproducible dataset with specific seed
-python -m tests.seed --rows 500000 --seed 12345
-
-# Faster inserts with larger batches (uses more memory)
-python -m tests.seed --rows 1000000 --batch-size 50000
-
-# 90 days of historical data
-python -m tests.seed --rows 1000000 --days 90
-
-# More geographic diversity
-python -m tests.seed --rows 1000000 --num-locations 20000
-
-# Custom database
-python -m tests.seed --database-url "postgresql+asyncpg://user:pass@host/db"
+uv run python -m tests.seed \
+  --city-db ~/dev/geometrikks/data/geoip/GeoLite2-City.mmdb \
+  --asn-db ~/dev/geometrikks/data/geoip/GeoLite2-ASN.mmdb
 ```
 
-## Programmatic Usage
+Without the ASN database the rows get no ASN, and scanners and the crawlers without published ranges come from any network instead of hosting ones. The City database is required. The `*-Test.mmdb` fixtures in `tests/` cover too few addresses to sample from.
 
-### Bulk Seeding
+## What a run writes
 
-```python
-import asyncio
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from tests.seed import DataSeeder, SeedConfig
+- `access_logs` and `geo_events`, one of each per request, from public IPs GeoIP places. Ingestion writes no access log or geo event for LAN addresses, and the seeder has none.
+- `geo_locations`, one row per distinct place.
+- `access_log_debug`. Every TLS, SSH and SMB probe keeps its raw line, linked to its access log. So does `--debug-share` of normal requests, and a few lines that never parsed.
+- `server_locations`, a map beacon per server name (Frankfurt, then Oslo, Amsterdam and so on). Existing beacons stay as they are.
 
-async def seed_database():
-    engine = create_async_engine(
-        "postgresql+asyncpg://geouser:geopass@localhost/geometrikks"
-    )
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+Then it runs the full aggregate refresh the app runs every six hours, which stops at each view's bucket that is still filling, and sets `geo_locations.last_hit`. Rows in those buckets count through real-time aggregation.
 
-    config = SeedConfig(
-        seed=42,
-        num_locations=10_000,
-        num_access_logs=1_000_000,
-        num_geo_events=1_000_000,
-        batch_size=50_000,
-    )
+The traffic has three kinds of visitor:
 
-    async with DataSeeder(session_factory, config) as seeder:
-        stats = await seeder.seed_all()
-        print(f"Created {stats['access_logs']:,} access logs")
-        print(f"Rate: {stats['rows_per_second']:,.0f} rows/sec")
+- People hit one to three of the `*.example.com` hosts, mostly during their local daytime, for a few hours to the whole range.
+- Crawlers such as Googlebot and bingbot come from their real address ranges and visit steadily.
+- Scanners come from hosting ASNs in bursts of ten minutes to six hours. They probe `/.env`, `/wp-login.php` and the like and mostly get 404s.
 
-    await engine.dispose()
+A few visitors produce most of the requests (a Zipf split), so the top lists look like a real server's.
 
-asyncio.run(seed_database())
-```
+Each server name owns a share of the hosts and one log format. The first is `geometrikks-json`, the second `nginx`, and so on alternating. The default servers are `seed-edge` and `seed-nas`. Use `--servers` to name your own, for example to match `LOGPARSER_SERVER_NAME`.
 
-### Using Factories in Tests
+## Options
 
-```python
-import pytest
-from tests.seed import (
-    GeoLocationFactory,
-    GeoEventFactory,
-    AccessLogFactory,
-    AccessLogDebugFactory,
-    seed_factories,
-)
+| Option | Default | |
+|---|---|---|
+| `-r`, `--rows` | 100000 | Requests to write |
+| `-d`, `--days` | 30 | Days of history, ending now |
+| `--visitors` | rows / 40 | Distinct client IPs, 100 to 20000 |
+| `--servers` | `seed-edge,seed-nas` | Server names, comma-separated |
+| `--home-country` | none | ISO code that 40% of people come from |
+| `-s`, `--seed` | 42 | The same seed and GeoLite2 build give the same visitors |
+| `--debug-share` | 0.02 | Share of normal requests that keep a raw line |
+| `--batch-size` | 20000 | Rows per COPY |
+| `--reset` | off | Empty every traffic table and aggregate first. Asks you to type the database name unless you pass `-y` |
+| `--no-refresh` | off | Skip the aggregate refresh. The refresh policies cover only the last three hours of hourly aggregates and three days of daily ones, so rows outside those windows stay out of aggregate-backed charts until the app's next full refresh, which runs every six hours. |
+| `--database-url` | `DB_*` | Another database, as a `postgresql+asyncpg://` URL |
 
-# Seed for reproducibility
-@pytest.fixture(autouse=True)
-def reproducible_factories():
-    seed_factories(42)
+`--reset` wipes all of `access_logs`, `geo_events`, `access_log_debug`, `geo_locations` and the import history in `import_jobs` and `loki_imports`, real data included. It then refreshes the aggregates over all time, which drops their old buckets. Don't point it at a database you care about. Stop the app first, too. A running app holds location ids from before the reset, and its next batch fails until it reloads them.
 
+Retention still applies: 180 days for raw rows, 60 for hourly aggregates and 30 for debug lines by default. If `--days` reaches past them, the next retention job drops the oldest seeded rows.
 
-def test_location_has_valid_geohash():
-    """Factory generates valid geohash."""
-    location = GeoLocationFactory.build()
+## Speed
 
-    assert location.geohash is not None
-    assert len(location.geohash) == 8
-    assert len(location.country_code) == 2
+On the dev box, 100k requests take about 45 seconds, including the full aggregate refresh. Each batch goes in through COPY in one transaction, so a failed run never leaves a batch's geo events without their access logs.
 
+## Layout
 
-def test_access_log_realistic_distribution():
-    """Status codes follow realistic distribution."""
-    logs = [AccessLogFactory.build_dict() for _ in range(1000)]
+| File | |
+|---|---|
+| `__main__.py` | Command line |
+| `config.py` | `SeedConfig` |
+| `visitors.py` | IP sampling and GeoLite2 lookups |
+| `traffic.py` | Turns visitors into access log, geo event and debug rows |
+| `catalog.py` | Hosts, paths, user agents, probe payloads, status mixes |
+| `writer.py` | COPY, reset, location upserts |
+| `seeder.py` | `run_seed`, which ties the steps together |
 
-    status_200 = sum(1 for l in logs if l["status_code"] == 200)
-    status_4xx = sum(1 for l in logs if 400 <= l["status_code"] < 500)
-
-    # ~75% should be 200, ~10% should be 4xx
-    assert 700 < status_200 < 800
-    assert 50 < status_4xx < 150
-
-
-def test_geo_event_links_to_location():
-    """GeoEvent correctly references location."""
-    event = GeoEventFactory.build_dict(location_id=42)
-
-    assert event["location_id"] == 42
-    assert event["ip_address"] is not None
-    assert event["server"] == "geometrikks.local"
-
-
-def test_malformed_debug_log():
-    """Debug factory generates malformed entries."""
-    debug = AccessLogDebugFactory.build_dict(is_malformed=True)
-
-    assert debug["is_malformed"] is True
-    assert debug["parse_error"] == "Malformed request line"
-```
-
-### Factory Methods
-
-Each factory provides:
-
-| Method | Returns | Use Case |
-|--------|---------|----------|
-| `.build()` | Model instance | Unit tests, single records |
-| `.build_dict()` | Dictionary | Bulk inserts, performance |
-| `.batch(n)` | List of instances | Multiple test records |
-| `.batch_dicts(n)` | List of dicts | Bulk seeding (GeoLocationFactory only) |
-
-## Data Distributions
-
-The generators create realistic data distributions:
-
-| Data | Distribution | Notes |
-|------|--------------|-------|
-| IP addresses | Zipf (α=1.5) | Few IPs generate most traffic |
-| Locations | Zipf (α=1.2) | Geographic clustering |
-| Status codes | Weighted | 75% 200, 5% 304, 10% 4xx, etc. |
-| Request time | Log-normal | Most fast, long tail of slow |
-| Bytes sent | Log-normal | ~3KB median, varies by status |
-| HTTP methods | Weighted | 85% GET, 8% POST, etc. |
-
-## Configuration
-
-```python
-from datetime import datetime, timedelta, timezone
-from tests.seed import SeedConfig
-
-config = SeedConfig(
-    # Reproducibility
-    seed=42,
-
-    # Volume
-    num_locations=5_000,
-    num_access_logs=100_000,
-    num_geo_events=100_000,
-
-    # Performance
-    batch_size=10_000,
-
-    # Time range
-    start_date=datetime.now(timezone.utc) - timedelta(days=30),
-    end_date=datetime.now(timezone.utc),
-
-    # Data characteristics
-    malformed_ratio=0.02,  # 2% malformed requests
-    ip_zipf_exponent=1.5,  # IP concentration
-    location_zipf_exponent=1.2,  # Geographic clustering
-
-    # Output
-    verbose=True,
-)
-```
-
-## Performance Tips
-
-1. **Increase batch size** for faster inserts (uses more memory):
-   ```bash
-   python -m tests.seed --rows 1000000 --batch-size 50000
-   ```
-
-2. **Skip aggregate refresh** if you'll do it manually later:
-   ```bash
-   python -m tests.seed --rows 1000000 --skip-aggregates
-   ```
-
-3. **Disable indexes** before bulk load, recreate after (manual SQL).
-
-4. **Expected throughput**: ~10,000-50,000 rows/sec depending on hardware and batch size.
-
-## Module Structure
-
-```
-tests/seed/
-├── __init__.py      # Public exports
-├── __main__.py      # CLI entry point
-├── config.py        # SeedConfig dataclass
-├── factories.py     # Polyfactory model factories
-├── generators.py    # DataSeeder and distribution helpers
-└── README.md        # This file
-```
+`tests/test_seed_traffic.py` checks the generated rows without a database. `tests/integration/test_seed_pg.py` seeds the scratch TimescaleDB, so a schema change that breaks the seeder fails CI.

@@ -41,6 +41,9 @@ LOKI_IMPORTS_REVISION = "a4d1f0c2b7e9"
 SERVER_NAMING_REVISION = "18be2778bd7c"
 INSTANCE_HEARTBEATS_REVISION = "3f8a6c1d9b72"
 AUTH_SESSIONS_REVISION = "a41d7e6c2b95"
+DEBUG_LOG_FORMAT_REVISION = "c5e2a9f7d813"
+DROP_LISTS_REVISION = "d7b3e1a94c60"
+API_KEYS_REVISION = "47b5f6c769ad"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -144,6 +147,38 @@ def test_auth_sessions_revision_is_rerun_safe() -> None:
     assert "CREATE TABLE IF NOT EXISTS auth_sessions" in source
     assert "CREATE INDEX IF NOT EXISTS ix_auth_sessions_expires_at" in source
     assert "DROP TABLE IF EXISTS auth_sessions" in source
+
+
+def test_debug_log_format_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(DEBUG_LOG_FORMAT_REVISION)
+    assert revision.down_revision == AUTH_SESSIONS_REVISION
+
+
+def test_debug_log_format_revision_is_rerun_safe() -> None:
+    source = _revision_source(DEBUG_LOG_FORMAT_REVISION)
+    assert "ADD COLUMN IF NOT EXISTS log_format VARCHAR(32)" in source
+    assert "DROP COLUMN IF EXISTS log_format" in source
+
+
+def test_drop_lists_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(DROP_LISTS_REVISION)
+    assert revision.down_revision == DEBUG_LOG_FORMAT_REVISION
+
+
+def test_drop_lists_revision_is_rerun_safe() -> None:
+    source = _revision_source(DROP_LISTS_REVISION)
+    assert "CREATE TABLE IF NOT EXISTS drop_networks" in source
+    assert "CREATE INDEX IF NOT EXISTS ix_drop_networks_cidr_gist" in source
+    assert "CREATE TABLE IF NOT EXISTS drop_asns" in source
+    assert "CREATE TABLE IF NOT EXISTS drop_list_state" in source
+    assert "DROP TABLE IF EXISTS drop_list_state" in source
+    assert "DROP TABLE IF EXISTS drop_asns" in source
+    assert "DROP TABLE IF EXISTS drop_networks" in source
+
+
+def test_api_keys_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(API_KEYS_REVISION)
+    assert revision.down_revision == DROP_LISTS_REVISION
 
 
 def test_revisions_parse_and_chain() -> None:

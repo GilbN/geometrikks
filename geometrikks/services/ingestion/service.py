@@ -68,6 +68,8 @@ class LogInput:
 
     source: LogSource
     parser: LogParser
+    last_read_at: datetime | None = None
+    last_parsed_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,12 +330,15 @@ class LogIngestionService:
                     # the format, the loop below would exit immediately anyway.
                     return
             async for line in log_input.source.lines(stop):
+                log_input.last_read_at = datetime.now(timezone.utc)
                 lookups = self._lookups
                 if lookups is None:
                     break  # stop() released the readers; this task is on its way out
                 record = log_input.parser.parse_line(line, lookups.city, lookups.asn)
                 if record is None:
                     continue  # ignored IP
+                if record.ip_address is not None:
+                    log_input.last_parsed_at = log_input.last_read_at
                 record.server = self.server_for(log_input)
                 await self._queue.put(record)
         except Exception:
@@ -812,6 +817,7 @@ class LogIngestionService:
             raw_line=sanitized_line,
             is_malformed=record.is_malformed,
             parse_error=sanitized_error,
+            log_format=record.log_format,
             # Denormalized so the debug list never joins the access_logs
             # hypertable. Every value is already on the object we were handed.
             log_timestamp=access_log.timestamp if access_log else None,

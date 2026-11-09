@@ -118,7 +118,7 @@ function InstanceDetail({
 
       <div className="space-y-2">
         <SectionHeading>Sources</SectionHeading>
-        <SourcesList instance={instance} />
+        <SourcesList instance={instance} now={checkedAt} />
       </div>
 
       <div className="space-y-2">

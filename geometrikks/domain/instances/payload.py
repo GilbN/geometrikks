@@ -108,6 +108,8 @@ def build_payload(
                     available=source_status.available,
                     reason=source_status.reason,
                     parsed_lines=log_input.parser.parsed_lines,
+                    last_read_at=log_input.last_read_at,
+                    last_parsed_at=log_input.last_parsed_at,
                 )
             )
         batch_error = ingestion_service.last_batch_error

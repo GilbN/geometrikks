@@ -136,6 +136,27 @@ class TestFilteredLiveTimeSeries:
             )
         assert [(r.bucket, r.total_requests) for r in rows] == [(LOCAL_MIDNIGHT, 2)]
 
+    async def test_daily_buckets_follow_a_quarter_hour_offset(self, pg_session_maker, clean_tables):
+        """Kathmandu (UTC+05:45) midnight falls at 18:15 UTC, mid-hour."""
+        local_midnight = BASE + timedelta(hours=18, minutes=15)
+        async with pg_session_maker() as session:
+            await _insert_log(session, ts=local_midnight - timedelta(minutes=5))
+            await _insert_log(session, ts=local_midnight + timedelta(minutes=5))
+            await _insert_log(session, ts=local_midnight + timedelta(minutes=6))
+            await session.commit()
+        async with pg_session_maker() as session:
+            rows = await LiveStatsRepository(session=session).get_time_series(
+                BASE,
+                BASE + timedelta(days=1),
+                bucket_interval="1 day",
+                filters=AnalyticsFilters(ip_addresses=["10.0.0.1"]),
+                tz="Asia/Kathmandu",
+            )
+        assert [(r.bucket, r.total_requests) for r in rows] == [
+            (local_midnight - timedelta(days=1), 1),
+            (local_midnight, 2),
+        ]
+
 
 class TestAnalyticsGeoTimeSeries:
     async def test_daily_buckets_are_local_days(self, pg_engine, pg_session_maker, clean_tables):
@@ -158,9 +179,10 @@ class TestGeoTimeSeries:
             points = await GeoEventService(session=session).get_time_series(
                 LOCAL_MIDNIGHT, WINDOW_END, GeoStatsGranularity.DAILY, GeoEventFilters(), tz=TZ
             )
-        assert [(p.timestamp, p.total_events, p.unique_ips) for p in points] == [
-            (LOCAL_MIDNIGHT, 2, 2)
-        ]
+        assert [
+            (p.timestamp, p.total_events, p.unique_ips, p.unique_countries, p.unique_cities)
+            for p in points
+        ] == [(LOCAL_MIDNIGHT, 2, 2, 1, 1)]
 
     async def test_filtered_daily_buckets_are_local_days(self, pg_engine, pg_session_maker, clean_tables):
         """Country-filtered daily buckets ride the hourly stitched CAGGs."""

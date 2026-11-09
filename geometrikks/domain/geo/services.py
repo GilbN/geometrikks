@@ -20,14 +20,15 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
 
 from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import (
     GeoLocationRepository,
+    LocationTopIPs,
     LocationWithEventCount,
     StatsGranularity,
-    TopIP,
     get_stats_granularity,
     stitch_params,
     stitched_ip_location_cte,
@@ -303,7 +304,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         filters: GeoEventFilters,
         tz: str | None = None,
     ) -> list[GeoLogTimeSeriesPoint]:
-        """Bucketed event totals + unique IPs for the chart.
+        """Bucketed event totals and unique IPs, countries and cities.
 
         ``granularity`` must be HOURLY or DAILY (the controller clamps RAW to
         HOURLY, matching the analytics charts) and only picks the bucket size;
@@ -352,7 +353,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 SELECT
                     {bucket_expr} AS bucket,
                     CAST(COUNT(*) AS BIGINT) AS total_events,
-                    CAST(COUNT(DISTINCT ge.ip_address) AS BIGINT) AS unique_ips
+                    CAST(COUNT(DISTINCT ge.ip_address) AS BIGINT) AS unique_ips,
+                    CAST(COUNT(DISTINCT gl.country_code) AS BIGINT) AS unique_countries,
+                    CAST(COUNT(DISTINCT gl.city) AS BIGINT) AS unique_cities
                 FROM geo_events ge
                 JOIN geo_locations gl ON ge.location_id = gl.id
                 WHERE ge.timestamp >= :start AND ge.timestamp < :end
@@ -383,7 +386,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 SELECT
                     {bucket_expr} AS bucket,
                     CAST(SUM(c.event_count) AS BIGINT) AS total_events,
-                    CAST(COUNT(DISTINCT c.ip_address) AS BIGINT) AS unique_ips
+                    CAST(COUNT(DISTINCT c.ip_address) AS BIGINT) AS unique_ips,
+                    CAST(COUNT(DISTINCT gl.country_code) AS BIGINT) AS unique_countries,
+                    CAST(COUNT(DISTINCT gl.city) AS BIGINT) AS unique_cities
                 FROM combined c
                 JOIN geo_locations gl ON c.location_id = gl.id
                 WHERE TRUE
@@ -400,7 +405,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 SELECT
                     time_bucket('1 day', bucket, CAST(:tz AS TEXT)) AS bucket,
                     CAST(SUM(total_events) AS BIGINT) AS total_events,
-                    CAST(distinct_count(rollup(hll_ips)) AS BIGINT) AS unique_ips
+                    CAST(distinct_count(rollup(hll_ips)) AS BIGINT) AS unique_ips,
+                    CAST(distinct_count(rollup(hll_countries)) AS BIGINT) AS unique_countries,
+                    CAST(distinct_count(rollup(hll_cities)) AS BIGINT) AS unique_cities
                 FROM geo_summary_hourly_stats
                 WHERE bucket >= time_bucket('1 day', CAST(:start AS timestamptz), CAST(:tz AS TEXT))
                   AND bucket < :end
@@ -414,7 +421,9 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 SELECT
                     bucket,
                     CAST(total_events AS BIGINT) AS total_events,
-                    CAST(distinct_count(hll_ips) AS BIGINT) AS unique_ips
+                    CAST(distinct_count(hll_ips) AS BIGINT) AS unique_ips,
+                    CAST(distinct_count(hll_countries) AS BIGINT) AS unique_countries,
+                    CAST(distinct_count(hll_cities) AS BIGINT) AS unique_cities
                 FROM {table}
                 WHERE bucket >= time_bucket('{interval}', CAST(:start AS timestamptz))
                   AND bucket < :end
@@ -428,6 +437,8 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
                 timestamp=row.bucket,
                 total_events=row.total_events or 0,
                 unique_ips=row.unique_ips or 0,
+                unique_countries=row.unique_countries or 0,
+                unique_cities=row.unique_cities or 0,
             )
             for row in result.fetchall()
         ]
@@ -606,7 +617,13 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
         ]
 
     async def get_top_asns(
-        self, start: datetime, end: datetime, filters: GeoEventFilters, *, limit: int = 10
+        self,
+        start: datetime,
+        end: datetime,
+        filters: GeoEventFilters,
+        *,
+        limit: int = 10,
+        drop_snapshot: DropSnapshot | None = None,
     ) -> list[TopGeoAsn]:
         """Top autonomous systems by event count; rows without ASN data excluded."""
         granularity = get_stats_granularity(start, end)
@@ -656,7 +673,7 @@ class GeoEventService(SQLAlchemyAsyncRepositoryService[GeoEvent]):
             TopGeoAsn(
                 asn=int(row.asn),
                 organization=row.organization,
-                category=classify_asn(int(row.asn)),
+                category=classify_asn(int(row.asn), drop_snapshot),
                 event_count=row.event_count,
                 unique_ips=row.unique_ips,
             )
@@ -776,8 +793,8 @@ class GeoLocationService(SQLAlchemyAsyncRepositoryService[GeoLocation]):
         to_timestamp: datetime,
         *,
         limit: int = 5,
-    ) -> list[TopIP]:
-        """Top IPs by event count for one location."""
+    ) -> LocationTopIPs:
+        """Top IPs by event count for one location, and its distinct IP count."""
         return await self.repository.get_location_top_ips(
             location_id, from_timestamp, to_timestamp, limit=limit
         )
