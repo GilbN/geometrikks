@@ -66,7 +66,7 @@ function SheetContent({
           size === "default" &&
             "data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm",
           size === "full-mobile" &&
-            "inset-0 h-dvh w-screen max-w-none rounded-none border-0 sm:inset-y-0 sm:right-0 sm:left-auto sm:h-full sm:w-[min(32rem,100vw)] sm:max-w-lg sm:rounded-l-xl sm:border-l",
+            "inset-0 h-dvh w-screen max-w-none rounded-none border-0 pt-[env(safe-area-inset-top,0px)] sm:inset-y-0 sm:right-0 sm:left-auto sm:h-full sm:w-[min(32rem,100vw)] sm:max-w-lg sm:rounded-l-xl sm:border-l",
           className,
         )}
         {...props}

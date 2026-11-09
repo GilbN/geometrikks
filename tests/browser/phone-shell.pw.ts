@@ -194,6 +194,31 @@ test.describe("portrait phone", () => {
     expect(measured).toEqual({ appHeight: "100lvh", root: 852, scrollHeight: 852 })
   })
 
+  test("keeps a record sheet's header clear of the status bar", async ({ page }) => {
+    await login(page)
+    await emulateSafeAreas(page, { top: 47, left: 0, right: 0, bottom: 34 })
+    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
+      items: [{
+        id: 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: "203.0.113.7", remoteUser: null,
+        method: "GET", url: "/request/detail", httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
+        referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
+        host: "example.test", server: null, logFormat: null, countryCode: "NO",
+        countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
+      }],
+      total: 1, limit: 20, offset: 0,
+    } }))
+    await page.goto("/access-logs")
+    await page.locator("table tr[data-index='0']").getByText("/request/detail").click()
+
+    const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
+    await expect(sheet).toBeVisible()
+    await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
+
+    expect((await sheet.boundingBox())!.y).toBe(0)
+    expect((await sheet.locator('[data-slot="sheet-title"]').boundingBox())!.y).toBeGreaterThanOrEqual(47)
+    expect((await sheet.getByRole("button", { name: "Close" }).boundingBox())!.y).toBeGreaterThanOrEqual(47)
+  })
+
   test("keeps the page color in a browser tab on the map", async ({ page }) => {
     await login(page)
     await page.goto("/map")
