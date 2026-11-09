@@ -11,20 +11,22 @@ const HEADER_SECTIONS: { group: RawLineField["group"]; title: string }[] = [
   { group: "origin_header", title: "Origin response headers" },
 ]
 
-/** Headers first, then the keys GeoMetrikks drops, then the ones it keeps.
- * Without a format nothing is known to be stored, so the rest stays one list. */
+/** Unstored headers first, then the other keys GeoMetrikks drops, then every
+ * key it keeps, so a stored header never reads as dropped. Without a format
+ * nothing is known to be stored, so the rest stays one list. */
 export function rawLineSections(rawFields: RawLineFields): RawLineSection[] {
-  const plain = rawFields.fields.filter((f) => f.group === "field")
+  const unstored = rawFields.fields.filter((f) => !f.storedAs)
+  const plain = unstored.filter((f) => f.group === "field")
   const sections: RawLineSection[] = [
     ...HEADER_SECTIONS.map(({ group, title }) => ({
       title,
-      fields: rawFields.fields.filter((f) => f.group === group),
+      fields: unstored.filter((f) => f.group === group),
     })),
     ...(rawFields.format === null
       ? [{ title: "Fields", fields: plain }]
       : [
-          { title: "Not stored", fields: plain.filter((f) => !f.storedAs) },
-          { title: "Stored in the access log", fields: plain.filter((f) => f.storedAs) },
+          { title: "Not stored", fields: plain },
+          { title: "Stored in the access log", fields: rawFields.fields.filter((f) => f.storedAs) },
         ]),
   ]
   return sections.filter((section) => section.fields.length > 0)
