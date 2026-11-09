@@ -198,10 +198,12 @@ def _errors(detail: str) -> dict:
     [
         (
             httpx2.Response(
-                429, headers={"Retry-After": "840"}, json=_errors("You can only report the same IP once in 15 minutes.")
+                429,
+                headers={"X-RateLimit-Limit": "1000", "X-RateLimit-Remaining": "996", "X-RateLimit-Reset": "1762560000"},
+                json=_errors("You can only report the same IP address once in 15 minutes."),
             ),
             UpstreamRateLimitedError, 429, "abuseipdb_rate_limited",
-            "You can only report the same IP once in 15 minutes.", {"Retry-After": "840"},
+            "You can only report the same IP address once in 15 minutes.", None,
         ),
         (
             httpx2.Response(
