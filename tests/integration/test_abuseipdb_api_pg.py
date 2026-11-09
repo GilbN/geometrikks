@@ -147,3 +147,36 @@ async def test_reports_for_another_spelling_of_the_ip(app_settings, use_upstream
     assert [row["ipAddress"] for row in mapped.json()] == ["3.5.140.2"]
     assert private.status_code == 400
     assert private.json()["code"] == "invalid_ip"
+
+
+async def test_report_history_pages_and_filters(app_settings, use_upstream, clean_abuseipdb_reports):
+    use_upstream(accept)
+    async with AsyncTestClient(app=create_app(settings=app_settings)) as client:
+        await client.post("/api/v1/abuseipdb/reports", json={"reports": [REPORT]})
+        await client.post(
+            "/api/v1/abuseipdb/reports",
+            json={"reports": [REPORT | {"ipAddress": "8.8.8.8", "categories": [14], "comment": "port scan"}]},
+        )
+        everything = await client.get("/api/v1/abuseipdb/reports/history", params={"pageSize": 1})
+        by_search = await client.get("/api/v1/abuseipdb/reports/history", params={"q": "port"})
+        by_category = await client.get("/api/v1/abuseipdb/reports/history", params={"categoryIn": [21, 19]})
+        by_status = await client.get("/api/v1/abuseipdb/reports/history", params={"statusIn": ["unconfirmed"]})
+
+    assert everything.status_code == 200
+    page = everything.json()
+    assert (page["total"], page["limit"], page["offset"], len(page["items"])) == (2, 1, 0, 1)
+    assert [row["ipAddress"] for row in by_search.json()["items"]] == ["8.8.8.8"]
+    assert [row["ipAddress"] for row in by_category.json()["items"]] == ["3.5.140.2"]
+    assert by_status.json()["items"] == []
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"categoryIn": [14, 0]}, {"categoryIn": 24}, {"statusIn": "failed"}, {"q": "a\x00b"}, {"q": "x" * 201}],
+    ids=["category-low", "category-high", "unknown-status", "nul-in-search", "long-search"],
+)
+async def test_report_history_refuses_bad_filters(app_settings, clean_abuseipdb_reports, params):
+    async with AsyncTestClient(app=create_app(settings=app_settings)) as client:
+        resp = await client.get("/api/v1/abuseipdb/reports/history", params=params)
+
+    assert resp.status_code == 400

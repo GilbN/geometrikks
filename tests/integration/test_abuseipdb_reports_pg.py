@@ -145,3 +145,114 @@ async def test_reported_ips_keeps_the_latest_row_per_ip_inside_the_window(pg_ses
         ReportedIp("1.1.1.1", since, "sent"),
         ReportedIp("3.5.140.2", two_hours_ago, "unconfirmed"),
     ]
+
+
+async def _page(pg_session_maker, *, limit: int = 10, offset: int = 0, **filters):
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbReportRepository(session=session, wrap_exceptions=False)
+        return await repository.list_page(limit=limit, offset=offset, **filters)
+
+
+async def test_list_page_is_newest_first_and_counts_past_the_page(pg_session_maker, clean_abuseipdb_reports):
+    now = datetime.now(UTC)
+    await _store(pg_session_maker, *[_report("3.5.140.2", now - timedelta(hours=age)) for age in (3, 1, 2)])
+
+    rows, total = await _page(pg_session_maker, limit=2, offset=1)
+
+    assert [row.reported_at for row in rows] == [now - timedelta(hours=2), now - timedelta(hours=3)]
+    assert total == 3
+    assert all(isinstance(row.ip_address, str) for row in rows)
+
+
+async def test_list_page_shows_each_report_of_a_reported_twice_ip(pg_session_maker, clean_abuseipdb_reports):
+    now = datetime.now(UTC)
+    await _store(pg_session_maker, _report("3.5.140.2", now), _report("3.5.140.2", now - timedelta(days=1)))
+
+    rows, total = await _page(pg_session_maker)
+
+    assert total == 2 and len(rows) == 2
+
+
+@pytest.mark.parametrize(
+    ("q", "expected"),
+    [
+        ("3.5.1", {"3.5.140.2"}),
+        ("5.140", set()),
+        ("2600:1F18", {"2600:1f18::1"}),
+        ("2600:1F18:0::1", {"2600:1f18::1"}),
+        ("WORDPRESS", {"8.8.4.4"}),
+        ("homepage", {"9.9.9.9"}),
+        ("%", {"1.0.0.1"}),
+    ],
+    ids=["ip-start", "ip-middle", "ipv6-case", "ipv6-spelling", "comment-case", "sent-by", "percent-is-literal"],
+)
+async def test_list_page_search(pg_session_maker, clean_abuseipdb_reports, q, expected):
+    now = datetime.now(UTC)
+    await _store(
+        pg_session_maker,
+        _report("3.5.140.2", now),
+        _report("2600:1f18::1", now),
+        _report("8.8.4.4", now, comment="Probed wordpress paths"),
+        _report("9.9.9.9", now, reporter_kind="api_key", reporter_name="homepage"),
+        _report("1.0.0.1", now, comment="100% scanner"),
+    )
+
+    rows, total = await _page(pg_session_maker, q=q)
+
+    assert {row.ip_address for row in rows} == expected
+    assert total == len(expected)
+
+
+async def test_list_page_filters_by_category(pg_session_maker, clean_abuseipdb_reports):
+    now = datetime.now(UTC)
+    await _store(pg_session_maker, _report("3.5.140.2", now, categories=[14]), _report("8.8.8.8", now, categories=[14, 21]))
+    await _store(pg_session_maker, _report("9.9.9.9", now, categories=[21]))
+
+    rows, total = await _page(pg_session_maker, categories=[14])
+
+    assert {row.ip_address for row in rows} == {"3.5.140.2", "8.8.8.8"}
+    assert total == 2
+
+
+async def test_list_page_matches_any_of_several_categories(pg_session_maker, clean_abuseipdb_reports):
+    now = datetime.now(UTC)
+    await _store(
+        pg_session_maker,
+        _report("3.5.140.2", now, categories=[14]),
+        _report("8.8.8.8", now, categories=[21]),
+        _report("9.9.9.9", now, categories=[18]),
+    )
+
+    rows, total = await _page(pg_session_maker, categories=[14, 21])
+
+    assert {row.ip_address for row in rows} == {"3.5.140.2", "8.8.8.8"}
+    assert total == 2
+
+
+async def test_list_page_filters_by_status(pg_session_maker, clean_abuseipdb_reports):
+    now = datetime.now(UTC)
+    await _store(pg_session_maker, _report("3.5.140.2", now), _report("8.8.8.8", now, status="unconfirmed"))
+
+    rows, total = await _page(pg_session_maker, statuses=["unconfirmed"])
+
+    assert [row.ip_address for row in rows] == ["8.8.8.8"]
+    assert total == 1
+
+    rows, total = await _page(pg_session_maker, statuses=["sent", "unconfirmed"])
+
+    assert total == 2
+
+
+async def test_list_page_filters_combine(pg_session_maker, clean_abuseipdb_reports):
+    now = datetime.now(UTC)
+    await _store(
+        pg_session_maker,
+        _report("3.5.140.2", now, categories=[14]),
+        _report("3.5.140.3", now, categories=[21]),
+        _report("8.8.8.8", now, categories=[14]),
+    )
+
+    rows, total = await _page(pg_session_maker, q="3.5.", categories=[14])
+
+    assert [row.ip_address for row in rows] == ["3.5.140.2"]
+    assert total == 1

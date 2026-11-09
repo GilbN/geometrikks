@@ -4555,6 +4555,68 @@ export type ApiV1AbuseipdbReportsCreateReportsResponses = {
 export type ApiV1AbuseipdbReportsCreateReportsResponse =
   ApiV1AbuseipdbReportsCreateReportsResponses[keyof ApiV1AbuseipdbReportsCreateReportsResponses];
 
+export type ApiV1AbuseipdbReportsHistoryListReportHistoryData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * The page to return, counted from 1. Defaults to 1.
+     */
+    currentPage?: number;
+    /**
+     * Rows per page, from 1 to 500. Defaults to 10.
+     */
+    pageSize?: number;
+    /**
+     * Search, up to 200 characters. Matches the start of the IP, or part of the comment or the sender's name, ignoring case.
+     */
+    q?: string | null;
+    /**
+     * Keep only reports with any of these AbuseIPDB category IDs, from 1 to 23. Repeat the parameter to pass more than one.
+     */
+    categoryIn?: Array<number> | null;
+    /**
+     * Keep only reports in any of these states. Repeat the parameter to pass more than one.
+     */
+    statusIn?: Array<"unconfirmed" | "sent"> | null;
+  };
+  url: "/api/v1/abuseipdb/reports/history";
+};
+
+export type ApiV1AbuseipdbReportsHistoryListReportHistoryErrors = {
+  /**
+   * A filter is out of range or holds a NUL character.
+   */
+  400: ErrorEnvelope;
+};
+
+export type ApiV1AbuseipdbReportsHistoryListReportHistoryError =
+  ApiV1AbuseipdbReportsHistoryListReportHistoryErrors[keyof ApiV1AbuseipdbReportsHistoryListReportHistoryErrors];
+
+export type ApiV1AbuseipdbReportsHistoryListReportHistoryResponses = {
+  /**
+   * One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.
+   */
+  200: {
+    items?: Array<StoredReportDto>;
+    /**
+     * Maximal number of items to send.
+     */
+    limit?: number;
+    /**
+     * Offset from the beginning of the query.
+     */
+    offset?: number;
+    /**
+     * Total number of items.
+     */
+    total?: number;
+  };
+};
+
+export type ApiV1AbuseipdbReportsHistoryListReportHistoryResponse =
+  ApiV1AbuseipdbReportsHistoryListReportHistoryResponses[keyof ApiV1AbuseipdbReportsHistoryListReportHistoryResponses];
+
 export type ApiV1AbuseipdbStatusGetAbuseipdbStatusData = {
   body?: never;
   path?: never;

@@ -9306,6 +9306,165 @@
         ]
       }
     },
+    "/api/v1/abuseipdb/reports/history": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns the reports sent from GeoMetrikks, newest first, paged with `currentPage` and `pageSize`. An IP reported twice appears twice. Read from the local database; nothing leaves the server.",
+        "operationId": "ApiV1AbuseipdbReportsHistoryListReportHistory",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "The page to return, counted from 1. Defaults to 1.",
+            "in": "query",
+            "name": "currentPage",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "The page to return, counted from 1. Defaults to 1.",
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Rows per page, from 1 to 500. Defaults to 10.",
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "Rows per page, from 1 to 500. Defaults to 10.",
+              "maximum": 500.0,
+              "minimum": 1.0,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the sender's name, ignoring case.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "description": "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the sender's name, ignoring case.",
+              "maxLength": 200,
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only reports with any of these AbuseIPDB category IDs, from 1 to 23. Repeat the parameter to pass more than one.",
+            "in": "query",
+            "name": "categoryIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only reports with any of these AbuseIPDB category IDs, from 1 to 23. Repeat the parameter to pass more than one.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only reports in any of these states. Repeat the parameter to pass more than one.",
+            "in": "query",
+            "name": "statusIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only reports in any of these states. Repeat the parameter to pass more than one.",
+              "oneOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "unconfirmed",
+                      "sent"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "One page of results. `total` counts the matches on every page, `limit` is the page size and `offset` is how many matches come before this page.",
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/StoredReportDTO"
+                      },
+                      "type": "array"
+                    },
+                    "limit": {
+                      "description": "Maximal number of items to send.",
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "description": "Offset from the beginning of the query.",
+                      "type": "integer"
+                    },
+                    "total": {
+                      "description": "Total number of items.",
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A filter is out of range or holds a NUL character."
+          }
+        },
+        "summary": "List every report sent to AbuseIPDB",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      }
+    },
     "/api/v1/abuseipdb/status": {
       "get": {
         "deprecated": false,
