@@ -38,6 +38,7 @@ import { IpInspectorProvider } from "@/lib/ip-inspector"
 import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { IpInspectorSheet } from "@/components/ip-inspector/ip-inspector-sheet"
 import { isChromelessRoute } from "@/lib/auth-redirect"
+import { loadSidebarOpenPreference } from "@/lib/sidebar-preference"
 import { RELOAD_NOTICE_MENU_DESCRIPTION_ID, ReloadNotice, ReloadNoticeMenuDot } from "@/components/reload-notice"
 import { TabBar } from "@/components/phone-nav/tab-bar"
 import { PhoneChromeProvider, usePhoneChrome } from "@/lib/phone-chrome"
@@ -253,7 +254,7 @@ function RootLayout() {
           <LiveFeedProvider>
           <OverlayHistoryProvider>
           <IpInspectorProvider>
-          <SidebarProvider defaultOpen={!isPhoneSideViewport()}>
+          <SidebarProvider defaultOpen={!isPhoneSideViewport() && loadSidebarOpenPreference()}>
             {!phone && <AppSidebar />}
             <PageInset className="bg-background h-(--app-height)">
               {/* The phone map has no header, so a banner there clears the notch itself. */}
