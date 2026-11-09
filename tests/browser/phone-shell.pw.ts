@@ -24,6 +24,14 @@ async function settledToast(page: Page, text: string | RegExp) {
   return settledToastBox(toast)
 }
 
+async function emulateInstalledApp(page: Page) {
+  // Chromium accepts a display-mode emulation request and ignores it.
+  await page.route(/\/assets\/main-[^/]+\.css/, async (route) => {
+    const response = await route.fetch()
+    await route.fulfill({ response, body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0") })
+  })
+}
+
 const MAP_WATER_DARK = "rgb(44, 53, 60)"
 const bodyColor = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
 
@@ -162,11 +170,7 @@ test.describe("portrait phone", () => {
 
   test("gives an installed app's page the water color on the map only", async ({ page }) => {
     await login(page)
-    // Chromium accepts a display-mode emulation request and ignores it.
-    await page.route(/\/assets\/main-[^/]+\.css/, async (route) => {
-      const response = await route.fetch()
-      await route.fulfill({ response, body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0") })
-    })
+    await emulateInstalledApp(page)
 
     await page.goto("/map")
     await expect.poll(() => bodyColor(page)).toBe(MAP_WATER_DARK)
@@ -174,6 +178,20 @@ test.describe("portrait phone", () => {
     await barCells(page).filter({ hasText: "Overview" }).click()
     await expect(page).toHaveURL(/\/$/)
     await expect.poll(() => bodyColor(page)).not.toBe(MAP_WATER_DARK)
+  })
+
+  test("sizes an installed app from the large viewport without a document scroll", async ({ page }) => {
+    await login(page)
+    await emulateInstalledApp(page)
+    await page.goto("/")
+    await expect(tabBar(page)).toBeVisible()
+
+    const measured = await page.evaluate(() => ({
+      appHeight: getComputedStyle(document.documentElement).getPropertyValue("--app-height").trim(),
+      root: document.getElementById("app")!.getBoundingClientRect().height,
+      scrollHeight: document.documentElement.scrollHeight,
+    }))
+    expect(measured).toEqual({ appHeight: "100lvh", root: 852, scrollHeight: 852 })
   })
 
   test("keeps the page color in a browser tab on the map", async ({ page }) => {

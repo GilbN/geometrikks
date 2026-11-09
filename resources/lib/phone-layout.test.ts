@@ -58,6 +58,19 @@ describe("main.css phone variants", () => {
   })
 })
 
+describe("main.css app height", () => {
+  const css = readFileSync(new URL("../main.css", import.meta.url), "utf8")
+  const standaloneRules = css.slice(css.indexOf("@media (display-mode: standalone)"), css.indexOf("/* Later blocks win"))
+
+  it("is the dynamic viewport by default", () => expect(css).toMatch(/:root \{[^}]*--app-height: 100dvh;/))
+  it("is the large viewport in an installed app", () => {
+    expect(standaloneRules).toMatch(/:root \{\s*--app-height: 100lvh;/)
+  })
+  it("gives the document the full height in an installed app", () => {
+    expect(standaloneRules).toMatch(/html,\s*body,\s*#app \{\s*height: var\(--app-height\);/)
+  })
+})
+
 describe("drawerLayout", () => {
   it("is the desktop version off a phone, whatever the side query says", () => {
     expect(drawerLayout(false, false)).toBe("desktop")

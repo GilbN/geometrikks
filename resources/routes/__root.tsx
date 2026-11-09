@@ -255,7 +255,7 @@ function RootLayout() {
           <IpInspectorProvider>
           <SidebarProvider defaultOpen={!isPhoneSideViewport()}>
             {!phone && <AppSidebar />}
-            <PageInset className="bg-background h-dvh">
+            <PageInset className="bg-background h-(--app-height)">
               {/* The phone map has no header, so a banner there clears the notch itself. */}
               <div
                 data-shell-top=""
