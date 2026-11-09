@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- On a phone, tapping a badge shows the text a desktop shows on hover, such as what Hosting ASN means in the IP inspector or which DROP entry lists an address.
 - The map runs behind the status bar in the app installed to an iPhone's home screen, instead of stopping below a solid band. Add the app to the home screen again to get this.
 - The app installed to an iPhone's home screen fills the screen again after the keyboard closes. It used to stay short by the height of the status bar until force-quit.
 - On an iPhone, the text field you tap in a drawer stays visible above the keyboard.
