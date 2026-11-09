@@ -1,4 +1,4 @@
-import type { ReportedIpDto, ReportIpDto } from "@/generated/api/types.gen"
+import type { ReportedIpDto, ReportIpDto, StoredReportDto } from "@/generated/api/types.gen"
 import { ipv6Value, parseIpv4Number, parseIpv6Groups } from "@/lib/drop-lists"
 import { scenarioName } from "@/lib/scenario-name"
 
@@ -27,6 +27,17 @@ export const ABUSEIPDB_CATEGORIES: { id: number; name: string }[] = [
   "SSH",
   "IoT Targeted",
 ].map((name, index) => ({ id: index + 1, name }))
+
+export const CATEGORY_NAMES = new Map(ABUSEIPDB_CATEGORIES.map((category) => [category.id, category.name]))
+
+export function reportCategoryNames(ids: number[]): string[] {
+  return ids.map((id) => CATEGORY_NAMES.get(id) ?? String(id))
+}
+
+export function reporterLabel(report: Pick<StoredReportDto, "reporterKind" | "reporterName">): string {
+  if (report.reporterKind === "anonymous") return "auth disabled"
+  return report.reporterName ?? (report.reporterKind === "api_key" ? "a deleted API key" : "a deleted user")
+}
 
 export const FEATURED_CATEGORY_IDS = [21, 19, 15, 16, 18, 14, 9, 10]
 export const FALLBACK_CATEGORY_IDS = [19, 21]

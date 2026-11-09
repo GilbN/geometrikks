@@ -51,10 +51,12 @@ import {
   REPORT_INTERVAL_MS,
   agoText,
   buildReportComment,
+  CATEGORY_NAMES,
   categoriesForScenarios,
   commentLength,
   defaultAttackTime,
   localScenarios,
+  reporterLabel,
 } from "@/lib/abuseipdb"
 import { TIME_RANGE_PRESETS, formatNumber, type CustomTimeRange, type TimeRangeValue } from "@/lib/api"
 import { formatTs } from "@/lib/datetime"
@@ -84,7 +86,6 @@ interface Prefill {
   attackTimeSource: string
 }
 
-const CATEGORY_NAMES = new Map(ABUSEIPDB_CATEGORIES.map((category) => [category.id, category.name]))
 const MORE_CATEGORY_IDS = ABUSEIPDB_CATEGORIES.map((category) => category.id).filter(
   (id) => !FEATURED_CATEGORY_IDS.includes(id),
 )
@@ -149,13 +150,8 @@ function networkLine(ipEvidence: ReportIpDto | undefined): string {
   return [network, ipEvidence.countryName ?? ipEvidence.countryCode].filter(Boolean).join(" · ")
 }
 
-function reporterName(report: StoredReportDto): string {
-  if (report.reporterKind === "anonymous") return "auth disabled"
-  return report.reporterName ?? (report.reporterKind === "api_key" ? "a deleted API key" : "a deleted user")
-}
-
 function earlierReportText(report: StoredReportDto): string {
-  const sent = `${utcMinutes(report.reportedAt)} UTC · ${report.categories.join(", ")} · by ${reporterName(report)}`
+  const sent = `${utcMinutes(report.reportedAt)} UTC · ${report.categories.join(", ")} · by ${reporterLabel(report)}`
   return report.status === "unconfirmed" ? `${sent} · may have been sent` : sent
 }
 

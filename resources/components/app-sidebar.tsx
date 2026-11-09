@@ -35,7 +35,7 @@ import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/vers
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { useServiceStatus } from "@/hooks/use-service-status"
-import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
+import { useChangelogUnseen, useMe, useRuntimeSettings, useSecurityNavStatus, useUnseenRelease } from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 import { useReloadNotice } from "@/lib/reload-notice"
 import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
@@ -383,10 +383,10 @@ export function AppSidebar() {
   const collapsed = isMobile ? false : state === "collapsed"
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
-  const { data: crowdsecStatus } = useCrowdsecStatus()
+  const { status: securityStatus } = useSecurityNavStatus()
   const changelogUnseen = useChangelogUnseen()
   const visibleNavigationItems = NAV_ITEMS.filter(
-    (item) => !item.requiresCrowdsec || crowdsecStatus?.enabled === true,
+    (item) => !item.requiresSecurityFeature || securityStatus?.enabled === true,
   )
 
   const { crowdsecDown } = useServiceStatus()

@@ -71,6 +71,7 @@ import {
   fetchAbuseIpdbBlacklist,
   fetchAbuseIpdbStatus,
   fetchReportedIps,
+  fetchAbuseIpdbReportHistory,
   fetchAbuseIpdbReports,
   fetchAbuseIpdbCheck,
   submitAbuseIpdbReport,
@@ -114,6 +115,7 @@ import {
   type OverviewSparklines,
 } from "./sparklines"
 import { canonicalIp } from "./abuseipdb"
+import { securityNavStatus } from "./security-tabs"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
 import type { AbuseIpdbBlacklistResponse, DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
@@ -275,6 +277,7 @@ export const queryKeys = {
     blacklist: ["abuseipdb", "blacklist"] as const,
     reportedIps: ["abuseipdb", "reported-ips"] as const,
     reports: (ip: string) => ["abuseipdb", "reports", ip] as const,
+    reportHistory: (params: object) => ["abuseipdb", "reports", "history", params] as const,
     check: (ip: string) => ["abuseipdb", "check", ip] as const,
   },
 }
@@ -2046,6 +2049,22 @@ export function useReportedIps(active = true) {
     refetchInterval: 60_000,
     select: selectReportedIps,
   })
+}
+
+export function useAbuseIpdbReportHistory(params: Parameters<typeof fetchAbuseIpdbReportHistory>[0]) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reportHistory(params),
+    queryFn: () => fetchAbuseIpdbReportHistory(params),
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Security appears in the navigation for CrowdSec or for AbuseIPDB reporting. */
+export function useSecurityNavStatus() {
+  const crowdsec = useCrowdsecStatus()
+  const abuseIpdb = useAbuseIpdbStatus()
+  return securityNavStatus(crowdsec.data?.enabled, crowdsec.isError, abuseIpdb.data?.reportingEnabled, abuseIpdb.isError)
 }
 
 export function useAbuseIpdbReports(ip: string, enabled: boolean) {

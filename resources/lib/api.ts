@@ -31,6 +31,7 @@ import {
   apiV1AbuseipdbCheckCheckIp,
   apiV1AbuseipdbReportedIpsListReportedIps,
   apiV1AbuseipdbReportsCreateReports,
+  apiV1AbuseipdbReportsHistoryListReportHistory,
   apiV1AbuseipdbReportsListReports,
   apiV1AbuseipdbBlacklistGetBlacklist,
   apiV1AbuseipdbStatusGetAbuseipdbStatus,
@@ -934,6 +935,17 @@ export async function fetchReportedIps() {
 
 export async function fetchAbuseIpdbReports(ipAddress: string) {
   const { data } = await apiV1AbuseipdbReportsListReports({ query: { ipAddress }, throwOnError: true })
+  return data
+}
+
+export async function fetchAbuseIpdbReportHistory(params: {
+  q?: string
+  categoryIn?: number[]
+  statusIn?: ("sent" | "unconfirmed")[]
+  currentPage: number
+  pageSize: number
+}) {
+  const { data } = await apiV1AbuseipdbReportsHistoryListReportHistory({ query: params, throwOnError: true })
   return data
 }
 
