@@ -41,6 +41,30 @@ async function degradeHealth(page: Page) {
   })
 }
 
+async function expectLogOutConfirmed(page: Page) {
+  let logoutRequests = 0
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/api/v1/auth/logout")) logoutRequests++
+  })
+  const menu = moreMenu(page)
+  const confirm = page.getByRole("alertdialog", { name: "Log out?" })
+
+  await menu.getByRole("button", { name: "Log out" }).tap()
+  await expect(confirm).toBeVisible()
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused()
+  expect(logoutRequests).toBe(0)
+
+  await confirm.getByRole("button", { name: "Cancel" }).tap()
+  await expect(confirm).toBeHidden()
+  await expect(menu).toBeVisible()
+  expect(logoutRequests).toBe(0)
+
+  await menu.getByRole("button", { name: "Log out" }).tap()
+  await confirm.getByRole("button", { name: "Log out" }).tap()
+  await expect(page).toHaveURL(/\/login/)
+  expect(logoutRequests).toBe(1)
+}
+
 test.describe("portrait phone", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
 
@@ -134,6 +158,13 @@ test.describe("portrait phone", () => {
     await menu.getByRole("link", { name: "Geo Logs" }).click()
     await expect(menu).toBeHidden()
     await expect(moreCell(page)).not.toBeFocused()
+  })
+
+  test("asks before logging out from More", async ({ page }) => {
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).tap()
+    await expectLogOutConfirmed(page)
   })
 
   test("closes More when the phone turns sideways", async ({ page }) => {
@@ -338,6 +369,14 @@ test.describe("More on a phone held sideways", () => {
     const box = (await menu.boundingBox())!
     expect(box.x).toBeGreaterThanOrEqual(narrowInsets.left)
     expect(box.x + box.width).toBeLessThanOrEqual(844 - narrowInsets.right)
+  })
+
+  test("asks before logging out", async ({ page }) => {
+    await emulateSafeAreas(page, insets)
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).tap()
+    await expectLogOutConfirmed(page)
   })
 
   test("closes on a scrim tap that never reaches the map", async ({ page }) => {
