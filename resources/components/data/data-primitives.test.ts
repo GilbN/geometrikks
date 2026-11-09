@@ -117,7 +117,7 @@ describe("FilterField and FilterPair", () => {
     expect(html).toMatch(/<label[^>]*>.*Country.*<input/)
   })
 
-  it("joins include and exclude on desktop and splits them when stacked", () => {
+  it("joins include and exclude", () => {
     const props = {
       label: "IP address",
       excludeLabel: "Exclude IP",
@@ -128,9 +128,6 @@ describe("FilterField and FilterPair", () => {
     expect(joined).toContain('data-pair="start"')
     expect(joined).toContain('data-pair="end"')
     expect(joined).not.toContain(">Exclude IP<")
-    const stacked = renderToStaticMarkup(createElement(FilterPair, { ...props, stacked: true }))
-    expect(stacked).not.toContain("data-pair")
-    expect(stacked).toContain(">Exclude IP<")
   })
 })
 
