@@ -55,15 +55,22 @@ export function asnCoverage(
   }
 }
 
-/** A tie goes to DROP, then Hosting. */
-export function largestAsnCategory(
+export interface HeadlineAsnCategory {
+  category: "drop" | "hosting"
+  hits: number
+}
+
+/**
+ * The larger of DROP and Hosting; a tie goes to DROP. Other is left out even
+ * when it is the biggest, since it only means "not on either list".
+ */
+export function headlineAsnCategory(
   categories: readonly AsnCategoryTotal[] | undefined,
-): AsnCategoryTotal | undefined {
-  const order = ["drop", "hosting", "other"] as const
-  let largest: AsnCategoryTotal | undefined
-  for (const name of order) {
-    const category = categories?.find((c) => c.category === name)
-    if (category && (!largest || category.hits > largest.hits)) largest = category
+): HeadlineAsnCategory | undefined {
+  let headline: HeadlineAsnCategory | undefined
+  for (const category of ["drop", "hosting"] as const) {
+    const hits = categories?.find((c) => c.category === category)?.hits
+    if (hits !== undefined && (!headline || hits > headline.hits)) headline = { category, hits }
   }
-  return largest
+  return headline
 }
