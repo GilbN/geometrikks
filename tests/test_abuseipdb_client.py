@@ -153,14 +153,22 @@ async def test_repeat_report_429_is_not_daily():
     client, _ = build_client(
         httpx2.Response(
             429,
-            json={"errors": [{"detail": "Too many requests for this IP", "status": 429}]},
-            headers={"Retry-After": "840", "X-RateLimit-Remaining": "900"},
+            json={
+                "errors": [
+                    {
+                        "detail": "You can only report the same IP address once in 15 minutes.",
+                        "status": 429,
+                        "source": {"parameter": "ip", "value": "3.5.140.2"},
+                    }
+                ]
+            },
+            headers={"X-RateLimit-Limit": "1000", "X-RateLimit-Remaining": "996", "X-RateLimit-Reset": str(RESET)},
         )
     )
 
     with pytest.raises(AbuseIpdbRateLimitedError) as exc:
         await client.report("3.5.140.2", [21], "probing", REPORTED_AT)
-    assert (exc.value.retry_after, exc.value.daily) == (840, False)
+    assert (exc.value.retry_after, exc.value.daily) == (None, False)
 
 
 async def test_daily_limit_429_is_daily():
