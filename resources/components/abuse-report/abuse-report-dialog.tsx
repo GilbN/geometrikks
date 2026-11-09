@@ -81,7 +81,7 @@ export function AbuseReportDialog({
       <DialogContent
         className={cn(
           "flex flex-col gap-0 p-0",
-          expanded ? "h-dvh max-h-none w-screen max-w-none rounded-none sm:max-w-none" : "max-h-[90vh] sm:max-w-3xl",
+          expanded ? "h-(--app-height) max-h-none w-screen max-w-none rounded-none pt-[env(safe-area-inset-top,0px)] sm:max-w-none [&>button]:top-[calc(1rem+env(safe-area-inset-top,0px))]" : "max-h-[90vh] sm:max-w-3xl",
         )}
         onEscapeKeyDown={(event) => {
           // The first Escape leaves full screen, the next closes the dialog.
