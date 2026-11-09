@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The desktop sidebar stays collapsed or expanded after you reload the page. It used to open again on every load.
 - On a phone, Log out in the More menu asks you to confirm first, so a stray tap near Settings no longer ends your session.
 - On a phone, the Filters drawer is a short list of rows that show what is picked. Host, Server, Method, Status and Source format open the phone's own multi-select list. Country, City, ASN and alert scenarios open a search page in the drawer. Exclude host and Exclude server now pick from the same lists as Host and Server, so a value has to be in the list to exclude it.
 - On Auto, the Geo events over time chart on Geo Logs shows a 7 day range by hour instead of by day.
