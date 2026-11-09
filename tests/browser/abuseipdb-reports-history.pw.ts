@@ -59,12 +59,13 @@ async function setup(page: Page, options: { crowdsec?: boolean; reporting?: bool
   await page.route("**/api/v1/crowdsec/stats**", (route) => route.fulfill({ json: { total: 0, byOrigin: [], topScenarios: [] } }))
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
   await page.route("**/api/v1/crowdsec/decisions**", (route) => route.fulfill({ json: { items: [], total: 0, limit: 10, offset: 0 } }))
-  await page.route("**/api/v1/system/about", async (route) => {
-    const response = await route.fetch()
-    const about = await response.json()
-    const fetchedAt = dropLoaded ? "2026-11-09T06:00:00Z" : null
-    await route.fulfill({ response, json: { ...about, dropLists: { ...about.dropLists, enabled: dropLoaded, feeds: [{ feed: "v4", fetchedAt, entries: 1, lastAttemptAt: fetchedAt, lastError: null }] } } })
-  })
+  // Read once up front: a route.fetch still running when a short test ends fails that test.
+  const about = await (await page.request.get("/api/v1/system/about")).json()
+  const fetchedAt = dropLoaded ? "2026-11-09T06:00:00Z" : null
+  const feeds = [{ feed: "v4", fetchedAt, entries: 1, lastAttemptAt: fetchedAt, lastError: null }]
+  await page.route("**/api/v1/system/about", (route) =>
+    route.fulfill({ json: { ...about, dropLists: { ...about.dropLists, enabled: dropLoaded, feeds } } }),
+  )
   await page.route(
     (url) => url.pathname.startsWith("/api/") && url.pathname.includes("/drop") && url.pathname.includes("networks"),
     (route) => route.fulfill({ json: { loaded: true, items: [], totalNetworks: 0, totalRequests: 0, limit: 10, offset: 0 } }),
