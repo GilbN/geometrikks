@@ -25,24 +25,38 @@ async function openFilters(page: Page) {
 test.describe("touch screen", () => {
   test.use({ hasTouch: true, isMobile: true })
 
-  test("a short list is a native multi-select and the row shows the picks", async ({ page }) => {
+  test("device emulation gets the search page, since its multi-select is still an inline list box", async ({ page }) => {
     const drawer = await openFilters(page)
-    const hosts = drawer.getByRole("listbox", { name: "Host", exact: true })
-    await expect(hosts).toBeEnabled()
-    await hosts.selectOption(["cloud.example.com", "git.example.com"])
-
-    await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Host", exact: true }) })).toContainText("cloud.example.com +1")
-    await expect(page).toHaveURL(/host=/)
+    await expect(drawer.getByRole("listbox")).toHaveCount(0)
+    await drawer.getByRole("button", { name: /^Host: Any/ }).click()
+    await expect(drawer.getByRole("heading", { name: "Host" })).toBeVisible()
+    await expect(page).not.toHaveURL(/host=/)
   })
 
-  test("excludes a host picked from the same list", async ({ page }) => {
-    const drawer = await openFilters(page)
-    const excluded = drawer.getByRole("listbox", { name: "Exclude Host" })
-    await expect(excluded).toBeEnabled()
-    await excluded.selectOption("git.example.com")
+  test.describe("a phone's browser, which draws a multi-select as one line", () => {
+    test.beforeEach(async ({ page }) => {
+      await page.addInitScript(() => Object.defineProperty(HTMLSelectElement.prototype, "offsetHeight", { get: () => 44 }))
+    })
 
-    await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Exclude Host" }) })).toContainText("git.example.com")
-    await expect(page).toHaveURL(/hostx=/)
+    test("a short list is a native multi-select and the row shows the picks", async ({ page }) => {
+      const drawer = await openFilters(page)
+      const hosts = drawer.getByRole("listbox", { name: "Host", exact: true })
+      await expect(hosts).toBeEnabled()
+      await hosts.selectOption(["cloud.example.com", "git.example.com"])
+
+      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Host", exact: true }) })).toContainText("cloud.example.com +1")
+      await expect(page).toHaveURL(/host=/)
+    })
+
+    test("excludes a host picked from the same list", async ({ page }) => {
+      const drawer = await openFilters(page)
+      const excluded = drawer.getByRole("listbox", { name: "Exclude Host" })
+      await expect(excluded).toBeEnabled()
+      await excluded.selectOption("git.example.com")
+
+      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Exclude Host" }) })).toContainText("git.example.com")
+      await expect(page).toHaveURL(/hostx=/)
+    })
   })
 
   test("a long list opens a search page and going back returns to the row", async ({ page }) => {

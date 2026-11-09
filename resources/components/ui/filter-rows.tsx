@@ -38,6 +38,27 @@ function RowValue({ text, tone, icon }: { text: string; tone?: "include" | "excl
   )
 }
 
+let multiSelectIsOneLine: boolean | undefined
+
+/**
+ * Phones draw a multi-select as one line that opens the system's list. Desktop
+ * engines draw an inline list box, and this row's invisible select would then
+ * pick whichever option is under the finger. Device emulation reports a coarse
+ * pointer and still draws the list box, so measure the control.
+ */
+function opensSystemList() {
+  if (multiSelectIsOneLine === undefined) {
+    const probe = document.createElement("div")
+    probe.style.cssText = "position: absolute; visibility: hidden"
+    probe.innerHTML = "<select multiple><option></option></select><select><option></option></select>"
+    document.body.append(probe)
+    const [multiple, single] = probe.querySelectorAll("select")
+    multiSelectIsOneLine = multiple.offsetHeight <= single.offsetHeight
+    probe.remove()
+  }
+  return multiSelectIsOneLine
+}
+
 interface FilterListRowProps<T extends string | number> {
   label: string
   options: T[]
@@ -85,9 +106,7 @@ export function FilterListRow<T extends string | number>({
   const tone = selected.length === 0 ? undefined : exclude ? "exclude" : "include"
   const iconClass = "size-3.5 shrink-0"
 
-  // A multi-select only opens the system's list on a touch screen. With a
-  // mouse it is an inline list box, which this row's overlay would hide.
-  if (!search && window.matchMedia("(pointer: coarse)").matches) {
+  if (!search && opensSystemList()) {
     // A value set from elsewhere, such as an IP's menu, may not be in this range's facets.
     const all = [...options, ...selected.filter((value) => !options.includes(value))]
     const atMax = maxSelected !== undefined && selected.length >= maxSelected
