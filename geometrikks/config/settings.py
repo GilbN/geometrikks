@@ -1211,7 +1211,8 @@ class OidcSettings(BaseSettings):
             "Issuer URL of the identity provider, e.g. https://auth.example.com. "
             "Discovery is read from {issuer}/.well-known/openid-configuration "
             "and the iss claim must equal this value exactly. Must be https "
-            "unless the host is localhost."
+            "unless the host is localhost or a loopback IP address, and must not "
+            "carry credentials, a query string or a fragment, or startup fails."
         ),
     )
     client_id: str | None = Field(
@@ -1225,8 +1226,9 @@ class OidcSettings(BaseSettings):
         description=(
             "The exact callback URL registered at the identity provider: the "
             f"public https address of this app plus {OIDC_CALLBACK_PATH}. "
-            "Plain http is only allowed on localhost. An https URI also needs "
-            "APP_SESSION_SECURE=true, or startup fails."
+            "Plain http works only on localhost or a loopback IP address, and "
+            "credentials, a query string or a fragment in the URI stop startup. "
+            "An https URI also needs APP_SESSION_SECURE=true, or startup fails."
         ),
     )
     allowed_users: Annotated[list[str], NoDecode] = Field(
@@ -1544,10 +1546,12 @@ class Settings(BaseSettings):
             "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. The "
             "login log, the OIDC login lines, an API key's last-used-from IP and "
             "the api_key_rejected, api_key_created and api_key_revoked log lines "
-            "all record the client IP resolved through it. Env accepts "
+            "all record the client IP resolved through it, and the Exclude your IP "
+            "filter on the log pages looks up your address through it. Env accepts "
             "one value, comma-separated values, or a JSON list. Empty (default): "
             "forwarded headers are never trusted, so behind a proxy all of these "
-            "record the proxy's address."
+            "record the proxy's address and the filter shows Needs "
+            "APP_TRUSTED_PROXIES instead of excluding your IP."
         ),
     )
 

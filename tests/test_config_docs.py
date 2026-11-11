@@ -115,7 +115,14 @@ def test_instance_section_heading():
 def test_oidc_section_names_its_startup_failures():
     section = Path("docs/configuration.md").read_text(encoding="utf-8").split("### OpenID Connect", 1)[1]
     note = section.split("| Variable |", 1)[0]
-    for needle in ("/api/v1/auth/oidc/callback", "APP_SESSION_SECURE", "APP_AUTH_DISABLED", "openid"):
+    for needle in (
+        "/api/v1/auth/oidc/callback",
+        "APP_SESSION_SECURE",
+        "APP_AUTH_DISABLED",
+        "openid",
+        "localhost or a loopback IP address",
+        "credentials, a query string or a fragment",
+    ):
         assert needle in note
 
 
@@ -130,6 +137,25 @@ def test_defaults_are_readable():
 def test_trusted_proxies_description_names_api_keys():
     field = settings_module.Settings.model_fields["trusted_proxies"]
     assert "API key" in (field.description or "")
+    assert "Exclude your IP" in (field.description or "")
+
+
+def _container_row(name: str) -> str:
+    match = re.search(rf"^\| `{name}` \|.*$", Path("docs/configuration.md").read_text(encoding="utf-8"), flags=re.M)
+    assert match, name
+    return match.group(0)
+
+
+def test_puid_row_names_the_app_folder_for_user_overrides():
+    row = _container_row("PUID")
+    assert "`/app/.litestar.json`" in row and "PermissionError" in row
+
+
+def test_worker_row_states_the_multi_worker_consequences():
+    row = _container_row("LITESTAR_WEB_CONCURRENCY")
+    for needle in ("stored once per worker", "every scheduled job", "session lock", "migrations at once"):
+        assert needle in row
+    assert "session sweep" not in row
 
 
 def test_names_in_container_rows_and_notes_exist():

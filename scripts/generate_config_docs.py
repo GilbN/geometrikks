@@ -81,15 +81,19 @@ CONTAINER_VARIABLES: list[tuple[str, str, str]] = [
         "User id the app runs as. At startup the entrypoint remaps the `geometrikks` user to "
         "it, chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`, then drops root. "
         "Match your host user (`id -u`) so host tools can manage the files in `./logs`. "
-        "A non-root `user:` on the `app` service skips the remap. That user must then own "
-        "`./logs` and the geoip volume itself, or GeoLite2 downloads fail.",
+        "A non-root `user:` on the `app` service skips the remap and every chown. That user "
+        "must then own `./logs` and the geoip volume, or GeoLite2 downloads fail. It must also "
+        "be able to write to `/app`, which UID 1000 owns in the image. In `full` mode the app "
+        "rewrites `/app/.litestar.json` through a temporary file in `/app` at startup, so "
+        "without that access startup stops with a PermissionError.",
     ),
     (
         "PGID",
         "`1000`",
         "Group id the app runs as. At startup the entrypoint remaps the `geometrikks` group to "
         "it and chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`. Match your "
-        "host group (`id -g`). A non-root `user:` on the `app` service skips this remap too.",
+        "host group (`id -g`). A non-root `user:` on the `app` service skips this remap too. "
+        "See `PUID` for what that user then needs.",
     ),
     (
         "ACCESS_LOG_DIR",
@@ -132,9 +136,12 @@ CONTAINER_VARIABLES: list[tuple[str, str, str]] = [
         "`1`",
         "Worker count for `litestar run`. The image's command passes `--workers 1`, which wins "
         "over this and the two variables below, so they change nothing in the container. "
-        "Outside the image, more than one worker gives each process its own `/ws/crowdsec` "
-        "and `/ws/logs` feeds and its own session sweep, and lets two processes run "
-        "migrations at once. See [Deployment](deployment.md).",
+        "Outside the image, every worker runs the whole app. Each one tails every log, so "
+        "each line is stored once per worker, and runs every scheduled job. Each process "
+        "runs its own `/ws/crowdsec` and `/ws/logs` feeds and keeps its own session lock, "
+        "so logins and logouts on different workers can race. Two processes can also run "
+        "migrations at once. "
+        "See [Deployment](deployment.md).",
     ),
     (
         "WEB_CONCURRENCY",
@@ -162,7 +169,8 @@ SECTION_NOTES: dict[str, list[str]] = {
         "`OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI` are all set. Setting only some of",
         "them stops startup with an error that names the missing ones. Startup also fails when:",
         "",
-        "- `OIDC_ISSUER` or `OIDC_REDIRECT_URI` uses plain http on a host other than localhost.",
+        "- `OIDC_ISSUER` or `OIDC_REDIRECT_URI` uses plain http on a host other than localhost or a loopback IP address.",
+        "- `OIDC_ISSUER` or `OIDC_REDIRECT_URI` carries credentials, a query string or a fragment.",
         "- The path of `OIDC_REDIRECT_URI` is not `/api/v1/auth/oidc/callback`.",
         "- Neither `OIDC_ALLOWED_USERS` nor `OIDC_ALLOWED_GROUPS` is set.",
         "- `OIDC_SCOPES` does not include `openid`.",
