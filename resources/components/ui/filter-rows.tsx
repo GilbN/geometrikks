@@ -107,10 +107,10 @@ export function FilterListRow<T extends string | number>({
   const text = selected.length === 0 ? empty : `${valueFor(selected[0])}${selected.length > 1 ? ` +${selected.length - 1}` : ""}`
   const tone = selected.length === 0 ? undefined : exclude ? "exclude" : "include"
   const iconClass = "size-3.5 shrink-0"
+  // A value set from elsewhere, such as an IP's menu, may not be in this range's facets.
+  const all = [...options, ...selected.filter((value) => !options.includes(value))]
 
   if (!search && opensSystemList()) {
-    // A value set from elsewhere, such as an IP's menu, may not be in this range's facets.
-    const all = [...options, ...selected.filter((value) => !options.includes(value))]
     const atMax = maxSelected !== undefined && selected.length >= maxSelected
     return (
       <label className={cn(ROW, "relative")}>
@@ -157,7 +157,7 @@ export function FilterListRow<T extends string | number>({
           fill
           splitLabel={splitLabel}
           label={label}
-          options={options}
+          options={all}
           selected={selected}
           onChange={onChange}
           labelFor={labelFor}

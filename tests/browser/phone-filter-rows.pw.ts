@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test"
 
 test.use({ serviceWorkers: "block", viewport: { width: 393, height: 852 } })
 
-async function openFilters(page: Page) {
+async function openFilters(page: Page, search = "") {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
@@ -15,7 +15,7 @@ async function openFilters(page: Page) {
     cities: ["Oslo"],
     asns: [{ asn: 15169, organization: "Google LLC" }, { asn: 13335, organization: "Cloudflare, Inc." }],
   } }))
-  await page.goto("/access-logs")
+  await page.goto(`/access-logs${search}`)
   await page.getByRole("button", { name: /^Filters/ }).click()
   const drawer = page.locator('[data-slot="drawer-content"]')
   await expect(drawer.getByRole("heading", { name: "Filters" })).toBeVisible()
@@ -40,22 +40,61 @@ test.describe("touch screen", () => {
 
     test("a short list is a native multi-select and the row shows the picks", async ({ page }) => {
       const drawer = await openFilters(page)
-      const hosts = drawer.getByRole("listbox", { name: "Host", exact: true })
-      await expect(hosts).toBeEnabled()
-      await hosts.selectOption(["cloud.example.com", "git.example.com"])
+      const methods = drawer.getByRole("listbox", { name: "Method", exact: true })
+      await expect(methods).toBeEnabled()
+      await methods.selectOption(["GET", "POST"])
 
-      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Host", exact: true }) })).toContainText("cloud.example.com +1")
-      await expect(page).toHaveURL(/host=/)
+      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Method", exact: true }) })).toContainText("GET +1")
+      await expect(page).toHaveURL(/method=/)
     })
 
-    test("excludes a host picked from the same list", async ({ page }) => {
-      const drawer = await openFilters(page)
-      const excluded = drawer.getByRole("listbox", { name: "Exclude Host" })
-      await expect(excluded).toBeEnabled()
-      await excluded.selectOption("git.example.com")
+    for (const exclude of [false, true]) {
+      test(`${exclude ? "Exclude Host" : "Host"} can remove a selection missing from the host options`, async ({ page }) => {
+        const name = exclude ? "Exclude Host" : "Host"
+        const parameter = exclude ? "hostx" : "host"
+        const value = "staging.example.com"
+        const query = new URLSearchParams({ [parameter]: JSON.stringify([value]) })
+        const drawer = await openFilters(page, `?${query}`)
+        await drawer.getByRole("button", { name: `${name}: ${value}`, exact: true }).click()
+        await drawer.getByRole("textbox", { name: "Search host", exact: true }).fill("staging")
+        const host = drawer.getByRole("button", { name: value, exact: true })
+        await expect(host).toHaveAttribute("aria-pressed", "true")
+        await host.click()
+        await expect.poll(() => new URL(page.url()).searchParams.has(parameter)).toBe(false)
+      })
 
-      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Exclude Host" }) })).toContainText("git.example.com")
-      await expect(page).toHaveURL(/hostx=/)
+      test(`${exclude ? "Exclude Host" : "Host"} opens a searchable list instead of the native picker`, async ({ page }) => {
+        const drawer = await openFilters(page)
+        const name = exclude ? "Exclude Host" : "Host"
+        const parameter = exclude ? "hostx" : "host"
+        await expect(drawer.getByRole("listbox", { name, exact: true })).toHaveCount(0)
+        await drawer.getByRole("button", { name: `${name}: ${exclude ? "None" : "Any"}`, exact: true }).click()
+        await expect(drawer.getByRole("heading", { name, exact: true })).toBeVisible()
+        const search = drawer.getByRole("textbox", { name: "Search host", exact: true })
+        await search.fill("git")
+        await expect(drawer.getByRole("button", { name: "cloud.example.com", exact: true })).toHaveCount(0)
+        const host = drawer.getByRole("button", { name: "git.example.com", exact: true })
+        await host.click()
+        await expect(host).toHaveAttribute("aria-pressed", "true")
+        await expect.poll(() => JSON.parse(new URL(page.url()).searchParams.get(parameter) ?? "[]")).toEqual(["git.example.com"])
+
+        await drawer.getByRole("button", { name: "Filters", exact: true }).click()
+        const row = drawer.getByRole("button", { name: `${name}: git.example.com`, exact: true })
+        await expect(row).toBeVisible()
+        await row.click()
+        await drawer.getByRole("button", { name: "git.example.com", exact: true }).click()
+        await expect.poll(() => new URL(page.url()).searchParams.has(parameter)).toBe(false)
+      })
+    }
+
+    test("excludes a server picked from the native list", async ({ page }) => {
+      const drawer = await openFilters(page)
+      const excluded = drawer.getByRole("listbox", { name: "Exclude Server" })
+      await expect(excluded).toBeEnabled()
+      await excluded.selectOption("edge-1")
+
+      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Exclude Server", exact: true }) })).toContainText("edge-1")
+      await expect(page).toHaveURL(/serverx=/)
     })
   })
 

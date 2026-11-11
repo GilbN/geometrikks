@@ -328,6 +328,7 @@ export function AccessLogsFilterBar() {
           <FilterSection label="Show only">
             <FilterListRow
               label="Host"
+              search
               options={facets?.hosts ?? []}
               selected={filters.hosts}
               onChange={(values) => setFilters((prev) => ({ ...prev, hosts: values }))}
@@ -398,6 +399,7 @@ export function AccessLogsFilterBar() {
             <FilterExcludedIpRows values={filters.ipsExclude} onAdd={add("ipsExclude")} onRemove={(ip) => remove("ipsExclude", ip)} validate={isValidIp} />
             <FilterListRow
               label="Host" exclude
+              search
               options={facets?.hosts ?? []}
               selected={filters.hostsExclude}
               onChange={(values) => setFilters((prev) => ({ ...prev, hostsExclude: values }))}
