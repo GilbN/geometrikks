@@ -10,6 +10,7 @@ from tests.screenshots.plan import (
     VIEWPORTS,
     MissingParamError,
     UnknownSceneError,
+    ViewportSpec,
     build_shots,
     capture_plan,
     parse_shot_filename,
@@ -25,6 +26,45 @@ def test_filename_round_trip() -> None:
     assert parse_shot_filename("dashboard.png") is None
     assert parse_shot_filename("manifest.json") is None
     assert parse_shot_filename("map-tablet-dark.webp") is None
+
+
+EXPECTED_SCENES = [
+    ("login", "Login", "/login", ("desktop", "phone"), False),
+    ("dashboard", "Overview", "/", ("desktop", "phone"), False),
+    ("map", "Map", "/map?focus={focus_location}", ("desktop", "phone", "landscape"), False),
+    ("access-logs", "Access logs", "/access-logs", ("desktop", "phone"), False),
+    ("filter-drawer", "Filters on a phone", "/access-logs", ("phone",), False),
+    ("geo-logs", "Geo logs", "/geo-logs", ("desktop", "phone"), False),
+    ("debug-logs", "Debug logs", "/debug-logs", ("desktop", "phone"), False),
+    ("analytics", "Analytics", "/analytics", ("desktop", "phone"), False),
+    ("ip-inspector", "IP inspector", "/map?inspect={inspect_ip}", ("desktop", "phone"), False),
+    ("abuse-report", "Abuse report", "/map?inspect={inspect_ip}", ("desktop", "phone"), False),
+    ("security", "Security", "/security", ("desktop", "phone"), False),
+    ("drop-networks", "DROP networks", "/security", ("desktop", "phone"), False),
+    ("banned-map", "Banned IPs map", "/map", ("desktop", "phone"), False),
+    ("status", "Status", "/settings/status", ("desktop", "phone"), False),
+    ("settings", "Appearance", "/settings/appearance", ("desktop", "phone"), False),
+    ("nav-more", "Phone navigation", "/", ("phone",), False),
+    ("live", "Live map", "/map", ("desktop", "phone", "landscape"), True),
+    ("live-tail", "Live tail", "/access-logs", ("desktop", "phone"), True),
+]
+
+
+def test_scene_table() -> None:
+    actual = [(scene.id, scene.title, scene.path, scene.viewports, scene.live) for scene in SCENES]
+    assert actual == EXPECTED_SCENES
+
+
+def test_viewports_match_the_constraints() -> None:
+    assert VIEWPORTS == {
+        "desktop": ViewportSpec(width=1440, height=900, device_scale_factor=1.5, mobile=False, safe_area=None),
+        "phone": ViewportSpec(width=393, height=852, device_scale_factor=2, mobile=True, safe_area=(0, 0, 34, 0)),
+        "landscape": ViewportSpec(width=852, height=393, device_scale_factor=2, mobile=True, safe_area=(0, 59, 21, 59)),
+    }
+
+
+def test_debug_logs_alt_avoids_the_phrase_the_site_smoke_forbids() -> None:
+    assert all("raw source lines behind every request" not in scene.alt for scene in SCENES)
 
 
 def test_scene_ids_are_unique_and_kebab_case() -> None:
@@ -73,3 +113,14 @@ def test_capture_plan_shape(tmp_path: Path) -> None:
         "safeArea": {"top": 0, "right": 59, "bottom": 21, "left": 59},
     }
     assert landscape["live"] is True
+    assert plan["baseUrl"] == "http://127.0.0.1:9"
+    assert plan["pngDir"] == str(tmp_path)
+    desktop = next(shot for shot in shots if shot["viewport"]["name"] == "desktop")
+    assert {key: desktop[key] for key in ("name", "scene", "title", "path", "theme")} == {
+        "name": "live-desktop-dark",
+        "scene": "live",
+        "title": "Live map",
+        "path": "/map",
+        "theme": "dark",
+    }
+    assert desktop["viewport"]["safeArea"] is None
