@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { escapeHtml, includeCopy, stripCode } from "../scripts/lib/markdown";
+import { escapeHtml, extractLinks, includeCopy } from "../scripts/lib/markdown";
 
 describe("escapeHtml", () => {
   test("escapes a tag outside code and keeps code spans", () => {
@@ -27,29 +27,46 @@ describe("escapeHtml", () => {
   });
 });
 
-describe("stripCode", () => {
-  test("drops inline code spans and fenced blocks, keeping the line count", () => {
-    expect(stripCode("a `x` b ``y ` z`` c")).toBe("a  b  c");
-    expect(stripCode("before\n```mdx\n[a](/x/)\n```\nafter")).toBe("before\n\n\n\nafter");
-    expect(stripCode("~~~\n```\nx\n```\n~~~\nafter")).toBe("\n\n\n\n\nafter");
+describe("extractLinks", () => {
+  test("reads links, images, definitions and JSX href and src strings", () => {
+    const source = [
+      "[a](/one/) ![i](/two.png) [r][ref]",
+      "",
+      "[ref]: /three/",
+      "",
+      '<a href="/four/">a</a> <img src={"/five.png"} /> <a href={`/six/`}>b</a>',
+      "",
+      '<Card title="t" href="/seven/" />',
+    ].join("\n");
+    expect(extractLinks(source)).toEqual(["/one/", "/two.png", "/three/", "/four/", "/five.png", "/six/", "/seven/"]);
   });
 
-  test("keeps template literals inside a JSX expression", () => {
-    expect(stripCode("<a href={`/docs/next/quickstart/`}>a</a>")).toBe("<a href={`/docs/next/quickstart/`}>a</a>");
-    expect(stripCode("{`one ${`two`}`} and `code`")).toBe("{`one ${`two`}`} and ");
-    expect(stripCode("<Card\n  href={`/docs/${slug}/`}\n/>")).toBe("<Card\n  href={`/docs/${slug}/`}\n/>");
+  test("skips code, other attributes and computed values", () => {
+    const source = [
+      "`[a](/x/)` and ``<a href=\"/x/\">``",
+      "",
+      "```mdx",
+      "[a](/x/)",
+      "```",
+      "",
+      '<a title="/x/" href={base} src={`/docs/${slug}/`}>a</a>',
+    ].join("\n");
+    expect(extractLinks(source)).toEqual([]);
   });
 
-  test("a brace inside a code span does not open a JSX expression", () => {
-    expect(stripCode("`{` then `code`")).toBe(" then ");
+  test("a stray backtick or a brace in a JSX string hides nothing", () => {
+    expect(extractLinks("Stray ` tick\n```\nx\n```\n[a](/q/) and `y`")).toEqual(["/q/"]);
+    expect(extractLinks("Press the ` key.\n```bash\necho `date`\n```\n\n[a](/q/)")).toEqual(["/q/"]);
+    expect(extractLinks("<span title={`}`} /> [a](/q/) then `example`")).toEqual(["/q/"]);
   });
 
-  test("a code span cannot open in the middle of a backtick run", () => {
-    expect(stripCode("See ``` [a](/x/) `` here.")).toBe("See ``` [a](/x/) `` here.");
+  test("ignores frontmatter and reads raw HTML in a .md page", () => {
+    expect(extractLinks("---\ntitle: a { b\n---\n\n[a](/q/)")).toEqual(["/q/"]);
+    expect(extractLinks('<a href="/q/">a</a> <br>\n', "md")).toEqual(["/q/"]);
   });
 
-  test("an escaped backtick does not open a code span", () => {
-    expect(stripCode("\\` [a](/x/) `")).toBe("\\` [a](/x/) `");
+  test("throws on invalid MDX", () => {
+    expect(() => extractLinks("<a>unclosed")).toThrow(/closing tag/);
   });
 });
 

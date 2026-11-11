@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { compareSemver, NEXT, SEMVER } from "../lib/versions";
-import { stripCode } from "./lib/markdown";
+import { extractLinks } from "./lib/markdown";
 import { imageExists, publishedFromEnv } from "./lib/registry";
 import { resolveVersions } from "./lib/resolve-versions";
 
@@ -15,8 +15,7 @@ export type ReleaseOptions = {
 
 export type ReleaseResult = { folder: string; refreshed: boolean; dropped: string[] };
 
-const NEXT_LINK =
-  /(?:\]\(\s*<?|\b(?:href|src)\s*=\s*\{?\s*["'`]|^\s*\[[^\]]+\]:\s*<?)(?:https?:\/\/[^/\s)"'`>]+)?\/docs\/next(?=[/)#?"'`>\s]|$)/m;
+const NEXT_LINK = /^(?:(?:https?:)?\/\/[^/]+)?\/docs\/next(?:[/#?]|$)/;
 
 function walk(root: string, prefix = ""): string[] {
   const paths: string[] = [];
@@ -89,9 +88,20 @@ export async function releaseDocs(opts: ReleaseOptions): Promise<ReleaseResult> 
     );
   }
 
-  const linking = copied.filter(
-    (path) => /\.mdx?$/.test(path) && NEXT_LINK.test(stripCode(readFileSync(join(nextDir, path), "utf8"))),
-  );
+  const unparsed: string[] = [];
+  const linking = copied.filter((path) => {
+    if (!/\.mdx?$/.test(path)) return false;
+    try {
+      const links = extractLinks(readFileSync(join(nextDir, path), "utf8"), path.endsWith(".mdx") ? "mdx" : "md");
+      return links.some((link) => NEXT_LINK.test(link));
+    } catch (error) {
+      unparsed.push(`${shown(path)} (${error instanceof Error ? error.message : String(error)})`);
+      return false;
+    }
+  });
+  if (unparsed.length > 0) {
+    throw new Error(`${unparsed.join(", ")} failed to parse, so its links cannot be checked; fix the MDX`);
+  }
   if (linking.length > 0) {
     throw new Error(
       `${linking.map(shown).join(", ")} link to /docs/next/, which breaks once the folder is latest; use relative file links such as ./quickstart.mdx`,

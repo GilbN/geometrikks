@@ -184,6 +184,11 @@ describe("releaseDocs", () => {
     "<a href={`/docs/next/quickstart/`}>a</a>",
     "Use `code` and <a href={`/docs/next/quickstart/`}>a</a> with `more code`.",
     "See ``` [a](/docs/next/quickstart/) `` here.",
+    '<a href={"/docs/next/x/"}>a</a>',
+    "[r]: /docs/next/x/",
+    "Stray ` tick\n```\nx\n```\n[a](/docs/next/q/) and `y`",
+    "Press the ` key.\n```bash\necho `date`\n```\n\n[a](/docs/next/q/)",
+    "<span title={`}`} /> [a](/docs/next/quickstart/) then `example`",
   ])("the link %p into next fails", async (link) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next/index.mdx"), `${link}\n`);
@@ -207,6 +212,8 @@ describe("releaseDocs", () => {
     "~~~~\n```\n[a](/docs/next/quickstart/)\n```\n~~~~\n",
     "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.\n",
     "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```\n",
+    "```\n[a](/docs/next/x/)\n```\n",
+    "Inline `[a](/docs/next/x/)` only.\n",
   ])("a link into next inside a code example passes: %p", async (body) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next/index.mdx"), body);
@@ -220,6 +227,27 @@ describe("releaseDocs", () => {
     await expect(
       releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
     ).rejects.toThrow(/relative/);
+  });
+
+  test("a page that fails to parse as MDX fails and names the file", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/guides/broken.mdx"), "An unclosed { brace.\n");
+    const release = releaseDocs({
+      version: "0.25.0",
+      contentDir: dir,
+      openapiSource: schemaPath,
+      isPublished: published("0.24.0"),
+    });
+    await expect(release).rejects.toThrow(/guides\/broken\.mdx .*brace.*failed to parse/);
+    expect(existsSync(`${dir}/docs/0.25.0`)).toBe(false);
+  });
+
+  test("a .md page is read as Markdown, so raw HTML parses and its links are checked", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/guides/plain.md"), "Line<br>\n\n<a href=\"/docs/next/x/\">a</a>\n");
+    await expect(
+      releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
+    ).rejects.toThrow(/guides\/plain\.md link to \/docs\/next/);
   });
 
   test("a stray backtick does not hide a link in a later paragraph", async () => {

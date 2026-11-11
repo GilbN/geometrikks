@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { contentSlugs } from "../scripts/lib/content";
-import { stripCode } from "../scripts/lib/markdown";
+import { visit } from "unist-util-visit";
+import { extractLinks, parseMarkdown } from "../scripts/lib/markdown";
 
 const nextDir = join(import.meta.dir, "../content/docs/next");
 const CONFIGURATION_PAGE = "reference/configuration.mdx";
@@ -26,13 +27,19 @@ const EXTRA_ENV_NAMES = new Set([
   "MAP_HOME_REFRESH_HOURS",
 ]);
 
-const INLINE_ENV_NAME = /`([A-Z][A-Z0-9]*_[A-Z0-9_]*[A-Z0-9])(=[^`]*)?`/g;
+const INLINE_ENV_NAME = /^([A-Z][A-Z0-9]*_[A-Z0-9_]*[A-Z0-9])(?:=[\s\S]*)?$/;
 const FENCED_ENV_NAME = /^\s*-?\s*([A-Z][A-Z0-9]*_[A-Z0-9_]+)\s*[=:]/;
 const CONFIGURATION_ROW = /^\| `([A-Z0-9_]+)` \|/gm;
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const ABSOLUTE_DOCS_LINK = /\]\(\s*<?\/docs\/|\bhref\s*=\s*\{?\s*["'`]\/docs\//;
+const ABSOLUTE_DOCS_LINK = /^\/docs(?:[/#?]|$)/;
 
-const linksAbsolutely = (source: string) => ABSOLUTE_DOCS_LINK.test(stripCode(source));
+/** The page's absolute /docs links, or its parse error. */
+function linkProblems(source: string): string[] {
+  try {
+    return extractLinks(source).filter((link) => ABSOLUTE_DOCS_LINK.test(link));
+  } catch (error) {
+    return [`parse error: ${error instanceof Error ? error.message : String(error)}`];
+  }
+}
 
 function files(root: string, prefix = ""): string[] {
   const paths: string[] = [];
@@ -60,30 +67,24 @@ function frontmatter(source: string): Record<string, string> {
 
 function envNames(source: string): string[] {
   const names: string[] = [];
-  const prose: string[] = [];
-  let fence: string | null = null;
-  for (const line of source.split("\n")) {
-    const opener = FENCE.exec(line)?.[1];
-    if (fence !== null) {
-      if (opener?.[0] === fence[0] && opener.length >= fence.length) fence = null;
-      else {
+  visit(parseMarkdown(source), (node) => {
+    if (node.type === "inlineCode") {
+      const name = INLINE_ENV_NAME.exec(node.value)?.[1];
+      if (name) names.push(name);
+    } else if (node.type === "code") {
+      for (const line of node.value.split("\n")) {
         const name = FENCED_ENV_NAME.exec(line)?.[1];
         if (name) names.push(name);
       }
-    } else if (opener) {
-      fence = opener;
-    } else {
-      prose.push(line);
     }
-  }
-  for (const match of prose.join("\n").matchAll(INLINE_ENV_NAME)) names.push(match[1]);
+  });
   return names;
 }
 
 describe("content/docs/next", () => {
   test("pages link to each other with relative file links", () => {
-    const absolute = pages.filter((page) => linksAbsolutely(read(page)));
-    expect(absolute).toEqual([]);
+    const problems = pages.flatMap((page) => linkProblems(read(page)).map((problem) => `${page}: ${problem}`));
+    expect(problems).toEqual([]);
   });
 
   test("pages have no em dash and no HTML comments", () => {
@@ -119,24 +120,39 @@ describe("content/docs/next", () => {
   });
 });
 
-describe("linksAbsolutely", () => {
+describe("linkProblems", () => {
   test.each([
     "[a](/docs/next/quickstart/)",
     '<a href="/docs/quickstart/">a</a>',
+    '<a href={"/docs/next/x/"}>a</a>',
     "<a href={`/docs/next/quickstart/`}>a</a>",
     "`code` then <a href={`/docs/next/quickstart/`}>a</a> and `more`",
     "See ``` [a](/docs/next/quickstart/) `` here.",
+    "[r]: /docs/next/x/",
+    "![shot](/docs/next/x.png)",
+    "Stray ` tick\n```\nx\n```\n[a](/docs/next/q/) and `y`",
+    "Press the ` key.\n```bash\necho `date`\n```\n\n[a](/docs/next/q/)",
+    "<span title={`}`} /> [a](/docs/next/quickstart/) then `example`",
   ])("flags %p", (source) => {
-    expect(linksAbsolutely(source)).toBe(true);
+    expect(linkProblems(source)).toHaveLength(1);
+    expect(linkProblems(source)[0]).toMatch(/^\/docs\//);
   });
 
   test.each([
     "Never write `[a](/docs/next/quickstart/)`.",
     "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.",
     "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```",
+    "```mdx\n[a](/docs/next/x/)\n```",
     "[Quickstart](./quickstart.mdx)",
+    "---\ntitle: A { page\ndescription: <b>\n---\n\n[Quickstart](./quickstart.mdx)",
   ])("passes %p", (source) => {
-    expect(linksAbsolutely(source)).toBe(false);
+    expect(linkProblems(source)).toEqual([]);
+  });
+
+  test("reports a page that fails to parse as MDX", () => {
+    expect(linkProblems("An unclosed { brace and [a](/docs/next/x/)")).toEqual([
+      expect.stringMatching(/^parse error: .*brace/),
+    ]);
   });
 });
 

@@ -96,10 +96,11 @@ same file then works in `next` and in every release folder copied from it.
 `docs:release` refuses a link to `/docs/next/`, which would break once the
 folder becomes latest, and postbuild fails on any relative or `.mdx` href
 left in the exported docs. Both `docs:release` and `tests/content.test.ts`
-skip links inside code spans and fenced code, so a page can show a wrong
-link as an example. Backticks inside a JSX expression such as
-``href={`/docs/next/`}`` are template literals, not code spans, so that
-link still fails.
+parse each page as MDX and read only real links: Markdown links, images,
+reference definitions, and `href` or `src` strings on JSX elements. Code
+spans and fenced code hold no links, so a page can show a wrong link as an
+example. A page that fails to parse fails both checks. A computed value
+such as ``href={`/docs/${slug}/`}`` is not read.
 
 ### Redirects
 

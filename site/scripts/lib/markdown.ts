@@ -1,3 +1,9 @@
+import remarkGfm from "remark-gfm";
+import remarkMdx from "remark-mdx";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
+import { visit } from "unist-util-visit";
+
 const CODE_SPAN_OR_ANGLE = /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|</g;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
@@ -34,57 +40,54 @@ export function escapeHtml(markdown: string): string {
   return out.join("\n");
 }
 
-const CODE_SPAN = /(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/y;
+const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---(?=\r?\n|$)/;
+const HTML_LINK_ATTRIBUTE = /\b(?:href|src)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+
+export type MarkdownFormat = "mdx" | "md";
+
+/** Parse a docs page as MDX, or as plain Markdown for a .md page as fumadocs-mdx does. Throws on invalid MDX. */
+export function parseMarkdown(source: string, format: MarkdownFormat = "mdx") {
+  const body = source.replace(FRONTMATTER, (block) => block.replace(/[^\n]/g, ""));
+  const processor = unified().use(remarkParse).use(remarkGfm);
+  return (format === "mdx" ? processor.use(remarkMdx) : processor).parse(body);
+}
 
 /**
- * Drop fenced code blocks and inline code spans, so a check for links skips the examples. Backticks inside a
- * JSX expression, as in href={`/docs/x/`}, are template literals and stay.
+ * URLs a page links to: Markdown links, images and reference definitions, and string `href`/`src` values on
+ * JSX elements (raw HTML in a .md page). Code blocks and code spans hold no links. Throws on invalid MDX.
  */
-export function stripCode(markdown: string): string {
-  const lineEnd = (start: number) => {
-    const end = markdown.indexOf("\n", start);
-    return end === -1 ? markdown.length : end;
-  };
-  let prose = "";
-  let depth = 0;
-  let index = 0;
-  while (index < markdown.length) {
-    if (depth === 0 && (index === 0 || markdown[index - 1] === "\n")) {
-      const opener = FENCE.exec(markdown.slice(index, lineEnd(index)))?.[1];
-      if (opener) {
-        let end = lineEnd(index);
-        while (end < markdown.length) {
-          prose += "\n";
-          const start = end + 1;
-          end = lineEnd(start);
-          const closer = FENCE.exec(markdown.slice(start, end))?.[1];
-          if (closer?.[0] === opener[0] && closer.length >= opener.length) break;
+export function extractLinks(source: string, format: MarkdownFormat = "mdx"): string[] {
+  const links: string[] = [];
+  visit(parseMarkdown(source, format), (node) => {
+    switch (node.type) {
+      case "link":
+      case "image":
+      case "definition":
+        links.push(node.url);
+        break;
+      case "mdxJsxFlowElement":
+      case "mdxJsxTextElement":
+        for (const attribute of node.attributes) {
+          if (attribute.type !== "mdxJsxAttribute" || !["href", "src"].includes(attribute.name)) continue;
+          if (typeof attribute.value === "string") {
+            links.push(attribute.value);
+            continue;
+          }
+          const statement = attribute.value?.data?.estree?.body[0];
+          if (statement?.type !== "ExpressionStatement") continue;
+          const { expression } = statement;
+          if (expression.type === "Literal" && typeof expression.value === "string") links.push(expression.value);
+          else if (expression.type === "TemplateLiteral" && expression.expressions.length === 0) {
+            links.push(expression.quasis[0].value.cooked ?? expression.quasis[0].value.raw);
+          }
         }
-        index = end;
-        continue;
-      }
+        break;
+      case "html":
+        for (const match of node.value.matchAll(HTML_LINK_ATTRIBUTE)) links.push(match[1] ?? match[2]);
+        break;
     }
-    const char = markdown[index];
-    if (char === "\\" && depth === 0) {
-      prose += markdown.slice(index, index + 2);
-      index += 2;
-    } else if (char === "`" && depth === 0) {
-      CODE_SPAN.lastIndex = index;
-      const span = CODE_SPAN.exec(markdown);
-      let length = span?.[0].length ?? 0;
-      if (!span) {
-        while (markdown[index + length] === "`") length++;
-        prose += markdown.slice(index, index + length);
-      }
-      index += length;
-    } else {
-      if (char === "{") depth++;
-      else if (char === "}" && depth > 0) depth--;
-      prose += char;
-      index++;
-    }
-  }
-  return prose;
+  });
+  return links;
 }
 
 /**
