@@ -23,7 +23,7 @@ docker compose exec timescale_db psql -U geouser -d geometrikks \
   -c "SELECT pg_reload_conf();"
 ```
 
-Expect up to `max_wal_size` of extra disk use for WAL during the run, on top of the chunks a backfill decompresses.
+Expect about `max_wal_size` of extra disk use for WAL during the run, on top of the chunks a backfill decompresses. It is a soft limit, and WAL can grow past it under heavy writes, so leave the database volume more free space than that.
 
 `ALTER SYSTEM` values stay in the database volume until you reset them. To go back to the defaults after the run:
 

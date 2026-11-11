@@ -20,7 +20,7 @@ What they have in common:
 
 ## backfill-server
 
-Every row records the server that wrote it. Rows from before that have no server name, so the Server filter on Access Logs can't find them. The plain form stamps a name on them:
+Every row records the server that wrote it. Rows written before the app recorded a server name have none, so the Server filter on Access Logs can't find them. The plain form stamps a name on them:
 
 ```bash
 docker compose exec -u geometrikks app litestar backfill-server myhost
@@ -34,9 +34,9 @@ It fills only Access Logs rows that have no server name and leaves every stamped
 docker compose exec -u geometrikks app litestar backfill-server myhost --consolidate
 ```
 
-Use it when the database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. It lists every server name it will rewrite with its Geo Logs row count and asks before it changes anything. The rewrite merges every server into one, and nothing can split them apart again. On a setup with several real servers, don't use it.
+Use it when the database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. It lists every server name it will rewrite with its Geo Logs row count and asks before it changes anything. The list comes from Geo Logs only, so a name that only Access Logs rows carry is missing from it, but the rewrite changes it too. The rewrite merges every server into one, and nothing can split them apart again. On a setup with several real servers, don't use it.
 
-Both forms then refresh the server aggregates that feed the Server filters.
+Both forms then refresh `server_daily_stats` and `log_source_daily_stats`, the aggregates behind the Server filters. After `--consolidate`, the per-IP aggregates behind the Geo Logs Servers column keep the old names. Nothing refreshes them over the full history. Their refresh policies redo only the last 3 hours of the hourly one and the last 3 days of the daily one, and `backfill-geo-servers` fills only buckets with no server data. On Geo Logs, ranges over 24 hours then show the old names for older history.
 
 ## backfill-geo-servers
 
@@ -69,7 +69,7 @@ docker compose exec -u geometrikks app litestar backfill-asn --table access-logs
 
 It changes only rows with no ASN data and never overwrites a stamped value. Before it asks, it prints how many rows and distinct IPs lack ASN data. IPs the database can't resolve stay empty. Without the ASN database the command stops with an error. Start the app once with MaxMind credentials and it downloads the database. [GeoLite2](../../get-started/geolite2.mdx) covers the setup.
 
-If the aggregate refresh fails, the rows are stamped but Top ASNs and Geo Logs don't show the backfilled range. The command names the aggregates and exits with an error. Rerunning it is safe.
+If the aggregate refresh fails, the rows are stamped but Top ASNs and Geo Logs don't show the backfilled range. The command names the aggregates and exits with an error. A rerun doesn't retry the refresh. [When an aggregate refresh fails](#when-an-aggregate-refresh-fails) has the fix.
 
 Today's ASN database describes today's network ownership, so ASN data on years-old traffic is an approximation.
 
@@ -86,4 +86,19 @@ It changes only rows the positional `nginx` format wrote without a host and with
 - `--server NAME` limits it to rows recorded under that server name.
 - `--before` limits it to rows older than a date or datetime, such as `2026-08-20`. Without an offset the value is UTC.
 
-The command prints the row count and time span and asks before it clears them. Afterwards averages and percentiles leave those rows out instead of counting them as zero. If the aggregate refresh fails, the rows are cleared, and the command names the aggregates that didn't refresh and exits with an error.
+The command prints the row count and time span and asks before it clears them. Afterwards averages and percentiles leave those rows out instead of counting them as zero. If the aggregate refresh fails, the rows are cleared, and the command names the aggregates that didn't refresh and exits with an error. [When an aggregate refresh fails](#when-an-aggregate-refresh-fails) has the fix.
+
+## When an aggregate refresh fails
+
+A rerun of `backfill-asn` or `backfill-timings` doesn't retry a failed refresh. The rows the first run changed no longer match its filter, so the rerun changes nothing and skips the refresh. The refresh policies redo only the last 3 hours of the hourly aggregates and the last 3 days of the daily ones, so older history stays out of date. Refresh the aggregates by hand instead.
+
+For each aggregate that failed, the command logs a warning above the error, `CAGG refresh failed:` followed by the aggregate's name, its start and end, and the reason. Fix the cause, then refresh each named aggregate over the start and end from its warning:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "CALL refresh_continuous_aggregate('asn_daily_stats', '2026-05-01 00:00:00+00', '2026-11-11 00:00:00+00');"
+```
+
+`backfill-asn` refreshes `asn_hourly_stats` and `asn_daily_stats` for Access Logs, and `ip_location_hourly_stats` and `ip_location_daily_stats` for Geo Logs. `backfill-timings` refreshes `summary_hourly_stats`, `summary_daily_stats`, `url_hourly_stats` and `url_daily_stats`, and forces the refresh. For those, add `force => true` after the end, as in `'2026-11-11 00:00:00+00', force => true`.
+
+Keep to the window in the warning. A refresh over a range whose raw rows the retention policy already deleted empties the aggregate there.

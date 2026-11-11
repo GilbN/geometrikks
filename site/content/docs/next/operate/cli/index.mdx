@@ -13,7 +13,7 @@ With the stack up, run the command in the running `app` container:
 docker compose exec -u geometrikks app litestar <command>
 ```
 
-`exec` skips the image's entrypoint, so without `-u geometrikks` the command runs as root. With it, the command runs as the same `geometrikks` user as the app, whose user and group ids the entrypoint sets from `PUID` and `PGID`, 1000 by default. File paths are paths inside the container, such as `/var/log/access/access.log.1.gz`.
+`exec` skips the image's entrypoint, so without `-u geometrikks` the command runs as root. Files it creates then belong to root, such as a rotated log in `./logs`, and the app can't write to them. With `-u geometrikks`, the command runs as the same `geometrikks` user as the app, whose user and group ids the entrypoint sets from `PUID` and `PGID`, 1000 by default. File paths are paths inside the container, such as `/var/log/access/access.log.1.gz`.
 
 `exec` needs the `app` service running. With the stack stopped, start a one-off container instead:
 

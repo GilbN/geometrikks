@@ -30,7 +30,7 @@ Import rotated or archived files only. A file the app also tails gets counted tw
 
 Before it writes anything, the command reads the file's first 1,000 lines. With `auto` it detects the format from them. If none of them parses in the detected or pinned format, the command rejects the file and moves on to the next one.
 
-With `auto`, a file whose lines match no format in full, but start with an IP address and a bracketed timestamp, gets the relaxed match. Its requests become map events with no Access Logs rows. Pin the format with `--format` to require a full parse. Lines that don't match then count as skipped in the summary and land in Debug Logs.
+With `auto`, a file whose lines match no format in full gets the relaxed match when its lines carry a client IP and a timestamp that a format can read, but lack other fields that format needs. This works for every format. Its requests become map events with no Access Logs rows. Pin the format with `--format` to require a full parse. Lines that don't match then count as skipped in the summary and land in Debug Logs.
 
 ## Server name
 
@@ -46,7 +46,7 @@ Archives from another proxy need their own run with that proxy's `--server`. Imp
 
 The command fingerprints each file by a SHA-256 checksum of its bytes. The same bytes are skipped on a later run, even under another file name, with `skipped: already imported`. A rotation that only renames an archive, as NPM's does, keeps its checksum, so rerunning the same glob skips what is done. A rotation that compresses a file changes its bytes. With logrotate's `delaycompress`, `access.log.1` and the `access.log.2.gz` it turns into later are two different files to the import, so import either the plain copies or the gzip copies of one log, not both.
 
-`--force` imports a file again. It updates the stored import record but deletes nothing, so the rows from the first import stay and every line ends up twice.
+`--force` imports a file again from its start, up to `--before` when you pass one, and stores the new cutoff. It deletes nothing, so the rows the first import wrote stay and their lines end up twice.
 
 ## Cut off at a time with `--before`
 
@@ -67,16 +67,20 @@ The cutoff is stored with the file's checksum. A later run of the same file depe
 | A later `--before` | Imports only the lines between the stored cutoff and the new one. |
 | No `--before` | Imports the lines from the stored cutoff on. |
 | An earlier `--before` | Refused with an error, because the rows past it are already written. |
-| `--force`, with or without `--before` | Ignores the stored cutoff and imports the whole file again, duplicating the rows already written. |
+| `--force`, with or without `--before` | Imports from the start of the file, up to the new `--before` if given, duplicating the rows already written. The new cutoff replaces the stored one. |
 
 A file first imported without `--before` has no cutoff, so every later run skips it until you pass `--force`.
 
 ## Retention
 
-The retention policy deletes raw rows older than `ANALYTICS_RAW_RETENTION_DAYS`, default 180 days. Lines older than that window import, and then the policy deletes them, so Access Logs never keeps them. Raise the setting before you import older archives.
+The retention policy deletes raw rows older than `ANALYTICS_RAW_RETENTION_DAYS`, default 180 days. Lines older than that window import, and the policy deletes them on its next run. Access Logs loses those rows, while the daily aggregates keep the counts the import added.
+
+The app applies the setting to the policy only when it starts. To keep older archives, raise it in `.env`, run `docker compose up -d` so the app starts with the new value, then import.
 
 ## When a file fails
 
-A file rejected by the format check, or refused because of an earlier `--before`, doesn't stop the others. At the end the command lists the files it didn't import and exits with an error. Other errors, such as a lost database connection, stop the run.
+A file rejected by the format check, or refused because of an earlier `--before`, doesn't stop the others. At the end the command lists the files it didn't import and exits with an error. Any other error that reaches the command stops the run, such as a database error while it looks up or saves a file's import record.
+
+A batch that fails to write doesn't stop the run either. The command rolls the batch back, logs `ingestion_batch_failed` with the error and goes on with the next batch. It still counts the batch as written and records the file as imported, so a later run skips the file and those lines never arrive. After an import, search its output for `ingestion_batch_failed`. If it is there, fix the cause and import that file again with `--force`. The batches that did commit then end up twice.
 
 If refreshing an aggregate fails, the rows are written but the analytics views don't show the imported range in that aggregate yet. The command names the aggregates, exits with an error, and the warnings above the message give the reason.

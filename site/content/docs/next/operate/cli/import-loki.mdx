@@ -29,7 +29,7 @@ The GeoLite2 City database must be in place, as for [`import-logs`](./import-log
 
 Without `--before`, each selector stops where the data already in the database begins. On the first run that is the oldest access-log row for the selector's server, which is where live reading started. After an earlier `import-loki` run it is the start of that run, unless the server has access-log rows older than the ones that run wrote. The command prints the end it picked and the `--since` and `--before` pair that repeats the same range.
 
-A selector is skipped, with the reason, when its `--since` isn't earlier than that end, or when nothing is stored for its server yet and there is no end to take. Pass `--before` in the second case.
+A selector is not imported when its `--since` isn't earlier than that end, or when nothing is stored for its server yet and there is no end to take. The command prints the reason, lists the selector at the end and exits with an error. The other selectors still import. Pass `--before` in the second case.
 
 The command picks every selector's end before any of them imports.
 
@@ -51,4 +51,4 @@ A failure in one selector doesn't stop the others. At the end the command lists 
 - **A resume repeats one hour.** The rows already written from the interrupted hour end up twice. [How resume works](#how-resume-works) has the details.
 - **At most 1000 lines per timestamp.** Loki can't page inside a single timestamp. With second-precision entry timestamps, from a pipeline stage that sets the timestamp from the line, the command reads at most 1000 lines from any one second and drops the rest, as live reading does, and logs a warning. [Shipping requirements](../../sources/loki.mdx#shipping-requirements) has the stage to remove.
 - **A wrong format writes nothing.** The command detects the format from the first lines it reads, or uses the one pinned in `LOKI_FORMATS`. If those lines match no format, or not the pinned one, it rejects the selector before writing anything.
-- **Retention limits both ends.** The retention policy deletes imported rows older than `ANALYTICS_RAW_RETENTION_DAYS`, like any other raw rows. Loki's own retention limits how far back there is anything to read.
+- **Retention limits both ends.** The retention policy deletes imported rows older than `ANALYTICS_RAW_RETENTION_DAYS`, like any other raw rows. Access Logs loses them, while the daily aggregates keep their counts. The app applies the setting only when it starts, so raise it in `.env` and run `docker compose up -d` before the import. Loki's own retention limits how far back there is anything to read.
