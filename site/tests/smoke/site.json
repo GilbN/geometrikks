@@ -20,7 +20,8 @@
     "path": "/docs/next/reference/api/health/HealthHealth/",
     "status": 200,
     "scope": "article",
-    "contains": ["Check that the app is up and how its parts are doing"]
+    "contains": ["Check that the app is up and how its parts are doing", "https://geometrikks.example.com/health"],
+    "absent": ["'https://example.com/health", "https://geometrikks.dev/health"]
   },
   { "path": "/docs/next/reference/changelog/", "status": 200, "contains": ["Unreleased"] },
   { "path": "/docs/next/reference/security/", "status": 200 }

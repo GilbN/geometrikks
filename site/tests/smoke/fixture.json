@@ -28,8 +28,8 @@
     "path": "/docs/reference/api/health/HealthHealth/",
     "status": 200,
     "scope": "article",
-    "contains": ["FIXTURE-API-0.1.0"],
-    "absent": ["Check that the app is up"]
+    "contains": ["FIXTURE-API-0.1.0", "https://geometrikks.example.com/health"],
+    "absent": ["Check that the app is up", "'https://example.com/health"]
   },
   {
     "path": "/docs/next/reference/api/health/HealthHealth/",
