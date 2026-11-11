@@ -19,7 +19,7 @@ The Overview page shows requests, bytes, unique visitors and the status mix for 
 
 ![The Overview page with request, visitor and status cards](/screenshots/dashboard.webp)
 
-The map draws every ingested request within seconds. Click a marker to see the request, the city and the network behind it.
+Within seconds of ingestion, the map draws every request GeoLite2 can place. A request with no location in the database stays off the map but still shows up in Access Logs. Click a marker to see the request, the city and the network behind it.
 
 ![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
 
@@ -39,7 +39,7 @@ The server makes these requests on its own:
 | Public-IP lookup for the server's map location | `api64.ipify.org` by default (`MAP_PUBLIC_IP_URL`) | At startup, then every `MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24) | `MAP_AUTO_DETECT_SERVER_LOCATION=false`, or set `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE` |
 | Update check | `api.github.com` | Every 12 hours | `APP_UPDATE_CHECK=false` |
 | Spamhaus DROP lists | `www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
-| Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC) | Only when someone clicks Find abuse contact in an abuse report, or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
+| Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https. | Only when someone clicks Find abuse contact in an abuse report, or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
 
 The update check and the DROP lists run on the full instance only, never on an agent.
 
@@ -53,3 +53,7 @@ The map's basemap tiles come from CARTO. The reader's browser fetches them from 
 - [GeoLite2 and the CARTO key](./get-started/geolite2.mdx) covers the two free keys the app needs.
 - [Upgrading](./get-started/upgrading.mdx) lists what changes between releases and the one-off commands some upgrades need.
 - The [configuration reference](./reference/configuration.mdx) lists every setting with its default.
+- Log sources has a setup page for each proxy and for Grafana Loki.
+- Features covers the map, the IP tools, CrowdSec and authentication.
+- Operate covers the reverse proxy in front of the app, deployment, the CLI commands and common questions.
+- Contribute covers the development setup and the API conventions.

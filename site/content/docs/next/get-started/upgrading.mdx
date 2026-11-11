@@ -18,7 +18,7 @@ Read the [changelog](../reference/changelog.mdx) before a jump of several releas
 
 ## Several instances
 
-With a full instance and agents writing to one database, upgrade every instance to the same release together. The full instance migrates the schema; agents wait for it and never migrate. An agent tolerates a database that is slightly ahead of its own release, logs a warning and keeps going, which covers the minutes of a rolling upgrade. Left behind for longer, an older agent can fail every insert, as it does across the server rename below.
+With a full instance and agents writing to one database, upgrade every instance to the same release together. The full instance migrates the schema; agents wait for it and never migrate. An agent that finds the database at a revision it doesn't know, as it does once the full instance has migrated to a newer release, logs a warning and keeps going. That covers the minutes of a rolling upgrade. Left behind for longer, an older agent can fail every insert, as it does across the server rename below.
 
 ## Renamed settings
 
@@ -48,13 +48,19 @@ Release 0.21.0 renamed "hostname" to "server" everywhere: the UI, the API, the d
 - The full instance renames the database columns and tables on its first start, without rewriting any data. Queries that read the database directly need the new names (`server` columns, the `server_locations` table, the `server_daily_stats` aggregate).
 - API filters take `serverIn` and `serverNotIn`, and responses carry `server` and `servers`. Page URLs use `?server=`, so an old bookmark opens the page without its filter.
 - `backfill-hostname` is now `backfill-server` and `backfill-geo-hostnames` is now `backfill-geo-servers`. `import-logs` and `backfill-timings` take `--server` instead of `--hostname`.
-- An agent from before 0.21.0 still starts against the renamed database, then fails every insert. It also never shows up on Settings > Agents, because heartbeats arrived in the same release. Upgrade it to the full instance's release.
+- An agent from before 0.21.0 fails every insert against the renamed database. See [Agents from before heartbeats](#agents-from-before-heartbeats).
 
-The changelog's 0.21.0 entry lists every renamed endpoint and advisory id.
+The [changelog's 0.21.0 entry](../reference/changelog.mdx#0210---2026-10-18) lists every renamed endpoint and advisory id.
 
 ## Slow first start after some upgrades
 
-The charts read from continuous aggregates, rollups that TimescaleDB keeps up to date. Some releases add columns to an aggregate or change how one groups its rows. The first start on such a release rebuilds those aggregates over the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180) before the app serves anything. Until it finishes, the full instance answers nothing, `/health` included. On a database with tens of millions of rows, expect minutes. No history is lost, and a container stopped halfway resumes on its next start.
+The charts read from continuous aggregates, rollups that TimescaleDB keeps up to date. Some releases add columns to an aggregate or change how one groups its rows. The first start on such a release updates those aggregates before the app serves anything. Until it finishes, the full instance answers nothing, `/health` included. On a database with tens of millions of rows, expect minutes. A container stopped halfway resumes on its next start.
+
+How much aggregate history survives depends on the change:
+
+- A column added in place keeps every existing bucket. The app computes the new column from the raw rows still in the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180). Buckets older than that window keep the figures they had before the upgrade, because the raw rows needed to recount them are gone.
+- A new grouping can't be made in place. The app drops the aggregate and rebuilds it from the raw rows, so its history older than the raw retention window is lost. The URL aggregates went through this when Top URLs gained the host next to the path.
+- A failed in-place add loses the same history. Adding columns in place needs TimescaleDB 2.28 or later. When the add fails, on an older TimescaleDB or on another database error, the app drops and recreates the aggregate instead, which discards its history older than the raw retention window. The Geo Logs server columns are the exception. For those the app keeps the old aggregate as it is and logs `server_cagg_columns_unavailable`. Geo Logs then shows no servers for ranges over 24 hours until you upgrade the database and restart.
 
 Watch the app log for these events:
 
@@ -65,10 +71,6 @@ Watch the app log for these events:
 | `url_caggs_recreated` | The URL aggregates were dropped and recreated with a new grouping, here the host next to the path for Top URLs. |
 | `url_caggs_refresh_done` | The recreated URL aggregates are filled again. |
 | `url_caggs_refresh_failed` | Refreshing a recreated URL aggregate failed. The event names the views. The next start finds the gap and fills it. |
-
-Aggregate buckets older than the raw retention window keep the figures they had before the upgrade, because the raw rows needed to recount them are gone. Per-URL daily history older than that window is dropped when the URL aggregates are recreated.
-
-Adding columns in place needs TimescaleDB 2.28 or later. On an older TimescaleDB the app drops and recreates the aggregate instead, which discards its daily history older than the raw retention window. The Geo Logs server columns are the exception. For those the app keeps the old aggregate as it is and logs `server_cagg_columns_unavailable`. Geo Logs then shows no servers for ranges over 24 hours until you upgrade the database and restart.
 
 ## One-off backfills
 
@@ -81,12 +83,12 @@ docker compose exec -u geometrikks app litestar backfill-timings
 | Command | When you need it |
 | --- | --- |
 | `backfill-timings` | You imported nginx `combined`-format archives before 0.12.0. Those rows carry a placeholder `0.0` response time that drags averages and percentiles toward zero. The command clears it on rows the positional nginx format wrote without a host. `--server` and `--before` narrow the set. |
-| `backfill-server NAME` | Rows from before the app recorded a server name have none, so the Server filter can't find them. The plain form stamps `NAME` on those rows only. |
+| `backfill-server NAME` | Rows from before the app recorded a server name have none, so the Server filter can't find them. The plain form stamps `NAME` on Access Logs rows that have no server and leaves every other row alone. |
 | `backfill-server NAME --consolidate` | The database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. This rewrites every server name to `NAME` after a confirmation. |
 | `backfill-geo-servers` | Geo Logs shows an empty Servers column for ranges over 24 hours on history from before 0.15.0. The command fills it from the raw events still in retention. It needs the aggregate's new server columns, which need TimescaleDB 2.28 or later. |
 | `backfill-asn --table access-logs\|geo-events\|all` | Rows ingested before ASN support, or while the ASN database was missing, have no network data, so Top ASNs and the ASN filters skip them. Only rows with no ASN data change. |
 
-Every command except plain `backfill-server` asks for confirmation first, and `--yes` skips the prompt. The backfills decompress compressed history and refresh the affected aggregates, so expect minutes and extra disk use on a large database. The Backfill commands page in the CLI section has the details.
+Every command except plain `backfill-server` asks for confirmation first, and `--yes` skips the prompt. `backfill-server`, `backfill-timings` and `backfill-asn` decompress compressed history first, so expect extra disk use until the compression policy compresses it again. Every backfill refreshes the aggregates it touched, so expect minutes on a large database. The Backfill commands page in the CLI section has the details.
 
 ## Agents from before heartbeats
 

@@ -25,7 +25,7 @@ Two databases, both with the same key:
 - GeoLite2 City places each request on the map and feeds the country and city filters and the geo analytics.
 - GeoLite2 ASN adds the network (AS number and organization) behind each request, for Top ASNs and the ASN filters. Set `GEOIP_ASN_ENABLED=false` to skip it. It defaults to `true`. Without the ASN database the app still ingests traffic, just without network data.
 
-The files live in `/app/data/geoip` inside the container. The compose file keeps that folder on the `geoip_data` volume, so a recreated container keeps its databases. You never handle the `.mmdb` files yourself.
+The files live in `/app/data/geoip` inside the container. The compose file keeps that folder on the `geoip_data` volume, so a recreated container keeps its databases. With keys set, you don't need to handle the `.mmdb` files yourself.
 
 ### Refresh
 
@@ -47,7 +47,7 @@ With more than one entry, each name comes from the first language in the list th
 
 If the app has no usable GeoLite2 City database, it starts in geo-degraded mode. The UI and the API work and show the data already stored, but ingestion does not start, so no new traffic is recorded. A banner at the top of the UI says which settings to add.
 
-Ingestion starts by itself once a database file appears. This happens the next time the GeoLite2 refresh job runs, either on its schedule or from Run now on Settings > Scheduler. It also picks up a file you place in `/app/data/geoip` yourself. If the keys were missing, add them and run `docker compose up -d`, which downloads the database at startup.
+Ingestion starts by itself once a database file appears. This happens the next time the GeoLite2 refresh job runs, either on its schedule or from Run now on Settings > Scheduler. The job also picks up a file you place in `/app/data/geoip` yourself, on its next scheduled run or when you click Run now. If the keys were missing, add them and run `docker compose up -d`, which downloads the database at startup.
 
 ## CARTO basemap key
 
