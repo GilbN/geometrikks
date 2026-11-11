@@ -30,7 +30,10 @@ checkout until one of them has run.
 fails on a dead link anywhere in `out/` or on a geometrikks.dev docs URL in
 `geometrikks/` or `resources/` with no page or redirect behind it. A link
 with a `#fragment` is dead when the page it lands on has no element with
-that `id`.
+that `id`. postbuild also fails when `out/_redirects` exists before it
+writes the file, because a `public/_redirects` would otherwise be replaced
+without a word. Run the whole `build`, not postbuild alone, since a second
+postbuild run on the same `out/` trips the same check.
 
 `smoke` starts `wrangler dev` on port 8788 (`SMOKE_PORT` changes it),
 requests every case in the JSON file and stops wrangler again. The cases
@@ -107,9 +110,11 @@ without the trailing slash:
 - `content/renames.json` maps old page paths to new ones, without the
   version, for example `{"old-name": "renamed"}`. A rename becomes a 301
   only once latest no longer has the old page. Until the release that
-  drops it is promoted, readers of latest still get the old page. postbuild
-  rejects a rename cycle, an old path that still exists in `next` and a
-  target that exists nowhere.
+  drops it is promoted, readers of latest still get the old page. Keys and
+  targets are slugs such as `operate/geolite2`: no `docs/` prefix, no slash
+  at either end, no empty segment. `""` is allowed as a target and means the
+  docs index. postbuild rejects a malformed slug, a rename cycle, an old path
+  that still exists in `next` and a target that exists nowhere.
 
 Workers allows 2,000 static redirects. postbuild counts the rules after the
 slash doubling and fails above the limit. Every operation that exists only

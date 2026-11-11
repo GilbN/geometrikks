@@ -1,3 +1,5 @@
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { NEXT } from "../../lib/versions";
 
 export type RedirectRule = { from: string; to: string; status: 301 | 302 };
@@ -8,7 +10,27 @@ function docsPath(key: string, prefix = "/docs"): string {
   return key === "" ? `${prefix}/` : `${prefix}/${key}/`;
 }
 
+function slugProblem(slug: string): string | null {
+  if (slug.startsWith("/") || slug.endsWith("/")) return "has a leading or trailing slash";
+  if (slug === "docs" || slug.startsWith("docs/")) return 'starts with "docs/"';
+  if (slug.split("/").includes("")) return "has an empty segment";
+  return null;
+}
+
+function checkSlugs(renames: Record<string, string>): void {
+  const shape = 'write slugs as "operate/geolite2", without "/docs/" or slashes at either end';
+  for (const [old, target] of Object.entries(renames)) {
+    const oldProblem = old === "" ? "is empty" : slugProblem(old);
+    if (oldProblem) throw new Error(`renames.json: key ${JSON.stringify(old)} is not a slug: it ${oldProblem}; ${shape}`);
+    const targetProblem = target === "" ? null : slugProblem(target);
+    if (targetProblem) {
+      throw new Error(`renames.json: target ${JSON.stringify(target)} is not a slug: it ${targetProblem}; ${shape}`);
+    }
+  }
+}
+
 function checkRenames(renames: Record<string, string>, latest: Set<string>, next: Set<string>): void {
+  checkSlugs(renames);
   for (const start of Object.keys(renames)) {
     const seen = new Set([start]);
     let current = renames[start];
@@ -60,4 +82,15 @@ export function buildRedirects(input: {
 
 export function formatRedirects(rules: RedirectRule[]): string {
   return rules.map((rule) => `${rule.from} ${rule.to} ${rule.status}\n`).join("");
+}
+
+/** Next copies `public/` into `out/`, so a hand-written `public/_redirects` would land there first. */
+export function writeRedirects(outDir: string, rules: RedirectRule[]): void {
+  const path = join(outDir, "_redirects");
+  if (existsSync(path)) {
+    throw new Error(
+      "out/_redirects exists before postbuild wrote it. Next copies public/ into out/, so delete public/_redirects and put renames in content/renames.json. If postbuild already ran on this out/, run the whole build again.",
+    );
+  }
+  writeFileSync(path, formatRedirects(rules));
 }

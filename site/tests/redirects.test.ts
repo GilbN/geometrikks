@@ -1,9 +1,9 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { exportedPages } from "../scripts/lib/out-pages";
-import { buildRedirects, formatRedirects } from "../scripts/lib/redirects";
+import { buildRedirects, formatRedirects, writeRedirects } from "../scripts/lib/redirects";
 
 const latest = new Set(["", "quickstart", "old-name"]);
 const next = new Set(["", "quickstart", "new-feature", "renamed"]);
@@ -64,6 +64,26 @@ describe("buildRedirects", () => {
     expect(() => buildRedirects({ latest, next, renames: { gone: "nowhere" } })).toThrow(/target/);
   });
 
+  test.each([
+    [{ "/old": "renamed" }, "/old"],
+    [{ "old/": "renamed" }, "old/"],
+    [{ "docs/old": "renamed" }, "docs/old"],
+    [{ "a//b": "renamed" }, "a//b"],
+    [{ "": "renamed" }, '""'],
+    [{ old: "/renamed" }, "/renamed"],
+    [{ old: "renamed/" }, "renamed/"],
+    [{ old: "docs/renamed" }, "docs/renamed"],
+    [{ old: "guides//renamed" }, "guides//renamed"],
+  ])("rejects %p as a slug", (renames, shown) => {
+    expect(() => buildRedirects({ latest, next, renames })).toThrow(/slug/);
+    expect(() => buildRedirects({ latest, next, renames })).toThrow(shown);
+  });
+
+  test("accepts the docs index as a rename target", () => {
+    const rules = buildRedirects({ latest: new Set([""]), next: new Set([""]), renames: { gone: "" } });
+    expect(rules).toContainEqual({ from: "/docs/gone/", to: "/docs/", status: 301 });
+  });
+
   test("refuses more than 2,000 rules", () => {
     const many = new Set([""]);
     for (let index = 0; index < 999; index++) many.add(`page-${index}`);
@@ -82,6 +102,28 @@ describe("formatRedirects", () => {
         { from: "/a", to: "/b/", status: 301 },
       ]),
     ).toBe("/a/ /b/ 301\n/a /b/ 301\n");
+  });
+});
+
+describe("writeRedirects", () => {
+  const roots: string[] = [];
+  afterAll(() => {
+    for (const root of roots) rmSync(root, { recursive: true, force: true });
+  });
+
+  test("writes out/_redirects", () => {
+    const outDir = mkdtempSync(join(tmpdir(), "docs-out-"));
+    roots.push(outDir);
+    writeRedirects(outDir, [{ from: "/a/", to: "/b/", status: 301 }]);
+    expect(readFileSync(join(outDir, "_redirects"), "utf8")).toBe("/a/ /b/ 301\n");
+  });
+
+  test("refuses to overwrite a _redirects that came from public/", () => {
+    const outDir = mkdtempSync(join(tmpdir(), "docs-out-"));
+    roots.push(outDir);
+    writeFileSync(join(outDir, "_redirects"), "/hand /written 301\n");
+    expect(() => writeRedirects(outDir, [{ from: "/a/", to: "/b/", status: 301 }])).toThrow(/public\/_redirects/);
+    expect(readFileSync(join(outDir, "_redirects"), "utf8")).toBe("/hand /written 301\n");
   });
 });
 
