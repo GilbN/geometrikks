@@ -1,0 +1,46 @@
+.screens {
+  border-top: 1px solid var(--line);
+  background: linear-gradient(var(--bg), var(--bg-deep));
+}
+.frame {
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg-deep);
+  overflow: hidden;
+  box-shadow:
+    0 30px 80px oklch(0 0 0 / 45%),
+    0 0 0 1px oklch(0 0 0 / 30%);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: oklch(0.15 0.026 245);
+}
+.bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  opacity: 0.5;
+}
+.bar span {
+  margin-left: 10px;
+  font: 12px var(--mono);
+  color: var(--fg-faint);
+}
+.frame img,
+.frame video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.cap {
+  margin: 16px 4px 0;
+  color: var(--fg-dim);
+  font-size: 15px;
+  max-width: 80ch;
+}

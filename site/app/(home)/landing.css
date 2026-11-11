@@ -1,4 +1,4 @@
-/* Landing page only. Starlight pages load docs.css instead. */
+/* Landing page only. The docs root layout loads docs.css instead. */
 @import "tailwindcss";
 @import "@fontsource-variable/schibsted-grotesk";
 @import "@fontsource/fragment-mono";
@@ -184,8 +184,14 @@ pre.block .k {
   .tabs {
     display: none;
   }
-  [role="tabpanel"][hidden] {
-    display: block;
+}
+/* Preflight hides [hidden] with !important in the base layer, and a layered
+   !important beats any unlayered rule, so only a base-layer !important wins. */
+@layer base {
+  @media (scripting: none) {
+    [role="tabpanel"][hidden] {
+      display: block !important;
+    }
   }
 }
 
