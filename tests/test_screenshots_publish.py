@@ -150,7 +150,8 @@ def test_manifest_lists_every_scene_in_order_with_its_variants() -> None:
     scenes = manifest["scenes"]
     assert manifest["version"] == 1 and isinstance(scenes, dict)
     assert list(scenes) == [scene.id for scene in SCENES]
-    assert scenes["map"]["title"] == "Map" and scenes["map"]["alt"].startswith("A world map")
+    map_scene = next(scene for scene in SCENES if scene.id == "map")
+    assert scenes["map"]["title"] == "Map" and scenes["map"]["alt"] == map_scene.alt
     assert list(scenes["map"]["variants"]) == [
         "desktop-dark",
         "desktop-light",
