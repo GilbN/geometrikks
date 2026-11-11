@@ -34,7 +34,7 @@ The fixture step writes seven extra scanners instead:
 | 2001:db8:d0c::5 | 2001:db8:d0c::5/128 | yes |
 | 2001:db8:d0c::9e | none | |
 
-All seven come from the RFC 5737 and RFC 3849 documentation ranges and sit under AS64496 "Fictional Example Hosting", an RFC 5398 documentation ASN. ASN-DROP lists only AS64496, which puts the two addresses on no network list under it. Their user agents leave out CensysInspect, l9scan and masscan, which name a real organization or person.
+All seven come from the RFC 5737 and RFC 3849 documentation ranges and sit under AS64496 "Fictional Example Hosting", an RFC 5398 documentation ASN. 198.51.100.200 and 2001:db8:d0c::9e sit on no network list; only the ASN-DROP entry for AS64496 covers them. Their user agents leave out CensysInspect, l9scan and masscan, which name a real organization or person.
 
 The DROP feeds also always carry a filler record, 192.0.2.0/24 and 2001:db8:ffff::/48. No visitor uses those, so they match no traffic. `feed_bodies` refuses any network outside the documentation ranges, and the copyright line of every fixture feed reads "GeoMetrikks screenshot fixture, not Spamhaus data". The run checks for that line before it publishes. If it is gone, the app downloaded the real lists.
 

@@ -80,10 +80,19 @@ async def import_fixture_lists(
 
 
 async def drop_marker_intact(conn: asyncpg.Connection) -> bool:
-    """Whether every feed's state still carries the fixture copyright, so no real download replaced it."""
-    rows = await conn.fetch("SELECT feed, copyright FROM drop_list_state")
+    """Whether every feed still holds the fixture import and nothing has tried a real download since.
+
+    The refresh commits ``checked_at`` before each request, so a failed real
+    download leaves the copyright as it was but moves ``checked_at`` past
+    ``fetched_at`` and sets ``last_error``.
+    """
+    rows = await conn.fetch("SELECT feed, copyright, last_error, checked_at, fetched_at FROM drop_list_state")
     return {row["feed"] for row in rows} == set(FEEDS) and all(
-        row["copyright"] == FIXTURE_COPYRIGHT for row in rows
+        row["copyright"] == FIXTURE_COPYRIGHT
+        and row["last_error"] is None
+        and row["checked_at"] is not None
+        and row["checked_at"] == row["fetched_at"]
+        for row in rows
     )
 
 

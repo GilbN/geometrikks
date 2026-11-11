@@ -243,8 +243,9 @@ def foreign_decisions(values: Iterable[str], fixture: FixtureIps) -> list[str]:
 
 
 def crowdsec_settings(container_ip: str, *, bouncer_key: str, machine_id: str, password: str) -> CrowdSecSettings:
-    """Settings for the app's own client, every field explicit so no CROWDSEC_* value from the environment applies."""
+    """Settings for the app's own client: every field explicit and no dotenv, so no outside CROWDSEC_* value applies."""
     return CrowdSecSettings(
+        _env_file=None,
         lapi_url=lapi_url(container_ip),
         bouncer_api_key=SecretStr(bouncer_key),
         machine_id=machine_id,
@@ -267,7 +268,9 @@ async def apply_manual_decisions(service: CrowdSecService, fixture: FixtureIps) 
 class LapiClient:
     def __init__(self, base_url: str, *, transport: httpx2.AsyncBaseTransport | None = None) -> None:
         self._base_url = base_url
-        self._client = httpx2.AsyncClient(base_url=base_url, timeout=10.0, follow_redirects=False, transport=transport)
+        self._client = httpx2.AsyncClient(
+            base_url=base_url, timeout=10.0, follow_redirects=False, trust_env=False, transport=transport
+        )
         self._token: str | None = None
 
     async def login(self, machine_id: str, password: str) -> None:

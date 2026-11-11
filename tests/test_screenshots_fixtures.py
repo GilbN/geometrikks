@@ -1,16 +1,20 @@
 """Screenshot fixtures: seed picks, documentation-range DROP visitors, LAPI payloads and DROP feeds."""
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import json
 import random
+import sys
 from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address, ip_network
+from pathlib import Path
 from typing import Any
 
 import httpx2
 import pytest
 
+from geometrikks.config.settings import CrowdSecSettings
 from geometrikks.domain.drop.feeds import FEED_URLS, parse_asn_feed, parse_network_feed
 from geometrikks.services.crowdsec.service import CrowdSecService
 from tests.screenshots.doc_traffic import (
@@ -441,3 +445,58 @@ async def test_manual_decisions_go_through_the_app_service(monkeypatch: pytest.M
     assert all(alert["message"] == MANUAL_REASON == "Repeated probing" for alert in posted)
     assert all("999h" not in json.dumps(alert) for alert in posted)
     assert {str(request.url.host) for request in fake.requests} == {"172.24.0.2"}
+
+
+_opened_paths: list[Path] = []
+
+
+def _record_opens(event: str, args: tuple[Any, ...]) -> None:
+    if event == "open" and isinstance(args[0], str | Path):
+        _opened_paths.append(Path(args[0]).absolute())
+
+
+# Audit hooks cannot be removed, so one hook records every open for the whole session.
+sys.addaudithook(_record_opens)
+
+
+def test_crowdsec_settings_never_read_a_dotenv_in_the_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text("CROWDSEC_LAPI_URL=http://192.0.2.99:8081\nCROWDSEC_MACHINE_PASSWORD=real\n")
+    monkeypatch.chdir(tmp_path)
+    # The suite blanks GEOMETRIKKS_ENV_FILE; an unscrubbed run would see the app default.
+    unscrubbed = CrowdSecSettings.model_config.copy()
+    unscrubbed["env_file"] = ".env"
+    monkeypatch.setattr(CrowdSecSettings, "model_config", unscrubbed)
+    _opened_paths.clear()
+    settings = crowdsec_settings("172.24.0.2", bouncer_key="bouncer", machine_id="geometrikks-shots", password="pw")
+    assert env_path not in _opened_paths
+    assert settings.lapi_url == "http://172.24.0.2:8080"
+
+
+@pytest.mark.anyio
+async def test_lapi_client_ignores_proxy_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    connections: list[str] = []
+
+    async def proxy(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        connections.append(str(writer.get_extra_info("peername")))
+        writer.close()
+
+    server = await asyncio.start_server(proxy, "127.0.0.1", 0)
+    proxy_port = server.sockets[0].getsockname()[1]
+    closed = await asyncio.start_server(proxy, "127.0.0.1", 0)
+    lapi_port = closed.sockets[0].getsockname()[1]
+    closed.close()
+    await closed.wait_closed()
+    for name in ("NO_PROXY", "no_proxy", "ALL_PROXY", "all_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.setenv(name, f"http://127.0.0.1:{proxy_port}")
+    client = LapiClient(f"http://127.0.0.1:{lapi_port}")
+    try:
+        with pytest.raises(httpx2.TransportError):
+            await client.decision_values("bouncer")
+    finally:
+        await client.aclose()
+        server.close()
+        await server.wait_closed()
+    assert connections == []

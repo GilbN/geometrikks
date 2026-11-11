@@ -17,6 +17,7 @@ from tests.screenshots.doc_traffic import (
     write_doc_traffic,
 )
 from tests.screenshots.drop import (
+    FIXTURE_COPYRIGHT,
     documentation_only_drop_lists,
     drop_marker_intact,
     feed_bodies,
@@ -44,14 +45,22 @@ async def test_fixture_import_makes_the_startup_refresh_skip(
     def refuse(request: httpx2.Request) -> httpx2.Response:
         raise AssertionError(f"network call to {request.url}")
 
-    later = await refresh_drop_lists(
+    within_the_hour = await refresh_drop_lists(
         pg_session_maker,
         now=NOW + timedelta(minutes=30),
         startup=True,
         refresh_hours=8760,
         transport=httpx2.MockTransport(refuse),
     )
-    assert {o.status for o in later} == {"skipped"}
+    assert [(o.status, o.reason) for o in within_the_hour] == [("skipped", "checked less than an hour ago")] * 3
+    after_the_hour = await refresh_drop_lists(
+        pg_session_maker,
+        now=NOW + timedelta(hours=2),
+        startup=True,
+        refresh_hours=8760,
+        transport=httpx2.MockTransport(refuse),
+    )
+    assert [(o.status, o.reason) for o in after_the_hour] == [("skipped", "fresh")] * 3
 
     conn = await asyncpg.connect(asyncpg_dsn(migrated_database_url))
     try:
@@ -60,7 +69,30 @@ async def test_fixture_import_makes_the_startup_refresh_skip(
         await conn.execute("INSERT INTO drop_networks (cidr, sbl_id) VALUES ('100.64.0.0/24', 'SBLX')")
         await conn.execute("INSERT INTO drop_asns (asn) VALUES (14061)")
         assert await documentation_only_drop_lists(conn) == ["100.64.0.0/24", "AS14061"]
+
+        await conn.execute("UPDATE drop_list_state SET last_error = 'HTTP 429' WHERE feed = 'v6'")
+        assert not await drop_marker_intact(conn)
+        await conn.execute("UPDATE drop_list_state SET last_error = NULL")
+        await conn.execute(
+            "UPDATE drop_list_state SET checked_at = fetched_at + interval '1 minute' WHERE feed = 'v4'"
+        )
+        assert not await drop_marker_intact(conn)
+        await conn.execute("UPDATE drop_list_state SET checked_at = fetched_at")
+        assert await drop_marker_intact(conn)
         await conn.execute("UPDATE drop_list_state SET copyright = 'Spamhaus' WHERE feed = 'asn'")
+        assert not await drop_marker_intact(conn)
+        await conn.execute("UPDATE drop_list_state SET copyright = $1", FIXTURE_COPYRIGHT)
+        assert await drop_marker_intact(conn)
+
+        def rate_limited(request: httpx2.Request) -> httpx2.Response:
+            return httpx2.Response(429)
+
+        failed = await refresh_drop_lists(
+            pg_session_maker, now=NOW + timedelta(hours=3), transport=httpx2.MockTransport(rate_limited)
+        )
+        assert {o.status for o in failed} == {"failed"}
+        copyrights = await conn.fetch("SELECT copyright FROM drop_list_state")
+        assert {row["copyright"] for row in copyrights} == {FIXTURE_COPYRIGHT}
         assert not await drop_marker_intact(conn)
     finally:
         await conn.close()
