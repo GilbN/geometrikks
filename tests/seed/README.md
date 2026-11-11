@@ -43,6 +43,21 @@ A few visitors produce most of the requests (a Zipf split), so the top lists loo
 
 Each server name owns a share of the hosts and one log format. The first is `geometrikks-json`, the second `nginx`, and so on alternating. The default servers are `seed-edge` and `seed-nas`. Use `--servers` to name your own, for example to match `LOGPARSER_SERVER_NAME`.
 
+## Live traffic
+
+The seed writes history only. For the live map and the live tail, `tests.seed.live` appends new requests to log files the app tails, so they go through real ingestion:
+
+```bash
+uv run python -m tests.seed.live --log-dir /tmp/seed-live \
+  --city-db ~/dev/geometrikks/data/geoip/GeoLite2-City.mmdb \
+  --asn-db ~/dev/geometrikks/data/geoip/GeoLite2-ASN.mmdb \
+  --seed 42 --rows 150000 --servers edge,homelab --rate 4
+```
+
+It writes `<log-dir>/<server>.log` for each server, emptied at start, in the format the seed gives that server: `geometrikks-json` for the first, `nginx` for the second, and so on. Set the app's `LOGPARSER_LOG_PATHS`, `LOGPARSER_LOG_FORMATS` and `LOGPARSER_SERVER_NAME` to match. Lines come at random gaps, `--rate` lines a second on average, stamped with the current time. Scanners send the same TLS, SSH and SMB probes as in the history.
+
+Pass the seed run's `--seed`, `--rows` and `--servers` and the same GeoLite2 files. The feeder then rebuilds the seed's visitors and ranks them the same way, so live requests come from IPs the history already holds, and the busiest IPs stay the busiest. It runs until SIGTERM or Ctrl-C and exits 0.
+
 ## Options
 
 | Option | Default | |
@@ -78,5 +93,6 @@ On the dev box, 100k requests take about 45 seconds, including the full aggregat
 | `catalog.py` | Hosts, paths, user agents, probe payloads, status mixes |
 | `writer.py` | COPY, reset, location upserts |
 | `seeder.py` | `run_seed`, which ties the steps together |
+| `live.py` | Appends live log lines from the seeded visitors |
 
 `tests/test_seed_traffic.py` checks the generated rows without a database. `tests/integration/test_seed_pg.py` seeds the scratch TimescaleDB, so a schema change that breaks the seeder fails CI.
