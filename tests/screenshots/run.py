@@ -34,6 +34,8 @@ from geometrikks.services.crowdsec.service import CrowdSecService
 from tests.screenshots.doc_traffic import (
     DOC_INSPECT_IP,
     DOC_VISITORS,
+    DOCUMENTATION_NETWORKS,
+    HOME_VISITORS,
     write_doc_traffic,
 )
 from tests.screenshots.drop import (
@@ -907,8 +909,13 @@ class FullRun:
                 rng=random.Random(SEED),
             )
             say(
-                f"documentation traffic: {written} requests from {len(DOC_VISITORS)} visitors "
+                f"documentation traffic: {written.scanner_requests} requests from {len(DOC_VISITORS)} scanners "
+                f"and {written.home_requests} from {len(HOME_VISITORS)} home visitors "
                 f"(written and aggregates refreshed in {time.monotonic() - started:.1f} s)"
+            )
+            say(
+                "top networks, last 7 days: "
+                + ", ".join(f"AS{network.asn} {network.organization} {network.hits}" for network in written.top_networks)
             )
             stats = await load_ip_stats(conn, since=self.now - timedelta(days=7))
             fixture = pick_fixture_ips(stats)
@@ -1195,11 +1202,16 @@ async def _drop_problems(conn: asyncpg.Connection) -> list[str]:
     return problems
 
 
+# The fixture step's documentation visitors are history too, but the feeder
+# replays only seed visitors, so a live documentation address is a stranger.
 LIVE_STRANGERS_SQL: Final = """
 SELECT host(live.ip_address) AS ip
 FROM (SELECT DISTINCT ip_address FROM access_logs WHERE timestamp >= $1) AS live
 WHERE NOT EXISTS (
-    SELECT 1 FROM access_logs AS history WHERE history.ip_address = live.ip_address AND history.timestamp < $1
+    SELECT 1 FROM access_logs AS history
+    WHERE history.ip_address = live.ip_address
+      AND history.timestamp < $1
+      AND NOT history.ip_address <<= ANY($2::text[]::inet[])
 )
 ORDER BY 1
 """
@@ -1210,7 +1222,7 @@ async def _live_ip_problems(conn: asyncpg.Connection, live_since: datetime) -> l
     live = await conn.fetchval("SELECT count(*) FROM access_logs WHERE timestamp >= $1", live_since)
     if not live:
         return ["the app ingested no live requests while the feeder ran"]
-    strangers = [row["ip"] for row in await conn.fetch(LIVE_STRANGERS_SQL, live_since)]
+    strangers = [row["ip"] for row in await conn.fetch(LIVE_STRANGERS_SQL, live_since, list(DOCUMENTATION_NETWORKS))]
     if strangers:
         return [f"live requests came from {len(strangers)} IPs the seed never wrote: {', '.join(strangers[:10])}"]
     return []

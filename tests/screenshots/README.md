@@ -39,7 +39,7 @@ The frontend build is the one place your dotenv files still count. `vite build` 
 In order:
 
 1. The scratch database `geometrikks_screenshots`, migrated and set up for TimescaleDB. That name is reserved for this script: a run creates and drops it, and `--cleanup` drops it whenever it exists.
-2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners (see below) and the DROP fixture lists.
+2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below) and the DROP fixture lists.
 3. `geometrikks-shots-crowdsec`, a CrowdSec LAPI with 512 MB of memory, on the internal network `geometrikks-shots-net`. Both carry the label `geometrikks.screenshots.run=<run id>`. The run loads it with alerts and decisions for the fixture IPs.
 4. The app under uvicorn on a free port, bound to `0.0.0.0`, tailing two empty log files in the run folder.
 5. Playwright with one worker, in two passes. The live scenes come last, while the live feeder appends requests from the seeded visitors to those log files.
@@ -108,13 +108,28 @@ The fixture step writes seven extra scanners instead:
 
 All seven come from the RFC 5737 and RFC 3849 documentation ranges and sit under AS64496 "Fictional Example Hosting", an RFC 5398 documentation ASN. 198.51.100.200 and 2001:db8:d0c::9e sit on no network list; only the ASN-DROP entry for AS64496 covers them. Their user agents leave out CensysInspect, l9scan and masscan, which name a real organization or person.
 
-The DROP feeds also always carry a filler record, 192.0.2.0/24 and 2001:db8:ffff::/48. No visitor uses those, so they match no traffic. `feed_bodies` refuses any network outside the documentation ranges, and the copyright line of every fixture feed reads "GeoMetrikks screenshot fixture, not Spamhaus data". The run checks for that line before it publishes. If it is gone, the app downloaded the real lists.
+The DROP feeds also always carry a filler record, 192.0.2.64/26 and 2001:db8:ffff::/48. No visitor uses those, so they match no traffic, and 192.0.2.64/26 leaves out the capture browser's own address, 192.0.2.10. `feed_bodies` refuses any network outside the documentation ranges or over the home ranges below, and the copyright line of every fixture feed reads "GeoMetrikks screenshot fixture, not Spamhaus data". The run checks for that line before it publishes. If it is gone, the app downloaded the real lists.
 
 These visitors have no location. GeoLite2 places none of these addresses, so ingestion would store their requests with no country or city and write no `geo_events` row. The fixture rows do the same. That affects three scenes:
 
 - `drop-networks` lists 203.0.113.0/24 with 3 IPs, 198.51.100.14/32 and 2001:db8:d0c::5/128, each under AS64496. The card has no country column.
 - `ip-inspector` opens 198.51.100.14. The header shows the ASN with no flag or city, the locations block is empty, and the map behind the sheet keeps its view, since the address has no marker.
 - `abuse-report` for 198.51.100.14 names the network as `AS64496 Fictional Example Hosting` with no country code. Its DROP notice covers both the v4 listing and the ASN-DROP listing.
+
+### Home visitors
+
+The Overview puts the Spamhaus DROP card next to the Top network card. On the seed alone the top network is a real one (AS749, the US Department of Defense, about 4,100 requests in 7 days). So the fixture step also writes twelve home browsers under AS64497 "Example Broadband", the second RFC 5398 documentation ASN. They use 192.0.2.128/25 and 2001:db8:b0b::/48, which no DROP list touches and which leave out 192.0.2.10.
+
+`write_doc_traffic` counts the busiest network of the last 7 days after the scanners are written. The home browsers then send 1.5 times that, and never fewer than 6,000 requests. They are spread over the 7 days by local time of day and end two hours before the run started. After the aggregate refresh the step checks that AS64497 leads the runner-up by 1.5 times and stops the run if it does not. The run log prints the top three networks.
+
+What the home browsers look like:
+
+- Browser user agents from the seed's list, none with a URL in it.
+- Seed browser paths and statuses, so mostly 200s. They never request a path in `PROBE_PATHS`, and they write no probe lines.
+- No country, city or `geo_events` row, like the AS64496 scanners. They never appear on the map.
+- AS64497 is on neither the hosting list nor ASN-DROP, so their requests count as "other" on the Hosting traffic card.
+
+`pick_fixture_ips` never takes them for a ban, the inspector or the map focus. It refuses them if they have no recent traffic, a location, another ASN or a probe hit. The live feeder replays only seed visitors, and the run's live-IP check treats any documentation address as unknown history, so a home browser in the live window fails the run.
 
 The seed scanners keep every other CrowdSec fixture: active and expired bans, detections, the captcha and the range ban. Their alerts name probing scenarios only (`crowdsecurity/http-probing`, `http-sensitive-files`, `http-wordpress-scan`, `http-admin-interface-probing`). The captcha and the range ban go through the app's own ban call with the reason "Repeated probing".
 

@@ -20,11 +20,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.domain.drop.feeds import FEED_URLS, DropFeed
 from geometrikks.domain.drop.refresh import FEEDS, FeedOutcome, refresh_drop_lists
-from tests.screenshots.doc_traffic import DOC_AS_NAME, DOC_ASN, is_documentation
+from tests.screenshots.doc_traffic import (
+    DOC_AS_NAME,
+    DOC_ASN,
+    HOME_AS_NAME,
+    HOME_ASN,
+    is_documentation,
+    overlaps_home_network,
+)
 
 FIXTURE_COPYRIGHT: Final = "GeoMetrikks screenshot fixture, not Spamhaus data"
-# Documentation space no DOC_VISITORS entry uses, so the filler records match no traffic.
-FILLER_V4_NETWORK: Final = "192.0.2.0/24"
+# Documentation space no visitor uses, so the filler records match no traffic.
+# 192.0.2.64/26 stays clear of the capture browser's 192.0.2.10 and of the
+# AS64497 home range 192.0.2.128/25.
+FILLER_V4_NETWORK: Final = "192.0.2.64/26"
 FILLER_V6_NETWORK: Final = "2001:db8:ffff::/48"
 
 
@@ -42,10 +51,13 @@ def feed_bodies(drop_networks: Sequence[str], *, now: datetime) -> dict[DropFeed
     """The three feeds as Spamhaus serves them, listing only documentation space and AS64496.
 
     ASN-DROP never lists a seed ASN: that would show a real company as DROP-listed.
+    No network touches the AS64497 home ranges, whose visitors top the Overview.
     """
     for network in drop_networks:
         if not is_documentation(network):
             raise ValueError(f"{network} is outside the documentation ranges; a DROP fixture may list only those")
+        if overlaps_home_network(network):
+            raise ValueError(f"{network} overlaps the AS{HOME_ASN} {HOME_AS_NAME} home ranges, which no DROP list may touch")
     v4 = [network for network in drop_networks if ipaddress.ip_network(network).version == 4] + [FILLER_V4_NETWORK]
     v6 = [network for network in drop_networks if ipaddress.ip_network(network).version == 6] + [FILLER_V6_NETWORK]
     sbl_ids = (f"SBLDEMO{number:02d}" for number in range(1, len(v4) + len(v6) + 1))
@@ -97,9 +109,12 @@ async def drop_marker_intact(conn: asyncpg.Connection) -> bool:
 
 
 async def documentation_only_drop_lists(conn: asyncpg.Connection) -> list[str]:
-    """Every DROP network outside documentation space and every listed ASN but AS64496; empty means clean."""
+    """Every DROP network outside documentation space or over the AS64497 home ranges, and every
+    listed ASN but AS64496; empty means clean."""
     networks = await conn.fetch("SELECT cidr::text AS cidr FROM drop_networks ORDER BY cidr")
     asns = await conn.fetch("SELECT asn FROM drop_asns ORDER BY asn")
-    return [row["cidr"] for row in networks if not is_documentation(row["cidr"])] + [
-        f"AS{row['asn']}" for row in asns if row["asn"] != DOC_ASN
-    ]
+    return [
+        row["cidr"]
+        for row in networks
+        if not is_documentation(row["cidr"]) or overlaps_home_network(row["cidr"])
+    ] + [f"AS{row['asn']}" for row in asns if row["asn"] != DOC_ASN]

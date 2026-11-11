@@ -5,9 +5,10 @@ import asyncio
 import dataclasses
 import json
 import random
+import re
 import sys
 from datetime import UTC, datetime, timedelta
-from ipaddress import ip_address, ip_network
+from ipaddress import IPv4Address, IPv6Address, ip_address, ip_network
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,12 @@ import httpx2
 import pytest
 
 from geometrikks.config.settings import CrowdSecSettings
+from geometrikks.domain.analytics.asn_classification import (
+    classify_asn,
+    hosting_asn_entries,
+)
 from geometrikks.domain.drop.feeds import FEED_URLS, parse_asn_feed, parse_network_feed
+from geometrikks.domain.drop.snapshot import DropAsnEntry, DropSnapshot
 from geometrikks.services.crowdsec.service import CrowdSecService
 from tests.screenshots.doc_traffic import (
     DOC_AS_NAME,
@@ -25,9 +31,21 @@ from tests.screenshots.doc_traffic import (
     DOC_INSPECT_IP,
     DOC_USER_AGENTS,
     DOC_VISITORS,
+    HOME_AS_NAME,
+    HOME_ASN,
+    HOME_LEAD,
+    HOME_MIN_REQUESTS,
+    HOME_NETWORKS,
+    HOME_USER_AGENTS,
+    HOME_VISITORS,
+    HOME_WINDOW_START,
     doc_traffic,
     doc_visitors,
+    home_requests_for,
+    home_traffic,
+    home_visitors,
     is_documentation,
+    overlaps_home_network,
 )
 from tests.screenshots.drop import (
     FILLER_V4_NETWORK,
@@ -60,7 +78,7 @@ from tests.screenshots.lapi import (
     network_args,
     scenario_for,
 )
-from tests.seed.catalog import CRAWLER_PATHS, SITES
+from tests.seed.catalog import BROWSER_USER_AGENTS, CRAWLER_PATHS, SITES
 from tests.seed.config import SeedConfig
 
 NOW = datetime(2026, 11, 11, 12, 0, tzinfo=UTC)
@@ -76,7 +94,20 @@ def people(n: int) -> list[IpStats]:
 
 
 def docs() -> list[IpStats]:
-    return [IpStats(ip, 80 - i, 80 - i, 3, None, None, DOC_ASN, DOC_AS_NAME, None, None, None) for i, ip in enumerate(DOC_VISITORS)]
+    scanners = [IpStats(ip, 80 - i, 80 - i, 3, None, None, DOC_ASN, DOC_AS_NAME, None, None, None) for i, ip in enumerate(DOC_VISITORS)]
+    homes = [IpStats(ip, 900 - i, 900 - i, 0, None, None, HOME_ASN, HOME_AS_NAME, None, None, None) for i, ip in enumerate(HOME_VISITORS)]
+    return scanners + homes
+
+
+def capture_browser_ip() -> IPv4Address | IPv6Address:
+    capture = (Path(__file__).parent / "screenshots" / "capture.shots.ts").read_text()
+    header = re.search(r'"X-Forwarded-For": "([^"]+)"', capture)
+    assert header, "capture.shots.ts no longer sends X-Forwarded-For"
+    return ip_address(header[1])
+
+
+CAPTURE_BROWSER_IP = capture_browser_ip()
+DROP_FIXTURE_RANGES = ("198.51.100.0/24", "203.0.113.0/24", "2001:db8:d0c::/48")
 
 
 ALL_STATS = scanners(30) + people(5) + docs()
@@ -226,6 +257,90 @@ def test_doc_traffic_is_reproducible() -> None:
     assert first == second
 
 
+def test_home_visitors_sit_in_their_own_documentation_ranges() -> None:
+    home = [ip_network(net) for net in HOME_NETWORKS]
+    assert all(is_documentation(net) for net in HOME_NETWORKS)
+    assert all(any(ip_address(ip) in net for net in home if net.version == ip_address(ip).version) for ip in HOME_VISITORS)
+    assert len(set(HOME_VISITORS)) == len(HOME_VISITORS) and not set(HOME_VISITORS) & set(DOC_VISITORS)
+    assert not [net for net in HOME_NETWORKS for drop in DROP_FIXTURE_RANGES if ip_network(net).overlaps(ip_network(drop))]
+    assert not [ip for ip in DOC_VISITORS if overlaps_home_network(ip)]
+    assert not overlaps_home_network(str(CAPTURE_BROWSER_IP))
+
+
+def test_home_asn_is_a_documentation_asn_that_reads_as_neither_hosting_nor_drop() -> None:
+    assert 64496 <= HOME_ASN <= 64511 and HOME_ASN != DOC_ASN
+    assert HOME_ASN not in {asn for asn, _ in hosting_asn_entries()}
+    fixture_snapshot = DropSnapshot(asns=(DropAsnEntry(asn=DOC_ASN, name=DOC_AS_NAME, country_code=None),))
+    assert classify_asn(HOME_ASN, fixture_snapshot) == "other"
+    assert classify_asn(DOC_ASN, fixture_snapshot) == "drop"
+
+
+def test_home_user_agents_are_browsers_that_name_no_organization() -> None:
+    assert HOME_USER_AGENTS and set(HOME_USER_AGENTS) <= set(BROWSER_USER_AGENTS)
+    assert all(ua.startswith("Mozilla/5.0 (") and "://" not in ua for ua, _ in HOME_USER_AGENTS)
+    visitors = home_visitors(random.Random(3))
+    assert [v.ip for v in visitors] == list(HOME_VISITORS)
+    assert all(v.kind == "browser" and v.resolved.asn == HOME_ASN and v.resolved.asn_org == HOME_AS_NAME for v in visitors)
+    assert all(v.resolved.place.country_code == "" and v.resolved.place.city is None for v in visitors)
+
+
+def test_home_traffic_looks_like_home_browsers_inside_the_shots_range() -> None:
+    config = SeedConfig(rows=4000, seed=7, servers=("edge", "homelab"))
+    batch = home_traffic(config, now=NOW, rng=random.Random(1), requests=3000)
+    rows = batch.access_logs + [log for log, _ in batch.linked]
+    assert len(rows) == 3000 and batch.geo_events == [] and batch.orphan_debug == []
+    assert {row.ip_address for row in rows} == set(HOME_VISITORS)
+    assert all(row.autonomous_system_number == HOME_ASN and row.autonomous_system_organization == HOME_AS_NAME for row in rows)
+    assert all(row.country_code is None and row.country_name is None and row.city is None for row in rows)
+    assert all(NOW - HOME_WINDOW_START <= row.timestamp <= NOW - timedelta(hours=2) for row in rows)
+    assert HOME_WINDOW_START < timedelta(days=7)
+    assert {row.user_agent for row in rows} <= {ua for ua, _ in HOME_USER_AGENTS}
+    assert not {row.url for row in rows} & PROBE_PATHS
+    assert all(debug.parse_error is None and not debug.is_malformed for _, debug in batch.linked)
+    assert sum(200 <= row.status_code < 300 for row in rows) / len(rows) > 0.75
+    assert all(row.timestamp.microsecond == 0 for row in rows)
+    busiest = max(sum(row.ip_address == ip for row in rows) for ip in HOME_VISITORS)
+    assert busiest < len(rows) / 4
+    per_day = [sum(NOW - timedelta(days=d + 1) <= row.timestamp < NOW - timedelta(days=d) for row in rows) for d in range(7)]
+    assert min(per_day) > 0 and max(per_day[:6]) < 2 * min(per_day[:6])
+
+
+def test_home_traffic_is_reproducible() -> None:
+    config = SeedConfig(rows=4000, seed=7, servers=("edge", "homelab"))
+    first = home_traffic(config, now=NOW, rng=random.Random(1), requests=500)
+    assert first == home_traffic(config, now=NOW, rng=random.Random(1), requests=500)
+
+
+def test_home_requests_lead_the_busiest_other_network() -> None:
+    assert home_requests_for(0) == HOME_MIN_REQUESTS == 6000
+    assert home_requests_for(4090) == 6135 and HOME_LEAD == 1.5
+    assert home_requests_for(9001) >= 9001 * HOME_LEAD
+
+
+def test_pick_never_takes_a_home_visitor() -> None:
+    busy = [dataclasses.replace(s, recent_requests=90_000) if s.ip in HOME_VISITORS else s for s in docs()]
+    picked = pick_fixture_ips(scanners(30) + people(5) + busy)
+    assert not picked.all_ips() & set(HOME_VISITORS)
+    assert picked == pick_fixture_ips(scanners(30) + people(5) + docs())
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"country_code": "NO", "location_id": 7, "city": "Oslo"},
+        {"asn": 749},
+        {"asn_org": "Example"},
+        {"probe_hits": 2},
+        {"recent_requests": 0},
+    ],
+)
+def test_pick_refuses_a_home_visitor_that_is_placed_renamed_probing_or_quiet(change: dict[str, Any]) -> None:
+    home = HOME_VISITORS[4]
+    changed = [dataclasses.replace(s, **change) if s.ip == home else s for s in docs()]
+    with pytest.raises(FixtureError, match=re.escape(home)):
+        pick_fixture_ips(scanners(30) + people(5) + changed)
+
+
 def test_scenario_for() -> None:
     assert scenario_for(["/wp-login.php"]) == "crowdsecurity/http-wordpress-scan"
     assert scenario_for(["/.env"]) == "crowdsecurity/http-sensitive-files"
@@ -340,7 +455,7 @@ def test_foreign_decisions_flags_unknown_values() -> None:
 def test_feed_bodies_parse_with_the_app_parsers() -> None:
     bodies = feed_bodies(DOC_DROP_NETWORKS, now=NOW)
     v4, meta = parse_network_feed(bodies["v4"], "v4")
-    assert {r.cidr for r in v4} == {"198.51.100.14/32", "203.0.113.0/24", "192.0.2.0/24"} and meta.copyright == FIXTURE_COPYRIGHT
+    assert {r.cidr for r in v4} == {"198.51.100.14/32", "203.0.113.0/24", "192.0.2.64/26"} and meta.copyright == FIXTURE_COPYRIGHT
     v6, _ = parse_network_feed(bodies["v6"], "v6")
     assert {r.cidr for r in v6} == {"2001:db8:d0c::5/128", "2001:db8:ffff::/48"}
     asns, _ = parse_asn_feed(bodies["asn"])
@@ -352,6 +467,23 @@ def test_feed_bodies_parse_with_the_app_parsers() -> None:
 def test_feed_bodies_refuse_a_network_outside_documentation_space() -> None:
     with pytest.raises(ValueError, match="100.64.0.0/24"):
         feed_bodies(["198.51.100.14/32", "100.64.0.0/24"], now=NOW)
+
+
+@pytest.mark.parametrize("network", ["192.0.2.0/24", "192.0.2.131/32", "2001:db8:b0b::/48", "2001:db8::/32"])
+def test_feed_bodies_refuse_a_network_over_the_home_ranges(network: str) -> None:
+    with pytest.raises(ValueError, match="AS64497"):
+        feed_bodies(["198.51.100.14/32", network], now=NOW)
+
+
+def test_drop_feeds_never_reach_the_home_visitors_or_the_capture_browser() -> None:
+    bodies = feed_bodies(DOC_DROP_NETWORKS, now=NOW)
+    v4, _ = parse_network_feed(bodies["v4"], "v4")
+    v6, _ = parse_network_feed(bodies["v6"], "v6")
+    asns, _ = parse_asn_feed(bodies["asn"])
+    listed = [ip_network(record.cidr) for record in [*v4, *v6]]
+    assert not [str(net) for net in listed if overlaps_home_network(str(net))]
+    assert not [str(net) for net in listed if CAPTURE_BROWSER_IP in net]
+    assert [a.asn for a in asns] == [DOC_ASN] and HOME_ASN != DOC_ASN
 
 
 @pytest.mark.anyio

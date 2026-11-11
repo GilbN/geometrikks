@@ -3,7 +3,7 @@
 Seed IPs follow the GeoLite2 build, so nothing here names one. Seed picks
 are ranked by traffic in the last 7 days, the range every shot stores, so
 the banned IPs show up in the shots. Everything DROP-related comes from the
-documentation visitors only.
+documentation visitors only, and the AS64497 home visitors are never picked.
 """
 
 from __future__ import annotations
@@ -23,6 +23,9 @@ from tests.screenshots.doc_traffic import (
     DOC_DROP_NETWORKS,
     DOC_INSPECT_IP,
     DOC_VISITORS,
+    HOME_AS_NAME,
+    HOME_ASN,
+    HOME_VISITORS,
 )
 from tests.seed.catalog import CRAWLER_PATHS, SCANNER_REQUESTS, SITES
 
@@ -143,8 +146,10 @@ async def load_ip_stats(conn: asyncpg.Connection, *, since: datetime) -> list[Ip
     ]
 
 
-def _check_documentation_visitors(documentation: dict[str, IpStats]) -> None:
-    quiet = [ip for ip in DOC_VISITORS if ip not in documentation or documentation[ip].recent_requests <= 0]
+def _check_documentation_visitors(
+    documentation: dict[str, IpStats], visitors: Sequence[str], *, asn: int, asn_org: str, probes: bool
+) -> None:
+    quiet = [ip for ip in visitors if ip not in documentation or documentation[ip].recent_requests <= 0]
     if quiet:
         raise FixtureError(
             f"documentation visitors with no traffic in the last 7 days: {', '.join(quiet)}; "
@@ -156,17 +161,18 @@ def _check_documentation_visitors(documentation: dict[str, IpStats]) -> None:
         "location_id": None,
         "latitude": None,
         "longitude": None,
-        "asn": DOC_ASN,
-        "asn_org": DOC_AS_NAME,
+        "asn": asn,
+        "asn_org": asn_org,
     }
-    for ip in DOC_VISITORS:
+    for ip in visitors:
         for field, want in expected.items():
             value = getattr(documentation[ip], field)
             if value != want:
                 raise FixtureError(
-                    f"documentation visitor {ip} has {field} {value!r}; "
-                    f"its rows must carry only AS{DOC_ASN} {DOC_AS_NAME}"
+                    f"documentation visitor {ip} has {field} {value!r}; its rows must carry only AS{asn} {asn_org}"
                 )
+        if not probes and documentation[ip].probe_hits:
+            raise FixtureError(f"home visitor {ip} has {documentation[ip].probe_hits} probe hits; it must browse only")
 
 
 def _pick_focus_location(seed: Sequence[IpStats]) -> int:
@@ -192,8 +198,8 @@ def _pick_focus_location(seed: Sequence[IpStats]) -> int:
 
 
 def pick_fixture_ips(stats: Sequence[IpStats]) -> FixtureIps:
-    documentation = {entry.ip: entry for entry in stats if entry.ip in DOC_VISITORS}
-    seed = [entry for entry in stats if entry.ip not in DOC_VISITORS]
+    documentation = {entry.ip: entry for entry in stats if entry.ip in DOC_VISITORS or entry.ip in HOME_VISITORS}
+    seed = [entry for entry in stats if entry.ip not in documentation]
 
     scanners = sorted(
         (entry for entry in seed if entry.probe_hits > 0 and entry.recent_requests > 0),
@@ -211,7 +217,8 @@ def pick_fixture_ips(stats: Sequence[IpStats]) -> FixtureIps:
 
     focus_location = _pick_focus_location(seed)
 
-    _check_documentation_visitors(documentation)
+    _check_documentation_visitors(documentation, DOC_VISITORS, asn=DOC_ASN, asn_org=DOC_AS_NAME, probes=True)
+    _check_documentation_visitors(documentation, HOME_VISITORS, asn=HOME_ASN, asn_org=HOME_AS_NAME, probes=False)
 
     ranked = [entry.ip for entry in scanners]
     return FixtureIps(

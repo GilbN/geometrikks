@@ -8,11 +8,15 @@ import asyncpg
 import httpx2
 import pytest
 
+from geometrikks.domain.analytics.repositories import SummaryStatsRepository
 from geometrikks.domain.drop.refresh import refresh_drop_lists
 from geometrikks.domain.security.repositories import DropTrafficRepository
 from tests.screenshots.doc_traffic import (
     DOC_DROP_NETWORKS,
     DOC_VISITORS,
+    HOME_AS_NAME,
+    HOME_ASN,
+    HOME_VISITORS,
     doc_traffic,
     write_doc_traffic,
 )
@@ -25,6 +29,7 @@ from tests.screenshots.drop import (
 )
 from tests.screenshots.fixture_ips import PROBE_PATHS, load_ip_stats
 from tests.screenshots.lapi import load_events
+from tests.screenshots.run import _live_ip_problems
 from tests.seed.config import SeedConfig
 from tests.seed.seeder import asyncpg_dsn
 from tests.seed.traffic import Batch
@@ -69,6 +74,9 @@ async def test_fixture_import_makes_the_startup_refresh_skip(
         await conn.execute("INSERT INTO drop_networks (cidr, sbl_id) VALUES ('100.64.0.0/24', 'SBLX')")
         await conn.execute("INSERT INTO drop_asns (asn) VALUES (14061)")
         assert await documentation_only_drop_lists(conn) == ["100.64.0.0/24", "AS14061"]
+        await conn.execute("INSERT INTO drop_networks (cidr, sbl_id) VALUES ('192.0.2.0/24', 'SBLY')")
+        await conn.execute("INSERT INTO drop_asns (asn) VALUES (64497)")
+        assert await documentation_only_drop_lists(conn) == ["100.64.0.0/24", "192.0.2.0/24", "AS14061", "AS64497"]
 
         await conn.execute("UPDATE drop_list_state SET last_error = 'HTTP 429' WHERE feed = 'v6'")
         assert not await drop_marker_intact(conn)
@@ -98,7 +106,7 @@ async def test_fixture_import_makes_the_startup_refresh_skip(
         await conn.close()
 
 
-async def test_doc_traffic_reaches_the_drop_card_without_a_location(
+async def test_doc_traffic_reaches_the_drop_and_top_network_cards_without_a_location(
     pg_session_maker, migrated_database_url, clean_tables
 ) -> None:
     now = datetime.now(UTC)
@@ -109,11 +117,18 @@ async def test_doc_traffic_reaches_the_drop_card_without_a_location(
         # every documentation row, so only write_doc_traffic's own refresh
         # brings those rows into the aggregate leg.
         seed_row = doc_traffic(config, now=now, rng=random.Random(2)).access_logs[0]
-        await SeedWriter(conn).write(
-            Batch(access_logs=[seed_row._replace(ip_address="100.64.0.1", timestamp=now - timedelta(minutes=90))])
-        )
+        busy_network = [
+            seed_row._replace(
+                ip_address="100.64.0.1",
+                timestamp=now - timedelta(minutes=90 + minute),
+                autonomous_system_number=749,
+                autonomous_system_organization="Busy Real Network",
+            )
+            for minute in range(0, 4500 * 2, 2)
+        ]
+        await SeedWriter(conn).write(Batch(access_logs=busy_network))
         assert await SeedWriter(conn).refresh_aggregates() == []
-        assert await write_doc_traffic(conn, config, now=now, rng=random.Random(1)) > 0
+        written = await write_doc_traffic(conn, config, now=now, rng=random.Random(1))
         await import_fixture_lists(pg_session_maker, feed_bodies(DOC_DROP_NETWORKS, now=now), now=now)
         stats = {s.ip: s for s in await load_ip_stats(conn, since=now - timedelta(days=7))}
         events = await load_events(conn, DOC_VISITORS)
@@ -126,3 +141,31 @@ async def test_doc_traffic_reaches_the_drop_card_without_a_location(
     async with pg_session_maker() as session:
         hits = {h.cidr: h for h in await DropTrafficRepository(session).network_hits(now - timedelta(days=7), now)}
     assert set(hits) == set(DOC_DROP_NETWORKS) and hits["203.0.113.0/24"].ips == 3
+
+    assert written.scanner_requests > 0 and written.home_requests == 6750
+    assert [(n.asn, n.hits) for n in written.top_networks[:2]] == [(HOME_ASN, 6750), (749, 4500)]
+    async with pg_session_maker() as session:
+        top = await SummaryStatsRepository(session).get_top_asns(now - timedelta(days=7), now)
+    assert (top[0].asn, top[0].organization, top[0].hits) == (HOME_ASN, HOME_AS_NAME, 6750)
+    assert (top[1].asn, top[1].hits) == (749, 4500)
+    assert all(stats[ip].location_id is None and stats[ip].asn == HOME_ASN and stats[ip].probe_hits == 0 for ip in HOME_VISITORS)
+
+
+async def test_live_ip_check_counts_a_live_documentation_address_as_a_stranger(
+    migrated_database_url, clean_tables
+) -> None:
+    now = datetime.now(UTC)
+    live_since = now - timedelta(minutes=10)
+    row = doc_traffic(SeedConfig(rows=4000, seed=7, servers=("edge",)), now=now, rng=random.Random(2)).access_logs[0]
+    history = [row._replace(ip_address=ip, timestamp=now - timedelta(days=1)) for ip in ("100.64.0.1", HOME_VISITORS[0])]
+    live = [row._replace(ip_address=ip, timestamp=now - timedelta(minutes=5)) for ip in ("100.64.0.1", HOME_VISITORS[0])]
+    conn = await asyncpg.connect(asyncpg_dsn(migrated_database_url))
+    try:
+        await SeedWriter(conn).write(Batch(access_logs=history + live[:1]))
+        assert await _live_ip_problems(conn, live_since) == []
+        await SeedWriter(conn).write(Batch(access_logs=live[1:]))
+        assert await _live_ip_problems(conn, live_since) == [
+            f"live requests came from 1 IPs the seed never wrote: {HOME_VISITORS[0]}"
+        ]
+    finally:
+        await conn.close()
