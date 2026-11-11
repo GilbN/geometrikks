@@ -61,6 +61,7 @@
   --color-fd-ring: oklch(0.78 0.15 178);
 }
 
+/* Repeats .dark values on purpose: neutral.css's `.dark #nd-sidebar` has the same specificity, so this must come later. */
 .dark #nd-sidebar,
 .dark #nd-sidebar-mobile {
   --color-fd-card: oklch(0.12 0.025 245);
