@@ -197,6 +197,34 @@ describe("releaseDocs", () => {
     expect(existsSync(`${dir}/docs/0.25.0/index.mdx`)).toBe(true);
   });
 
+  test.each([
+    "Never write `[a](/docs/next/quickstart/)`.\n",
+    "``[a](/docs/next/quickstart/)``\n",
+    "```mdx\n[a](/docs/next/quickstart/)\n<a href=\"/docs/next/quickstart/\">a</a>\n```\n",
+    "~~~~\n```\n[a](/docs/next/quickstart/)\n```\n~~~~\n",
+  ])("a link into next inside a code example passes: %p", async (body) => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/index.mdx"), body);
+    await releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") });
+    expect(existsSync(`${dir}/docs/0.25.0/index.mdx`)).toBe(true);
+  });
+
+  test("a link into next after a closed code example fails", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/index.mdx"), "```\nexample\n```\n\n`code` then [a](/docs/next/quickstart/)\n");
+    await expect(
+      releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
+    ).rejects.toThrow(/relative/);
+  });
+
+  test("a stray backtick does not hide a link in a later paragraph", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/index.mdx"), "A stray ` here.\n\n[a](/docs/next/quickstart/) and ` there.\n");
+    await expect(
+      releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
+    ).rejects.toThrow(/relative/);
+  });
+
   test.each(["next.mdx", "next/index.mdx", "(guides)/next.mdx", "(guides)/next/index.mdx"])("a top-level page with the slug next fails: %p", async (page) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next", page), "---\ntitle: Next\n---\n");

@@ -28,7 +28,9 @@ checkout until one of them has run.
 
 `build` ends with `scripts/postbuild.ts`, which writes `out/_redirects` and
 fails on a dead link anywhere in `out/` or on a geometrikks.dev docs URL in
-`geometrikks/` or `resources/` with no page or redirect behind it.
+`geometrikks/` or `resources/` with no page or redirect behind it. A link
+with a `#fragment` is dead when the page it lands on has no element with
+that `id`.
 
 `smoke` starts `wrangler dev` on port 8788 (`SMOKE_PORT` changes it),
 requests every case in the JSON file and stops wrangler again. The cases
@@ -90,7 +92,9 @@ Link between pages with relative file links such as `./quickstart.mdx`. The
 same file then works in `next` and in every release folder copied from it.
 `docs:release` refuses a link to `/docs/next/`, which would break once the
 folder becomes latest, and postbuild fails on any relative or `.mdx` href
-left in the exported docs.
+left in the exported docs. Both `docs:release` and `tests/content.test.ts`
+skip links inside code spans and fenced code, so a page can show a wrong
+link as an example.
 
 ### Redirects
 

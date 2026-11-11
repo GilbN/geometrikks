@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { compareSemver, NEXT, SEMVER } from "../lib/versions";
+import { stripCode } from "./lib/markdown";
 import { imageExists, publishedFromEnv } from "./lib/registry";
 import { resolveVersions } from "./lib/resolve-versions";
 
@@ -89,7 +90,7 @@ export async function releaseDocs(opts: ReleaseOptions): Promise<ReleaseResult> 
   }
 
   const linking = copied.filter(
-    (path) => /\.mdx?$/.test(path) && NEXT_LINK.test(readFileSync(join(nextDir, path), "utf8")),
+    (path) => /\.mdx?$/.test(path) && NEXT_LINK.test(stripCode(readFileSync(join(nextDir, path), "utf8"))),
   );
   if (linking.length > 0) {
     throw new Error(

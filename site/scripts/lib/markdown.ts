@@ -34,6 +34,27 @@ export function escapeHtml(markdown: string): string {
   return out.join("\n");
 }
 
+const CODE_SPAN = /(`+)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g;
+
+/** Drop fenced code blocks and inline code spans, so a check for links skips the examples. */
+export function stripCode(markdown: string): string {
+  const prose: string[] = [];
+  let fence: string | null = null;
+  for (const line of markdown.split("\n")) {
+    const opener = FENCE.exec(line)?.[1];
+    if (fence !== null) {
+      if (opener?.[0] === fence[0] && opener.length >= fence.length) fence = null;
+      prose.push("");
+    } else if (opener) {
+      fence = opener;
+      prose.push("");
+    } else {
+      prose.push(line);
+    }
+  }
+  return prose.join("\n").replace(CODE_SPAN, "");
+}
+
 /**
  * Prepare a repo-root Markdown file for `<include>`: drop the H1 (the page title renders it), unlink
  * reference-link headings such as Keep a Changelog's `## [0.24.0]` (Fumadocs wraps every heading in an
