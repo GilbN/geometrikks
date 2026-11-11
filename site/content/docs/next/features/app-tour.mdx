@@ -31,13 +31,13 @@ Every stored request, newest first, in two tabs: History and Live tail.
 
 ![Access Logs with the filter bar and the request table](/screenshots/access-logs.webp)
 
-History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. Exclude your IP drops your own address from the view. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. The column picker adds bytes, request and upstream times, HTTP version and the other fields of the log line.
+History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. Exclude your IP drops your own address from the view. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. Bytes and Req time show by default, except on a phone. The column picker adds upstream response time, HTTP version, remote user, user agent, server, source format, ASN and AS organization.
 
 The IP actions menu on each row can also filter by the row's IP, host, server, country or ASN, and exclude the values that have an exclude field.
 
 ### Live tail
 
-Live tail shows new requests as your proxy logs them. It keeps the most recent few hundred rows, pauses while the pointer is over the list, and has a pause button for touch screens. Requests that arrive while it is paused wait in a buffer and appear when you resume. The History filters don't apply to it.
+Live tail shows new requests as your proxy logs them. It keeps the most recent few hundred rows and pauses while the pointer is over the list. The pause button works on every device, and on a touch screen it is the only way to pause. Requests that arrive while it is paused wait in a buffer and appear when you resume. The History filters don't apply to it.
 
 ![The live tail on Access Logs, with new requests at the top](/screenshots/live-tail.webp)
 
@@ -57,7 +57,7 @@ With `LOGPARSER_STORE_DEBUG_LINES=true` the parser stores every line here as wel
 
 ## Analytics
 
-Charts and top lists for the range, all following one filter set: IP address, country, city, ASN and Exclude ASN.
+Charts and top lists for the range, all following one filter set: IP address, Exclude IP, country, city, ASN and Exclude ASN.
 
 - **Traffic** has the Requests, Status classes, Bandwidth and Request latency charts.
 - **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents.

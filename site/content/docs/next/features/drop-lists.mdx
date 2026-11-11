@@ -26,7 +26,7 @@ Each feed is checked on its own. A feed that fails to download, or whose content
 | `DROP_ENABLED` | `true` | Downloads the lists and marks listed traffic. With `false`, the downloads stop and every DROP element in the UI goes away: badges, outlines, the DROP card on Overview, the DROP networks card on Security and the DROP lists card on Settings > About. |
 | `DROP_REFRESH_HOURS` | `24` | Hours between downloads. |
 
-The scheduler runs the downloads, so with `SCHEDULER_ENABLED=false` the lists never load and nothing gets marked. The first run comes a minute after startup. At that run a feed that downloaded within the last `DROP_REFRESH_HOURS` is skipped, so a restart doesn't refetch everything. A feed is never fetched again within an hour of its last attempt, whatever `DROP_REFRESH_HOURS` says, and Run now on Settings > Scheduler follows the same rule.
+The scheduler runs the downloads. With `SCHEDULER_ENABLED=false` nothing downloads or refreshes, but lists already in the database keep loading, so their markings stay and go stale. A database that never downloaded the lists marks nothing. The first run comes a minute after startup. At that run a feed that downloaded within the last `DROP_REFRESH_HOURS` is skipped, so a restart doesn't refetch everything. A feed is never fetched again within an hour of its last attempt, whatever `DROP_REFRESH_HOURS` says, and Run now on Settings > Scheduler follows the same rule.
 
 Only the full instance downloads the lists. An agent never does, and doesn't need to.
 
@@ -50,4 +50,4 @@ With CrowdSec machine credentials, `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_P
 
 The IP actions menu and the abuse report dialog can also ban the DROP network behind a single address.
 
-The same ban runs over the API with `POST /api/v1/crowdsec/ban-networks`. Name the networks, or set `allUnbannedDays` to ban every unbanned network with traffic in that many days. It needs a browser session or a Read/write API key; a Read key gets a 403. Without machine credentials on the server it answers 403 too.
+The same ban runs over the API with `POST /api/v1/crowdsec/ban-networks`. Give a `duration` such as `4h` or `7d`, then either name the networks or set `allUnbannedDays` to `7`, `30` or `90` to ban every unbanned network with traffic in that many days. A request with both, or neither, gets a 400. It needs a browser session or a Read/write API key; a Read key gets a 403. Without machine credentials on the server it answers 403 too.

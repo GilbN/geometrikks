@@ -26,12 +26,12 @@ The report covers the time range selected in the app, with every time in UTC. Ra
 
 The contact lookup runs only when you click Find abuse contact. GeoMetrikks then asks the regional registry over RDAP, following redirects to a national registry where there is one. Only the address or AS number leaves your server. The answer shows the abuse email addresses, each with a copy button, the holder and its address ranges, and a link to the RDAP record. Some records list no abuse email; the dialog says so.
 
-Once the contact is known, the text report starts with a To line for those addresses and names the registry record. The CSV format carries the evidence only.
+Once the contact is known, the text report starts with its Subject line, then a To line for those addresses, and names the registry record. The CSV format carries the evidence only.
 
 When the address or AS is on a [Spamhaus DROP list](./drop-lists.mdx), the dialog warns that the network may be run by the same people the report is about, so a report to its contact may go nowhere. It links the SBL records and, with CrowdSec write access, offers to ban the DROP network.
 
 ## What the report leaves out
 
-The report goes to a third party, so it leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user agents it tries to strip the hostnames you serve, your public address, any server name with a dot, and credentials such as API keys. The dialog counts the places it redacted. It can miss some, so read the report before you send it.
+The report goes to a third party, so it leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user agents it tries to strip the hostnames you serve, your public address and any server name with a dot. In paths it also strips credentials from the query string, such as API keys. User agents keep any credential they carry. The dialog counts the places it redacted. It can miss some, so read the report before you send it.
 
 The abuse report redaction guide in the API guides of these docs lists every rule.
