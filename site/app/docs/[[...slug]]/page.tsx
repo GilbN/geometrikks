@@ -2,6 +2,7 @@ import { createRelativeLink } from "fumadocs-ui/mdx";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { OpenAPIPage } from "@/components/docs/api-page";
 import { NextBanner } from "@/components/docs/NextBanner";
 import { getMDXComponents } from "@/components/mdx";
 import { plan, source } from "@/lib/source";
@@ -22,11 +23,25 @@ export default async function Page(props: Props) {
   const page = source.getPage(params.slug);
   if (!page) notFound();
 
+  const banner = versionOfUrl(page.url) === NEXT && <NextBanner latestHref={latestCounterpart(page.slugs)} />;
+
+  if (page.type === "openapi") {
+    return (
+      <DocsPage toc={page.data.toc} full={page.data.full}>
+        {banner}
+        <DocsTitle>{page.data.title}</DocsTitle>
+        <DocsBody>
+          <OpenAPIPage {...page.data.getOpenAPIPageProps()} />
+        </DocsBody>
+      </DocsPage>
+    );
+  }
+
   const MDX = page.data.body;
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
-      {versionOfUrl(page.url) === NEXT && <NextBanner latestHref={latestCounterpart(page.slugs)} />}
+      {banner}
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>

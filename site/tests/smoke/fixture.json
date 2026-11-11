@@ -23,5 +23,19 @@
     "contains": ["href=\"/docs/next/quickstart/\""],
     "absent": ["href=\"/docs/quickstart\"", "href=\"/docs/next/quickstart\""]
   },
-  { "path": "/_redirects", "status": 404 }
+  { "path": "/_redirects", "status": 404 },
+  {
+    "path": "/docs/reference/api/health/HealthHealth/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["FIXTURE-API-0.1.0"],
+    "absent": ["Check that the app is up"]
+  },
+  {
+    "path": "/docs/next/reference/api/health/HealthHealth/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["Check that the app is up"],
+    "absent": ["FIXTURE-API-0.1.0"]
+  }
 ]
