@@ -27,6 +27,8 @@ for (const shot of plan.shots) {
       hasTouch: viewport.isMobile,
       colorScheme: shot.theme,
       serviceWorkers: "block",
+      // The app trusts 127.0.0.1 as a proxy, so "Your IP" shows this TEST-NET-1 address, outside every DROP fixture range.
+      extraHTTPHeaders: { "X-Forwarded-For": "192.0.2.10" },
     })
     try {
       await prepareContext(context, shot.theme)

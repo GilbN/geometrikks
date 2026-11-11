@@ -101,6 +101,12 @@ def test_app_env_points_every_setting_at_the_run() -> None:
     assert env["APP_AUTH_DISABLED"] == "false" and env["VITE_DEV_MODE"] == "false"
 
 
+def test_app_env_trusts_only_the_loopback_capture_browser_as_a_proxy() -> None:
+    environ = {"PATH": "/bin", "APP_TRUSTED_PROXIES": "0.0.0.0/0"}
+    env = app_env(environ, config, lapi_url="http://172.30.0.2:8080", log_targets=TARGETS)
+    assert env["APP_TRUSTED_PROXIES"] == "127.0.0.1/32"
+
+
 def test_base_env_passes_only_the_listed_names() -> None:
     environ = {"PATH": "/bin", "HOME": "/h", "DOCKER_CONTEXT": "remote", "HTTPS_PROXY": "http://p", "CI": "1"}
     assert base_env(environ) == {"PATH": "/bin", "HOME": "/h", "GEOMETRIKKS_ENV_FILE": ""}

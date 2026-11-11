@@ -130,6 +130,8 @@ def app_env(
         "APP_ADMIN_PASSWORD": "admin",
         "APP_AUTH_DISABLED": "false",
         "APP_UPDATE_CHECK": "false",
+        # The capture browser sends X-Forwarded-For 192.0.2.10, so "Your IP" shows a documentation address.
+        "APP_TRUSTED_PROXIES": "127.0.0.1/32",
         "VITE_DEV_MODE": "false",
         "GEOIP_DB_PATH": str(config.city_db),
         "GEOIP_ASN_DB_PATH": str(config.asn_db),
