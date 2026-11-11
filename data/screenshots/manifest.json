@@ -1,0 +1,473 @@
+{
+  "version": 1,
+  "scenes": {
+    "login": {
+      "title": "Login",
+      "alt": "The GeoMetrikks sign-in form with username and password fields.",
+      "variants": {
+        "desktop-dark": {
+          "file": "login-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "login-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "login-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "login-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "dashboard": {
+      "title": "Overview",
+      "alt": "The Overview page with request, geo event, country and malformed request totals and their sparklines, above the traffic origin cards.",
+      "variants": {
+        "desktop-dark": {
+          "file": "dashboard-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "dashboard-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "dashboard-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "dashboard-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "map": {
+      "title": "Map",
+      "alt": "The map zoomed in on one city, its detail view open with the city's event counts and top IPs.",
+      "variants": {
+        "desktop-dark": {
+          "file": "map-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "map-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "map-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "map-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "landscape-dark": {
+          "file": "map-landscape-dark.webp",
+          "width": 1704,
+          "height": 786
+        },
+        "landscape-light": {
+          "file": "map-landscape-light.webp",
+          "width": 1704,
+          "height": 786
+        }
+      }
+    },
+    "access-logs": {
+      "title": "Access logs",
+      "alt": "The Access Logs request history, each request with its time, status, method, URL and client IP.",
+      "variants": {
+        "desktop-dark": {
+          "file": "access-logs-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "access-logs-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "access-logs-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "access-logs-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "filter-drawer": {
+      "title": "Filters on a phone",
+      "alt": "The Access Logs filter drawer open on a phone with compact filter rows.",
+      "variants": {
+        "phone-dark": {
+          "file": "filter-drawer-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "filter-drawer-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "geo-logs": {
+      "title": "Geo logs",
+      "alt": "The Geo Logs page with event, unique IP, country and city totals above a map of where the traffic comes from.",
+      "variants": {
+        "desktop-dark": {
+          "file": "geo-logs-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "geo-logs-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "geo-logs-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "geo-logs-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "debug-logs": {
+      "title": "Debug logs",
+      "alt": "The Debug Logs page with debug line and malformed request totals above the captured source lines and their parse errors.",
+      "variants": {
+        "desktop-dark": {
+          "file": "debug-logs-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "debug-logs-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "debug-logs-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "debug-logs-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "analytics": {
+      "title": "Analytics",
+      "alt": "The Analytics page with charts of requests and status classes over time.",
+      "variants": {
+        "desktop-dark": {
+          "file": "analytics-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "analytics-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "analytics-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "analytics-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "ip-inspector": {
+      "title": "IP inspector",
+      "alt": "The IP inspector for a banned documentation address on a DROP list under AS64496, with no known location, showing its request stats, targets and paths.",
+      "variants": {
+        "desktop-dark": {
+          "file": "ip-inspector-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "ip-inspector-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "ip-inspector-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "ip-inspector-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "abuse-report": {
+      "title": "Abuse report",
+      "alt": "The abuse report dialog for a documentation address, with a notice that it and its AS are on DROP lists and a fictional abuse contact.",
+      "variants": {
+        "desktop-dark": {
+          "file": "abuse-report-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "abuse-report-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "abuse-report-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "abuse-report-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "security": {
+      "title": "Security",
+      "alt": "The Security page with CrowdSec stat cards above the DROP networks card and the active decisions.",
+      "variants": {
+        "desktop-dark": {
+          "file": "security-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "security-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "security-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "security-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "drop-networks": {
+      "title": "DROP networks",
+      "alt": "The DROP networks in your traffic card on the Security page, listing three documentation-range networks under AS64496, two of them banned.",
+      "variants": {
+        "desktop-dark": {
+          "file": "drop-networks-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "drop-networks-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "drop-networks-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "drop-networks-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "banned-map": {
+      "title": "Banned IPs map",
+      "alt": "The map in its Banned view, with markers for IPs that CrowdSec has banned.",
+      "variants": {
+        "desktop-dark": {
+          "file": "banned-map-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "banned-map-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "banned-map-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "banned-map-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "status": {
+      "title": "Status",
+      "alt": "The Status settings page with ingestion, database, GeoIP and CrowdSec cards.",
+      "variants": {
+        "desktop-dark": {
+          "file": "status-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "status-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "status-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "status-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "settings": {
+      "title": "Appearance",
+      "alt": "The Appearance settings page with the color scheme choices and the themes.",
+      "variants": {
+        "desktop-dark": {
+          "file": "settings-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "settings-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "settings-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "settings-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "nav-more": {
+      "title": "Phone navigation",
+      "alt": "The phone's More menu, opened from the navigation bar, with the ingestion status, the remaining pages and Log out.",
+      "variants": {
+        "phone-dark": {
+          "file": "nav-more-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "nav-more-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "live": {
+      "title": "Live map",
+      "alt": "The map in live mode, with arcs carrying incoming requests to the servers and a readout of the live request rate.",
+      "variants": {
+        "desktop-dark": {
+          "file": "live-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "live-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "live-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "live-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "landscape-dark": {
+          "file": "live-landscape-dark.webp",
+          "width": 1704,
+          "height": 786
+        },
+        "landscape-light": {
+          "file": "live-landscape-light.webp",
+          "width": 1704,
+          "height": 786
+        }
+      }
+    },
+    "live-tail": {
+      "title": "Live tail",
+      "alt": "The Access Logs Live tail tab streaming new requests as they arrive.",
+      "variants": {
+        "desktop-dark": {
+          "file": "live-tail-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "live-tail-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "live-tail-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "live-tail-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    }
+  }
+}
