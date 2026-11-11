@@ -255,7 +255,7 @@ class TeardownActions(Protocol):
 
     def group_has_token(self, pgid: int, token: str) -> bool: ...
 
-    def stop_process(self, pgid: int) -> None: ...
+    def stop_process(self, pgid: int, *, start_time: str = "", token: str = "") -> None: ...
 
     def run_label(self, kind: Literal["container", "network"], name: str) -> str | None: ...
 
@@ -288,11 +288,13 @@ def _tear_down_one(resource: Resource, actions: TeardownActions) -> str | None:
                 label = resource.meta_value("label")
                 named = f"process group {pgid} ({label})" if label else f"process group {pgid}"
                 return f"{named}: leader gone and no live member carries its token; skipped"
-            actions.stop_process(pgid)
+            actions.stop_process(pgid, token=resource.meta_value("token") or "")
             return None
         if leader_start != resource.meta_value("start_time"):
             return f"{_describe(resource)}: start time changed, not ours; skipped"
-        actions.stop_process(pgid)
+        actions.stop_process(
+            pgid, start_time=resource.meta_value("start_time") or "", token=resource.meta_value("token") or ""
+        )
         return None
     if resource.kind in ("container", "network"):
         kind: Literal["container", "network"] = "container" if resource.kind == "container" else "network"
@@ -334,7 +336,10 @@ def execute_teardown(
         try:
             skipped = _tear_down_one(resource, actions)
         except Exception as error:  # noqa: BLE001
-            if not already_gone(resource, f"{type(error).__name__}: {error}"):
+            # Docker calls already sort "gone" from a failed call by exit code; their errors are real failures.
+            if resource.kind in ("container", "network") or not already_gone(
+                resource, f"{type(error).__name__}: {error}"
+            ):
                 report.append(f"{_describe(resource)}: {error}")
                 continue
             skipped = None
@@ -578,9 +583,14 @@ def _group_gone(pgid: int, *, own: bool) -> bool:
     return not _group_alive(pgid)
 
 
-def _stop_group(pgid: int, leader: subprocess.Popen[bytes] | None) -> None:
+def _stop_group(
+    pgid: int, leader: subprocess.Popen[bytes] | None, *, still_ours: Callable[[], bool] | None = None
+) -> None:
     # Our unreaped leader pins the pgid, even as a zombie, so it is reaped only after the last signal.
+    # Any other group can empty and have its pgid reused between signals, so ownership is checked before each one.
     own = _child_exited(pgid) is not None
+    if not own and still_ours is not None and not still_ours():
+        return
     _signal_group(pgid, signal.SIGTERM)
     deadline = time.monotonic() + _STOP_GRACE_SECONDS
     while time.monotonic() < deadline:
@@ -588,7 +598,8 @@ def _stop_group(pgid: int, leader: subprocess.Popen[bytes] | None) -> None:
             break
         time.sleep(0.05)
     else:
-        _signal_group(pgid, signal.SIGKILL)
+        if own or still_ours is None or still_ours():
+            _signal_group(pgid, signal.SIGKILL)
     if own:
         _reap(pgid, leader)
 
@@ -661,8 +672,13 @@ class SystemActions:
     def group_has_token(self, pgid: int, token: str) -> bool:
         return _group_has_token(pgid, token)
 
-    def stop_process(self, pgid: int) -> None:
-        _stop_group(pgid, None)
+    def stop_process(self, pgid: int, *, start_time: str = "", token: str = "") -> None:
+        def still_ours() -> bool:
+            if start_time and proc_start_time(pgid) == start_time:
+                return True
+            return _group_has_token(pgid, token)
+
+        _stop_group(pgid, None, still_ours=still_ours)
 
     def run_label(self, kind: Literal["container", "network"], name: str) -> str | None:
         labels_path = "{{json .Config.Labels}}" if kind == "container" else "{{json .Labels}}"
@@ -677,11 +693,15 @@ class SystemActions:
     def remove_container(self, name: str) -> None:
         # -v: the CrowdSec container carries an anonymous volume for /var/lib/crowdsec/data.
         code, _, errors = self._docker("rm", "-f", "-v", name)
+        if code == 1 and already_gone(Resource("container", name), errors):
+            return
         if code != 0:
             raise RuntimeError(errors or f"docker rm {name} exited {code}")
 
     def remove_network(self, name: str) -> None:
         code, _, errors = self._docker("network", "rm", name)
+        if code == 1 and already_gone(Resource("network", name), errors):
+            return
         if code != 0:
             raise RuntimeError(errors or f"docker network rm {name} exited {code}")
 

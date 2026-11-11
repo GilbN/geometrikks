@@ -67,7 +67,7 @@ class FakeActions:
     def group_has_token(self, pgid: int, token: str) -> bool:
         return bool(token) and self.tokens.get(pgid) == token
 
-    def stop_process(self, pgid: int) -> None:
+    def stop_process(self, pgid: int, *, start_time: str = "", token: str = "") -> None:
         self._act("stop_process", pgid)
 
     def run_label(self, kind: Literal["container", "network"], name: str) -> str | None:
@@ -753,6 +753,44 @@ def test_system_actions_stop_a_leaderless_group_that_carries_our_token(
     finally:
         if proc_start_time(member) is not None:
             os.kill(member, signal.SIGKILL)
+
+
+STUBBORN_GROUP = (
+    "import subprocess, sys, time; "
+    "child = subprocess.Popen([sys.executable, '-c', "
+    "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)'], "
+    "stdout=subprocess.DEVNULL); "
+    "time.sleep(0.5); print(child.pid, flush=True)"
+)
+
+
+def test_a_group_that_stops_being_ours_mid_stop_gets_no_sigkill(
+    monkeypatch: pytest.MonkeyPatch, group_signals: list[tuple[int, int, bool]]
+) -> None:
+    leader = subprocess.Popen(
+        [sys.executable, "-c", STUBBORN_GROUP], env=CHILD_ENV, stdout=subprocess.PIPE, start_new_session=True
+    )
+    out, _ = leader.communicate(timeout=10)
+    pgid, member = leader.pid, int(out)
+    monkeypatch.setattr(teardown, "_STOP_GRACE_SECONDS", 0.3)
+    answers = iter([True, False])
+    try:
+        teardown._stop_group(pgid, None, still_ours=lambda: next(answers))
+        assert group_signals == [(pgid, signal.SIGTERM, False)]
+        assert proc_start_time(member) is not None
+    finally:
+        os.kill(member, signal.SIGKILL)
+
+
+def test_a_failed_docker_call_is_reported_even_when_its_text_says_no_such(
+    tmp_path: Path, system_actions: tuple[SystemActions, Path]
+) -> None:
+    actions, _ = system_actions
+    entry = Resource("container", "geometrikks-shots-odd", (("run_id", "r1"),))
+    ledger = ledger_with(tmp_path / "odd-ledger.json", [entry])
+    report = execute_teardown([entry], run_root=tmp_path, ledger=ledger, actions=actions)
+    assert len(report) == 1 and "exited 2" in report[0]
+    assert ledger.load() == [entry]
 
 
 FAKE_DOCKER = """#!/bin/sh
