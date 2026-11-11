@@ -8,7 +8,9 @@
     "build": "next build",
     "postinstall": "fumadocs-mdx",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "bun scripts/smoke.ts",
+    "docs:release": "bun scripts/docs-release.ts"
   },
   "dependencies": {
     "@fontsource-variable/schibsted-grotesk": "5.3.0",
