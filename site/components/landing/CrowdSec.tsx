@@ -87,7 +87,8 @@ export function CrowdSec() {
               <dt>Ban and unban from the UI</dt>
               <dd>
                 With machine credentials, the IP actions menu in the tables gets Ban and Unban, and a shield button
-                beside the IP does the same in map popups and the IP inspector. Bans run from an hour to forever. Every
+                beside the IP does the same in map popups and the IP inspector. Pick a preset from an hour to forever, or type
+                your own duration. Every
                 ban and unban is audit-logged with the acting user.
               </dd>
             </div>

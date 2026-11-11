@@ -64,7 +64,8 @@ still builds and has a URL, but nothing in the sidebar leads to it.
 
 Link to other pages with relative file links, such as `[Loki](./loki.mdx)`
 or `[Map settings](../reference/configuration.mdx#map)`. Inside `next`, an
-absolute `/docs/...` link points at latest, and the tests reject it. Link
+absolute `/docs/...` link breaks: `/docs/<page>/` points at latest, and
+`/docs/next/...` fails `docs:release`. The tests reject both. Link
 to a repo file with `https://github.com/GilbN/geometrikks/blob/main/<path>`.
 
 Moving or renaming a page changes its URL. Add the old slug and the new
