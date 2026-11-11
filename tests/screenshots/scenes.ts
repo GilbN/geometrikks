@@ -85,7 +85,62 @@ async function mapDetail(page: Page, shot: PlannedShot): Promise<void> {
   await animationsDone(detail)
 }
 
+type CameraMap = {
+  once(type: string): Promise<unknown>
+  isMoving(): boolean
+  getContainer(): HTMLElement
+  getCenter(): { lat: number }
+  jumpTo(options: { center: [number, number]; zoom: number }): void
+  getStyle(): { sources: Record<string, { type: string }> }
+  isSourceLoaded(id: string): boolean
+}
+
+/** Runs `move` on the map and waits for its camera to stop. */
+async function moveCamera(page: Page, move: () => Promise<void>): Promise<void> {
+  await findMap(page)
+  await page.evaluate(() => {
+    const map = window.__shotsMap as unknown as CameraMap
+    ;(window as unknown as { __shotsMoved: Promise<unknown> }).__shotsMoved = map.once("moveend")
+  })
+  await move()
+  await page.evaluate(
+    () =>
+      Promise.race([
+        (window as unknown as { __shotsMoved: Promise<unknown> }).__shotsMoved,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("the map camera did not stop within 15 s")), 15_000)),
+      ]),
+  )
+}
+
+/** Mercator draws the world 512 px wide at zoom 0; one copy across the map means no repeats beside it. */
+async function oneWorldAcross(page: Page): Promise<void> {
+  await moveCamera(page, () =>
+    page.evaluate(() => {
+      const map = window.__shotsMap as unknown as CameraMap
+      map.jumpTo({ center: [0, map.getCenter().lat], zoom: Math.log2(map.getContainer().clientWidth / 512) })
+    }),
+  )
+  await page.waitForFunction(
+    () => {
+      const map = window.__shotsMap as unknown as CameraMap
+      return (
+        !map.isMoving() &&
+        Object.entries(map.getStyle().sources)
+          .filter(([, source]) => source.type === "vector" || source.type === "raster")
+          .every(([id]) => map.isSourceLoaded(id))
+      )
+    },
+    undefined,
+    { timeout: LOAD_TIMEOUT },
+  )
+}
+
 async function liveRequests(page: Page, shot: PlannedShot): Promise<void> {
+  await liveRate(page, shot)
+  if (shot.viewport.name === "landscape") await oneWorldAcross(page)
+}
+
+async function liveRate(page: Page, shot: PlannedShot): Promise<void> {
   if (shot.viewport.isMobile) {
     const pill = page.locator("[data-live-pill] button")
     await expect
@@ -145,7 +200,7 @@ export const STAGES: Record<string, Stage> = {
     await noSkeletons(page)
     await card.evaluate((element) => element.scrollIntoView({ block: "start" }))
   },
-  "banned-map": async (page) => {
+  "banned-map": async (page, shot) => {
     await expect(page.locator(".maplibregl-canvas")).toBeVisible({ timeout: LOAD_TIMEOUT })
     await findMap(page)
     // The banned source fills once the decisions lookup returns, after the traffic rows.
@@ -159,6 +214,11 @@ export const STAGES: Record<string, Stage> = {
         { timeout: LOAD_TIMEOUT },
       )
       .toBeGreaterThan(0)
+    const fit = shot.viewport.isMobile
+      ? page.getByRole("navigation", { name: "Map actions" }).getByRole("button", { name: "All traffic", exact: true })
+      : page.getByRole("button", { name: "Fit to data bounds" })
+    await expect(fit).toBeEnabled({ timeout: LOAD_TIMEOUT })
+    await moveCamera(page, () => fit.click())
   },
   status: async (page) => {
     await expect(page.getByText("CrowdSec").first()).toBeVisible({ timeout: LOAD_TIMEOUT })
