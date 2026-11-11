@@ -62,7 +62,7 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="map",
         title="Map",
-        alt="The map zoomed in on one visitor location, its detail view open with event counts and the location's top IPs.",
+        alt="The map zoomed in on one city, its detail view open with the city's event counts and top IPs.",
         path="/map?focus={focus_location}",
         viewports=("desktop", "phone", "landscape"),
     ),

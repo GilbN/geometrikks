@@ -68,15 +68,15 @@ CRIME_WORDS = ("spam", "crime", "malware", "botnet", "hijack")
 
 
 def scanners(n: int) -> list[IpStats]:
-    return [IpStats(f"10.1.0.{i}", 1000 - i, 1000 - i, 5, "NL", 14061, "Example", 100 + i, 52.0, 4.0) for i in range(n)]
+    return [IpStats(f"10.1.0.{i}", 1000 - i, 1000 - i, 5, "NL", "Amsterdam", 14061, "Example", 100 + i, 52.0, 4.0) for i in range(n)]
 
 
 def people(n: int) -> list[IpStats]:
-    return [IpStats(f"10.2.0.{i}", 5000 - i, 5000 - i, 0, "NO", 2119, "Example", 200 + i, 59.9, 10.7) for i in range(n)]
+    return [IpStats(f"10.2.0.{i}", 5000 - i, 5000 - i, 0, "NO", "Oslo", 2119, "Example", 200 + i, 59.9, 10.7) for i in range(n)]
 
 
 def docs() -> list[IpStats]:
-    return [IpStats(ip, 80 - i, 80 - i, 3, None, DOC_ASN, DOC_AS_NAME, None, None, None) for i, ip in enumerate(DOC_VISITORS)]
+    return [IpStats(ip, 80 - i, 80 - i, 3, None, None, DOC_ASN, DOC_AS_NAME, None, None, None) for i, ip in enumerate(DOC_VISITORS)]
 
 
 ALL_STATS = scanners(30) + people(5) + docs()
@@ -119,9 +119,41 @@ def test_no_documentation_visitor_sits_in_a_filler_network() -> None:
 
 
 def test_pick_skips_a_busy_scanner_quiet_in_the_last_7_days() -> None:
-    stale = IpStats("10.1.0.250", 99_999, 0, 50, "NL", 14061, "Example", 999, 52.0, 4.0)
+    stale = IpStats("10.1.0.250", 99_999, 0, 50, "NL", "Amsterdam", 14061, "Example", 999, 52.0, 4.0)
     picked = pick_fixture_ips(scanners(30) + people(5) + docs() + [stale])
     assert "10.1.0.250" not in picked.all_ips() and picked.active_bans[0] == "10.1.0.0"
+
+
+def test_focus_skips_a_busier_country_level_visitor_for_a_city_location() -> None:
+    country_level = dataclasses.replace(people(1)[0], ip="10.2.1.1", recent_requests=90_000, city=None, location_id=300)
+    blank_city = dataclasses.replace(people(1)[0], ip="10.2.1.2", recent_requests=80_000, city=" ", location_id=301)
+    picked = pick_fixture_ips(scanners(30) + people(5) + docs() + [country_level, blank_city])
+    assert picked.focus_location == 200
+
+
+def test_focus_skips_a_location_a_scanner_shares() -> None:
+    shared = dataclasses.replace(people(1)[0], ip="10.2.1.1", recent_requests=90_000, location_id=105)
+    picked = pick_fixture_ips(scanners(30) + people(5) + docs() + [shared])
+    assert picked.focus_location == 200
+
+
+def test_focus_ranks_locations_by_their_summed_recent_traffic() -> None:
+    crowd = [
+        dataclasses.replace(people(1)[0], ip=f"10.2.2.{i}", recent_requests=3_000, location_id=400) for i in range(2)
+    ]
+    picked = pick_fixture_ips(scanners(30) + people(5) + docs() + crowd)
+    assert picked.focus_location == 400
+
+
+def test_focus_breaks_a_tie_by_location_id() -> None:
+    tied = [dataclasses.replace(person, recent_requests=100) for person in people(3)]
+    assert pick_fixture_ips(scanners(30) + list(reversed(tied)) + docs()).focus_location == 200
+
+
+def test_focus_needs_a_city_level_location() -> None:
+    countries = [dataclasses.replace(person, city=None) for person in people(5)]
+    with pytest.raises(FixtureError, match="city.*--rows"):
+        pick_fixture_ips(scanners(30) + countries + docs())
 
 
 def test_pick_needs_22_scanners() -> None:

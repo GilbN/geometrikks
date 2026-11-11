@@ -50,6 +50,7 @@ class IpStats:
     recent_requests: int
     probe_hits: int
     country_code: str | None
+    city: str | None
     asn: int | None
     asn_org: str | None
     location_id: int | None
@@ -109,6 +110,7 @@ SELECT
     per_ip.recent_requests,
     per_ip.probe_hits,
     per_ip.country_code,
+    geo_locations.city,
     per_ip.asn,
     per_ip.asn_org,
     geo_locations.id AS location_id,
@@ -130,6 +132,7 @@ async def load_ip_stats(conn: asyncpg.Connection, *, since: datetime) -> list[Ip
             recent_requests=row["recent_requests"],
             probe_hits=row["probe_hits"],
             country_code=row["country_code"],
+            city=row["city"],
             asn=row["asn"],
             asn_org=row["asn_org"],
             location_id=row["location_id"],
@@ -149,6 +152,7 @@ def _check_documentation_visitors(documentation: dict[str, IpStats]) -> None:
         )
     expected: dict[str, object] = {
         "country_code": None,
+        "city": None,
         "location_id": None,
         "latitude": None,
         "longitude": None,
@@ -163,6 +167,28 @@ def _check_documentation_visitors(documentation: dict[str, IpStats]) -> None:
                     f"documentation visitor {ip} has {field} {value!r}; "
                     f"its rows must carry only AS{DOC_ASN} {DOC_AS_NAME}"
                 )
+
+
+def _pick_focus_location(seed: Sequence[IpStats]) -> int:
+    # A visitor GeoLite2 places only by country sits on the country centroid,
+    # which zooms the map shot onto empty land.
+    scanner_locations = {entry.location_id for entry in seed if entry.probe_hits > 0}
+    traffic: dict[int, int] = {}
+    for entry in seed:
+        if (
+            entry.probe_hits == 0
+            and entry.recent_requests > 0
+            and entry.location_id is not None
+            and entry.city
+            and entry.city.strip()
+            and entry.location_id not in scanner_locations
+        ):
+            traffic[entry.location_id] = traffic.get(entry.location_id, 0) + entry.recent_requests
+    if not traffic:
+        raise FixtureError(
+            "no city-level location without scanners has visitor traffic in the last 7 days; raise --rows"
+        )
+    return min(traffic, key=lambda location_id: (-traffic[location_id], location_id))
 
 
 def pick_fixture_ips(stats: Sequence[IpStats]) -> FixtureIps:
@@ -183,18 +209,7 @@ def pick_fixture_ips(stats: Sequence[IpStats]) -> FixtureIps:
     if range_source is None:
         raise FixtureError(f"no IPv4 scanner from rank {RANGE_BAN_FROM_RANK} on for the range ban; raise --rows")
 
-    people = sorted(
-        (
-            entry
-            for entry in seed
-            if entry.probe_hits == 0 and entry.recent_requests > 0 and entry.location_id is not None
-        ),
-        key=lambda entry: (-entry.recent_requests, entry.ip),
-    )
-    if not people:
-        raise FixtureError("no placed visitor without probes has traffic in the last 7 days; raise --rows")
-    focus_location = people[0].location_id
-    assert focus_location is not None
+    focus_location = _pick_focus_location(seed)
 
     _check_documentation_visitors(documentation)
 
