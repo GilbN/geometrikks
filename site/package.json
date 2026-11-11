@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/prepare.ts && next dev -p 4322 -H 0.0.0.0",
-    "build": "bun scripts/prepare.ts && next build",
+    "build": "bun scripts/prepare.ts && next build && bun scripts/postbuild.ts",
     "postinstall": "fumadocs-mdx",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
