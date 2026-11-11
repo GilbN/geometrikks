@@ -395,9 +395,9 @@ openapi-ts-error-*.log
 # dev/inject-logs.sh stop signal
 dev/inject-logs.stop
 
-# geometrikks.dev site: generated at build time by site/scripts/sync-content.mjs
-site/src/content/docs/
-site/src/assets/screenshots/
-site/public/fonts/
-site/.astro/
-site/src/data/meta.json
+# geometrikks.dev site: files generated at build time
+site/.source/
+site/.generated/
+site/next-env.d.ts
+site/public/screenshots/
+site/.wrangler/
