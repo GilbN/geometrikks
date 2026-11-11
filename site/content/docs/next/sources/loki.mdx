@@ -28,7 +28,7 @@ Then run `docker compose up -d`. The app container has to reach `LOKI_URL`. `htt
 | `LOKI_POLL_INTERVAL` | Seconds between reads of each selector. Default 5. |
 | `LOKI_LOOKBACK` | Seconds each read looks back for lines that reached Loki late. Default 60, and values above 3600 behave as 3600. |
 
-`LOKI_URL` without `LOKI_QUERIES`, or the other way round, fails startup. So do a list in `LOKI_SERVER_NAMES` or `LOKI_FORMATS` whose length doesn't match `LOKI_QUERIES`, and one of `LOKI_USERNAME` and `LOKI_PASSWORD` without the other.
+`LOKI_URL` without `LOKI_QUERIES`, or the other way round, fails startup. So does one of `LOKI_USERNAME` and `LOKI_PASSWORD` without the other. `LOKI_SERVER_NAMES` and `LOKI_FORMATS` take one value, which applies to every selector, or one value per selector in the order of `LOKI_QUERIES`. Any other number of entries fails startup.
 
 Don't put credentials in the URL. `http://user:pass@loki:3100` fails startup with `LOKI_URL must not contain credentials; set LOKI_USERNAME and LOKI_PASSWORD`. Move them into those two settings.
 
@@ -94,4 +94,11 @@ When the source reads again, GeoMetrikks logs `loki_source_available`.
 
 - GeoMetrikks doesn't follow redirects, so a basic auth header can't travel to another host. A `LOKI_URL` that redirects, for example from `http` to `https`, is `rejected`. Use the address the redirect points at.
 - A selector that returns no lines is not an error. Run it in Grafana's Explore view. If it shows nothing there, GeoMetrikks has nothing to read either.
-- Lines that arrive but don't show up in Access Logs fail to parse. Debug Logs shows them, with the reason.
+- Lines that arrive but don't show up in Access Logs can have several causes:
+  - The line failed to parse. Debug Logs shows it, with the reason.
+  - `LOGPARSER_SEND_LOGS=false` stores map events only and never writes Access Logs rows.
+  - The address matches `LOGPARSER_IGNORE_IPS`. GeoMetrikks drops the line completely.
+  - The address isn't public, for example a private, loopback or CGNAT address. Those lines never become Access Logs rows.
+  - The GeoIP lookup found nothing for the address, or the GeoLite2 database is missing. The GeoIP card on Settings > Status shows the database state.
+
+  Only a parse failure lands in Debug Logs as a failure. For the other causes, check those settings and the GeoIP state.

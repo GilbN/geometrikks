@@ -49,7 +49,8 @@ services:
       - geoip_data:/app/data/geoip
       - /var/log/nginx:/var/log/access:ro
     healthcheck:
-      # Nothing answers during the schema wait, so start_period covers it.
+      # Nothing answers during the GeoLite2 download or the schema wait,
+      # so start_period covers both.
       # After a timed-out wait, /health answers 200 and /health/ready 503.
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()\" || exit 1"]
       interval: 30s
@@ -61,7 +62,16 @@ volumes:
   geoip_data:
 ```
 
-The agent has to reach the head's database. The shipped compose file publishes no port for `timescale_db`, so an agent on another host can't connect until you add a `ports:` entry for 5432 on the head. Bind it to a VPN or tailnet address, not every interface. See [Trust model](#trust-model) for why.
+The agent has to reach the head's database. The shipped compose file publishes no port for `timescale_db`, so an agent on another host can't connect until you add a `ports:` entry for 5432 on the head. Bind it to the head's VPN or tailnet address:
+
+```yaml
+services:
+  timescale_db:
+    ports:
+      - "100.64.0.10:5432:5432"
+```
+
+A bare `5432:5432` listens on every interface of the head, the public one included. See [Trust model](#trust-model) for why that matters.
 
 Upgrade the head and every agent to the same release together. [Upgrading](../get-started/upgrading.mdx#several-instances) has what an agent does while the head runs a newer schema.
 
@@ -69,13 +79,15 @@ Upgrade the head and every agent to the same release together. [Upgrading](../ge
 
 The schema wait runs inside the app's startup, before it serves any request. For those up to 120 seconds nothing answers on port 8000, `/health` included. The agent keeps writing its heartbeat meanwhile, so Settings > Agents on the head shows it waiting instead of missing.
 
+Before the schema wait, the agent downloads GeoLite2 if its files are missing or due for a refresh, as on a first start, and looks up its public IP for the map. Nothing answers during that either, and the heartbeat hasn't started yet. A download usually takes seconds, but on a slow link it can take minutes.
+
 - When the schema reaches the agent's revision, the agent starts ingesting and both routes answer 200.
 - When the database runs a revision the agent doesn't know, as it does while the head runs a newer release, the agent logs a warning and starts anyway.
 - When the 120 seconds run out, the agent stays up without ingesting. `/health` answers 200 and `/health/ready` answers 503 until the agent restarts. The agent never retries by itself.
 
-The image's own healthcheck probes `/health`, so after a timed-out wait it reports a stuck agent as healthy. The compose example above probes `/health/ready` instead. Its `start_period` of 150 seconds covers the wait, so a slow cold start doesn't count as failures.
+The image's own healthcheck probes `/health`, so after a timed-out wait it reports a stuck agent as healthy. The compose example above probes `/health/ready` instead. Its `start_period` of 150 seconds covers the schema wait and a normal download. Failed probes inside it don't count. On a slow link, raise it so a first start doesn't show the agent as `unhealthy` while it is still downloading.
 
-Compose doesn't act on health status. On plain Docker the probe shows a stuck agent as `unhealthy` in `docker ps` and gates any `depends_on: condition: service_healthy` you add, but nothing restarts it. `restart: unless-stopped` reacts to a container exiting, and a waiting agent stays up. Turning `unhealthy` into a restart takes Swarm, Kubernetes or an autoheal sidecar. Without one, run `docker compose restart agent` once the head has finished migrating.
+Compose doesn't act on health status. On plain Docker, `docker ps` shows a stuck agent as `unhealthy`, and a service with `depends_on: condition: service_healthy` on it keeps waiting, but nothing restarts it. `restart: unless-stopped` reacts to a container exiting, and a stuck agent stays up. Turning `unhealthy` into a restart takes Docker Swarm, an autoheal sidecar, or a Kubernetes liveness probe on `/health/ready`. Without one, run `docker compose restart agent` once the head has finished migrating.
 
 ## Settings > Agents
 
@@ -83,7 +95,7 @@ The head and every agent write a heartbeat to the shared database every 30 secon
 
 An agent that hasn't checked in for 180 seconds is marked not checking in, and only then does its row get a Remove button. If the agent is in fact still running, its next heartbeat brings the row back.
 
-Each agent that needs attention also gets a card at the top of Settings > Status, red or amber by its worst problem, linking to its row. An Agents card further down sums them up, for example "3 agents, 1 out of date, 1 not checking in", and the sidebar status dot turns amber. With no agents, Settings > Status shows none of these cards.
+Each agent that needs attention also gets a card at the top of Settings > Status, red or amber by its worst problem, linking to its row. An Agents card further down sums them up, worst problem first, for example "3 agents, 1 not checking in, 1 out of date", and the sidebar status dot turns amber. With no agents, Settings > Status shows none of these cards.
 
 ### Instance names
 
@@ -107,7 +119,7 @@ An override wins over detection, and an agent's detection never replaces it. Rem
 
 ### CDN advisories
 
-The head scans the last hour of access-log rows every 5 minutes for requests that come from CDN addresses, so CDN advisories for an agent's sources reach the head's Settings > Status. The scan covers only sources with `LOGPARSER_SEND_LOGS=true`. Private-peer lines are never stored, so each agent checks its own and sends the advisory in its heartbeat. [Real client IP behind a proxy](./proxy-setup.mdx#limits) has the details.
+While `APP_PROXY_ADVISORY` is on, as it is by default, the head scans the last hour of access-log rows every 5 minutes for requests that come from CDN addresses, so CDN advisories for an agent's sources reach the head's Settings > Status. The scan covers only sources with `LOGPARSER_SEND_LOGS=true`. Private-peer lines are never stored, so each agent checks its own and sends the advisory in its heartbeat. [Real client IP behind a proxy](./proxy-setup.mdx#limits) has the details.
 
 ## A head that tails nothing
 
