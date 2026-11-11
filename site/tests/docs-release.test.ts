@@ -181,6 +181,9 @@ describe("releaseDocs", () => {
     '<img src\n=\n{"/docs/next/a.png"} />',
     "[a](/docs/next)",
     "[ref]: /docs/next/quickstart/",
+    "<a href={`/docs/next/quickstart/`}>a</a>",
+    "Use `code` and <a href={`/docs/next/quickstart/`}>a</a> with `more code`.",
+    "See ``` [a](/docs/next/quickstart/) `` here.",
   ])("the link %p into next fails", async (link) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next/index.mdx"), `${link}\n`);
@@ -202,6 +205,8 @@ describe("releaseDocs", () => {
     "``[a](/docs/next/quickstart/)``\n",
     "```mdx\n[a](/docs/next/quickstart/)\n<a href=\"/docs/next/quickstart/\">a</a>\n```\n",
     "~~~~\n```\n[a](/docs/next/quickstart/)\n```\n~~~~\n",
+    "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.\n",
+    "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```\n",
   ])("a link into next inside a code example passes: %p", async (body) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next/index.mdx"), body);

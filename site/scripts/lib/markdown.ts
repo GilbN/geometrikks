@@ -1,4 +1,4 @@
-const CODE_SPAN_OR_ANGLE = /(`+)[\s\S]*?(?<!`)\1(?!`)|</g;
+const CODE_SPAN_OR_ANGLE = /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|</g;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 function escapeParagraph(text: string): string {
@@ -34,25 +34,57 @@ export function escapeHtml(markdown: string): string {
   return out.join("\n");
 }
 
-const CODE_SPAN = /(`+)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g;
+const CODE_SPAN = /(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/y;
 
-/** Drop fenced code blocks and inline code spans, so a check for links skips the examples. */
+/**
+ * Drop fenced code blocks and inline code spans, so a check for links skips the examples. Backticks inside a
+ * JSX expression, as in href={`/docs/x/`}, are template literals and stay.
+ */
 export function stripCode(markdown: string): string {
-  const prose: string[] = [];
-  let fence: string | null = null;
-  for (const line of markdown.split("\n")) {
-    const opener = FENCE.exec(line)?.[1];
-    if (fence !== null) {
-      if (opener?.[0] === fence[0] && opener.length >= fence.length) fence = null;
-      prose.push("");
-    } else if (opener) {
-      fence = opener;
-      prose.push("");
+  const lineEnd = (start: number) => {
+    const end = markdown.indexOf("\n", start);
+    return end === -1 ? markdown.length : end;
+  };
+  let prose = "";
+  let depth = 0;
+  let index = 0;
+  while (index < markdown.length) {
+    if (depth === 0 && (index === 0 || markdown[index - 1] === "\n")) {
+      const opener = FENCE.exec(markdown.slice(index, lineEnd(index)))?.[1];
+      if (opener) {
+        let end = lineEnd(index);
+        while (end < markdown.length) {
+          prose += "\n";
+          const start = end + 1;
+          end = lineEnd(start);
+          const closer = FENCE.exec(markdown.slice(start, end))?.[1];
+          if (closer?.[0] === opener[0] && closer.length >= opener.length) break;
+        }
+        index = end;
+        continue;
+      }
+    }
+    const char = markdown[index];
+    if (char === "\\" && depth === 0) {
+      prose += markdown.slice(index, index + 2);
+      index += 2;
+    } else if (char === "`" && depth === 0) {
+      CODE_SPAN.lastIndex = index;
+      const span = CODE_SPAN.exec(markdown);
+      let length = span?.[0].length ?? 0;
+      if (!span) {
+        while (markdown[index + length] === "`") length++;
+        prose += markdown.slice(index, index + length);
+      }
+      index += length;
     } else {
-      prose.push(line);
+      if (char === "{") depth++;
+      else if (char === "}" && depth > 0) depth--;
+      prose += char;
+      index++;
     }
   }
-  return prose.join("\n").replace(CODE_SPAN, "");
+  return prose;
 }
 
 /**

@@ -74,9 +74,51 @@ describe("buildRedirects", () => {
     [{ old: "renamed/" }, "renamed/"],
     [{ old: "docs/renamed" }, "docs/renamed"],
     [{ old: "guides//renamed" }, "guides//renamed"],
+    [{ "next/foo": "renamed" }, '"next/foo"'],
+    [{ "0.24.0/foo": "renamed" }, '"0.24.0/foo"'],
+    [{ old: "next/renamed" }, '"next/renamed"'],
+    [{ "old page": "renamed" }, '"old page"'],
+    [{ "old\nother": "renamed" }, '"old\\nother"'],
+    [{ "old#anchor": "renamed" }, '"old#anchor"'],
+    [{ "old?x=1": "renamed" }, '"old?x=1"'],
+    [{ "a\\old": "renamed" }, '"a\\\\old"'],
+    [{ "a/../old": "renamed" }, '"a/../old"'],
+    [{ "a/./old": "renamed" }, '"a/./old"'],
+    [{ "old.mdx": "renamed" }, '"old.mdx"'],
+    [{ old: "renamed.md" }, '"renamed.md"'],
+    [{ "x/index": "renamed" }, '"x/index"'],
+    [{ old: "index" }, '"index"'],
+    [{ old: null }, "null"],
+    [{ old: 3 }, "3"],
   ])("rejects %p as a slug", (renames, shown) => {
     expect(() => buildRedirects({ latest, next, renames })).toThrow(/slug/);
     expect(() => buildRedirects({ latest, next, renames })).toThrow(shown);
+  });
+
+  test("names the problem with the slug", () => {
+    const reject = (renames: Record<string, unknown>) => () => buildRedirects({ latest, next, renames });
+    expect(reject({ "next/foo": "renamed" })).toThrow(/version folder "next"/);
+    expect(reject({ "0.24.0/foo": "renamed" })).toThrow(/version folder "0.24.0"/);
+    expect(reject({ "old page": "renamed" })).toThrow(/segment "old page"/);
+    expect(reject({ "a/../old": "renamed" })).toThrow(/"\.\." segment/);
+    expect(reject({ "old.mdx": "renamed" })).toThrow(/file extension/);
+    expect(reject({ "x/index": "renamed" })).toThrow(/ends in "index"/);
+    expect(reject({ old: null })).toThrow(/not a slug string/);
+  });
+
+  test("rejects a renames.json that is not an object", () => {
+    for (const renames of [null, [], "old"]) {
+      expect(() => buildRedirects({ latest, next, renames })).toThrow(/must be an object/);
+    }
+  });
+
+  test("accepts slugs with dots, underscores and capitals inside a segment", () => {
+    const rules = buildRedirects({
+      latest: new Set(["", "v1.2_notes"]),
+      next: new Set(["", "v1.2_notes"]),
+      renames: { "Old_Page.v1": "v1.2_notes" },
+    });
+    expect(rules).toContainEqual({ from: "/docs/Old_Page.v1/", to: "/docs/v1.2_notes/", status: 301 });
   });
 
   test("accepts the docs index as a rename target", () => {
@@ -111,18 +153,36 @@ describe("writeRedirects", () => {
     for (const root of roots) rmSync(root, { recursive: true, force: true });
   });
 
+  function dirs() {
+    const root = mkdtempSync(join(tmpdir(), "docs-site-"));
+    roots.push(root);
+    const outDir = join(root, "out");
+    const publicDir = join(root, "public");
+    mkdirSync(outDir);
+    mkdirSync(publicDir);
+    return { outDir, publicDir };
+  }
+
   test("writes out/_redirects", () => {
-    const outDir = mkdtempSync(join(tmpdir(), "docs-out-"));
-    roots.push(outDir);
-    writeRedirects(outDir, [{ from: "/a/", to: "/b/", status: 301 }]);
+    const { outDir, publicDir } = dirs();
+    writeRedirects(outDir, publicDir, [{ from: "/a/", to: "/b/", status: 301 }]);
     expect(readFileSync(join(outDir, "_redirects"), "utf8")).toBe("/a/ /b/ 301\n");
   });
 
-  test("refuses to overwrite a _redirects that came from public/", () => {
-    const outDir = mkdtempSync(join(tmpdir(), "docs-out-"));
-    roots.push(outDir);
+  test("overwrites the out/_redirects an earlier postbuild run wrote", () => {
+    const { outDir, publicDir } = dirs();
+    writeRedirects(outDir, publicDir, [{ from: "/a/", to: "/b/", status: 301 }]);
+    writeRedirects(outDir, publicDir, [{ from: "/c/", to: "/d/", status: 302 }]);
+    expect(readFileSync(join(outDir, "_redirects"), "utf8")).toBe("/c/ /d/ 302\n");
+  });
+
+  test("refuses to run while public/_redirects exists", () => {
+    const { outDir, publicDir } = dirs();
+    writeFileSync(join(publicDir, "_redirects"), "/hand /written 301\n");
     writeFileSync(join(outDir, "_redirects"), "/hand /written 301\n");
-    expect(() => writeRedirects(outDir, [{ from: "/a/", to: "/b/", status: 301 }])).toThrow(/public\/_redirects/);
+    expect(() => writeRedirects(outDir, publicDir, [{ from: "/a/", to: "/b/", status: 301 }])).toThrow(
+      /public\/_redirects exists/,
+    );
     expect(readFileSync(join(outDir, "_redirects"), "utf8")).toBe("/hand /written 301\n");
   });
 });

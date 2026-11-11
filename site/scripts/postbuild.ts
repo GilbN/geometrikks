@@ -27,11 +27,11 @@ if (existsSync(notFoundPage)) {
 }
 
 const pages = exportedPages(outDir);
-const renames: Record<string, string> = JSON.parse(readFileSync(join(contentDir, "renames.json"), "utf8"));
+const renames: unknown = JSON.parse(readFileSync(join(contentDir, "renames.json"), "utf8"));
 let rules: RedirectRule[];
 try {
   rules = buildRedirects({ ...pages, renames });
-  writeRedirects(outDir, rules);
+  writeRedirects(outDir, join(siteRoot, "public"), rules);
 } catch (error) {
   fail((error as Error).message);
 }

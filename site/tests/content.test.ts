@@ -32,6 +32,8 @@ const CONFIGURATION_ROW = /^\| `([A-Z0-9_]+)` \|/gm;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const ABSOLUTE_DOCS_LINK = /\]\(\s*<?\/docs\/|\bhref\s*=\s*\{?\s*["'`]\/docs\//;
 
+const linksAbsolutely = (source: string) => ABSOLUTE_DOCS_LINK.test(stripCode(source));
+
 function files(root: string, prefix = ""): string[] {
   const paths: string[] = [];
   for (const entry of readdirSync(join(root, prefix), { withFileTypes: true })) {
@@ -80,7 +82,7 @@ function envNames(source: string): string[] {
 
 describe("content/docs/next", () => {
   test("pages link to each other with relative file links", () => {
-    const absolute = pages.filter((page) => ABSOLUTE_DOCS_LINK.test(stripCode(read(page))));
+    const absolute = pages.filter((page) => linksAbsolutely(read(page)));
     expect(absolute).toEqual([]);
   });
 
@@ -114,6 +116,27 @@ describe("content/docs/next", () => {
           .map((name) => `${page}: ${name}`),
       );
     expect(undocumented).toEqual([]);
+  });
+});
+
+describe("linksAbsolutely", () => {
+  test.each([
+    "[a](/docs/next/quickstart/)",
+    '<a href="/docs/quickstart/">a</a>',
+    "<a href={`/docs/next/quickstart/`}>a</a>",
+    "`code` then <a href={`/docs/next/quickstart/`}>a</a> and `more`",
+    "See ``` [a](/docs/next/quickstart/) `` here.",
+  ])("flags %p", (source) => {
+    expect(linksAbsolutely(source)).toBe(true);
+  });
+
+  test.each([
+    "Never write `[a](/docs/next/quickstart/)`.",
+    "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.",
+    "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```",
+    "[Quickstart](./quickstart.mdx)",
+  ])("passes %p", (source) => {
+    expect(linksAbsolutely(source)).toBe(false);
   });
 });
 

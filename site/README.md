@@ -30,10 +30,10 @@ checkout until one of them has run.
 fails on a dead link anywhere in `out/` or on a geometrikks.dev docs URL in
 `geometrikks/` or `resources/` with no page or redirect behind it. A link
 with a `#fragment` is dead when the page it lands on has no element with
-that `id`. postbuild also fails when `out/_redirects` exists before it
-writes the file, because a `public/_redirects` would otherwise be replaced
-without a word. Run the whole `build`, not postbuild alone, since a second
-postbuild run on the same `out/` trips the same check.
+that `id`. postbuild also fails when `public/_redirects` exists. Next
+copies that file into `out/`, where postbuild would overwrite it with the
+generated rules. Put renames in `content/renames.json` instead. Running
+postbuild again on the same `out/` is fine.
 
 `smoke` starts `wrangler dev` on port 8788 (`SMOKE_PORT` changes it),
 requests every case in the JSON file and stops wrangler again. The cases
@@ -97,7 +97,9 @@ same file then works in `next` and in every release folder copied from it.
 folder becomes latest, and postbuild fails on any relative or `.mdx` href
 left in the exported docs. Both `docs:release` and `tests/content.test.ts`
 skip links inside code spans and fenced code, so a page can show a wrong
-link as an example.
+link as an example. Backticks inside a JSX expression such as
+``href={`/docs/next/`}`` are template literals, not code spans, so that
+link still fails.
 
 ### Redirects
 
@@ -112,9 +114,12 @@ without the trailing slash:
   only once latest no longer has the old page. Until the release that
   drops it is promoted, readers of latest still get the old page. Keys and
   targets are slugs such as `operate/geolite2`: no `docs/` prefix, no slash
-  at either end, no empty segment. `""` is allowed as a target and means the
-  docs index. postbuild rejects a malformed slug, a rename cycle, an old path
-  that still exists in `next` and a target that exists nowhere.
+  at either end, no `next` or `X.Y.Z` first segment, no `.mdx` or `.md`
+  ending, no trailing `index`. Each segment is letters, digits, `.`, `_`
+  and `-`, starting with a letter or digit. `""` is allowed as a target and
+  means the docs index. postbuild rejects a malformed slug, a target that is
+  not a string, a rename cycle, an old path that still exists in `next` and
+  a target that exists nowhere.
 
 Workers allows 2,000 static redirects. postbuild counts the rules after the
 slash doubling and fails above the limit. Every operation that exists only
