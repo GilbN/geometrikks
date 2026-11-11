@@ -75,10 +75,14 @@ LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/acc
 
 `LOGPARSER_LOG_FORMATS` and `LOGPARSER_SERVER_NAME` work the same way. A single value applies to every file. A JSON list sets one value per file, matched to `LOGPARSER_LOG_PATHS` by position, so the second format and the second server name belong to the second path. A list of any other length fails startup.
 
+Both files above use `geometrikks_json`, so a single `geometrikks-json` covers them. A list is only needed where the values differ, here to give each file its own server name:
+
 ```dotenv
-LOGPARSER_LOG_FORMATS=["geometrikks-json", "nginx"]
+LOGPARSER_LOG_FORMATS=geometrikks-json
 LOGPARSER_SERVER_NAME=["edge-01", "somepage"]
 ```
+
+A format entry that doesn't match its file costs you that file. Pin `nginx` on a file of JSON lines and none of its lines parse, so nothing from it reaches the map or Access Logs.
 
 ## The positional nginx format
 
@@ -94,7 +98,7 @@ log_format custom '$remote_addr - $remote_user [$time_local] '
 The parser matches this format on position and quoting, not on field names. A rearranged format can put values in the wrong columns instead of failing. Four rules keep it working:
 
 - Use `$time_local`. A file that uses `$time_iso8601` matches nothing and produces no rows.
-- Keep `$host` unquoted, between `"$http_referer"` and `"$http_user_agent"`. Quote it and the line still parses, but the host name lands in the user agent column and `host` comes out empty.
+- Keep `$host` unquoted, between `"$http_referer"` and `"$http_user_agent"`. Quote it and the line still parses, but the quoted fields after it shift one slot. The host name lands in the user agent column and `host` comes out empty. The request time lands in the upstream time slot, and the request has no response time.
 - Keep `$request_time` and `$upstream_response_time` quoted. Unquoted, the parser drops both and the request has no response time.
 - Append extra fields only after both timing fields. The parser fills the two timing slots by quoting alone, so on a format without them an extra quoted field lands in `$request_time`. A value that isn't a number, such as `"$http_x_forwarded_for"`, is thrown away. A numeric one is recorded and charted as a response time.
 
@@ -112,4 +116,4 @@ Lines in nginx's built-in `combined` format parse as `nginx` too, so you can imp
 
 The map, geo analytics, status codes, URLs, referrers, user agents and bytes are unaffected.
 
-With `LOGPARSER_LOG_FORMATS=auto`, a file that matches no format in full but whose lines start with an IP address and a bracketed timestamp gets the relaxed match. GeoMetrikks then records those requests as map events only, with no Access Logs rows, and logs a warning that it is streaming without access log objects. The same holds for an import. A pinned format whose lines fail the startup check degrades the same way. The fix is a format GeoMetrikks parses in full, such as `geometrikks-json`.
+With `LOGPARSER_LOG_FORMATS=auto`, a file that matches no format in full but whose lines start with an IP address and a bracketed timestamp gets the relaxed match. GeoMetrikks then records those requests as map events only, with no Access Logs rows, and logs a warning that it is streaming without access log objects. The same holds for an import. A pinned format whose lines fail the startup check degrades the same way, but it yields map events only for lines that format can still read for an IP address and a timestamp. A JSON file pinned to `nginx` records nothing. The fix is a format GeoMetrikks parses in full, such as `geometrikks-json`.
