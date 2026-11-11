@@ -54,9 +54,9 @@ uv run python -m tests.seed.live --log-dir /tmp/seed-live \
   --seed 42 --rows 150000 --servers edge,homelab --rate 4
 ```
 
-It writes `<log-dir>/<server>.log` for each server, emptied at start, in the format the seed gives that server: `geometrikks-json` for the first, `nginx` for the second, and so on. Set the app's `LOGPARSER_LOG_PATHS`, `LOGPARSER_LOG_FORMATS` and `LOGPARSER_SERVER_NAME` to match. Lines come at random gaps, `--rate` lines a second on average, stamped with the current time. Scanners send the same TLS, SSH and SMB probes as in the history.
+It empties `<log-dir>/<server>.log` for each server at start, then appends to it. Each file uses the format the seed gives that server, `geometrikks-json` for the first, `nginx` for the second, and so on. Set the app's `LOGPARSER_LOG_PATHS`, `LOGPARSER_LOG_FORMATS` and `LOGPARSER_SERVER_NAME` to match. Lines come at random gaps, `--rate` lines a second on average, stamped with the current time. Scanners send the same TLS, SSH and SMB probes as in the history.
 
-Pass the seed run's `--seed`, `--rows` and `--servers` and the same GeoLite2 files. The feeder then rebuilds the seed's visitors and ranks them the same way, so live requests come from IPs the history already holds, and the busiest IPs stay the busiest. It runs until SIGTERM or Ctrl-C and exits 0.
+Pass the seed run's `--seed`, `--rows` and `--servers` and the same GeoLite2 files. The two commands' defaults differ, so give all three every time. A seed run with `--visitors` or `--home-country` builds visitors the feeder cannot rebuild. The feeder then rebuilds the seed's visitors and ranks them the same way, so live requests come from IPs the history already holds, and the busiest IPs stay the busiest. It runs until SIGTERM or Ctrl-C and exits 0.
 
 ## Options
 

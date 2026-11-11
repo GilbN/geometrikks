@@ -8,6 +8,7 @@ import signal
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -16,7 +17,7 @@ from tests.seed import live
 from tests.seed.config import SeedConfig
 from tests.seed.live import LiveFeeder, live_log_targets
 from tests.seed.traffic import TrafficGenerator
-from tests.seed.visitors import VisitorBuilder
+from tests.seed.visitors import Visitor, VisitorBuilder
 from tests.seed_support import FakeGeoSource
 
 NOW = datetime(2026, 11, 10, 12, 30, 15, 123456, tzinfo=UTC)
@@ -135,3 +136,9 @@ def test_cli_truncates_the_files_and_exits_0_on_signal(
         written += len(lines)
     assert written > 5
     assert {sig: signal.getsignal(sig) for sig in handlers} == handlers
+
+
+def test_line_at_refuses_a_naive_timestamp() -> None:
+    generator = TrafficGenerator.__new__(TrafficGenerator)
+    with pytest.raises(ValueError, match="aware"):
+        generator.line_at(cast(Visitor, None), datetime(2026, 11, 11, 12, 0))

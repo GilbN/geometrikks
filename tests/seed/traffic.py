@@ -196,6 +196,8 @@ class TrafficGenerator:
 
     def line_at(self, visitor: Visitor, timestamp: datetime) -> tuple[AccessLogRow, str, str | None]:
         """One request from ``visitor`` at ``timestamp``: the row, its raw line, and the parse error of a probe."""
+        if timestamp.tzinfo is None:
+            raise ValueError("line_at needs an aware timestamp; both log formats write the offset")
         timestamp = timestamp.replace(microsecond=0)
         if visitor.kind == "scanner" and self.rng.random() < PROBE_SHARE:
             log = self._probe_log(visitor, timestamp)
