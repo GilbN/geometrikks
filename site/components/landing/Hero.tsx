@@ -1,16 +1,14 @@
-import dots from "@/data/land-dots.json";
 import styles from "./Hero.module.css";
 import { Terminal } from "./Terminal";
 
 // Headline beside the pipeline terminal, over a faint dot-grid world
-// (Natural Earth 110m land, equirectangular, 1000x500).
+// (Natural Earth 110m land, equirectangular, 1000x500). The dots live in
+// public/land-dots.svg, written by scripts/prepare.ts, so they stay out of the HTML.
 export function Hero() {
   return (
     <header className={styles.hero}>
       <svg className={styles.dotmap} viewBox="0 0 1000 500" aria-hidden="true">
-        {dots.map(([x, y]) => (
-          <circle key={`${x},${y}`} cx={x} cy={y} r="1.5" />
-        ))}
+        <use href="/land-dots.svg#d" />
       </svg>
       <div className="wrap">
         <div className="copy">

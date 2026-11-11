@@ -30,6 +30,13 @@ for (const file of readdirSync(screenshotsDir).filter((entry) => entry.endsWith(
 }
 writeFileSync(join(siteRoot, ".generated", "screenshots.json"), `${JSON.stringify(screenshotSizes, null, 2)}\n`);
 
+const landDots: [number, number][] = JSON.parse(readFileSync(join(siteRoot, "data", "land-dots.json"), "utf8"));
+const dotCircles = landDots.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.5"/>`).join("");
+writeFileSync(
+  join(siteRoot, "public", "land-dots.svg"),
+  `<svg xmlns="http://www.w3.org/2000/svg"><g id="d">${dotCircles}</g></svg>\n`,
+);
+
 try {
   const plan = await resolveVersions(join(contentDir, "docs"), isPublished);
   writeFileSync(join(siteRoot, ".generated", "versions.json"), `${JSON.stringify(plan, null, 2)}\n`);
