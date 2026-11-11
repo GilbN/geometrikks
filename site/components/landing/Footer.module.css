@@ -1,0 +1,29 @@
+.footer {
+  border-top: 1px solid var(--line);
+  padding: 36px 0 56px;
+  color: var(--fg-faint);
+  font-size: 14px;
+}
+.footer :global(.wrap) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+}
+.footer ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  list-style: none;
+  margin: 0 0 0 auto;
+  padding: 0;
+}
+.footer a:hover {
+  color: var(--fg);
+}
+.marks {
+  flex-basis: 100%;
+  margin: 8px 0 0;
+  font-size: 13px;
+  max-width: 70ch;
+}

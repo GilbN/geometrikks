@@ -1,0 +1,55 @@
+.install {
+  border-top: 1px solid var(--line);
+}
+.cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.check {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  color: var(--fg-dim);
+}
+.check li {
+  padding: 10px 0 10px 34px;
+  position: relative;
+  border-top: 1px solid var(--line);
+}
+.check li::before {
+  content: "[x]";
+  position: absolute;
+  left: 0;
+  top: 11px;
+  font: 13px var(--mono);
+  color: var(--green);
+}
+.check li.no::before {
+  content: "[ ]";
+  color: var(--fg-faint);
+}
+.check b {
+  color: var(--fg);
+  font-weight: 600;
+}
+.links {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin: 32px 0 0;
+}
+.links a {
+  color: var(--accent);
+  font-weight: 500;
+}
+.links a:hover {
+  text-decoration: underline;
+}
+@media (max-width: 900px) {
+  .cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

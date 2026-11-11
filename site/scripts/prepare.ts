@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
+import sharp from "sharp";
 import { includeCopy } from "./lib/markdown";
 import { imageExists, publishedFromEnv, RegistryError } from "./lib/registry";
 import { resolveVersions } from "./lib/resolve-versions";
@@ -14,6 +15,20 @@ for (const name of ["CHANGELOG.md", "SECURITY.md"]) {
   const markdown = readFileSync(join(siteRoot, "..", name), "utf8");
   writeFileSync(join(siteRoot, ".generated", name), includeCopy(markdown));
 }
+
+const screenshotsDir = join(siteRoot, "..", "data", "screenshots");
+const screenshotsOut = join(siteRoot, "public", "screenshots");
+mkdirSync(screenshotsOut, { recursive: true });
+const screenshotSizes: Record<string, { width: number; height: number }> = {};
+for (const file of readdirSync(screenshotsDir).filter((entry) => entry.endsWith(".png")).sort()) {
+  const name = basename(file, ".png");
+  const info = await sharp(join(screenshotsDir, file))
+    .resize({ width: 1912 })
+    .webp()
+    .toFile(join(screenshotsOut, `${name}.webp`));
+  screenshotSizes[name] = { width: info.width, height: info.height };
+}
+writeFileSync(join(siteRoot, ".generated", "screenshots.json"), `${JSON.stringify(screenshotSizes, null, 2)}\n`);
 
 try {
   const plan = await resolveVersions(join(contentDir, "docs"), isPublished);

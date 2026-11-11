@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "./landing.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://geometrikks.dev"),

@@ -1,0 +1,36 @@
+.features {
+  border-top: 1px solid var(--line);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 40px;
+}
+.cell {
+  padding: 22px;
+}
+.cell h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cell h3 svg {
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  flex: none;
+}
+.cell p {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 14px;
+}
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
