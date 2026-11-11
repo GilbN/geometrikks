@@ -57,6 +57,19 @@
     "absent": ["loses request times"]
   },
   {
+    "path": "/docs/next/sources/loki/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["LOKI_USERNAME", "unavailableSources"]
+  },
+  {
+    "path": "/docs/next/sources/multiple-sources/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["APP_MODE=agent", "LISTEN/NOTIFY", "nothing answers"],
+    "absent": ["answers 200 for the whole schema wait"]
+  },
+  {
     "path": "/docs/next/sources/proxy-setup/",
     "status": 200,
     "scope": "article",

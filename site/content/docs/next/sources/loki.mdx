@@ -1,0 +1,97 @@
+---
+title: Grafana Loki
+description: Read access-log lines from Grafana Loki instead of a mounted file, and what the shipper has to do for it to work.
+---
+
+If Alloy, Promtail or another shipper already sends your access logs to [Grafana Loki](https://grafana.com/oss/loki/), GeoMetrikks can read them from there instead of a mounted file. Each LogQL stream selector is one source. GeoMetrikks parses and geolocates its lines the same way it handles a tailed file.
+
+## Setup
+
+Add the Loki address and one selector per proxy to `.env`:
+
+```dotenv
+LOKI_URL=http://loki:3100
+LOKI_QUERIES=["{job=\"nginx\"}", "{job=\"traefik\"}"]
+LOKI_SERVER_NAMES=["edge-01", "edge-02"]
+```
+
+Then run `docker compose up -d`. The app container has to reach `LOKI_URL`. `http://loki:3100` works when Loki runs on the same Docker network.
+
+| Setting | What it does |
+| --- | --- |
+| `LOKI_URL` | Base URL of Loki, `http` or `https`. A path prefix is kept. |
+| `LOKI_QUERIES` | One LogQL stream selector, or a JSON list of them. Each one is a source. |
+| `LOKI_SERVER_NAMES` | The server name stored on each selector's requests, one value for all or a JSON list in the order of `LOKI_QUERIES`. |
+| `LOKI_FORMATS` | The log format per selector, with the same values as `LOGPARSER_LOG_FORMATS`. Default `auto`. |
+| `LOKI_TENANT_ID` | Sent as the `X-Scope-OrgID` header, for a multi-tenant Loki. |
+| `LOKI_USERNAME`, `LOKI_PASSWORD` | Basic auth. Set both or neither. |
+| `LOKI_POLL_INTERVAL` | Seconds between reads of each selector. Default 5. |
+| `LOKI_LOOKBACK` | Seconds each read looks back for lines that reached Loki late. Default 60, and values above 3600 behave as 3600. |
+
+`LOKI_URL` without `LOKI_QUERIES`, or the other way round, fails startup. So do a list in `LOKI_SERVER_NAMES` or `LOKI_FORMATS` whose length doesn't match `LOKI_QUERIES`, and one of `LOKI_USERNAME` and `LOKI_PASSWORD` without the other.
+
+Don't put credentials in the URL. `http://user:pass@loki:3100` fails startup with `LOKI_URL must not contain credentials; set LOKI_USERNAME and LOKI_PASSWORD`. Move them into those two settings.
+
+Without `LOKI_SERVER_NAMES`, every selector's requests get the first `LOGPARSER_SERVER_NAME`. That is a name you choose for this server, not your nginx `server_name`, and it defaults to the machine's hostname. When the selectors are different proxies, give each its own server name, or Access Logs, Geo Logs and the map can't tell them apart.
+
+### Loki only, or Loki and files
+
+With `LOKI_QUERIES` set and `LOGPARSER_LOG_PATHS` unset, GeoMetrikks tails no file. Set both to read files and Loki side by side.
+
+A `LOGPARSER_LOG_PATHS` line in `.env` or in a compose `environment:` block counts as set, even when it holds the default path, and keeps the file tail. The shipped `.env.example` has that line, so for a Loki-only install, comment it out. Left in, GeoMetrikks also waits for `/var/log/access/access.log` and reports it missing on Settings > Status while it isn't there.
+
+The [configuration reference](../reference/configuration.mdx#loki) lists every Loki setting with its default.
+
+## Shipping requirements
+
+Loki must hold the raw access-log line exactly as your proxy wrote it. If a pipeline stage rewrites the line, for example into logfmt, nothing parses. GeoMetrikks reads only the line and ignores labels and structured metadata.
+
+Don't set the entry timestamp from the line when the line carries the request's start time, as Traefik's `StartUTC` does. In Alloy that is the `stage.timestamp` block, in Promtail the `timestamp` stage. The proxy writes the line when the request ends, so a websocket or a long download gets a timestamp minutes or hours older than the moment it reaches Loki. GeoMetrikks reads back from the newest line it has seen minus `LOKI_LOOKBACK`, so it skips that line.
+
+Without the stage, the shipper stamps each line when it reads it, and the lookback only has to cover the shipping delay. nginx and Caddy stamp lines when they write them, so their timestamps cause no trouble either way. If you keep the stage for Traefik, set `LOKI_LOOKBACK` above your longest request, up to 3600. Every poll re-reads that whole window, so a long lookback costs Loki more work on each poll.
+
+An Alloy configuration that ships a Traefik access log the way GeoMetrikks expects:
+
+```hcl
+loki.source.file "traefik" {
+  targets = [{
+    __path__     = "/var/log/traefik/access.log",
+    job          = "traefik",
+    service_name = "traefik",
+  }]
+  tail_from_end = true
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+```
+
+The matching selector is `{job="traefik"}`. The [Traefik](./traefik.mdx) page has the access log settings the file needs.
+
+## Limits
+
+- Reading starts when the app starts, like a tailed file opened at its end. Lines Loki received while GeoMetrikks was down are never read. The `import-loki` command, in the CLI section of these docs, backfills a time range from Loki's history.
+- GeoMetrikks asks Loki for 1000 lines per request for the whole selector, and pages forward from the last timestamp. Loki can't page inside a single timestamp. With second-precision timestamps from a timestamp stage, a selector that logs more than 1000 lines in one second loses the rest of that second. GeoMetrikks logs a warning once for each such timestamp. Shipper-stamped timestamps don't hit this.
+- A selector can match several streams, one per label set. GeoMetrikks merges their lines in timestamp order under the selector's server name.
+- Each selector has one log format. With `auto`, GeoMetrikks detects it from the newest lines of the last 24 hours. Pin it with `LOKI_FORMATS`. Once a format is locked, lines in any other format fail to parse and land in Debug Logs. Use one selector per log format.
+
+## Troubleshooting
+
+Settings > Status lists each selector with its server name, format and line count.
+
+If Loki can't be reached or refuses the query, `/health` lists the source in `ingestion.unavailableSources` with the label `loki:1`, `loki:2` and so on, numbered by position in `LOKI_QUERIES`, and one of two reasons. The labels hide the selector, because `/health` answers without credentials.
+
+| Reason | What it means | Log event |
+| --- | --- | --- |
+| `unreachable` | No answer within 10 seconds, a connection error, a 5xx or a 429. GeoMetrikks keeps polling, and the source recovers by itself once Loki answers. | `loki_source_unreachable` |
+| `rejected` | Loki answered with any other status, or with something that isn't a list of streams. That is a configuration problem: a wrong URL, a bad selector, missing or wrong credentials or tenant, or a metric query. | `loki_source_rejected` |
+
+When the source reads again, GeoMetrikks logs `loki_source_available`.
+
+- GeoMetrikks doesn't follow redirects, so a basic auth header can't travel to another host. A `LOKI_URL` that redirects, for example from `http` to `https`, is `rejected`. Use the address the redirect points at.
+- A selector that returns no lines is not an error. Run it in Grafana's Explore view. If it shows nothing there, GeoMetrikks has nothing to read either.
+- Lines that arrive but don't show up in Access Logs fail to parse. Debug Logs shows them, with the reason.

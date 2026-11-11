@@ -18,7 +18,7 @@ Read the [changelog](../reference/changelog.mdx) before a jump of several releas
 
 ## Several instances
 
-With a full instance and agents writing to one database, upgrade every instance to the same release together. The full instance migrates the schema; agents wait for it and never migrate. An agent that finds the database at a revision it doesn't know, as it does once the full instance has migrated to a newer release, logs a warning and keeps going. That covers the minutes of a rolling upgrade. Left behind for longer, an older agent can fail every insert, as it does across the server rename below.
+With a full instance and agents writing to one database, upgrade every instance to the same release together. The full instance migrates the schema; agents wait for it and never migrate. An agent that finds the database at a revision it doesn't know, as it does once the full instance has migrated to a newer release, logs a warning and keeps going. That covers the minutes of a rolling upgrade. Left behind for longer, an older agent can fail every insert, as it does across the server rename below. [Multiple sources](../sources/multiple-sources.mdx) covers running agents.
 
 ## Renamed settings
 

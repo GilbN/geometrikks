@@ -41,7 +41,7 @@ The server makes these requests on its own:
 | Spamhaus DROP lists | `www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
 | Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https. | Only when someone clicks Find abuse contact in an abuse report, or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
 
-The update check and the DROP lists run on the full instance only, never on an agent.
+The update check and the DROP lists run on the full instance only, never on an [agent](./sources/multiple-sources.mdx).
 
 On top of these, the server talks to the services you configure: the CrowdSec Local API (`CROWDSEC_LAPI_URL`), Loki (`LOKI_URL`) and your OpenID Connect provider (`OIDC_ISSUER`). Each one stays unused until you set it.
 
@@ -53,7 +53,7 @@ The map's basemap tiles come from CARTO. The reader's browser fetches them from 
 - [GeoLite2 and the CARTO key](./get-started/geolite2.mdx) covers the two free keys the app needs.
 - [Upgrading](./get-started/upgrading.mdx) lists what changes between releases and the one-off commands some upgrades need.
 - The [configuration reference](./reference/configuration.mdx) lists every setting with its default.
-- [Log sources](./sources/nginx.mdx) has a setup page for each proxy and for Grafana Loki. [Real client IP behind a proxy](./sources/proxy-setup.mdx) covers a CDN or tunnel in front of your proxy.
+- [Log sources](./sources/nginx.mdx) has a setup page for each proxy and for [Grafana Loki](./sources/loki.mdx), and [Multiple sources](./sources/multiple-sources.mdx) covers several proxies writing into one database. [Real client IP behind a proxy](./sources/proxy-setup.mdx) covers a CDN or tunnel in front of your proxy.
 - Features covers the map, the IP tools, CrowdSec and authentication.
 - Operate covers the reverse proxy in front of the app, deployment, the CLI commands and common questions.
 - Contribute covers the development setup and the API conventions.

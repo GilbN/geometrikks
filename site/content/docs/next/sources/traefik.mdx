@@ -51,7 +51,7 @@ LOGPARSER_LOG_PATHS=/var/log/access/access.log
 Run `docker compose up -d` to recreate the container with the new mount. GeoMetrikks detects the format from the file's lines. `LOGPARSER_LOG_FORMATS=traefik-json` pins it.
 
 - Rotate the file with logrotate and signal Traefik afterwards with `docker kill --signal=USR1 traefik`. GeoMetrikks follows the rotation.
-- To skip the file mount, ship the file to Grafana Loki and read it from there instead.
+- To skip the file mount, ship the file to [Grafana Loki](./loki.mdx) and read it from there instead.
 
 ## Behind a CDN or load balancer
 
@@ -61,7 +61,7 @@ Don't set `forwardedHeaders.insecure`. It trusts the header from anyone, so a cl
 
 ## Pangolin
 
-[Pangolin](https://github.com/fosrl/pangolin) puts Traefik in front of its tunnels, so GeoMetrikks reads its log as a Traefik log. Run GeoMetrikks on the Pangolin server, where the log file is, or ship the file to Loki.
+[Pangolin](https://github.com/fosrl/pangolin) puts Traefik in front of its tunnels, so GeoMetrikks reads its log as a Traefik log. Run GeoMetrikks on the Pangolin server, where the log file is, or ship the file to [Loki](./loki.mdx).
 
 Pangolin's installer turns the access log on only when you install CrowdSec with it. The log then goes to `config/traefik/logs/access.log` in the Pangolin directory. Without CrowdSec, add the `accessLog` block from [Write the log to a file](#write-the-log-to-a-file) to `config/traefik/traefik_config.yml`. Pangolin's compose file already mounts `config/traefik/logs` at `/var/log/traefik`, the folder that block's `filePath` writes to.
 
