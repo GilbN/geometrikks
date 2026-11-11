@@ -154,7 +154,11 @@ It refuses:
 - a page with a link to `/docs/next/` or a top-level slug of `next`.
 
 Between that commit and the image reaching ghcr.io, the folder is pending.
-A docs fix in that window goes into both `next` and the pending folder.
+A docs fix in that window goes into `next`. Then rerun
+`bun run docs:release X.Y.Z` to refresh the pending folder, which keeps the
+`/docs/next/` link check and the `next` slug check. If unreleased work has
+landed in `next`, a rerun would pull it into the release, so edit both
+folders by hand instead. Hand edits skip those two checks.
 Whenever a release folder is pending, CI builds the site once more with
 every release folder marked as published. That promotes the pending folder
 early, so its dead links and redirect errors fail the pull request before

@@ -9,6 +9,7 @@ import "./docs.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://geometrikks.dev"),
+  title: { template: "%s | GeoMetrikks docs", default: "GeoMetrikks docs" },
 };
 
 const searchDialogOptions: Partial<SearchDialogProps> = { latestServed: plan.latest !== null };

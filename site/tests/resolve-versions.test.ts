@@ -28,12 +28,6 @@ function published(...versions: string[]) {
   return Object.assign(lookup, { asked });
 }
 
-function throwing(ErrorType: new (message: string) => Error) {
-  return async (_version: string): Promise<boolean> => {
-    throw new ErrorType("ghcr.io answered 503");
-  };
-}
-
 describe("resolveVersions", () => {
   const dir = docsDir(["next", "0.24.0", "0.25.0", "0.23.0"]);
 
@@ -84,8 +78,15 @@ describe("resolveVersions", () => {
     });
   });
 
-  test("a registry failure propagates instead of falling back to an older folder", async () => {
-    await expect(resolveVersions(dir, throwing(RegistryError))).rejects.toBeInstanceOf(RegistryError);
+  test("a registry failure on the newer folder propagates instead of falling back to an older one", async () => {
+    const asked: string[] = [];
+    const lookup = async (version: string): Promise<boolean> => {
+      asked.push(version);
+      if (version === "0.25.0") throw new RegistryError("ghcr.io answered 503");
+      return true;
+    };
+    await expect(resolveVersions(docsDir(["0.24.0", "0.25.0", "next"]), lookup)).rejects.toBeInstanceOf(RegistryError);
+    expect(asked).toEqual(["0.25.0"]);
   });
 
   test("ignores folders that are not semver or next, and files", async () => {
