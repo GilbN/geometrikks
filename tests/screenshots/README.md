@@ -1,5 +1,75 @@
 # Docs screenshots
 
+`uv run python -m tests.screenshots` brings up a throwaway GeoMetrikks instance with seeded traffic, screenshots every scene in `plan.py` in both themes, encodes the shots to WebP and publishes them to `data/screenshots/`. Then it removes everything it started. Run it by hand on a dev machine. It refuses to start when `CI` is set.
+
+## Before a run
+
+- Docker running, and the shared TimescaleDB server at `postgresql://geouser:geopass@localhost:5432/postgres` (the dev `timescale_db` container), unless you pass `--own-db`.
+- GeoLite2 City and ASN databases. The defaults are `~/dev/geometrikks/data/geoip/GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb`.
+- A CARTO basemap key. CARTO's terms want one key per deployment, so export your own as `MAP_CARTO_API_KEY` or pass `--carto-key`.
+- `bun install` at the repo root and in `site/`. The encoder needs `site/node_modules/sharp`.
+- No Vite dev server for this checkout. The run refuses while `public/hot` exists, because the app would load its assets from the dev server.
+- At least 3 GiB of available memory and 10 GB of free disk. The preflight names both numbers when either is short.
+
+## Command and flags
+
+```bash
+uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] [--hold] [--own-db] [--no-build]
+                                   [--pg-admin-url URL] [--city-db PATH] [--asn-db PATH] [--carto-key KEY]
+```
+
+| Flag | What it does |
+| --- | --- |
+| `--dry-run` | Runs the preflight and prints its problems, the app's environment with secrets as `***`, the shots in capture order, the teardown plan and Playwright's test list. It starts no container, database or server and never touches `data/screenshots/`. Exits 2 when the preflight found problems, else 0. |
+| `--cleanup` | Removes what a crashed or killed run left behind. See below. |
+| `--only map,live` | Retakes these scenes. Their files and manifest entries are replaced, and every other scene's files and entries stay as they are. |
+| `--hold` | Waits after capture, whether it passed or failed, and prints the PNG folder, the instance's URLs and the login. Enter goes on to encode and publish. Ctrl-C tears down without publishing. |
+| `--own-db` | Starts a private `timescale/timescaledb-ha:pg18-ts2.30` container with `--memory 1g` instead of a database on the shared server. Use it when the shared server is down or already holds `geometrikks_screenshots`. |
+| `--no-build` | Uses the bundle already in `public/`. Without it the run calls `bun run build` with the typegen environment, then fails if the build rewrote `resources/generated`. |
+| `--pg-admin-url` | Admin URL of the TimescaleDB server. Defaults to `SHOTS_PG_ADMIN_URL`, then the dev server above. |
+| `--city-db`, `--asn-db` | The GeoLite2 files the seed and the live feeder place visitors with. |
+| `--carto-key` | Defaults to `MAP_CARTO_API_KEY` as exported in your shell. |
+
+The script never reads `.env`. Before it imports any app code it removes every app setting from its own environment (`APP_`, `DB_`, `CROWDSEC_` and the other prefixes in `environment.py`, in any letter case, plus the proxy variables), and turns dotenv loading off. Each process it starts gets an environment built from scratch. The instance logs in as `admin` / `admin`.
+
+## What a run starts
+
+In order:
+
+1. The scratch database `geometrikks_screenshots`, migrated and set up for TimescaleDB. That name is reserved for this script: a run creates and drops it, and `--cleanup` drops it whenever it exists.
+2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners (see below) and the DROP fixture lists.
+3. `geometrikks-shots-crowdsec`, a CrowdSec LAPI with 512 MB of memory, on the internal network `geometrikks-shots-net`. Both carry the label `geometrikks.screenshots.run=<run id>`. The run loads it with alerts and decisions for the fixture IPs.
+4. The app under uvicorn on a free port, bound to `0.0.0.0`, tailing two empty log files in the run folder.
+5. Playwright with one worker, in two passes. The live scenes come last, while the live feeder appends requests from the seeded visitors to those log files.
+
+Then the run encodes the PNGs, writes `manifest.json` and swaps the new folder in for `data/screenshots/` in two renames. A failed or interrupted run publishes nothing. PNGs and files whose names the run does not recognize always stay in `data/screenshots/`.
+
+Nothing in the run contacts the owner's CrowdSec LAPI, Spamhaus, RDAP, GitHub releases or a public-IP service. The CrowdSec container sits on a network with no route out. The DROP lists come from fixture bodies through a mock transport, and the run fails before publishing if their copyright marker changed or any DROP entry falls outside documentation space. It also stops before capture if the LAPI holds a decision for an IP the fixtures did not create. Playwright loads basemap tiles from CARTO with your key.
+
+A full run takes about 15 to 20 minutes, most of it seeding and capture. At its peak it holds the CrowdSec container, the app, Playwright with one browser and, with `--own-db`, a 1 GB database container.
+
+## Lock, ledger and run folder
+
+Everything lives in `/tmp/geometrikks-screenshots-<uid>/`:
+
+- `run.lock`: one run at a time. A second run, a dry run or a cleanup started while one holds it exits 2 and names the lock file.
+- `ledger.json`: every process group, container, network, database and folder a run creates, written before the call that creates it. Teardown acts only on entries it can prove it owns.
+- `run-<run id>/`: logs, the plan, the live log files, PNGs and WebPs. Teardown removes it, so read the logs while the run holds (`--hold`) or from the lines a failed run prints.
+
+On exit, interrupt (Ctrl-C, SIGTERM) or failure, the run stops its processes, removes its containers, network, database and run folder, and prints one line per problem. Exit codes: 0 done, 1 failed, 2 preflight or lock, 130 interrupted.
+
+## After a crash or `kill -9`
+
+A run that cannot tear down, such as one killed with SIGKILL, leaves its ledger behind, and the next run or dry run reports it. Run:
+
+```bash
+uv run python -m tests.screenshots --cleanup
+```
+
+It loads every ledger entry, adds every container and network labelled `geometrikks.screenshots.run` and the reserved database, and removes them. It also stops stray processes from an earlier capture and removes leftover dry-run folders. If the ledger is unreadable, it says so, leaves the file for you to read and delete, and still removes the labelled resources and the database.
+
+Run it soon after the crash. systemd-tmpfiles deletes files in `/tmp` that are older than 10 days on ripley, and once the ledger is gone `--cleanup` can no longer find the processes a killed run left.
+
 ## CrowdSec fixture facts
 
 The run starts a throwaway CrowdSec LAPI and fills it with alerts for the fixture IPs. A spike against the real image on 2026-11-11 found these facts. `lapi.py` encodes them as constants and payload rules.
