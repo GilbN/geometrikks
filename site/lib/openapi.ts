@@ -1,16 +1,23 @@
+import { readFile } from "node:fs/promises";
 import { posix } from "node:path";
 import { createOpenAPI, type OpenAPIServer } from "fumadocs-openapi/server";
 import versions from "../.generated/versions.json";
+import { withPlaceholderServer } from "./openapi-servers";
 import { NEXT, type VersionPlan } from "./versions";
 
 const plan = versions as VersionPlan;
 const contentDir = process.env.DOCS_CONTENT_DIR ?? "content";
 
+const schemaLoader = (path: string) => async () => withPlaceholderServer(JSON.parse(await readFile(path, "utf8")));
+
 const servers = new Map<string, OpenAPIServer>([
-  [NEXT, createOpenAPI({ input: { [NEXT]: "../resources/generated/openapi.json" } })],
+  [NEXT, createOpenAPI({ input: { [NEXT]: schemaLoader("../resources/generated/openapi.json") } })],
 ]);
 if (plan.latest !== null) {
-  servers.set(plan.latest, createOpenAPI({ input: { [plan.latest]: `${contentDir}/openapi/${plan.latest}.json` } }));
+  servers.set(
+    plan.latest,
+    createOpenAPI({ input: { [plan.latest]: schemaLoader(`${contentDir}/openapi/${plan.latest}.json`) } }),
+  );
 }
 
 export function openapiFor(version: string): OpenAPIServer {
