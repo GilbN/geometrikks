@@ -378,6 +378,28 @@ def test_cleanup_reports_a_recovery_failure_and_still_cleans(
     assert not discovered.ledger_path.exists()
 
 
+def test_cleanup_with_nothing_to_remove_leaves_no_empty_ledger(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def listing_leaves_an_empty_ledger(runner: run.Runner) -> list[tuple[str, str, str]]:
+        runner.ledger.add(Resource("process", "4242", (("label", "docker list"),)))
+        runner.ledger.discard(Resource("process", "4242"))
+        return []
+
+    monkeypatch.setattr(run, "recover_publish", lambda target: [])
+    monkeypatch.setattr(run, "_labelled", listing_leaves_an_empty_ledger)
+    monkeypatch.setattr(run, "_database_exists", database_check(False))
+    assert run.cleanup(run_args()) == run.EXIT_DONE
+    assert "nothing left" in capsys.readouterr().out
+    assert sorted(entry.name for entry in isolated.root.iterdir()) == []
+
+
+def test_teardown_keeps_an_unreadable_ledger(isolated: Isolated) -> None:
+    isolated.ledger_path.write_text("{")
+    assert run._teardown([], Ledger(isolated.ledger_path), {}, isolated.root) == []
+    assert isolated.ledger_path.read_text() == "{"
+
+
 def dry_folder(root: Path, pid: int) -> Path:
     folder = root / f"dry-{pid}"
     folder.mkdir()

@@ -397,6 +397,9 @@ def _playwright_env(env: dict[str, str], *, plan: Path, output: Path) -> dict[st
 
 def _teardown(resources: Sequence[Resource], ledger: Ledger, env: dict[str, str], log_dir: Path) -> list[str]:
     if not resources:
+        # Every docker call adds and then discards a child entry, which leaves an empty ledger file behind.
+        if ledger.exists() and not _ledger_holds(ledger):
+            ledger.clear()
         return []
     try:
         actions = SystemActions(ledger=ledger, env=env, log_dir=log_dir)
