@@ -106,7 +106,7 @@ The parser matches this format on position and quoting, not on field names. A re
 
 ## Backfilling archives in nginx's own format
 
-Lines in nginx's built-in `combined` format parse as `nginx` too, so you can import archives you already have with `import-logs`, the import command in the CLI section of these docs. Three fields are missing from those lines, and nothing can recover them later:
+Lines in nginx's built-in `combined` format parse as `nginx` too, so you can import archives you already have with [`import-logs`](../operate/cli/import-logs.mdx). Three fields are missing from those lines, and nothing can recover them later:
 
 | Missing field | What it costs you |
 | --- | --- |

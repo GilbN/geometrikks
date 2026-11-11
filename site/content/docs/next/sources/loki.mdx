@@ -74,7 +74,7 @@ The matching selector is `{job="traefik"}`. The [Traefik](./traefik.mdx) page ha
 
 ## Limits
 
-- Reading starts when the app starts, like a tailed file opened at its end. Lines Loki received while GeoMetrikks was down are never read. The `import-loki` command, in the CLI section of these docs, backfills a time range from Loki's history.
+- Reading starts when the app starts, like a tailed file opened at its end. Lines Loki received while GeoMetrikks was down are never read. The [`import-loki`](../operate/cli/import-loki.mdx) command backfills a time range from Loki's history.
 - GeoMetrikks asks Loki for 1000 lines per request for the whole selector, and pages forward from the last timestamp. Loki can't page inside a single timestamp. With second-precision timestamps from a timestamp stage, a selector that logs more than 1000 lines in one second loses the rest of that second. GeoMetrikks logs a warning once for each such timestamp. Shipper-stamped timestamps don't hit this.
 - A selector can match several streams, one per label set. GeoMetrikks merges their lines in timestamp order under the selector's server name.
 - Each selector has one log format. With `auto`, GeoMetrikks detects it from the newest lines of the last 24 hours. Pin it with `LOKI_FORMATS`. Once a format is locked, lines in any other format fail to parse and land in Debug Logs. Use one selector per log format.

@@ -155,6 +155,36 @@
     "contains": ["docker compose up -d", "starts by itself", "container-user-and-hardening"],
     "absent": ["Add credentials and restart"]
   },
+  {
+    "path": "/docs/next/operate/cli/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["litestar database upgrade", "LITESTAR_APP"]
+  },
+  {
+    "path": "/docs/next/operate/cli/import-logs/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["--server", "--batch-size"]
+  },
+  {
+    "path": "/docs/next/operate/cli/import-loki/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["--since", "--query"]
+  },
+  {
+    "path": "/docs/next/operate/cli/backfills/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["backfill-geo-servers", "--consolidate"]
+  },
+  {
+    "path": "/docs/next/operate/cli/large-imports/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["max_wal_size"]
+  },
   { "path": "/api/search", "status": 200, "contains": ["Check that the app is up"] },
   { "path": "/no-such-page/", "status": 404, "contains": ["href=\"/docs/\""] },
   {

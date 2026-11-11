@@ -53,7 +53,7 @@ Behind Cloudflare or another proxy, `$remote_addr` is that proxy's address and t
 
 ## Import NPM's existing logs
 
-`import-logs` reads NPM's own `proxy-host-<id>_access.log` files and their rotated copies, in the `npm` format. Its page in the CLI section of these docs covers the `--before` cutoff and the checksum rules in full. This section has the NPM-specific parts.
+`import-logs` reads NPM's own `proxy-host-<id>_access.log` files and their rotated copies, in the `npm` format. [Its page](../operate/cli/import-logs.mdx#cut-off-at-a-time-with---before) covers the `--before` cutoff and the checksum rules in full. This section has the NPM-specific parts.
 
 NPM keeps writing its own logs after the JSON log is on, so every request since then is in both. Pass `--before` with the time GeoMetrikks started reading the JSON log, and the import stops there. If you started GeoMetrikks right after the reload in step 3, that is the first line of the oldest `geometrikks_access.log` file on disk:
 

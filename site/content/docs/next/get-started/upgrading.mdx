@@ -88,7 +88,7 @@ docker compose exec -u geometrikks app litestar backfill-timings
 | `backfill-geo-servers` | Geo Logs shows an empty Servers column for ranges over 24 hours on history from before 0.15.0. The command fills it from the raw events still in retention. It needs the aggregate's new server columns, which need TimescaleDB 2.28 or later. |
 | `backfill-asn --table access-logs\|geo-events\|all` | Rows ingested before ASN support, or while the ASN database was missing, have no network data, so Top ASNs and the ASN filters skip them. Only rows with no ASN data change. |
 
-Every command except plain `backfill-server` asks for confirmation first, and `--yes` skips the prompt. `backfill-server`, `backfill-timings` and `backfill-asn` decompress compressed history first, so expect extra disk use until the compression policy compresses it again. Every backfill refreshes the aggregates it touched, so expect minutes on a large database. The Backfill commands page in the CLI section has the details.
+Every command except plain `backfill-server` asks for confirmation first, and `--yes` skips the prompt. `backfill-server`, `backfill-timings` and `backfill-asn` decompress compressed history first, so expect extra disk use until the compression policy compresses it again. Every backfill refreshes the aggregates it touched, so expect minutes on a large database. [Backfill commands](../operate/cli/backfills.mdx) has the details.
 
 ## Agents from before heartbeats
 

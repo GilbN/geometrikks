@@ -1,0 +1,47 @@
+---
+title: CLI
+description: The maintenance commands the image ships under the litestar CLI, and how to run them inside the container.
+---
+
+Next to the server, the image ships commands that import old logs and fill in data older rows lack. They run under the `litestar` CLI, inside the `app` container.
+
+## Run a command
+
+With the stack up, run the command in the running `app` container:
+
+```bash
+docker compose exec -u geometrikks app litestar <command>
+```
+
+`exec` skips the image's entrypoint, so without `-u geometrikks` the command runs as root. With it, the command runs as the same `geometrikks` user as the app, whose user and group ids the entrypoint sets from `PUID` and `PGID`, 1000 by default. File paths are paths inside the container, such as `/var/log/access/access.log.1.gz`.
+
+`exec` needs the `app` service running. With the stack stopped, start a one-off container instead:
+
+```bash
+docker compose run --rm app litestar <command>
+```
+
+`run` goes through the entrypoint, which switches to the `geometrikks` user before the command starts, so it needs no `-u`. It also starts the database first. Every command takes `--help`.
+
+The image sets `LITESTAR_APP`, which tells `litestar` where the app is. Outside the image, from a source checkout, name the app yourself or the CLI won't find it:
+
+```bash
+uv run litestar --app geometrikks.server.core:create_app <command>
+```
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| [`import-logs`](./import-logs.mdx) | Imports rotated or archived access-log files, plain or gzip. |
+| [`import-loki`](./import-loki.mdx) | Imports a time range of each `LOKI_QUERIES` selector from Loki. |
+| [`backfill-server`](./backfills.mdx#backfill-server) | Stamps a server name on Access Logs rows that have none, or with `--consolidate` rewrites every server name to one. |
+| [`backfill-geo-servers`](./backfills.mdx#backfill-geo-servers) | Fills the Servers column of the Geo Logs aggregates from the raw events still in retention. |
+| [`backfill-asn`](./backfills.mdx#backfill-asn) | Stamps ASN data on rows that have none, from the local GeoLite2 ASN database. |
+| [`backfill-timings`](./backfills.mdx#backfill-timings) | Clears the placeholder `0.0` response time on rows imported from nginx `combined` archives. |
+
+[Upgrading](../../get-started/upgrading.mdx#one-off-backfills) says which upgrades need a backfill. Imports and backfills over a lot of history write the database hard. [Large imports and backfills](./large-imports.mdx) has the PostgreSQL settings that keep them fast.
+
+## Database migrations
+
+The `database` command group migrates the schema. `litestar database upgrade --no-prompt` brings it to the newest revision without asking for confirmation. The full instance runs the same migration at startup unless `DB_MIGRATE_ON_STARTUP=false`. [Migrations](../deployment.mdx#migrations) covers running it as a separate deploy step.

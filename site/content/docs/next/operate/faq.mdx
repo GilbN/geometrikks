@@ -5,7 +5,7 @@ description: Short answers to the questions that come up most, each with a link 
 
 ## I use Nginx Proxy Manager. What log path do I use?
 
-Set `ACCESS_LOG_DIR` to the host folder where NPM writes its logs, usually its `data/logs` folder. Then set `LOGPARSER_LOG_PATHS` to the file inside it as the container sees it, starting with `/var/log/access/`, not the host path. GeoMetrikks doesn't tail NPM's own per-host logs. Set up the extra JSON log and point at that one. `import-logs` can backfill the old per-host logs. See [Nginx Proxy Manager](../sources/nginx-proxy-manager.mdx).
+Set `ACCESS_LOG_DIR` to the host folder where NPM writes its logs, usually its `data/logs` folder. Then set `LOGPARSER_LOG_PATHS` to the file inside it as the container sees it, starting with `/var/log/access/`, not the host path. GeoMetrikks doesn't tail NPM's own per-host logs. Set up the extra JSON log and point at that one. [`import-logs`](./cli/import-logs.mdx) can backfill the old per-host logs. See [Nginx Proxy Manager](../sources/nginx-proxy-manager.mdx).
 
 ## Can I read logs from Loki instead of mounting files?
 
@@ -25,7 +25,7 @@ Check these in order:
 
 1. The geo-degraded banner. If it shows, GeoMetrikks has no GeoLite2 database and records no traffic. See [What does the geo-degraded banner mean?](#what-does-the-geo-degraded-banner-mean)
 2. A source is receiving traffic in a format GeoMetrikks reads: a file in `LOGPARSER_LOG_PATHS` or a selector in `LOKI_QUERIES`. Settings > Status lists each source with its state. NPM's own per-host logs can only be imported, never tailed. See [Point it at your logs](../get-started/quickstart.mdx#point-it-at-your-logs).
-3. New lines have arrived since the app started. GeoMetrikks starts reading a file at its end, so lines written before that only show up after an `import-logs` run.
+3. New lines have arrived since the app started. GeoMetrikks starts reading a file at its end, so lines written before that only show up after an [`import-logs`](./cli/import-logs.mdx) run.
 4. Your proxy logs the visitor's address, not a CDN, tunnel or upstream proxy. Settings > Status shows an advisory when it doesn't. See [Real client IP behind a proxy](../sources/proxy-setup.mdx).
 
 ## The map says my browser could not start WebGL2

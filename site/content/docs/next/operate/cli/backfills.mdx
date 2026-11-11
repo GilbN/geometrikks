@@ -1,0 +1,89 @@
+---
+title: Backfill commands
+description: The one-off commands that fill in server names, Geo Logs servers, ASN data and response times on rows that lack them.
+---
+
+These commands fix up rows already in the database. Each one changes only the rows it is meant for, so running it twice does no harm. [Upgrading](../../get-started/upgrading.mdx#one-off-backfills) says which upgrade or setup leaves rows that need one.
+
+Run them inside the app container, as [CLI](./index.mdx#run-a-command) describes:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-timings
+```
+
+What they have in common:
+
+- Every command except plain `backfill-server` prints what it will change and asks for confirmation. `--yes` skips the prompt.
+- When nothing matches, the command prints `Nothing to do` and exits.
+- `backfill-server`, `backfill-asn` and `backfill-timings` decompress the compressed history of the tables they change before they write. Disk use grows until the compression policy compresses those chunks again.
+- Every command refreshes the aggregates it changed, so the charts and filters show the result. On a large database expect minutes. [Large imports and backfills](./large-imports.mdx) has the PostgreSQL settings that keep the run from slowing down.
+
+## backfill-server
+
+Every row records the server that wrote it. Rows from before that have no server name, so the Server filter on Access Logs can't find them. The plain form stamps a name on them:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-server myhost
+```
+
+It fills only Access Logs rows that have no server name and leaves every stamped row alone. It runs without a prompt.
+
+`--consolidate` rewrites every existing server name, on Access Logs and Geo Logs rows, to the given name as well:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-server myhost --consolidate
+```
+
+Use it when the database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. It lists every server name it will rewrite with its Geo Logs row count and asks before it changes anything. The rewrite merges every server into one, and nothing can split them apart again. On a setup with several real servers, don't use it.
+
+Both forms then refresh the server aggregates that feed the Server filters.
+
+## backfill-geo-servers
+
+Geo Logs can show an empty Servers column for ranges over 24 hours on older history. This command fills it in from the raw events still in retention:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-geo-servers
+```
+
+- It prints the pending range of each aggregate and asks before it starts.
+- It refreshes one day at a time. If it stops, or a batch fails, rerun it and it continues with the buckets still missing.
+- An advisory lock in the database allows one run at a time. A second run while the first is going stops with `Another Geo Logs server backfill is already running.`
+- It refreshes only complete buckets whose raw events are still kept. The hourly aggregate goes back as far as the shorter of `ANALYTICS_RAW_RETENTION_DAYS` and `ANALYTICS_HOURLY_RETENTION_DAYS`, the daily one as far as `ANALYTICS_RAW_RETENTION_DAYS`. Server names for history whose raw events expired can't be recovered, but the counts stay.
+- It reads raw events and refreshes the aggregates. It changes no rows and doesn't rewrite server names.
+- The app can stay running. The refresh uses database CPU and I/O.
+
+The command needs the aggregates' server columns, which the app adds at startup. Adding them in place needs TimescaleDB 2.28 or later. If adding them fails, the app keeps the old aggregate, logs `server_cagg_columns_unavailable`, and this command stops with an error that names the aggregate. Fix the database error, for example by upgrading TimescaleDB, restart the app with `docker compose restart app`, then run the command.
+
+## backfill-asn
+
+Rows ingested before ASN support, or while the GeoLite2 ASN database was missing, have no ASN data, so Top ASNs and the ASN filters skip them. This command resolves their IPs against the local ASN database and stamps the result. Name the table with `--table`:
+
+- `--table access-logs` for Access Logs
+- `--table geo-events` for Geo Logs, without touching Access Logs
+- `--table all` for both
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-asn --table access-logs
+```
+
+It changes only rows with no ASN data and never overwrites a stamped value. Before it asks, it prints how many rows and distinct IPs lack ASN data. IPs the database can't resolve stay empty. Without the ASN database the command stops with an error. Start the app once with MaxMind credentials and it downloads the database. [GeoLite2](../../get-started/geolite2.mdx) covers the setup.
+
+If the aggregate refresh fails, the rows are stamped but Top ASNs and Geo Logs don't show the backfilled range. The command names the aggregates and exits with an error. Rerunning it is safe.
+
+Today's ASN database describes today's network ownership, so ASN data on years-old traffic is an approximation.
+
+## backfill-timings
+
+Archives in nginx's built-in `combined` format have no response time. Some older imports stored a placeholder `0.0` for those rows, which pulls every average and percentile toward zero. This command clears it:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-timings
+```
+
+It changes only rows the positional `nginx` format wrote without a host and with a response time of exactly 0. That is how a `combined` line looks after import, because the custom nginx format always logs `$host`. A real sub-millisecond time on a row with a host stays. Rows from `geometrikks-json` already store no time when the line has none.
+
+- `--server NAME` limits it to rows recorded under that server name.
+- `--before` limits it to rows older than a date or datetime, such as `2026-08-20`. Without an offset the value is UTC.
+
+The command prints the row count and time span and asks before it clears them. Afterwards averages and percentiles leave those rows out instead of counting them as zero. If the aggregate refresh fails, the rows are cleared, and the command names the aggregates that didn't refresh and exits with an error.
