@@ -36,6 +36,7 @@ export type RouteName =
   | 'get_alert'
   | 'get_asn_classification'
   | 'get_changelog'
+  | 'get_client_ip'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_decision_alert'
@@ -130,6 +131,7 @@ export interface RoutePathParams {
   };
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
+  'get_client_ip': Record<string, never>;
   'get_cumulative_time_series': Record<string, never>;
   'get_database_info': Record<string, never>;
   'get_decision_alert': {
@@ -237,6 +239,7 @@ export interface RouteQueryParams {
   'get_alert': Record<string, never>;
   'get_asn_classification': Record<string, never>;
   'get_changelog': Record<string, never>;
+  'get_client_ip': Record<string, never>;
   'get_cumulative_time_series': {
     endDate?: DateTime;
     startDate?: DateTime;
@@ -710,6 +713,13 @@ export const routeDefinitions = {
   },
   'get_changelog': {
     path: '/api/v1/system/changelog',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'get_client_ip': {
+    path: '/api/v1/system/client-ip',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

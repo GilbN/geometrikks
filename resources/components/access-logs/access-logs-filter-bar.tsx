@@ -8,15 +8,17 @@
 import { CountryFlag } from "@/components/country-flag"
 import { useEffect, useRef, useState } from "react"
 import { Search } from "lucide-react"
+import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-my-ip"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterExcludedIpRows, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
+import { FilterExcludedIpRows, FilterListRow, FilterMyIpRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAccessLogFacets } from "@/lib/queries"
 import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { isValidIp } from "@/lib/crowdsec"
 import { HTTP_METHODS } from "@/lib/http-methods"
@@ -82,10 +84,12 @@ export function AccessLogsFilterBar() {
 
   const add = (key: ListKey) => (value: string) => {
     if (filters[key].includes(value)) return
-    setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
+    // A tap on Exclude your IP lands after a lookup, so the closure can be stale.
+    setFilters((prev) => (prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] }))
   }
   const remove = (key: ListKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
+  const myIp = useMyIpExclusion(filters.ipsExclude, add("ipsExclude"), (ip) => remove("ipsExclude", ip))
   const setAsns = (key: AsnKey) => (values: number[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
   const removeAsn = (key: AsnKey, asn: number) =>
@@ -302,7 +306,8 @@ export function AccessLogsFilterBar() {
 
   if (phone) {
     return (
-      <div onClick={() => setFacetsEnabled(true)}>
+      <div className="flex items-center gap-2" onClick={() => setFacetsEnabled(true)}>
+        <ExcludeMyIpButton exclusion={myIp} />
         <FiltersDrawer activeCount={activeCount} onClear={clear}>
           <Input
             value={searchInput}
@@ -389,6 +394,7 @@ export function AccessLogsFilterBar() {
             />
           </FilterSection>
           <FilterSection label="Exclude">
+            <FilterMyIpRow exclusion={myIp} />
             <FilterExcludedIpRows values={filters.ipsExclude} onAdd={add("ipsExclude")} onRemove={(ip) => remove("ipsExclude", ip)} validate={isValidIp} />
             <FilterListRow
               label="Host" exclude
@@ -436,6 +442,7 @@ export function AccessLogsFilterBar() {
         {country()}
         {city()}
         {asnPair()}
+        <ExcludeMyIpField exclusion={myIp} />
       </FilterRow>
       {chipRow(["ips", "ipsExclude", "hostsExclude", "serversExclude", "asns", "asnsExclude"])}
     </FilterRail>
