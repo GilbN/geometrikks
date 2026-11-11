@@ -19,7 +19,7 @@ The Overview page shows requests, bytes, unique visitors and the status mix for 
 
 ![The Overview page with request, visitor and status cards](/screenshots/dashboard.webp)
 
-Within seconds of ingestion, the map draws every request GeoLite2 can place. A request with no location in the database stays off the map but still shows up in Access Logs. Click a marker to see the request, the city and the network behind it.
+Within seconds of ingestion, the map draws every request GeoLite2 can place. A request with no location in the database stays off the map but still shows up in Access Logs. Click a marker to see the location, its top IPs and the network behind each. See [Map](./features/map.mdx).
 
 ![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
 
@@ -38,8 +38,8 @@ The server makes these requests on its own:
 | GeoLite2 City and ASN download | `download.maxmind.com` | At startup when the file is missing or older than `GEOIP_REFRESH_DAYS` (default 7), then every `GEOIP_REFRESH_DAYS` | Leave `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` unset. Without a database file the app has no geo lookups. `GEOIP_ASN_ENABLED=false` skips only the ASN download. |
 | Public-IP lookup for the server's map location | `api64.ipify.org` by default (`MAP_PUBLIC_IP_URL`) | At startup, then every `MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24) | `MAP_AUTO_DETECT_SERVER_LOCATION=false`, or set `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE` |
 | Update check | `api.github.com` | Every 12 hours | `APP_UPDATE_CHECK=false` |
-| Spamhaus DROP lists | `www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
-| Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https. | Only when someone clicks Find abuse contact in an abuse report, or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
+| [Spamhaus DROP lists](./features/drop-lists.mdx) | `www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
+| Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https. | Only when someone clicks Find abuse contact in an [abuse report](./features/abuse-reports.mdx#the-abuse-contact), or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
 
 The update check and the DROP lists run on the full instance only, never on an [agent](./sources/multiple-sources.mdx).
 
@@ -54,6 +54,6 @@ The map's basemap tiles come from CARTO. The reader's browser fetches them from 
 - [Upgrading](./get-started/upgrading.mdx) lists what changes between releases and the one-off commands some upgrades need.
 - The [configuration reference](./reference/configuration.mdx) lists every setting with its default.
 - [Log sources](./sources/nginx.mdx) has a setup page for each proxy and for [Grafana Loki](./sources/loki.mdx), and [Multiple sources](./sources/multiple-sources.mdx) covers several proxies writing into one database. [Real client IP behind a proxy](./sources/proxy-setup.mdx) covers a CDN or tunnel in front of your proxy.
-- Features covers the map, the IP tools, CrowdSec and authentication.
+- Features covers the [map](./features/map.mdx), [the app page by page](./features/app-tour.mdx), the [IP inspector](./features/ip-inspector.mdx), [Spamhaus DROP lists](./features/drop-lists.mdx) and [abuse reports](./features/abuse-reports.mdx), plus CrowdSec and authentication.
 - Operate covers the reverse proxy in front of the app, deployment, the CLI commands and common questions.
 - Contribute covers the development setup and the API conventions.
