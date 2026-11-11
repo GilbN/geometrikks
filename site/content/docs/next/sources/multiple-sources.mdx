@@ -11,7 +11,7 @@ When traffic comes in through more than one reverse proxy or host, you have thre
 
 ## How it works
 
-The full instance, which Settings > Agents calls the head, owns the UI, the API, database migrations, the scheduler and CrowdSec. An agent is the same image started with `APP_MODE=agent`. It runs next to the access logs it reads, on the proxy's host or Docker network, and does the ingestion there: tail, parse, geolocate, write and publish. Every agent and the head share one TimescaleDB.
+The full instance, which Settings > Agents calls the head, owns the UI, the API, [database migrations](../operate/deployment.mdx#migrations), the scheduler and CrowdSec. An agent is the same image started with `APP_MODE=agent`. It runs next to the access logs it reads, on the proxy's host or Docker network, and does the ingestion there: tail, parse, geolocate, write and publish. Every agent and the head share one TimescaleDB.
 
 Live traffic reaches the map whichever process ingested it. Every process publishes the requests it writes through Postgres LISTEN/NOTIFY, and the head's `/ws/live` feed relays all of them.
 
@@ -85,7 +85,7 @@ Before the schema wait, the agent downloads GeoLite2 if its files are missing or
 - When the database runs a revision the agent doesn't know, as it does while the head runs a newer release, the agent logs a warning and starts anyway.
 - When the 120 seconds run out, the agent stays up without ingesting. `/health` answers 200 and `/health/ready` answers 503 until the agent restarts. The agent never retries by itself.
 
-The image's own healthcheck probes `/health`, so after a timed-out wait it reports a stuck agent as healthy. The compose example above probes `/health/ready` instead. Its `start_period` of 150 seconds covers the schema wait and a normal download. Failed probes inside it don't count. On a slow link, raise it so a first start doesn't show the agent as `unhealthy` while it is still downloading.
+The image's own healthcheck probes `/health`, so after a timed-out wait it reports a stuck agent as healthy. [Health checks](../operate/deployment.mdx#health-checks) describes both routes. The compose example above probes `/health/ready` instead. Its `start_period` of 150 seconds covers the schema wait and a normal download. Failed probes inside it don't count. On a slow link, raise it so a first start doesn't show the agent as `unhealthy` while it is still downloading.
 
 Compose doesn't act on health status. On plain Docker, `docker ps` shows a stuck agent as `unhealthy`, and a service with `depends_on: condition: service_healthy` on it keeps waiting, but nothing restarts it. `restart: unless-stopped` reacts to a container exiting, and a stuck agent stays up. Turning `unhealthy` into a restart takes Docker Swarm, an autoheal sidecar, or a Kubernetes liveness probe on `/health/ready`. Without one, run `docker compose restart agent` once the head has finished migrating.
 

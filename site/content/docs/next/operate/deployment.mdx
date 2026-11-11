@@ -1,0 +1,131 @@
+---
+title: Deployment
+description: How the GeoMetrikks container runs, stops, migrates and reports health, and how to run it as a non-root user.
+---
+
+This page covers what the published image does at runtime and which parts of it you can change. The [Quickstart](../get-started/quickstart.mdx) gets a stock install running.
+
+## How the container runs
+
+The image is `ghcr.io/gilbn/geometrikks`, built from the [`Dockerfile`](https://github.com/GilbN/geometrikks/blob/main/Dockerfile). In a running container, `tini` is PID 1. It starts the entrypoint, which hands its process over to the server:
+
+```text
+tini (PID 1)
+  -> docker/entrypoint.sh   remaps the geometrikks user to PUID:PGID, drops root with gosu
+    -> litestar run --workers 1 --no-subprocess --workers-kill-timeout 15
+       (the Granian server, one worker process)
+```
+
+- `tini` passes signals on to the server and reaps orphaned processes.
+- The entrypoint runs as root only long enough to remap the user and fix ownership, then hands over to the app as that user. See [Container user and hardening](#container-user-and-hardening).
+- `--no-subprocess` makes the `litestar` process the Granian server itself. Without it, `docker stop` would stop the CLI wrapper and Granian would go down with it, without running the app's shutdown steps.
+- `--workers-kill-timeout 15` gives the worker 15 seconds to finish shutting down before Granian kills it.
+
+The app is installed as a wheel into `/app/.venv`; the image holds no source checkout. Next to it in `/app` sit `migrations/` and `alembic.ini`, which the migration step reads from the working directory, and a copy of `CHANGELOG.md`, which Settings > Changelog shows.
+
+The image's healthcheck requests `/health` every 30 seconds, with a 10 second timeout, a 60 second start period and 3 retries. See [Health checks](#health-checks).
+
+## Settings files
+
+The app reads its settings from environment variables and from `.env` in its working directory. Set `GEOMETRIKKS_ENV_FILE` to load another file, or to an empty value to skip the file and use real environment variables only. Every 12 hours the app asks api.github.com whether a newer release exists, in a request that carries nothing about your instance; `APP_UPDATE_CHECK=false` turns that off. The [configuration reference](../reference/configuration.mdx) lists every setting with its default.
+
+## Container user and hardening
+
+The container starts as root. The entrypoint remaps its `geometrikks` user to `PUID` and `PGID`, both `1000` by default, makes that user the owner of `/app`, `./logs`, mounted at `/app/logs`, and the geoip volume at `/app/data/geoip`, and then starts the app as that user. The app never runs as root.
+
+Set `PUID` and `PGID` in `.env` to the host user that should own `./logs`, usually your own, as `id -u` and `id -g` print them. That user also has to be able to read the access logs you mount. The log mounts are read-only, and GeoMetrikks never writes to them. If it can't read a file, Settings > Status shows that source as not readable, and nothing from it is recorded. Fix it on the host with `chmod`, `chown` or an ACL entry on the files and their parent folder.
+
+To harden the PUID and PGID path, drop every capability except the three the entrypoint needs to remap the user and change ownership:
+
+```yaml
+  app:
+    # ...
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+```
+
+Where root isn't allowed at all, as with rootless Docker, set `user:` on the `app` service. The entrypoint sees it isn't root, skips the remap and every ownership change, and starts the app as that user. With no root step, `cap_drop: ALL` and no `cap_add` is enough:
+
+```yaml
+  app:
+    # ...
+    user: "1000:1000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+```
+
+That user then has to own `./logs` and `/app/data/geoip`, or GeoLite2 downloads fail. The image creates both owned by UID 1000, and Docker creates a missing `./logs` owned by root. A `user:` other than 1000 needs the ownership change. For UID and GID 1234:
+
+```bash
+sudo chown -R 1234:1234 logs
+docker compose run --rm --no-deps --user root --entrypoint chown app -R 1234:1234 /app/data/geoip
+```
+
+A full instance also writes to `/app` at startup, and UID 1000 owns `/app` in the image. Under any other UID, startup stops with a PermissionError. Keep UID 1000 for a full instance, or build a small image of your own on top of the published one that runs `chown 1234:1234 /app`. The [configuration reference](../reference/configuration.mdx#container-and-compose-variables) has the same rules in the `PUID` row.
+
+## Shutdown
+
+The image stops on `SIGTERM`. The app's shutdown steps run in the reverse of their startup order:
+
+1. The heartbeat writer stops first, which keeps the overlap with a replacement process short.
+2. The background database recovery stops, if the app was waiting for the database to come back.
+3. Ingestion stops. It waits 5 seconds for the log tails to stop and cancels the ones still running, then gives the consumer up to 5 seconds to write its last batch before cancelling it. That is up to 10 seconds in total.
+4. The scheduler shuts down and waits for running jobs.
+5. The OpenID Connect and CrowdSec clients close.
+6. The channels plugin, which carries `/ws/live`, stops, and then the database connections close.
+
+With Granian's 15 second kill timeout on top, the container needs more than Docker's default 10 seconds. The shipped compose file sets `stop_grace_period: 20s`. With plain `docker run`, stop the container with `docker stop -t 20`. When the 20 seconds run out, Docker kills the process. That can happen even with the longer grace period, for example when Granian is slow to close its connections. An ingestion batch not yet written by then is lost.
+
+## One worker per process
+
+The image runs one worker, and `--workers 1` on its command line wins over `LITESTAR_WEB_CONCURRENCY`, `WEB_CONCURRENCY` and `GRANIAN_WORKERS`. Outside the image you can raise the worker count, but every worker runs the whole app:
+
+- Each worker tails every log, so each line is stored once per worker.
+- Each worker runs its own scheduler, so every scheduled job runs once per worker.
+- `/ws/crowdsec` and `/ws/logs` are fed from inside each process. A browser sees only what the worker it connected to produced.
+- Each worker keeps its own lock around session writes and its own timer for the expired-session sweep, so logins and logouts on different workers can race.
+- Startup migrations take no lock, so two workers can migrate the database at once.
+
+`/ws/live` is the exception. Every process publishes the requests it writes through Postgres LISTEN/NOTIFY, and every process relays all of them, so live traffic reaches every browser whichever process ingested it.
+
+To ingest from several places, run one full instance and an agent per log source, each started with `APP_MODE=agent`. Agents write into the same database as the full instance. [Multiple sources](../sources/multiple-sources.mdx) covers the setup.
+
+## Migrations
+
+With `DB_MIGRATE_ON_STARTUP=true`, the default, the full instance brings the database schema to the newest revision at startup. That suits the single compose file.
+
+To migrate as a separate deploy step, set `DB_MIGRATE_ON_STARTUP=false` and run the migration with the same settings the app uses:
+
+```bash
+docker compose run --rm app litestar database upgrade --no-prompt
+```
+
+The image sets `LITESTAR_APP`, so `litestar` finds the app. The command builds the app from your settings, so it needs the database settings and `APP_ADMIN_PASSWORD` like the app itself; `docker compose run` takes both from the `app` service. Without `--no-prompt` it waits for a confirmation.
+
+Every start, migrated or not, then sets up the TimescaleDB hypertables, continuous aggregates and policies. That step expects the schema at the newest revision, so if the migration step was skipped, startup fails instead of running on an old schema.
+
+Agents never migrate. At startup an agent waits up to 120 seconds for the full instance to bring the schema to the agent's revision. See [Health during the schema wait](../sources/multiple-sources.mdx#health-during-the-schema-wait).
+
+Some upgrades rebuild continuous aggregates on their first start, and nothing answers until that finishes. [Slow first start after some upgrades](../get-started/upgrading.mdx#slow-first-start-after-some-upgrades) lists the log events to watch.
+
+## Health checks
+
+Neither route needs a login. Nothing answers on either one until startup has finished, which includes migrations, aggregate rebuilds and a first GeoLite2 download.
+
+`/health` answers 200 for as long as the process serves requests. Its body carries the state of each part: the database, GeoIP, ingestion and CrowdSec, the mode, the advisories Settings > Status shows and, on an agent, how its schema wait ended. A failing part changes the body, never the status code. Use it for liveness, or read the body to see what is wrong.
+
+`/health/ready` answers 200 when `SELECT 1` against the database returns within 2 seconds. It answers 503 when the database doesn't, and on an agent whose schema check hasn't passed. Geo-degraded mode, where ingestion waits for a GeoLite2 database, still answers 200, because the database is fine.
+
+An agent serves only these two routes.
+
+## Logging
+
+Granian logs its own startup and shutdown at info level, and its access log is off, as litestar-granian has it by default. The app logs every request once, through its structlog pipeline, with the path, method, query and status code. `LOG_LEVEL` sets the level; see [Logging](../reference/configuration.mdx#logging).
