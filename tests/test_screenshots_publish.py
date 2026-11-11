@@ -178,3 +178,8 @@ def test_manifest_merges_previous_scenes_on_retake() -> None:
 def test_manifest_needs_a_size_for_every_shot() -> None:
     with pytest.raises(KeyError, match="map-desktop-dark"):
         build_manifest(build_shots(only={"map"}), {}, previous=None, retaken=None)
+
+
+def test_a_retake_needs_the_previous_manifest() -> None:
+    with pytest.raises(ValueError, match="previous manifest"):
+        build_manifest(build_shots(only={"map"}), SIZES, previous=None, retaken={"map"})

@@ -24,6 +24,8 @@ def build_manifest(
     retaken: Collection[str] | None,
 ) -> dict[str, object]:
     """Scenes in ``SCENES`` order; on a retake, every scene outside ``retaken`` comes from ``previous`` unchanged."""
+    if retaken is not None and not (previous is not None and isinstance(previous.get("scenes"), dict)):
+        raise ValueError("a retake needs the previous manifest's scenes; run a full run first")
     taken: dict[str, dict[str, object]] = {}
     for shot in shots:
         scene = taken.setdefault(shot.scene.id, {"title": shot.scene.title, "alt": shot.scene.alt, "variants": {}})

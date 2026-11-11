@@ -83,6 +83,8 @@ from tests.screenshots.plan import (
     shot_filename,
 )
 from tests.screenshots.publish import (
+    BACKUP_NAME,
+    STAGING_NAME,
     build_manifest,
     plan_swap,
     publish_staged,
@@ -100,6 +102,7 @@ from tests.screenshots.teardown import (
     Resource,
     RunLocked,
     SystemActions,
+    _child_exited,
     acquire_run_lock,
     ensure_run_root,
     execute_teardown,
@@ -222,37 +225,34 @@ def _plain_url(url: str) -> str:
     return make_url(url).set(drivername="postgresql").render_as_string(hide_password=False)
 
 
-def _child_exited(pid: int) -> bool:
-    """Whether our child has exited, without reaping it, so its pid keeps pinning the process group."""
-    try:
-        return os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
-    except ChildProcessError:
-        return True
-
-
-def sweep_marked(marker: Callable[[bytes], bool]) -> list[str]:
+def sweep_marked(marker: Callable[[bytes], bool], *, proc_root: Path = Path("/proc")) -> list[str]:
     """Kill our own processes whose environment matches ``marker``.
 
     Playwright starts browsers in process groups of their own, so stopping its group can miss them.
     """
-    found = []
-    for entry in Path("/proc").iterdir():
+    stopped = []
+    for entry in proc_root.iterdir():
         if not entry.name.isdigit() or int(entry.name) == os.getpid():
             continue
         try:
             if entry.stat().st_uid != os.getuid():
                 continue
-            environ = (entry / "environ").read_bytes()
+            pidfd = os.pidfd_open(int(entry.name))
         except OSError:
             continue
-        if any(marker(pair) for pair in environ.split(b"\0")):
-            found.append(int(entry.name))
-    for pid in found:
         try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    return [f"stopped stray process {pid} from a capture" for pid in found]
+            # Opened before the read and killed through, the pidfd can only reach the process it was opened
+            # for: if that one exits and its pid is reused, the kill fails instead of hitting the new owner.
+            environ = (entry / "environ").read_bytes()
+            if not any(marker(pair) for pair in environ.split(b"\0")):
+                continue
+            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+        except OSError:
+            continue
+        finally:
+            os.close(pidfd)
+        stopped.append(int(entry.name))
+    return [f"stopped stray process {pid} from a capture" for pid in stopped]
 
 
 class Runner:
@@ -341,12 +341,13 @@ def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: boo
         runner.run([runner.which("docker"), "info"], label="docker info", log="commands.log", timeout=30) == 0
     )
     labelled = [f"{kind} {name}" for kind, name, _ in _labelled(runner)] if docker_ok else []
-    database_exists = False
+    database_exists, database_reachable = False, True
     if not args.own_db:
         try:
             database_exists = asyncio.run(_database_exists(args.pg_admin_url))
         except (OSError, asyncpg.PostgresError, TimeoutError) as error:
             say(f"could not check for {RESERVED_DATABASE} on {make_url(args.pg_admin_url)!s}: {error}")
+            database_reachable = False
     return Facts(
         in_ci=bool(os.environ.get("CI")),
         mem_available=_mem_available(),
@@ -360,6 +361,7 @@ def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: boo
         ledger_exists=ledger_exists,
         database_exists=database_exists,
         containers_exist=tuple(labelled),
+        database_reachable=database_reachable,
     )
 
 
@@ -403,11 +405,43 @@ def _teardown(resources: Sequence[Resource], ledger: Ledger, env: dict[str, str]
     return execute_teardown(resources, run_root=RUN_ROOT, ledger=ledger, actions=actions)
 
 
-def _ledger_left() -> bool:
+def _ledger_holds(ledger: Ledger) -> bool:
     try:
-        return bool(Ledger(LEDGER_PATH).load())
+        return bool(ledger.load())
     except (ValueError, TypeError):
         return True
+
+
+def _ledger_left() -> bool:
+    return _ledger_holds(Ledger(LEDGER_PATH))
+
+
+def _retake_problem(only: Sequence[str] | None) -> str | None:
+    """A retake merges into the published manifest, so it needs one it can read."""
+    if not only:
+        return None
+    path = DATA_SCREENSHOTS / "manifest.json"
+    try:
+        manifest = json.loads(path.read_text())
+    except (OSError, ValueError) as error:
+        return f"--only needs a readable {path} ({error}): run a full run first."
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("scenes"), dict):
+        return f"--only needs a manifest with scenes, and {path} has none: run a full run first."
+    return None
+
+
+def _recover(prefix: str) -> bool:
+    """Run the publish recovery; report and return False when it fails, so the caller still tears down."""
+    try:
+        for line in recover_publish(DATA_SCREENSHOTS):
+            say(f"{prefix}: {line}")
+    except Exception as error:  # noqa: BLE001
+        say(
+            f"{prefix}: publish recovery failed: {error}; "
+            f"check {DATA_SCREENSHOTS}, {STAGING_NAME} and {BACKUP_NAME} next to it by hand"
+        )
+        return False
+    return True
 
 
 def _print_teardown(report: Sequence[str]) -> None:
@@ -430,41 +464,50 @@ def dry_run(args: argparse.Namespace) -> int:
     code = EXIT_DONE
     try:
         with interrupts_raise():
-            scratch.mkdir(mode=0o700)
-            logs.mkdir()
-            runner = Runner(ledger=private, env=env, log_dir=logs)
-            problems = preflight_problems(gather_facts(args, runner, ledger_exists=_shared_ledger_foreign(())))
-            _report_problems(problems)
-            _print_dry_env(args, env)
-            shots = _shot_list(args.only)
-            for shot in shots:
-                say(f"shot: {shot.name}{' (live)' if shot.scene.live else ''}")
-            say(f"{len(shots)} shots")
-            _print_dry_teardown(args)
-            plan_path = scratch / "plan.json"
-            params = {"inspect_ip": DOC_INSPECT_IP, "focus_location": "1"}
-            plan = capture_plan(shots, params, base_url="http://127.0.0.1:8000", png_dir=scratch / "png")
-            plan_path.write_text(json.dumps(plan, indent=2))
-            listed = runner.run(
-                [runner.which("npx"), "playwright", "test", f"--config={PLAYWRIGHT_CONFIG}", "--list"],
-                label="playwright --list",
-                log="playwright-list.log",
-                env=_playwright_env(env, plan=plan_path, output=scratch / "playwright"),
-            )
-            say(_tail(logs / "playwright-list.log", lines=200))
-            say(f"playwright --list exited {listed}")
-            if problems:
-                code = EXIT_REFUSED
+            try:
+                scratch.mkdir(mode=0o700)
+                logs.mkdir()
+                runner = Runner(ledger=private, env=env, log_dir=logs)
+                facts = gather_facts(args, runner, ledger_exists=_shared_ledger_foreign(()))
+                problems = preflight_problems(facts)
+                retake = _retake_problem(args.only)
+                if retake is not None:
+                    problems.append(retake)
+                _report_problems(problems)
+                _print_dry_env(args, env)
+                shots = _shot_list(args.only)
+                for shot in shots:
+                    say(f"shot: {shot.name}{' (live)' if shot.scene.live else ''}")
+                say(f"{len(shots)} shots")
+                _print_dry_teardown(args)
+                plan_path = scratch / "plan.json"
+                params = {"inspect_ip": DOC_INSPECT_IP, "focus_location": "1"}
+                plan = capture_plan(shots, params, base_url="http://127.0.0.1:8000", png_dir=scratch / "png")
+                plan_path.write_text(json.dumps(plan, indent=2))
+                listed = runner.run(
+                    [runner.which("npx"), "playwright", "test", f"--config={PLAYWRIGHT_CONFIG}", "--list"],
+                    label="playwright --list",
+                    log="playwright-list.log",
+                    env=_playwright_env(env, plan=plan_path, output=scratch / "playwright"),
+                )
+                say(_tail(logs / "playwright-list.log", lines=200))
+                say(f"playwright --list exited {listed}")
+                if problems:
+                    code = EXIT_REFUSED
+            except (RunFailed, MissingParamError) as error:
+                say(f"dry run failed: {error.args[0]}")
+                code = EXIT_FAILED
     except Interrupted:
         code = EXIT_INTERRUPTED
-    except (RunFailed, MissingParamError) as error:
-        say(f"dry run failed: {error.args[0]}")
-        code = EXIT_FAILED
     finally:
         with interrupts_ignored():
             for line in _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch):
                 say(f"teardown: {line}")
-            shutil.rmtree(scratch, ignore_errors=True)
+            if _ledger_holds(private):
+                say(f"teardown: kept {scratch}, its ledger still lists resources; run --cleanup")
+                code = code or EXIT_FAILED
+            else:
+                shutil.rmtree(scratch, ignore_errors=True)
     return code
 
 
@@ -533,8 +576,7 @@ def cleanup(args: argparse.Namespace) -> int:
 
 
 def _cleanup(args: argparse.Namespace, env: dict[str, str], scratch: Path) -> int:
-    for line in recover_publish(DATA_SCREENSHOTS):
-        say(f"cleanup: {line}")
+    clean = _recover("cleanup")
     scratch.mkdir(mode=0o700)
     shared = Ledger(LEDGER_PATH)
     ledger = shared
@@ -545,46 +587,64 @@ def _cleanup(args: argparse.Namespace, env: dict[str, str], scratch: Path) -> in
         say("cleanup: removing the labelled containers and networks and the reserved database only")
         entries = []
         ledger = Ledger(scratch / "ledger.json")
-    unreadable = ledger is not shared
-
-    dry_folders = sorted(RUN_ROOT.glob("dry-*"))
-    for folder in dry_folders:
-        try:
-            entries += Ledger(folder / "ledger.json").load()
-        except (ValueError, TypeError) as error:
-            say(f"cleanup: skipping the unreadable dry-run ledger in {folder}: {error}")
+        clean = False
 
     runner = Runner(ledger=ledger, env=env, log_dir=scratch)
+    discovered: list[Resource] = []
     known = {(entry.kind, entry.ident) for entry in entries if entry.kind in ("container", "network")}
     try:
         for kind, name, run_id in _labelled(runner):
             if (kind, name) not in known:
-                entries.append(Resource("container" if kind == "container" else "network", name, (("run_id", run_id),)))
+                discovered.append(
+                    Resource("container" if kind == "container" else "network", name, (("run_id", run_id),))
+                )
     except RunFailed as error:
         say(f"cleanup: could not list labelled resources: {error}")
+        clean = False
     try:
         if asyncio.run(_database_exists(args.pg_admin_url)):
             admin = (("admin_url", args.pg_admin_url),)
             if not any(entry.kind == "database" and entry.meta == admin for entry in entries):
-                entries.append(Resource("database", RESERVED_DATABASE, admin))
+                discovered.append(Resource("database", RESERVED_DATABASE, admin))
     except (OSError, asyncpg.PostgresError, TimeoutError) as error:
         say(f"cleanup: could not check for {RESERVED_DATABASE} on {make_url(args.pg_admin_url)!s}: {error}")
+        clean = False
+    # In the ledger first, so whatever teardown cannot remove stays listed and fails the exit status.
+    for resource in discovered:
+        ledger.add(resource)
+    entries += discovered
 
     for entry in entries:
         say(f"cleanup: found {entry.kind} {entry.ident}")
     report = _teardown(entries, ledger, env, scratch)
     run_root_marker = f"SHOTS_PLAN={RUN_ROOT}/".encode()
     report += sweep_marked(lambda pair: pair.startswith(run_root_marker))
-    for folder in dry_folders:
-        shutil.rmtree(folder, ignore_errors=True)
-        report.append(f"removed the dry-run folder {folder}")
+    for folder in sorted(RUN_ROOT.glob("dry-*")):
+        private = Ledger(folder / "ledger.json")
+        try:
+            private_entries = private.load()
+        except (ValueError, TypeError) as error:
+            report.append(f"kept {folder}: its ledger is unreadable ({error}); read it, stop what it lists, delete it")
+            clean = False
+            continue
+        for entry in private_entries:
+            say(f"cleanup: found {entry.kind} {entry.ident} in {folder.name}")
+        report += _teardown(private_entries, private, env, scratch)
+        if _ledger_holds(private):
+            report.append(f"kept {folder}: its ledger still lists resources")
+            clean = False
+        else:
+            shutil.rmtree(folder, ignore_errors=True)
+            report.append(f"removed the dry-run folder {folder}")
     for line in report:
         say(f"cleanup: {line}")
-    if unreadable:
+    if ledger is not shared:
         say(f"cleanup: read {LEDGER_PATH}, stop anything it lists by hand, then delete it")
-        return EXIT_FAILED
-    if _ledger_left():
+    elif _ledger_left():
         say(f"cleanup: {LEDGER_PATH} still lists resources; see the lines above")
+        clean = False
+    if not clean:
+        say("cleanup: something is left; see the lines above")
         return EXIT_FAILED
     say("cleanup: nothing left")
     return EXIT_DONE
@@ -603,42 +663,49 @@ def full_run(args: argparse.Namespace) -> int:
     code = EXIT_FAILED
     try:
         with interrupts_raise():
-            for line in recover_publish(DATA_SCREENSHOTS):
-                say(f"publish recovery: {line}")
             try:
-                ledger.load()
-            except (ValueError, TypeError) as error:
-                say(f"the ledger is unreadable ({error}): run --cleanup first")
-                raise Refused from None
-            directory = Resource("directory", str(run_dir), state="intended")
-            ledger.add(directory)
-            run_dir.mkdir(mode=0o700)
-            logs.mkdir()
-            ledger.mark_acquired(directory)
-            say(f"run {run_id}: logs in {logs}")
-            FullRun(args, run_id=run_id, run_dir=run_dir, ledger=ledger, env=env).execute()
-            code = EXIT_DONE
+                if not _recover("publish recovery"):
+                    raise RunFailed("the publish recovery failed")
+                retake = _retake_problem(args.only)
+                if retake is not None:
+                    say(retake)
+                    raise Refused
+                try:
+                    ledger.load()
+                except (ValueError, TypeError) as error:
+                    say(f"the ledger is unreadable ({error}): run --cleanup first")
+                    raise Refused from None
+                directory = Resource("directory", str(run_dir), state="intended")
+                ledger.add(directory)
+                run_dir.mkdir(mode=0o700)
+                logs.mkdir()
+                ledger.mark_acquired(directory)
+                say(f"run {run_id}: logs in {logs}")
+                FullRun(args, run_id=run_id, run_dir=run_dir, ledger=ledger, env=env).execute()
+                code = EXIT_DONE
+            except Refused:
+                code = EXIT_REFUSED
+            except (RunFailed, TimeoutError, MissingParamError) as error:
+                say(f"run failed: {error.args[0] if error.args else repr(error)}")
+                log = getattr(error, "log", None)
+                if log is not None:
+                    say(f"last lines of {log}:\n{_tail(log)}")
+                code = EXIT_FAILED
+            except Exception:  # noqa: BLE001
+                traceback.print_exc()
+                code = EXIT_FAILED
     except Interrupted as interrupt:
         say(f"{interrupt}; tearing down")
         code = EXIT_INTERRUPTED
-    except Refused:
-        code = EXIT_REFUSED
-    except (RunFailed, TimeoutError, MissingParamError) as error:
-        say(f"run failed: {error.args[0] if error.args else repr(error)}")
-        log = getattr(error, "log", None)
-        if log is not None:
-            say(f"last lines of {log}:\n{_tail(log)}")
-        code = EXIT_FAILED
-    except Exception:  # noqa: BLE001
-        traceback.print_exc()
-        code = EXIT_FAILED
     finally:
         with interrupts_ignored():
-            for line in recover_publish(DATA_SCREENSHOTS):
-                say(f"publish recovery: {line}")
-            report = _teardown(ledger.owned(), ledger, env, logs if logs.is_dir() else RUN_ROOT)
-            report += sweep_marked(lambda pair: pair == plan_marker)
-            _print_teardown(report)
+            try:
+                if not _recover("publish recovery"):
+                    code = code or EXIT_FAILED
+            finally:
+                report = _teardown(ledger.owned(), ledger, env, logs if logs.is_dir() else RUN_ROOT)
+                report += sweep_marked(lambda pair: pair == plan_marker)
+                _print_teardown(report)
     say(f"exit {code}")
     return code
 
@@ -695,10 +762,14 @@ class FullRun:
         self.fixture, self.stats, self.events = asyncio.run(self.fixtures())
         self.lapi = self.start_crowdsec()
         self.start_app()
-        failure: BaseException | None = None
+        self.capture_and_publish()
+
+    # Steps 9 to 14
+    def capture_and_publish(self) -> None:
+        failure: Exception | None = None
         try:
             self.capture()
-        except (RunFailed, TimeoutError) as error:
+        except Exception as error:  # noqa: BLE001
             failure = error
         if self.args.hold:
             self.hold(failure)
@@ -932,7 +1003,7 @@ class FullRun:
         deadline = time.monotonic() + APP_READY_SECONDS
         with httpx2.Client(base_url=base, timeout=5, trust_env=False) as client:
             while True:
-                if _child_exited(app.pid):
+                if _child_exited(app.pid) is not False:
                     raise RunFailed("the app exited during startup", log=self.logs / "app.log")
                 try:
                     if client.get("/health").status_code == 200:
@@ -947,14 +1018,18 @@ class FullRun:
             login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin"})
             if not login.is_success:
                 raise RunFailed(f"login as admin answered {login.status_code}", log=self.logs / "app.log")
-        if not asyncio.run(self._marker_intact()):
-            raise RunFailed("the DROP lists no longer hold the fixture import: the app tried a real download")
-        say("app healthy, login ok, DROP marker intact")
+        self.check_drop_lists()
+        say("app healthy, login ok, DROP marker intact, DROP lists documentation-only")
 
-    async def _marker_intact(self) -> bool:
+    def check_drop_lists(self) -> None:
+        problems = asyncio.run(self._drop_problems())
+        if problems:
+            raise RunFailed("; ".join(problems))
+
+    async def _drop_problems(self) -> list[str]:
         conn = await asyncpg.connect(asyncpg_dsn(self.url))
         try:
-            return await drop_marker_intact(conn)
+            return await _drop_problems(conn)
         finally:
             await conn.close()
 
@@ -1014,7 +1089,7 @@ class FullRun:
         try:
             deadline = time.monotonic() + 60
             while "Writing about" not in stdout.read_text(errors="replace"):
-                if _child_exited(feeder.pid):
+                if _child_exited(feeder.pid) is not False:
                     raise RunFailed("the live feeder exited before it started writing", log=self.logs / "feeder.log")
                 if time.monotonic() > deadline:
                     raise RunFailed("the live feeder did not start within 60 s", log=self.logs / "feeder.log")
@@ -1030,11 +1105,7 @@ class FullRun:
         problems = []
         conn = await asyncpg.connect(asyncpg_dsn(self.url))
         try:
-            if not await drop_marker_intact(conn):
-                problems.append("the DROP lists no longer hold the fixture import: the app tried a real download")
-            listed = await documentation_only_drop_lists(conn)
-            if listed:
-                problems.append(f"DROP lists hold non-documentation entries: {', '.join(listed)}")
+            problems += await _drop_problems(conn)
             if live_since is not None:
                 problems += await _live_ip_problems(conn, live_since)
         finally:
@@ -1049,8 +1120,9 @@ class FullRun:
         return problems
 
     # Step 12
-    def hold(self, failure: BaseException | None) -> None:
-        outcome = f"capture failed: {failure.args[0]}" if failure is not None else "capture done"
+    def hold(self, failure: Exception | None) -> None:
+        reason = (failure.args[0] if failure.args else repr(failure)) if failure is not None else ""
+        outcome = f"capture failed: {reason}" if failure is not None else "capture done"
         say(outcome)
         say(f"PNGs: {self.png_dir}")
         port = self.config.app_port
@@ -1102,6 +1174,16 @@ class FullRun:
             f"published {written} written ({written - 1} images and manifest.json), {len(plan.drop)} dropped, "
             f"{len(plan.keep)} kept, {total / 1e6:.1f} MB written"
         )
+
+
+async def _drop_problems(conn: asyncpg.Connection) -> list[str]:
+    problems = []
+    if not await drop_marker_intact(conn):
+        problems.append("the DROP lists no longer hold the fixture import: the app tried a real download")
+    listed = await documentation_only_drop_lists(conn)
+    if listed:
+        problems.append(f"DROP lists hold non-documentation entries: {', '.join(listed)}")
+    return problems
 
 
 LIVE_STRANGERS_SQL: Final = """

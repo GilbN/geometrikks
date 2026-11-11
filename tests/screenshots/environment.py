@@ -176,6 +176,8 @@ class Facts:
     database_exists: bool
     containers_exist: tuple[str, ...]
     """Containers and networks labelled for a screenshot run."""
+    database_reachable: bool
+    """Whether the shared database server answered; a run with ``--own-db`` does not ask it."""
 
 
 def preflight_problems(facts: Facts) -> list[str]:
@@ -208,6 +210,10 @@ def preflight_problems(facts: Facts) -> list[str]:
     if facts.database_exists:
         problems.append(
             "The database geometrikks_screenshots already exists: run --cleanup to drop it, or pass --own-db."
+        )
+    if not facts.database_reachable:
+        problems.append(
+            "The database server at --pg-admin-url does not answer: start it, fix --pg-admin-url, or pass --own-db."
         )
     if facts.containers_exist:
         problems.append(

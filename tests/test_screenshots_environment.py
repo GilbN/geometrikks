@@ -56,6 +56,7 @@ GOOD_FACTS = Facts(
     ledger_exists=False,
     database_exists=False,
     containers_exist=(),
+    database_reachable=True,
 )
 
 PROXY_NAMES = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY")
@@ -214,6 +215,7 @@ def test_entry_point_scrubs_hostile_settings(tmp_path: Path) -> None:
         ({"docker_ok": False}, "docker info"),
         ({"ledger_exists": True}, "--cleanup"),
         ({"database_exists": True}, "geometrikks_screenshots"),
+        ({"database_reachable": False}, "does not answer"),
         ({"carto_key_set": False}, "MAP_CARTO_API_KEY"),
         ({"vite_dev_running": True}, "public/hot"),
         ({"city_db_exists": False}, "--city-db"),
