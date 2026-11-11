@@ -3,30 +3,35 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync": "node scripts/sync-content.mjs",
-    "predev": "node scripts/sync-content.mjs",
-    "dev": "astro dev",
-    "prebuild": "node scripts/sync-content.mjs",
-    "build": "astro build && node scripts/check-links.mjs",
-    "preview": "astro preview",
-    "check": "astro check",
-    "test": "node --test scripts/*.test.mjs"
+    "dev": "next dev -p 4322 -H 0.0.0.0",
+    "build": "next build",
+    "postinstall": "fumadocs-mdx",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.4",
-    "@astrojs/starlight": "^0.42.0",
-    "@astrojs/starlight-tailwind": "^5.0.0",
-    "@fontsource-variable/schibsted-grotesk": "^5.3.0",
-    "@fontsource/fragment-mono": "^5.3.0",
-    "@tailwindcss/vite": "^4.1.0",
-    "astro": "^7.3.1",
-    "sharp": "^0.35.4",
-    "tailwindcss": "^4.1.0"
+    "@fontsource-variable/schibsted-grotesk": "5.3.0",
+    "@fontsource/fragment-mono": "5.3.0",
+    "@tailwindcss/postcss": "4.3.5",
+    "flexsearch": "0.8.212",
+    "fumadocs-core": "16.18.4",
+    "fumadocs-mdx": "15.5.3",
+    "fumadocs-openapi": "12.6.0",
+    "fumadocs-ui": "16.18.4",
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "sharp": "0.35.5",
+    "simple-icons": "16.37.0",
+    "tailwindcss": "4.3.5"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.0",
-    "simple-icons": "16",
-    "typescript": "^5.9.0",
-    "wrangler": "^4.129.0"
+    "@types/bun": "1.4.4",
+    "@types/mdx": "2.0.14",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "6.0.3",
+    "wrangler": "4.158.0"
   }
 }
