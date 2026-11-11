@@ -1210,9 +1210,11 @@ class OidcSettings(BaseSettings):
         description=(
             "Issuer URL of the identity provider, e.g. https://auth.example.com. "
             "Discovery is read from {issuer}/.well-known/openid-configuration "
-            "and the iss claim must equal this value exactly. Must be https "
-            "unless the host is localhost or a loopback IP address, and must not "
-            "carry credentials, a query string or a fragment, or startup fails."
+            "and the issuer it names must match this value apart from a trailing "
+            "slash. The ID token's iss claim must equal that discovered issuer. "
+            "Must be https unless the host is localhost or a loopback IP address, "
+            "and must not carry credentials, a query string or a fragment, or "
+            "startup fails."
         ),
     )
     client_id: str | None = Field(

@@ -11,7 +11,7 @@ Set the user and password in `.env`:
 
 ```dotenv
 APP_ADMIN_USER=admin
-APP_ADMIN_PASSWORD=
+APP_ADMIN_PASSWORD=<a long random password>
 ```
 
 `APP_ADMIN_USER` defaults to `admin`. `APP_ADMIN_PASSWORD` has no default. Startup fails without it, unless OpenID Connect is set up or `APP_AUTH_DISABLED=true`.
@@ -38,17 +38,17 @@ Behind an https proxy, set `APP_SESSION_SECURE=true` so the browser only sends t
 
 ## Turning the login off
 
-If something else already controls who reaches the app, such as Authelia, Tailscale or a network only you can reach, you can turn the built-in login off:
+If a reverse proxy in front of the app already makes everyone log in, such as one guarded by Authelia or Authentik, you can turn the built-in login off:
 
 ```dotenv
 APP_AUTH_DISABLED=true
 ```
 
 <Callout type="warn">
-With `APP_AUTH_DISABLED=true` there is no login and no session. Anyone who reaches the port has full access to the app, the API and the WebSocket feeds, including ban and unban when CrowdSec has machine credentials. Use it only behind a proxy that authenticates every request, or on a network nobody else can reach.
+With `APP_AUTH_DISABLED=true` there is no login and no session. Anyone who can reach the port can use every API action, including ban and unban when CrowdSec has machine credentials. The app and the WebSocket feeds are open too. Use it only behind a proxy that authenticates every request, and keep the port closed to everything but that proxy. GeoMetrikks logs an `auth_disabled` warning at every start while it is on.
 </Callout>
 
-API keys do nothing in this mode, and you can't create them. Setting `APP_AUTH_DISABLED=true` together with OpenID Connect stops startup.
+API keys do nothing in this mode, and you can't create them. Enabling OpenID Connect together with `APP_AUTH_DISABLED=true` stops startup.
 
 ## The login log
 

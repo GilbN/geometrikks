@@ -153,7 +153,7 @@ them stops startup with an error that names the missing ones. Startup also fails
 
 | Variable | Default | Description |
 |---|---|---|
-| `OIDC_ISSUER` | - | Issuer URL of the identity provider, e.g. https://auth.example.com. Discovery is read from {issuer}/.well-known/openid-configuration and the iss claim must equal this value exactly. Must be https unless the host is localhost or a loopback IP address, and must not carry credentials, a query string or a fragment, or startup fails. |
+| `OIDC_ISSUER` | - | Issuer URL of the identity provider, e.g. https://auth.example.com. Discovery is read from {issuer}/.well-known/openid-configuration and the issuer it names must match this value apart from a trailing slash. The ID token's iss claim must equal that discovered issuer. Must be https unless the host is localhost or a loopback IP address, and must not carry credentials, a query string or a fragment, or startup fails. |
 | `OIDC_CLIENT_ID` | - | Client id registered at the identity provider. |
 | `OIDC_CLIENT_SECRET` | - | Client secret registered at the identity provider. |
 | `OIDC_REDIRECT_URI` | - | The exact callback URL registered at the identity provider: the public https address of this app plus /api/v1/auth/oidc/callback. Plain http works only on localhost or a loopback IP address, and credentials, a query string or a fragment in the URI stop startup. An https URI also needs APP_SESSION_SECURE=true, or startup fails. |

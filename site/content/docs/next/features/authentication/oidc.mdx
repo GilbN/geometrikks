@@ -10,7 +10,7 @@ GeoMetrikks can sign you in through an OpenID Connect identity provider such as 
 ```dotenv
 OIDC_ISSUER=https://auth.example.com
 OIDC_CLIENT_ID=geometrikks
-OIDC_CLIENT_SECRET=
+OIDC_CLIENT_SECRET=<client secret from the provider>
 OIDC_REDIRECT_URI=https://geo.example.com/api/v1/auth/oidc/callback
 OIDC_ALLOWED_GROUPS=admins
 APP_SESSION_SECURE=true
@@ -18,7 +18,7 @@ APP_SESSION_SECURE=true
 
 Login through the provider turns on when `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI` are all set. Setting only some of them stops startup with an error that names the missing ones. Run `docker compose up -d` after editing `.env`.
 
-`OIDC_ISSUER` is the provider's issuer URL. GeoMetrikks reads discovery from the issuer plus `/.well-known/openid-configuration`, and the ID token's `iss` claim must equal `OIDC_ISSUER` exactly. The provider's discovery has to list a userinfo endpoint and an asymmetric ID token signing algorithm such as RS256 or ES256. The client authenticates at the token endpoint with HTTP Basic, or with a form post when the provider only offers that.
+`OIDC_ISSUER` is the provider's issuer URL. GeoMetrikks reads discovery from the issuer plus `/.well-known/openid-configuration`, and the issuer the discovery document names must match `OIDC_ISSUER` apart from a trailing slash. When they differ, discovery fails and nobody can sign in through the provider. The ID token's `iss` claim must equal the issuer exactly as the discovery document spells it. The provider's discovery has to list a userinfo endpoint and an asymmetric ID token signing algorithm such as RS256 or ES256. The client authenticates at the token endpoint with HTTP Basic, or with a form post when the provider only offers that.
 
 ### The callback URL
 
@@ -45,7 +45,7 @@ GeoMetrikks checks the allow list when someone signs in. Removing a person or a 
 
 Password login stays on while `APP_ADMIN_PASSWORD` is set, so you can still get in through the password form when the provider is down. Unset it to make the provider the only way in. The login page shows a button named `Sign in with` plus `OIDC_PROVIDER_NAME`, `SSO` by default.
 
-`APP_AUTH_DISABLED=true` together with any `OIDC_*` setting stops startup.
+Enabling OpenID Connect together with `APP_AUTH_DISABLED=true` stops startup.
 
 ## Logout
 

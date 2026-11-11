@@ -119,13 +119,14 @@
     "path": "/docs/next/features/authentication/",
     "status": 200,
     "scope": "article",
-    "contains": ["APP_SESSION_MAX_AGE_DAYS", "/sw.js"]
+    "contains": ["APP_SESSION_MAX_AGE_DAYS", "/sw.js"],
+    "absent": ["a network nobody else can reach"]
   },
   {
     "path": "/docs/next/features/authentication/oidc/",
     "status": 200,
     "scope": "article",
-    "contains": ["OIDC_GROUPS_CLAIM", "APP_SESSION_MAX_AGE_DAYS"],
+    "contains": ["OIDC_GROUPS_CLAIM", "APP_SESSION_MAX_AGE_DAYS", "apart from a trailing slash"],
     "absent": ["at the latest 7 days later"]
   },
   {

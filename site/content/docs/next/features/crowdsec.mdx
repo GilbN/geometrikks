@@ -58,7 +58,7 @@ A ban or unban from a menu or button waits 5 seconds before it reaches CrowdSec,
 
 The ban dialog takes an IP or a CIDR range, a ban or a captcha, a preset or custom duration such as `90m`, `12h` or `3d`, and an optional reason. A captcha only works with a bouncer that has captcha set up. The dialog starts at 4 hours whatever the setting below says, and sends the decision as soon as you submit it, with no Undo window. Forever is a 10-year ban. A ban request over the API without a duration lasts `CROWDSEC_DEFAULT_BAN_DURATION`, `4h` by default.
 
-Every manual decision carries origin `geometrikks` and the scenario `geometrikks/manual-ban` or `geometrikks/manual-captcha`. Without a reason it says `manual ban from GeoMetrikks`. The app log records every ban and unban with the user who made it, or `api-key:<name>` for an API key.
+Every manual decision carries origin `geometrikks` and the scenario `geometrikks/manual-ban` or `geometrikks/manual-captcha`. Without a reason it says `manual ban from GeoMetrikks`, or `manual captcha from GeoMetrikks` for a captcha. The app log records every ban and unban with the user who made it, or `api-key:<name>` for an API key.
 
 An unban deletes every active decision on exactly that IP or range, from any origin. A range decision that covers the IP stays in place, so unban the range to lift it.
 
@@ -77,7 +77,7 @@ Select an alert to open its context, events and decisions. In the Banned map pop
 
 ### Bot detection
 
-CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects clients whose fingerprint scores like an automation tool. Each rejection is an alert of kind `bot-detection` with no decision of its own, so it never shows up as a ban. With machine credentials the Security page lists these alerts and opens them with the challenge outcome, the score and the signals behind it. The challenge itself needs the AppSec component and a bouncer that supports it. The [CrowdSec docs](https://docs.crowdsec.net/docs/appsec/bot_detection/intro/) cover that setup.
+CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects clients whose fingerprint scores like an automation tool. Each rejection is an alert of kind `bot-detection` with no decision of its own. The hub scenarios `crowdsecurity/appsec-bot-challenge-too-many-requests` and `crowdsecurity/appsec-bot-challenge-too-many-submissions` can still ban a client that keeps failing the challenge, and those bans show up like any other. With machine credentials the Security page lists these alerts and opens them with the challenge outcome, the score and the signals behind it. The challenge itself needs the AppSec component and a bouncer that supports it. The [CrowdSec docs](https://docs.crowdsec.net/docs/appsec/bot_detection/intro/) cover that setup.
 
 The alert history filters by kind. Requirements:
 
@@ -97,7 +97,7 @@ The alert history filters by kind. Requirements:
 | `CROWDSEC_REQUEST_TIMEOUT` | `10` | Seconds before a LAPI request gives up. |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15` | Seconds between polls of the decision stream behind the live updates. |
 
-The [configuration reference](../reference/configuration.mdx#crowdsec) has the same rows.
+The [configuration reference](../reference/configuration.mdx#crowdsec) lists the first six rows under CrowdSec. `CROWDSEC_REQUEST_TIMEOUT` and `CROWDSEC_STREAM_POLL_INTERVAL` are under [Advanced tuning](../reference/configuration.mdx#advanced-tuning) there.
 
 ## Networking
 
