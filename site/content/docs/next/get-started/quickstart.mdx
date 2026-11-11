@@ -1,0 +1,69 @@
+---
+title: Quickstart
+description: Run GeoMetrikks and its database with Docker Compose and point it at your proxy's access logs.
+---
+
+You need Docker with the Compose plugin. The image is published to GHCR for `amd64` and `arm64`.
+
+## Download the compose file and the settings
+
+```bash
+mkdir geometrikks && cd geometrikks
+curl -LO https://raw.githubusercontent.com/GilbN/geometrikks/main/docker-compose.yml
+curl -Lo .env https://raw.githubusercontent.com/GilbN/geometrikks/main/.env.example
+```
+
+The compose file starts two containers: `timescale_db`, the database, and `app`, GeoMetrikks itself. The app reads every setting in `.env`, and the database takes its password from `DB_PASSWORD` in the same file.
+
+## Fill in .env
+
+Open `.env` and set these values:
+
+| Setting | What to put there |
+| --- | --- |
+| `APP_ADMIN_PASSWORD` | The password for the web UI login. The user name is `APP_ADMIN_USER`, `admin` unless you change it. Startup fails while the password is empty, unless you set up OpenID Connect or `APP_AUTH_DISABLED=true`. |
+| `DB_PASSWORD` | The database password. Both containers read it, and `.env.example` ships `geopass`, so change it before the first start. |
+| `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` | Your free MaxMind account ID and license key. Without them the app has no GeoLite2 database and records no traffic. See [GeoLite2 and the CARTO key](./geolite2.mdx). |
+| `MAP_CARTO_API_KEY` | Your free CARTO basemap key, covered on the same page. |
+| `ACCESS_LOG_DIR` | The folder on the host where your proxy writes its access logs. `.env.example` has no line for it, so add one, for example `ACCESS_LOG_DIR=/opt/swag/log/nginx`. Unset, the compose file mounts `/var/log/nginx`. |
+| `LOGPARSER_SERVER_NAME` | A name for this server. `.env.example` ships `LOGPARSER_SERVER_NAME=my-server`, so every request shows `my-server` as its server until you change it. |
+
+## Start it
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:8000`, or port 8000 on the machine's address, and log in with `APP_ADMIN_USER` and `APP_ADMIN_PASSWORD`.
+
+When you edit `.env` later, run `docker compose up -d` again. Compose sees the changed file, recreates the `app` container and the new values apply. `docker compose restart` restarts the old container with the values it was created with, so your edit does nothing.
+
+Started without MaxMind keys, the app runs in geo-degraded mode. The UI and API work, but ingestion waits, and a banner says which settings to add. Add the keys and run `docker compose up -d`.
+
+## Point it at your logs
+
+The compose file mounts `ACCESS_LOG_DIR` read-only at `/var/log/access` inside the container. `LOGPARSER_LOG_PATHS` names the files to tail as the container sees them, so every path starts with `/var/log/access/`. `.env.example` sets `LOGPARSER_LOG_PATHS=/var/log/access/access.log`. If your proxy writes `$ACCESS_LOG_DIR/proxy.log`, set it to `/var/log/access/proxy.log`. A path outside the mount is a file the container can't see, and that source records nothing.
+
+Your proxy has to write a log GeoMetrikks can parse. nginx needs a JSON `log_format`, Nginx Proxy Manager needs a second log next to its own, and Traefik and Caddy need their JSON access log written to a file instead of stdout. Pangolin uses Traefik's log. You can also skip the file and read the lines from Grafana Loki with `LOKI_URL`. The Log sources section of these docs has a setup page for each.
+
+Once requests arrive, Settings > Status lists each log file and Loki selector with its state, and Debug Logs shows the lines that failed to parse.
+
+## Docker image tags
+
+Images are published as `ghcr.io/gilbn/geometrikks`. The compose file uses `latest`.
+
+| Tag | Example | What it points at |
+| --- | --- | --- |
+| `X.Y.Z` | `0.24.0` | One stable release. It never moves, so use it for reproducible deployments. |
+| `X.Y` | `0.24` | The newest stable patch release of that minor series. |
+| `latest` | `latest` | The newest stable release. |
+| `develop` | `develop` | The newest development release. It moves with every one. |
+| `X.Y.Z-dev.N` | `0.25.0-dev.1` | One development build of an upcoming release, for testing. |
+
+To pin a version, change the `image:` line of the `app` service:
+
+```yaml
+image: ghcr.io/gilbn/geometrikks:0.24.0
+```
+
+[Upgrading](./upgrading.mdx) covers moving to a newer tag.

@@ -4,7 +4,32 @@
   {
     "path": "/docs/next/",
     "status": 200,
-    "contains": ["GeoMetrikks docs", "noindex", "rel=\"canonical\" href=\"https://geometrikks.dev/docs/next/\""]
+    "contains": ["noindex", "rel=\"canonical\" href=\"https://geometrikks.dev/docs/next/\""]
+  },
+  {
+    "path": "/docs/next/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["Introduction", "api.github.com", "www.spamhaus.org", "RDAP"]
+  },
+  {
+    "path": "/docs/next/get-started/quickstart/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["docker compose up -d"],
+    "absent": ["restart the app container"]
+  },
+  {
+    "path": "/docs/next/get-started/geolite2/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["GEOIP_LOCALES", "docker compose up -d"]
+  },
+  {
+    "path": "/docs/next/get-started/upgrading/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["backfill-timings", "NGINX_LOG_DIR"]
   },
   { "path": "/api/search", "status": 200, "contains": ["Check that the app is up"] },
   { "path": "/no-such-page/", "status": 404, "contains": ["href=\"/docs/\""] },

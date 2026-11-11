@@ -1,8 +1,55 @@
 ---
-title: GeoMetrikks docs
-description: How to install, configure and run GeoMetrikks.
+title: Introduction
+description: What GeoMetrikks does, what it runs on and which outside services it contacts.
 ---
 
-The docs are moving to this site. Until the move is done, the [README on GitHub](https://github.com/GilbN/geometrikks#readme) is the documentation.
+GeoMetrikks reads the access logs your reverse proxy writes, looks up where each request came from in MaxMind's GeoLite2 databases, and shows the result on a live world map and a traffic analytics dashboard. If you run CrowdSec, it connects to the CrowdSec Local API, so you can see who is banned next to the traffic they sent and ban or unban an IP from the app.
 
-The configuration and API references below are already generated from the code.
+![The live map with request routes flying to the server](/screenshots/live.webp)
+
+## What it reads
+
+GeoMetrikks tails log files from nginx, Nginx Proxy Manager, Traefik and Caddy. Pangolin works through its Traefik log. If your proxies already ship their logs to Grafana Loki, GeoMetrikks can read the lines from Loki instead of a mounted file, or do both side by side. Archived and rotated logs, plain or `.gz`, can be imported after the fact.
+
+With several proxies or hosts, each request records the server it came from, and Access Logs, Geo Logs and the map filter by server.
+
+## What you get
+
+The Overview page shows requests, bytes, unique visitors and the status mix for the selected time range, with trends against the previous range.
+
+![The Overview page with request, visitor and status cards](/screenshots/dashboard.webp)
+
+The map draws every ingested request within seconds. Click a marker to see the request, the city and the network behind it.
+
+![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
+
+Analytics has request volume, latency and bandwidth charts, top URLs, user agents, status codes and the networks (ASNs) your traffic comes from. Access Logs is a searchable history of every request, Geo Logs groups traffic by location, and Debug Logs shows lines that failed to parse.
+
+## How it runs
+
+GeoMetrikks is one container, `ghcr.io/gilbn/geometrikks`, plus a TimescaleDB database, which is PostgreSQL with the TimescaleDB extension. The compose file in the repository starts both. The app serves its web UI and API on port 8000, and the image runs on `amd64` and `arm64`.
+
+## Outbound traffic
+
+The server makes these requests on its own:
+
+| What | Where to | When | How to turn it off |
+| --- | --- | --- | --- |
+| GeoLite2 City and ASN download | `download.maxmind.com` | At startup when the file is missing or older than `GEOIP_REFRESH_DAYS` (default 7), then every `GEOIP_REFRESH_DAYS` | Leave `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` unset. Without a database file the app has no geo lookups. `GEOIP_ASN_ENABLED=false` skips only the ASN download. |
+| Public-IP lookup for the server's map location | `api64.ipify.org` by default (`MAP_PUBLIC_IP_URL`) | At startup, then every `MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24) | `MAP_AUTO_DETECT_SERVER_LOCATION=false`, or set `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE` |
+| Update check | `api.github.com` | Every 12 hours | `APP_UPDATE_CHECK=false` |
+| Spamhaus DROP lists | `www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
+| Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC) | Only when someone clicks Find abuse contact in an abuse report, or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
+
+The update check and the DROP lists run on the full instance only, never on an agent.
+
+On top of these, the server talks to the services you configure: the CrowdSec Local API (`CROWDSEC_LAPI_URL`), Loki (`LOKI_URL`) and your OpenID Connect provider (`OIDC_ISSUER`). Each one stays unused until you set it.
+
+The map's basemap tiles come from CARTO. The reader's browser fetches them from `basemaps.cartocdn.com`, not the server, and sends the key in `MAP_CARTO_API_KEY` with every tile request.
+
+## Where to go next
+
+- [Quickstart](./get-started/quickstart.mdx) gets the app running with Docker Compose.
+- [GeoLite2 and the CARTO key](./get-started/geolite2.mdx) covers the two free keys the app needs.
+- [Upgrading](./get-started/upgrading.mdx) lists what changes between releases and the one-off commands some upgrades need.
+- The [configuration reference](./reference/configuration.mdx) lists every setting with its default.

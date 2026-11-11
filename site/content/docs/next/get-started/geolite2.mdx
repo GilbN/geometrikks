@@ -1,0 +1,66 @@
+---
+title: GeoLite2 and the CARTO key
+description: Set up the free MaxMind and CARTO keys that geo lookups and the map basemap need.
+---
+
+GeoMetrikks needs two free keys. MaxMind's key lets it download the GeoLite2 databases that turn an IP address into a place and a network. CARTO's key goes with every basemap tile the map loads.
+
+## MaxMind GeoLite2
+
+Sign up at [maxmind.com/en/geolite2/signup](https://www.maxmind.com/en/geolite2/signup), then generate a license key in your account. Put your account ID and the key in `.env`:
+
+```bash
+MAXMINDDB_USER_ID=<your-account-id>
+MAXMINDDB_LICENSE_KEY=<your-license-key>
+```
+
+Then run `docker compose up -d`. Compose recreates the app container with the new values, and the app downloads the databases at startup. `docker compose restart` keeps the old container and its old values, so the keys would not reach the app.
+
+Using the databases means accepting the [GeoLite2 EULA](https://www.maxmind.com/en/geolite2/eula).
+
+### What gets downloaded
+
+Two databases, both with the same key:
+
+- GeoLite2 City places each request on the map and feeds the country and city filters and the geo analytics.
+- GeoLite2 ASN adds the network (AS number and organization) behind each request, for Top ASNs and the ASN filters. Set `GEOIP_ASN_ENABLED=false` to skip it. It defaults to `true`. Without the ASN database the app still ingests traffic, just without network data.
+
+The files live in `/app/data/geoip` inside the container. The compose file keeps that folder on the `geoip_data` volume, so a recreated container keeps its databases. You never handle the `.mmdb` files yourself.
+
+### Refresh
+
+At startup the app downloads a database that is missing or older than `GEOIP_REFRESH_DAYS` (default 7). A scheduled job then downloads fresh copies every `GEOIP_REFRESH_DAYS` days. Settings > Scheduler lists it as "Refresh GeoLite2 databases from MaxMind", and its Run now button fetches new copies straight away. When the files change, ingestion switches to the new ones without a restart.
+
+Without keys, the app keeps whatever database file it already has and warns in the log once it is older than `GEOIP_REFRESH_DAYS`. The EULA requires a refresh within 30 days.
+
+### Place-name language
+
+`GEOIP_LOCALES` sets the language of country and city names, as a JSON list. The default is `["en"]`. The allowed values are the languages GeoLite2 carries: `de`, `en`, `es`, `fr`, `ja`, `pt-BR`, `ru` and `zh-CN`. Startup fails on any other value, with an error that lists the allowed ones. For German names:
+
+```bash
+GEOIP_LOCALES=["de"]
+```
+
+With more than one entry, each name comes from the first language in the list that has one.
+
+### Geo-degraded mode
+
+If the app has no usable GeoLite2 City database, it starts in geo-degraded mode. The UI and the API work and show the data already stored, but ingestion does not start, so no new traffic is recorded. A banner at the top of the UI says which settings to add.
+
+Ingestion starts by itself once a database file appears. This happens the next time the GeoLite2 refresh job runs, either on its schedule or from Run now on Settings > Scheduler. It also picks up a file you place in `/app/data/geoip` yourself. If the keys were missing, add them and run `docker compose up -d`, which downloads the database at startup.
+
+## CARTO basemap key
+
+The map draws its basemap from [CARTO](https://carto.com/basemaps), with OpenStreetMap data. CARTO's terms want one API key per deployment, so every GeoMetrikks install needs its own. Keys are free; request one at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) and set it in `.env`:
+
+```bash
+MAP_CARTO_API_KEY=<your-key>
+```
+
+Then run `docker compose up -d`.
+
+The reader's browser sends the key with every basemap request, so anyone who opens the map can see it. Treat it as public. Without a key the map loads today, but CARTO may watermark or refuse keyless tiles at any time.
+
+The map shows the CARTO and OpenStreetMap attribution in its corner. Both licenses require it, so keep it visible.
+
+The other GeoIP and map settings are in the configuration reference under [GeoIP](../reference/configuration.mdx#geoip) and [Map](../reference/configuration.mdx#map).
