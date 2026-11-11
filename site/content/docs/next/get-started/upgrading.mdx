@@ -39,7 +39,7 @@ The compose file mounts the log folder from `ACCESS_LOG_DIR`. It falls back to t
 
 ## The positional nginx format
 
-Before the `geometrikks-json` format existed, the docs described a positional nginx `log_format` (`LOGPARSER_LOG_FORMATS=nginx`). It still works for live tailing and for `import-logs`, so an install that uses it needs no change, and archives written in it import as before. New setups should use `geometrikks-json`, which rejects a broken line instead of putting values in the wrong columns. The nginx page in the Log sources section has both formats.
+Before the `geometrikks-json` format existed, the docs described a positional nginx `log_format` (`LOGPARSER_LOG_FORMATS=nginx`). It still works for live tailing and for `import-logs`, so an install that uses it needs no change, and archives written in it import as before. New setups should use `geometrikks-json`, which rejects a broken line instead of putting values in the wrong columns. The [nginx page](../sources/nginx.mdx#the-positional-nginx-format) has both formats.
 
 ## Hostname became server
 

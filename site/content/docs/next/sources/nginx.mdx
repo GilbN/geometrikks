@@ -1,0 +1,115 @@
+---
+title: nginx
+description: Make nginx write the geometrikks-json access log and point GeoMetrikks at it.
+---
+
+GeoMetrikks reads a keyed JSON access log called `geometrikks-json`. nginx writes it once you add a `log_format` and use it on an `access_log`.
+
+## Add the log format
+
+Put this `log_format` in the `http` block of your `nginx.conf`. It needs nginx 1.11.8 or later, the first release with `escape=json`.
+
+```nginx
+log_format geometrikks_json escape=json
+  '{'
+    '"client_ip":"$remote_addr",'
+    '"timestamp":"$time_iso8601",'
+    '"method":"$request_method",'
+    '"path":"$request_uri",'
+    '"protocol":"$server_protocol",'
+    '"status":"$status",'
+    '"bytes":"$body_bytes_sent",'
+    '"host":"$host",'
+    '"referrer":"$http_referer",'
+    '"user_agent":"$http_user_agent",'
+    '"remote_user":"$remote_user",'
+    '"request_time":"$request_time",'
+    '"upstream_time":"$upstream_response_time",'
+    '"request_raw":"$request"'
+  '}';
+```
+
+Then use it on the access log GeoMetrikks should tail. This path is the one SWAG and other linuxserver nginx images use. On a plain nginx install, pick your own, for example `/var/log/nginx/access.log`.
+
+```nginx
+access_log /config/log/nginx/access.log geometrikks_json;
+```
+
+Reload nginx. New requests now go into that file as one JSON object per line.
+
+## Rules for the format
+
+- Keep every value quoted, numbers included. nginx has no typed output, and an unquoted empty variable breaks the line.
+- Keep `escape=json`. Without it, a quote inside a user agent produces invalid JSON, and GeoMetrikks skips the line and counts it as unparseable.
+- `client_ip` and `timestamp` are the only required keys. The timestamp needs a UTC offset, which `$time_iso8601` always writes. A line without either key, or with a timestamp that has no offset, is skipped.
+- Drop any other key and the feature it feeds goes empty. `host` feeds the host filter, and `request_time` and `upstream_time` feed the response-time analytics.
+- Add your own keys if another tool reads the same file. GeoMetrikks ignores keys it doesn't know.
+- `escape=json` leaves bytes above `0x7f` as they are, so a probe can write bytes that aren't valid UTF-8. GeoMetrikks replaces them with U+FFFD and still reads the line.
+
+## Point GeoMetrikks at the file
+
+Set the folder that holds the log as `ACCESS_LOG_DIR` in `.env`. The compose file mounts it read-only at `/var/log/access`, so `LOGPARSER_LOG_PATHS` names the file under that path:
+
+```dotenv
+ACCESS_LOG_DIR=/opt/swag/log/nginx
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+LOGPARSER_LOG_FORMATS=geometrikks-json
+```
+
+Run `docker compose up -d` to recreate the container with the new mount. `LOGPARSER_LOG_FORMATS` defaults to `auto`, which detects the format from the file's lines. Setting it to `geometrikks-json` pins the parser to this format.
+
+`$remote_addr` is the visitor's address only when nginx sees the visitor directly. Behind a CDN, a tunnel or another proxy it is that hop's address, and the map shows the hop. [Real client IP behind a proxy](./proxy-setup.mdx#nginx) has the `realip` lines that make nginx log the visitor.
+
+## Several log files
+
+`LOGPARSER_LOG_PATHS` takes one path or a JSON list, so nginx can log to more than one file and GeoMetrikks tails each of them:
+
+```nginx
+access_log /config/log/nginx/somepage/access.log geometrikks_json;
+access_log /config/log/nginx/access.log geometrikks_json;
+```
+
+```dotenv
+LOGPARSER_LOG_PATHS=["/var/log/access/access.log", "/var/log/access/somepage/access.log"]
+```
+
+`LOGPARSER_LOG_FORMATS` and `LOGPARSER_SERVER_NAME` work the same way. A single value applies to every file. A JSON list sets one value per file, matched to `LOGPARSER_LOG_PATHS` by position, so the second format and the second server name belong to the second path. A list of any other length fails startup.
+
+```dotenv
+LOGPARSER_LOG_FORMATS=["geometrikks-json", "nginx"]
+LOGPARSER_SERVER_NAME=["edge-01", "somepage"]
+```
+
+## The positional nginx format
+
+GeoMetrikks also reads this positional format, named `nginx`. It works for live tailing and for `import-logs`. Use `geometrikks-json` on a new setup.
+
+```nginx
+log_format custom '$remote_addr - $remote_user [$time_local] '
+        '"$request" $status $body_bytes_sent '
+        '"$http_referer" $host "$http_user_agent" '
+        '"$request_time" "$upstream_response_time"';
+```
+
+The parser matches this format on position and quoting, not on field names. A rearranged format can put values in the wrong columns instead of failing. Four rules keep it working:
+
+- Use `$time_local`. A file that uses `$time_iso8601` matches nothing and produces no rows.
+- Keep `$host` unquoted, between `"$http_referer"` and `"$http_user_agent"`. Quote it and the line still parses, but the host name lands in the user agent column and `host` comes out empty.
+- Keep `$request_time` and `$upstream_response_time` quoted. Unquoted, the parser drops both and the request has no response time.
+- Append extra fields only after both timing fields. The parser fills the two timing slots by quoting alone, so on a format without them an extra quoted field lands in `$request_time`. A value that isn't a number, such as `"$http_x_forwarded_for"`, is thrown away. A numeric one is recorded and charted as a response time.
+
+`LOGPARSER_LOG_FORMATS=nginx` pins the parser to this format.
+
+## Backfilling archives in nginx's own format
+
+Lines in nginx's built-in `combined` format parse as `nginx` too, so you can import archives you already have with `import-logs`, the import command in the CLI section of these docs. Three fields are missing from those lines, and nothing can recover them later:
+
+| Missing field | What it costs you |
+| --- | --- |
+| `$host` | The host filter on Access Logs and Analytics has nothing to list for those rows. |
+| `$request_time` | Response-time cards show n/a for those rows. Some older imports carry a placeholder `0.0` instead; [Upgrading](../get-started/upgrading.mdx#one-off-backfills) has the command that clears it. |
+| `$upstream_response_time` | Upstream timing stays empty in the request's detail view. |
+
+The map, geo analytics, status codes, URLs, referrers, user agents and bytes are unaffected.
+
+With `LOGPARSER_LOG_FORMATS=auto`, a file that matches no format in full but whose lines start with an IP address and a bracketed timestamp gets the relaxed match. GeoMetrikks then records those requests as map events only, with no Access Logs rows, and logs a warning that it is streaming without access log objects. The same holds for an import. A pinned format whose lines fail the startup check degrades the same way. The fix is a format GeoMetrikks parses in full, such as `geometrikks-json`.

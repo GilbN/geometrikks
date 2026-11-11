@@ -18,6 +18,8 @@ const EXTRA_ENV_NAMES = new Set([
   "IT_DB_NAME",
   "DISABLE_ROTATION_CHECK",
   "DISABLE_WAIT",
+  // linuxserver image variable; proxy-setup's SWAG real-ip mod (`DOCKER_MODS=linuxserver/mods:swag-cloudflare-real-ip`).
+  "DOCKER_MODS",
   // Legacy names: the fields carrying LEGACY_FIELD_MARKER in geometrikks/config/settings.py.
   "LOGPARSER_HOST_NAME",
   "MAP_HOME_LOCATIONS",

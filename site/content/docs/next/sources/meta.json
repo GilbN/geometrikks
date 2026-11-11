@@ -1,0 +1,4 @@
+{
+  "title": "Log sources",
+  "pages": ["nginx", "nginx-proxy-manager", "traefik", "caddy", "loki", "multiple-sources", "proxy-setup"]
+}
