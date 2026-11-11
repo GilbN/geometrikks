@@ -1,0 +1,53 @@
+---
+title: API conventions
+description: The rules every GeoMetrikks API endpoint follows for versioning, field casing, errors and operation IDs, and where the code enforces them.
+---
+
+These are the rules for adding or changing an endpoint. `tests/test_error_contract.py` and the generated OpenAPI document in `resources/generated/openapi.json` pin them. If you change one, regenerate the frontend client in the same change, as [Generated API types](./development.mdx#generated-api-types) describes, and add a migration note to the changelog. Otherwise scripts written against the old shape break with no notice.
+
+The [API reference](../reference/api/index.mdx) covers what API consumers see, such as authentication, the error codes and paging.
+
+## Versioning
+
+Every REST endpoint lives under `/api/v1`. `geometrikks/server/routes.py` mounts all API controllers on one Litestar `Router` with that prefix, and no other file registers a controller. Controllers live in their domain package, in `geometrikks/domain/<domain>/controllers.py` or a `controllers/` package, and declare only their own segment, such as `/analytics` or `/crowdsec`; the router adds the version prefix. `geometrikks/server/api_version.py` holds the version number, which the OpenAPI document and the connection check report.
+
+Routes outside the router are the WebSocket feeds (`/ws/live`, `/ws/logs`, `/ws/crowdsec`), the probes (`/health`, `/health/ready`), the OpenAPI document at `/schema`, the service worker and the web UI.
+
+A breaking change to `/api/v1` means a renamed or removed field, path or query parameter, a changed type, or a new required parameter. It needs the client regenerated and a changelog migration note in the same change. Adding an optional field or parameter is not breaking.
+
+## Field casing
+
+Request and response fields are camelCase on the wire. Python attributes stay snake_case.
+
+- Responses built from SQLAlchemy models use Advanced Alchemy DTOs with `rename_strategy="camel"`.
+- Other request and response models are msgspec Structs declared with `rename="camel"`, in the domain package's `schemas.py` or `dtos.py`, or next to their controller. `geometrikks/domain/geo/schemas.py` shows the pattern.
+- Names with a digit after an underscore pin their wire name with `msgspec.field(name=...)`. msgspec's camel rename would turn `status_2xx` into `status2Xx`, so the code declares `status_2xx: int = msgspec.field(name="status2xx")`.
+- Query parameters declare their camelCase name explicitly with `name=`, such as `fromTimestamp`, `startDate` or `ipAddressNotIn`. Shared parameters live in `geometrikks/lib/parameters.py`.
+- Path parameters are URL segments, not fields, and stay snake_case: `{location_id}`, `{job_id}`.
+- WebSocket frames are a separate contract. The [WebSocket messages](../reference/api-guides/websockets.mdx) guide documents their shape.
+
+Data values keep their own spelling. `SettingFieldView.key` carries the Python field name of a setting, such as `raw_retention_days`. Records from `/api/v1/logs/tail` keep the structlog context keys they were logged with, such as `request_id` and `status_code`. Renaming them would misrepresent the log. OpenAPI documents only the stable record fields.
+
+## Errors
+
+Error responses keep Litestar's envelope and add a machine-readable `code`:
+
+```json
+{"status_code": 404, "detail": "Not Found", "code": "not_found"}
+```
+
+The camelCase rule covers successful responses only. The envelope keys are the framework's, so they stay snake_case.
+
+`geometrikks/server/exceptions.py` builds every error response:
+
+- `handle_http_exception` adds `code` to each `HTTPException` on an `/api/` path. A `code` attribute on the exception class wins, such as `api_key_invalid` on `InvalidApiKeyError`. A `ValidationException` gets `validation_failed`, with the per-field breakdown in `extra`. Anything else gets the code for its status from `_STATUS_CODES`, or `http_error` when the status has none.
+- A 500 replaces `detail` with `Internal Server Error`, so exception text never reaches the client. With `APP_DEBUG=true` the response carries the traceback instead.
+- Domain code raises `DomainValidationError`, `DomainNotFoundError` or `DomainConflictError` from `geometrikks/domain/exceptions.py`, never an HTTP exception. They map to 400, 404 and 409 in the same envelope, with the default codes `invalid_request`, `not_found` and `conflict`. Pass `code=` for a more specific one, such as `invalid_range`.
+- CrowdSec and RDAP client errors have their own handlers, with the codes `crowdsec_unreachable`, `crowdsec_credentials_rejected`, `crowdsec_unsupported` and `rdap_unavailable`.
+- `handle_not_found` gives every 404 under `/api/` the JSON envelope, including unknown and unversioned paths, matching the auth boundary. Other 404s, such as a missing static asset, keep an empty body.
+
+A new error code is part of the contract. Name it in the Errors section of the intro text in `geometrikks/server/openapi_docs.py`, which becomes the intro of the [API reference](../reference/api/index.mdx), and cover it in `tests/test_error_contract.py`.
+
+## Operation IDs
+
+OpenAPI operation IDs use Litestar's default, derived from the path and handler function name: `GET /api/v1/analytics/summary`, handled by `get_summary`, is `ApiV1AnalyticsSummaryGetSummary`. The generated TypeScript client names its functions and types after them, so the summary call is `apiV1AnalyticsSummaryGetSummary`. Moving a route or renaming a handler renames its client function, so keep full paths stable or update every caller in the same change.

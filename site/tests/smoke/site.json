@@ -224,6 +224,20 @@
     "contains": ["Check that the app is up and how its parts are doing", "https://geometrikks.example.com/health"],
     "absent": ["'https://example.com/health", "https://geometrikks.dev/health"]
   },
+  {
+    "path": "/docs/next/contribute/development/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["VITE_DEV_MODE=true", "--ignore=tests/integration"],
+    "absent": ["pip install uv", "--all-extras"]
+  },
+  {
+    "path": "/docs/next/contribute/api-conventions/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["ApiV1AnalyticsSummaryGetSummary", "status_2xx"],
+    "absent": ["0.7.0", "request_count_24h", "realtime refactor"]
+  },
   { "path": "/docs/next/reference/changelog/", "status": 200, "contains": ["Unreleased"] },
   { "path": "/docs/next/reference/security/", "status": 200 }
 ]

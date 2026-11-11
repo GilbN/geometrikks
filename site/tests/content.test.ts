@@ -18,6 +18,10 @@ const EXTRA_ENV_NAMES = new Set([
   "IT_DB_NAME",
   "DISABLE_ROTATION_CHECK",
   "DISABLE_WAIT",
+  // Playwright smoke suite settings, read by playwright.config.ts and tests/browser/.
+  "SMOKE_BASE_URL",
+  "SMOKE_ADMIN_USER",
+  "SMOKE_ADMIN_PASSWORD",
   // linuxserver image variable; proxy-setup's SWAG real-ip mod (`DOCKER_MODS=linuxserver/mods:swag-cloudflare-real-ip`).
   "DOCKER_MODS",
   // Legacy names: the fields carrying LEGACY_FIELD_MARKER in geometrikks/config/settings.py.
