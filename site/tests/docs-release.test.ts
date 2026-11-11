@@ -177,6 +177,8 @@ describe("releaseDocs", () => {
   test.each([
     "[a](https://geometrikks.dev/docs/next/quickstart/)",
     '<a href="/docs/next/quickstart/">a</a>',
+    '<a href = "/docs/next/quickstart/">Guide</a>',
+    '<img src\n=\n{"/docs/next/a.png"} />',
     "[a](/docs/next)",
     "[ref]: /docs/next/quickstart/",
   ])("the link %p into next fails", async (link) => {
@@ -185,6 +187,7 @@ describe("releaseDocs", () => {
     await expect(
       releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
     ).rejects.toThrow(/relative/);
+    expect(existsSync(`${dir}/docs/0.25.0`)).toBe(false);
   });
 
   test("prose that mentions the next path is not a link", async () => {
@@ -194,7 +197,7 @@ describe("releaseDocs", () => {
     expect(existsSync(`${dir}/docs/0.25.0/index.mdx`)).toBe(true);
   });
 
-  test.each(["next.mdx", "next/index.mdx"])("a top-level page with the slug next fails: %p", async (page) => {
+  test.each(["next.mdx", "next/index.mdx", "(guides)/next.mdx", "(guides)/next/index.mdx"])("a top-level page with the slug next fails: %p", async (page) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next", page), "---\ntitle: Next\n---\n");
     const release = releaseDocs({
@@ -204,7 +207,7 @@ describe("releaseDocs", () => {
       isPublished: published("0.24.0"),
     });
     await expect(release).rejects.toThrow(/slug next/);
-    await expect(release).rejects.toThrow(page.split("/")[0]);
+    await expect(release).rejects.toThrow(page);
     expect(existsSync(`${dir}/docs/0.25.0`)).toBe(false);
   });
 

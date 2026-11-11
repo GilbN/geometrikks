@@ -15,7 +15,7 @@ export type ReleaseOptions = {
 export type ReleaseResult = { folder: string; refreshed: boolean; dropped: string[] };
 
 const NEXT_LINK =
-  /(?:\]\(\s*<?|\b(?:href|src)=\{?\s*["'`]|^\s*\[[^\]]+\]:\s*<?)(?:https?:\/\/[^/\s)"'`>]+)?\/docs\/next(?=[/)#?"'`>\s]|$)/m;
+  /(?:\]\(\s*<?|\b(?:href|src)\s*=\s*\{?\s*["'`]|^\s*\[[^\]]+\]:\s*<?)(?:https?:\/\/[^/\s)"'`>]+)?\/docs\/next(?=[/)#?"'`>\s]|$)/m;
 
 function walk(root: string, prefix = ""): string[] {
   const paths: string[] = [];
@@ -25,6 +25,14 @@ function walk(root: string, prefix = ""): string[] {
     if (entry.isDirectory()) paths.push(...walk(root, path));
   }
   return paths;
+}
+
+function firstSlug(path: string): string | undefined {
+  const segments = path.split("/");
+  const name = segments.pop()!.replace(/\.mdx?$/, "");
+  const slugs = segments.filter((segment) => !/^\(.+\)$/.test(segment));
+  if (name !== "index") slugs.push(name);
+  return slugs[0];
 }
 
 function gitIgnored(cwd: string, paths: string[]): Set<string> {
@@ -73,7 +81,7 @@ export async function releaseDocs(opts: ReleaseOptions): Promise<ReleaseResult> 
   const copied = allPaths.filter((path) => !isSkipped(path, ignored));
   const shown = (path: string) => relative(contentDir, join(nextDir, path)).split(sep).join("/");
 
-  const nextSlug = copied.filter((path) => path === "next" || path === "next.mdx" || path === "next.md");
+  const nextSlug = copied.filter((path) => /\.mdx?$/.test(path) && firstSlug(path) === NEXT);
   if (nextSlug.length > 0) {
     throw new Error(
       `${nextSlug.map(shown).join(", ")} would get the top-level slug next, which clashes with /docs/next/; rename it`,
