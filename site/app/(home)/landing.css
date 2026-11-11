@@ -190,7 +190,7 @@ pre.block .k {
 @layer base {
   @media (scripting: none) {
     [role="tabpanel"][hidden] {
-      display: block !important;
+      display: var(--panel-display, block) !important;
     }
   }
 }

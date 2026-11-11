@@ -400,4 +400,5 @@ site/.source/
 site/.generated/
 site/next-env.d.ts
 site/public/screenshots/
+site/public/land-dots.svg
 site/.wrangler/
