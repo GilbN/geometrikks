@@ -8,12 +8,14 @@
  */
 import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
+import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-my-ip"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterExcludedIpRows, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
+import { FilterExcludedIpRows, FilterListRow, FilterMyIpRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAsnLabel } from "@/hooks/use-asn-label"
+import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useGeoEventFacets } from "@/lib/queries"
 import { isValidIp } from "@/lib/crowdsec"
@@ -35,10 +37,12 @@ export function GeoLogsFilterBar() {
 
   const addIp = (key: IpKey) => (value: string) => {
     if (filters[key].includes(value)) return
-    setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
+    // A tap on Exclude your IP lands after a lookup, so the closure can be stale.
+    setFilters((prev) => (prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] }))
   }
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
+  const myIp = useMyIpExclusion(filters.ipsExclude, addIp("ipsExclude"), (ip) => removeIp("ipsExclude", ip))
 
   const asnLabel = useAsnLabel(facets?.asns)
   const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
@@ -170,7 +174,8 @@ export function GeoLogsFilterBar() {
 
   if (phone) {
     return (
-      <div onClick={() => setFacetsEnabled(true)}>
+      <div className="flex items-center gap-2" onClick={() => setFacetsEnabled(true)}>
+        <ExcludeMyIpButton exclusion={myIp} />
         <FiltersDrawer activeCount={activeCount} onClear={clear}>
           <TagInput
             onAdd={addIp("ips")}
@@ -224,6 +229,7 @@ export function GeoLogsFilterBar() {
             />
           </FilterSection>
           <FilterSection label="Exclude">
+            <FilterMyIpRow exclusion={myIp} />
             <FilterExcludedIpRows values={filters.ipsExclude} onAdd={addIp("ipsExclude")} onRemove={(ip) => removeIp("ipsExclude", ip)} validate={isValidIp} />
             <FilterListRow<number>
               label="ASN" exclude
@@ -246,6 +252,7 @@ export function GeoLogsFilterBar() {
     <FilterRail label="Location filters" activeCount={activeCount} onClear={clear}>
       <FilterRow>
         {ipPair()}
+        <ExcludeMyIpField exclusion={myIp} />
         {country()}
         {city()}
         {server()}

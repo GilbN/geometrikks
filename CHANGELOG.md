@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Access Logs and Geo Logs can leave out your own traffic with one tap. On a phone, the button next to Filters adds the IP GeoMetrikks sees for you to the excluded IPs, and a second tap removes it. The Filters drawer shows that address in a Your IP row. On a wider screen, the filter bar has an Exclude your IP button. When your phone moves to another network, the next tap adds the new address next to the old one. Behind a reverse proxy, GeoMetrikks sees only the proxy's address unless the proxy is in `APP_TRUSTED_PROXIES`, and the drawer then names that setting. Scripts can read the same address from `GET /api/v1/system/client-ip`.
+
 ## [0.24.0] - 2026-11-09
 
 ### Added

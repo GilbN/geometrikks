@@ -10,6 +10,7 @@ import platform
 
 import msgspec
 from datetime import datetime, timezone
+from ipaddress import ip_address, ip_network
 from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import TYPE_CHECKING, Annotated, Literal
 
@@ -41,7 +42,9 @@ from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
 from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
+from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
+from geometrikks.lib.validation import canonical_ip
 from geometrikks.lib.versioning import display_version
 from geometrikks.services.release_check import release_check_enabled
 
@@ -223,6 +226,36 @@ class AboutResponse(msgspec.Struct, rename="camel"):
 
 
 ReleaseCheckStatus = Literal["off", "pending", "checked"]
+
+
+class ClientIpResponse(msgspec.Struct, rename="camel"):
+    """The address this server sees for the caller."""
+
+    ip: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "The caller's address, read from X-Forwarded-For when the request came through a proxy in "
+                "APP_TRUSTED_PROXIES. Null when the connection has no usable address."
+            )
+        ),
+    ]
+    behind_untrusted_proxy: Annotated[
+        bool,
+        msgspec.Meta(
+            description=(
+                "True when the request carried an X-Forwarded-For header that was not used, so `ip` is most "
+                "likely the reverse proxy's address. Add the proxy to APP_TRUSTED_PROXIES to fix it."
+            )
+        ),
+    ]
+
+
+def _normalized_ip(value: str | None) -> str | None:
+    # Postgres INET rejects IPv6 zone IDs, so a scoped peer would break the logs query.
+    if value is None or "%" in value:
+        return None
+    return canonical_ip(value)
 
 
 class LatestReleaseView(msgspec.Struct, rename="camel"):
@@ -610,6 +643,47 @@ class SystemController(Controller):
             ),
             checked_at=release_checker.checked_at,
         )
+
+    @get(
+        "/client-ip",
+        summary="Get the caller's IP address",
+        description=(
+            "Returns the address this server sees for the request, so a client can filter out its own "
+            "traffic. Behind a reverse proxy, it is the real address only when the proxy is in "
+            "APP_TRUSTED_PROXIES. `behindUntrustedProxy` is true when it is not."
+        ),
+        response_headers={"Cache-Control": "no-store"},
+    )
+    async def get_client_ip(
+        self, request: Request, settings: NamedDependency[SkipValidation[Settings]]
+    ) -> ClientIpResponse:
+        trusted_networks = [ip_network(entry, strict=False) for entry in settings.trusted_proxies]
+        peer = request.client.host if request.client else None
+        peer_ip = _normalized_ip(peer)
+
+        def trusted(value: str | None) -> bool:
+            return value is not None and any(ip_address(value) in net for net in trusted_networks)
+
+        peer_trusted = trusted(peer_ip)
+        forwarded = [
+            _normalized_ip(entry.strip().strip("[]"))
+            for header in request.headers.getall("x-forwarded-for", [])
+            for entry in header.split(",")
+            if entry.strip()
+        ]
+        ip = _normalized_ip(resolve_client_ip(request, trusted_networks))
+        if forwarded and peer_trusted and ip == peer_ip:
+            # Every hop is a trusted proxy, so the leftmost entry is the
+            # original client. resolve_client_ip keeps the peer for rate limiting.
+            # A malformed entry also lands here, and then the client is unknown.
+            ip = forwarded[0] if all(trusted(entry) for entry in forwarded) else None
+        # An ASGI server can rewrite the peer from X-Forwarded-For itself. Then
+        # the peer is a chain entry with only trusted proxies after it.
+        resolved_upstream = ip is not None and ip in forwarded and all(
+            trusted(entry) for entry in forwarded[len(forwarded) - forwarded[::-1].index(ip) :]
+        )
+        untrusted = bool(forwarded) and not peer_trusted and not resolved_upstream
+        return ClientIpResponse(ip=ip, behind_untrusted_proxy=untrusted)
 
     @get(
         "/database",
