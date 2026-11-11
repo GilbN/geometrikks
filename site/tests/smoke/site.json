@@ -1,0 +1,11 @@
+[
+  { "path": "/", "status": 200, "headers": { "x-content-type-options": "nosniff" } },
+  { "path": "/docs/", "status": 302, "location": "/docs/next/" },
+  {
+    "path": "/docs/next/",
+    "status": 200,
+    "contains": ["GeoMetrikks docs", "noindex", "rel=\"canonical\" href=\"https://geometrikks.dev/docs/next/\""]
+  },
+  { "path": "/api/search", "status": 200 },
+  { "path": "/no-such-page/", "status": 404, "contains": ["href=\"/docs/\""] }
+]
