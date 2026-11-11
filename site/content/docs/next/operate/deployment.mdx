@@ -108,13 +108,20 @@ To ingest from several places, run one full instance and an agent per log source
 
 With `DB_MIGRATE_ON_STARTUP=true`, the default, the full instance brings the database schema to the newest revision at startup. That suits the single compose file.
 
-To migrate as a separate deploy step, set `DB_MIGRATE_ON_STARTUP=false`. Nothing at startup then checks the schema revision, so run the migration before the new version starts, in this order:
+To migrate as a separate deploy step, set `DB_MIGRATE_ON_STARTUP=false`. Nothing at startup then checks the schema revision. An app or agent still running during the migration keeps its old code while the tables change under it, and its inserts or queries that touch a changed table fail. Migrating this way means downtime:
+
+1. Pull the new image, then stop the full instance and every agent. The database keeps running.
+2. Run the migration.
+3. Start the full instance on the new version, then the agents.
 
 ```bash
 docker compose pull
+docker compose stop app
 docker compose run --rm app litestar database upgrade --no-prompt
 docker compose up -d
 ```
+
+Stop each agent with `docker compose stop agent` on its own host before the migration. Once the full instance is up, run `docker compose pull` and `docker compose up -d` on each agent's host. Nothing is ingested from the stop until each process is back, and the restarted processes skip the lines logged in between. [Upgrading](../get-started/upgrading.mdx#upgrade) says how to import them.
 
 `docker compose run` uses the image already on the machine, so pull first, or the old version runs the migration and stops at its own revision. Start the new version on the old schema and startup, or later requests, fail where the code expects the new tables.
 

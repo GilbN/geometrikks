@@ -45,15 +45,16 @@ export function Install() {
             </li>
             <li>
               <b>One admin password, or OpenID Connect.</b> Single-user login with a password, or through a provider
-              such as Authelia, Authentik or Keycloak. An authenticating proxy or a tailnet can take over instead, and
-              the built-in login switches off.
+              such as Authelia, Authentik or Keycloak. Behind a proxy that authenticates every request, you can switch the
+              built-in login off.
             </li>
             <li className={styles.no}>
               <b>No CrowdSec needed.</b> Optional. Add a LAPI key later and the Security page lights up.
             </li>
             <li className={styles.no}>
-              <b>No telemetry.</b> Outbound traffic is the GeoLite2 download and, unless disabled, one public-IP lookup
-              for the map's server location.
+              <b>No telemetry.</b> On its own the server contacts MaxMind for GeoLite2, a public-IP service for the
+              map's server location, GitHub for the update check and Spamhaus for the DROP lists. Each one can be
+              turned off. <a href="/docs/#outbound-traffic">Outbound traffic</a> has the switches.
             </li>
           </ul>
         </div>

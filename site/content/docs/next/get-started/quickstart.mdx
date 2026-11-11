@@ -26,7 +26,7 @@ Open `.env` and set these values:
 | `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` | Your free MaxMind account ID and license key. Without them the app has no GeoLite2 database and records no traffic. See [GeoLite2 and the CARTO key](./geolite2.mdx). |
 | `MAP_CARTO_API_KEY` | Your free CARTO basemap key, covered on the same page. |
 | `ACCESS_LOG_DIR` | The folder on the host where your proxy writes its access logs. `.env.example` has no line for it, so add one, for example `ACCESS_LOG_DIR=/opt/swag/log/nginx`. Unset, the compose file mounts `/var/log/nginx`. |
-| `LOGPARSER_SERVER_NAME` | A name for this server. `.env.example` ships `LOGPARSER_SERVER_NAME=my-server`, so every request shows `my-server` as its server until you change it. Requests recorded before the change keep `my-server`. `backfill-server NAME --consolidate` rewrites them, see [Upgrading](./upgrading.mdx#one-off-backfills). |
+| `LOGPARSER_SERVER_NAME` | A name for this server. `.env.example` ships `LOGPARSER_SERVER_NAME=my-server`, so every request shows `my-server` as its server until you change it. Requests recorded before the change keep `my-server`. While this is your only server, `backfill-server NAME --consolidate` rewrites them. It renames every server recorded in Access Logs and Geo Logs to `NAME`, and nothing can split them apart again, so read [its warning](../operate/cli/backfills.mdx#backfill-server) first. |
 
 ## Start it
 

@@ -30,7 +30,7 @@ Most installs set these. The compose file sets `DB_HOST` for you.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. Setting it together with OpenID Connect (OIDC_*) stops startup. |
+| `APP_AUTH_DISABLED` | `false` | Disable the built-in login and sessions. Anyone who reaches the port can then use every API action, so set true only behind a reverse proxy that authenticates every request, such as one guarded by Authelia. Setting it together with OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET and OIDC_REDIRECT_URI stops startup. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
 | `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. OpenID Connect with an https OIDC_REDIRECT_URI needs it, or startup fails. Recommended behind any TLS reverse proxy. |
@@ -203,7 +203,7 @@ connection pool that runs dry or a log that rotates too often.
 | `DB_POOL_TIMEOUT` | `30` | Connection pool timeout in seconds |
 | `DB_POOL_RECYCLE` | `3600` | Connection recycle time in seconds |
 | `DB_POOL_PRE_PING` | `true` | Enable pool pre-ping to check connections |
-| `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations automatically at app startup. Disable when migrations run as a separate deployment step (`litestar database upgrade`); the app then expects the schema to already be at head and fails startup if it is not usable |
+| `DB_MIGRATE_ON_STARTUP` | `true` | Run alembic migrations at app startup. Set to false when migrations run as a separate deployment step (`litestar database upgrade`). Startup then doesn't check the schema revision, so run the migration before the new version starts, or startup and later requests fail where the code expects tables the old schema lacks. |
 | `DB_STARTUP_WAIT_SECONDS` | `30` | How long startup waits for the database before serving in degraded mode. 0 probes once. The app keeps re-probing in the background after this window and recovers on its own when the database answers. |
 | `LOGPARSER_ENABLED` | `true` | Enable log parser ingestion service |
 | `LOGPARSER_POLL_INTERVAL` | `1.0` | Interval in seconds to poll the log file for new entries |

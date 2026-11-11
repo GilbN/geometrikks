@@ -81,6 +81,11 @@ The app applies the setting to the policy only when it starts. To keep older arc
 
 A file rejected by the format check, or refused because of an earlier `--before`, doesn't stop the others. At the end the command lists the files it didn't import and exits with an error. Any other error that reaches the command stops the run, such as a database error while it looks up or saves a file's import record.
 
-A batch that fails to write doesn't stop the run either. The command rolls the batch back, logs `ingestion_batch_failed` with the error and goes on with the next batch. It still counts the batch as written and records the file as imported, so a later run skips the file and those lines never arrive. After an import, search its output for `ingestion_batch_failed`. If it is there, fix the cause and import that file again with `--force`. The batches that did commit then end up twice.
+A failed write doesn't stop the run either. It fails in one of two ways, and both log `ingestion_batch_failed` with the error and the number of records lost:
+
+- One record fails while the batch is being built, for example while its location is looked up. The command rolls back that record and the ones before it in the same batch, then goes on with the rest of the batch. The event also carries the start of the failing line.
+- The batch's commit fails, usually on a database error for one of its rows. The command rolls back the whole batch and goes on with the next one.
+
+Either way it still counts the batch as written and records the file as imported, so a later run skips the file and those lines never arrive. After an import, search its output for `ingestion_batch_failed`. If it is there, fix the cause and import that file again with `--force`. The rows that did commit then end up twice.
 
 If refreshing an aggregate fails, the rows are written but the analytics views don't show the imported range in that aggregate yet. The command names the aggregates, exits with an error, and the warnings above the message give the reason.

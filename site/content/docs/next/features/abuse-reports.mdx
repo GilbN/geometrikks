@@ -32,6 +32,6 @@ When the address or AS is on a [Spamhaus DROP list](./drop-lists.mdx), the dialo
 
 ## What the report leaves out
 
-The report goes to a third party, so it leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user agents it tries to strip the hostnames you serve, your public address and any server name with a dot. In paths it also strips credentials from the query string, such as API keys. User agents keep any credential they carry. The dialog counts the places it redacted. It can miss some, so read the report before you send it.
+The report goes to a third party, so it leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user agents it tries to strip the hostnames you serve, your public address and any server name with a dot. In paths it also strips credentials from the query string, such as API keys. User agents get only the name scrubbing. A `user:password@` in front of a scrubbed name goes with it, but any other credential in a user agent, such as a token in a query string, stays. The dialog counts the places it redacted. It can miss some, so read the report before you send it.
 
 [Abuse report redaction](../reference/api-guides/abuse-report-redaction.mdx) lists every rule.

@@ -99,6 +99,6 @@ When the source reads again, GeoMetrikks logs `loki_source_available`.
   - `LOGPARSER_SEND_LOGS=false` stores map events only and never writes Access Logs rows.
   - The address matches `LOGPARSER_IGNORE_IPS`. GeoMetrikks drops the line completely.
   - The address isn't public, for example a private, loopback or CGNAT address. Those lines never become Access Logs rows.
-  - The GeoIP lookup found nothing for the address, or the GeoLite2 database is missing. The GeoIP card on Settings > Status shows the database state.
+  - The GeoIP lookup found nothing for the address.
 
   Only a parse failure lands in Debug Logs as a failure. For the other causes, check those settings and the GeoIP state.

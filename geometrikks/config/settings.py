@@ -220,10 +220,11 @@ class DatabaseSettings(BaseSettings):
     migrate_on_startup: bool = Field(
         default=True,
         description=(
-            "Run alembic migrations automatically at app startup. Disable when "
-            "migrations run as a separate deployment step (`litestar database "
-            "upgrade`); the app then expects the schema to already be at head "
-            "and fails startup if it is not usable"
+            "Run alembic migrations at app startup. Set to false when migrations "
+            "run as a separate deployment step (`litestar database upgrade`). "
+            "Startup then doesn't check the schema revision, so run the migration "
+            "before the new version starts, or startup and later requests fail "
+            "where the code expects tables the old schema lacks."
         ),
         json_schema_extra=ADVANCED_FIELD,
     )
@@ -1510,9 +1511,11 @@ class Settings(BaseSettings):
     auth_disabled: bool = Field(
         default=False,
         description=(
-            "Disable the built-in session auth entirely. Set true only when an "
-            "authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. "
-            "Setting it together with OpenID Connect (OIDC_*) stops startup."
+            "Disable the built-in login and sessions. Anyone who reaches the port "
+            "can then use every API action, so set true only behind a reverse proxy "
+            "that authenticates every request, such as one guarded by Authelia. "
+            "Setting it together with OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET "
+            "and OIDC_REDIRECT_URI stops startup."
         ),
     )
     admin_user: str = Field(default="admin", description="Admin login username")

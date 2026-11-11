@@ -14,6 +14,8 @@ docker compose up -d
 
 `pull` fetches the image the compose file names, and `up -d` recreates the containers that changed. The app migrates the database on its first start. With the default `latest` tag every pull can bring a new release. To decide when you upgrade, pin a version tag such as `0.24.0` on the `image:` line and change it when you are ready. The [Quickstart](./quickstart.mdx#docker-image-tags) lists the tags.
 
+Lines your proxy logs while the app or an agent is down never reach the database by themselves. Every start reads each log file from its end, and each Loki source from the moment it starts, so no source picks up where the last run stopped. To fill the gap, import the missed lines with [import-logs](../operate/cli/import-logs.mdx) for files or [import-loki](../operate/cli/import-loki.mdx) for Loki.
+
 Read the [changelog](../reference/changelog.mdx) before a jump of several releases. Entries marked **Breaking** say what to change on your side.
 
 ## Several instances
@@ -58,7 +60,7 @@ The charts read from continuous aggregates, rollups that TimescaleDB keeps up to
 
 How much aggregate history survives depends on the change:
 
-- A column added in place keeps every existing bucket. The app computes the new column from the raw rows still in the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180). Buckets older than that window keep the figures they had before the upgrade, because the raw rows needed to recount them are gone.
+- A column added in place keeps every existing bucket. The app computes the new column from the raw rows still in the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180). Buckets older than that window keep the figures they had before the upgrade, because the raw rows needed to recount them are gone. The Geo Logs server columns are the exception. The app adds them but leaves their history empty until you run [backfill-geo-servers](../operate/cli/backfills.mdx#backfill-geo-servers).
 - A new grouping can't be made in place. The app drops the aggregate and rebuilds it from the raw rows, so its history older than the raw retention window is lost. The URL aggregates went through this when Top URLs gained the host next to the path.
 - A failed in-place add loses the same history. Adding columns in place needs TimescaleDB 2.28 or later. When the add fails, on an older TimescaleDB or on another database error, the app drops and recreates the aggregate instead, which discards its history older than the raw retention window. The Geo Logs server columns are the exception. For those the app keeps the old aggregate as it is and logs `server_cagg_columns_unavailable`. Geo Logs then shows no servers for ranges over 24 hours until you upgrade the database and restart.
 
@@ -68,6 +70,7 @@ Watch the app log for these events:
 | --- | --- |
 | `cagg_column_added` | A column was added to an aggregate in place. |
 | `cagg_columns_refresh_done` | The aggregates with new columns are recomputed. |
+| `cagg_columns_refresh_failed` | Recomputing an aggregate with new columns failed. The event names the views. Their history stays unfilled until the next start finds the gap and refreshes them again. |
 | `url_caggs_recreated` | The URL aggregates were dropped and recreated with a new grouping, here the host next to the path for Top URLs. |
 | `url_caggs_refresh_done` | The recreated URL aggregates are filled again. |
 | `url_caggs_refresh_failed` | Refreshing a recreated URL aggregate failed. The event names the views. The next start finds the gap and fills it. |
@@ -84,7 +87,7 @@ docker compose exec -u geometrikks app litestar backfill-timings
 | --- | --- |
 | `backfill-timings` | You imported nginx `combined`-format archives before 0.12.0. Those rows carry a placeholder `0.0` response time that drags averages and percentiles toward zero. The command clears it on rows the positional nginx format wrote without a host. `--server` and `--before` narrow the set. |
 | `backfill-server NAME` | Rows from before the app recorded a server name have none, so the Server filter can't find them. The plain form stamps `NAME` on Access Logs rows that have no server and leaves every other row alone. |
-| `backfill-server NAME --consolidate` | The database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. This rewrites every server name to `NAME` after a confirmation. |
+| `backfill-server NAME --consolidate` | The database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. This rewrites every server name to `NAME` after a confirmation, and nothing can split them apart again. On a setup with several real servers, don't use it. |
 | `backfill-geo-servers` | Geo Logs shows an empty Servers column for ranges over 24 hours on history from before 0.15.0. The command fills it from the raw events still in retention. It needs the aggregate's new server columns, which need TimescaleDB 2.28 or later. |
 | `backfill-asn --table access-logs\|geo-events\|all` | Rows ingested before ASN support, or while the ASN database was missing, have no network data, so Top ASNs and the ASN filters skip them. Only rows with no ASN data change. |
 

@@ -5,11 +5,11 @@ description: The three WebSocket feeds, how to authenticate them, and every fram
 
 GeoMetrikks has three WebSocket feeds, all outside `/api/v1`:
 
-| Path | Sends | Reaches |
+| Path | Sends | Carries events from |
 | --- | --- | --- |
-| `/ws/live` | Each request as ingestion commits it | Every instance: the head and all agents |
-| `/ws/crowdsec` | CrowdSec decision changes and LAPI reachability | The process you are connected to |
-| `/ws/logs` | The app's own log records | The process you are connected to |
+| `/ws/live` | Each request as ingestion commits it | The head and every agent |
+| `/ws/crowdsec` | CrowdSec decision changes and LAPI reachability | Only the process serving the socket |
+| `/ws/logs` | The app's own log records | Only the process serving the socket |
 
 `/ws/live` reads a Postgres LISTEN/NOTIFY channel. Every head and agent writing to the database publishes its requests there, so one socket sees traffic from all of them. The other two feeds read a broker inside the process serving the socket. `/ws/logs` shows the head's log lines and never an agent's. Agents serve no WebSocket feeds at all, only `/health` and `/health/ready`.
 
