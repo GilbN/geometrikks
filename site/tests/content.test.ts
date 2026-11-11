@@ -133,6 +133,9 @@ describe("linkProblems", () => {
     "Stray ` tick\n```\nx\n```\n[a](/docs/next/q/) and `y`",
     "Press the ` key.\n```bash\necho `date`\n```\n\n[a](/docs/next/q/)",
     "<span title={`}`} /> [a](/docs/next/quickstart/) then `example`",
+    '{<a href="/docs/next/quickstart/">Guide</a>}',
+    'See {cond && <img src={"/docs/next/x.png"} />} here.',
+    "{<a href={`/docs/next/quickstart/`}>Guide</a>}",
   ])("flags %p", (source) => {
     expect(linkProblems(source)).toHaveLength(1);
     expect(linkProblems(source)[0]).toMatch(/^\/docs\//);
@@ -143,6 +146,8 @@ describe("linkProblems", () => {
     "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.",
     "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```",
     "```mdx\n[a](/docs/next/x/)\n```",
+    '```mdx\n{<a href="/docs/next/quickstart/">Guide</a>}\n```',
+    '`{<a href="/docs/next/quickstart/">Guide</a>}`',
     "[Quickstart](./quickstart.mdx)",
     "---\ntitle: A { page\ndescription: <b>\n---\n\n[Quickstart](./quickstart.mdx)",
   ])("passes %p", (source) => {

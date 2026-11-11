@@ -97,7 +97,8 @@ same file then works in `next` and in every release folder copied from it.
 folder becomes latest, and postbuild fails on any relative or `.mdx` href
 left in the exported docs. Both `docs:release` and `tests/content.test.ts`
 parse each page as MDX and read only real links: Markdown links, images,
-reference definitions, and `href` or `src` strings on JSX elements. Code
+reference definitions, and `href` or `src` strings on JSX elements, also
+when the element sits inside a `{...}` expression or an `export` block. Code
 spans and fenced code hold no links, so a page can show a wrong link as an
 example. A page that fails to parse fails both checks. A computed value
 such as ``href={`/docs/${slug}/`}`` is not read.

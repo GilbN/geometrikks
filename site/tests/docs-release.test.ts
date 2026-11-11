@@ -189,6 +189,9 @@ describe("releaseDocs", () => {
     "Stray ` tick\n```\nx\n```\n[a](/docs/next/q/) and `y`",
     "Press the ` key.\n```bash\necho `date`\n```\n\n[a](/docs/next/q/)",
     "<span title={`}`} /> [a](/docs/next/quickstart/) then `example`",
+    '{<a href="/docs/next/quickstart/">Guide</a>}',
+    '{cond && <img src={"/docs/next/x.png"} />}',
+    "{<a href={`/docs/next/quickstart/`}>Guide</a>}",
   ])("the link %p into next fails", async (link) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next/index.mdx"), `${link}\n`);
@@ -213,6 +216,7 @@ describe("releaseDocs", () => {
     "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.\n",
     "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```\n",
     "```\n[a](/docs/next/x/)\n```\n",
+    '```mdx\n{<a href="/docs/next/quickstart/">Guide</a>}\n```\n',
     "Inline `[a](/docs/next/x/)` only.\n",
   ])("a link into next inside a code example passes: %p", async (body) => {
     const { dir, schemaPath } = makeContent();

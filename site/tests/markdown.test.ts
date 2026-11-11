@@ -54,6 +54,36 @@ describe("extractLinks", () => {
     expect(extractLinks(source)).toEqual([]);
   });
 
+  test("reads JSX inside expressions", () => {
+    const source = [
+      '{<a href="/one/">Guide</a>}',
+      "",
+      'Text {cond && <img src={"/two.png"} />} and {<a href={`/three/`}>x</a>} and {ok ? <b href="/four/">y</b> : null}',
+      "",
+      '<Card icon={<a href="/five/">z</a>} />',
+      "",
+      'export const link = <a href="/six/">s</a>;',
+    ].join("\n");
+    expect(extractLinks(source)).toEqual(["/one/", "/two.png", "/three/", "/four/", "/five/", "/six/"]);
+  });
+
+  test("skips computed values and code inside expressions", () => {
+    const source = [
+      "{<a href={base}>a</a>}",
+      "",
+      "{<a href={`/docs/${slug}/`} {...props}>a</a>}",
+      "",
+      '{<a title="/x/">a</a>}',
+      "",
+      "```mdx",
+      '{<a href="/x/">a</a>}',
+      "```",
+      "",
+      '`{<a href="/x/">a</a>}`',
+    ].join("\n");
+    expect(extractLinks(source)).toEqual([]);
+  });
+
   test("a stray backtick or a brace in a JSX string hides nothing", () => {
     expect(extractLinks("Stray ` tick\n```\nx\n```\n[a](/q/) and `y`")).toEqual(["/q/"]);
     expect(extractLinks("Press the ` key.\n```bash\necho `date`\n```\n\n[a](/q/)")).toEqual(["/q/"]);
