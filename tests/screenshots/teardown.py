@@ -6,6 +6,7 @@ import asyncio
 import fcntl
 import json
 import os
+import secrets
 import shutil
 import signal
 import stat
@@ -27,6 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RESERVED_DATABASE = "geometrikks_screenshots"
 NAME_PREFIX = "geometrikks-shots-"
 RUN_LABEL = "geometrikks.screenshots.run"
+TOKEN_ENV = "GEOMETRIKKS_SHOTS_TOKEN"
 
 ResourceKind = Literal["process", "container", "network", "database", "directory"]
 ResourceState = Literal["intended", "acquired"]
@@ -125,38 +127,41 @@ class Ledger:
         return list(self._owned)
 
     def add(self, resource: Resource) -> None:
-        entries = self.load()
-        entries.append(resource)
-        self._write(entries)
-        self._owned.append(resource)
+        with interrupts_deferred():
+            entries = self.load()
+            entries.append(resource)
+            self._write(entries)
+            self._owned.append(resource)
 
     def mark_acquired(self, resource: Resource) -> Resource:
-        index = _first_index(self._owned, resource)
-        target = self._owned[index] if index is not None else resource
-        acquired = replace(target, state="acquired")
-        entries = self.load()
-        file_index = _first_index(entries, target)
-        if file_index is None:
-            entries.append(acquired)
-        else:
-            entries[file_index] = acquired
-        self._write(entries)
-        if index is None:
-            self._owned.append(acquired)
-        else:
-            self._owned[index] = acquired
-        return acquired
+        with interrupts_deferred():
+            index = _first_index(self._owned, resource)
+            target = self._owned[index] if index is not None else resource
+            acquired = replace(target, state="acquired")
+            entries = self.load()
+            file_index = _first_index(entries, target)
+            if file_index is None:
+                entries.append(acquired)
+            else:
+                entries[file_index] = acquired
+            self._write(entries)
+            if index is None:
+                self._owned.append(acquired)
+            else:
+                self._owned[index] = acquired
+            return acquired
 
     def discard(self, resource: Resource) -> None:
-        index = _first_index(self._owned, resource)
-        target = self._owned[index] if index is not None else resource
-        entries = self.load()
-        file_index = _first_index(entries, target)
-        if file_index is not None:
-            del entries[file_index]
-            self._write(entries)
-        if index is not None:
-            del self._owned[index]
+        with interrupts_deferred():
+            index = _first_index(self._owned, resource)
+            target = self._owned[index] if index is not None else resource
+            entries = self.load()
+            file_index = _first_index(entries, target)
+            if file_index is not None:
+                del entries[file_index]
+                self._write(entries)
+            if index is not None:
+                del self._owned[index]
 
     def clear(self) -> None:
         self.path.unlink(missing_ok=True)
@@ -202,33 +207,35 @@ def _check_owned_name(resource: Resource, run_root: Path) -> None:
             raise ValueError(f"refusing to remove directory {resource.ident!r}: not inside {run_root}")
 
 
-def _rides_with_container(resource: Resource, container_names: set[str]) -> bool:
-    return resource.kind == "database" and resource.meta_value("container") in container_names
+def _rides_with_container(resource: Resource) -> bool:
+    return resource.kind == "database" and bool(resource.meta_value("container"))
 
 
 def plan_teardown(resources: Sequence[Resource], *, run_root: Path) -> list[Resource]:
     for resource in resources:
         _check_owned_name(resource, run_root)
-    containers = {resource.ident for resource in resources if resource.kind == "container"}
     ranked = [
         (_KIND_ORDER.index(resource.kind), -position, resource)
         for position, resource in enumerate(resources)
-        if not _rides_with_container(resource, containers)
+        if not _rides_with_container(resource)
     ]
     return [resource for _, _, resource in sorted(ranked, key=lambda rank: rank[:2])]
 
 
-_GONE_MARKERS: dict[ResourceKind, tuple[str, ...]] = {
-    "container": ("No such container",),
-    "network": ("No such network", "not found"),
-    "database": ("does not exist",),
-    "process": ("ProcessLookupError", "No such process"),
-    "directory": ("No such file",),
-}
+def _gone_markers(resource: Resource) -> tuple[str, ...]:
+    if resource.kind == "container":
+        return ("No such container",)
+    if resource.kind == "network":
+        return ("No such network", f"network {resource.ident} not found")
+    if resource.kind == "database":
+        return (f'database "{RESERVED_DATABASE}" does not exist',)
+    if resource.kind == "process":
+        return ("ProcessLookupError", "No such process")
+    return ("No such file",)
 
 
 def already_gone(resource: Resource, error_text: str) -> bool:
-    return any(marker in error_text for marker in _GONE_MARKERS[resource.kind])
+    return any(marker in error_text for marker in _gone_markers(resource))
 
 
 def proc_start_time(pid: int) -> str | None:
@@ -245,6 +252,8 @@ class TeardownActions(Protocol):
     def process_start_time(self, pid: int) -> str | None: ...
 
     def group_alive(self, pgid: int) -> bool: ...
+
+    def group_has_token(self, pgid: int, token: str) -> bool: ...
 
     def stop_process(self, pgid: int) -> None: ...
 
@@ -272,8 +281,14 @@ def _tear_down_one(resource: Resource, actions: TeardownActions) -> str | None:
         pgid = int(resource.ident)
         leader_start = actions.process_start_time(pgid)
         if leader_start is None:
-            if actions.group_alive(pgid):
-                actions.stop_process(pgid)
+            if not actions.group_alive(pgid):
+                return None
+            # The leader's pid is free again, so a live group under this pgid may be a stranger's.
+            if not actions.group_has_token(pgid, resource.meta_value("token") or ""):
+                label = resource.meta_value("label")
+                named = f"process group {pgid} ({label})" if label else f"process group {pgid}"
+                return f"{named}: leader gone and no live member carries its token; skipped"
+            actions.stop_process(pgid)
             return None
         if leader_start != resource.meta_value("start_time"):
             return f"{_describe(resource)}: start time changed, not ours; skipped"
@@ -302,10 +317,18 @@ def _tear_down_one(resource: Resource, actions: TeardownActions) -> str | None:
 def execute_teardown(
     resources: Sequence[Resource], *, run_root: Path, ledger: Ledger, actions: TeardownActions
 ) -> list[str]:
-    plan = plan_teardown(resources, run_root=run_root)
-    planned = set(map(id, plan))
-    riders = [resource for resource in resources if id(resource) not in planned]
     report: list[str] = []
+    accepted: list[Resource] = []
+    for resource in resources:
+        try:
+            _check_owned_name(resource, run_root)
+        except ValueError as refusal:
+            report.append(str(refusal))
+            continue
+        accepted.append(resource)
+    plan = plan_teardown(accepted, run_root=run_root)
+    planned = set(map(id, plan))
+    riders = [resource for resource in accepted if id(resource) not in planned]
     released_containers: set[str] = set()
     for resource in plan:
         try:
@@ -320,9 +343,11 @@ def execute_teardown(
         ledger.discard(resource)
         if resource.kind == "container":
             released_containers.add(resource.ident)
-    # A database inside a container we removed, found gone or do not own is not ours to drop.
+    # A database inside a container we removed, found gone, do not own, or no longer track is not ours to drop.
+    tracked = {entry.ident for entry in [*ledger.load(), *resources] if entry.kind == "container"}
     for resource in riders:
-        if resource.meta_value("container") in released_containers:
+        container = resource.meta_value("container")
+        if container in released_containers or container not in tracked:
             ledger.discard(resource)
     if ledger.exists() and not ledger.load():
         ledger.clear()
@@ -392,6 +417,8 @@ def interrupts_deferred() -> Generator[None]:
 
 # A child started under interrupts_ignored() inherits SIG_IGN for these, and Popen's
 # restore_signals only covers SIGPIPE, SIGXFZ and SIGXFSZ. preexec_fn is unsafe with threads.
+# The wrapper then holds on argv[1], a pipe from the parent, and execs only once the parent has
+# recorded it in the ledger; EOF first means the parent died, so nothing would ever stop the child.
 CHILD_WRAPPER: tuple[str, ...] = (
     sys.executable,
     "-I",
@@ -400,9 +427,38 @@ CHILD_WRAPPER: tuple[str, ...] = (
         "import os, signal, sys\n"
         "for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):\n"
         "    signal.signal(signum, signal.SIG_DFL)\n"
-        "os.execvp(sys.argv[1], sys.argv[1:])\n"
+        "go_fd = int(sys.argv[1])\n"
+        "if os.read(go_fd, 1) != b'1':\n"
+        "    os._exit(70)\n"
+        "os.close(go_fd)\n"
+        "os.execvp(sys.argv[2], sys.argv[2:])\n"
     ),
 )
+
+
+def spawn_unregistered(
+    argv: Sequence[str], *, env: Mapping[str, str], log_path: Path, stdout_path: Path | None
+) -> tuple[subprocess.Popen[bytes], int]:
+    """Start the wrapper held before exec; write b"1" to the returned fd to release it, close it to cancel."""
+    read_fd, go_fd = os.pipe()
+    try:
+        with log_path.open("ab") as log, (stdout_path.open("wb") if stdout_path else log_path.open("ab")) as out:
+            child = subprocess.Popen(
+                [*CHILD_WRAPPER, str(read_fd), *argv],
+                cwd=REPO_ROOT,
+                env=dict(env),
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=log,
+                start_new_session=True,
+                pass_fds=(read_fd,),
+            )
+    except BaseException:
+        os.close(go_fd)
+        raise
+    finally:
+        os.close(read_fd)
+    return child, go_fd
 
 
 def start_child(
@@ -414,19 +470,26 @@ def start_child(
     ledger: Ledger,
     stdout_path: Path | None = None,
 ) -> subprocess.Popen[bytes]:
+    token = secrets.token_hex(16)
     with interrupts_deferred():
-        with log_path.open("ab") as log, (stdout_path.open("wb") if stdout_path else log_path.open("ab")) as out:
-            child = subprocess.Popen(
-                [*CHILD_WRAPPER, *argv],
-                cwd=REPO_ROOT,
-                env=dict(env),
-                stdin=subprocess.DEVNULL,
-                stdout=out,
-                stderr=log,
-                start_new_session=True,
+        child, go_fd = spawn_unregistered(
+            argv, env={**env, TOKEN_ENV: token}, log_path=log_path, stdout_path=stdout_path
+        )
+        try:
+            start_time = proc_start_time(child.pid) or ""
+            ledger.add(
+                Resource("process", str(child.pid), (("label", label), ("start_time", start_time), ("token", token)))
             )
-        start_time = proc_start_time(child.pid) or ""
-        ledger.add(Resource("process", str(child.pid), (("label", label), ("start_time", start_time))))
+        except BaseException:
+            os.close(go_fd)
+            child.wait()
+            raise
+        try:
+            os.write(go_fd, b"1")
+        except BrokenPipeError:
+            pass
+        finally:
+            os.close(go_fd)
     return child
 
 
@@ -447,30 +510,87 @@ def _group_alive(pgid: int) -> bool:
     return True
 
 
+def _group_members(pgid: int) -> list[int]:
+    members = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            text = (entry / "stat").read_text()
+        except OSError:
+            continue
+        if text.rsplit(")", 1)[1].split()[2] == str(pgid):
+            members.append(int(entry.name))
+    return members
+
+
+def _group_has_token(pgid: int, token: str) -> bool:
+    if not token:
+        return False
+    wanted = f"{TOKEN_ENV}={token}".encode()
+    for pid in _group_members(pgid):
+        try:
+            environ = Path(f"/proc/{pid}/environ").read_bytes()
+        except OSError:
+            continue
+        if wanted in environ.split(b"\0"):
+            return True
+    return False
+
+
+def _child_exited(pid: int) -> bool | None:
+    """Whether our child pid has exited, leaving it unreaped; None when it is not an unreaped child of ours."""
+    try:
+        return os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+    except ChildProcessError:
+        return None
+
+
+def _await_exit(pid: int, timeout: float | None) -> bool:
+    """Wait for our child to exit without reaping it, so its pid keeps pinning the process group."""
+    if timeout is None:
+        os.waitid(os.P_PID, pid, os.WEXITED | os.WNOWAIT)
+        return True
+    deadline = time.monotonic() + timeout
+    delay = 0.0005
+    while not _child_exited(pid):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        delay = min(delay * 2, remaining, 0.05)
+        time.sleep(delay)
+    return True
+
+
 def _reap(pgid: int, leader: subprocess.Popen[bytes] | None) -> None:
-    """A zombie leader still counts as a group member until someone waits for it."""
     if leader is not None:
-        leader.poll()
+        leader.wait()
         return
     try:
-        os.waitpid(pgid, os.WNOHANG)
+        os.waitpid(pgid, 0)
     except ChildProcessError:
         pass
 
 
+def _group_gone(pgid: int, *, own: bool) -> bool:
+    if own:
+        return bool(_child_exited(pgid)) and set(_group_members(pgid)) <= {pgid}
+    return not _group_alive(pgid)
+
+
 def _stop_group(pgid: int, leader: subprocess.Popen[bytes] | None) -> None:
+    # Our unreaped leader pins the pgid, even as a zombie, so it is reaped only after the last signal.
+    own = _child_exited(pgid) is not None
     _signal_group(pgid, signal.SIGTERM)
     deadline = time.monotonic() + _STOP_GRACE_SECONDS
     while time.monotonic() < deadline:
-        _reap(pgid, leader)
-        if not _group_alive(pgid):
+        if _group_gone(pgid, own=own):
             break
         time.sleep(0.05)
-    _signal_group(pgid, signal.SIGKILL)
-    if leader is not None:
-        leader.wait()
     else:
-        _reap(pgid, None)
+        _signal_group(pgid, signal.SIGKILL)
+    if own:
+        _reap(pgid, leader)
 
 
 def stop_child(child: subprocess.Popen[bytes], *, ledger: Ledger) -> None:
@@ -479,12 +599,12 @@ def stop_child(child: subprocess.Popen[bytes], *, ledger: Ledger) -> None:
 
 
 def wait_child(child: subprocess.Popen[bytes], *, ledger: Ledger, timeout: float | None = None) -> int:
-    try:
-        code = child.wait(timeout)
-    except subprocess.TimeoutExpired:
-        stop_child(child, ledger=ledger)
-        raise TimeoutError(f"process {child.pid} did not finish within {timeout} s") from None
-    _signal_group(child.pid, signal.SIGKILL)
+    if child.returncode is None:
+        if not _await_exit(child.pid, timeout):
+            stop_child(child, ledger=ledger)
+            raise TimeoutError(f"process {child.pid} did not finish within {timeout} s")
+        _signal_group(child.pid, signal.SIGKILL)
+    code = child.wait()
     ledger.discard(Resource("process", str(child.pid)))
     return code
 
@@ -509,13 +629,17 @@ class SystemActions:
     def __init__(self, *, ledger: Ledger, env: Mapping[str, str], log_dir: Path) -> None:
         self._ledger = ledger
         self._env = dict(env)
+        docker = shutil.which("docker", path=self._env.get("PATH", ""))
+        if docker is None:
+            raise RuntimeError(f"docker is not on the run's PATH ({self._env.get('PATH', '')!r})")
+        self._docker_path = docker
         self._log_path = log_dir / "teardown.log"
         self._stdout_path = log_dir / "teardown-docker.out"
 
     def _docker(self, *args: str) -> tuple[int, str, str]:
         offset = self._log_path.stat().st_size if self._log_path.exists() else 0
         code = run_child(
-            ["docker", *args],
+            [self._docker_path, *args],
             env=self._env,
             log_path=self._log_path,
             label=f"docker {args[0]}",
@@ -534,16 +658,19 @@ class SystemActions:
     def group_alive(self, pgid: int) -> bool:
         return _group_alive(pgid)
 
+    def group_has_token(self, pgid: int, token: str) -> bool:
+        return _group_has_token(pgid, token)
+
     def stop_process(self, pgid: int) -> None:
         _stop_group(pgid, None)
 
     def run_label(self, kind: Literal["container", "network"], name: str) -> str | None:
         labels_path = "{{json .Config.Labels}}" if kind == "container" else "{{json .Labels}}"
         code, out, errors = self._docker(kind, "inspect", "--format", labels_path, name)
+        if code == 1 and already_gone(Resource(kind, name), errors):
+            return None
         if code != 0:
-            if "No such" in errors or "not found" in errors:
-                return None
-            raise RuntimeError(errors or f"docker {kind} inspect {name} exited {code}")
+            raise RuntimeError(f"docker {kind} inspect {name} exited {code}: {errors}")
         labels = json.loads(out) or {}
         return str(labels.get(RUN_LABEL, ""))
 

@@ -1,19 +1,23 @@
 """The screenshot run's lock, ledger, child processes and teardown, against fakes only."""
 
 import os
+import shutil
 import signal
 import stat
+import subprocess
 import sys
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 
+from tests.screenshots import teardown
 from tests.screenshots.teardown import (
     REPO_ROOT,
+    TOKEN_ENV,
     Interrupted,
     Ledger,
     Resource,
@@ -29,18 +33,21 @@ from tests.screenshots.teardown import (
     plan_teardown,
     proc_start_time,
     run_child,
+    spawn_unregistered,
     start_child,
     stop_child,
     wait_child,
 )
 
 CHILD_ENV = {"PATH": os.environ["PATH"]}
+TOUCH = shutil.which("touch") or "/usr/bin/touch"
 
 
 @dataclass
 class FakeActions:
     start_times: dict[int, str] = field(default_factory=dict)
     alive_groups: set[int] = field(default_factory=set)
+    tokens: dict[int, str] = field(default_factory=dict)
     labels: dict[str, str] = field(default_factory=dict)
     errors: dict[str, Exception] = field(default_factory=dict)
     calls: list[str] = field(default_factory=list)
@@ -56,6 +63,9 @@ class FakeActions:
 
     def group_alive(self, pgid: int) -> bool:
         return pgid in self.alive_groups
+
+    def group_has_token(self, pgid: int, token: str) -> bool:
+        return bool(token) and self.tokens.get(pgid) == token
 
     def stop_process(self, pgid: int) -> None:
         self._act("stop_process", pgid)
@@ -149,6 +159,27 @@ def test_ledger_round_trip_and_permissions(tmp_path: Path) -> None:
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.parametrize("mutation", ["add", "mark_acquired", "discard"])
+def test_an_interrupt_during_a_ledger_write_keeps_file_and_owned_in_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    ledger = Ledger(tmp_path / "ledger.json")
+    entry = Resource("container", "geometrikks-shots-crowdsec", (("run_id", "r1"),), state="intended")
+    if mutation != "add":
+        ledger.add(entry)
+    real_write = Ledger._write
+
+    def interrupted_write(self: Ledger, entries: Sequence[Resource]) -> None:
+        real_write(self, entries)
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(0.2)
+
+    monkeypatch.setattr(Ledger, "_write", interrupted_write)
+    with pytest.raises(Interrupted), interrupts_raise():
+        getattr(ledger, mutation)(entry)
+    assert ledger.owned() == ledger.load()
+
+
 def test_ledger_keeps_meta_and_rejects_unknown_kinds(tmp_path: Path) -> None:
     resource = Resource("process", "7", (("label", "app"), ("start_time", "42")))
     ledger_with(tmp_path / "ledger.json", [resource])
@@ -221,10 +252,10 @@ def test_execute_skips_what_it_cannot_prove_it_owns(tmp_path: Path) -> None:
 
 
 def test_execute_treats_missing_leaders_and_labels_as_gone_or_orphaned(tmp_path: Path) -> None:
-    fake = FakeActions(alive_groups={202})
+    fake = FakeActions(alive_groups={202}, tokens={202: "t202"})
     resources = [
-        Resource("process", "101", (("label", "app"), ("start_time", "123"))),
-        Resource("process", "202", (("label", "feeder"), ("start_time", "456"))),
+        Resource("process", "101", (("label", "app"), ("start_time", "123"), ("token", "t101"))),
+        Resource("process", "202", (("label", "feeder"), ("start_time", "456"), ("token", "t202"))),
         Resource("network", "geometrikks-shots-net", (("run_id", "r1"),)),
         Resource("directory", str(tmp_path / "run1")),
     ]
@@ -233,6 +264,45 @@ def test_execute_treats_missing_leaders_and_labels_as_gone_or_orphaned(tmp_path:
     assert execute_teardown(resources, run_root=tmp_path, ledger=ledger, actions=fake) == []
     assert fake.calls == ["stop_process 202", "remove_directory " + str(tmp_path / "run1")]
     assert not ledger.exists()
+
+
+def test_a_leaderless_group_without_our_token_is_never_signalled(tmp_path: Path) -> None:
+    fake = FakeActions(alive_groups={303, 404, 505}, tokens={303: "someone-else", 505: "t505"})
+    resources = [
+        Resource("process", "303", (("label", "app"), ("start_time", "1"), ("token", "t303"))),
+        Resource("process", "404", (("label", "seed"), ("start_time", "2"), ("token", "t404"))),
+        Resource("process", "505", (("label", "old"), ("start_time", "3"))),
+    ]
+    ledger = ledger_with(tmp_path / "ledger.json", resources)
+    report = execute_teardown(resources, run_root=tmp_path, ledger=ledger, actions=fake)
+    assert fake.calls == []
+    assert report == [
+        "process group 505 (old): leader gone and no live member carries its token; skipped",
+        "process group 404 (seed): leader gone and no live member carries its token; skipped",
+        "process group 303 (app): leader gone and no live member carries its token; skipped",
+    ]
+    assert not ledger.exists()
+
+
+def test_execute_reports_refused_entries_and_tears_down_the_rest(tmp_path: Path) -> None:
+    refused = [
+        Resource("process", "1", (("label", "x"), ("start_time", "1"))),
+        Resource("container", "timescale_db", (("run_id", "r1"),)),
+        Resource("database", "geometrikks", (("admin_url", "postgresql://x"),)),
+        Resource("directory", str(Path.home())),
+    ]
+    net = Resource("network", "geometrikks-shots-net", (("run_id", "r1"),))
+    ledger = ledger_with(tmp_path / "ledger.json", [*refused, net])
+    fake = FakeActions(labels={"geometrikks-shots-net": "r1"})
+    report = execute_teardown([*refused, net], run_root=tmp_path, ledger=ledger, actions=fake)
+    assert report == [
+        "refusing to signal process group '1'",
+        "refusing to remove container 'timescale_db': not a geometrikks-shots-* name",
+        "refusing to drop database 'geometrikks': only geometrikks_screenshots is ours",
+        f"refusing to remove directory {str(Path.home())!r}: not inside {tmp_path}",
+    ]
+    assert fake.calls == ["remove_network geometrikks-shots-net"]
+    assert ledger.load() == refused
 
 
 def test_execute_leaves_entries_it_was_not_given(tmp_path: Path) -> None:
@@ -261,6 +331,20 @@ def test_own_db_database_goes_with_its_container(tmp_path: Path) -> None:
     assert not ledger.exists()
 
 
+def test_own_db_database_whose_container_left_the_ledger_counts_as_gone(tmp_path: Path) -> None:
+    db = Resource(
+        "database",
+        "geometrikks_screenshots",
+        (("admin_url", "postgresql://x"), ("container", "geometrikks-shots-db")),
+    )
+    assert plan_teardown([db], run_root=tmp_path) == []
+    ledger = ledger_with(tmp_path / "ledger.json", [db])
+    fake = FakeActions()
+    assert execute_teardown([db], run_root=tmp_path, ledger=ledger, actions=fake) == []
+    assert fake.calls == []
+    assert not ledger.exists()
+
+
 def test_own_db_database_stays_while_its_container_does(tmp_path: Path) -> None:
     db = Resource(
         "database",
@@ -284,8 +368,12 @@ def test_own_db_database_stays_while_its_container_does(tmp_path: Path) -> None:
     [
         (Resource("container", "c"), "Error response from daemon: No such container: c", True),
         (Resource("network", "n"), "Error: No such network: n", True),
-        (Resource("network", "n"), "network n not found", True),
-        (Resource("database", "d"), 'database "d" does not exist', True),
+        (Resource("network", "n"), "Error response from daemon: network n not found", True),
+        (Resource("network", "n"), 'context "n" not found', False),
+        (Resource("network", "n"), "network other not found", False),
+        (Resource("database", "d"), 'database "geometrikks_screenshots" does not exist', True),
+        (Resource("database", "d"), 'role "geouser" does not exist', False),
+        (Resource("database", "d"), 'database "geometrikks" does not exist', False),
         (Resource("process", "7"), str(ProcessLookupError(3, "No such process")), True),
         (Resource("directory", "/x"), "[Errno 2] No such file or directory: '/x'", True),
         (Resource("container", "c"), "Cannot connect to the Docker daemon", False),
@@ -428,7 +516,13 @@ def test_a_running_child_is_in_the_ledger_with_its_start_time(tmp_path: Path) ->
     try:
         [entry] = ledger.load()
         assert entry.ident == str(child.pid)
-        assert dict(entry.meta) == {"label": "sleeper", "start_time": proc_start_time(child.pid)}
+        meta = dict(entry.meta)
+        token = meta.pop("token")
+        assert meta == {"label": "sleeper", "start_time": proc_start_time(child.pid)}
+        assert len(token) == 32
+        environ = Path(f"/proc/{child.pid}/environ").read_bytes().split(b"\0")
+        assert f"{TOKEN_ENV}={token}".encode() in environ
+        assert f"PATH={CHILD_ENV['PATH']}".encode() in environ
     finally:
         stop_child(child, ledger=ledger)
     assert ledger.load() == []
@@ -496,6 +590,171 @@ def test_wait_child_times_out_and_stops_the_child(tmp_path: Path) -> None:
     assert ledger.load() == []
 
 
+def test_a_child_never_runs_when_its_ledger_entry_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    marker = tmp_path / "ran"
+    spawned: list[subprocess.Popen[Any]] = []
+    real_popen = subprocess.Popen
+
+    def recording_popen(*args: Any, **kwargs: Any) -> subprocess.Popen[Any]:
+        child = real_popen(*args, **kwargs)
+        spawned.append(child)
+        return child
+
+    def failing_add(self: Ledger, resource: Resource) -> None:
+        time.sleep(0.5)
+        raise OSError("disk full")
+
+    monkeypatch.setattr(teardown.subprocess, "Popen", recording_popen)
+    monkeypatch.setattr(Ledger, "add", failing_add)
+    with pytest.raises(OSError, match="disk full"):
+        start_child(
+            [TOUCH, str(marker)],
+            env=CHILD_ENV,
+            log_path=tmp_path / "child.log",
+            label="touch",
+            ledger=Ledger(tmp_path / "ledger.json"),
+        )
+    [child] = spawned
+    assert child.returncode is not None
+    time.sleep(0.3)
+    assert not marker.exists()
+
+
+def test_a_child_whose_parent_never_registers_it_exits_without_running(tmp_path: Path) -> None:
+    marker = tmp_path / "ran"
+    child, go_fd = spawn_unregistered([TOUCH, str(marker)], env=CHILD_ENV, log_path=tmp_path / "child.log", stdout_path=None)
+    time.sleep(0.3)
+    assert child.poll() is None
+    os.close(go_fd)
+    assert child.wait(5) != 0
+    assert not marker.exists()
+
+
+def test_a_registered_child_runs(tmp_path: Path) -> None:
+    marker = tmp_path / "ran"
+    code = run_child(
+        [TOUCH, str(marker)],
+        env=CHILD_ENV,
+        log_path=tmp_path / "child.log",
+        label="touch",
+        ledger=Ledger(tmp_path / "ledger.json"),
+    )
+    assert code == 0
+    assert marker.exists()
+
+
+@pytest.fixture
+def group_signals(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, int, bool]]:
+    """Record every group signal and whether the leader was still an unreaped child of ours."""
+    sent: list[tuple[int, int, bool]] = []
+    real_signal_group = teardown._signal_group
+
+    def recording(pgid: int, signum: int) -> None:
+        try:
+            os.waitid(os.P_PID, pgid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            pinned = True
+        except ChildProcessError:
+            pinned = False
+        sent.append((pgid, signum, pinned))
+        real_signal_group(pgid, signum)
+
+    monkeypatch.setattr(teardown, "_signal_group", recording)
+    return sent
+
+
+def test_wait_child_signals_the_group_before_reaping_the_leader(
+    tmp_path: Path, group_signals: list[tuple[int, int, bool]]
+) -> None:
+    ledger = Ledger(tmp_path / "ledger.json")
+    child = start_child(
+        [sys.executable, "-c", SPAWN_GRANDCHILD, "0.3"],
+        env=CHILD_ENV,
+        log_path=tmp_path / "child.log",
+        label="parent",
+        ledger=ledger,
+    )
+    assert wait_child(child, ledger=ledger) == 0
+    assert group_signals == [(child.pid, signal.SIGKILL, True)]
+    assert child.returncode == 0
+
+
+def test_stop_child_signals_only_while_the_leader_pins_the_group(
+    tmp_path: Path, group_signals: list[tuple[int, int, bool]]
+) -> None:
+    ledger = Ledger(tmp_path / "ledger.json")
+    child = start_child(
+        [sys.executable, "-c", "import time; time.sleep(30)"],
+        env=CHILD_ENV,
+        log_path=tmp_path / "child.log",
+        label="sleeper",
+        ledger=ledger,
+    )
+    stop_child(child, ledger=ledger)
+    assert group_signals == [(child.pid, signal.SIGTERM, True)]
+    assert child.returncode is not None
+
+
+FOREIGN_GROUP = (
+    "import subprocess, sys; "
+    "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], stdout=subprocess.DEVNULL); "
+    "print(child.pid, flush=True)"
+)
+
+
+def leaderless_group(tmp_path: Path, env: dict[str, str]) -> tuple[int, int]:
+    """Start a session whose leader exits at once and leaves one member behind; return (pgid, member)."""
+    leader = subprocess.Popen(
+        [sys.executable, "-c", FOREIGN_GROUP], env=env, stdout=subprocess.PIPE, start_new_session=True
+    )
+    out, _ = leader.communicate(timeout=10)
+    return leader.pid, int(out)
+
+
+def test_system_actions_never_signal_a_leaderless_foreign_group(
+    tmp_path: Path, system_actions: tuple[SystemActions, Path], group_signals: list[tuple[int, int, bool]]
+) -> None:
+    actions, _ = system_actions
+    pgid, member = leaderless_group(tmp_path, CHILD_ENV)
+    try:
+        assert proc_start_time(pgid) is None
+        assert actions.group_alive(pgid)
+        assert not actions.group_has_token(pgid, "0" * 32)
+        entry = Resource("process", str(pgid), (("label", "app"), ("start_time", "1"), ("token", "0" * 32)))
+        ledger = ledger_with(tmp_path / "child-ledger.json", [entry])
+        report = execute_teardown([entry], run_root=tmp_path, ledger=ledger, actions=actions)
+        assert report == [f"process group {pgid} (app): leader gone and no live member carries its token; skipped"]
+        assert group_signals == []
+        assert proc_start_time(member) is not None
+    finally:
+        os.kill(member, signal.SIGKILL)
+
+
+def test_system_actions_stop_a_leaderless_group_that_carries_our_token(
+    tmp_path: Path, system_actions: tuple[SystemActions, Path], group_signals: list[tuple[int, int, bool]]
+) -> None:
+    actions, _ = system_actions
+    ledger = Ledger(tmp_path / "child-ledger.json")
+    child = start_child(
+        [sys.executable, "-c", FOREIGN_GROUP],
+        env=CHILD_ENV,
+        log_path=tmp_path / "child.log",
+        label="parent",
+        ledger=ledger,
+        stdout_path=tmp_path / "child.out",
+    )
+    child.wait(10)
+    member = int((tmp_path / "child.out").read_text())
+    try:
+        [entry] = ledger.load()
+        assert actions.group_has_token(child.pid, entry.meta_value("token") or "")
+        assert execute_teardown([entry], run_root=tmp_path, ledger=ledger, actions=actions) == []
+        assert group_signals == [(child.pid, signal.SIGTERM, False)]
+        assert not actions.group_alive(child.pid)
+    finally:
+        if proc_start_time(member) is not None:
+            os.kill(member, signal.SIGKILL)
+
+
 FAKE_DOCKER = """#!/bin/sh
 printf '%s\\n' "$*" >> "$DOCKER_CALLS"
 case "$*" in
@@ -505,8 +764,14 @@ case "$*" in
     echo 'null' ;;
   "network inspect --format {{json .Labels}} geometrikks-shots-net")
     echo '{"geometrikks.screenshots.run":"r2"}' ;;
-  *"inspect"*"geometrikks-shots-missing")
-    echo 'Error: No such object: geometrikks-shots-missing' >&2; exit 1 ;;
+  "container inspect --format {{json .Config.Labels}} geometrikks-shots-missing")
+    echo '[]'; echo 'Error response from daemon: No such container: geometrikks-shots-missing' >&2; exit 1 ;;
+  "network inspect --format {{json .Labels}} geometrikks-shots-missing")
+    echo '[]'; echo 'Error response from daemon: network geometrikks-shots-missing not found' >&2; exit 1 ;;
+  *"inspect"*"geometrikks-shots-odd")
+    echo 'Error response from daemon: No such container: geometrikks-shots-odd' >&2; exit 2 ;;
+  *"inspect"*"geometrikks-shots-context")
+    echo 'context "geometrikks-shots-context" not found' >&2; exit 1 ;;
   *"inspect"*"geometrikks-shots-broken")
     echo 'Cannot connect to the Docker daemon' >&2; exit 1 ;;
   "rm -f -v geometrikks-shots-broken")
@@ -535,8 +800,21 @@ def test_system_actions_read_the_run_label(system_actions: tuple[SystemActions, 
     assert actions.run_label("container", "geometrikks-shots-bare") == ""
     assert actions.run_label("network", "geometrikks-shots-net") == "r2"
     assert actions.run_label("container", "geometrikks-shots-missing") is None
+    assert actions.run_label("network", "geometrikks-shots-missing") is None
     with pytest.raises(RuntimeError, match="Docker daemon"):
         actions.run_label("network", "geometrikks-shots-broken")
+    with pytest.raises(RuntimeError, match="exited 2|No such container"):
+        actions.run_label("container", "geometrikks-shots-odd")
+    with pytest.raises(RuntimeError, match="context"):
+        actions.run_label("network", "geometrikks-shots-context")
+
+
+def test_system_actions_need_docker_on_the_given_path(tmp_path: Path) -> None:
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(RuntimeError, match="docker"):
+        SystemActions(ledger=Ledger(tmp_path / "ledger.json"), env={"PATH": str(tmp_path / "empty")}, log_dir=tmp_path)
+    with pytest.raises(RuntimeError, match="docker"):
+        SystemActions(ledger=Ledger(tmp_path / "ledger.json"), env={}, log_dir=tmp_path)
 
 
 def test_system_actions_remove_containers_with_their_volumes(system_actions: tuple[SystemActions, Path]) -> None:
