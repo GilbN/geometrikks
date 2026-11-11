@@ -108,6 +108,32 @@
     "contains": ["RDAP", "CSV", "default 25", "default 50", "up to 200"],
     "absent": ["500"]
   },
+  {
+    "path": "/docs/next/features/crowdsec/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["CROWDSEC_DEFAULT_BAN_DURATION", "IP actions menu"],
+    "absent": ["shield button appears next to IPs"]
+  },
+  {
+    "path": "/docs/next/features/authentication/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["APP_SESSION_MAX_AGE_DAYS", "/sw.js"]
+  },
+  {
+    "path": "/docs/next/features/authentication/oidc/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["OIDC_GROUPS_CLAIM", "APP_SESSION_MAX_AGE_DAYS"],
+    "absent": ["at the latest 7 days later"]
+  },
+  {
+    "path": "/docs/next/features/authentication/api-keys/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["gmk_", "APP_TRUSTED_PROXIES"]
+  },
   { "path": "/api/search", "status": 200, "contains": ["Check that the app is up"] },
   { "path": "/no-such-page/", "status": 404, "contains": ["href=\"/docs/\""] },
   {
