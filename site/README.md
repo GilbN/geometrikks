@@ -47,7 +47,7 @@ DOCS_CONTENT_DIR=tests/fixtures/content DOCS_PUBLISHED=0.1.0 bun run build
 bun run smoke tests/smoke/fixture.json
 ```
 
-CI's `site` job runs all of the above, in that order.
+CI's `site` job runs the install, the tests, the build, the type check and both smoke runs.
 
 ## Versions and URLs
 
@@ -155,10 +155,10 @@ It refuses:
 
 Between that commit and the image reaching ghcr.io, the folder is pending.
 A docs fix in that window goes into both `next` and the pending folder.
-When a pending folder sits next to latest, CI builds the site once more
-with every release folder marked as published. That promotes the pending
-folder early, so its dead links and redirect errors fail the pull request
-before the release does.
+Whenever a release folder is pending, CI builds the site once more with
+every release folder marked as published. That promotes the pending folder
+early, so its dead links and redirect errors fail the pull request before
+the release does.
 
 Once the image is published, the next site build promotes the folder. The
 `docs-promote` job in `.github/workflows/release.yml` triggers that build
@@ -168,12 +168,13 @@ nothing, and the folder goes live with the next build that a push starts.
 
 ## Generated pages
 
-- **Configuration.** `scripts/generate_config_docs.py` (at the repo root)
-  writes `docs/configuration.md` and
+- **Configuration.** `scripts/generate_config_docs.py` writes
+  `docs/configuration.md` and
   `content/docs/next/reference/configuration.mdx` from the settings
-  classes. Run `uv run python scripts/generate_config_docs.py` after a
-  settings change. CI's `backend unit` job runs it with `--check` and runs
-  `tests/test_config_docs.py`, so a stale page fails the pull request.
+  classes. After a settings change, run this from the repository root:
+  `uv run python scripts/generate_config_docs.py`. CI's `backend unit` job
+  runs it with `--check` and runs `tests/test_config_docs.py`, so a stale
+  page fails the pull request.
 - **API.** `next` renders `resources/generated/openapi.json`, which the
   contracts job keeps in step with the backend. Latest renders its
   snapshot in `content/openapi/X.Y.Z.json`. `lib/openapi-servers.ts`
