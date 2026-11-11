@@ -9,10 +9,13 @@ export type VersionPlan = {
 };
 
 export function compareSemver(a: string, b: string): number {
+  for (const version of [a, b]) {
+    if (!SEMVER.test(version)) throw new Error(`not a bare X.Y.Z version: ${version}`);
+  }
   const left = a.split(".").map(Number);
   const right = b.split(".").map(Number);
   for (let index = 0; index < 3; index++) {
-    const difference = (left[index] ?? 0) - (right[index] ?? 0);
+    const difference = left[index] - right[index];
     if (difference !== 0) return difference;
   }
   return 0;

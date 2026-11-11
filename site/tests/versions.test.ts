@@ -10,6 +10,10 @@ describe("toUrlSlugs", () => {
   test("keeps next as a prefix", () => {
     expect(toUrlSlugs(["next", "guides", "nested"], "0.1.0")).toEqual(["next", "guides", "nested"]);
   });
+
+  test("leaves slugs alone when no release is latest", () => {
+    expect(toUrlSlugs(["next", "x"], null)).toEqual(["next", "x"]);
+  });
 });
 
 describe("compareSemver", () => {
@@ -17,6 +21,11 @@ describe("compareSemver", () => {
     expect(compareSemver("0.10.0", "0.9.1")).toBeGreaterThan(0);
     expect(compareSemver("0.9.1", "0.10.0")).toBeLessThan(0);
     expect(compareSemver("1.2.3", "1.2.3")).toBe(0);
+  });
+
+  test("throws on anything but bare X.Y.Z", () => {
+    expect(() => compareSemver("next", "0.1.0")).toThrow(/next/);
+    expect(() => compareSemver("0.1.0", "v0.2.0")).toThrow(/v0.2.0/);
   });
 
   test("SEMVER accepts bare X.Y.Z only", () => {

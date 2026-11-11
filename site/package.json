@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 4322 -H 0.0.0.0",
-    "build": "next build",
+    "dev": "bun scripts/prepare.ts && next dev -p 4322 -H 0.0.0.0",
+    "build": "bun scripts/prepare.ts && next build",
     "postinstall": "fumadocs-mdx",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
