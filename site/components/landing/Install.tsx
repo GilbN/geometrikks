@@ -1,8 +1,5 @@
 import styles from "./Install.module.css";
 
-// The quickstart block is the README's, verbatim.
-const readme = "https://github.com/GilbN/geometrikks";
-
 const quickstart = (
   <>
     <span className="c"># Docker. Images for amd64 and arm64.</span>
@@ -61,9 +58,9 @@ export function Install() {
           </ul>
         </div>
         <p className={styles.links}>
-          <a href={`${readme}#quickstart`}>Quickstart</a>
-          <a href={`${readme}#maxmind-geolite2`}>GeoLite2 and the CARTO key</a>
-          <a href={`${readme}#running-behind-a-reverse-proxy`}>Behind a CDN or tunnel</a>
+          <a href="/docs/get-started/quickstart/">Quickstart</a>
+          <a href="/docs/get-started/geolite2/">GeoLite2 and the CARTO key</a>
+          <a href="/docs/sources/proxy-setup/">Behind a CDN or tunnel</a>
         </p>
       </div>
     </section>

@@ -54,6 +54,38 @@ bun run smoke tests/smoke/fixture.json
 
 CI's `site` job runs the install, the tests, the build, the type check and both smoke runs.
 
+## Writing docs
+
+Pages for the next release live in `content/docs/next/`, one `.mdx` file
+per page. Each needs a `title` and a one-sentence `description` in its
+frontmatter. A folder's `meta.json` lists its pages in sidebar order. Add
+a new page's file name there, without `.mdx`. A page missing from the list
+still builds and has a URL, but nothing in the sidebar leads to it.
+
+Link to other pages with relative file links, such as `[Loki](./loki.mdx)`
+or `[Map settings](../reference/configuration.mdx#map)`. Inside `next`, an
+absolute `/docs/...` link points at latest, and the tests reject it. Link
+to a repo file with `https://github.com/GilbN/geometrikks/blob/main/<path>`.
+
+Moving or renaming a page changes its URL. Add the old slug and the new
+one to `content/renames.json`. Without the entry, a bookmark of the old URL
+gets a 404 once latest no longer has the page, and postbuild fails if the
+app links to it. postbuild checks each entry (see [Redirects](#redirects)).
+`tests/renames.test.ts` follows every URL the old Starlight docs had to a
+page in `next`, so moving one of those pages fails the test until its
+entry is in.
+
+`bun test` runs `tests/content.test.ts` over every page in `next`. It
+fails on an absolute docs link, an em dash, an HTML comment, missing
+frontmatter, and an environment variable name that has no row on the
+generated configuration page. The env var check reads inline code spans
+and `NAME=value` or `NAME: value` lines in code blocks. A name the app
+itself never reads, such as a Docker image's or a test runner's variable,
+goes in `EXTRA_ENV_NAMES` at the top of that file, with a comment that
+says what reads it.
+
+Run the `unslop` skill over a page before you commit it.
+
 ## Versions and URLs
 
 Docs live in `content/docs/<version>/`, one folder per version: `next` for

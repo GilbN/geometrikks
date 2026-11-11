@@ -39,7 +39,7 @@ LOGPARSER_SERVER_NAME=edge-01`}</pre>
             You don't need agents if the logs already reach one machine. A single instance tails every shipped file
             and gives each one its own server name, or reads each proxy from Loki with one LogQL selector per proxy.
           </p>
-          <a className={styles.more} href="https://github.com/GilbN/geometrikks#multi-source-setup">
+          <a className={styles.more} href="/docs/sources/multiple-sources/">
             Multi-source setup in the docs
           </a>
         </div>

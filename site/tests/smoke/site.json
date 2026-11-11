@@ -239,5 +239,12 @@
     "absent": ["0.7.0", "request_count_24h", "realtime refactor"]
   },
   { "path": "/docs/next/reference/changelog/", "status": 200, "contains": ["Unreleased"] },
-  { "path": "/docs/next/reference/security/", "status": 200 }
+  { "path": "/docs/next/reference/security/", "status": 200 },
+  { "path": "/docs/operate/geolite2/", "status": 301, "location": "/docs/get-started/geolite2/" },
+  { "path": "/docs/features/cli", "status": 301, "location": "/docs/operate/cli/" },
+  { "path": "/docs/get-started/configuration/", "status": 301, "location": "/docs/reference/configuration/" },
+  { "path": "/docs/get-started/geolite2/", "status": 302, "location": "/docs/next/get-started/geolite2/" },
+  { "path": "/docs/sources/nginx/", "status": 302, "location": "/docs/next/sources/nginx/" },
+  { "path": "/api/search", "status": 200, "contains": ["Real client IP behind a proxy"] },
+  { "path": "/", "status": 200, "contains": ["href=\"/docs/sources/proxy-setup/\""] }
 ]

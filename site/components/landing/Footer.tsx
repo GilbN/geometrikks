@@ -18,7 +18,7 @@ export function Footer() {
             <a href="/docs/reference/changelog/">Changelog</a>
           </li>
           <li>
-            <a href="https://github.com/GilbN/geometrikks#running-behind-a-reverse-proxy">Proxy setup</a>
+            <a href="/docs/sources/proxy-setup/">Proxy setup</a>
           </li>
           <li>
             <a href="/docs/reference/security/">Security</a>
