@@ -15,13 +15,13 @@ GeoMetrikks has three WebSocket feeds, all outside `/api/v1`:
 
 ## Connecting
 
-The feeds check the handshake like any API request. A browser that is logged in sends its `session` cookie. A script sends an API key as `Authorization: Bearer gmk_...`, and a Read key is enough, because a WebSocket handshake counts as a read. The browser WebSocket API cannot set that header, so use a client that can. Without a valid cookie or key the server closes the socket before it sends a frame, with the error, such as `Invalid API key`, as the close reason. A server started with `APP_AUTH_DISABLED=true` asks for neither. See [API keys](../../features/authentication/api-keys.mdx).
+The feeds check the handshake like any API request. A browser that is logged in sends its `session` cookie. A script sends an API key as `Authorization: Bearer gmk_...`, and a Read key is enough, because a WebSocket handshake counts as a read. The browser WebSocket API cannot set that header, so use a client that can. Without a valid cookie or key the server rejects the handshake before it accepts the socket. Most clients report an HTTP 403 handshake failure, and a browser reports close code 1006. Neither says why. To see the error, such as an invalid or expired key, send the same key to any `/api/v1` endpoint, which answers 401 with the reason. A server started with `APP_AUTH_DISABLED=true` asks for neither. See [API keys](../../features/authentication/api-keys.mdx).
 
 The feeds only send. Every message is one JSON text frame, and the server reads and ignores anything the client sends.
 
 When the service behind a feed is not running, the server accepts the socket and closes it at once with code 1013, try again later:
 
-- `/ws/live` closes when the database is unreachable.
+- `/ws/live` closes when the database was down at startup and has not come back yet. A database that drops while the app runs leaves the feed open, with no events until ingestion writes again.
 - `/ws/crowdsec` closes when the CrowdSec integration is off, the database was down at startup, or the scheduler is disabled, since the scheduler drives the decision poll.
 
 Treat 1013 as a signal to fall back to fetching the REST endpoints on a timer. Reconnecting in a tight loop gets the same close again.
@@ -52,13 +52,15 @@ Each event describes one request:
 {"type": "request", "geo": {}, "log": {}}
 ```
 
-`geo` is null when the client IP has no GeoIP location. It holds `timestamp`, `ip_address`, `latitude`, `longitude`, `city`, `country_code` and `server`.
+Either `geo` or `log` can be null, never both, so check each before reading its fields.
 
-`log` holds `timestamp`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization` and `server`.
+`geo` is null when the client IP is private or reserved, or when the GeoIP database has no coordinates or country for it. It holds `timestamp`, `ip_address`, `latitude`, `longitude`, `city`, `country_code` and `server`.
+
+`log` is null when the source stores no access logs: with `LOGPARSER_SEND_LOGS=false`, or when the server falls back to map events only because the log lines do not fully match the configured or detected format. It is also null for an IP that is private, reserved or missing from the GeoIP database. It holds `timestamp`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization` and `server`.
 
 These keys are snake_case, unlike the camelCase REST responses. Timestamps are ISO 8601. `server` is the server name of the instance that read the line.
 
-The feed is a preview and trims long fields: `url` to 2000 characters, `referrer` to 1000, `user_agent` to 500 and `autonomous_system_organization` to 100. An event still larger than 7500 bytes after that never reaches the feed. The database row keeps the full values either way, so fetch `/api/v1/access-logs` when you need them.
+The feed is a preview and trims long fields: `url` to 2000 characters, `referrer` to 1000, `user_agent` to 500 and `autonomous_system_organization` to 100. An event still larger than 7500 bytes after that never reaches the feed. The access-log row in the database keeps the full values either way, so fetch `/api/v1/access-logs` when you need them. A source that stores no access logs has no such row.
 
 ## /ws/crowdsec
 

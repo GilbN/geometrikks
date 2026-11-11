@@ -1,6 +1,6 @@
 ---
 title: Polling for recent records
-description: How a script fetches the newest access log lines and CrowdSec alerts on a timer without missing or double counting records.
+description: Poll recent access logs and CrowdSec alerts, deduplicate results, and know where polling can miss records.
 ---
 
 A script that wants the requests of the last few minutes asks `/api/v1/access-logs` for a relative window, reads every page of it, and drops records it has already seen. For a live view instead of a timer, open the [WebSocket feed](#live-feed-instead-of-polling).
