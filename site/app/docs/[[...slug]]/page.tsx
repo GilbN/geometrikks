@@ -2,6 +2,7 @@ import { createRelativeLink } from "fumadocs-ui/mdx";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ApiIntro } from "@/components/docs/ApiIntro";
 import { OpenAPIPage } from "@/components/docs/api-page";
 import { NextBanner } from "@/components/docs/NextBanner";
 import { getMDXComponents } from "@/components/mdx";
@@ -38,6 +39,7 @@ export default async function Page(props: Props) {
   }
 
   const MDX = page.data.body;
+  const version = versionOfUrl(page.url) === NEXT || plan.latest === null ? NEXT : plan.latest;
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
@@ -45,7 +47,12 @@ export default async function Page(props: Props) {
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
       <DocsBody>
-        <MDX components={getMDXComponents({ a: createRelativeLink(source, page) })} />
+        <MDX
+          components={getMDXComponents({
+            a: createRelativeLink(source, page),
+            ApiIntro: () => <ApiIntro version={version} />,
+          })}
+        />
       </DocsBody>
     </DocsPage>
   );

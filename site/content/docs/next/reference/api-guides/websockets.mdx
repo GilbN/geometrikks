@@ -1,0 +1,95 @@
+---
+title: WebSocket messages
+description: The three WebSocket feeds, how to authenticate them, and every frame they send.
+---
+
+GeoMetrikks has three WebSocket feeds, all outside `/api/v1`:
+
+| Path | Sends | Reaches |
+| --- | --- | --- |
+| `/ws/live` | Each request as ingestion commits it | Every instance: the head and all agents |
+| `/ws/crowdsec` | CrowdSec decision changes and LAPI reachability | The process you are connected to |
+| `/ws/logs` | The app's own log records | The process you are connected to |
+
+`/ws/live` reads a Postgres LISTEN/NOTIFY channel. Every head and agent writing to the database publishes its requests there, so one socket sees traffic from all of them. The other two feeds read a broker inside the process serving the socket. `/ws/logs` shows the head's log lines and never an agent's. Agents serve no WebSocket feeds at all, only `/health` and `/health/ready`.
+
+## Connecting
+
+The feeds check the handshake like any API request. A browser that is logged in sends its `session` cookie. A script sends an API key as `Authorization: Bearer gmk_...`, and a Read key is enough, because a WebSocket handshake counts as a read. The browser WebSocket API cannot set that header, so use a client that can. Without a valid cookie or key the server closes the socket before it sends a frame, with the error, such as `Invalid API key`, as the close reason. A server started with `APP_AUTH_DISABLED=true` asks for neither. See [API keys](../../features/authentication/api-keys.mdx).
+
+The feeds only send. Every message is one JSON text frame, and the server reads and ignores anything the client sends.
+
+When the service behind a feed is not running, the server accepts the socket and closes it at once with code 1013, try again later:
+
+- `/ws/live` closes when the database is unreachable.
+- `/ws/crowdsec` closes when the CrowdSec integration is off, the database was down at startup, or the scheduler is disabled, since the scheduler drives the decision poll.
+
+Treat 1013 as a signal to fall back to fetching the REST endpoints on a timer. Reconnecting in a tight loop gets the same close again.
+
+## Idle frames
+
+A feed with nothing to send sends an empty frame of its own type every 30 seconds:
+
+- `/ws/live`: `{"type": "batch", "events": [], "dropped": 0}`
+- `/ws/crowdsec`: `{"type": "crowdsec_decisions", "added": [], "deleted": []}`
+- `/ws/logs`: `{"type": "log_batch", "records": [], "dropped": 0}`
+
+These keep the socket open behind a reverse proxy that cuts idle connections, such as nginx with its default `proxy_read_timeout` of 60 seconds. A proxy that cuts sooner than 30 seconds drops the feeds; [Reverse proxy](../../operate/reverse-proxy.mdx#websockets) has the settings. Handle an empty frame as a no-op.
+
+## /ws/live
+
+The server collects events for 0.15 seconds and sends them as one frame, about six frames a second at most:
+
+```json
+{"type": "batch", "events": [], "dropped": 0}
+```
+
+A frame holds at most 100 events. Events past that in the same 0.15 seconds are left out and counted in `dropped`, so a client under heavy traffic gets the rate instead of every line. The server also keeps at most 1000 events waiting per socket and drops the oldest when a slow client falls behind; those are not counted.
+
+Each event describes one request:
+
+```json
+{"type": "request", "geo": {}, "log": {}}
+```
+
+`geo` is null when the client IP has no GeoIP location. It holds `timestamp`, `ip_address`, `latitude`, `longitude`, `city`, `country_code` and `server`.
+
+`log` holds `timestamp`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization` and `server`.
+
+These keys are snake_case, unlike the camelCase REST responses. Timestamps are ISO 8601. `server` is the server name of the instance that read the line.
+
+The feed is a preview and trims long fields: `url` to 2000 characters, `referrer` to 1000, `user_agent` to 500 and `autonomous_system_organization` to 100. An event still larger than 7500 bytes after that never reaches the feed. The database row keeps the full values either way, so fetch `/api/v1/access-logs` when you need them.
+
+## /ws/crowdsec
+
+The feed sends two kinds of frame. On connect, and whenever the LAPI goes from reachable to unreachable or back, it sends a status frame:
+
+```json
+{"type": "crowdsec_status", "lapi_reachable": true}
+```
+
+The connect frame is skipped when the server has not polled the LAPI yet; the first poll then sends one.
+
+The server polls the LAPI decision stream every 15 seconds, set by `CROWDSEC_STREAM_POLL_INTERVAL` (see [Advanced tuning](../configuration.mdx#advanced-tuning)). Each poll that changed something sends a decisions frame:
+
+```json
+{"type": "crowdsec_decisions", "added": [], "deleted": []}
+```
+
+Each `added` entry holds `ip`, `type`, `origin`, `scenario` and `duration`. Each `deleted` entry holds `ip`, `type` and `origin`. `type` is the decision type: `ban`, `captcha` or a name a bouncer defines. Only IP-scoped decisions appear; range, country and AS decisions do not. Addresses are in canonical form, the same as `/api/v1/crowdsec/banned-ips`, so two spellings of one IPv6 address are one entry.
+
+The feed carries changes only. The poll right after startup returns the LAPI's full state and is never sent, so load `/api/v1/crowdsec/banned-ips` first and apply the frames on top. A `deleted` entry does not say whether the IP still holds another decision; refetch `banned-ips` after a delta to settle that. A client that falls 100 frames behind loses frames, and the same refetch brings it back in step.
+
+## /ws/logs
+
+The server collects log records for 0.25 seconds and sends them as one frame:
+
+```json
+{"type": "log_batch", "records": [], "dropped": 0}
+```
+
+A frame holds at most 200 records, and records past that are counted in `dropped`. The server keeps at most 1000 records waiting per socket and drops the oldest when a client falls behind.
+
+Add `?level=` to get only records at or above a level: `DEBUG`, `INFO`, `SUCCESS`, `WARNING`, `ERROR` or `CRITICAL`, in any case. Without it, or with a name it does not know, the feed sends every level.
+
+Each record is the JSON log event the app writes to its log file: `event`, `level`, `logger`, a UTC `timestamp`, the event's own fields, and `exception` when one was logged.

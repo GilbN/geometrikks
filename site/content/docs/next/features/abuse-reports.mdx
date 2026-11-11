@@ -34,4 +34,4 @@ When the address or AS is on a [Spamhaus DROP list](./drop-lists.mdx), the dialo
 
 The report goes to a third party, so it leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user agents it tries to strip the hostnames you serve, your public address and any server name with a dot. In paths it also strips credentials from the query string, such as API keys. User agents keep any credential they carry. The dialog counts the places it redacted. It can miss some, so read the report before you send it.
 
-The abuse report redaction guide in the API guides of these docs lists every rule.
+[Abuse report redaction](../reference/api-guides/abuse-report-redaction.mdx) lists every rule.

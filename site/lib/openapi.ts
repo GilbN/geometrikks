@@ -11,12 +11,15 @@ const contentDir = process.env.DOCS_CONTENT_DIR ?? "content";
 const schemaLoader = (path: string) => async () => withPlaceholderServer(JSON.parse(await readFile(path, "utf8")));
 
 const servers = new Map<string, OpenAPIServer>([
-  [NEXT, createOpenAPI({ input: { [NEXT]: schemaLoader("../resources/generated/openapi.json") } })],
+  [NEXT, createOpenAPI({ includeDocument: false, input: { [NEXT]: schemaLoader("../resources/generated/openapi.json") } })],
 ]);
 if (plan.latest !== null) {
   servers.set(
     plan.latest,
-    createOpenAPI({ input: { [plan.latest]: schemaLoader(`${contentDir}/openapi/${plan.latest}.json`) } }),
+    createOpenAPI({
+      includeDocument: false,
+      input: { [plan.latest]: schemaLoader(`${contentDir}/openapi/${plan.latest}.json`) },
+    }),
   );
 }
 

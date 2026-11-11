@@ -202,6 +202,21 @@
   { "path": "/docs/reference/configuration/", "status": 302, "location": "/docs/next/reference/configuration/" },
   { "path": "/docs/reference/configuration", "status": 302, "location": "/docs/next/reference/configuration/" },
   { "path": "/docs/next/reference/api/", "status": 200 },
+  { "path": "/docs/next/reference/api/", "status": 200, "scope": "article", "contains": ["snake_case", "gmk_"] },
+  {
+    "path": "/docs/next/reference/api-guides/polling/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["window=10m", "pageSize"]
+  },
+  { "path": "/docs/next/reference/api-guides/websockets/", "status": 200, "scope": "article", "contains": ["/ws/crowdsec"] },
+  {
+    "path": "/docs/next/reference/api-guides/abuse-report-redaction/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["linesPerIp", "appsec"],
+    "absent": ["replaces its earlier array"]
+  },
   {
     "path": "/docs/next/reference/api/health/HealthHealth/",
     "status": 200,
