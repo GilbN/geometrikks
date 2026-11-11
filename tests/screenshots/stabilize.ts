@@ -6,6 +6,7 @@ type ShotsMap = {
   areTilesLoaded(): boolean
   once(type: string): Promise<unknown>
   triggerRepaint(): void
+  isMoving(): boolean
   getStyle(): { sources: Record<string, { type: string }> }
   isSourceLoaded(id: string): boolean
 }
@@ -16,7 +17,9 @@ declare global {
   }
 }
 
-const inflight = new WeakMap<BrowserContext, Set<Request>>()
+type Traffic = { open: Set<Request>; lastActivity: number }
+
+const traffic = new WeakMap<BrowserContext, Traffic>()
 
 /** Theme, palette and time range before any page script runs, plus a count of open requests for `settle`. */
 export async function prepareContext(context: BrowserContext, theme: "dark" | "light"): Promise<void> {
@@ -29,11 +32,18 @@ export async function prepareContext(context: BrowserContext, theme: "dark" | "l
     },
     { keys: THEME_STORAGE_KEYS, mode: theme, palette: DEFAULT_COLOR_THEME },
   )
-  const open = new Set<Request>()
-  inflight.set(context, open)
-  context.on("request", (request) => open.add(request))
-  context.on("requestfinished", (request) => open.delete(request))
-  context.on("requestfailed", (request) => open.delete(request))
+  const state: Traffic = { open: new Set(), lastActivity: Date.now() }
+  traffic.set(context, state)
+  context.on("request", (request) => {
+    state.open.add(request)
+    state.lastActivity = Date.now()
+  })
+  const done = (request: Request) => {
+    state.open.delete(request)
+    state.lastActivity = Date.now()
+  }
+  context.on("requestfinished", done)
+  context.on("requestfailed", done)
 }
 
 /** Stores the page's MapLibre instance on `window.__shotsMap`, found as `mapCenter` in tests/browser/map-pill.pw.ts finds it. */
@@ -62,19 +72,19 @@ export async function findMap(page: Page): Promise<void> {
   })
 }
 
+const QUIET_MS = 500
+
+/** No request open and none started or finished for QUIET_MS, timed from the request callbacks themselves. */
 async function networkQuiet(page: Page, strict: boolean): Promise<void> {
-  const open = inflight.get(page.context())
-  if (!open) throw new Error("prepareContext was not called for this context")
+  const state = traffic.get(page.context())
+  if (!state) throw new Error("prepareContext was not called for this context")
   const deadline = Date.now() + 30_000
-  let quietSince = open.size === 0 ? Date.now() : 0
-  while (Date.now() - quietSince < 500 || quietSince === 0) {
+  while (state.open.size > 0 || Date.now() - state.lastActivity < QUIET_MS) {
     if (Date.now() > deadline) {
       if (!strict) return
-      throw new Error(`requests still open after 30 s: ${[...open].map((request) => request.url()).join(", ")}`)
+      throw new Error(`requests still open after 30 s: ${[...state.open].map((request) => request.url()).join(", ")}`)
     }
-    await page.waitForTimeout(100)
-    if (open.size > 0) quietSince = 0
-    else if (quietSince === 0) quietSince = Date.now()
+    await page.waitForTimeout(state.open.size > 0 ? 100 : Math.max(10, QUIET_MS - (Date.now() - state.lastActivity)))
   }
 }
 
@@ -89,6 +99,7 @@ async function chartsStill(page: Page): Promise<void> {
     previous = current
     await page.waitForTimeout(250)
   }
+  throw new Error("the charts were still changing after 40 reads 250 ms apart")
 }
 
 export async function settle(page: Page, opts: { map: boolean; live?: boolean }): Promise<void> {
@@ -110,12 +121,15 @@ export async function settle(page: Page, opts: { map: boolean; live?: boolean })
       Boolean(opts.live),
       { timeout: 60_000 },
     )
-    // A live map redraws every frame for its pulses, so it never goes idle.
+    if (opts.live) {
+      await page.waitForFunction(() => !window.__shotsMap!.isMoving(), undefined, { timeout: 60_000 })
+    }
+    // A live map redraws every frame for its pulses, so it never goes idle; one drawn frame is its settled state.
     await page.evaluate(async (live) => {
       const map = window.__shotsMap!
-      const idle = map.once("idle")
+      const drawn = map.once(live ? "render" : "idle")
       map.triggerRepaint()
-      await (live ? Promise.race([idle, new Promise((resolve) => setTimeout(resolve, 3000))]) : idle)
+      await drawn
     }, Boolean(opts.live))
   }
   if (!opts.live) await chartsStill(page)
@@ -123,9 +137,29 @@ export async function settle(page: Page, opts: { map: boolean; live?: boolean })
 }
 
 export async function hideChrome(page: Page): Promise<void> {
+  // transition-all on a focused control (the tabs trigger) fades its ring out after the blur, and live shots let
+  // transitions run, so the ring goes at once while the element still has focus and nothing is left to fade.
   await page.addStyleTag({
-    content: '[data-sonner-toaster], [data-testid="map-frame-rate"] { display: none !important; }',
+    content: `
+      [data-sonner-toaster], [data-testid="map-frame-rate"] { display: none !important; }
+      :focus, :focus-visible {
+        outline: none !important;
+        --tw-ring-shadow: 0 0 #0000 !important;
+        --tw-ring-offset-shadow: 0 0 #0000 !important;
+        transition: none !important;
+      }
+    `,
   })
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.())
   await page.mouse.move(0, 0)
+  // What the blur and the mouse move still fade, such as a focus border colour or a hover background.
+  await page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .map((animation) => animation.finished.catch(() => undefined)),
+    )
+  })
 }
