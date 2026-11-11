@@ -37,6 +37,6 @@ The map draws with WebGL2, and the message adds the browser's own reason when it
 The app has no usable GeoLite2 City database. The UI and API stay up and show the data already stored, but ingestion waits, so no new traffic is recorded. The sidebar's status dot also shows Degraded. There are two causes:
 
 - `MAXMINDDB_USER_ID` or `MAXMINDDB_LICENSE_KEY` is missing. Set both in `.env` and run `docker compose up -d`, which recreates the container and downloads the database at startup.
-- The keys are set, but the download hasn't finished, for example because it failed at startup. Ingestion starts by itself once the file is there, with no restart. The GeoLite2 refresh job downloads it on its schedule, or right away from Run now on Settings > Scheduler.
+- The keys are set, but the download hasn't finished, for example because it failed at startup. Ingestion starts by itself once the file is there, with no restart. The GeoLite2 refresh job runs every `GEOIP_REFRESH_DAYS` days, 7 by default, and downloads it on its next run. To get it today, open Settings > Scheduler and use Run now on that job.
 
 See [Geo-degraded mode](../get-started/geolite2.mdx#geo-degraded-mode).

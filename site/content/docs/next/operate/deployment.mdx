@@ -7,19 +7,20 @@ This page covers what the published image does at runtime and which parts of it 
 
 ## How the container runs
 
-The image is `ghcr.io/gilbn/geometrikks`, built from the [`Dockerfile`](https://github.com/GilbN/geometrikks/blob/main/Dockerfile). In a running container, `tini` is PID 1. It starts the entrypoint, which hands its process over to the server:
+The image is `ghcr.io/gilbn/geometrikks`, built from the [`Dockerfile`](https://github.com/GilbN/geometrikks/blob/main/Dockerfile). In a running container, `tini` is PID 1. It starts the entrypoint, which hands its process over to the `litestar` command, which starts Granian:
 
 ```text
 tini (PID 1)
   -> docker/entrypoint.sh   remaps the geometrikks user to PUID:PGID, drops root with gosu
     -> litestar run --workers 1 --no-subprocess --workers-kill-timeout 15
-       (the Granian server, one worker process)
+       (the litestar-granian supervisor)
+      -> Granian, in its own process group, with one worker process
 ```
 
 - `tini` passes signals on to the server and reaps orphaned processes.
 - The entrypoint runs as root only long enough to remap the user and fix ownership, then hands over to the app as that user. See [Container user and hardening](#container-user-and-hardening).
-- `--no-subprocess` makes the `litestar` process the Granian server itself. Without it, `docker stop` would stop the CLI wrapper and Granian would go down with it, without running the app's shutdown steps.
-- `--workers-kill-timeout 15` gives the worker 15 seconds to finish shutting down before Granian kills it.
+- The `litestar` process stays up as a supervisor. It passes `SIGTERM` and `SIGINT` on to Granian's process group, so `docker stop` runs the app's shutdown steps. The image's command still carries `--no-subprocess`, but litestar-granian ignores that flag and always runs the supervisor.
+- `--workers-kill-timeout 15` gives the worker up to 15 seconds to finish shutting down. The supervisor waits 5 seconds more and then kills Granian's process group, 20 seconds after the signal.
 
 The app is installed as a wheel into `/app/.venv`; the image holds no source checkout. Next to it in `/app` sit `migrations/` and `alembic.ini`, which the migration step reads from the working directory, and a copy of `CHANGELOG.md`, which Settings > Changelog shows.
 
@@ -50,7 +51,7 @@ To harden the PUID and PGID path, drop every capability except the three the ent
       - SETGID
 ```
 
-Where root isn't allowed at all, as with rootless Docker, set `user:` on the `app` service. The entrypoint sees it isn't root, skips the remap and every ownership change, and starts the app as that user. With no root step, `cap_drop: ALL` and no `cap_add` is enough:
+Where a policy forbids containers that start as root, such as a Kubernetes `runAsNonRoot` rule, set `user:` on the `app` service, or `runAsUser` in Kubernetes. The entrypoint sees it isn't root, skips the remap and every ownership change, and starts the app as that user. With no root step, `cap_drop: ALL` and no `cap_add` is enough:
 
 ```yaml
   app:
@@ -62,7 +63,12 @@ Where root isn't allowed at all, as with rootless Docker, set `user:` on the `ap
       - ALL
 ```
 
-That user then has to own `./logs` and `/app/data/geoip`, or GeoLite2 downloads fail. The image creates both owned by UID 1000, and Docker creates a missing `./logs` owned by root. A `user:` other than 1000 needs the ownership change. For UID and GID 1234:
+That user has to be able to write to two places:
+
+- `./logs`, mounted at `/app/logs`. If the app can't write there, it turns off file logging, `login.log` included, and starts anyway. fail2ban and CrowdSec then get no login lines. `./logs` is a bind mount, and Docker creates a missing one owned by root. Create it yourself before the first start, with `mkdir logs` as the host user the container runs as.
+- `/app/data/geoip`. If the app can't write there, GeoLite2 downloads fail. The image creates this volume owned by UID 1000.
+
+A `user:` other than 1000 needs the ownership change. For an agent, the two commands below are all it takes, because an agent skips the frontend step that writes to `/app`. A full instance under another UID also needs the image change described after them. For UID and GID 1234:
 
 ```bash
 sudo chown -R 1234:1234 logs
@@ -77,12 +83,12 @@ The image stops on `SIGTERM`. The app's shutdown steps run in the reverse of the
 
 1. The heartbeat writer stops first, which keeps the overlap with a replacement process short.
 2. The background database recovery stops, if the app was waiting for the database to come back.
-3. Ingestion stops. It waits 5 seconds for the log tails to stop and cancels the ones still running, then gives the consumer up to 5 seconds to write its last batch before cancelling it. That is up to 10 seconds in total.
+3. Ingestion stops. It waits up to 5 seconds for the log tails to stop and cancels the ones still running, then gives the consumer up to 5 seconds to write its last batch before cancelling it. That is up to 10 seconds in total.
 4. The scheduler shuts down and waits for running jobs.
 5. The OpenID Connect and CrowdSec clients close.
 6. The channels plugin, which carries `/ws/live`, stops, and then the database connections close.
 
-With Granian's 15 second kill timeout on top, the container needs more than Docker's default 10 seconds. The shipped compose file sets `stop_grace_period: 20s`. With plain `docker run`, stop the container with `docker stop -t 20`. When the 20 seconds run out, Docker kills the process. That can happen even with the longer grace period, for example when Granian is slow to close its connections. An ingestion batch not yet written by then is lost.
+Granian gives the worker up to 15 seconds for all of these steps, so the ingestion budget runs inside those 15. The supervisor kills Granian's process group 5 seconds later, 20 seconds after the signal. That is more than Docker's default 10 seconds, so the shipped compose file sets `stop_grace_period: 20s`. With plain `docker run`, stop the container with `docker stop -t 20`. When the 20 seconds run out, the supervisor kills Granian and Docker kills the container. That can happen even with the longer grace period, for example when Granian is slow to close its connections. An ingestion batch not yet written by then is lost.
 
 ## One worker per process
 
@@ -102,15 +108,19 @@ To ingest from several places, run one full instance and an agent per log source
 
 With `DB_MIGRATE_ON_STARTUP=true`, the default, the full instance brings the database schema to the newest revision at startup. That suits the single compose file.
 
-To migrate as a separate deploy step, set `DB_MIGRATE_ON_STARTUP=false` and run the migration with the same settings the app uses:
+To migrate as a separate deploy step, set `DB_MIGRATE_ON_STARTUP=false`. Nothing at startup then checks the schema revision, so run the migration before the new version starts, in this order:
 
 ```bash
+docker compose pull
 docker compose run --rm app litestar database upgrade --no-prompt
+docker compose up -d
 ```
+
+`docker compose run` uses the image already on the machine, so pull first, or the old version runs the migration and stops at its own revision. Start the new version on the old schema and startup, or later requests, fail where the code expects the new tables.
 
 The image sets `LITESTAR_APP`, so `litestar` finds the app. The command builds the app from your settings, so it needs the database settings and `APP_ADMIN_PASSWORD` like the app itself; `docker compose run` takes both from the `app` service. Without `--no-prompt` it waits for a confirmation.
 
-Every start, migrated or not, then sets up the TimescaleDB hypertables, continuous aggregates and policies. That step expects the schema at the newest revision, so if the migration step was skipped, startup fails instead of running on an old schema.
+Every start, migrated or not, sets up the TimescaleDB hypertables, continuous aggregates and policies.
 
 Agents never migrate. At startup an agent waits up to 120 seconds for the full instance to bring the schema to the agent's revision. See [Health during the schema wait](../sources/multiple-sources.mdx#health-during-the-schema-wait).
 
@@ -128,4 +138,4 @@ An agent serves only these two routes.
 
 ## Logging
 
-Granian logs its own startup and shutdown at info level, and its access log is off, as litestar-granian has it by default. The app logs every request once, through its structlog pipeline, with the path, method, query and status code. `LOG_LEVEL` sets the level; see [Logging](../reference/configuration.mdx#logging).
+Granian logs its own startup and shutdown at info level, and its access log is off, as litestar-granian has it by default. The app logs each request through its structlog pipeline as two records: one for the request, with the path, method, query and path parameters, and one for the response, with the status code. `LOG_LEVEL` sets the level; see [Logging](../reference/configuration.mdx#logging).

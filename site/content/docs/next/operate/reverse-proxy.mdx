@@ -11,7 +11,7 @@ This page is about the requests your browser sends to GeoMetrikks itself. To get
 
 ```dotenv
 APP_SESSION_SECURE=true
-APP_TRUSTED_PROXIES=172.18.0.0/16
+APP_TRUSTED_PROXIES=172.30.0.0/24
 ```
 
 `APP_SESSION_SECURE=true` marks the session cookie Secure, so the browser only sends it over HTTPS. Over plain HTTP the login then stops working, so set it only once the proxy serves HTTPS. With OpenID Connect, `OIDC_REDIRECT_URI` is the app's public https address, and startup fails unless `APP_SESSION_SECURE=true` is set too. See [The callback URL](../features/authentication/oidc.mdx#the-callback-url).
@@ -51,8 +51,10 @@ networks:
   default:
     ipam:
       config:
-        - subnet: 172.18.0.0/16
+        - subnet: 172.30.0.0/24
 ```
+
+Pick a range that no other Docker network and nothing on your LAN uses. Docker hands out ranges such as `172.18.0.0/16` to new networks on its own, so one of those is often taken already, and a pinned range that overlaps another network makes `docker compose up` fail. `docker network ls` and `docker network inspect <name>` show the networks in use. For a network you create with `docker network create`, pin it there with `--subnet`.
 
 ## WebSockets
 
@@ -118,7 +120,27 @@ server {
 }
 ```
 
-SWAG finds the app by the name in `$upstream_app`, so SWAG and GeoMetrikks have to share a Docker network, and the app has to answer to `geometrikks` on it. The shipped compose file sets `hostname: geometrikks` on the `app` service but no `container_name`, and the hostname alone doesn't make the name resolve for other containers. Without a fix, SWAG can't find the upstream and answers with a 502. Either add `container_name: geometrikks` to the `app` service:
+SWAG finds the app by the name in `$upstream_app`, so SWAG and GeoMetrikks have to share a Docker network. When SWAG runs in its own compose stack, create a network both stacks join, and pin the subnet on it instead of on the default network:
+
+```bash
+docker network create --subnet 172.30.0.0/24 proxy
+```
+
+Add it to the `app` service next to the default network, which the app still needs to reach the database, and add it to the SWAG service the same way:
+
+```yaml
+services:
+  app:
+    networks:
+      - default
+      - proxy
+
+networks:
+  proxy:
+    external: true
+```
+
+The app also has to answer to `geometrikks` on it. The shipped compose file sets `hostname: geometrikks` on the `app` service but no `container_name`, and the hostname alone doesn't make the name resolve for other containers. Without a fix, SWAG can't find the upstream and answers with a 502. Either add `container_name: geometrikks` to the `app` service:
 
 ```yaml
 services:
@@ -126,9 +148,11 @@ services:
     container_name: geometrikks
 ```
 
-or set `$upstream_app` to `app`, the compose service name. The service name resolves on the networks of the GeoMetrikks compose project.
+or set `$upstream_app` to `app`, the compose service name. The service name resolves on every network the service joins, but on a shared network another stack's `app` service answers to it too.
 
-SWAG's stock `proxy.conf` already sends the WebSocket upgrade and `X-Forwarded-For` headers. Set `APP_TRUSTED_PROXIES` to the subnet of the network SWAG shares with the app, for example `172.18.0.0/16`.
+SWAG reaches the app over the Docker network, so the app doesn't need a published port. Remove the `ports:` entry from the `app` service, or anyone who can reach the host on port 8000 gets around SWAG.
+
+SWAG's stock `proxy.conf` already sends the WebSocket upgrade and `X-Forwarded-For` headers. Set `APP_TRUSTED_PROXIES` to the subnet of the network SWAG shares with the app, `172.30.0.0/24` in the example above.
 
 ## Plain nginx
 
@@ -167,10 +191,23 @@ server {
 }
 ```
 
-Point `proxy_pass` at wherever the app runs. With nginx on the same machine, as here, set `APP_TRUSTED_PROXIES=127.0.0.1`.
+Point `proxy_pass` at wherever the app runs. Which address to trust depends on where the app runs:
+
+- With the app outside Docker, or in a container on the host network, and nginx on the same machine, set `APP_TRUSTED_PROXIES=127.0.0.1`.
+- With the shipped compose file, nginx connects to `127.0.0.1:8000`, but the request reaches the container from the gateway of its Docker network, such as `172.18.0.1`. With only `127.0.0.1` in the list, the login log and API keys record that gateway address for every request. Trust the gateway instead. `docker network inspect geometrikks_default` shows it in the `Gateway` field; the network takes its name from the compose folder, `geometrikks` in the Quickstart. Pin the subnet as in [Pin the Docker subnet](#pin-the-docker-subnet), so the gateway keeps its address.
+
+The shipped compose file publishes port 8000 on every interface, so anyone on your LAN can reach the app without going through nginx. With nginx on the host, publish the port on loopback only:
+
+```yaml
+services:
+  app:
+    ports:
+      - "127.0.0.1:8000:8000"
+```
 
 ## Before you expose it to the internet
 
+- The shipped compose file publishes port 8000 on every interface, which lets anyone who reaches the host skip the proxy and any auth portal in it. Publish it as `127.0.0.1:8000:8000` when the proxy runs on the host, or remove `ports:` when the proxy shares a Docker network with the app.
 - `/schema`, the interactive API docs, and `/health` need no login. To keep them private, block them at the proxy with an nginx `location` rule or your auth portal.
 - GeoMetrikks has no login rate limit of its own, so nothing in the app slows down password guessing. Run fail2ban or CrowdSec against the `login_failed` lines in the login log, or against your proxy's access log, to ban guessers at the edge. [The login log](../features/authentication/index.mdx#the-login-log) describes the file.
 - Set `APP_AUTH_DISABLED=true` only when an authenticating proxy such as Authelia or Authentik sits in front of the app. Anyone who reaches the app's port without going through that proxy can then use every API action. See [Turning the login off](../features/authentication/index.mdx#turning-the-login-off).
