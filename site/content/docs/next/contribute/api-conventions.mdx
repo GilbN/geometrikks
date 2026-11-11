@@ -3,7 +3,7 @@ title: API conventions
 description: The rules every GeoMetrikks API endpoint follows for versioning, field casing, errors and operation IDs, and where the code enforces them.
 ---
 
-These are the rules for adding or changing an endpoint. `tests/test_error_contract.py` and the generated OpenAPI document in `resources/generated/openapi.json` pin them. If you change one, regenerate the frontend client in the same change, as [Generated API types](./development.mdx#generated-api-types) describes, and add a migration note to the changelog. Otherwise scripts written against the old shape break with no notice.
+These are the rules for adding or changing an endpoint. `tests/test_error_contract.py` and the generated OpenAPI document in `resources/generated/openapi.json` pin them.
 
 The [API reference](../reference/api/index.mdx) covers what API consumers see, such as authentication, the error codes and paging.
 
@@ -13,7 +13,7 @@ Every REST endpoint lives under `/api/v1`. `geometrikks/server/routes.py` mounts
 
 Routes outside the router are the WebSocket feeds (`/ws/live`, `/ws/logs`, `/ws/crowdsec`), the probes (`/health`, `/health/ready`), the OpenAPI document at `/schema`, the service worker and the web UI.
 
-A breaking change to `/api/v1` means a renamed or removed field, path or query parameter, a changed type, or a new required parameter. It needs the client regenerated and a changelog migration note in the same change. Adding an optional field or parameter is not breaking.
+Renaming or removing a field, path, query parameter or error code breaks API scripts. Mark it with a **Breaking:** changelog entry that says what callers must change. Every change to a route or model needs the client regenerated, as [Generated API types](./development.mdx#generated-api-types) describes.
 
 ## Field casing
 
@@ -38,11 +38,11 @@ Error responses keep Litestar's envelope and add a machine-readable `code`:
 
 The camelCase rule covers successful responses only. The envelope keys are the framework's, so they stay snake_case.
 
-`geometrikks/server/exceptions.py` builds every error response:
+`geometrikks/server/exceptions.py` builds the error responses for HTTP exceptions and domain errors. An unhandled exception of any other kind gets Litestar's default 500 body, which has no `code`.
 
 - `handle_http_exception` adds `code` to each `HTTPException` on an `/api/` path. A `code` attribute on the exception class wins, such as `api_key_invalid` on `InvalidApiKeyError`. A `ValidationException` gets `validation_failed`, with the per-field breakdown in `extra`. Anything else gets the code for its status from `_STATUS_CODES`, or `http_error` when the status has none.
-- A 500 replaces `detail` with `Internal Server Error`, so exception text never reaches the client. With `APP_DEBUG=true` the response carries the traceback instead.
-- Domain code raises `DomainValidationError`, `DomainNotFoundError` or `DomainConflictError` from `geometrikks/domain/exceptions.py`, never an HTTP exception. They map to 400, 404 and 409 in the same envelope, with the default codes `invalid_request`, `not_found` and `conflict`. Pass `code=` for a more specific one, such as `invalid_range`.
+- An `HTTPException` with status 500 has its `detail` replaced with `Internal Server Error`, so exception text never reaches the client. With `APP_DEBUG=true` the response carries the traceback instead.
+- Services and shared validation helpers raise `DomainValidationError`, `DomainNotFoundError` or `DomainConflictError` from `geometrikks/domain/exceptions.py`, never an HTTP exception. They map to 400, 404 and 409 in the same envelope, with the default codes `invalid_request`, `not_found` and `conflict`. Pass `code=` for a more specific one, such as `invalid_range`. Controllers may raise HTTP exceptions directly.
 - CrowdSec and RDAP client errors have their own handlers, with the codes `crowdsec_unreachable`, `crowdsec_credentials_rejected`, `crowdsec_unsupported` and `rdap_unavailable`.
 - `handle_not_found` gives every 404 under `/api/` the JSON envelope, including unknown and unversioned paths, matching the auth boundary. Other 404s, such as a missing static asset, keep an empty body.
 

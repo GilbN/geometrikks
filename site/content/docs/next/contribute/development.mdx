@@ -43,7 +43,7 @@ With neither, the UI has no page to load and the startup log warns `no index.htm
 docker compose -f docker-compose.dev.yml --profile dev up --build
 ```
 
-It mounts `geometrikks/`, `resources/`, `tests/` and `data/` for hot reload, sets `VITE_DEV_MODE=true`, tails `nginx_logs/` as its access log and writes the app's own logs to `logs/`. The service loads `.env`, so create it first; compose refuses to start the service without one. It publishes port 8000 too, so stop a bare-metal run before you start it.
+It mounts `geometrikks/`, `resources/`, `tests/` and `data/` for hot reload, sets `VITE_DEV_MODE=true`, tails `nginx_logs/access.log` and writes the app's own logs to `logs/`. The service loads `.env`, so create it first; compose refuses to start the service without one. It publishes port 8000 too, so stop a bare-metal run before you start it. Put an nginx `access.log` in `nginx_logs/` to give it traffic to ingest.
 
 ### Demo traffic on the map
 
@@ -54,19 +54,25 @@ http://localhost:8000/map?demoTraffic=1       # steady traffic
 http://localhost:8000/map?demoTraffic=burst   # overlapping bursts
 ```
 
-The harness turns Live mode on, sends requests from ten fixed cities around the world and never opens the live-feed WebSocket. It works only when the UI comes from the Vite dev server, so with `VITE_DEV_MODE=true` or the Docker `dev` profile. A `bun run build` bundle ignores the parameter and shows the real live feed.
+The parameter switches Live mode on. The browser then makes up requests from ten fixed cities around the world and never opens the live-feed WebSocket. Without the parameter, Live mode stays as you last left it. The harness works only when the UI comes from the Vite dev server, so with `VITE_DEV_MODE=true` or the Docker `dev` profile. A `bun run build` bundle ignores the parameter.
 
 ### Seed data
 
-`tests/seed` fills the database in your `DB_` settings with generated traffic, so the map, analytics and log pages have something to show. Run the app once first so the tables and continuous aggregates exist. It needs the GeoLite2 City database and uses the ASN database when it finds one. A fresh worktree has no `data/geoip/`, so point it at another checkout's files:
+`tests/seed` fills the database in your `DB_` settings with generated traffic, so the map, analytics and log pages have something to show. Run the app once first so the tables and continuous aggregates exist. It needs the GeoLite2 City database and uses the ASN database when it finds one:
+
+```bash
+uv run python -m tests.seed
+```
+
+It reads the City database from `GEOIP_DB_PATH` and the ASN database from `GEOIP_ASN_DB_PATH`, the paths the app downloads GeoLite2 to. A fresh worktree has no `data/geoip/`, so point it at files elsewhere:
 
 ```bash
 uv run python -m tests.seed \
-  --city-db ~/dev/geometrikks/data/geoip/GeoLite2-City.mmdb \
-  --asn-db ~/dev/geometrikks/data/geoip/GeoLite2-ASN.mmdb
+  --city-db /path/to/GeoLite2-City.mmdb \
+  --asn-db /path/to/GeoLite2-ASN.mmdb
 ```
 
-Without `--city-db` it reads `GEOIP_DB_PATH`, and without `--asn-db` it reads `GEOIP_ASN_DB_PATH`. The [seed tool README](https://github.com/GilbN/geometrikks/blob/main/tests/seed/README.md) lists every option.
+The [seed tool README](https://github.com/GilbN/geometrikks/blob/main/tests/seed/README.md) lists every option.
 
 ## Generated API types
 
@@ -97,9 +103,11 @@ uv run pytest                              # units, plus integration when the da
 uv run pytest tests/integration            # the integration suite alone
 ```
 
+Pass `--ignore=tests/integration` to run the unit tests alone.
+
 `tests/integration/conftest.py` marks every test in that folder `integration`, and those tests run against a real TimescaleDB. The suite checks whether it can reach the server, and skips those tests when it cannot. So with the dev database running, a plain `uv run pytest` runs the integration suite too.
 
-The integration suite never touches your `geometrikks` dev database. It creates a scratch database, migrates it and sets up the TimescaleDB objects, and drops it when the session ends. It creates the scratch database as a template database, because TimescaleDB never starts its job scheduler in one. No refresh policy then runs while the tests seed and truncate tables. The database user needs the right to create and drop databases.
+The integration suite never touches your `geometrikks` dev database. It creates a scratch database, migrates it and sets up the TimescaleDB objects, and drops it when the session ends. It drops any existing database with that name first, so never set `IT_DB_NAME` to a database you want to keep. It creates the scratch database as a template database, because TimescaleDB never starts its job scheduler in one. No refresh policy then runs while the tests seed and truncate tables. The database user needs the right to create and drop databases.
 
 Override the connection with `IT_DB_HOST`, `IT_DB_PORT`, `IT_DB_USER` and `IT_DB_PASSWORD` (defaults `localhost`, `5432`, `geouser`, `geopass`). `IT_DB_NAME` names the scratch database and defaults to `geometrikks_it`. Give each worktree its own name, because two runs on one name drop each other's database. The name must be 1 to 48 letters, digits or underscores, starting with a letter or underscore; anything else stops the run before a test starts.
 
@@ -109,24 +117,37 @@ CI runs the integration suite on `timescale/timescaledb-ha:pg18-ts2.30`. Timesca
 docker run -d --name geometrikks-it-db -p 5433:5432 \
   -e POSTGRES_USER=geouser -e POSTGRES_PASSWORD=geopass -e POSTGRES_DB=geometrikks \
   timescale/timescaledb-ha:pg18-ts2.30
-IT_DB_PORT=5433 uv run pytest tests/integration
+for i in $(seq 60); do
+  docker exec geometrikks-it-db pg_isready -h 127.0.0.1 -U geouser -q && break
+  sleep 1
+done
+docker exec geometrikks-it-db pg_isready -h 127.0.0.1 -U geouser \
+  && IT_DB_PORT=5433 uv run pytest tests/integration
+docker rm -f geometrikks-it-db
 ```
+
+Docker publishes the port before Postgres accepts connections, and the suite checks the port only once, when it collects the tests. The loop waits up to 60 seconds for the server. If it is still not ready, the last `pg_isready` reports `no response` and pytest does not run.
 
 The test session ignores your `.env`. Two environment variables are test hooks that the app's code checks:
 
 - `DISABLE_WAIT=true` makes the waits for the database, for a log file to appear and for a line in a known format try once and return. The test session sets it, and tests that exercise those waits set it back to `false`.
 - `DISABLE_ROTATION_CHECK=true` turns off rotation detection in the file source, which watches for an inode change or the file shrinking by 99% or more. Only the test for that switch sets it.
 
-Never set either on a running app. With the first, the app gives up on a database or log file that is not there yet instead of waiting for it. With the second, it keeps reading a rotated log's old file and never opens the new one.
+Never set either on a running app. With the first, the app skips its startup wait for the database and starts degraded when the database is not up yet. It keeps retrying in the background. It also skips the grace period for a missing log file and the wait for a line in a known format. With the second, it keeps reading a rotated log's old file and never opens the new one.
 
 ### Frontend
 
 ```bash
 bun run test        # vitest unit tests
-bun run test:smoke  # Playwright browser tests
 ```
 
-The Playwright tests drive a running app at `SMOKE_BASE_URL` (default `http://127.0.0.1:8000`) and log in with `SMOKE_ADMIN_USER` and `SMOKE_ADMIN_PASSWORD`, falling back to `APP_ADMIN_USER` and `APP_ADMIN_PASSWORD`. Start the app first and install the browser once with `bunx playwright install chromium`. CI runs them against the production image.
+The Playwright tests drive a running app at `SMOKE_BASE_URL` (default `http://127.0.0.1:8000`) and log in with `SMOKE_ADMIN_USER` and `SMOKE_ADMIN_PASSWORD`. Set both to the admin login of the app under test. Playwright does not read `.env`, and tests such as `chart-options.pw.ts` fail without `SMOKE_ADMIN_PASSWORD`:
+
+```bash
+SMOKE_ADMIN_USER=admin SMOKE_ADMIN_PASSWORD=your-admin-password bun run test:smoke
+```
+
+Start the app first and install the browser once with `bunx playwright install chromium`. CI runs them against the production image.
 
 ## Docs site
 
