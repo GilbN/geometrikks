@@ -52,11 +52,11 @@ Each event describes one request:
 {"type": "request", "geo": {}, "log": {}}
 ```
 
-Either `geo` or `log` can be null, never both, so check each before reading its fields.
+Either `geo` or `log` can be null, never both, so check each before reading its fields. Requests from private or reserved addresses, or from addresses missing from the GeoIP database, send no event.
 
-`geo` is null when the client IP is private or reserved, or when the GeoIP database has no coordinates or country for it. It holds `timestamp`, `ip_address`, `latitude`, `longitude`, `city`, `country_code` and `server`.
+`geo` is null when the GeoIP database has the IP but no coordinates or no country for it. It holds `timestamp`, `ip_address`, `latitude`, `longitude`, `city`, `country_code` and `server`.
 
-`log` is null when the source stores no access logs: with `LOGPARSER_SEND_LOGS=false`, or when the server falls back to map events only because the log lines do not fully match the configured or detected format. It is also null for an IP that is private, reserved or missing from the GeoIP database. It holds `timestamp`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization` and `server`.
+`log` is null when the source stores no access logs: with `LOGPARSER_SEND_LOGS=false`, or when the server falls back to map events only because the log lines do not fully match the configured or detected format. It holds `timestamp`, `ip_address`, `remote_user`, `method`, `url`, `http_version`, `status_code`, `bytes_sent`, `referrer`, `user_agent`, `request_time`, `upstream_response_time`, `host`, `country_code`, `country_name`, `city`, `autonomous_system_number`, `autonomous_system_organization` and `server`.
 
 These keys are snake_case, unlike the camelCase REST responses. Timestamps are ISO 8601. `server` is the server name of the instance that read the line.
 
