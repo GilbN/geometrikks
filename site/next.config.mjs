@@ -8,6 +8,7 @@ const config = {
   trailingSlash: true,
   images: { unoptimized: true },
   reactStrictMode: true,
+  agentRules: false,
   experimental: { globalNotFound: true },
   turbopack: { root: import.meta.dirname },
 };
