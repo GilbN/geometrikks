@@ -1,14 +1,9 @@
 import { docs } from "collections/server";
 import { loader } from "fumadocs-core/source";
-import { NEXT, toUrlSlugs, type VersionPlan } from "./versions";
+import versions from "../.generated/versions.json";
+import { toUrlSlugs, type VersionPlan } from "./versions";
 
-const latest = process.env.DOCS_LATEST ?? null;
-export const plan: VersionPlan = {
-  latest,
-  pending: [],
-  superseded: [],
-  served: latest === null ? [NEXT] : [latest, NEXT],
-};
+export const plan = versions as VersionPlan;
 
 const fumadocsSource = docs.toFumadocsSource();
 fumadocsSource.files = fumadocsSource.files.filter((file) => plan.served.includes(file.path.split("/")[0]));
