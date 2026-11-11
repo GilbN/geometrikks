@@ -1225,7 +1225,8 @@ class OidcSettings(BaseSettings):
         description=(
             "The exact callback URL registered at the identity provider: the "
             f"public https address of this app plus {OIDC_CALLBACK_PATH}. "
-            "Plain http is only allowed on localhost."
+            "Plain http is only allowed on localhost. An https URI also needs "
+            "APP_SESSION_SECURE=true, or startup fails."
         ),
     )
     allowed_users: Annotated[list[str], NoDecode] = Field(
@@ -1391,7 +1392,11 @@ class AppSettings(BaseSettings):
 
     mode: Literal["full", "agent"] = Field(
         default="full",
-        description="Application mode: full (all components) or agent (logparser only)"
+        description=(
+            "Either full, which runs everything, or agent, which only tails logs "
+            "into the head's database and serves the two health routes, /health "
+            "and /health/ready."
+        ),
     )
     proxy_advisory: bool = Field(
         default=True,
@@ -1502,7 +1507,8 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Disable the built-in session auth entirely. Set true only when an "
-            "authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app."
+            "authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. "
+            "Setting it together with OpenID Connect (OIDC_*) stops startup."
         ),
     )
     admin_user: str = Field(default="admin", description="Admin login username")
@@ -1517,7 +1523,8 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Mark the session cookie Secure so browsers only send it over "
-            "HTTPS. Recommended when serving behind a TLS reverse proxy."
+            "HTTPS. OpenID Connect with an https OIDC_REDIRECT_URI needs it, or "
+            "startup fails. Recommended behind any TLS reverse proxy."
         ),
     )
     session_max_age_days: int = Field(
@@ -1534,9 +1541,13 @@ class Settings(BaseSettings):
     trusted_proxies: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description=(
-            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env "
-            "accepts one value, comma-separated values, or a JSON list. "
-            "Empty (default): forwarded headers are never trusted."
+            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. The "
+            "login log, the OIDC login lines, an API key's last-used-from IP and "
+            "the api_key_rejected, api_key_created and api_key_revoked log lines "
+            "all record the client IP resolved through it. Env accepts "
+            "one value, comma-separated values, or a JSON list. Empty (default): "
+            "forwarded headers are never trusted, so behind a proxy all of these "
+            "record the proxy's address."
         ),
     )
 

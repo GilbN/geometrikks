@@ -8,9 +8,10 @@ description: Every environment variable GeoMetrikks reads, generated from the se
 All settings are environment variables (or `.env` entries). The short
 list most users need is in `.env.example`. This page lists every variable.
 
-The variables come in four groups:
+The variables come in five groups:
 
 - Essentials: login, database, the logs to read and GeoIP.
+- Container and compose variables: read by the image and the compose file, not by the app.
 - Optional settings: one subsection per feature. Skip the ones you don't use.
 - Advanced tuning: pool sizes, poll intervals, timeouts and log rotation.
   The defaults fit almost every install.
@@ -29,12 +30,12 @@ Most installs set these. The compose file sets `DB_HOST` for you.
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. |
+| `APP_AUTH_DISABLED` | `false` | Disable the built-in session auth entirely. Set true only when an authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app. Setting it together with OpenID Connect (OIDC_*) stops startup. |
 | `APP_ADMIN_USER` | `admin` | Admin login username |
 | `APP_ADMIN_PASSWORD` | - | Admin login password (required unless APP_AUTH_DISABLED=true or OpenID Connect (OIDC_*) is configured) |
-| `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. Recommended when serving behind a TLS reverse proxy. |
+| `APP_SESSION_SECURE` | `false` | Mark the session cookie Secure so browsers only send it over HTTPS. OpenID Connect with an https OIDC_REDIRECT_URI needs it, or startup fails. Recommended behind any TLS reverse proxy. |
 | `APP_SESSION_MAX_AGE_DAYS` | `7` | How many days a login lasts before the user has to sign in again. Each login keeps the lifetime it started with, so a change only applies to logins made after it. Raise it for an unattended wall screen. 400 is the longest cookie lifetime browsers accept. |
-| `APP_TRUSTED_PROXIES` | *(computed)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted. |
+| `APP_TRUSTED_PROXIES` | *(empty)* | Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. The login log, the OIDC login lines, an API key's last-used-from IP and the api_key_rejected, api_key_created and api_key_revoked log lines all record the client IP resolved through it. Env accepts one value, comma-separated values, or a JSON list. Empty (default): forwarded headers are never trusted, so behind a proxy all of these record the proxy's address. |
 
 ### Database
 
@@ -50,11 +51,11 @@ Most installs set these. The compose file sets `DB_HOST` for you.
 
 | Variable | Default | Description |
 |---|---|---|
-| `LOGPARSER_LOG_PATHS` | *(computed)* | Access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/access/access.log |
-| `LOGPARSER_LOG_FORMATS` | *(computed)* | Log format per tailed file: 'auto' (default, detected from the file's content), 'geometrikks-json', 'nginx', 'traefik-json', or 'caddy-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
-| `LOGPARSER_SERVER_NAME` | *(computed)* | Name recorded on every request this server ingests. It is a name you choose for this server, not your nginx `server_name`. Env accepts one value for every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. Formerly `LOGPARSER_HOST_NAME`, which still works until 1.0. |
+| `LOGPARSER_LOG_PATHS` | `/var/log/access/access.log` | Access log files to tail. Env accepts a single path or a JSON list of paths. Default: /var/log/access/access.log |
+| `LOGPARSER_LOG_FORMATS` | `auto` | Log format per tailed file: 'auto' (default, detected from the file's content), 'geometrikks-json', 'nginx', 'traefik-json', or 'caddy-json'. Env accepts a single value applied to every path, or a JSON list matching LOGPARSER_LOG_PATHS by position. |
+| `LOGPARSER_SERVER_NAME` | *(the machine's hostname)* | Name recorded on every request this server ingests. It is a name you choose for this server, not your nginx `server_name`. Env accepts one value for every tailed file, or a JSON list matching LOGPARSER_LOG_PATHS by position. Default: this machine's hostname. Formerly `LOGPARSER_HOST_NAME`, which still works until 1.0. |
 | `LOGPARSER_STORE_DEBUG_LINES` | `false` | Store all raw log lines in AccessLogDebug table. When False, only malformed requests are stored. |
-| `LOGPARSER_IGNORE_IPS` | *(computed)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
+| `LOGPARSER_IGNORE_IPS` | *(empty)* | IPs/CIDRs the parser drops entirely (no geo event, access log, or debug row). Use for your own traffic hitting the reverse proxy. Env accepts one value, comma-separated values, or a JSON list. Empty (default): nothing is ignored. |
 
 ### GeoIP
 
@@ -67,6 +68,24 @@ Most installs set these. The compose file sets `DB_HOST` for you.
 | `GEOIP_ASN_DB_PATH` | `data/geoip/GeoLite2-ASN.mmdb` | Path to the GeoLite2 ASN database file |
 | `GEOIP_ASN_ENABLED` | `true` | Download and use the GeoLite2 ASN database for per-request ASN/organization enrichment. Uses the same MaxMind credentials as the City database; without credentials or a database file the app simply ingests without ASN data. |
 
+## Container and compose variables
+
+The image and the shipped `docker-compose.yml` read these. They are not app settings, so Settings > Environment does not list them.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PUID` | `1000` | User id the app runs as. At startup the entrypoint remaps the `geometrikks` user to it, chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`, then drops root. Match your host user (`id -u`) so host tools can manage the files in `./logs`. A non-root `user:` on the `app` service skips the remap. That user must then own `./logs` and the geoip volume itself, or GeoLite2 downloads fail. |
+| `PGID` | `1000` | Group id the app runs as. At startup the entrypoint remaps the `geometrikks` group to it and chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`. Match your host group (`id -g`). A non-root `user:` on the `app` service skips this remap too. |
+| `ACCESS_LOG_DIR` | `/var/log/nginx` | Host folder the compose file mounts read-only at `/var/log/access`, where `LOGPARSER_LOG_PATHS` points by default. Set it to the folder that holds your proxy's access logs. |
+| `NGINX_LOG_DIR` | - | Older name for `ACCESS_LOG_DIR`. The compose file uses it only when `ACCESS_LOG_DIR` is unset. |
+| `POSTGRES_USER` | `geouser` | Database user the `timescale_db` service creates. The compose file sets it on that service, so a value in `.env` changes nothing. It must match `DB_USER`. Postgres reads it only when it creates the data volume. |
+| `POSTGRES_PASSWORD` | `DB_PASSWORD`, else `geopass` | Password of the database user. The compose file sets it to `${DB_PASSWORD:-geopass}` and sets the app's `DB_PASSWORD` the same way, so both fall back to `geopass` when `DB_PASSWORD` is unset. Postgres applies it only when it creates the data volume. Changing `DB_PASSWORD` later locks the app out of the database until you also change the password inside Postgres with `ALTER USER geouser PASSWORD '...'`. |
+| `POSTGRES_DB` | `geometrikks` | Database the `timescale_db` service creates. The compose file sets it on that service, so a value in `.env` changes nothing. It must match `DB_DATABASE`. Postgres reads it only when it creates the data volume. |
+| `LITESTAR_WEB_CONCURRENCY` | `1` | Worker count for `litestar run`. The image's command passes `--workers 1`, which wins over this and the two variables below, so they change nothing in the container. Outside the image, more than one worker gives each process its own `/ws/crowdsec` and `/ws/logs` feeds and its own session sweep, and lets two processes run migrations at once. See Deployment. |
+| `WEB_CONCURRENCY` | `1` | Same as `LITESTAR_WEB_CONCURRENCY`, which wins when both are set. |
+| `GRANIAN_WORKERS` | `1` | Same as `LITESTAR_WEB_CONCURRENCY`, read only when neither it nor `WEB_CONCURRENCY` is set. |
+| `LITESTAR_APP` | *(set by the image)* | Tells `litestar` CLI commands where the app is. The image sets it to `geometrikks.server.core:create_app`, so commands run in the container need no `--app`. Outside the image, pass `--app geometrikks.server.core:create_app`. |
+
 ## Optional settings
 
 Set these only for a feature you use, or to change a default.
@@ -76,9 +95,9 @@ Set these only for a feature you use, or to change a default.
 | Variable | Default | Description |
 |---|---|---|
 | `LOKI_URL` | - | Base URL of the Loki server, e.g. http://loki:3100. http or https. Unset (default): no Loki source. |
-| `LOKI_QUERIES` | *(computed)* | LogQL stream selectors, one source each, e.g. \{job="traefik"\}. Env accepts a single selector or a JSON list. Empty (default): no Loki source. |
-| `LOKI_FORMATS` | *(computed)* | Log format per query, same values as LOGPARSER_LOG_FORMATS. Env accepts one value for every query, or a JSON list matching LOKI_QUERIES by position. |
-| `LOKI_SERVER_NAMES` | *(computed)* | Server name per query. Env accepts one value or a JSON list matching LOKI_QUERIES by position. Empty (default): the first LOGPARSER_SERVER_NAME. |
+| `LOKI_QUERIES` | *(empty)* | LogQL stream selectors, one source each, e.g. \{job="traefik"\}. Env accepts a single selector or a JSON list. Empty (default): no Loki source. |
+| `LOKI_FORMATS` | `auto` | Log format per query, same values as LOGPARSER_LOG_FORMATS. Env accepts one value for every query, or a JSON list matching LOKI_QUERIES by position. |
+| `LOKI_SERVER_NAMES` | *(empty)* | Server name per query. Env accepts one value or a JSON list matching LOKI_QUERIES by position. Empty (default): the first LOGPARSER_SERVER_NAME. |
 | `LOKI_TENANT_ID` | - | Sent as X-Scope-OrgID, for a multi-tenant Loki. Unset (default): no header. |
 | `LOKI_USERNAME` | - | Basic auth username, with LOKI_PASSWORD. |
 | `LOKI_PASSWORD` | - | Basic auth password, with LOKI_USERNAME. |
@@ -90,10 +109,10 @@ Set these only for a feature you use, or to change a default.
 | `MAP_SERVER_LATITUDE` | - | Latitude of this server on the map, where live request routes end. Set it with MAP_SERVER_LONGITUDE to skip public-IP detection. Formerly `MAP_HOME_LATITUDE`, which still works until 1.0. |
 | `MAP_SERVER_LONGITUDE` | - | Longitude of this server on the map, where live request routes end. Set it with MAP_SERVER_LATITUDE to skip public-IP detection. Formerly `MAP_HOME_LONGITUDE`, which still works until 1.0. |
 | `MAP_AUTO_DETECT_SERVER_LOCATION` | `true` | Look up this server's public IP at startup and geolocate it when MAP_SERVER_LATITUDE and MAP_SERVER_LONGITUDE are unset. Formerly `MAP_AUTO_DETECT_HOME`, which still works until 1.0. |
-| `MAP_SERVER_LOCATIONS` | *(computed)* | Fixed map locations per server name, as a JSON object of \{"server": [latitude, longitude]\}. An entry here wins over the location that server detects for itself. Removing an entry deletes its row at the next startup. Use it for a server whose public IP geolocates wrong (CGNAT, VPN), or whose logs are shipped from another machine. Formerly `MAP_HOME_LOCATIONS`, which still works until 1.0. |
+| `MAP_SERVER_LOCATIONS` | *(empty)* | Fixed map locations per server name, as a JSON object of \{"server": [latitude, longitude]\}. An entry here wins over the location that server detects for itself. Removing an entry deletes its row at the next startup. Use it for a server whose public IP geolocates wrong (CGNAT, VPN), or whose logs are shipped from another machine. Formerly `MAP_HOME_LOCATIONS`, which still works until 1.0. |
 | `MAP_DEFAULT_VIEW` | - | Where the map opens, as latitude,longitude or latitude,longitude,zoom (zoom 0-22, default 3). Example: 71.129982,27.653369,15 opens on northern Norway at zoom 15. When unset, the map opens on the server locations, or on the whole world if there are none. |
-| `MAP_CARTO_API_KEY` | `` | CARTO basemaps API key, sent as ?key= on every basemap request the browser makes. CARTO's terms require one per deployment; keys are free at https://carto.com/basemaps/apikey. Not a secret: it is visible to anyone who can open the map. |
-| `MAP_ESRI_API_KEY` | `` | ArcGIS Location Platform API key for the map's Satellite view, which draws Esri World Imagery. Keys are free at https://location.arcgis.com. Without one the Satellite switch stays off. It is not a secret, since anyone who can open the map can see it. |
+| `MAP_CARTO_API_KEY` | *(empty)* | CARTO basemaps API key, sent as ?key= on every basemap request the browser makes. CARTO's terms require one per deployment; keys are free at https://carto.com/basemaps/apikey. Not a secret: it is visible to anyone who can open the map. |
+| `MAP_ESRI_API_KEY` | *(empty)* | ArcGIS Location Platform API key for the map's Satellite view, which draws Esri World Imagery. Keys are free at https://location.arcgis.com. Without one the Satellite switch stays off. It is not a secret, since anyone who can open the map can see it. |
 
 ### CrowdSec
 
@@ -122,25 +141,37 @@ Set these only for a feature you use, or to change a default.
 
 ### OpenID Connect
 
+Login with OpenID Connect turns on when `OIDC_ISSUER`, `OIDC_CLIENT_ID`,
+`OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI` are all set. Setting only some of
+them stops startup with an error that names the missing ones. Startup also fails when:
+
+- `OIDC_ISSUER` or `OIDC_REDIRECT_URI` uses plain http on a host other than localhost.
+- The path of `OIDC_REDIRECT_URI` is not `/api/v1/auth/oidc/callback`.
+- Neither `OIDC_ALLOWED_USERS` nor `OIDC_ALLOWED_GROUPS` is set.
+- `OIDC_SCOPES` does not include `openid`.
+- `OIDC_CA_BUNDLE` names a file that is missing or unreadable.
+- `APP_AUTH_DISABLED=true` is set.
+- `OIDC_REDIRECT_URI` is https and `APP_SESSION_SECURE` is not `true`.
+
 | Variable | Default | Description |
 |---|---|---|
 | `OIDC_ISSUER` | - | Issuer URL of the identity provider, e.g. https://auth.example.com. Discovery is read from \{issuer\}/.well-known/openid-configuration and the iss claim must equal this value exactly. Must be https unless the host is localhost. |
 | `OIDC_CLIENT_ID` | - | Client id registered at the identity provider. |
 | `OIDC_CLIENT_SECRET` | - | Client secret registered at the identity provider. |
-| `OIDC_REDIRECT_URI` | - | The exact callback URL registered at the identity provider: the public https address of this app plus /api/v1/auth/oidc/callback. Plain http is only allowed on localhost. |
-| `OIDC_ALLOWED_USERS` | *(computed)* | People allowed to sign in, each a verified email address or a subject identifier. One value, comma-separated values, or a JSON list. At least one of OIDC_ALLOWED_USERS and OIDC_ALLOWED_GROUPS is required. |
-| `OIDC_ALLOWED_GROUPS` | *(computed)* | Groups allowed to sign in; membership in any one is enough. Same formats as OIDC_ALLOWED_USERS. |
+| `OIDC_REDIRECT_URI` | - | The exact callback URL registered at the identity provider: the public https address of this app plus /api/v1/auth/oidc/callback. Plain http is only allowed on localhost. An https URI also needs APP_SESSION_SECURE=true, or startup fails. |
+| `OIDC_ALLOWED_USERS` | *(empty)* | People allowed to sign in, each a verified email address or a subject identifier. One value, comma-separated values, or a JSON list. At least one of OIDC_ALLOWED_USERS and OIDC_ALLOWED_GROUPS is required. |
+| `OIDC_ALLOWED_GROUPS` | *(empty)* | Groups allowed to sign in; membership in any one is enough. Same formats as OIDC_ALLOWED_USERS. |
 | `OIDC_GROUPS_CLAIM` | `groups` | Claim that carries group membership, read from the ID token and the userinfo endpoint. |
 | `OIDC_SCOPES` | `openid profile email groups` | Space-separated scopes requested at login. Must include openid. |
 | `OIDC_PROVIDER_NAME` | `SSO` | Label on the login button: "Sign in with \{name\}". |
 | `OIDC_LOGOUT_IDP` | `false` | On logout, also end the identity provider session when discovery advertises an end_session_endpoint. Register \{app origin\}/signed-out as the post-logout redirect URI before enabling it. When the endpoint is absent, logout still clears the GeoMetrikks session but cannot end the provider session. |
 | `OIDC_CA_BUNDLE` | - | PEM file with the CA that signed the identity provider's certificate, for providers behind an internal CA. There is no switch to turn verification off. |
 
-### Application mode
+### Instance and notices
 
 | Variable | Default | Description |
 |---|---|---|
-| `APP_MODE` | `full` | Application mode: full (all components) or agent (logparser only) |
+| `APP_MODE` | `full` | Either full, which runs everything, or agent, which only tails logs into the head's database and serves the two health routes, /health and /health/ready. |
 | `APP_PROXY_ADVISORY` | `true` | Warn on Settings > Status when most recent traffic for a tailed file comes from CDN or private peer addresses, meaning the proxy logs its upstream instead of the visitor. CDN findings for agent-tailed sources are scanned from the database on the head every 5 minutes. Set to false when the traffic mix is deliberate (Tailscale-only access, a CDN you front on purpose). |
 | `APP_UPDATE_CHECK` | `true` | Check GitHub Releases every 12 hours for a newer GeoMetrikks release and mention it on the About page. The request goes to api.github.com and carries no information about this instance. Set to false for an offline install or if you don't want the app to contact GitHub. |
 | `APP_INSTANCE_NAME` | - | Name this instance goes by on Settings > Agents, where the head lists every instance that reports in. Unset, agents show as "agent" and the head as "head". Set it on every agent. Two unnamed agents share one name and overwrite each other's status. Up to 255 characters, no slashes, no control characters, and not "." or "..". |

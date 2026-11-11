@@ -80,3 +80,77 @@ def test_site_reference_lists_the_same_variables_as_docs():
     docs = re.findall(pattern, Path("docs/configuration.md").read_text(encoding="utf-8"), flags=re.M)
     site = re.findall(pattern, gen.SITE_OUTPUT.read_text(encoding="utf-8"), flags=re.M)
     assert docs == site
+
+
+def test_escape_mdx_keeps_a_code_span_after_an_empty_one():
+    assert gen.escape_mdx("| `FOO` | `` | use `{x}` here |") == "| `FOO` | `` | use `{x}` here |"
+
+
+def test_container_variables_are_listed():
+    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    for name in ("PUID", "PGID", "ACCESS_LOG_DIR", "POSTGRES_PASSWORD", "WEB_CONCURRENCY", "LITESTAR_APP"):
+        assert f"| `{name}` |" in text
+
+
+def test_container_variables_exist_in_their_sources():
+    granian = importlib.util.find_spec("litestar_granian")
+    assert granian is not None and granian.submodule_search_locations
+    sources = [
+        Path("docker-compose.yml"),
+        Path("docker/entrypoint.sh"),
+        Path("Dockerfile"),
+        Path(".env.example"),
+        Path(granian.submodule_search_locations[0]) / "cli.py",
+    ]
+    text = "\n".join(source.read_text(encoding="utf-8") for source in sources)
+    missing = [name for name, _, _ in gen.CONTAINER_VARIABLES if not re.search(rf"\b{name}\b", text)]
+    assert not missing, missing
+
+
+def test_instance_section_heading():
+    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    assert "### Application mode" not in text and "### Instance and notices" in text
+
+
+def test_oidc_section_names_its_startup_failures():
+    section = Path("docs/configuration.md").read_text(encoding="utf-8").split("### OpenID Connect", 1)[1]
+    note = section.split("| Variable |", 1)[0]
+    for needle in ("/api/v1/auth/oidc/callback", "APP_SESSION_SECURE", "APP_AUTH_DISABLED", "openid"):
+        assert needle in note
+
+
+def test_defaults_are_readable():
+    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    assert "*(computed)*" not in text and "| `` |" not in text
+    assert re.search(r"^\| `LOKI_QUERIES` \| \*\(empty\)\* \|", text, flags=re.M)
+    assert re.search(r"^\| `LOGPARSER_LOG_PATHS` \| `/var/log/access/access.log` \|", text, flags=re.M)
+    assert "| `LOGPARSER_SERVER_NAME` | *(the machine's hostname)* |" in text
+
+
+def test_trusted_proxies_description_names_api_keys():
+    field = settings_module.Settings.model_fields["trusted_proxies"]
+    assert "API key" in (field.description or "")
+
+
+def test_names_in_container_rows_and_notes_exist():
+    rows = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", gen.build(), flags=re.M))
+    container = {name for name, _, _ in gen.CONTAINER_VARIABLES}
+    texts = [desc for _, _, desc in gen.CONTAINER_VARIABLES]
+    texts += [line for lines in gen.SECTION_NOTES.values() for line in lines]
+    unknown = {tok for text in texts for tok in re.findall(r"[A-Z][A-Z0-9]*_[A-Z0-9_]+", text)} - rows - container
+    assert not unknown, sorted(unknown)
+
+
+def test_list_defaults_stay_json_where_env_needs_json():
+    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    assert '| `GEOIP_LOCALES` | `["en"]` |' in text
+
+
+def test_site_links_keep_only_the_label_until_the_page_exists(tmp_path, monkeypatch):
+    page = tmp_path / "reference" / "configuration.mdx"
+    page.parent.mkdir()
+    monkeypatch.setattr(gen, "SITE_OUTPUT", page)
+    assert gen.site_links("See [Deployment](deployment.md).") == "See Deployment."
+    (tmp_path / "operate").mkdir()
+    (tmp_path / "operate" / "deployment.mdx").write_text("", encoding="utf-8")
+    assert gen.site_links("See [Deployment](deployment.md).") == "See [Deployment](../operate/deployment.mdx)."
