@@ -492,8 +492,7 @@ def dry_run(args: argparse.Namespace) -> int:
                 )
                 say(_tail(logs / "playwright-list.log", lines=200))
                 say(f"playwright --list exited {listed}")
-                if problems:
-                    code = EXIT_REFUSED
+                code = dry_run_exit(has_problems=bool(problems), listed=listed)
             except (RunFailed, MissingParamError) as error:
                 say(f"dry run failed: {error.args[0]}")
                 code = EXIT_FAILED
@@ -509,6 +508,13 @@ def dry_run(args: argparse.Namespace) -> int:
             else:
                 shutil.rmtree(scratch, ignore_errors=True)
     return code
+
+
+def dry_run_exit(*, has_problems: bool, listed: int) -> int:
+    """Preflight problems outrank a failed ``--list``, which still fails the dry run."""
+    if has_problems:
+        return EXIT_REFUSED
+    return EXIT_FAILED if listed != 0 else EXIT_DONE
 
 
 def _print_dry_env(args: argparse.Namespace, env: dict[str, str]) -> None:

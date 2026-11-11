@@ -20,7 +20,7 @@ uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] 
 
 | Flag | What it does |
 | --- | --- |
-| `--dry-run` | Runs the preflight and prints its problems, the app's environment with secrets as `***`, the shots in capture order, the teardown plan and Playwright's test list. It starts no container, database or server and never touches `data/screenshots/`. Exits 2 when the preflight found problems, else 0. |
+| `--dry-run` | Runs the preflight and prints its problems, the app's environment with secrets as `***`, the shots in capture order, the teardown plan and Playwright's test list. It starts no container, database or server and never touches `data/screenshots/`. Exits 2 when the preflight found problems, else 1 when Playwright cannot list the tests, else 0. A scene with no stage fails the list with `unknown scene: <id>`. |
 | `--cleanup` | Removes what a crashed or killed run left behind. See below. |
 | `--only map,live` | Retakes these scenes. Their files and manifest entries are replaced, and every other scene's files and entries stay as they are. A retake needs a readable `data/screenshots/manifest.json`. Without one the run exits 2 before it starts anything, and you need a full run first. |
 | `--hold` | Waits after capture, whether it passed or failed, and prints the PNG folder, the instance's URLs and the login. Enter goes on to encode and publish. Ctrl-C tears down without publishing. |

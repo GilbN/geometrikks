@@ -420,6 +420,40 @@ def test_cleanup_keeps_a_dry_run_folder_with_an_unreadable_ledger(
     assert f"kept {folder}" in capsys.readouterr().out
 
 
+# --- the dry run's exit status ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("problems", "listed", "expected"),
+    [
+        ([], 0, run.EXIT_DONE),
+        ([], 1, run.EXIT_FAILED),
+        (["no CARTO key"], 1, run.EXIT_REFUSED),
+        (["no CARTO key"], 0, run.EXIT_REFUSED),
+    ],
+)
+def test_dry_run_exits_refused_on_problems_else_failed_when_the_list_fails(
+    isolated: Isolated,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    problems: list[str],
+    listed: int,
+    expected: int,
+) -> None:
+    def fake_run(runner: run.Runner, argv: list[str], *, label: str, log: str, **_: object) -> int:
+        (runner.log_dir / log).write_text("Error: unknown scene: nav-more\n" if listed else "Total: 72 tests\n")
+        return listed
+
+    monkeypatch.setattr(run, "gather_facts", lambda args, runner, ledger_exists: None)
+    monkeypatch.setattr(run, "preflight_problems", lambda facts: list(problems))
+    monkeypatch.setattr(run.Runner, "which", lambda runner, name: f"/usr/bin/{name}")
+    monkeypatch.setattr(run.Runner, "run", fake_run)
+    assert run.dry_run(run_args()) == expected
+    out = capsys.readouterr().out
+    assert f"playwright --list exited {listed}" in out
+    assert not list(isolated.root.glob("dry-*"))
+
+
 # --- steps 8 and 12, the shared helper, and the preflight --------------------------------------------------
 
 
