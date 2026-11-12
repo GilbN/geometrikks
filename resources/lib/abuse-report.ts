@@ -17,6 +17,12 @@ import type { AbuseReportTarget } from "@/lib/api"
 import { goDurationMs } from "@/lib/crowdsec-alerts"
 import { sblRecordUrl } from "@/lib/drop-lists"
 
+/** The API error envelope's detail, else the fallback. */
+export function errorDetail(err: unknown, fallback: string): string {
+  if (err && typeof err === "object" && "detail" in err && typeof err.detail === "string") return err.detail
+  return fallback
+}
+
 /** CrowdSec scenarios named in the opening paragraph of an ASN report. */
 const SUMMARY_SCENARIOS = 6
 const MANUAL = "manual"

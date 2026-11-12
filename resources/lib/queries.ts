@@ -68,7 +68,14 @@ import {
   fetchIpProfile,
   fetchAbuseReport,
   fetchAbuseContact,
+  fetchAbuseIpdbStatus,
+  fetchReportedIps,
+  fetchAbuseIpdbReports,
+  fetchAbuseIpdbCheck,
+  submitAbuseIpdbReport,
   type AbuseReportTarget,
+  type CustomTimeRange,
+  type TimeRangeValue,
   banIp,
   unbanIp,
   parseTimeRange,
@@ -107,7 +114,7 @@ import {
   type OverviewSparklines,
 } from "./sparklines"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
-import type { DropListsResponse } from "@/generated/api/types.gen"
+import type { DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -262,6 +269,12 @@ export const queryKeys = {
     abuse: (params: Record<string, unknown>, refreshKey?: number) =>
       ["reports", "abuse", params, refreshKey] as const,
     abuseContact: (target: AbuseReportTarget) => ["reports", "abuse-contact", target] as const,
+  },
+  abuseipdb: {
+    status: ["abuseipdb", "status"] as const,
+    reportedIps: ["abuseipdb", "reported-ips"] as const,
+    reports: (ip: string) => ["abuseipdb", "reports", ip] as const,
+    check: (ip: string) => ["abuseipdb", "check", ip] as const,
   },
 }
 
@@ -1939,20 +1952,32 @@ export function useIpLatestRequests(ip: string | undefined) {
 
 // ---- Abuse reports --------------------------------------------------------
 
-export function useAbuseReport(
+function abuseReportQueryOptions(
   target: AbuseReportTarget,
+  selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
   options: { maxIps: number; linesPerIp: number; enabled: boolean },
+  refreshKey?: number,
 ) {
-  const { range, customRange, lastRefresh } = useTimeRange()
+  const { range, customRange } = selection
   const { maxIps, linesPerIp, enabled } = options
-  return useQuery({
-    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, lastRefresh),
+  return {
+    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, refreshKey),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchAbuseReport({ startDate, endDate, target, maxIps, linesPerIp })
     },
     enabled,
     staleTime: 60 * 1000,
+  }
+}
+
+export function useAbuseReport(
+  target: AbuseReportTarget,
+  options: { maxIps: number; linesPerIp: number; enabled: boolean },
+) {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    ...abuseReportQueryOptions(target, { range, customRange }, options, lastRefresh),
     placeholderData: (previous) => previous,
   })
 }
@@ -1965,5 +1990,99 @@ export function useAbuseContact(target: AbuseReportTarget, enabled: boolean) {
     enabled,
     staleTime: 60 * 60 * 1000,
     retry: false,
+  })
+}
+
+// ---- AbuseIPDB -------------------------------------------------------------
+
+export function useAbuseIpdbStatus() {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.status,
+    queryFn: fetchAbuseIpdbStatus,
+    staleTime: 60_000,
+  })
+}
+
+// Every IP menu is an observer, so the Map is cached per response like selectBannedRanges.
+const reportedIpMaps = new WeakMap<ReportedIpDto[], Map<string, ReportedIpDto>>()
+
+function selectReportedIps(reportedIps: ReportedIpDto[]): Map<string, ReportedIpDto> {
+  let reportedIpMap = reportedIpMaps.get(reportedIps)
+  if (reportedIpMap === undefined) {
+    reportedIpMap = new Map(reportedIps.map((reportedIp) => [reportedIp.ipAddress, reportedIp]))
+    reportedIpMaps.set(reportedIps, reportedIpMap)
+  }
+  return reportedIpMap
+}
+
+/** IP to its latest report, for every IP reported in the last 90 days. With
+ *  `active` false it never asks, so closed menus cost no polling. */
+export function useReportedIps(active = true) {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reportedIps,
+    queryFn: fetchReportedIps,
+    enabled: active && status?.reportingEnabled === true,
+    refetchInterval: 60_000,
+    select: selectReportedIps,
+  })
+}
+
+export function useAbuseIpdbReports(ip: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reports(ip),
+    queryFn: () => fetchAbuseIpdbReports(ip),
+    enabled,
+    // The report dialog holds polling, which tells TanStack the window is unfocused and so
+    // pauses retries. A retry would leave the query paused with neither data nor an error.
+    retry: false,
+  })
+}
+
+/** Leaves the server and spends AbuseIPDB quota, so it runs only when asked. */
+export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.check(ip),
+    queryFn: () => fetchAbuseIpdbCheck(ip),
+    enabled,
+    staleTime: 15 * 60_000,
+    gcTime: 15 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+  })
+}
+
+/** The evidence for one IP over the dialog's own range, not the page's. */
+export function useAbuseReportForRange(
+  target: AbuseReportTarget,
+  selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
+  enabled: boolean,
+) {
+  return useQuery({
+    ...abuseReportQueryOptions(target, selection, { maxIps: 1, linesPerIp: 0, enabled }),
+    // The polling hold pauses retries here too, as in useAbuseIpdbReports.
+    retry: false,
+    placeholderData: (previous, previousQuery) => {
+      const previousParams = previousQuery?.queryKey[2] as { target?: AbuseReportTarget } | undefined
+      return JSON.stringify(previousParams?.target) === JSON.stringify(target) ? previous : undefined
+    },
+  })
+}
+
+export function useSubmitAbuseIpdbReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: submitAbuseIpdbReport,
+    retry: false,
+    // An unconfirmed answer is an error but still stored a row. The whole
+    // reports prefix goes stale because one IPv6 address has several spellings.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.reportedIps }),
+        queryClient.invalidateQueries({ queryKey: ["abuseipdb", "reports"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.status }),
+      ]),
   })
 }

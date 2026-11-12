@@ -25,6 +25,7 @@ import geometrikks.domain.imports.models  # noqa: F401
 import geometrikks.domain.instances.models  # noqa: F401
 import geometrikks.domain.auth.models  # noqa: F401
 import geometrikks.domain.drop.models  # noqa: F401
+import geometrikks.domain.abuseipdb.models  # noqa: F401
 # --- End local additions ------------------------------------------------------
 
 if TYPE_CHECKING:

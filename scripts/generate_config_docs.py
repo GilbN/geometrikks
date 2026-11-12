@@ -40,6 +40,7 @@ OPTIONAL_SECTIONS: list[tuple[str, type[BaseSettings], str]] = [
     ("Map", settings_module.MapSettings, "MAP_"),
     ("CrowdSec", settings_module.CrowdSecSettings, "CROWDSEC_"),
     ("DROP lists", settings_module.DropSettings, "DROP_"),
+    ("AbuseIPDB", settings_module.AbuseIpdbSettings, "ABUSEIPDB_"),
     ("OpenID Connect", settings_module.OidcSettings, "OIDC_"),
     ("Application mode", settings_module.AppSettings, "APP_"),
     ("Analytics & retention", settings_module.AnalyticsSettings, "ANALYTICS_"),
@@ -55,7 +56,7 @@ DEVELOPER_SECTIONS: list[tuple[type[BaseSettings], str]] = [
 # Top-level Settings fields that are sub-models, not env vars.
 SKIP_FIELDS = {
     "app", "database", "geoip", "log", "logparser", "loki", "analytics", "scheduler",
-    "map", "crowdsec", "drop", "oidc", "vite",
+    "map", "crowdsec", "drop", "abuseipdb", "oidc", "vite",
 }
 # Never document secrets' defaults verbatim.
 REDACT = {

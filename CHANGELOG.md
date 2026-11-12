@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Access Logs and Geo Logs can leave out your own traffic with one tap. On a phone, the button next to Filters adds the IP GeoMetrikks sees for you to the excluded IPs, and a second tap removes it. The Filters drawer shows that address in a Your IP row. On a wider screen, the filter bar has an Exclude your IP button. When your phone moves to another network, the next tap adds the new address next to the old one. Behind a reverse proxy, GeoMetrikks sees only the proxy's address unless the proxy is in `APP_TRUSTED_PROXIES`, and the drawer then names that setting. Scripts can read the same address from `GET /api/v1/system/client-ip`.
+- With `ABUSEIPDB_API_KEY` set and `ABUSEIPDB_REPORTING_ENABLED=true`, any IP's menu has a Report to AbuseIPDB… item. It opens a report prefilled from what GeoMetrikks saw, with categories, a comment and the attack time, and you can edit all three before you send it.
+  - GeoMetrikks keeps a record of every report it sends and who sent it.
+  - The menu shows when an IP was last reported, and blocks a second report of the same IP within 15 minutes.
+  - The Check button in the report spends one AbuseIPDB check to show the IP's current score.
+  - Read/write API keys can send reports with `POST /api/v1/abuseipdb/reports`.
+  - The IP inspector links to the IP's page on AbuseIPDB, even without an API key.
 
 ## [0.24.0] - 2026-11-09
 

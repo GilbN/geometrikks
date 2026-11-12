@@ -108,6 +108,13 @@ Set these only for a feature you use, or to change a default.
 |---|---|---|
 | `DROP_ENABLED` | `true` | Download the Spamhaus DROP lists from www.spamhaus.org every DROP_REFRESH_HOURS and mark traffic from listed networks in the UI. Needs the scheduler. Set to false to stop the downloads and hide every DROP element. |
 
+### AbuseIPDB
+
+| Variable | Default | Description |
+|---|---|---|
+| `ABUSEIPDB_API_KEY` | - | AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against api.abuseipdb.com, which sends each checked IP to AbuseIPDB. |
+| `ABUSEIPDB_REPORTING_ENABLED` | `false` | Allow reporting IPs to AbuseIPDB from the UI. A report sends the IP, your comment, the categories and the attack time to AbuseIPDB, where they are public. Needs ABUSEIPDB_API_KEY. |
+
 ### OpenID Connect
 
 | Variable | Default | Description |
@@ -175,6 +182,7 @@ connection pool that runs dry or a log that rotates too often.
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
 | `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
 | `DROP_REFRESH_HOURS` | `24` | Hours between DROP list downloads. A list is never fetched again within an hour of its last attempt, whatever this is set to. |
+| `ABUSEIPDB_REQUEST_TIMEOUT` | `10.0` | AbuseIPDB request timeout in seconds |
 | `ANALYTICS_CAGG_REFRESH_INTERVAL_MINUTES` | `5` | Minutes between continuous aggregate refreshes |
 | `ANALYTICS_COMPRESSION_AFTER_DAYS` | `7` | Days after which to compress hypertable chunks |
 | `LOG_DIR` | `logs` | Directory for application log files |

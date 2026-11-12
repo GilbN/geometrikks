@@ -16,6 +16,7 @@ import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } f
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
+import { abuseipdbCheckUrl } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
 import { useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
@@ -152,6 +153,8 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
               <ExternalLink href={crowdsecCtiUrl(ip)}>CrowdSec CTI</ExternalLink>
             </>
           )}
+          {(primary || profile?.asn != null || crowdsecEnabled) && " · "}
+          <ExternalLink href={abuseipdbCheckUrl(ip)}>AbuseIPDB</ExternalLink>
         </p>
         {(decision || dropNetwork) && (
           <div className="flex flex-wrap items-center gap-2">

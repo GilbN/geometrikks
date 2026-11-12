@@ -16,6 +16,7 @@ from litestar.testing import AsyncTestClient, TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from structlog.testing import capture_logs
 
+from geometrikks.domain.abuseipdb.controllers import AbuseIpdbController
 from geometrikks.domain.auth.api_keys import ApiKeyScope
 from geometrikks.domain.security.controllers import CrowdSecController
 from geometrikks.server import runtime
@@ -302,6 +303,27 @@ async def test_read_key_cannot_ban_networks():
         read_key = await create_key(app, name="dashboard")
         read_attempt = await client.post("/api/v1/crowdsec/ban-networks", json=ban_body, headers=bearer(read_key))
     assert read_attempt.status_code == 403
+
+
+async def test_read_key_reads_abuseipdb_status_but_cannot_report():
+    abuseipdb_router = Router(
+        path=API_V1_PREFIX,
+        route_handlers=[AbuseIpdbController],
+        dependencies={"db_session": Provide(lambda: AsyncMock(spec=AsyncSession), sync_to_thread=False)},
+    )
+    app = make_app(extra_handlers=[abuseipdb_router])
+    report_body = {
+        "reports": [
+            {"ipAddress": "3.5.140.2", "categories": [18], "comment": "probing", "attackTime": "2026-11-06T14:02:00Z"}
+        ]
+    }
+    async with AsyncTestClient(app=app) as client:
+        read_key = await create_key(app, name="dashboard")
+        report_attempt = await client.post("/api/v1/abuseipdb/reports", json=report_body, headers=bearer(read_key))
+        status = await client.get("/api/v1/abuseipdb/status", headers=bearer(read_key))
+    assert report_attempt.status_code == 403
+    assert report_attempt.json()["code"] == "api_key_read_only"
+    assert status.status_code == 200
 
 
 async def test_read_write_key_can_post():

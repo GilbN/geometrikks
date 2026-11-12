@@ -276,6 +276,49 @@ export const AbuseContactResponseSchema = {
   type: "object",
 } as const;
 
+export const AbuseIpdbStatusResponseSchema = {
+  description:
+    "Whether checks and reports are available, and the quota left for each.",
+  properties: {
+    checks: {
+      description:
+        "The check quota from AbuseIPDB's latest answer. Null until a check since startup.",
+      oneOf: [
+        {
+          $ref: "#/components/schemas/RateLimitDTO",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    enabled: {
+      description: "True when ABUSEIPDB_API_KEY is set, so checks work.",
+      type: "boolean",
+    },
+    reportingEnabled: {
+      description:
+        "True when ABUSEIPDB_REPORTING_ENABLED=true, so reports can be sent.",
+      type: "boolean",
+    },
+    reports: {
+      description:
+        "The report quota from AbuseIPDB's latest answer. Null until a report since startup.",
+      oneOf: [
+        {
+          $ref: "#/components/schemas/RateLimitDTO",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["checks", "enabled", "reportingEnabled", "reports"],
+  title: "AbuseIpdbStatusResponse",
+  type: "object",
+} as const;
+
 export const AbuseReportResponseSchema = {
   description:
     "Evidence for an abuse report.\n\nIts times are in UTC, apart from `startDate` and `endDate`, which echo the request.",
@@ -1869,6 +1912,116 @@ export const ChangelogSectionSchema = {
   },
   required: ["entries", "kind"],
   title: "ChangelogSection",
+  type: "object",
+} as const;
+
+export const CheckResponseSchema = {
+  description: "What AbuseIPDB knows about an IP.",
+  properties: {
+    abuseConfidenceScore: {
+      description: "AbuseIPDB's confidence from 0 to 100 that it is abusive.",
+      type: "integer",
+    },
+    countryCode: {
+      description: "The ISO 3166-1 alpha-2 country code AbuseIPDB names.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    domain: {
+      description: "The domain AbuseIPDB ties to the IP.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ipAddress: {
+      description: "The checked IP.",
+      type: "string",
+    },
+    isTor: {
+      description: "True when the IP is a Tor exit node.",
+      type: "boolean",
+    },
+    isWhitelisted: {
+      description:
+        "True when AbuseIPDB whitelists the IP. Null when AbuseIPDB does not say.",
+      oneOf: [
+        {
+          type: "boolean",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    isp: {
+      description: "The ISP AbuseIPDB names.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastReportedAt: {
+      description: "The newest report, as ISO 8601 in UTC. Null if none.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    numDistinctUsers: {
+      description: "Distinct AbuseIPDB users behind those reports.",
+      type: "integer",
+    },
+    totalReports: {
+      description: "Reports on the IP in the last 30 days.",
+      type: "integer",
+    },
+    usageType: {
+      description:
+        "AbuseIPDB's usage type, such as `Data Center/Web Hosting/Transit`.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: [
+    "abuseConfidenceScore",
+    "countryCode",
+    "domain",
+    "ipAddress",
+    "isTor",
+    "isWhitelisted",
+    "isp",
+    "lastReportedAt",
+    "numDistinctUsers",
+    "totalReports",
+    "usageType",
+  ],
+  title: "CheckResponse",
   type: "object",
 } as const;
 
@@ -6037,6 +6190,36 @@ export const PeriodSummarySchema = {
   type: "object",
 } as const;
 
+export const RateLimitDTOSchema = {
+  description:
+    "The daily quota AbuseIPDB reported on its latest answer for one endpoint.",
+  properties: {
+    limit: {
+      description: "Requests allowed per day.",
+      type: "integer",
+    },
+    remaining: {
+      description: "Requests left today.",
+      type: "integer",
+    },
+    resetsAt: {
+      description: "When the quota resets, as ISO 8601 in UTC.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["limit", "remaining", "resetsAt"],
+  title: "RateLimitDTO",
+  type: "object",
+} as const;
+
 export const RawLineFieldSchema = {
   description: "One key of a JSON log line.",
   properties: {
@@ -6238,6 +6421,40 @@ export const ReportAlertDecisionDTOSchema = {
   },
   required: ["duration", "expired", "type"],
   title: "ReportAlertDecisionDTO",
+  type: "object",
+} as const;
+
+export const ReportBatchInputSchema = {
+  description: "The reports to send. Exactly one for now.",
+  properties: {
+    reports: {
+      description: "Exactly one report.",
+      items: {
+        $ref: "#/components/schemas/ReportItemInput",
+      },
+      maxItems: 1,
+      minItems: 1,
+      type: "array",
+    },
+  },
+  required: ["reports"],
+  title: "ReportBatchInput",
+  type: "object",
+} as const;
+
+export const ReportBatchResponseSchema = {
+  description: "One result per report, in request order.",
+  properties: {
+    results: {
+      description: "One result per submitted report.",
+      items: {
+        $ref: "#/components/schemas/ReportItemResult",
+      },
+      type: "array",
+    },
+  },
+  required: ["results"],
+  title: "ReportBatchResponse",
   type: "object",
 } as const;
 
@@ -6512,6 +6729,102 @@ export const ReportIpDTOSchema = {
   type: "object",
 } as const;
 
+export const ReportItemInputSchema = {
+  description:
+    "One report to send to AbuseIPDB. Every field becomes public there.",
+  properties: {
+    attackTime: {
+      description:
+        "When the attack happened, as ISO 8601 with a timezone. Not in the future.",
+      format: "date-time",
+      type: "string",
+    },
+    categories: {
+      description: "AbuseIPDB category IDs from 1 to 23, each once.",
+      items: {
+        type: "integer",
+      },
+      maxItems: 23,
+      minItems: 1,
+      type: "array",
+    },
+    comment: {
+      description: "The report text, 1 to 1,024 characters, without NUL.",
+      maxLength: 1024,
+      minLength: 1,
+      type: "string",
+    },
+    ipAddress: {
+      description: "The IP to report. It must be public.",
+      type: "string",
+    },
+  },
+  required: ["attackTime", "categories", "comment", "ipAddress"],
+  title: "ReportItemInput",
+  type: "object",
+} as const;
+
+export const ReportItemResultSchema = {
+  description: "The outcome of one report.",
+  properties: {
+    abuseConfidenceScore: {
+      description:
+        "The IP's confidence score from 0 to 100 that AbuseIPDB answered with.",
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    error: {
+      description:
+        "Why AbuseIPDB rejected the report, with `rejected`. Null when reported. A failed report comes back as an error response, so this is null today.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ipAddress: {
+      description: "The reported IP, in its canonical spelling.",
+      type: "string",
+    },
+    reportedAt: {
+      description: "When the report was sent, as ISO 8601 in UTC.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status: {
+      description:
+        "`reported` once AbuseIPDB accepted the report. `rejected` is reserved for requests with more than one report, which the API does not take yet. A failed report comes back as an error response.",
+      enum: ["reported", "rejected"],
+      type: "string",
+    },
+  },
+  required: [
+    "abuseConfidenceScore",
+    "error",
+    "ipAddress",
+    "reportedAt",
+    "status",
+  ],
+  title: "ReportItemResult",
+  type: "object",
+} as const;
+
 export const ReportLineDTOSchema = {
   description:
     "One access log line, without the Host header, server name, referrer or remote user.",
@@ -6691,6 +7004,30 @@ export const ReportUserAgentDTOSchema = {
   },
   required: ["hits", "userAgent"],
   title: "ReportUserAgentDTO",
+  type: "object",
+} as const;
+
+export const ReportedIpDTOSchema = {
+  description: "An IP reported from GeoMetrikks, with its latest report.",
+  properties: {
+    ipAddress: {
+      description: "The reported IP.",
+      type: "string",
+    },
+    reportedAt: {
+      description: "When the latest report was sent, as ISO 8601 in UTC.",
+      format: "date-time",
+      type: "string",
+    },
+    status: {
+      description:
+        "`sent` once AbuseIPDB accepted the report. `unconfirmed` when AbuseIPDB did not confirm it, so it may have been sent.",
+      enum: ["unconfirmed", "sent"],
+      type: "string",
+    },
+  },
+  required: ["ipAddress", "reportedAt", "status"],
+  title: "ReportedIpDTO",
   type: "object",
 } as const;
 
@@ -7233,6 +7570,93 @@ export const SourceReportSchema = {
   },
   required: [],
   title: "SourceReport",
+  type: "object",
+} as const;
+
+export const StoredReportDTOSchema = {
+  description: "A report sent from GeoMetrikks, as stored.",
+  properties: {
+    abuseConfidenceScore: {
+      description:
+        "The IP's confidence score from 0 to 100 that AbuseIPDB answered with. Null if unconfirmed.",
+      oneOf: [
+        {
+          type: "integer",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    attackTime: {
+      description: "When the attack happened, as ISO 8601 in UTC.",
+      format: "date-time",
+      type: "string",
+    },
+    categories: {
+      description: "The AbuseIPDB category IDs, from 1 to 23.",
+      items: {
+        type: "integer",
+      },
+      type: "array",
+    },
+    comment: {
+      description:
+        "The comment sent with the report. It is public on AbuseIPDB.",
+      type: "string",
+    },
+    id: {
+      description: "The stored report's ID.",
+      format: "uuid",
+      type: "string",
+    },
+    ipAddress: {
+      description: "The reported IP.",
+      type: "string",
+    },
+    reportedAt: {
+      description: "When the report was sent, as ISO 8601 in UTC.",
+      format: "date-time",
+      type: "string",
+    },
+    reporterKind: {
+      description:
+        "Who sent it: `user` for a login, `api_key`, or `anonymous` with auth disabled.",
+      enum: ["user", "api_key", "anonymous"],
+      type: "string",
+    },
+    reporterName: {
+      description:
+        "The username or API key name at the time. Null for `anonymous`.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    status: {
+      description:
+        "`sent` once AbuseIPDB accepted the report. `unconfirmed` when AbuseIPDB did not confirm it, so it may have been sent.",
+      enum: ["unconfirmed", "sent"],
+      type: "string",
+    },
+  },
+  required: [
+    "abuseConfidenceScore",
+    "attackTime",
+    "categories",
+    "comment",
+    "id",
+    "ipAddress",
+    "reportedAt",
+    "reporterKind",
+    "reporterName",
+    "status",
+  ],
+  title: "StoredReportDTO",
   type: "object",
 } as const;
 
