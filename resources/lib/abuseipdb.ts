@@ -41,14 +41,14 @@ export function reporterLabel(report: Pick<StoredReportDto, "reporterKind" | "re
 
 export const FEATURED_CATEGORY_IDS = [21, 19, 15, 16, 18, 14, 9, 10]
 export const FALLBACK_CATEGORY_IDS = [19, 21]
+export const MAX_COMMENT_LENGTH = 1024
+export const REPORT_INTERVAL_MS = 15 * 60_000
 
 /** The prefilled picks lead, so one outside the featured eight shows before All 23… is pressed. */
 export function categoryChipOrder(picked: readonly number[], showAll: boolean): number[] {
   const leading = [...picked, ...FEATURED_CATEGORY_IDS]
   return [...new Set(showAll ? [...leading, ...ABUSEIPDB_CATEGORIES.map((category) => category.id)] : leading)]
 }
-export const MAX_COMMENT_LENGTH = 1024
-export const REPORT_INTERVAL_MS = 15 * 60_000
 
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
