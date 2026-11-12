@@ -15,6 +15,7 @@ export function rowActivation<T extends HTMLElement>(open: () => void) {
     className: "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
     onClick: (event: MouseEvent<T>) => {
       if (!event.currentTarget.contains(event.target as Node)) return
+      if ((event.target as Element).closest("[data-badge-hint]")) return
       // A drag that selected text in the row is a copy, not a click.
       const selection = window.getSelection()
       if (selection && !selection.isCollapsed && event.currentTarget.contains(selection.anchorNode)) return

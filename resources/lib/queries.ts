@@ -7,7 +7,7 @@ import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
 import type { LatestReleaseView } from "@/generated/api/types.gen"
-import { keepPreviousData, type InfiniteData, type Query, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, type InfiniteData, type Query, type QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -101,6 +101,7 @@ import {
   type AccessLogDebugStats,
   type AlertPageView,
   fetchReleaseCheck,
+  fetchClientIp,
   fetchDropLists,
 } from "./api"
 import {
@@ -152,6 +153,7 @@ export const queryKeys = {
     about: ["system", "about"] as const,
     changelog: ["system", "changelog"] as const,
     releaseCheck: ["system", "release-check"] as const,
+    clientIp: ["system", "client-ip"] as const,
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
@@ -379,6 +381,25 @@ export function useReleaseCheck() {
     staleTime: (query) => releaseCheckPollMs(query.state.data?.status) || Number.POSITIVE_INFINITY,
     refetchInterval: (query) => releaseCheckPollMs(query.state.data?.status),
   })
+}
+
+/** The address the server sees for this browser. A phone changes address between networks, so the query refetches whenever the tab regains focus. */
+export function useClientIp() {
+  return useQuery({
+    queryKey: queryKeys.system.clientIp,
+    queryFn: fetchClientIp,
+    staleTime: 30_000,
+    refetchOnWindowFocus: "always",
+  })
+}
+
+/** Asks the server for the address with a request of its own. fetchQuery would reuse a focus refetch already in flight, which may report the old network. */
+export async function fetchFreshClientIp(queryClient: QueryClient) {
+  // A slower refetch from before the tap would overwrite the fresh address.
+  await queryClient.cancelQueries({ queryKey: queryKeys.system.clientIp, exact: true })
+  const fresh = await fetchClientIp()
+  queryClient.setQueryData(queryKeys.system.clientIp, fresh)
+  return fresh
 }
 
 export function useChangelog() {

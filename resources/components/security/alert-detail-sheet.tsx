@@ -14,6 +14,7 @@ import { AlertKindBadge } from "@/components/security/alert-kind-badge"
 import { ExternalLink, ExternalLinkButton } from "@/components/crowdsec/external-link"
 import { DetailIpActions, DetailIpBlock } from "@/components/ip-actions/detail-ip"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
+import { BadgeHint } from "@/components/badge-hint"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -236,9 +237,9 @@ function AlertBody({
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <AlertKindBadge kind={alert.kind} scenario={alert.scenario} />
         {alert.simulated && (
-          <Badge variant="outline" title="CrowdSec ran this scenario in simulation mode and enforced nothing">
-            Simulated
-          </Badge>
+          <BadgeHint hint="CrowdSec ran this scenario in simulation mode and enforced nothing">
+            <Badge variant="outline">Simulated</Badge>
+          </BadgeHint>
         )}
       </div>
       <p className="text-sm text-muted-foreground">{alertSummary(alert.message)}</p>
