@@ -101,7 +101,10 @@ def test_resolve_path_requires_params() -> None:
 
 
 def test_capture_plan_shape(tmp_path: Path) -> None:
-    plan = capture_plan(build_shots(only={"live"}), {}, base_url="http://127.0.0.1:9", png_dir=tmp_path)
+    answers = {"status": {"enabled": True}, "blacklist": {"ips": []}, "checks": {}}
+    plan = capture_plan(
+        build_shots(only={"live"}), {}, base_url="http://127.0.0.1:9", png_dir=tmp_path, abuseipdb=answers
+    )
     shots = plan["shots"]
     assert isinstance(shots, list)
     landscape = next(shot for shot in shots if shot["viewport"]["name"] == "landscape")
@@ -116,6 +119,7 @@ def test_capture_plan_shape(tmp_path: Path) -> None:
     assert landscape["live"] is True
     assert plan["baseUrl"] == "http://127.0.0.1:9"
     assert plan["pngDir"] == str(tmp_path)
+    assert plan["abuseipdb"] == answers
     desktop = next(shot for shot in shots if shot["viewport"]["name"] == "desktop")
     assert {key: desktop[key] for key in ("name", "scene", "title", "path", "theme")} == {
         "name": "live-desktop-dark",

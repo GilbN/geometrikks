@@ -32,6 +32,12 @@ from geometrikks.config.settings import AnalyticsSettings
 from geometrikks.server.migrations import upgrade_to_head
 from geometrikks.server.timescale import setup_timescaledb
 from geometrikks.services.crowdsec.service import CrowdSecService
+from tests.screenshots.abuseipdb import (
+    browser_answers,
+    outbound_log_lines,
+    stored_abuseipdb_problems,
+    write_fixture_reports,
+)
 from tests.screenshots.doc_traffic import (
     DOC_INSPECT_IP,
     DOC_VISITORS,
@@ -505,7 +511,13 @@ def dry_run(args: argparse.Namespace) -> int:
                     _print_dry_teardown(args)
                     plan_path = scratch / "plan.json"
                     params = {"inspect_ip": DOC_INSPECT_IP, "focus_location": "1"}
-                    plan = capture_plan(shots, params, base_url="http://127.0.0.1:8000", png_dir=scratch / "png")
+                    plan = capture_plan(
+                        shots,
+                        params,
+                        base_url="http://127.0.0.1:8000",
+                        png_dir=scratch / "png",
+                        abuseipdb=browser_answers(now=datetime.now(UTC)),
+                    )
                     plan_path.write_text(json.dumps(plan, indent=2))
                     listed = runner.run(
                         [runner.which("npx"), "playwright", "test", f"--config={PLAYWRIGHT_CONFIG}", "--list"],
@@ -958,6 +970,7 @@ class FullRun:
             listed = await documentation_only_drop_lists(conn)
             if listed:
                 raise RunFailed(f"DROP lists hold non-documentation entries: {', '.join(listed)}")
+            say(f"AbuseIPDB: {await write_fixture_reports(conn, now=self.now)} fixture reports written")
         finally:
             await conn.close()
             await engine.dispose()
@@ -1058,8 +1071,16 @@ class FullRun:
             login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "admin"})
             if not login.is_success:
                 raise RunFailed(f"login as admin answered {login.status_code}", log=self.logs / "app.log")
+            abuseipdb = client.get("/api/v1/abuseipdb/status")
+            if not abuseipdb.is_success or any(
+                abuseipdb.json().get(flag) is not False for flag in ("enabled", "reportingEnabled", "blacklistEnabled")
+            ):
+                raise RunFailed(f"AbuseIPDB is not off on the server: {abuseipdb.status_code} {abuseipdb.text[:200]}")
         self.check_drop_lists()
-        say("app healthy, login ok, DROP marker intact, DROP lists documentation-only")
+        say(
+            "app healthy, login ok, DROP marker intact, DROP lists documentation-only, "
+            "AbuseIPDB off on the server (no key, so no client)"
+        )
 
     def check_drop_lists(self) -> None:
         problems = asyncio.run(self._drop_problems())
@@ -1077,7 +1098,11 @@ class FullRun:
     def capture(self) -> None:
         params = {"inspect_ip": self.fixture.inspect_ip, "focus_location": str(self.fixture.focus_location)}
         plan = capture_plan(
-            self.shots, params, base_url=f"http://127.0.0.1:{self.config.app_port}", png_dir=self.png_dir
+            self.shots,
+            params,
+            base_url=f"http://127.0.0.1:{self.config.app_port}",
+            png_dir=self.png_dir,
+            abuseipdb=browser_answers(now=datetime.now(UTC)),
         )
         self.png_dir.mkdir()
         self.plan_path.write_text(json.dumps(plan, indent=2))
@@ -1146,6 +1171,7 @@ class FullRun:
         conn = await asyncpg.connect(asyncpg_dsn(self.url))
         try:
             problems += await _drop_problems(conn)
+            problems += await stored_abuseipdb_problems(conn)
             if live_since is not None:
                 problems += await _live_ip_problems(conn, live_since)
         finally:
@@ -1157,6 +1183,11 @@ class FullRun:
             await client.aclose()
         if foreign:
             problems.append(f"LAPI holds decisions for non-fixture values: {', '.join(foreign)}")
+        outbound = outbound_log_lines((self.logs / "app.log").read_text(errors="replace"))
+        if outbound:
+            problems.append(f"the app log shows {len(outbound)} AbuseIPDB lines: {' | '.join(outbound[:3])}")
+        else:
+            say("app log: no AbuseIPDB request, event or error")
         return problems
 
     # Step 12

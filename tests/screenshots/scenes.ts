@@ -18,7 +18,12 @@ export type PlannedShot = {
   }
 }
 
-export type CapturePlan = { baseUrl: string; pngDir: string; shots: PlannedShot[] }
+export type CapturePlan = {
+  baseUrl: string
+  pngDir: string
+  abuseipdb: { status: unknown; blacklist: unknown; checks: Record<string, unknown> }
+  shots: PlannedShot[]
+}
 
 export type Stage = (page: Page, shot: PlannedShot) => Promise<void>
 

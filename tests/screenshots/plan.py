@@ -240,11 +240,22 @@ def resolve_path(scene: Scene, params: Mapping[str, str]) -> str:
         raise MissingParamError(f"scene {scene.id!r} needs the {error.args[0]!r} parameter") from None
 
 
-def capture_plan(shots: Sequence[Shot], params: Mapping[str, str], *, base_url: str, png_dir: Path) -> dict[str, object]:
-    """The JSON the Playwright spec reads; camelCase keys are its contract."""
+def capture_plan(
+    shots: Sequence[Shot],
+    params: Mapping[str, str],
+    *,
+    base_url: str,
+    png_dir: Path,
+    abuseipdb: Mapping[str, object],
+) -> dict[str, object]:
+    """The JSON the Playwright spec reads; camelCase keys are its contract.
+
+    ``abuseipdb`` holds the answers the browser gives for AbuseIPDB status, blacklist and checks.
+    """
     return {
         "baseUrl": base_url,
         "pngDir": str(png_dir),
+        "abuseipdb": dict(abuseipdb),
         "shots": [
             {
                 "name": shot.name,

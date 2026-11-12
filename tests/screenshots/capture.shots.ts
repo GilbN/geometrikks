@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { expect, test } from "@playwright/test"
+import { expect, test, type Route } from "@playwright/test"
 import { emulateSafeAreas } from "../browser/safe-areas"
 import { SCENE_STORAGE, STAGES, onMap, type CapturePlan } from "./scenes"
 import { hideChrome, prepareContext, settle } from "./stabilize"
@@ -15,6 +15,38 @@ const appOrigin = new URL(plan.baseUrl).origin
 /** The app and the CARTO basemap; anything else the page asks for is refused and reported. */
 const allowed = (url: URL) =>
   url.origin === appOrigin || url.protocol === "data:" || url.protocol === "blob:" || /(^|\.)cartocdn\.com$/i.test(url.hostname)
+
+const ABUSEIPDB_API = "/api/v1/abuseipdb/"
+/** The AbuseIPDB endpoints that only read the database. */
+const ABUSEIPDB_LOCAL_READS = new Set([`${ABUSEIPDB_API}reports/history`, `${ABUSEIPDB_API}reported-ips`])
+
+/**
+ * The app runs without an AbuseIPDB key, so the answers that need one come from the plan, and the
+ * local reads go to the app. Anything else, a report above all, never leaves the browser.
+ */
+async function answerAbuseIpdb(route: Route): Promise<boolean> {
+  const request = route.request()
+  const { pathname, searchParams } = new URL(request.url())
+  if (request.method() !== "GET") return false
+  if (ABUSEIPDB_LOCAL_READS.has(pathname)) {
+    await route.continue()
+    return true
+  }
+  const ip = searchParams.get("ipAddress") ?? ""
+  const answers = plan.abuseipdb
+  let json: unknown
+  if (pathname === `${ABUSEIPDB_API}status`) json = answers.status
+  else if (pathname === `${ABUSEIPDB_API}blacklist`) json = answers.blacklist
+  else if (pathname === `${ABUSEIPDB_API}check` && ip in answers.checks) json = answers.checks[ip]
+  else if (pathname === `${ABUSEIPDB_API}reports`) {
+    // The app refuses a documentation address here, so the list comes from the history the Reports tab reads.
+    const history = await route.fetch({ url: `${appOrigin}${ABUSEIPDB_API}reports/history?pageSize=100&q=${encodeURIComponent(ip)}` })
+    const { items } = (await history.json()) as { items: { ipAddress: string }[] }
+    json = items.filter((report) => report.ipAddress === ip)
+  } else return false
+  await route.fulfill({ json })
+  return true
+}
 
 for (const shot of plan.shots) {
   test(shot.name, { tag: shot.live ? "@live" : undefined }, async ({ browser }) => {
@@ -44,6 +76,14 @@ for (const shot of plan.shots) {
         (route) => {
           refused.push(route.request().url())
           return route.abort("blockedbyclient")
+        },
+      )
+      await context.route(
+        (url) => url.origin === appOrigin && url.pathname.startsWith(ABUSEIPDB_API),
+        async (route) => {
+          if (await answerAbuseIpdb(route)) return
+          refused.push(`${route.request().method()} ${route.request().url()}`)
+          await route.abort("blockedbyclient")
         },
       )
       await context.route("**/api/v1/reports/abuse-contact*", (route) => {
@@ -83,7 +123,7 @@ for (const shot of plan.shots) {
         caret: "hide",
         scale: "device",
       })
-      expect(refused, "requests to hosts other than the app and CARTO").toEqual([])
+      expect(refused, "requests to hosts other than the app and CARTO, or AbuseIPDB calls the browser does not answer").toEqual([])
     } finally {
       await context.close()
     }

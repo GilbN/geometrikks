@@ -12,7 +12,7 @@ from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Literal, Self, cast
+from typing import Any, ClassVar, Literal, Self, cast
 
 import pytest
 
@@ -577,7 +577,12 @@ def test_preflight_skips_the_shared_server_with_own_db(tmp_path: Path, monkeypat
     assert facts.database_reachable is True
 
 
+ABUSEIPDB_OFF: dict[str, object] = {"enabled": False, "reportingEnabled": False, "blacklistEnabled": False}
+
+
 class HealthyClient:
+    abuseipdb_status: ClassVar[dict[str, object]] = ABUSEIPDB_OFF
+
     def __init__(self, **_: object) -> None:
         pass
 
@@ -588,6 +593,8 @@ class HealthyClient:
         pass
 
     def get(self, path: str) -> SimpleResponse:
+        if path == "/api/v1/abuseipdb/status":
+            return SimpleResponse(200, self.abuseipdb_status)
         return SimpleResponse(200)
 
     def post(self, path: str, json: object) -> SimpleResponse:
@@ -602,10 +609,18 @@ class FakeChild:
 @dataclass
 class SimpleResponse:
     status_code: int
+    body: dict[str, object] = field(default_factory=dict)
 
     @property
     def is_success(self) -> bool:
         return self.status_code < 400
+
+    @property
+    def text(self) -> str:
+        return json.dumps(self.body)
+
+    def json(self) -> dict[str, object]:
+        return self.body
 
 
 class AppStart(HeldRun):
@@ -627,6 +642,21 @@ def test_app_start_runs_the_drop_check_before_reporting_healthy(
     monkeypatch.setattr(run, "_child_exited", lambda pid: False)
     monkeypatch.setattr(run.httpx2, "Client", HealthyClient)
     with pytest.raises(run.RunFailed, match="non-documentation"):
+        AppStart(tmp_path).start_app()
+    assert "app healthy" not in capsys.readouterr().out
+
+
+class KeyedClient(HealthyClient):
+    abuseipdb_status: ClassVar[dict[str, object]] = {**ABUSEIPDB_OFF, "enabled": True}
+
+
+def test_app_start_fails_when_the_server_has_an_abuseipdb_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "start_child", lambda argv, **_: FakeChild(4242))
+    monkeypatch.setattr(run, "_child_exited", lambda pid: False)
+    monkeypatch.setattr(run.httpx2, "Client", KeyedClient)
+    with pytest.raises(run.RunFailed, match="AbuseIPDB is not off on the server"):
         AppStart(tmp_path).start_app()
     assert "app healthy" not in capsys.readouterr().out
 
