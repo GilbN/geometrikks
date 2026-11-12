@@ -36,6 +36,7 @@ from tests.screenshots.teardown import (
     spawn_unregistered,
     start_child,
     stop_child,
+    stop_child_gracefully,
     wait_child,
 )
 
@@ -899,3 +900,42 @@ def test_system_actions_refuse_other_databases_and_symlinks(
     (tmp_path / "run2" / "logs").mkdir(parents=True)
     actions.remove_directory(tmp_path / "run2")
     assert not (tmp_path / "run2").exists()
+
+
+# atexit runs only when the interpreter finalizes, which is what drains the app's log queue.
+ATEXIT_MARKER = (
+    "import atexit, pathlib, sys, time; "
+    "atexit.register(lambda: pathlib.Path(sys.argv[1]).write_text('drained')); "
+    "time.sleep(60)"
+)
+IGNORES_SIGINT = "import signal, time; signal.signal(signal.SIGINT, signal.SIG_IGN); time.sleep(60)"
+
+
+def test_stop_child_gracefully_lets_the_child_run_its_exit_handlers(tmp_path: Path) -> None:
+    ledger = Ledger(tmp_path / "ledger.json")
+    marker = tmp_path / "marker"
+    child = start_child(
+        [sys.executable, "-c", ATEXIT_MARKER, str(marker)],
+        env=CHILD_ENV,
+        log_path=tmp_path / "child.log",
+        label="app",
+        ledger=ledger,
+    )
+    time.sleep(0.5)
+    assert stop_child_gracefully(child, ledger=ledger, timeout=10) is not None
+    assert marker.read_text() == "drained"
+    assert not group_alive(child.pid) and ledger.load() == []
+
+
+def test_stop_child_gracefully_kills_a_child_that_ignores_the_signal(tmp_path: Path) -> None:
+    ledger = Ledger(tmp_path / "ledger.json")
+    child = start_child(
+        [sys.executable, "-c", IGNORES_SIGINT],
+        env=CHILD_ENV,
+        log_path=tmp_path / "child.log",
+        label="app",
+        ledger=ledger,
+    )
+    time.sleep(0.5)
+    assert stop_child_gracefully(child, ledger=ledger, timeout=0.5) is None
+    assert not group_alive(child.pid) and ledger.load() == []

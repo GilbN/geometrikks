@@ -609,6 +609,21 @@ def stop_child(child: subprocess.Popen[bytes], *, ledger: Ledger) -> None:
     ledger.discard(Resource("process", str(child.pid)))
 
 
+def stop_child_gracefully(
+    child: subprocess.Popen[bytes], *, ledger: Ledger, signum: int = signal.SIGINT, timeout: float = 30.0
+) -> int | None:
+    """Send ``signum`` to the child's group and wait for the leader to exit, then stop what is left.
+
+    Returns the leader's exit status, or None when it outlived ``timeout`` and was killed.
+    """
+    exited = child.returncode is not None or bool(_child_exited(child.pid))
+    if not exited:
+        _signal_group(child.pid, signum)
+        exited = _await_exit(child.pid, timeout)
+    stop_child(child, ledger=ledger)
+    return child.returncode if exited else None
+
+
 def wait_child(child: subprocess.Popen[bytes], *, ledger: Ledger, timeout: float | None = None) -> int:
     if child.returncode is None:
         if not _await_exit(child.pid, timeout):

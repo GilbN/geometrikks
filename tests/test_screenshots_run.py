@@ -896,3 +896,67 @@ def test_the_screenshot_vite_config_refuses_to_load_without_its_env_dir(tmp_path
     with pytest.raises(subprocess.CalledProcessError) as failure:
         resolved_vite_env(run.SCREENSHOT_VITE_CONFIG, dotenv_folder(tmp_path))
     assert run.VITE_ENV_DIR_VAR in failure.value.stderr
+
+
+class OrderedRun(HeldRun):
+    def __init__(self, *, hold: bool, check_fails: bool = False) -> None:
+        super().__init__(ValueError())
+        self.args = run_args(hold=hold)
+        self.steps: list[str] = []
+        self.check_fails = check_fails
+
+    def capture(self) -> None:
+        self.steps.append("capture")
+
+    def hold(self, failure: Exception | None) -> None:
+        self.steps.append("hold")
+
+    def stop_app(self) -> None:
+        self.steps.append("stop app")
+
+    def check_abuseipdb(self) -> None:
+        self.steps.append("check AbuseIPDB")
+        if self.check_fails:
+            raise run.RunFailed("the app log shows 1 AbuseIPDB lines: abuseipdb_check")
+
+    def encode(self) -> dict[str, tuple[int, int]]:
+        self.steps.append("encode")
+        return {}
+
+    def publish(self, sizes: dict[str, tuple[int, int]]) -> None:
+        self.steps.append("publish")
+
+
+def test_the_abuseipdb_check_runs_after_the_hold_and_the_app_stop_and_before_publishing() -> None:
+    held = OrderedRun(hold=True)
+    held.capture_and_publish()
+    assert held.steps == ["capture", "hold", "stop app", "check AbuseIPDB", "encode", "publish"]
+
+
+def test_a_failed_abuseipdb_check_blocks_the_publish() -> None:
+    failing = OrderedRun(hold=False, check_fails=True)
+    with pytest.raises(run.RunFailed, match="AbuseIPDB lines"):
+        failing.capture_and_publish()
+    assert failing.steps == ["capture", "stop app", "check AbuseIPDB"]
+
+
+def test_stop_app_fails_the_run_when_the_app_had_to_be_killed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    killed = AppStart(tmp_path)
+    killed.app = cast(Any, FakeChild(4242))
+    monkeypatch.setattr(run, "stop_child_gracefully", lambda child, **_: None)
+    with pytest.raises(run.RunFailed, match="did not stop within 30 s"):
+        killed.stop_app()
+
+
+def test_check_abuseipdb_reads_the_whole_app_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    checked = AppStart(tmp_path)
+    (tmp_path / "app.log").write_text("app_started\n2026-11-12 warning abuseipdb_blacklist_refresh_failed\n")
+
+    async def no_stored_problems(self: run.FullRun) -> list[str]:
+        return []
+
+    monkeypatch.setattr(run.FullRun, "_stored_abuseipdb_problems", no_stored_problems)
+    with pytest.raises(run.RunFailed, match="abuseipdb_blacklist_refresh_failed"):
+        checked.check_abuseipdb()

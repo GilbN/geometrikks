@@ -15,6 +15,7 @@ import secrets
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import time
 import traceback
@@ -121,6 +122,7 @@ from tests.screenshots.teardown import (
     run_child,
     start_child,
     stop_child,
+    stop_child_gracefully,
 )
 from tests.seed.config import SeedConfig
 from tests.seed.live import live_log_targets
@@ -145,6 +147,7 @@ DAYS: Final = 30
 LIVE_RATE: Final = 4
 LIVE_WARMUP_SECONDS: Final = 60
 APP_READY_SECONDS: Final = 90
+APP_STOP_SECONDS: Final = 30
 DB_READY_SECONDS: Final = 180
 DOCKER_SECONDS: Final = 60
 DOCKER_RUN_SECONDS: Final = 600
@@ -769,6 +772,7 @@ class FullRun:
     stats: dict[str, IpStats]
     events: dict[str, list[EventRow]]
     lapi: str
+    app: subprocess.Popen[bytes]
 
     def __init__(
         self, args: argparse.Namespace, *, run_id: str, run_dir: Path, ledger: Ledger, env: dict[str, str]
@@ -826,6 +830,8 @@ class FullRun:
             self.hold(failure)
         if failure is not None:
             raise failure
+        self.stop_app()
+        self.check_abuseipdb()
         self.publish(self.encode())
 
     # Step 1
@@ -1052,6 +1058,7 @@ class FullRun:
         ]  # fmt: skip
         say(f"starting the app on port {self.config.app_port} (logs/app.log)")
         app = start_child(argv, env=env, log_path=self.logs / "app.log", label="app", ledger=self.ledger)
+        self.app = app
         base = f"http://127.0.0.1:{self.config.app_port}"
         deadline = time.monotonic() + APP_READY_SECONDS
         with httpx2.Client(base_url=base, timeout=5, trust_env=False) as client:
@@ -1171,7 +1178,6 @@ class FullRun:
         conn = await asyncpg.connect(asyncpg_dsn(self.url))
         try:
             problems += await _drop_problems(conn)
-            problems += await stored_abuseipdb_problems(conn)
             if live_since is not None:
                 problems += await _live_ip_problems(conn, live_since)
         finally:
@@ -1183,12 +1189,35 @@ class FullRun:
             await client.aclose()
         if foreign:
             problems.append(f"LAPI holds decisions for non-fixture values: {', '.join(foreign)}")
+        return problems
+
+    def stop_app(self) -> None:
+        """Stops the app with SIGINT. uvicorn re-raises the signal after shutdown, and only SIGINT then ends in a
+        normal interpreter exit, whose atexit hook drains the app's log queue into app.log. SIGTERM kills it first."""
+        status = stop_child_gracefully(self.app, ledger=self.ledger, timeout=APP_STOP_SECONDS)
+        if status is None:
+            raise RunFailed(
+                f"the app did not stop within {APP_STOP_SECONDS} s, so its log may be incomplete",
+                log=self.logs / "app.log",
+            )
+        say(f"app stopped (exit status {status}), log flushed")
+
+    def check_abuseipdb(self) -> None:
+        """After the app has stopped and flushed its log, so nothing it did can still be on the way."""
+        problems = asyncio.run(self._stored_abuseipdb_problems())
         outbound = outbound_log_lines((self.logs / "app.log").read_text(errors="replace"))
         if outbound:
             problems.append(f"the app log shows {len(outbound)} AbuseIPDB lines: {' | '.join(outbound[:3])}")
-        else:
-            say("app log: no AbuseIPDB request, event or error")
-        return problems
+        if problems:
+            raise RunFailed("; ".join(problems), log=self.logs / "app.log")
+        say("AbuseIPDB: no request, event or error in the app log, stored reports documentation-only")
+
+    async def _stored_abuseipdb_problems(self) -> list[str]:
+        conn = await asyncpg.connect(asyncpg_dsn(self.url))
+        try:
+            return await stored_abuseipdb_problems(conn)
+        finally:
+            await conn.close()
 
     # Step 12
     def hold(self, failure: Exception | None) -> None:
