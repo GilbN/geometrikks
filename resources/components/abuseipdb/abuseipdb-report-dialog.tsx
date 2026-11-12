@@ -4,7 +4,7 @@
  * everything sent becomes public on AbuseIPDB.
  */
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react"
-import { Loader2 } from "lucide-react"
+import { CalendarDays, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ import {
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
@@ -90,11 +92,23 @@ function utcMinutes(iso: string): string {
   return new Date(iso).toISOString().slice(0, 16).replace("T", " ")
 }
 
-/** A datetime-local value: the browser's wall clock, not UTC. */
+/** "2026-11-07T14:57" on the browser's wall clock, not UTC. */
 function localInputValue(iso: string): string {
   const date = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** "2026-11-07" as that day's local midnight. */
+function localDay(dateValue: string): Date | undefined {
+  if (!dateValue) return undefined
+  const [year, month, day] = dateValue.split("-").map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function dateValueOf(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 /** Null for an empty or incomplete value, which only disables Send. */
@@ -308,7 +322,9 @@ function ReportForm({
   const [categories, setCategories] = useState<number[]>([])
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [comment, setComment] = useState("")
-  const [attackTime, setAttackTime] = useState("")
+  const [attackDate, setAttackDate] = useState("")
+  const [attackClock, setAttackClock] = useState("")
+  const [calendarOpen, setCalendarOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const report = evidence.data
@@ -319,7 +335,8 @@ function ReportForm({
     setPrefill(next)
     setCategories(next.categories)
     setComment(next.comment)
-    setAttackTime(next.attackTime)
+    setAttackDate(next.attackTime.slice(0, 10))
+    setAttackClock(next.attackTime.slice(11, 16))
   }
 
   // The previous window's evidence stays on screen while the new one loads, and must not be sent.
@@ -373,6 +390,8 @@ function ReportForm({
   const alertCount = ipEvidence?.alerts.length ?? 0
 
   const length = commentLength(comment)
+  const attackTime = attackDate && attackClock ? `${attackDate}T${attackClock}` : ""
+  const pickedDay = localDay(attackDate)
   const parsedAttackTime = parseAttackTime(attackTime, prefill?.attackTimeIso ?? null)
   const attackTimeError = parsedAttackTime && "error" in parsedAttackTime ? parsedAttackTime.error : null
   const attackTimeIso = parsedAttackTime && "iso" in parsedAttackTime ? parsedAttackTime.iso : null
@@ -576,28 +595,65 @@ function ReportForm({
 
         <Section label="Attack time" labelFor="abuseipdb-attack-time">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <Input
-              id="abuseipdb-attack-time"
-              type="datetime-local"
-              required
-              max={localInputValue(new Date().toISOString())}
-              value={attackTime}
-              disabled={!ready}
-              onChange={(event) => {
-                setAttackTime(event.target.value)
-                edit()
-              }}
-              aria-invalid={attackTimeError !== null || undefined}
-              className={cn(
-                "h-8",
-                inDrawer
-                  ? // iOS Safari sizes its native date control by its content and ignores
-                    // width: 100% unless the native look is off, and it centers the value.
-                    // As a block it also stops centering the text vertically, so the padding does.
-                    "block w-full appearance-none py-[3px] text-left text-base [&::-webkit-date-and-time-value]:text-left"
-                  : "w-56 py-0 text-xs md:text-xs",
-              )}
-            />
+            <div className={cn("flex gap-2", inDrawer && "w-full")}>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!ready}
+                    aria-invalid={attackTimeError !== null || undefined}
+                    className={cn(
+                      "justify-start font-normal",
+                      inDrawer ? "h-10 flex-1 text-base" : "h-8 w-36 text-xs",
+                      !pickedDay && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarDays />
+                    <span className="sr-only">Attack date </span>
+                    {pickedDay
+                      ? pickedDay.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    required
+                    selected={pickedDay}
+                    defaultMonth={pickedDay}
+                    endMonth={new Date()}
+                    disabled={{ after: new Date() }}
+                    onSelect={(date) => {
+                      setAttackDate(dateValueOf(date))
+                      setCalendarOpen(false)
+                      edit()
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Input
+                id="abuseipdb-attack-time"
+                type="time"
+                required
+                value={attackClock}
+                disabled={!ready}
+                onChange={(event) => {
+                  setAttackClock(event.target.value)
+                  edit()
+                }}
+                aria-invalid={attackTimeError !== null || undefined}
+                className={cn(
+                  "appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none",
+                  inDrawer
+                    ? // iOS Safari sizes its native time control by its content and ignores
+                      // the width unless the native look is off, and it centers the value.
+                      // As a block it also stops centering the text vertically, so the padding does.
+                      "block h-10 w-28 py-[7px] text-left text-base [&::-webkit-date-and-time-value]:text-left"
+                    : "h-8 w-24 py-0 text-xs md:text-xs pointer-coarse:h-10",
+                )}
+              />
+            </div>
             {prefill && <span className="text-[11px] text-muted-foreground">{prefill.attackTimeSource}</span>}
           </div>
           {attackTimeError ? (
