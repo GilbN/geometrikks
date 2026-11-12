@@ -6,7 +6,7 @@ description: Show an IP's AbuseIPDB score in the inspector, report IPs to AbuseI
 AbuseIPDB is a public database of IPs that people have reported for abuse. GeoMetrikks uses it three ways, each with its own setting:
 
 - With an API key, the [IP inspector](./ip-inspector.mdx) shows the address's AbuseIPDB score.
-- With reporting on, the IP actions menu has Report to AbuseIPDB…, which sends a report in your name.
+- With reporting on, the IP actions menu has Report to AbuseIPDB…, which sends a report with your key.
 - With the blacklist on, GeoMetrikks downloads AbuseIPDB's blacklist and marks the IPs on it.
 
 Without a key, the IP inspector still links to the address's page on abuseipdb.com, and nothing else on this page applies.
@@ -53,7 +53,7 @@ The report is built from what GeoMetrikks saw from the IP over a time window. Th
 
 - **Categories.** GeoMetrikks picks AbuseIPDB categories from the CrowdSec scenarios behind the IP's alerts and decisions. An SQL injection scenario picks SQL Injection and Web App Attack, an SSH scenario picks SSH and Brute-Force, and so on. With no matching scenario it picks Bad Web Bot and Web App Attack. Eight common categories show at first, and All 23… shows the rest.
 - **Comment.** The request count, the time span and the 4xx count, the paths that got an error answer, the busiest user agent and the CrowdSec scenario names, cut to fit AbuseIPDB's 1,024-character limit. It comes from the same evidence as an [abuse report](./abuse-reports.mdx), so your hostnames and your server's address are scrubbed. The line under the comment counts what was scrubbed. The [redaction rules](../reference/api-guides/abuse-report-redaction.mdx) say what it can miss.
-- **Attack time.** The IP's first request in the window, or its first CrowdSec alert when it sent no requests. You enter it in your browser's time zone, and the line under it shows the UTC time that goes to AbuseIPDB. A time in the future is refused.
+- **Attack time.** The IP's first request in the window, or its first CrowdSec alert when it sent no requests. You enter it in your browser's time zone, and the line under it shows the UTC time that goes to AbuseIPDB. GeoMetrikks refuses a time in the future.
 
 Changing the window after you edit a field asks before it throws your edits away.
 
@@ -65,19 +65,19 @@ The report has a Check button. It asks AbuseIPDB for the IP's current score, rep
 
 ### One report per IP every 15 minutes
 
-AbuseIPDB takes one report of an IP every 15 minutes, and GeoMetrikks enforces the same limit for all users and API keys together. In the 15 minutes after a report, the menu item is disabled and reads again in N min, and the report's Send button stays disabled.
+AbuseIPDB takes one report of an IP every 15 minutes, and GeoMetrikks enforces the same limit for all users and API keys together. In the 15 minutes after a report, the menu item is disabled and reads "again in 12 min" or similar, and the report's Send button stays disabled.
 
-After that, the menu item shows the IP's last report from the last 90 days, such as reported 2 h ago. On an IP that isn't public it is disabled and reads not a public address.
+After that, the menu item shows the IP's last report from the last 90 days, such as "reported 2 h ago", or "may have been sent 2 h ago" for an unconfirmed report. On an IP that isn't public it is disabled and reads "not a public address".
 
 ### Who can report
 
-GeoMetrikks has one kind of user and no roles, so anyone signed in can report, with the password login or with [OpenID Connect](./authentication/oidc.mdx). A script needs a Read/write [API key](./authentication/api-keys.mdx); a Read key gets a 403. With `APP_AUTH_DISABLED=true`, anyone who can reach the app can report, and the report is recorded as sent with auth disabled.
+GeoMetrikks has one kind of user and no roles, so anyone signed in can report, with the password login or with [OpenID Connect](./authentication/oidc.mdx). A script needs a Read/write [API key](./authentication/api-keys.mdx); a Read key gets a 403. With `APP_AUTH_DISABLED=true`, anyone who can reach the app can report, and the Reports tab names the sender as "auth disabled".
 
 ### What GeoMetrikks keeps
 
 GeoMetrikks stores every report it sends in its database: the IP, the categories, the comment, the attack time, when it was sent, the confidence score AbuseIPDB answered with, and who sent it. Who sent it is the username, or the API key's name.
 
-The record is written before the request goes out. When AbuseIPDB accepts the report, the record becomes Sent. When AbuseIPDB refuses it or can't be reached, the record is deleted, because nothing was published. When the answer doesn't settle it, such as a timeout after the request left, the record stays Unconfirmed, because the report may have been sent. An unconfirmed report still counts toward the 15-minute limit.
+The record is written before the request goes out. When AbuseIPDB accepts the report, the record becomes Sent. When AbuseIPDB refuses it, or the server can't connect at all, GeoMetrikks deletes the record, because nothing was published. When the answer doesn't settle it, such as a timeout after the request left, the record stays Unconfirmed, because the report may have been sent. An unconfirmed report still counts toward the 15-minute limit.
 
 The app log gets an `abuseipdb_report_sent` line for each sent report, with the IP, the categories, the score, the kind of sender and the comment's length, and an `abuseipdb_report_failed` line with the reason for each failure. Settings > Logs shows them.
 
@@ -116,19 +116,19 @@ Every request goes to `api.abuseipdb.com` with your key.
 | Report | The IP, the categories, the comment and the attack time | When someone sends a report. AbuseIPDB publishes all four. |
 | Blacklist | Nothing but the key | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` hours |
 
-The link to the IP's page on abuseipdb.com is opened by your browser, never by the server. The [outbound traffic table](../index.mdx#outbound-traffic) lists these requests with everything else the server contacts.
+Your browser opens the link to the IP's page on abuseipdb.com. The server never does. The [outbound traffic table](../index.mdx#outbound-traffic) lists these requests with everything else the server contacts.
 
 ## API
 
 The AbuseIPDB endpoints are in the [API reference](../reference/api/index.mdx) under the AbuseIPDB tag. All of them take a session or an API key.
 
-- `GET /api/v1/abuseipdb/status` says whether checks, reports and the blacklist are on, and the quota AbuseIPDB reported on its latest answer to a check and to a report.
-- `GET /api/v1/abuseipdb/check?ipAddress=...` returns the IP's score. It spends a check like the inspector does, so a Read key can spend your checks too.
-- `POST /api/v1/abuseipdb/reports` sends one report. It needs a Read/write key.
-- `GET /api/v1/abuseipdb/reports?ipAddress=...` lists the reports of one IP.
-- `GET /api/v1/abuseipdb/reports/history` lists every report, paged, with `q`, `categoryIn` and `statusIn`.
-- `GET /api/v1/abuseipdb/reported-ips` lists the IPs reported in the last 90 days with their latest report.
-- `GET /api/v1/abuseipdb/blacklist` returns the stored blacklist. It is empty when the blacklist is off, before the first download, and once the list is more than 72 hours old.
+- [`GET /api/v1/abuseipdb/status`](../reference/api/abuseipdb/ApiV1AbuseipdbStatusGetAbuseipdbStatus.mdx) says whether checks, reports and the blacklist are on, and the quota AbuseIPDB reported on its latest answer to a check and to a report.
+- [`GET /api/v1/abuseipdb/check`](../reference/api/abuseipdb/ApiV1AbuseipdbCheckCheckIp.mdx) returns the score of the IP in `ipAddress`. It spends a check like the inspector does, so a Read key can spend your checks too.
+- [`POST /api/v1/abuseipdb/reports`](../reference/api/abuseipdb/ApiV1AbuseipdbReportsCreateReports.mdx) sends one report. It needs a Read/write key.
+- [`GET /api/v1/abuseipdb/reports`](../reference/api/abuseipdb/ApiV1AbuseipdbReportsListReports.mdx) lists the reports of the IP in `ipAddress`.
+- [`GET /api/v1/abuseipdb/reports/history`](../reference/api/abuseipdb/ApiV1AbuseipdbReportsHistoryListReportHistory.mdx) lists every report, paged, with `q`, `categoryIn` and `statusIn`.
+- [`GET /api/v1/abuseipdb/reported-ips`](../reference/api/abuseipdb/ApiV1AbuseipdbReportedIpsListReportedIps.mdx) lists the IPs reported in the last 90 days with their latest report.
+- [`GET /api/v1/abuseipdb/blacklist`](../reference/api/abuseipdb/ApiV1AbuseipdbBlacklistGetBlacklist.mdx) returns the stored blacklist. It is empty when the blacklist is off, before the first download, and once the list is more than 72 hours old.
 
 Only `check` and `POST reports` contact AbuseIPDB. The rest read the local database.
 
