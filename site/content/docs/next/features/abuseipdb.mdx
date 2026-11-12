@@ -53,7 +53,7 @@ The report is built from what GeoMetrikks saw from the IP over a time window. Th
 
 - **Categories.** GeoMetrikks picks AbuseIPDB categories from the CrowdSec scenarios behind the IP's alerts and decisions. An SQL injection scenario picks SQL Injection and Web App Attack, an SSH scenario picks SSH and Brute-Force, and so on. With no matching scenario it picks Bad Web Bot and Web App Attack. The picks come first in the row, followed by the rest of the eight common categories, and All 23… shows the others. A pick outside the eight, such as SSH, still shows without All 23….
 - **Comment.** The request count, the time span and the 4xx count, the paths that got an error answer, the busiest user agent and the CrowdSec scenario names, cut to fit AbuseIPDB's 1,024-character limit. It comes from the same evidence as an [abuse report](./abuse-reports.mdx), so your hostnames and your server's address are scrubbed. The line under the comment counts what was scrubbed. The [redaction rules](../reference/api-guides/abuse-report-redaction.mdx) say what it can miss.
-- **Attack time.** The IP's first request in the window, or its first CrowdSec alert when it sent no requests. You enter it in your browser's time zone, and the line under it shows the UTC time that goes to AbuseIPDB. GeoMetrikks refuses a time in the future.
+- **Attack time.** The IP's first request in the window, or its first CrowdSec alert when it sent no requests. You pick the date from a calendar and type the time, both in your browser's time zone, and the line under them shows the UTC time that goes to AbuseIPDB. GeoMetrikks refuses a time in the future.
 
 Changing the window after you edit a field asks before it throws your edits away.
 
