@@ -4,6 +4,7 @@
  * every 15 minutes.
  */
 import { Loader2 } from "lucide-react"
+import { BadgeHint } from "@/components/badge-hint"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { errorDetail } from "@/lib/abuse-report"
@@ -47,13 +48,14 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
       result.usageType,
     ]
     return (
-      <Badge
-        variant="outline"
-        title={title.filter(Boolean).join(" · ")}
-        className={cn("h-auto max-w-full whitespace-normal break-words text-left", TONE_CLASS[abuseScoreTone(result.abuseConfidenceScore)])}
-      >
-        {label.filter(Boolean).join(" · ")}
-      </Badge>
+      <BadgeHint hint={title.filter(Boolean).join(" · ")}>
+        <Badge
+          variant="outline"
+          className={cn("h-auto max-w-full whitespace-normal break-words text-left", TONE_CLASS[abuseScoreTone(result.abuseConfidenceScore)])}
+        >
+          {label.filter(Boolean).join(" · ")}
+        </Badge>
+      </BadgeHint>
     )
   }
 
