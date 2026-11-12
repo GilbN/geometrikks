@@ -3,7 +3,7 @@ title: IP inspector
 description: Everything GeoMetrikks knows about one IP address for the selected range, and the IP actions menu that opens it.
 ---
 
-The IP inspector is a side sheet about one address: how much it sent, how the server answered, what it asked for, where it came from, and what CrowdSec and Spamhaus say about it. It covers the selected time range, and the range picker next to the address changes it without closing the sheet.
+The IP inspector is a side sheet about one address: how much it sent, how the server answered, what it asked for, where it came from, and what CrowdSec, Spamhaus and AbuseIPDB say about it. It covers the selected time range, and the range picker next to the address changes it without closing the sheet.
 
 ![The IP inspector for one address, with signals, stats and top lists](/screenshots/ip-inspector.webp)
 
@@ -15,7 +15,7 @@ The IP inspector is a side sheet about one address: how much it sent, how the se
 
 ## What it shows
 
-The header names the address's city and country, its AS number and organization with a link to bgp.he.net, and, when CrowdSec is set up, a link to the address on CrowdSec CTI. Under it, a badge shows the active CrowdSec decision with its scenario and time left, and a DROP badge shows the Spamhaus listing with a link to its SBL record. With CrowdSec write access, the ban or unban button sits next to the address.
+The header names the address's city and country, its AS number and organization with a link to bgp.he.net, and, when CrowdSec is set up, a link to the address on CrowdSec CTI. A link to the address's page on AbuseIPDB is always there, and works without an AbuseIPDB key. Under it, a badge shows the active CrowdSec decision with its scenario and time left, and a DROP badge shows the Spamhaus listing with a link to its SBL record. With AbuseIPDB set up, an AbuseIPDB blacklist mark shows an address on AbuseIPDB's blacklist, and a badge shows a public address's AbuseIPDB score. The score lookup spends one of your daily AbuseIPDB checks, at most once per IP every 15 minutes. [AbuseIPDB](./abuseipdb.mdx#the-score-in-the-ip-inspector) covers both. With CrowdSec write access, the ban or unban button sits next to the address.
 
 Below that come:
 
@@ -53,8 +53,9 @@ Every IP in a table has a copy button and an IP actions button after it. The men
 - Filter by IP, host, server, country or ASN, taken from the row, and Exclude for the values the page can exclude. A value already in a filter gets Stop filtering or Stop excluding instead. Which values appear depends on the page's filters.
 - With CrowdSec write access, Ban IP with a choice of 1 hour, 4 hours, 24 hours, 7 days or Forever, or Unban IP for a banned address. A ban or unban waits 5 seconds before it reaches CrowdSec, behind a toast with Undo.
 - For an address on a DROP list, a ban or unban of the whole DROP network.
+- With AbuseIPDB reporting on, Report to AbuseIPDB…, which opens a report prefilled from what GeoMetrikks saw. The item says when the address was last reported, and stays disabled for 15 minutes after a report and on an address that isn't public. See [Report an IP](./abuseipdb.mdx#report-an-ip).
 
-The menu's header shows the address with its CrowdSec decision and DROP listing. In the footer of a record sheet, such as an access log row's details, the menu leaves out Copy, Inspect and Fly to, since the sheet has its own buttons for them.
+The menu's header shows the address with its CrowdSec decision, DROP listing and AbuseIPDB blacklist mark. In the footer of a record sheet, such as an access log row's details, the menu leaves out Copy, Inspect and Fly to, since the sheet has its own buttons for them.
 
 ## On a phone
 

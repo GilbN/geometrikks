@@ -5,6 +5,8 @@ description: Build a report about one IP or the busiest IPs of a network, find t
 
 An abuse report collects what a network's abuse desk asks for about traffic from its addresses: request counts, the busiest hour or day, the top paths and user agents, the newest log lines, and what CrowdSec knows. GeoMetrikks builds it from the raw access logs for the selected time range and shows a preview you can copy or download. It sends nothing on its own. You mail the report yourself.
 
+This report goes privately to the network's abuse desk, found over RDAP. [Reporting to AbuseIPDB](./abuseipdb.mdx#report-an-ip) is a separate action in the IP actions menu. GeoMetrikks sends a short report to AbuseIPDB, which publishes it on the IP's page. Both start from the same redacted evidence.
+
 ## Where to start one
 
 - **One IP.** Open the [IP inspector](./ip-inspector.mdx) and use the Abuse report button in its footer.

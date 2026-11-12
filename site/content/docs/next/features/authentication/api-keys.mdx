@@ -24,7 +24,7 @@ The WebSocket feeds take the same header, so a script can open `/ws/live`, `/ws/
 A key has one of two scopes.
 
 - **Read** can make `GET` and `HEAD` requests and open the WebSocket feeds. Any other method gets a 403.
-- **Read/write** can also change things: ban and unban IPs, ban DROP networks, run a scheduler job now, rotate the log files, and delete a server location or a retired agent instance.
+- **Read/write** can also change things: ban and unban IPs, ban DROP networks, send reports to AbuseIPDB, run a scheduler job now, rotate the log files, and delete a server location or a retired agent instance.
 
 Some endpoints only take a browser session, and answer every key with a 403, Read/write included. A key can't list, create or revoke keys, log out, ask who is logged in, or read the OpenID Connect status. Managing keys takes a browser login.
 
