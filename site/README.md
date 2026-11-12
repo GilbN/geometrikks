@@ -243,9 +243,10 @@ Retake the screenshots for a release with
 `uv run python -m tests.screenshots` from the repository root.
 [tests/screenshots/README.md](../tests/screenshots/README.md) covers what a
 run needs. Every docs version shows the same `data/screenshots/` files. The
-desktop shots show the app version in the sidebar, and the app takes it from
-the newest git tag it can reach. Run it from a checkout of the `vX.Y.Z` tag
-so the shots show the release version, then commit the new files on
+desktop shots show the installed package version in the sidebar, which Hatch
+derives from git when uv installs the project. `uv run` reinstalls it when
+the commit or tags change, so run the retake from a checkout of the
+`vX.Y.Z` tag to show the release version, then commit the new files on
 `develop`.
 
 Once the image is published, the next site build promotes the folder. The
