@@ -25,6 +25,7 @@ SCRUB_PREFIXES: tuple[str, ...] = (
     "MAP_",
     "CROWDSEC_",
     "DROP_",
+    "ABUSEIPDB_",
     "OIDC_",
     "VITE_",
 )
@@ -149,6 +150,11 @@ def app_env(
         "CROWDSEC_STREAM_POLL_INTERVAL": "5",
         "DROP_ENABLED": "true",
         "DROP_REFRESH_HOURS": "8760",
+        # No key means no AbuseIPDB client, so the server has no way to reach AbuseIPDB.
+        # The capture browser answers status, blacklist and check itself.
+        "ABUSEIPDB_API_KEY": "",
+        "ABUSEIPDB_REPORTING_ENABLED": "false",
+        "ABUSEIPDB_BLACKLIST_ENABLED": "false",
     }
 
 

@@ -71,6 +71,8 @@ def test_app_env_never_inherits_geometrikks_settings() -> None:
         "DB_DATABASE": "geometrikks",
         "LOKI_URL": "http://loki",
         "OIDC_ISSUER": "https://auth",
+        "ABUSEIPDB_API_KEY": "real-key",
+        "ABUSEIPDB_BLACKLIST_ENABLED": "true",
         "GEOMETRIKKS_ENV_FILE": ".env",
     }
     env = app_env(environ, config, lapi_url="http://172.30.0.2:8080", log_targets=TARGETS)
@@ -78,6 +80,7 @@ def test_app_env_never_inherits_geometrikks_settings() -> None:
     assert env["CROWDSEC_LAPI_URL"] == "http://172.30.0.2:8080" and env["CROWDSEC_MACHINE_ID"] == "geometrikks-shots"
     assert env["DB_DATABASE"] == "geometrikks_screenshots" and "DB_NAME" not in env
     assert "LOKI_URL" not in env and "OIDC_ISSUER" not in env
+    assert env["ABUSEIPDB_API_KEY"] == "" and env["ABUSEIPDB_BLACKLIST_ENABLED"] == "false"
     assert env["APP_ADMIN_USER"] == env["APP_ADMIN_PASSWORD"] == "admin"
     assert env["APP_UPDATE_CHECK"] == "false" and env["MAP_AUTO_DETECT_SERVER_LOCATION"] == "false"
     assert json.loads(env["LOGPARSER_SERVER_NAME"]) == ["edge", "homelab"]
@@ -94,6 +97,11 @@ def test_app_env_points_every_setting_at_the_run() -> None:
         "geopass",
     )
     assert env["DROP_ENABLED"] == "true" and env["DROP_REFRESH_HOURS"] == "8760"
+    assert (env["ABUSEIPDB_API_KEY"], env["ABUSEIPDB_REPORTING_ENABLED"], env["ABUSEIPDB_BLACKLIST_ENABLED"]) == (
+        "",
+        "false",
+        "false",
+    )
     assert env["CROWDSEC_BOUNCER_API_KEY"] == "bouncer-secret"
     assert env["CROWDSEC_MACHINE_PASSWORD"] == "machine-secret"
     assert env["MAP_CARTO_API_KEY"] == "carto-secret"
