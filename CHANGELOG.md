@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The documentation moved from the README to [geometrikks.dev/docs](https://geometrikks.dev/docs/). Links in the app now open it: the proxy warnings on Settings > Status, "Set up an agent" on Settings > Agents, the CrowdSec setup note on the Security page, the missing GeoLite2 database banner, and the Loki and Nginx Proxy Manager messages in the log.
+- The documentation moved from the README to [geometrikks.dev/docs](https://geometrikks.dev/docs/). The app now points to it: the proxy warnings on Settings > Status, "Set up an agent" on Settings > Agents, the CrowdSec setup note on the Security page and the missing GeoLite2 database banner link there, and the Loki and Nginx Proxy Manager messages in the log name the page to read.
 
 ### Fixed
 
