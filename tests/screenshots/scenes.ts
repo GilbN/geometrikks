@@ -220,9 +220,30 @@ export const STAGES: Record<string, Stage> = {
     await expect(fit).toBeEnabled({ timeout: LOAD_TIMEOUT })
     await moveCamera(page, () => fit.click())
   },
-  status: async (page) => {
+  status: async (page, shot) => {
     await expect(page.getByText("CrowdSec").first()).toBeVisible({ timeout: LOAD_TIMEOUT })
     await noSkeletons(page)
+    // The seed writes rows straight to the database, so only the feeder's lines move these counters.
+    if (shot.viewport.isMobile) {
+      await expect(page.getByText(/^[1-9][\d,.  ]* lines parsed$/)).toBeVisible({ timeout: LOAD_TIMEOUT })
+      return
+    }
+    await expect(page.getByText("Parsed lines", { exact: true }).locator("..")).toHaveText(/^Parsed lines[1-9]/, {
+      timeout: LOAD_TIMEOUT,
+    })
+    await expect(page.getByText("Last event", { exact: true }).locator("..")).toHaveText(/^Last event\d+s ago$/, {
+      timeout: LOAD_TIMEOUT,
+    })
+    const sources = page.getByText("Access log sources", { exact: true }).locator("..")
+    await expect
+      .poll(
+        async () => {
+          const sizes = await sources.locator(":scope > div > span.tabular-nums").allTextContents()
+          return sizes.length > 0 && sizes.every((size) => !/^0 B\b/.test(size))
+        },
+        { timeout: LOAD_TIMEOUT },
+      )
+      .toBe(true)
   },
   settings: async (page) => {
     await expect(page.getByRole("heading", { name: "Appearance" }).first()).toBeVisible({ timeout: LOAD_TIMEOUT })

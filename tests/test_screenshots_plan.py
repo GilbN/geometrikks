@@ -42,7 +42,7 @@ EXPECTED_SCENES = [
     ("security", "Security", "/security", ("desktop", "phone"), False),
     ("drop-networks", "DROP networks", "/security", ("desktop", "phone"), False),
     ("banned-map", "Banned IPs map", "/map", ("desktop", "phone"), False),
-    ("status", "Status", "/settings/status", ("desktop", "phone"), False),
+    ("status", "Status", "/settings/status", ("desktop", "phone"), True),
     ("settings", "Appearance", "/settings/appearance", ("desktop", "phone"), False),
     ("nav-more", "Phone navigation", "/", ("phone",), False),
     ("live", "Live map", "/map", ("desktop", "phone", "landscape"), True),
@@ -79,6 +79,7 @@ def test_every_scene_has_alt_text_and_a_known_viewport() -> None:
 def test_build_shots_counts_and_order() -> None:
     shots = build_shots()
     assert len(shots) == 72
+    assert sum(shot.scene.live for shot in shots) == 14
     assert [shot.name for shot in shots[:2]] == ["login-desktop-dark", "login-desktop-light"]
     first_live = next(index for index, shot in enumerate(shots) if shot.scene.live)
     assert all(shot.scene.live for shot in shots[first_live:])

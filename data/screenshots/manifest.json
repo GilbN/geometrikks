@@ -341,7 +341,7 @@
     },
     "status": {
       "title": "Status",
-      "alt": "The Status settings page with ingestion, database, GeoIP and CrowdSec cards.",
+      "alt": "The Status settings page with ingestion parsing incoming requests, and the database, GeoIP and CrowdSec cards.",
       "variants": {
         "desktop-dark": {
           "file": "status-desktop-dark.webp",

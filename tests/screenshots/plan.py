@@ -139,9 +139,10 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="status",
         title="Status",
-        alt="The Status settings page with ingestion, database, GeoIP and CrowdSec cards.",
+        alt="The Status settings page with ingestion parsing incoming requests, and the database, GeoIP and CrowdSec cards.",
         path="/settings/status",
         viewports=("desktop", "phone"),
+        live=True,
     ),
     Scene(
         id="settings",
