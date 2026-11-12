@@ -17,4 +17,4 @@ def test_readme_is_a_front_door() -> None:
 def test_readme_local_paths_exist() -> None:
     paths = re.findall(r'(?:src|srcset)="([^"]+)"|\]\((?!https?://|#)([^)\s]+)\)', README)
     for path in filter(None, itertools.chain.from_iterable(paths)):
-        assert Path(path.lstrip("/")).exists(), path
+        assert Path(path.split("#", 1)[0].lstrip("/")).exists(), path
