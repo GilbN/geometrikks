@@ -1,6 +1,7 @@
 /** Development-only component gallery. Not an application route or build entry. */
 import { useId } from "react"
 import { createRoot } from "react-dom/client"
+import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from "@tanstack/react-router"
 import { ThemeProvider, useTheme } from "@/components/theme-provider"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +14,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapOverlay } from "@/components/map/MapOverlay"
 import { AppearancePage } from "@/components/settings/appearance-page"
+import { OverlayHistoryProvider } from "@/lib/overlay-history"
 import { COLOR_THEMES, DEFAULT_MODE, THEME_CATALOG } from "@/lib/theme"
 
 function Controls() {
@@ -129,4 +131,12 @@ function Gallery() {
   )
 }
 
-createRoot(document.getElementById("app")!).render(<ThemeProvider defaultTheme={DEFAULT_MODE}><Gallery /></ThemeProvider>)
+// The mode menu takes a phone Back entry from OverlayHistoryProvider, which needs a router.
+const galleryRouter = createRouter({
+  routeTree: createRootRoute({ component: () => <OverlayHistoryProvider><Gallery /></OverlayHistoryProvider> }),
+  history: createMemoryHistory(),
+})
+
+createRoot(document.getElementById("app")!).render(
+  <ThemeProvider defaultTheme={DEFAULT_MODE}><RouterProvider router={galleryRouter} /></ThemeProvider>,
+)

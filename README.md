@@ -84,8 +84,8 @@ live services on one page, with advisories when something needs attention
 
 ![Settings > Status](/data/screenshots/status.png)
 
-**Themes.** Settings > Appearance has four themes, Aurora, Moss, Forge and
-Night, each with a light and a dark palette. Use one theme for both modes
+**Themes.** Settings > Appearance has eight themes, Aurora, Moss, Forge,
+Night, Glacier, Dusk, Lyng and Storm, each with a light and a dark palette. Use one theme for both modes
 or pick a different one for each.
 
 **CrowdSec integration.** Point the app at your CrowdSec Local API for a
