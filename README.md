@@ -43,6 +43,7 @@ The [Quickstart](https://geometrikks.dev/docs/get-started/quickstart/) covers th
 - **[Grafana Loki](https://geometrikks.dev/docs/sources/loki/).** Reads proxy logs your Loki already collects, instead of or next to log files.
 - **[CrowdSec](https://geometrikks.dev/docs/features/crowdsec/).** Shows decisions and alerts from your Local API next to the traffic behind them, and bans or unbans an IP from the map, the tables or the IP inspector.
 - **[Spamhaus DROP](https://geometrikks.dev/docs/features/drop-lists/).** Marks traffic from networks on the DROP and ASN-DROP lists, ready to ban through CrowdSec.
+- **[AbuseIPDB](https://geometrikks.dev/docs/features/abuseipdb/).** Shows an IP's abuse score in the IP inspector, marks IPs on AbuseIPDB's blacklist, and reports an IP to AbuseIPDB from its actions menu.
 - **[MaxMind GeoLite2](https://geometrikks.dev/docs/get-started/geolite2/).** Places requests on the map and names the network each came from. With a free MaxMind key, the databases download and refresh on their own.
 - **[OpenID Connect](https://geometrikks.dev/docs/features/authentication/oidc/).** Single sign-on through Authelia, Authentik, Keycloak, Pocket ID, Google or another provider.
 - **[API keys](https://geometrikks.dev/docs/features/authentication/api-keys/).** Read or read/write keys for scripts and dashboard widgets that call the REST API.
