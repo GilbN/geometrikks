@@ -239,14 +239,14 @@ every release folder marked as published. That promotes the pending folder
 early, so its dead links and redirect errors fail the pull request before
 the release does.
 
-Retake the screenshots during release prep, after the version bump, with
+Retake the screenshots for a release with
 `uv run python -m tests.screenshots` from the repository root.
 [tests/screenshots/README.md](../tests/screenshots/README.md) covers what a
 run needs. Every docs version shows the same `data/screenshots/` files. The
 desktop shots show the app version in the sidebar, and the app takes it from
-the newest git tag it can reach, so the shots show the release version only
-when the run's checkout carries the `vX.Y.Z` tag. The current set shows
-`v0.24.0-dev.18`.
+the newest git tag it can reach. Run it from a checkout of the `vX.Y.Z` tag
+so the shots show the release version, then commit the new files on
+`develop`.
 
 Once the image is published, the next site build promotes the folder. The
 `docs-promote` job in `.github/workflows/release.yml` triggers that build
