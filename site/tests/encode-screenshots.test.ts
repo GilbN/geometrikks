@@ -23,6 +23,12 @@ async function writePng(path: string, width: number, height: number): Promise<vo
     .toFile(path);
 }
 
+async function writeNoisePng(path: string): Promise<void> {
+  const noise = Buffer.alloc(200 * 200 * 3);
+  for (let index = 0; index < noise.length; index++) noise[index] = (index * 7919) % 251;
+  await sharp(noise, { raw: { width: 200, height: 200, channels: 3 } }).png().toFile(path);
+}
+
 describe("encodeAll", () => {
   test("encodes each PNG to a WebP named after it and reports its size", async () => {
     const pngDir = tempDir("encode-png-");
@@ -55,13 +61,45 @@ describe("encodeAll", () => {
     const pngDir = tempDir("encode-png-");
     const high = tempDir("encode-webp-");
     const low = tempDir("encode-webp-");
-    const noise = Buffer.alloc(200 * 200 * 3);
-    for (let index = 0; index < noise.length; index++) noise[index] = (index * 7919) % 251;
-    await sharp(noise, { raw: { width: 200, height: 200, channels: 3 } }).png().toFile(join(pngDir, "a.png"));
+    await writeNoisePng(join(pngDir, "a.png"));
 
     const best = await encodeAll(pngDir, high, { quality: 95 });
     const worst = await encodeAll(pngDir, low, { quality: 20 });
 
     expect(worst.a.bytes).toBeLessThan(best.a.bytes);
+  });
+
+  test("defaults to quality 82 and effort 5", async () => {
+    const pngDir = tempDir("encode-png-");
+    const plain = tempDir("encode-webp-");
+    const explicit = tempDir("encode-webp-");
+    await writeNoisePng(join(pngDir, "a.png"));
+
+    const byDefault = await encodeAll(pngDir, plain);
+    const stated = await encodeAll(pngDir, explicit, { quality: 82, effort: 5 });
+
+    expect(byDefault.a.bytes).toBe(stated.a.bytes);
+  });
+});
+
+describe("the CLI", () => {
+  test("prints only the JSON record on stdout", async () => {
+    const pngDir = tempDir("encode-png-");
+    const webpDir = tempDir("encode-webp-");
+    await writePng(join(pngDir, "map-phone-dark.png"), 40, 20);
+
+    const result = Bun.spawnSync(["bun", join(import.meta.dir, "../scripts/encode-screenshots.ts"), pngDir, webpDir]);
+
+    expect(result.exitCode).toBe(0);
+    const record = JSON.parse(result.stdout.toString());
+    expect(Object.keys(record)).toEqual(["map-phone-dark"]);
+    expect(record["map-phone-dark"]).toMatchObject({ width: 40, height: 20 });
+  });
+
+  test("exits 2 with usage when an argument is missing", () => {
+    const result = Bun.spawnSync(["bun", join(import.meta.dir, "../scripts/encode-screenshots.ts")]);
+
+    expect(result.exitCode).toBe(2);
+    expect(result.stdout.toString()).toBe("");
   });
 });
