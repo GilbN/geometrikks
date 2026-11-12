@@ -46,7 +46,17 @@ console.log("postbuild: no dead links in out/");
 if (contentDir !== resolve(siteRoot, "content")) {
   console.log(`postbuild: app docs URL check skipped, DOCS_CONTENT_DIR is ${relative(siteRoot, contentDir)}`);
 } else {
-  const found = findAppDocsUrls([join(repoRoot, "geometrikks"), join(repoRoot, "resources")]).map((entry) => ({
+  const scanned = [
+    "geometrikks",
+    "resources",
+    "README.md",
+    // Named one by one: a main checkout's docs/superpowers/ holds untracked plans full of example URLs.
+    "docs/proxy-setup.md",
+    "docs/configuration.md",
+    ".env.example",
+    "Dockerfile",
+  ];
+  const found = findAppDocsUrls(scanned.map((path) => join(repoRoot, path))).map((entry) => ({
     ...entry,
     file: relative(repoRoot, entry.file),
   }));

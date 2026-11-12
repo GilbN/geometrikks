@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { NEXT, SEMVER } from "../../lib/versions";
 import { resolvesInOut, rootRelativePath } from "./links";
@@ -8,6 +8,7 @@ const DOCS_URL_IN_TEXT = /https:\/\/geometrikks\.dev\/docs\/[^\s"'`<>()\[\]]*/g;
 const SCANNED = new Set([".py", ".ts", ".tsx", ".md", ".json"]);
 
 function sourceFiles(root: string): string[] {
+  if (statSync(root).isFile()) return [root];
   const files: string[] = [];
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (entry.name === "node_modules") continue;
