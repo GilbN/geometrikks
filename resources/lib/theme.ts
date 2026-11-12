@@ -54,6 +54,30 @@ export const THEME_CATALOG = {
     light: { themeColor: "#f5f5f5", foreground: "#171717" },
     dark: { themeColor: "#0a0a0a", foreground: "#e8e8e8" },
   },
+  glacier: {
+    label: "Glacier",
+    description: "Clear blue, with icy blue surfaces.",
+    light: { themeColor: "#f0f7fc", foreground: "oklch(0.22 0.035 262)" },
+    dark: { themeColor: "#030916", foreground: "oklch(0.95 0.012 245)" },
+  },
+  dusk: {
+    label: "Dusk",
+    description: "Indigo, with blue-violet surfaces.",
+    light: { themeColor: "#f5f4fc", foreground: "oklch(0.22 0.035 290)" },
+    dark: { themeColor: "#090715", foreground: "oklch(0.95 0.012 290)" },
+  },
+  lyng: {
+    label: "Lyng",
+    description: "Heather pink, with soft plum surfaces.",
+    light: { themeColor: "#faf3f9", foreground: "oklch(0.22 0.03 330)" },
+    dark: { themeColor: "#0f060e", foreground: "oklch(0.95 0.012 330)" },
+  },
+  storm: {
+    label: "Storm",
+    description: "Muted steel blue, with grey surfaces.",
+    light: { themeColor: "#f2f4f6", foreground: "oklch(0.21 0.015 258)" },
+    dark: { themeColor: "#0a0c10", foreground: "oklch(0.94 0.006 255)" },
+  },
 } as const satisfies Record<string, ThemeDefinition>
 
 export type ColorTheme = keyof typeof THEME_CATALOG

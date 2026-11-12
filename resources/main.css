@@ -7,6 +7,10 @@
 @import "./themes/moss.css";
 @import "./themes/forge.css";
 @import "./themes/night.css";
+@import "./themes/glacier.css";
+@import "./themes/dusk.css";
+@import "./themes/lyng.css";
+@import "./themes/storm.css";
 
 @font-face {
   font-family: "runr";

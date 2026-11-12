@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - With a key, the IP inspector shows the IP's AbuseIPDB score when it opens. Each lookup uses one daily AbuseIPDB check, at most once per IP every 15 minutes.
   - With a key and `ABUSEIPDB_BLACKLIST_ENABLED=true`, GeoMetrikks downloads AbuseIPDB's blacklist once a day and marks listed IPs in the IP inspector, the IP menu, record sheets, the phone IP menu's ban drawer and map popups about one IP. `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` changes the interval, from 6 to 36 hours. A list more than 72 hours old stops showing. The list is for your own use: AbuseIPDB forbids republishing it, and free plans can't be used commercially.
   - The Security page has a Reports tab listing every report GeoMetrikks has sent, newest first. Search by IP, comment or sender, or filter by category and status. Expanding a row shows the comment and attack time. `GET /api/v1/abuseipdb/reports/history` returns the same list.
+- Settings > Appearance has four new themes. Glacier is clear blue, Dusk is indigo, Lyng is heather pink and Storm is a muted steel blue. Each has a light and a dark palette, and each side mixes with any other theme.
 
 ### Changed
 
