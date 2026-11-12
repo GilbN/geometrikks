@@ -197,8 +197,22 @@ rule, got a 307 to `/docs/quickstart/` from the asset server.
 
 ## Releasing
 
-Run `bun run docs:release X.Y.Z` and commit the result in the
-`chore(release)` commit. It copies `content/docs/next/` to
+The `chore(release): X.Y.Z` commit for a stable release does three things
+in `site/`:
+
+1. It sets the image tags in `content/docs/next/`. The Quickstart page
+   (`get-started/quickstart.mdx`) has the dev example `X.Y.Z-dev.1` in its
+   tags table and the pinned `ghcr.io/gilbn/geometrikks:X.Y.Z`. The Multiple
+   sources page (`sources/multiple-sources.mdx`) has the same pinned tag in
+   its agent snippet.
+2. It runs `bun run docs:release X.Y.Z`, after the tags are set so the
+   release folder gets them. The script's last line names the folder it
+   wrote and the superseded versions it deleted, in its `dropped=[...]`
+   field.
+3. It stages `content/docs/X.Y.Z/`, `content/openapi/X.Y.Z.json` and the
+   deletion of each dropped version's folder and snapshot.
+
+`docs:release` copies `content/docs/next/` to
 `content/docs/X.Y.Z/`, sets the folder's `meta.json` title to the version,
 snapshots `resources/generated/openapi.json` to
 `content/openapi/X.Y.Z.json` and deletes superseded folders with their
@@ -214,15 +228,25 @@ It refuses:
 - a page with a link to `/docs/next/` or a top-level slug of `next`.
 
 Between that commit and the image reaching ghcr.io, the folder is pending.
-A docs fix in that window goes into `next`. Then rerun
-`bun run docs:release X.Y.Z` to refresh the pending folder, which keeps the
-`/docs/next/` link check and the `next` slug check. If unreleased work has
-landed in `next`, a rerun would pull it into the release, so edit both
-folders by hand instead. Hand edits skip those two checks.
+A docs change in that window that describes what X.Y.Z ships edits both
+`next/` and `X.Y.Z/`. If nothing unreleased has landed in `next` since the
+release commit, edit `next` and rerun `bun run docs:release X.Y.Z`, which
+refreshes the pending folder and keeps the `/docs/next/` link check and the
+`next` slug check. Otherwise a rerun would pull the unreleased work into the
+release, so edit both folders by hand. Hand edits skip those two checks.
 Whenever a release folder is pending, CI builds the site once more with
 every release folder marked as published. That promotes the pending folder
 early, so its dead links and redirect errors fail the pull request before
 the release does.
+
+Retake the screenshots during release prep, after the version bump, with
+`uv run python -m tests.screenshots` from the repository root.
+[tests/screenshots/README.md](../tests/screenshots/README.md) covers what a
+run needs. Every docs version shows the same `data/screenshots/` files. The
+desktop shots show the app version in the sidebar, and the app takes it from
+the newest git tag it can reach, so the shots show the release version only
+when the run's checkout carries the `vX.Y.Z` tag. The current set shows
+`v0.24.0-dev.18`.
 
 Once the image is published, the next site build promotes the folder. The
 `docs-promote` job in `.github/workflows/release.yml` triggers that build
@@ -253,28 +277,32 @@ nothing, and the folder goes live with the next build that a push starts.
 
 ## Deploy
 
-Two Cloudflare workers build from this repository in Workers Builds. Both
-use the root directory `site`, and `wrangler.jsonc` points both at `out/`
-with `404.html` as the not-found page.
+One Cloudflare worker, `geometrikks`, builds this repository in Workers
+Builds and serves geometrikks.dev.
 
-| Setting | `geometrikks` | `geometrikks-develop` |
-| --- | --- | --- |
-| Serves | geometrikks.dev | develop.geometrikks.dev |
-| Production branch | `main` | `develop` |
-| Build command | `bun install --frozen-lockfile && bun run build` | same |
-| Deploy command | `bunx wrangler deploy` | `bunx wrangler deploy --env develop` |
+| Setting | Value |
+| --- | --- |
+| Root directory | `site` |
+| Production branch | `develop` |
+| Build command | `bun install --frozen-lockfile && bun run build` |
+| Deploy command | `bunx wrangler deploy` |
+| Build watch paths | `site/**`, `CHANGELOG.md`, `SECURITY.md`, `resources/generated/openapi.json`, `data/screenshots/**` |
 
-Workers Builds refuses a config whose name differs from the worker it is
-attached to, so `geometrikks-develop` deploys the `develop` environment
-from `wrangler.jsonc`. With an environment defined, wrangler warns when the
-main worker's deploy command names none; it still deploys the top-level
-configuration. Turn non-production branch builds off on
-`geometrikks-develop`, so a feature branch builds once, as a preview on
-`geometrikks`.
+The paths outside `site/` are the files a build reads from the rest of the
+repository: `prepare.ts` copies the changelog, the security policy and the
+screenshots, and the API pages in `next` render `openapi.json`. A push to
+`develop` that touches a watch path deploys the site. `wrangler.jsonc`
+points the worker at `out/` with `404.html` as the not-found page.
+
+The worker has a deploy hook for the `develop` branch. Its URL is the
+`DOCS_DEPLOY_HOOK_URL` repository secret. For a stable tag, the
+`docs-promote` job in `.github/workflows/release.yml` posts to it once the
+`publish-image` job has pushed the image. [Releasing](#releasing) covers
+what that build does.
 
 `.node-version` pins Node 24 for CI and for Workers Builds.
 
 `public/_headers` sets HSTS, `nosniff` and a `strict-origin-when-cross-origin`
-referrer policy on every response, plus `X-Robots-Tag: noindex` on
-develop.geometrikks.dev. Every page's canonical URL points at
-geometrikks.dev, so the staging copy stays out of search results.
+referrer policy on every response. Pages under `/docs/next/` carry a
+`robots` meta tag with `noindex, follow`, set in
+`app/docs/[[...slug]]/page.tsx`, which keeps `next` out of search results.
