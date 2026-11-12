@@ -96,3 +96,14 @@
   overflow-wrap: normal;
   white-space: nowrap;
 }
+
+/* Screenshots ship in both themes; show the one that matches the page. */
+.shot-dark {
+  display: none;
+}
+.dark .shot-dark {
+  display: block;
+}
+.dark .shot-light {
+  display: none;
+}

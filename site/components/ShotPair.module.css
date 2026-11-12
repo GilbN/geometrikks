@@ -1,0 +1,44 @@
+.figure {
+  margin: 0;
+}
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 1fr);
+  gap: clamp(12px, 2.5%, 28px);
+  align-items: end;
+}
+.single {
+  display: grid;
+  justify-items: center;
+}
+/* No display here: it would outrank docs.css's .shot-dark { display: none }. */
+.desktop img,
+.phone img {
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+.single .phone {
+  width: min(100%, 320px);
+}
+.phone img {
+  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
+}
+.caption {
+  margin-top: 12px;
+  font-size: 0.875em;
+  opacity: 0.8;
+}
+@media (max-width: 640px) {
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+  .pair .desktop {
+    width: 100%;
+  }
+  .pair .phone {
+    width: 50%;
+  }
+}

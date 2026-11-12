@@ -44,3 +44,6 @@
   font-size: 15px;
   max-width: 80ch;
 }
+.pair {
+  padding: clamp(12px, 2.5vw, 28px);
+}
