@@ -44,6 +44,12 @@ export const FALLBACK_CATEGORY_IDS = [19, 21]
 export const MAX_COMMENT_LENGTH = 1024
 export const REPORT_INTERVAL_MS = 15 * 60_000
 
+/** The prefilled picks lead, so one outside the featured eight shows before All 23… is pressed. */
+export function categoryChipOrder(picked: readonly number[], showAll: boolean): number[] {
+  const leading = [...picked, ...FEATURED_CATEGORY_IDS]
+  return [...new Set(showAll ? [...leading, ...ABUSEIPDB_CATEGORIES.map((category) => category.id)] : leading)]
+}
+
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS

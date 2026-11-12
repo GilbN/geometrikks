@@ -6,6 +6,7 @@ import {
   buildReportComment,
   canonicalIp,
   categoriesForScenarios,
+  categoryChipOrder,
   commentLength,
   defaultAttackTime,
   isPublicIp,
@@ -430,5 +431,18 @@ describe("reporterLabel", () => {
   })
   test("says when auth was off", () => {
     expect(reporterLabel({ reporterKind: "anonymous", reporterName: null })).toBe("auth disabled")
+  })
+})
+
+describe("categoryChipOrder", () => {
+  test("puts the picks first, so one outside the featured eight shows without All 23", () => {
+    expect(categoryChipOrder([22, 18], false)).toEqual([22, 18, 21, 19, 15, 16, 14, 9, 10])
+  })
+
+  test("lists every category once when all are shown", () => {
+    const order = categoryChipOrder([22], true)
+    expect(order[0]).toBe(22)
+    expect(order).toHaveLength(ABUSEIPDB_CATEGORIES.length)
+    expect(new Set(order).size).toBe(order.length)
   })
 })

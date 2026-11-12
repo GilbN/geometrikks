@@ -283,6 +283,17 @@ test.describe("desktop", () => {
     expect(await picker.evaluate((element) => element.tagName)).toBe("BUTTON")
   })
 
+  test("CrowdSec picks lead the categories, one outside the common eight included", async ({ page }) => {
+    const alert = { ...ipEvidence().alerts[0], scenario: "crowdsecurity/ssh-bf" }
+    await setup(page, { evidenceFor: () => evidence(ipEvidence({ alerts: [alert] })) })
+    const dialog = await openReportFromMenu(page)
+    await expect(dialog.getByRole("button", { name: "22 SSH", pressed: true })).toBeVisible()
+    await expect(dialog.getByRole("button", { pressed: true })).toHaveCount(2)
+    await expect(dialog.locator("button[aria-pressed]").nth(0)).toHaveText("18 Brute-Force")
+    await expect(dialog.locator("button[aria-pressed]").nth(1)).toHaveText("22 SSH")
+    await expect(dialog.getByRole("button", { name: /^All 23/ })).toBeVisible()
+  })
+
   test("check runs only on click", async ({ page }) => {
     const { recorded } = await setup(page)
     const dialog = await openReportFromMenu(page)
@@ -678,6 +689,13 @@ test.describe("portrait phone", () => {
     await page.keyboard.press("Escape")
     await expect(drawer).toHaveCount(0)
     await expect(ipActions(page)).toBeFocused()
+  })
+
+  test("a tap on the inspector's score shows who reported it and when", async ({ page }) => {
+    await setup(page)
+    await page.goto(`/access-logs?inspect=${IP}`)
+    await page.getByText(SCORE_LABEL).tap()
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText("87% confidence from 311 users")
   })
 
   test("the phone menu's Report is disabled with a countdown", async ({ page }) => {

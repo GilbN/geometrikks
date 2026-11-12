@@ -46,12 +46,12 @@ import { errorDetail } from "@/lib/abuse-report"
 import {
   ABUSEIPDB_CATEGORIES,
   FALLBACK_CATEGORY_IDS,
-  FEATURED_CATEGORY_IDS,
   MAX_COMMENT_LENGTH,
   REPORT_INTERVAL_MS,
   agoText,
   buildReportComment,
   CATEGORY_NAMES,
+  categoryChipOrder,
   categoriesForScenarios,
   commentLength,
   defaultAttackTime,
@@ -86,9 +86,6 @@ interface Prefill {
   attackTimeSource: string
 }
 
-const MORE_CATEGORY_IDS = ABUSEIPDB_CATEGORIES.map((category) => category.id).filter(
-  (id) => !FEATURED_CATEGORY_IDS.includes(id),
-)
 function utcMinutes(iso: string): string {
   return new Date(iso).toISOString().slice(0, 16).replace("T", " ")
 }
@@ -321,7 +318,6 @@ function ReportForm({
     setPrefilledFrom(report)
     setPrefill(next)
     setCategories(next.categories)
-    setShowAllCategories((shown) => shown || next.categories.some((id) => !FEATURED_CATEGORY_IDS.includes(id)))
     setComment(next.comment)
     setAttackTime(next.attackTime)
   }
@@ -450,7 +446,7 @@ function ReportForm({
     </DialogHeader>
   )
 
-  const shownCategoryIds = showAllCategories ? [...FEATURED_CATEGORY_IDS, ...MORE_CATEGORY_IDS] : FEATURED_CATEGORY_IDS
+  const shownCategoryIds = categoryChipOrder(prefill?.categories ?? [], showAllCategories)
   const pickedLabel = prefill?.fromCrowdsec
     ? `${prefill.categories.length} picked from CrowdSec`
     : `${FALLBACK_CATEGORY_IDS.length} picked by default`
