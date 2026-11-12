@@ -54,7 +54,9 @@ export function Install() {
             <li className={styles.no}>
               <b>No telemetry.</b> On its own the server contacts MaxMind for GeoLite2, a public-IP service for the
               map's server location, GitHub for the update check and Spamhaus for the DROP lists. Each one can be
-              turned off. <a href="/docs/#outbound-traffic">Outbound traffic</a> has the switches.
+              turned off. Add an AbuseIPDB key and it also asks AbuseIPDB about the IPs you open in the IP inspector,
+              sends the reports you write, and can download AbuseIPDB's blacklist.{" "}
+              <a href="/docs/#outbound-traffic">Outbound traffic</a> has the switches.
             </li>
           </ul>
         </div>
