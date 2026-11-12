@@ -1,5 +1,5 @@
 {
   "title": "Features",
   "defaultOpen": true,
-  "pages": ["map", "app-tour", "crowdsec", "drop-lists", "ip-inspector", "abuse-reports", "authentication"]
+  "pages": ["map", "app-tour", "crowdsec", "drop-lists", "ip-inspector", "abuse-reports", "abuseipdb", "authentication"]
 }
