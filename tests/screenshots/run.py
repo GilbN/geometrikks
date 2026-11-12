@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import errno
 import json
 import os
 import random
@@ -124,6 +125,8 @@ BUNDLE_MANIFEST: Final = REPO_ROOT / "public" / "manifest.json"
 VITE_HOT: Final = REPO_ROOT / "public" / "hot"
 SITE_SHARP: Final = REPO_ROOT / "site" / "node_modules" / "sharp"
 ENCODER: Final = REPO_ROOT / "site" / "scripts" / "encode-screenshots.ts"
+SCREENSHOT_VITE_CONFIG: Final = REPO_ROOT / "tests" / "screenshots" / "vite.config.ts"
+VITE_ENV_DIR_VAR: Final = "SHOTS_VITE_ENV_DIR"
 PLAYWRIGHT_CONFIG: Final = "playwright.screenshots.config.ts"
 DEFAULT_PG_ADMIN_URL: Final = "postgresql://geouser:geopass@localhost:5432/postgres"
 GEOIP_DIR: Final = Path.home() / "dev" / "geometrikks" / "data" / "geoip"
@@ -227,12 +230,18 @@ def _plain_url(url: str) -> str:
     return make_url(url).set(drivername="postgresql").render_as_string(hide_password=False)
 
 
-def sweep_marked(marker: Callable[[bytes], bool], *, proc_root: Path = Path("/proc")) -> list[str]:
-    """Kill our own processes whose environment matches ``marker``.
+def bun_argv(bun: str, *args: str) -> list[str]:
+    """Bun loads ``.env`` from its working directory by default, and the repo root holds the owner's."""
+    return [bun, "--no-env-file", *args]
+
+
+def sweep_marked(marker: Callable[[bytes], bool], *, proc_root: Path = Path("/proc")) -> tuple[list[str], bool]:
+    """Kill our own processes whose environment matches ``marker``; return the report and whether a kill failed.
 
     Playwright starts browsers in process groups of their own, so stopping its group can miss them.
     """
-    stopped = []
+    report: list[str] = []
+    failed = False
     for entry in proc_root.iterdir():
         if not entry.name.isdigit() or int(entry.name) == os.getpid():
             continue
@@ -245,16 +254,23 @@ def sweep_marked(marker: Callable[[bytes], bool], *, proc_root: Path = Path("/pr
         try:
             # Opened before the read and killed through, the pidfd can only reach the process it was opened
             # for: if that one exits and its pid is reused, the kill fails instead of hitting the new owner.
-            environ = (entry / "environ").read_bytes()
+            try:
+                environ = (entry / "environ").read_bytes()
+            except OSError:
+                continue
             if not any(marker(pair) for pair in environ.split(b"\0")):
                 continue
-            signal.pidfd_send_signal(pidfd, signal.SIGKILL)
-        except OSError:
-            continue
+            try:
+                signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+            except OSError as error:
+                if error.errno != errno.ESRCH:
+                    report.append(f"could not stop stray process {entry.name} from a capture: {error}")
+                    failed = True
+                continue
         finally:
             os.close(pidfd)
-        stopped.append(int(entry.name))
-    return [f"stopped stray process {pid} from a capture" for pid in stopped]
+        report.append(f"stopped stray process {entry.name} from a capture")
+    return report, failed
 
 
 class Runner:
@@ -467,44 +483,45 @@ def dry_run(args: argparse.Namespace) -> int:
     env = base_env(os.environ)
     logs = scratch / "logs"
     code = EXIT_DONE
-    try:
-        with interrupts_raise():
-            try:
-                scratch.mkdir(mode=0o700)
-                logs.mkdir()
-                runner = Runner(ledger=private, env=env, log_dir=logs)
-                facts = gather_facts(args, runner, ledger_exists=_shared_ledger_foreign(()))
-                problems = preflight_problems(facts)
-                retake = _retake_problem(args.only)
-                if retake is not None:
-                    problems.append(retake)
-                _report_problems(problems)
-                _print_dry_env(args, env)
-                shots = _shot_list(args.only)
-                for shot in shots:
-                    say(f"shot: {shot.name}{' (live)' if shot.scene.live else ''}")
-                say(f"{len(shots)} shots")
-                _print_dry_teardown(args)
-                plan_path = scratch / "plan.json"
-                params = {"inspect_ip": DOC_INSPECT_IP, "focus_location": "1"}
-                plan = capture_plan(shots, params, base_url="http://127.0.0.1:8000", png_dir=scratch / "png")
-                plan_path.write_text(json.dumps(plan, indent=2))
-                listed = runner.run(
-                    [runner.which("npx"), "playwright", "test", f"--config={PLAYWRIGHT_CONFIG}", "--list"],
-                    label="playwright --list",
-                    log="playwright-list.log",
-                    env=_playwright_env(env, plan=plan_path, output=scratch / "playwright"),
-                )
-                say(_tail(logs / "playwright-list.log", lines=200))
-                say(f"playwright --list exited {listed}")
-                code = dry_run_exit(has_problems=bool(problems), listed=listed)
-            except (RunFailed, MissingParamError) as error:
-                say(f"dry run failed: {error.args[0]}")
-                code = EXIT_FAILED
-    except Interrupted:
-        code = EXIT_INTERRUPTED
-    finally:
-        with interrupts_ignored():
+    # Ignored outside the raise block too, so leaving it never restores the default handlers before teardown.
+    with interrupts_ignored():
+        try:
+            with interrupts_raise():
+                try:
+                    scratch.mkdir(mode=0o700)
+                    logs.mkdir()
+                    runner = Runner(ledger=private, env=env, log_dir=logs)
+                    facts = gather_facts(args, runner, ledger_exists=_shared_ledger_foreign(()))
+                    problems = preflight_problems(facts)
+                    retake = _retake_problem(args.only)
+                    if retake is not None:
+                        problems.append(retake)
+                    _report_problems(problems)
+                    _print_dry_env(args, env)
+                    shots = _shot_list(args.only)
+                    for shot in shots:
+                        say(f"shot: {shot.name}{' (live)' if shot.scene.live else ''}")
+                    say(f"{len(shots)} shots")
+                    _print_dry_teardown(args)
+                    plan_path = scratch / "plan.json"
+                    params = {"inspect_ip": DOC_INSPECT_IP, "focus_location": "1"}
+                    plan = capture_plan(shots, params, base_url="http://127.0.0.1:8000", png_dir=scratch / "png")
+                    plan_path.write_text(json.dumps(plan, indent=2))
+                    listed = runner.run(
+                        [runner.which("npx"), "playwright", "test", f"--config={PLAYWRIGHT_CONFIG}", "--list"],
+                        label="playwright --list",
+                        log="playwright-list.log",
+                        env=_playwright_env(env, plan=plan_path, output=scratch / "playwright"),
+                    )
+                    say(_tail(logs / "playwright-list.log", lines=200))
+                    say(f"playwright --list exited {listed}")
+                    code = dry_run_exit(has_problems=bool(problems), listed=listed)
+                except (RunFailed, MissingParamError) as error:
+                    say(f"dry run failed: {error.args[0]}")
+                    code = EXIT_FAILED
+        except Interrupted:
+            code = EXIT_INTERRUPTED
+        finally:
             for line in _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch):
                 say(f"teardown: {line}")
             if _ledger_holds(private):
@@ -612,14 +629,16 @@ def _cleanup(args: argparse.Namespace, env: dict[str, str], scratch: Path) -> in
     except RunFailed as error:
         say(f"cleanup: could not list labelled resources: {error}")
         clean = False
-    try:
-        if asyncio.run(_database_exists(args.pg_admin_url)):
-            admin = (("admin_url", args.pg_admin_url),)
-            if not any(entry.kind == "database" and entry.meta == admin for entry in entries):
-                discovered.append(Resource("database", RESERVED_DATABASE, admin))
-    except (OSError, asyncpg.PostgresError, TimeoutError) as error:
-        say(f"cleanup: could not check for {RESERVED_DATABASE} on {make_url(args.pg_admin_url)!s}: {error}")
-        clean = False
+    # An --own-db run's database lives in its labelled container, so the shared server holds nothing of it.
+    if not args.own_db:
+        try:
+            if asyncio.run(_database_exists(args.pg_admin_url)):
+                admin = (("admin_url", args.pg_admin_url),)
+                if not any(entry.kind == "database" and entry.meta == admin for entry in entries):
+                    discovered.append(Resource("database", RESERVED_DATABASE, admin))
+        except (OSError, asyncpg.PostgresError, TimeoutError) as error:
+            say(f"cleanup: could not check for {RESERVED_DATABASE} on {make_url(args.pg_admin_url)!s}: {error}")
+            clean = False
     # In the ledger first, so whatever teardown cannot remove stays listed and fails the exit status.
     for resource in discovered:
         ledger.add(resource)
@@ -629,7 +648,10 @@ def _cleanup(args: argparse.Namespace, env: dict[str, str], scratch: Path) -> in
         say(f"cleanup: found {entry.kind} {entry.ident}")
     report = _teardown(entries, ledger, env, scratch)
     run_root_marker = f"SHOTS_PLAN={RUN_ROOT}/".encode()
-    report += sweep_marked(lambda pair: pair.startswith(run_root_marker))
+    swept, sweep_failed = sweep_marked(lambda pair: pair.startswith(run_root_marker))
+    report += swept
+    if sweep_failed:
+        clean = False
     for folder in sorted(RUN_ROOT.glob("dry-*")):
         private = Ledger(folder / "ledger.json")
         try:
@@ -672,51 +694,54 @@ def full_run(args: argparse.Namespace) -> int:
     env = base_env(os.environ)
     plan_marker = f"SHOTS_PLAN={run_dir / 'plan.json'}".encode()
     code = EXIT_FAILED
-    try:
-        with interrupts_raise():
-            try:
-                if not _recover("publish recovery"):
-                    raise RunFailed("the publish recovery failed")
-                retake = _retake_problem(args.only)
-                if retake is not None:
-                    say(retake)
-                    raise Refused
+    # Ignored outside the raise block too, so leaving it never restores the default handlers before teardown.
+    with interrupts_ignored():
+        try:
+            with interrupts_raise():
                 try:
-                    ledger.load()
-                except (ValueError, TypeError) as error:
-                    say(f"the ledger is unreadable ({error}): run --cleanup first")
-                    raise Refused from None
-                directory = Resource("directory", str(run_dir), state="intended")
-                ledger.add(directory)
-                run_dir.mkdir(mode=0o700)
-                logs.mkdir()
-                ledger.mark_acquired(directory)
-                say(f"run {run_id}: logs in {logs}")
-                FullRun(args, run_id=run_id, run_dir=run_dir, ledger=ledger, env=env).execute()
-                code = EXIT_DONE
-            except Refused:
-                code = EXIT_REFUSED
-            except (RunFailed, TimeoutError, MissingParamError) as error:
-                say(f"run failed: {error.args[0] if error.args else repr(error)}")
-                log = getattr(error, "log", None)
-                if log is not None:
-                    say(f"last lines of {log}:\n{_tail(log)}")
-                code = EXIT_FAILED
-            except Exception:  # noqa: BLE001
-                traceback.print_exc()
-                code = EXIT_FAILED
-    except Interrupted as interrupt:
-        say(f"{interrupt}; tearing down")
-        code = EXIT_INTERRUPTED
-    finally:
-        with interrupts_ignored():
+                    if not _recover("publish recovery"):
+                        raise RunFailed("the publish recovery failed")
+                    retake = _retake_problem(args.only)
+                    if retake is not None:
+                        say(retake)
+                        raise Refused
+                    try:
+                        ledger.load()
+                    except (ValueError, TypeError) as error:
+                        say(f"the ledger is unreadable ({error}): run --cleanup first")
+                        raise Refused from None
+                    directory = Resource("directory", str(run_dir), state="intended")
+                    ledger.add(directory)
+                    run_dir.mkdir(mode=0o700)
+                    logs.mkdir()
+                    ledger.mark_acquired(directory)
+                    say(f"run {run_id}: logs in {logs}")
+                    FullRun(args, run_id=run_id, run_dir=run_dir, ledger=ledger, env=env).execute()
+                    code = EXIT_DONE
+                except Refused:
+                    code = EXIT_REFUSED
+                except (RunFailed, TimeoutError, MissingParamError) as error:
+                    say(f"run failed: {error.args[0] if error.args else repr(error)}")
+                    log = getattr(error, "log", None)
+                    if log is not None:
+                        say(f"last lines of {log}:\n{_tail(log)}")
+                    code = EXIT_FAILED
+                except Exception:  # noqa: BLE001
+                    traceback.print_exc()
+                    code = EXIT_FAILED
+        except Interrupted as interrupt:
+            say(f"{interrupt}; tearing down")
+            code = EXIT_INTERRUPTED
+        finally:
             try:
                 if not _recover("publish recovery"):
                     code = code or EXIT_FAILED
             finally:
                 report = _teardown(ledger.owned(), ledger, env, logs if logs.is_dir() else RUN_ROOT)
-                report += sweep_marked(lambda pair: pair == plan_marker)
-                _print_teardown(report)
+                swept, sweep_failed = sweep_marked(lambda pair: pair == plan_marker)
+                _print_teardown(report + swept)
+                if code == EXIT_DONE and (ledger.owned() or sweep_failed):
+                    code = EXIT_FAILED
     say(f"exit {code}")
     return code
 
@@ -799,18 +824,14 @@ class FullRun:
     # Step 3
     def build(self) -> None:
         say("building the frontend bundle (logs/build.log)")
-        build_env = {
-            **self.env,
-            "APP_AUTH_DISABLED": "false",
-            "APP_ADMIN_PASSWORD": "typegen-only",
-            "GEOIP_VALIDATE_DB_PATH": "false",
-            "VITE_DEV_MODE": "false",
-        }
+        env_dir = self.run_dir / "vite-env"
+        env_dir.mkdir()
+        argv = bun_argv(self.runner.which("bun"), "run", "vite", "build", f"--config={SCREENSHOT_VITE_CONFIG}")
         code = self.runner.run(
-            [self.runner.which("bun"), "run", "build"], label="bun run build", log="build.log", env=build_env
+            argv, label="vite build", log="build.log", env={**self.env, VITE_ENV_DIR_VAR: str(env_dir)}
         )
         if code != 0:
-            raise RunFailed(f"bun run build exited {code}", log=self.logs / "build.log")
+            raise RunFailed(f"vite build exited {code}", log=self.logs / "build.log")
         code, out = self.runner.capture(
             [self.runner.which("git"), "status", "--porcelain", "resources/generated"], label="git status"
         )
@@ -1156,7 +1177,7 @@ class FullRun:
         webp_dir = self.run_dir / "webp"
         webp_dir.mkdir()
         code = self.runner.run(
-            [self.runner.which("bun"), str(ENCODER), str(self.png_dir), str(webp_dir)],
+            bun_argv(self.runner.which("bun"), str(ENCODER), str(self.png_dir), str(webp_dir)),
             label="encode",
             log="encode.log",
             stdout="encode.json",

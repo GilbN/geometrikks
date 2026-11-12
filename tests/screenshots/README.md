@@ -2,6 +2,8 @@
 
 `uv run python -m tests.screenshots` brings up a throwaway GeoMetrikks instance with seeded traffic, screenshots every scene in `plan.py` in both themes, encodes the shots to WebP and publishes them to `data/screenshots/`. Then it removes everything it started. Run it by hand on a dev machine. It refuses to start when `CI` is set.
 
+Scene ids in `plan.py` are public. The docs place shots with `<Screenshot scene="map" />`, and `ShotPair` throws on an id the manifest lacks. Removing or renaming a scene therefore breaks the build of every version folder under `site/content/docs` that uses it, so keep the id while any folder does.
+
 ## Before a run
 
 - Docker running, and the shared TimescaleDB server at `postgresql://geouser:geopass@localhost:5432/postgres` (the dev `timescale_db` container), unless you pass `--own-db`. The preflight refuses when that server does not answer.
@@ -25,14 +27,14 @@ uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] 
 | `--only map,live` | Retakes these scenes. Their files and manifest entries are replaced, and every other scene's files and entries stay as they are. A retake needs a readable `data/screenshots/manifest.json`. Without one the run exits 2 before it starts anything, and you need a full run first. The captcha and range picks and each ban's scenario can change between runs, so retake `security`, `drop-networks`, `banned-map`, `ip-inspector` and `abuse-report` together, or their decisions won't match. |
 | `--hold` | Waits after capture, whether it passed or failed, and prints the PNG folder, the instance's URLs and the login. Enter goes on to encode and publish. Ctrl-C tears down without publishing. |
 | `--own-db` | Starts a private `timescale/timescaledb-ha:pg18-ts2.30` container with `--memory 1g` instead of a database on the shared server. Use it when the shared server is down or already holds `geometrikks_screenshots`. |
-| `--no-build` | Uses the bundle already in `public/`. Without it the run calls `bun run build` with the typegen environment, then fails if the build rewrote `resources/generated`. |
+| `--no-build` | Uses the bundle already in `public/`. Without it the run builds the bundle with `vite build` through `tests/screenshots/vite.config.ts`, then fails if the build rewrote `resources/generated`. |
 | `--pg-admin-url` | Admin URL of the TimescaleDB server. Defaults to `SHOTS_PG_ADMIN_URL`, then the dev server above. |
 | `--city-db`, `--asn-db` | The GeoLite2 files the seed and the live feeder place visitors with. |
 | `--carto-key` | Defaults to `MAP_CARTO_API_KEY` as exported in your shell. |
 
 The script never reads `.env`. Before it imports any app code it removes every app setting from its own environment (`APP_`, `DB_`, `CROWDSEC_` and the other prefixes in `environment.py`, in any letter case, plus the proxy variables), and turns dotenv loading off. Each process it starts gets an environment built from scratch. The instance logs in as `admin` / `admin`.
 
-The frontend build is the one place your dotenv files still count. `vite build` loads `VITE_*` keys from `.env`, `.env.production` and `.env.local` into the bundle the app serves, so a `VITE_` setting there ends up in the screenshots. Move those keys out of the way before a run if they would change what the pages show.
+The frontend build and the encoder don't read your dotenv files either. Both run under Bun with `--no-env-file`, so Bun never loads `.env` into their environment. The build goes through `tests/screenshots/vite.config.ts`, which wraps the repo's `vite.config.ts` and points Vite's `envDir` at an empty folder in the run folder. Vite would otherwise bake `VITE_*` keys from `.env`, `.env.production` and `.env.local` into the bundle. The wrapper refuses to load outside a run. One local file still counts. The litestar-vite plugin reads `.litestar.json`, the bridge file your dev server writes, for paths such as the asset URL.
 
 ## What a run starts
 
@@ -58,7 +60,7 @@ Everything lives in `/tmp/geometrikks-screenshots-<uid>/`:
 - `ledger.json`: every process group, container, network, database and folder a run creates, written before the call that creates it. Teardown acts only on entries it can prove it owns.
 - `run-<run id>/`: logs, the plan, the live log files, PNGs and WebPs. Teardown removes it, so read the logs while the run holds (`--hold`) or from the lines a failed run prints.
 
-On exit, interrupt (Ctrl-C, SIGTERM) or failure, the run stops its processes, removes its containers, network, database and run folder, and prints one line per problem. Exit codes: 0 done, 1 failed, 2 preflight or lock, 130 interrupted.
+On exit, interrupt (Ctrl-C, SIGTERM) or failure, the run stops its processes, removes its containers, network, database and run folder, and prints one line per problem. Exit codes: 0 done, 1 failed, 2 preflight or lock, 130 interrupted. A run that published its shots still exits 1 when teardown left one of its resources in the ledger or could not stop a stray capture process.
 
 ## After a crash or `kill -9`
 
@@ -68,7 +70,7 @@ A run that cannot tear down, such as one killed with SIGKILL, leaves its ledger 
 uv run python -m tests.screenshots --cleanup
 ```
 
-It loads every ledger entry, adds every container and network labelled `geometrikks.screenshots.run` and the reserved database, and removes them. It also stops stray processes from an earlier capture and removes leftover dry-run folders. Before it removes anything, it writes the labelled resources and the database it found into the ledger, so whatever it cannot remove stays listed for the next try. It exits 0 and prints `cleanup: nothing left` only when everything is gone. It exits 1 when it could not list the labelled resources, could not reach the database server, could not remove something, or could not repair an interrupted publish. A dry-run folder whose processes it could not stop stays, and the output names it. If the ledger is unreadable, it says so, leaves the file for you to read and delete, still removes the labelled resources and the database, and exits 1.
+It loads every ledger entry, adds every container and network labelled `geometrikks.screenshots.run` and the reserved database, and removes them. After an `--own-db` run, pass `--own-db` here too. That run's database lived in the `geometrikks-shots-db` container, which goes with the other labelled containers, so cleanup then skips the shared server and doesn't fail when it is down. It also stops stray processes from an earlier capture and removes leftover dry-run folders. Before it removes anything, it writes the labelled resources and the database it found into the ledger, so whatever it cannot remove stays listed for the next try. It exits 0 and prints `cleanup: nothing left` only when everything is gone. It exits 1 when it could not list the labelled resources, could not reach the database server, could not remove something, could not stop a stray capture process, or could not repair an interrupted publish. A dry-run folder whose processes it could not stop stays, and the output names it. If the ledger is unreadable, it says so, leaves the file for you to read and delete, still removes the labelled resources and the database, and exits 1.
 
 Run it soon after the crash. systemd-tmpfiles deletes files in `/tmp` that are older than 10 days on ripley, and once the ledger is gone `--cleanup` can no longer find the processes a killed run left.
 

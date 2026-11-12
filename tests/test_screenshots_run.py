@@ -7,10 +7,12 @@ import json
 import os
 import shutil
 import signal
-from collections.abc import Callable, Iterator
+import subprocess
+from collections.abc import Callable, Generator, Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self, cast
 
 import pytest
 
@@ -37,6 +39,7 @@ class FakePidfds:
     open_error: OSError | None = None
     exits_before: int | None = None
     """The first signal number the inspected process is already gone for."""
+    kill_error: OSError | None = None
     opened: list[int] = field(default_factory=list)
     sent: list[int] = field(default_factory=list)
     fds: list[int] = field(default_factory=list)
@@ -56,6 +59,8 @@ class FakePidfds:
             # A pidfd keeps naming the process it was opened for, so once that one exits the call fails,
             # even when the pid already belongs to someone else.
             raise ProcessLookupError(3, "No such process")
+        if self.kill_error is not None:
+            raise self.kill_error
         self.sent.append(sig)
 
 
@@ -71,14 +76,14 @@ def pidfds(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[FakePidf
     assert killed == [], "the sweep must signal through a pidfd, never by pid"
 
 
-def sweep(fake: FakePidfds) -> list[str]:
+def sweep(fake: FakePidfds) -> tuple[list[str], bool]:
     return run.sweep_marked(lambda pair: pair == MARKER, proc_root=fake.proc)
 
 
 def test_sweep_kills_a_marked_process_through_its_pidfd(pidfds: FakePidfds) -> None:
     proc_entry(pidfds.proc, 4242, MARKER + b"\0PATH=/bin\0")
     proc_entry(pidfds.proc, 4343, b"PATH=/bin\0")
-    assert sweep(pidfds) == ["stopped stray process 4242 from a capture"]
+    assert sweep(pidfds) == (["stopped stray process 4242 from a capture"], False)
     assert signal.SIGKILL in pidfds.sent
     for fd in pidfds.fds:
         with pytest.raises(OSError):
@@ -88,7 +93,7 @@ def test_sweep_kills_a_marked_process_through_its_pidfd(pidfds: FakePidfds) -> N
 def test_sweep_never_signals_a_pid_reused_after_inspection(pidfds: FakePidfds) -> None:
     proc_entry(pidfds.proc, 4242, MARKER + b"\0")
     pidfds.exits_before = signal.SIGKILL
-    assert sweep(pidfds) == []
+    assert sweep(pidfds) == ([], False)
     assert signal.SIGKILL not in pidfds.sent
 
 
@@ -99,15 +104,27 @@ def test_sweep_never_signals_a_pid_reused_before_its_pidfd_opened(pidfds: FakePi
         (pidfds.proc / str(pid) / "environ").write_bytes(b"PATH=/bin\0")
 
     pidfds.on_open = reused
-    assert sweep(pidfds) == []
+    assert sweep(pidfds) == ([], False)
     assert signal.SIGKILL not in pidfds.sent
 
 
 def test_sweep_skips_a_candidate_whose_pidfd_cannot_open(pidfds: FakePidfds) -> None:
     proc_entry(pidfds.proc, 4242, MARKER + b"\0")
     pidfds.open_error = ProcessLookupError(3, "No such process")
-    assert sweep(pidfds) == []
+    assert sweep(pidfds) == ([], False)
     assert pidfds.sent == []
+
+
+def test_sweep_reports_a_kill_that_failed_for_a_live_process(pidfds: FakePidfds) -> None:
+    proc_entry(pidfds.proc, 4242, MARKER + b"\0")
+    proc_entry(pidfds.proc, 4343, MARKER + b"\0")
+    pidfds.kill_error = PermissionError(1, "Operation not permitted")
+    lines, failed = sweep(pidfds)
+    assert failed
+    assert sorted(lines) == [
+        "could not stop stray process 4242 from a capture: [Errno 1] Operation not permitted",
+        "could not stop stray process 4343 from a capture: [Errno 1] Operation not permitted",
+    ]
 
 
 # --- full run and cleanup, with fake teardown actions ------------------------------------------------------
@@ -177,7 +194,7 @@ def isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Isolated:
     monkeypatch.setattr(run, "LEDGER_PATH", root / "ledger.json")
     monkeypatch.setattr(run, "DATA_SCREENSHOTS", tmp_path / "screenshots")
     monkeypatch.setattr(run, "SystemActions", lambda **_: actions)
-    monkeypatch.setattr(run, "sweep_marked", lambda marker: [])
+    monkeypatch.setattr(run, "sweep_marked", lambda marker: ([], False))
     return Isolated(root, root / "ledger.json", tmp_path / "screenshots", actions)
 
 
@@ -612,3 +629,240 @@ def test_app_start_runs_the_drop_check_before_reporting_healthy(
     with pytest.raises(run.RunFailed, match="non-documentation"):
         AppStart(tmp_path).start_app()
     assert "app healthy" not in capsys.readouterr().out
+
+
+# --- the final fix round: exit status after teardown, cleanup, interrupt window, Bun and Vite dotenv ------
+
+
+def test_a_published_run_fails_when_teardown_leaves_its_resources(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class Published(QuietRun):
+        def __init__(self, args: argparse.Namespace, *, ledger: Ledger, run_id: str, **_: object) -> None:
+            self.ledger = ledger
+            self.run_id = run_id
+
+        def execute(self) -> None:
+            container = Resource("container", "geometrikks-shots-crowdsec", (("run_id", self.run_id),))
+            self.ledger.add(container)
+            self.ledger.mark_acquired(container)
+
+    def labels(kind: str, name: str) -> str | None:
+        return next(entry.meta_value("run_id") for entry in Ledger(isolated.ledger_path).load() if entry.ident == name)
+
+    monkeypatch.setattr(run, "recover_publish", lambda target: [])
+    monkeypatch.setattr(run, "FullRun", Published)
+    monkeypatch.setattr(isolated.actions, "run_label", labels)
+    isolated.actions.errors["remove_container geometrikks-shots-crowdsec"] = RuntimeError("busy")
+    assert run.full_run(run_args()) == run.EXIT_FAILED
+    out = capsys.readouterr().out
+    assert "busy" in out and "the ledger still lists resources" in out
+    assert [entry.ident for entry in Ledger(isolated.ledger_path).load()] == ["geometrikks-shots-crowdsec"]
+
+
+def test_a_published_run_fails_when_a_stray_capture_process_survives(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(run, "recover_publish", lambda target: [])
+    monkeypatch.setattr(run, "FullRun", QuietRun)
+    monkeypatch.setattr(run, "sweep_marked", lambda marker: (["could not stop stray process 4242"], True))
+    assert run.full_run(run_args()) == run.EXIT_FAILED
+
+
+def test_cleanup_fails_when_a_stray_process_cannot_be_killed(
+    discovered: Isolated, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run, "sweep_marked", lambda marker: (["could not stop stray process 4242"], True))
+    assert run.cleanup(run_args()) == run.EXIT_FAILED
+    out = capsys.readouterr().out
+    assert "could not stop stray process 4242" in out and "nothing left" not in out
+
+
+def test_cleanup_with_own_db_never_asks_the_shared_server(
+    discovered: Isolated, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    asked: list[str] = []
+
+    async def check(admin_url: str) -> bool:
+        asked.append(admin_url)
+        raise OSError("connection refused")
+
+    monkeypatch.setattr(run, "_database_exists", check)
+    assert run.cleanup(run_args(own_db=True)) == run.EXIT_DONE
+    assert asked == []
+    assert discovered.actions.ledger_at_first_call is not None
+    assert all(entry.kind != "database" for entry in discovered.actions.ledger_at_first_call)
+    assert "cleanup: nothing left" in capsys.readouterr().out
+
+
+class Escaped(Exception):
+    pass
+
+
+def escape(signum: int, frame: object) -> None:
+    raise Escaped
+
+
+@contextmanager
+def signal_after_raise_block(real: Callable[[], AbstractContextManager[None]]) -> Generator[None]:
+    with real():
+        yield
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
+def test_a_signal_between_the_run_and_its_teardown_is_ignored(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = run.interrupts_raise
+    monkeypatch.setattr(run, "interrupts_raise", lambda: signal_after_raise_block(real))
+    monkeypatch.setattr(run, "recover_publish", lambda target: [])
+    monkeypatch.setattr(run, "FullRun", QuietRun)
+    previous = signal.signal(signal.SIGTERM, escape)
+    try:
+        code = run.full_run(run_args())
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    assert code == run.EXIT_DONE
+    assert not list(isolated.root.glob("run-*"))
+
+
+def test_a_signal_between_the_dry_run_and_its_teardown_is_ignored(
+    isolated: Isolated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(runner: run.Runner, argv: list[str], *, label: str, log: str, **_: object) -> int:
+        (runner.log_dir / log).write_text("Total: 72 tests\n")
+        return 0
+
+    real = run.interrupts_raise
+    monkeypatch.setattr(run, "interrupts_raise", lambda: signal_after_raise_block(real))
+    monkeypatch.setattr(run, "gather_facts", lambda args, runner, ledger_exists: None)
+    monkeypatch.setattr(run, "preflight_problems", lambda facts: [])
+    monkeypatch.setattr(run.Runner, "which", lambda runner, name: f"/usr/bin/{name}")
+    monkeypatch.setattr(run.Runner, "run", fake_run)
+    previous = signal.signal(signal.SIGTERM, escape)
+    try:
+        code = run.dry_run(run_args())
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    assert code == run.EXIT_DONE
+    assert not list(isolated.root.glob("dry-*"))
+
+
+@dataclass
+class RecordingRunner:
+    log_dir: Path
+    calls: list[tuple[list[str], dict[str, str] | None]] = field(default_factory=list)
+    stdout: str = ""
+
+    def which(self, name: str) -> str:
+        return f"/usr/bin/{name}"
+
+    def run(
+        self, argv: Sequence[str], *, label: str, log: str, env: dict[str, str] | None = None, stdout: str | None = None
+    ) -> int:
+        self.calls.append((list(argv), env))
+        if stdout:
+            (self.log_dir / stdout).write_text(self.stdout)
+        return 0
+
+    def capture(self, argv: Sequence[str], *, label: str) -> tuple[int, str]:
+        return 0, ""
+
+
+def bare_run(tmp_path: Path) -> tuple[run.FullRun, RecordingRunner]:
+    full = object.__new__(run.FullRun)
+    full.run_dir = tmp_path / "run"
+    full.logs = full.run_dir / "logs"
+    full.logs.mkdir(parents=True)
+    full.png_dir = full.run_dir / "png"
+    full.env = {"PATH": "/usr/bin", "GEOMETRIKKS_ENV_FILE": ""}
+    full.shots = []
+    runner = RecordingRunner(full.logs)
+    full.runner = cast(run.Runner, runner)
+    return full, runner
+
+
+def test_the_build_runs_vite_through_the_wrapper_config_with_an_empty_env_dir(tmp_path: Path) -> None:
+    full, runner = bare_run(tmp_path)
+    full.build()
+    [(argv, env)] = runner.calls
+    assert argv == ["/usr/bin/bun", "--no-env-file", "run", "vite", "build", f"--config={run.SCREENSHOT_VITE_CONFIG}"]
+    assert run.SCREENSHOT_VITE_CONFIG.is_file()
+    assert env is not None
+    env_dir = Path(env[run.VITE_ENV_DIR_VAR])
+    assert env_dir.is_relative_to(full.run_dir) and env_dir.is_dir() and not list(env_dir.iterdir())
+    assert {name: value for name, value in env.items() if name != run.VITE_ENV_DIR_VAR} == full.env
+
+
+def test_the_encoder_runs_without_dotenv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    full, runner = bare_run(tmp_path)
+    encoder = tmp_path / "encode.ts"
+    encoder.write_text("")
+    monkeypatch.setattr(run, "ENCODER", encoder)
+    runner.stdout = "{}"
+    full.encode()
+    [(argv, _)] = runner.calls
+    assert argv[:3] == ["/usr/bin/bun", "--no-env-file", str(encoder)]
+
+
+SENTINEL = "http://sentinel.invalid"
+PRINT_LAPI = 'console.log(process.env.CROWDSEC_LAPI_URL ?? "")'
+BUN = shutil.which("bun")
+NODE = shutil.which("node")
+
+
+def dotenv_folder(tmp_path: Path) -> Path:
+    folder = tmp_path / "checkout"
+    folder.mkdir()
+    (folder / ".env").write_text(f"CROWDSEC_LAPI_URL={SENTINEL}\nVITE_SHOTS_SENTINEL={SENTINEL}\n")
+    (folder / ".env.production").write_text(f"VITE_SHOTS_SENTINEL_PRODUCTION={SENTINEL}\n")
+    (folder / "package.json").write_text(json.dumps({"scripts": {"show": f"node -e '{PRINT_LAPI}'"}}))
+    return folder
+
+
+def child_output(argv: Sequence[str], cwd: Path, **extra: str) -> str:
+    env = {"PATH": os.environ["PATH"], "HOME": str(cwd), **extra}
+    return subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True, timeout=60, check=True).stdout
+
+
+@pytest.mark.skipif(BUN is None or NODE is None, reason="needs bun and node")
+def test_bun_children_never_see_a_dotenv_file(tmp_path: Path) -> None:
+    assert BUN is not None
+    folder = dotenv_folder(tmp_path)
+    # The probe can see the file at all: Bun without the flag loads it.
+    assert SENTINEL in child_output([BUN, "-e", PRINT_LAPI], folder)
+    assert SENTINEL not in child_output(run.bun_argv(BUN, "-e", PRINT_LAPI), folder)
+    assert SENTINEL not in child_output(run.bun_argv(BUN, "run", "show"), folder)
+
+
+VITE_ENTRY = run.REPO_ROOT / "node_modules" / "vite" / "dist" / "node" / "index.js"
+RESOLVE_ENV = """
+const { resolveConfig } = await import(process.argv[1]);
+const config = await resolveConfig({ configFile: process.argv[2], logLevel: "silent" }, "build", "production");
+console.log(JSON.stringify({ envDir: config.envDir, env: config.env }));
+"""
+
+
+def resolved_vite_env(config: Path, cwd: Path, **extra: str) -> dict[str, Any]:
+    out = child_output([str(NODE), "--input-type=module", "-e", RESOLVE_ENV, str(VITE_ENTRY), str(config)], cwd, **extra)
+    return json.loads(out.strip().splitlines()[-1])
+
+
+@pytest.mark.skipif(NODE is None or not VITE_ENTRY.is_file(), reason="needs node and the root node_modules")
+def test_the_screenshot_vite_config_reads_no_dotenv_file(tmp_path: Path) -> None:
+    folder = dotenv_folder(tmp_path)
+    empty = tmp_path / "vite-env"
+    empty.mkdir()
+    # The probe can see the files at all: the repo's own config loads them from its working directory.
+    plain = resolved_vite_env(run.REPO_ROOT / "vite.config.ts", folder)
+    assert {"VITE_SHOTS_SENTINEL", "VITE_SHOTS_SENTINEL_PRODUCTION"} <= set(plain["env"])
+    wrapped = resolved_vite_env(run.SCREENSHOT_VITE_CONFIG, folder, **{run.VITE_ENV_DIR_VAR: str(empty)})
+    assert wrapped["envDir"] == str(empty)
+    assert SENTINEL not in json.dumps(wrapped["env"])
+
+
+@pytest.mark.skipif(NODE is None or not VITE_ENTRY.is_file(), reason="needs node and the root node_modules")
+def test_the_screenshot_vite_config_refuses_to_load_without_its_env_dir(tmp_path: Path) -> None:
+    with pytest.raises(subprocess.CalledProcessError) as failure:
+        resolved_vite_env(run.SCREENSHOT_VITE_CONFIG, dotenv_folder(tmp_path))
+    assert run.VITE_ENV_DIR_VAR in failure.value.stderr
