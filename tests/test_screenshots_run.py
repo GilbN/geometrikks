@@ -960,3 +960,13 @@ def test_check_abuseipdb_reads_the_whole_app_log(tmp_path: Path, monkeypatch: py
     monkeypatch.setattr(run.FullRun, "_stored_abuseipdb_problems", no_stored_problems)
     with pytest.raises(run.RunFailed, match="abuseipdb_blacklist_refresh_failed"):
         checked.check_abuseipdb()
+
+
+def test_stop_app_fails_the_run_when_the_app_exits_abnormally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    crashed = AppStart(tmp_path)
+    crashed.app = cast(Any, FakeChild(4242))
+    monkeypatch.setattr(run, "stop_child_gracefully", lambda child, **_: -9)
+    with pytest.raises(run.RunFailed, match="exited with status -9"):
+        crashed.stop_app()

@@ -130,6 +130,8 @@ from tests.seed.seeder import asyncpg_dsn
 
 DATA_SCREENSHOTS: Final = REPO_ROOT / "data" / "screenshots"
 BUNDLE_MANIFEST: Final = REPO_ROOT / "public" / "manifest.json"
+# Written by the screenshot Vite config only, so --no-build can tell its bundle from an ordinary build.
+SCREENSHOT_BUNDLE_MARKER: Final = REPO_ROOT / "public" / ".screenshot-bundle"
 VITE_HOT: Final = REPO_ROOT / "public" / "hot"
 SITE_SHARP: Final = REPO_ROOT / "site" / "node_modules" / "sharp"
 ENCODER: Final = REPO_ROOT / "site" / "scripts" / "encode-screenshots.ts"
@@ -148,6 +150,7 @@ LIVE_RATE: Final = 4
 LIVE_WARMUP_SECONDS: Final = 60
 APP_READY_SECONDS: Final = 90
 APP_STOP_SECONDS: Final = 30
+APP_GRACEFUL_SHUTDOWN_SECONDS: Final = 10
 DB_READY_SECONDS: Final = 180
 DOCKER_SECONDS: Final = 60
 DOCKER_RUN_SECONDS: Final = 600
@@ -796,6 +799,8 @@ class FullRun:
             self.build()
         if not BUNDLE_MANIFEST.is_file():
             raise RunFailed(f"{BUNDLE_MANIFEST.relative_to(REPO_ROOT)} is missing: run without --no-build")
+        if not SCREENSHOT_BUNDLE_MARKER.is_file():
+            raise RunFailed("public/ holds an ordinary build, not the screenshot bundle: run without --no-build")
         if self.args.own_db:
             pg_admin_url = self.start_own_database()
         self.config = RunConfig(
@@ -1055,6 +1060,7 @@ class FullRun:
         argv = [
             sys.executable, "-m", "uvicorn", "--factory", "geometrikks.server.core:create_app",
             "--host", "0.0.0.0", "--port", str(self.config.app_port),
+            "--timeout-graceful-shutdown", str(APP_GRACEFUL_SHUTDOWN_SECONDS),
         ]  # fmt: skip
         say(f"starting the app on port {self.config.app_port} (logs/app.log)")
         app = start_child(argv, env=env, log_path=self.logs / "app.log", label="app", ledger=self.ledger)
@@ -1200,6 +1206,11 @@ class FullRun:
                 f"the app did not stop within {APP_STOP_SECONDS} s, so its log may be incomplete",
                 log=self.logs / "app.log",
             )
+        if status != 0:
+            raise RunFailed(
+                f"the app exited with status {status} instead of 0, so its log may be incomplete",
+                log=self.logs / "app.log",
+            )
         say(f"app stopped (exit status {status}), log flushed")
 
     def check_abuseipdb(self) -> None:
@@ -1210,7 +1221,7 @@ class FullRun:
             problems.append(f"the app log shows {len(outbound)} AbuseIPDB lines: {' | '.join(outbound[:3])}")
         if problems:
             raise RunFailed("; ".join(problems), log=self.logs / "app.log")
-        say("AbuseIPDB: no request, event or error in the app log, stored reports documentation-only")
+        say("AbuseIPDB: no request, event or error in the app log, stored reports only for the AS64496 visitors")
 
     async def _stored_abuseipdb_problems(self) -> list[str]:
         conn = await asyncpg.connect(asyncpg_dsn(self.url))
