@@ -86,3 +86,13 @@
   width: auto;
   margin: 0 0.19em 0 0.06em;
 }
+
+/* Setting names like ABUSEIPDB_BLACKLIST_REFRESH_HOURS have no break points, so two of them in one row overflow a narrow column. */
+.prose td code {
+  overflow-wrap: anywhere;
+}
+/* The first column names the row, a host or a setting, and reads better whole. */
+.prose td:first-child code {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
