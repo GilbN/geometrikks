@@ -5,11 +5,13 @@ the check, the report and the blacklist download have nothing to send with.
 The Reports tab reads stored reports from the database, so the fixture
 reports go straight into it. Status, blacklist and check answers come from
 the key and from AbuseIPDB, so the capture browser answers those itself.
-Every address here is documentation space under AS64496.
+Every address here is one of the AS64496 documentation visitors, never an
+AS64497 home visitor, so no abuse wording sits next to the made-up broadband network.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import uuid
 from collections.abc import Sequence
@@ -26,7 +28,7 @@ from geometrikks.domain.abuseipdb.schemas import (
     CheckResponse,
     RateLimitDTO,
 )
-from tests.screenshots.doc_traffic import DOC_AS_NAME, DOC_INSPECT_IP, is_documentation
+from tests.screenshots.doc_traffic import DOC_AS_NAME, DOC_INSPECT_IP, DOC_VISITORS
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,14 +106,26 @@ OUTBOUND_LOG: Final = re.compile(
 )
 
 
-def documentation_only(ips: Sequence[str]) -> list[str]:
-    return [ip for ip in ips if not is_documentation(ip)]
+_DOC_VISITOR_ADDRESSES: Final = frozenset(ipaddress.ip_address(ip) for ip in DOC_VISITORS)
+
+
+def outside_doc_visitors(ips: Sequence[str]) -> list[str]:
+    """The addresses that are not one of the AS64496 documentation visitors."""
+    outside = []
+    for ip in ips:
+        try:
+            known = ipaddress.ip_address(ip) in _DOC_VISITOR_ADDRESSES
+        except ValueError:
+            known = False
+        if not known:
+            outside.append(ip)
+    return outside
 
 
 async def write_fixture_reports(conn: asyncpg.Connection, *, now: datetime) -> int:
-    outside = documentation_only([report.ip for report in FIXTURE_REPORTS])
+    outside = outside_doc_visitors([report.ip for report in FIXTURE_REPORTS])
     if outside:
-        raise ValueError(f"AbuseIPDB fixture reports outside documentation space: {', '.join(outside)}")
+        raise ValueError(f"AbuseIPDB fixture reports for addresses other than the AS64496 visitors: {', '.join(outside)}")
     await conn.executemany(
         INSERT_SQL,
         [
@@ -134,14 +148,14 @@ async def write_fixture_reports(conn: asyncpg.Connection, *, now: datetime) -> i
 
 
 async def stored_abuseipdb_problems(conn: asyncpg.Connection) -> list[str]:
-    """A report outside documentation space, or any blacklist row, which only a real download writes."""
+    """A report for any address but the AS64496 visitors, or any blacklist row, which only a real download writes."""
     reported = [row["ip"] for row in await conn.fetch("SELECT host(ip_address) AS ip FROM abuseipdb_reports")]
-    problems = [f"AbuseIPDB report for {ip}, outside documentation space" for ip in documentation_only(reported)]
+    problems = [f"AbuseIPDB report for {ip}, not one of the AS64496 visitors" for ip in outside_doc_visitors(reported)]
     blacklisted = await conn.fetchval("SELECT count(*) FROM abuseipdb_blacklist")
     status_rows = await conn.fetchval("SELECT count(*) FROM abuseipdb_blacklist_status")
     if blacklisted or status_rows:
         problems.append(
-            f"the AbuseIPDB blacklist tables hold {blacklisted} IPs and {status_rows} status rows: the app downloaded"
+            f"the AbuseIPDB blacklist tables hold {blacklisted} IPs and {status_rows} status rows, so the app downloaded"
         )
     return problems
 
@@ -190,7 +204,7 @@ def browser_answers(*, now: datetime) -> dict[str, object]:
         "blacklist": msgspec.to_builtins(blacklist),
         "checks": {ip: msgspec.to_builtins(check) for ip, check in checks.items()},
     }
-    outside = documentation_only([*BLACKLISTED_IPS, *checks])
+    outside = outside_doc_visitors([*BLACKLISTED_IPS, *checks])
     if outside:
-        raise ValueError(f"AbuseIPDB browser answers outside documentation space: {', '.join(outside)}")
+        raise ValueError(f"AbuseIPDB browser answers for addresses other than the AS64496 visitors: {', '.join(outside)}")
     return answers

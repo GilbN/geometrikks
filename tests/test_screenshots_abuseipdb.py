@@ -1,8 +1,10 @@
 """AbuseIPDB fixtures for the screenshot run: stored reports, the browser's answers and the outbound checks."""
 
+import asyncio
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 import msgspec
 
@@ -15,16 +17,17 @@ from tests.screenshots.abuseipdb import (
     BLACKLISTED_IPS,
     FIXTURE_REPORTS,
     browser_answers,
-    documentation_only,
     outbound_log_lines,
+    outside_doc_visitors,
+    stored_abuseipdb_problems,
 )
-from tests.screenshots.doc_traffic import DOC_INSPECT_IP, DOC_VISITORS, is_documentation
+from tests.screenshots.doc_traffic import DOC_INSPECT_IP
 
 NOW = datetime(2026, 11, 12, 9, 30, tzinfo=UTC)
 
 
 def test_fixture_reports_use_documentation_visitors_and_made_up_senders() -> None:
-    assert all(is_documentation(report.ip) and report.ip in DOC_VISITORS for report in FIXTURE_REPORTS)
+    assert outside_doc_visitors([report.ip for report in FIXTURE_REPORTS]) == []
     assert {report.reporter_name for report in FIXTURE_REPORTS} == {"admin", "homepage-widget"}
     assert {report.reporter_kind for report in FIXTURE_REPORTS} == {"user", "api_key"}
     assert [report.status for report in FIXTURE_REPORTS].count("unconfirmed") == 1
@@ -53,8 +56,20 @@ def test_browser_answers_decode_as_the_app_s_own_responses() -> None:
     assert set(checks[DOC_INSPECT_IP]) >= {"abuseConfidenceScore", "totalReports", "numDistinctUsers", "isTor"}
 
 
-def test_documentation_only_names_addresses_outside_documentation_space() -> None:
-    assert documentation_only(["198.51.100.14", "2001:db8:d0c::5", "10.1.2.3", "fd00::1"]) == ["10.1.2.3", "fd00::1"]
+def test_outside_doc_visitors_names_every_other_address() -> None:
+    assert outside_doc_visitors(["198.51.100.14", "2001:DB8:D0C:0::5", "10.1.2.3", "fd00::1", "nope"]) == [
+        "10.1.2.3",
+        "fd00::1",
+        "nope",
+    ]
+
+
+def test_outside_doc_visitors_refuses_the_as64497_home_visitors() -> None:
+    assert outside_doc_visitors(["192.0.2.131", "2001:db8:b0b:12::7", "203.0.113.99"]) == [
+        "192.0.2.131",
+        "2001:db8:b0b:12::7",
+        "203.0.113.99",
+    ]
 
 
 def test_outbound_log_lines_catch_every_abuseipdb_request_and_error() -> None:
@@ -85,3 +100,27 @@ def test_the_report_scene_opens_the_inspected_ip() -> None:
     scenes = (Path(__file__).parent / "screenshots" / "scenes.ts").read_text()
     match = re.search(r'export const REPORTED_IP = "([^"]+)"', scenes)
     assert match and match.group(1) == DOC_INSPECT_IP
+
+
+class StoredRows:
+    def __init__(self, reported: list[str], blacklisted: int = 0) -> None:
+        self.reported = reported
+        self.blacklisted = blacklisted
+
+    async def fetch(self, sql: str) -> list[dict[str, str]]:
+        return [{"ip": ip} for ip in self.reported]
+
+    async def fetchval(self, sql: str) -> int:
+        return self.blacklisted
+
+
+def test_stored_reports_for_a_home_visitor_fail_the_run() -> None:
+    conn = StoredRows(["198.51.100.14", "192.0.2.150"])
+    problems = asyncio.run(stored_abuseipdb_problems(cast(Any, conn)))
+    assert problems == ["AbuseIPDB report for 192.0.2.150, not one of the AS64496 visitors"]
+
+
+def test_any_blacklist_row_fails_the_run() -> None:
+    problems = asyncio.run(stored_abuseipdb_problems(cast(Any, StoredRows([], blacklisted=3))))
+    assert len(problems) == 1 and "so the app downloaded" in problems[0]
+
