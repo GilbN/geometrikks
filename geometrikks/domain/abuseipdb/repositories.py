@@ -1,10 +1,11 @@
 """Repositories for AbuseIPDB reports and the blacklist."""
+import ipaddress
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
-from sqlalchemy import cast, delete, func, insert, or_, select
+from sqlalchemy import Text, cast, delete, func, insert, or_, select
 from sqlalchemy.dialects import postgresql
 
 from geometrikks.domain.abuseipdb.models import (
@@ -24,8 +25,27 @@ class ReportedIp:
     status: ReportStatus
 
 
+def _ip_search_prefix(q: str) -> str:
+    """What a matching address starts with. A whole address searches as its canonical spelling."""
+    try:
+        address = ipaddress.ip_address(q)
+    except ValueError:
+        return q.lower()
+    if isinstance(address, ipaddress.IPv6Address):
+        address = address.ipv4_mapped or address
+    return str(address)
+
+
 class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
     model_type = AbuseIpdbReport
+
+    def _detached(self, reports: Sequence[AbuseIpdbReport]) -> list[AbuseIpdbReport]:
+        for report in reports:
+            # asyncpg decodes INET into ipaddress objects; detach first so reassigning a str
+            # doesn't dirty the row and issue an UPDATE.
+            self.session.expunge(report)
+            report.ip_address = str(report.ip_address)
+        return list(reports)
 
     async def latest_reported_at(self, ip: str) -> datetime | None:
         statement = select(func.max(AbuseIpdbReport.reported_at)).where(
@@ -40,13 +60,46 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
             .where(AbuseIpdbReport.ip_address == cast(ip, postgresql.INET))
             .order_by(AbuseIpdbReport.reported_at.desc())
         )
-        reports = list((await self.session.execute(statement)).scalars())
-        for report in reports:
-            # asyncpg decodes INET into ipaddress objects; detach first so reassigning a str
-            # doesn't dirty the row and issue an UPDATE.
-            self.session.expunge(report)
-            report.ip_address = str(report.ip_address)
-        return reports
+        return self._detached(list((await self.session.execute(statement)).scalars()))
+
+    async def list_page(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        q: str | None = None,
+        categories: Sequence[int] | None = None,
+        statuses: Sequence[ReportStatus] | None = None,
+    ) -> tuple[list[AbuseIpdbReport], int]:
+        """One page of the reports that match, newest first, and how many match in all.
+
+        ``q`` matches the start of the IP, or part of the comment or the sender's name.
+        A report needs any one of ``categories`` and any one of ``statuses``.
+        """
+        conditions = []
+        if q:
+            conditions.append(
+                or_(
+                    func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(_ip_search_prefix(q), autoescape=True),
+                    AbuseIpdbReport.comment.icontains(q, autoescape=True),
+                    AbuseIpdbReport.reporter_name.icontains(q, autoescape=True),
+                )
+            )
+        if categories:
+            conditions.append(AbuseIpdbReport.categories.overlap(list(categories)))
+        if statuses:
+            conditions.append(AbuseIpdbReport.status.in_(statuses))
+
+        total_statement = select(func.count()).select_from(AbuseIpdbReport).where(*conditions)
+        total = (await self.session.execute(total_statement)).scalar_one()
+        statement = (
+            select(AbuseIpdbReport)
+            .where(*conditions)
+            .order_by(AbuseIpdbReport.reported_at.desc(), AbuseIpdbReport.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return self._detached(list((await self.session.execute(statement)).scalars())), total
 
     async def reported_ips(self, since: datetime) -> list[ReportedIp]:
         statement = (

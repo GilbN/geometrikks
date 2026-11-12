@@ -20,6 +20,9 @@ import type {
   ApiV1AbuseipdbReportsCreateReportsData,
   ApiV1AbuseipdbReportsCreateReportsErrors,
   ApiV1AbuseipdbReportsCreateReportsResponses,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryData,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryErrors,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryResponses,
   ApiV1AbuseipdbReportsListReportsData,
   ApiV1AbuseipdbReportsListReportsErrors,
   ApiV1AbuseipdbReportsListReportsResponses,
@@ -417,6 +420,40 @@ export const apiV1AbuseipdbReportsCreateReports = <
       "Content-Type": "application/json",
       ...options.headers,
     },
+  });
+
+/**
+ * List every report sent to AbuseIPDB
+ *
+ * Returns the reports sent from GeoMetrikks, newest first, paged with `currentPage` and `pageSize`. An IP reported twice appears twice. Read from the local database; nothing leaves the server.
+ */
+export const apiV1AbuseipdbReportsHistoryListReportHistory = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<
+    ApiV1AbuseipdbReportsHistoryListReportHistoryData,
+    ThrowOnError
+  >,
+): RequestResult<
+  ApiV1AbuseipdbReportsHistoryListReportHistoryResponses,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryErrors,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1AbuseipdbReportsHistoryListReportHistoryResponses,
+    ApiV1AbuseipdbReportsHistoryListReportHistoryErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/abuseipdb/reports/history",
+    ...options,
   });
 
 /**

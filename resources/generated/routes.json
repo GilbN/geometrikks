@@ -851,6 +851,20 @@
       ],
       "uri": "/api/v1/instances"
     },
+    "list_report_history": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "categoryIn": "number[] | undefined",
+        "currentPage": "number | undefined",
+        "pageSize": "number | undefined",
+        "q": "string | undefined",
+        "statusIn": "(\"unconfirmed\" | \"sent\")[] | undefined"
+      },
+      "uri": "/api/v1/abuseipdb/reports/history"
+    },
     "list_reported_ips": {
       "method": "get",
       "methods": [

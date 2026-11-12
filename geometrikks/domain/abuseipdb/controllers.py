@@ -4,6 +4,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 
+from advanced_alchemy.filters import LimitOffset
+from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
@@ -40,6 +42,7 @@ from geometrikks.domain.abuseipdb.schemas import (
     StoredReportDTO,
 )
 from geometrikks.domain.abuseipdb.service import (
+    CATEGORY_IDS,
     REPORTED_IPS_WINDOW,
     ReportSubmission,
     normalize_public_ip,
@@ -47,6 +50,9 @@ from geometrikks.domain.abuseipdb.service import (
     submit_report,
     upstream_http_error,
 )
+from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.lib.pagination import limit_offset_provider
+from geometrikks.lib.parameters import REPEAT_NOTE
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.abuseipdb import (
@@ -127,6 +133,7 @@ class AbuseIpdbController(Controller):
         "abuseipdb_reports": Provide(provide_abuseipdb_reports),
         "abuseipdb_blacklist": Provide(provide_abuseipdb_blacklist),
         "abuseipdb": Provide(provide_abuseipdb_client, sync_to_thread=False),
+        "limit_offset": limit_offset_provider(default_size=10),
     }
 
     @get(
@@ -213,6 +220,67 @@ class AbuseIpdbController(Controller):
     ) -> list[StoredReportDTO]:
         reports = await abuseipdb_reports.list_for_ip(normalize_public_ip(ip_address))
         return [_stored_report_dto(report) for report in reports]
+
+    @get(
+        "/reports/history",
+        summary="List every report sent to AbuseIPDB",
+        description=(
+            "Returns the reports sent from GeoMetrikks, newest first, paged with `currentPage` and `pageSize`. "
+            "An IP reported twice appears twice. Read from the local database; nothing leaves the server."
+        ),
+        responses={HTTP_400_BAD_REQUEST: _error("A filter is out of range or holds a NUL character.")},
+    )
+    async def list_report_history(
+        self,
+        abuseipdb_reports: NamedDependency[SkipValidation[AbuseIpdbReportRepository]],
+        limit_offset: NamedDependency[SkipValidation[LimitOffset]],
+        q: Annotated[
+            str | None,
+            QueryParameter(
+                required=False,
+                max_length=200,
+                description=(
+                    "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the "
+                    "sender's name, ignoring case."
+                ),
+            ),
+        ] = None,
+        category_in: Annotated[
+            list[int] | None,
+            QueryParameter(
+                name="categoryIn",
+                required=False,
+                description=f"Keep only reports with any of these AbuseIPDB category IDs, from 1 to 23. {REPEAT_NOTE}",
+            ),
+        ] = None,
+        status_in: Annotated[
+            list[ReportStatus] | None,
+            QueryParameter(
+                name="statusIn",
+                required=False,
+                description=f"Keep only reports in any of these states. {REPEAT_NOTE}",
+            ),
+        ] = None,
+    ) -> OffsetPagination[StoredReportDTO]:
+        search = q.strip() if q else ""
+        if "\x00" in search:
+            raise DomainValidationError("q must not contain NUL characters")
+        unknown = [category for category in category_in or [] if category not in CATEGORY_IDS]
+        if unknown:
+            raise DomainValidationError(f"categoryIn holds unknown IDs {unknown}; known IDs are 1 to 23")
+        reports, total = await abuseipdb_reports.list_page(
+            limit=limit_offset.limit,
+            offset=limit_offset.offset,
+            q=search or None,
+            categories=category_in,
+            statuses=status_in,
+        )
+        return OffsetPagination[StoredReportDTO](
+            items=[_stored_report_dto(report) for report in reports],
+            total=total,
+            limit=limit_offset.limit,
+            offset=limit_offset.offset,
+        )
 
     @get(
         "/check",

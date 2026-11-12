@@ -89,6 +89,7 @@ export type RouteName =
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'list_instances'
+  | 'list_report_history'
   | 'list_reported_ips'
   | 'list_reports'
   | 'login'
@@ -194,6 +195,7 @@ export interface RoutePathParams {
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'list_instances': Record<string, never>;
+  'list_report_history': Record<string, never>;
   'list_reported_ips': Record<string, never>;
   'list_reports': Record<string, never>;
   'login': Record<string, never>;
@@ -590,6 +592,13 @@ export interface RouteQueryParams {
     pageSize?: number;
   };
   'list_instances': Record<string, never>;
+  'list_report_history': {
+    categoryIn?: number[];
+    currentPage?: number;
+    pageSize?: number;
+    q?: string;
+    statusIn?: ("unconfirmed" | "sent")[];
+  };
   'list_reported_ips': Record<string, never>;
   'list_reports': {
     ipAddress: string;
@@ -1110,6 +1119,13 @@ export const routeDefinitions = {
     method: 'get',
     pathParams: [] as const,
     queryParams: [] as const,
+  },
+  'list_report_history': {
+    path: '/api/v1/abuseipdb/reports/history',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: ['categoryIn', 'currentPage', 'pageSize', 'q', 'statusIn'] as const,
   },
   'list_reported_ips': {
     path: '/api/v1/abuseipdb/reported-ips',

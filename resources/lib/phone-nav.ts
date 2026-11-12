@@ -29,7 +29,7 @@ export type NavItem = {
   description: string
   /** A shorter label for the phone tab bar, where a cell is about 69px wide. */
   barTitle?: string
-  requiresCrowdsec?: true
+  requiresSecurityFeature?: true
 }
 
 export type SlotFour = "security" | "analytics" | null
@@ -83,9 +83,9 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Security",
     url: "/security",
     icon: ShieldBan,
-    description: "CrowdSec bans & alerts",
-    // Hidden until the CrowdSec integration is configured
-    requiresCrowdsec: true,
+    description: "Bans, alerts & AbuseIPDB reports",
+    // Hidden until CrowdSec or AbuseIPDB reporting is configured
+    requiresSecurityFeature: true,
   },
 ]
 

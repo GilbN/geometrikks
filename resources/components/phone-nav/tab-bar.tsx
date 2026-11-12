@@ -8,7 +8,7 @@ import { useKeyboardOpen } from "@/hooks/use-keyboard-open"
 import { useServiceStatus } from "@/hooks/use-service-status"
 import { usePhoneChrome } from "@/lib/phone-chrome"
 import { activeTab, barItems, moreBadge, slotFour } from "@/lib/phone-nav"
-import { useChangelogUnseen, useCrowdsecStatus, useUnseenRelease } from "@/lib/queries"
+import { useChangelogUnseen, useSecurityNavStatus, useUnseenRelease } from "@/lib/queries"
 import { reloadNoticeTitle, useReloadNotice } from "@/lib/reload-notice"
 import { cn } from "@/lib/utils"
 
@@ -144,8 +144,8 @@ function useLabelsOverflow(compact: boolean, bar: RefObject<HTMLElement | null>,
 
 export function TabBar({ compact }: { compact: boolean }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
-  const { data: crowdsecStatus, isError } = useCrowdsecStatus()
-  const slot = slotFour(crowdsecStatus, isError)
+  const { status: securityStatus, isError } = useSecurityNavStatus()
+  const slot = slotFour(securityStatus, isError)
   const items = barItems(slot)
   const current = activeTab(pathname, slot)
   const serviceStatus = useServiceStatus()

@@ -17,6 +17,9 @@ import type {
   ApiV1AbuseipdbReportsCreateReportsData,
   ApiV1AbuseipdbReportsCreateReportsErrors,
   ApiV1AbuseipdbReportsCreateReportsResponses,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryData,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryErrors,
+  ApiV1AbuseipdbReportsHistoryListReportHistoryResponses,
   ApiV1AbuseipdbReportsListReportsData,
   ApiV1AbuseipdbReportsListReportsErrors,
   ApiV1AbuseipdbReportsListReportsResponses,
@@ -320,6 +323,7 @@ export type OperationName =
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'list_instances'
+  | 'list_report_history'
   | 'list_reported_ips'
   | 'list_reports'
   | 'login'
@@ -411,6 +415,7 @@ export interface OperationDataTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsData
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
   'list_instances': ApiV1InstancesListInstancesData
+  'list_report_history': ApiV1AbuseipdbReportsHistoryListReportHistoryData
   'list_reported_ips': ApiV1AbuseipdbReportedIpsListReportedIpsData
   'list_reports': ApiV1AbuseipdbReportsListReportsData
   'login': ApiV1AuthLoginLoginData
@@ -503,6 +508,7 @@ export interface OperationResponseTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
   'list_instances': ApiV1InstancesListInstancesResponses
+  'list_report_history': ApiV1AbuseipdbReportsHistoryListReportHistoryResponses
   'list_reported_ips': ApiV1AbuseipdbReportedIpsListReportedIpsResponses
   'list_reports': ApiV1AbuseipdbReportsListReportsResponses
   'login': ApiV1AuthLoginLoginResponses
@@ -595,6 +601,7 @@ export interface OperationErrorTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
   'list_instances': ApiV1InstancesListInstancesErrors
+  'list_report_history': ApiV1AbuseipdbReportsHistoryListReportHistoryErrors
   'list_reported_ips': never
   'list_reports': ApiV1AbuseipdbReportsListReportsErrors
   'login': ApiV1AuthLoginLoginErrors

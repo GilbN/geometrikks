@@ -11,6 +11,8 @@ import {
   isPublicIp,
   localScenarios,
   MAX_COMMENT_LENGTH,
+  reportCategoryNames,
+  reporterLabel,
   reportedItemRefreshIn,
   reportedItemState,
   reportItemState,
@@ -405,5 +407,28 @@ describe("abuseScoreTone", () => {
     [100, "high"],
   ] as const)("score %i is %s", (score, tone) => {
     expect(abuseScoreTone(score)).toBe(tone)
+  })
+})
+
+describe("reportCategoryNames", () => {
+  test("names each category in the order given", () => {
+    expect(reportCategoryNames([21, 19])).toEqual(["Web App Attack", "Bad Web Bot"])
+  })
+  test("keeps the number of a category it does not know", () => {
+    expect(reportCategoryNames([99])).toEqual(["99"])
+  })
+})
+
+describe("reporterLabel", () => {
+  test("names the user or API key", () => {
+    expect(reporterLabel({ reporterKind: "user", reporterName: "admin" })).toBe("admin")
+    expect(reporterLabel({ reporterKind: "api_key", reporterName: "homepage" })).toBe("homepage")
+  })
+  test("says when the sender was removed", () => {
+    expect(reporterLabel({ reporterKind: "user", reporterName: null })).toBe("a deleted user")
+    expect(reporterLabel({ reporterKind: "api_key", reporterName: null })).toBe("a deleted API key")
+  })
+  test("says when auth was off", () => {
+    expect(reporterLabel({ reporterKind: "anonymous", reporterName: null })).toBe("auth disabled")
   })
 })

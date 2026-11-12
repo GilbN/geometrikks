@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The IP inspector links to the IP's page on AbuseIPDB, even without an API key.
   - With a key, the IP inspector shows the IP's AbuseIPDB score when it opens. Each lookup uses one daily AbuseIPDB check, at most once per IP every 15 minutes.
   - With a key and `ABUSEIPDB_BLACKLIST_ENABLED=true`, GeoMetrikks downloads AbuseIPDB's blacklist once a day and marks listed IPs in the IP inspector, the IP menu, record sheets, the phone IP menu's ban drawer and map popups about one IP. `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` changes the interval, from 6 to 36 hours. A list more than 72 hours old stops showing. The list is for your own use: AbuseIPDB forbids republishing it, and free plans can't be used commercially.
+  - The Security page has a Reports tab listing every report GeoMetrikks has sent, newest first. Search by IP, comment or sender, or filter by category and status. Expanding a row shows the comment and attack time. `GET /api/v1/abuseipdb/reports/history` returns the same list.
+
+### Changed
+
+- The Security page splits Decisions, Alerts, DROP and Reports into tabs, one table at a time. The open tab is in the URL, so a reload or a shared link keeps it. With AbuseIPDB reporting on and CrowdSec off, Security stays in the navigation and shows only Reports.
 
 ## [0.24.0] - 2026-11-09
 
