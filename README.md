@@ -9,13 +9,8 @@ GeoMetrikks tails your reverse-proxy access logs (nginx, Nginx Proxy
 Manager, Traefik and Caddy) or reads them from Grafana Loki, geolocates
 every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
-hardware from one Docker image. On its own, the server downloads
-GeoLite2, looks up its public IP for the map's server location, checks
-GitHub for a new release and downloads the Spamhaus DROP lists. It makes
-RDAP lookups only when you ask for an abuse contact. The
-[Introduction](https://geometrikks.dev/docs/#outbound-traffic) says where
-each request goes and how to turn it off. If you run CrowdSec, connect
-its Local API and manage bans next to the traffic that caused them.
+hardware from one Docker image. If you run CrowdSec, connect its Local
+API and manage bans next to the traffic that caused them.
 
 <p align="center">
   <picture>
