@@ -211,6 +211,12 @@
   },
   { "path": "/docs/next/reference/api-guides/websockets/", "status": 200, "scope": "article", "contains": ["/ws/crowdsec"] },
   {
+    "path": "/docs/next/reference/api-guides/endpoint-notes/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["groupId", "services_inactive", "lastParsedAt", "Explicit ranges have no duration cap"]
+  },
+  {
     "path": "/docs/next/reference/api-guides/abuse-report-redaction/",
     "status": 200,
     "scope": "article",
