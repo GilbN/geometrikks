@@ -46,6 +46,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rail"
+import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
 import { DataTableFrame } from "@/components/data/data-table-frame"
@@ -462,7 +463,7 @@ export function DebugLogsTable() {
       </FilterField>
     )
     const countryField = (
-      <FilterField label="Country" hideLabel={!inDrawer}>
+      <FilterField label="Country" hideLabel>
         <FilterCombobox
           label="Country"
           iconFor={(code) => <CountryFlag code={code} />}
@@ -476,12 +477,11 @@ export function DebugLogsTable() {
           loading={!facets}
           emptyText="No geo data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       </FilterField>
     )
     const cityField = (
-      <FilterField label="City" hideLabel={!inDrawer}>
+      <FilterField label="City" hideLabel>
         <FilterCombobox
           label="City"
           options={facets?.cities ?? []}
@@ -490,7 +490,6 @@ export function DebugLogsTable() {
           loading={!facets}
           emptyText="No geo data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       </FilterField>
     )
@@ -500,8 +499,32 @@ export function DebugLogsTable() {
           {searchField}
           {ipField}
           {malformedField}
-          {countryField}
-          {cityField}
+          <FilterSection>
+            <FilterListRow
+              label="Country"
+              search
+              iconFor={(code) => <CountryFlag code={code} />}
+              options={facets?.countries.map((c) => c.code) ?? []}
+              selected={countries}
+              onChange={setCountries}
+              labelFor={(code) => {
+                const name = facets?.countries.find((c) => c.code === code)?.name
+                return name ? `${name} (${code})` : code
+              }}
+              valueFor={(code) => facets?.countries.find((c) => c.code === code)?.name ?? code}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+            <FilterListRow
+              label="City"
+              search
+              options={facets?.cities ?? []}
+              selected={cities}
+              onChange={setCities}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+          </FilterSection>
         </>
       )
     }

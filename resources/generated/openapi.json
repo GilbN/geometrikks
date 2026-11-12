@@ -2117,6 +2117,32 @@
         "title": "CheckResponse",
         "type": "object"
       },
+      "ClientIpResponse": {
+        "description": "The address this server sees for the caller.",
+        "properties": {
+          "behindUntrustedProxy": {
+            "description": "True when the request carried an X-Forwarded-For header that was not used, so `ip` is most likely the reverse proxy's address. Add the proxy to APP_TRUSTED_PROXIES to fix it.",
+            "type": "boolean"
+          },
+          "ip": {
+            "description": "The caller's address, read from X-Forwarded-For when the request came through a proxy in APP_TRUSTED_PROXIES. Null when the connection has no usable address.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "behindUntrustedProxy",
+          "ip"
+        ],
+        "title": "ClientIpResponse",
+        "type": "object"
+      },
       "CountryFacet": {
         "description": "A country that appears in the access logs.",
         "properties": {
@@ -19721,6 +19747,38 @@
           }
         },
         "summary": "List the releases in the changelog",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/system/client-ip": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns the address this server sees for the request, so a client can filter out its own traffic. Behind a reverse proxy, it is the real address only when the proxy is in APP_TRUSTED_PROXIES. `behindUntrustedProxy` is true when it is not.",
+        "operationId": "ApiV1SystemClientIpGetClientIp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientIpResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {
+              "Cache-Control": {
+                "deprecated": false,
+                "required": false,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get the caller's IP address",
         "tags": [
           "System"
         ]

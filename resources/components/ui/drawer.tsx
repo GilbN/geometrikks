@@ -18,7 +18,8 @@ function Drawer({
 }) {
   return (
     <DrawerClosedContext.Provider value={onClosed}>
-      <DrawerPrimitive.Root data-slot="drawer" {...props} />
+      {/* vaul's handling stops iOS scrolling the focused field above the keyboard. */}
+      <DrawerPrimitive.Root data-slot="drawer" repositionInputs={false} {...props} />
     </DrawerClosedContext.Provider>
   )
 }

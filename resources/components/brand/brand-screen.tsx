@@ -25,7 +25,7 @@ export function BrandScreen({
   className?: string
 }) {
   return (
-    <div className="relative h-dvh bg-background flex items-center justify-center overflow-hidden p-4">
+    <div className="relative h-(--app-height) bg-background flex items-center justify-center overflow-hidden p-4">
       <div aria-hidden className="brand-backdrop pointer-events-none absolute inset-0">
         <div
           className="theme-decoration absolute inset-0"

@@ -179,6 +179,13 @@
       ],
       "uri": "/api/v1/system/changelog"
     },
+    "get_client_ip": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/client-ip"
+    },
     "get_cumulative_time_series": {
       "method": "get",
       "methods": [
