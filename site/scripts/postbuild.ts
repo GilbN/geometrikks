@@ -56,6 +56,8 @@ if (contentDir !== resolve(siteRoot, "content")) {
     ".env.example",
     "Dockerfile",
   ];
+  const missingRoots = scanned.filter((path) => !existsSync(join(repoRoot, path)));
+  if (missingRoots.length > 0) fail("app docs URL scan roots missing (update the list in postbuild.ts)", missingRoots);
   const found = findAppDocsUrls(scanned.map((path) => join(repoRoot, path))).map((entry) => ({
     ...entry,
     file: relative(repoRoot, entry.file),

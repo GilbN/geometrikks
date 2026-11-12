@@ -8,7 +8,7 @@ README = Path("README.md").read_text(encoding="utf-8")
 
 def test_readme_is_a_front_door() -> None:
     assert len(README.splitlines()) < 100
-    assert "—" not in README
+    assert "\u2014" not in README
     for target in ("https://geometrikks.dev/docs/", "CHANGELOG.md", "SECURITY.md"):
         assert target in README
     assert "/docs/next/" not in README
