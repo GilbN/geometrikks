@@ -37,9 +37,9 @@ Reporting and the blacklist both need the key. With either one on and no key, st
 
 The inspector's header always links to the address's page on abuseipdb.com. Your browser opens that page only when you click the link, and the server sends nothing.
 
-With `ABUSEIPDB_API_KEY` set, opening a public IP in the inspector also asks AbuseIPDB for its score. A badge in the header shows the confidence score and the number of reports, and adds Tor or whitelisted when AbuseIPDB says so. The badge is gray below 25%, amber from 25% and red from 75%. Hover it for the number of users who reported the address, when it was last reported and its usage type.
+With `ABUSEIPDB_API_KEY` set, opening a public IP in the inspector also asks AbuseIPDB for its score. A badge in the header shows the confidence score and the number of reports, and adds Tor or whitelisted when AbuseIPDB says so. The badge is gray below 25%, amber from 25% and red from 75%. Hover it for the number of users who reported the address, when it was last reported and its usage type. On a phone, Check in a report shows the same details.
 
-Each lookup spends one of your daily AbuseIPDB checks. GeoMetrikks keeps each answer for 15 minutes, so opening the same IP again within that time costs nothing. A restart empties that cache. A private or reserved address, such as one in 192.168.0.0/16, gets no badge and no lookup. If the lookup fails, the badge becomes Retry AbuseIPDB check with the error next to it.
+Each lookup spends one of your daily AbuseIPDB checks. GeoMetrikks keeps each answer for 15 minutes, so opening the same IP again within that time usually costs nothing. The cache holds the 512 most recently checked IPs, so an IP pushed out by newer checks costs a check again, and a restart empties it. A private or reserved address, such as one in 192.168.0.0/16, gets no badge and no lookup. If the lookup fails, the badge becomes Retry AbuseIPDB check with the error next to it.
 
 ## Report an IP
 
@@ -51,7 +51,7 @@ AbuseIPDB publishes every report on the IP's page, with its categories, comment 
 
 The report is built from what GeoMetrikks saw from the IP over a time window. The window starts as the page's time range, and the selector next to What GeoMetrikks saw changes it. The report shows the IP's requests, its share of 4xx answers, its first request and its CrowdSec alerts in that window. It fills in three fields, and you can edit each one:
 
-- **Categories.** GeoMetrikks picks AbuseIPDB categories from the CrowdSec scenarios behind the IP's alerts and decisions. An SQL injection scenario picks SQL Injection and Web App Attack, an SSH scenario picks SSH and Brute-Force, and so on. With no matching scenario it picks Bad Web Bot and Web App Attack. Eight common categories show at first, and All 23… shows the rest.
+- **Categories.** GeoMetrikks picks AbuseIPDB categories from the CrowdSec scenarios behind the IP's alerts and decisions. An SQL injection scenario picks SQL Injection and Web App Attack, an SSH scenario picks SSH and Brute-Force, and so on. With no matching scenario it picks Bad Web Bot and Web App Attack. Eight common categories show at first, and All 23… shows the rest. A picked category outside the eight, such as SSH, shows only after you press All 23….
 - **Comment.** The request count, the time span and the 4xx count, the paths that got an error answer, the busiest user agent and the CrowdSec scenario names, cut to fit AbuseIPDB's 1,024-character limit. It comes from the same evidence as an [abuse report](./abuse-reports.mdx), so your hostnames and your server's address are scrubbed. The line under the comment counts what was scrubbed. The [redaction rules](../reference/api-guides/abuse-report-redaction.mdx) say what it can miss.
 - **Attack time.** The IP's first request in the window, or its first CrowdSec alert when it sent no requests. You enter it in your browser's time zone, and the line under it shows the UTC time that goes to AbuseIPDB. GeoMetrikks refuses a time in the future.
 
@@ -61,7 +61,7 @@ Your earlier reports of the IP are listed under the form, with time, categories 
 
 ### Check
 
-The report has a Check button. It asks AbuseIPDB for the IP's current score, report count, number of reporters, last report and usage type. Nothing goes to AbuseIPDB until you press it. A check spends one daily check, unless the same IP was checked in the last 15 minutes.
+The report has a Check button. It asks AbuseIPDB for the IP's current score, report count, number of reporters, last report and usage type. Nothing goes to AbuseIPDB until you press it. A check spends one daily check, unless the same IP is still in the 15-minute cache.
 
 ### One report per IP every 15 minutes
 
@@ -112,7 +112,7 @@ Every request goes to `api.abuseipdb.com` with your key.
 
 | Feature | What it sends | When |
 | --- | --- | --- |
-| Score | The IP | When someone opens a public IP in the IP inspector, presses Check in a report, or calls the check API, at most once per IP every 15 minutes |
+| Score | The IP | When someone opens a public IP in the IP inspector, presses Check in a report, or calls the check API. An IP still in the 15-minute cache isn't sent again. |
 | Report | The IP, the categories, the comment and the attack time | When someone sends a report. AbuseIPDB publishes all four. |
 | Blacklist | Nothing but the key | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` hours |
 
@@ -149,13 +149,13 @@ The address here is a documentation address, so the real endpoint answers it wit
 | --- | --- | --- |
 | No Report to AbuseIPDB… in the menu, no Reports tab | `ABUSEIPDB_REPORTING_ENABLED` isn't `true`, or the container still has the old values | Set it, then run `docker compose up -d` |
 | No score badge in the inspector | No key, or the IP isn't public | Set `ABUSEIPDB_API_KEY`. A private IP never gets a score. |
-| AbuseIPDB's daily check limit is used up, followed by the reset time in UTC | Your plan's checks for today are spent | Wait for the reset time. The API answers 429 with a `Retry-After` header. |
+| AbuseIPDB's daily check limit is used up, followed by the reset time in UTC | Your plan's checks for today are spent | Wait for the reset time. The API answers 429, with a `Retry-After` header when AbuseIPDB sent one. |
 | AbuseIPDB's daily report limit is used up, followed by the reset time | Your plan's reports for today are spent | The same, for reports |
 | AbuseIPDB rejected ABUSEIPDB_API_KEY | AbuseIPDB refused the key | Check the key on your AbuseIPDB account page. The API answers 502. |
 | Reported less than 15 minutes ago | The IP was reported from GeoMetrikks in the last 15 minutes | Wait. The API answers 429 with `Retry-After` in seconds. |
 | AbuseIPDB did not confirm the report. It may have been sent, and GeoMetrikks recorded it as unconfirmed. | The request may have reached AbuseIPDB, but no clear answer came back | Look the IP up on abuseipdb.com before you send it again. The API answers 502 with code `abuseipdb_unconfirmed`. |
-| Could not reach AbuseIPDB | The server can't connect to `api.abuseipdb.com` | Check the server's outbound network. The API answers 502 with code `abuseipdb_failed`. |
-| AbuseIPDB's own error text | AbuseIPDB answered 422, refusing a field of the report | Edit the report. The API answers 400 with code `abuseipdb_rejected`. |
+| Could not reach AbuseIPDB, or AbuseIPDB request failed | The server can't connect to `api.abuseipdb.com`, or the request timed out | Check the server's outbound network. The API answers 502 with code `abuseipdb_failed`. |
+| AbuseIPDB's own error text | AbuseIPDB refused the request. A 422 refuses a field of the report. | Edit the report. The API answers 400 with code `abuseipdb_rejected` for a 422, and 502 with code `abuseipdb_failed` for any other refusal. |
 | Reporting requires ABUSEIPDB_REPORTING_ENABLED=true and ABUSEIPDB_API_KEY | A report reached a server with reporting off | Turn reporting on. The API answers 403 with code `abuseipdb_reporting_disabled`. |
 | AbuseIPDB requires ABUSEIPDB_API_KEY | A check reached a server without a key | Set the key. The API answers 404 with code `abuseipdb_disabled`. |
 
