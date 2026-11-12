@@ -1129,7 +1129,8 @@ class AbuseIpdbSettings(BaseSettings):
         description=(
             "AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against "
             "api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB "
-            "and uses one daily check, at most once per IP every 15 minutes."
+            "and uses one daily check. An IP checked again within 15 minutes usually "
+            "costs nothing, since the last 512 answers are kept for 15 minutes."
         ),
     )
     reporting_enabled: bool = Field(
@@ -1146,7 +1147,7 @@ class AbuseIpdbSettings(BaseSettings):
             "Download AbuseIPDB's blacklist from api.abuseipdb.com every "
             "ABUSEIPDB_BLACKLIST_REFRESH_HOURS and mark listed IPs in the UI. "
             "The request sends your key and no IPs. Needs ABUSEIPDB_API_KEY and the "
-            "scheduler. The list is for your own use: AbuseIPDB forbids republishing "
+            "scheduler. The list is for your own use. AbuseIPDB forbids republishing "
             "it, and free plans can't be used commercially."
         ),
     )
