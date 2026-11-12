@@ -666,7 +666,7 @@ test("IP inspection preserves the range and can focus another traffic location",
 
 test.describe("AbuseIPDB blacklist", () => {
   const LISTED_IP = "192.0.2.1"
-  const BLACKLIST_TITLE = "On AbuseIPDB's blacklist"
+  const BLACKLIST_TITLE = "On AbuseIPDB's blacklist of IPs with a 100% abuse confidence score"
   const bannedPopup = (page: Page) => page.getByRole("dialog", { name: "Banned IPs", exact: true })
   const ipRow = (popup: Locator) => popup.getByRole("button", { name: /^192\.0\.2\.1 / })
 
