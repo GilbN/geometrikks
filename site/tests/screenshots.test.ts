@@ -23,6 +23,8 @@ const PLAN_SCENES = [
   "abuse-report",
   "security",
   "drop-networks",
+  "abuseipdb-report",
+  "abuseipdb-reports",
   "banned-map",
   "status",
   "settings",

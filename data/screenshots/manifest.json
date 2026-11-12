@@ -211,7 +211,7 @@
     },
     "ip-inspector": {
       "title": "IP inspector",
-      "alt": "The IP inspector for a banned documentation address on a DROP list under AS64496, with no known location, showing its request stats, targets and paths.",
+      "alt": "The IP inspector for a banned documentation address under AS64496 that is on a DROP list and AbuseIPDB's blacklist, with no known location, showing its request stats, targets and paths.",
       "variants": {
         "desktop-dark": {
           "file": "ip-inspector-desktop-dark.webp",
@@ -263,7 +263,7 @@
     },
     "security": {
       "title": "Security",
-      "alt": "The Security page with CrowdSec stat cards above the DROP networks card and the active decisions.",
+      "alt": "The Security page with CrowdSec stat cards above the Decisions, Alerts, DROP and Reports tabs, open on the active decisions.",
       "variants": {
         "desktop-dark": {
           "file": "security-desktop-dark.webp",
@@ -289,7 +289,7 @@
     },
     "drop-networks": {
       "title": "DROP networks",
-      "alt": "The DROP networks in your traffic card on the Security page, listing three documentation-range networks under AS64496, two of them banned.",
+      "alt": "The Security page's DROP tab with the DROP networks in your traffic card, listing three documentation-range networks under AS64496, two of them banned.",
       "variants": {
         "desktop-dark": {
           "file": "drop-networks-desktop-dark.webp",
@@ -308,6 +308,58 @@
         },
         "phone-light": {
           "file": "drop-networks-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "abuseipdb-report": {
+      "title": "Report to AbuseIPDB",
+      "alt": "The Report to AbuseIPDB dialog for a documentation address, with Web App Attack picked from its CrowdSec alerts, the prefilled comment, its AbuseIPDB score and an earlier report.",
+      "variants": {
+        "desktop-dark": {
+          "file": "abuseipdb-report-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "abuseipdb-report-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "abuseipdb-report-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "abuseipdb-report-phone-light.webp",
+          "width": 786,
+          "height": 1704
+        }
+      }
+    },
+    "abuseipdb-reports": {
+      "title": "AbuseIPDB reports",
+      "alt": "The Security page's Reports tab listing reports sent to AbuseIPDB for documentation addresses, one of them unconfirmed, with the newest expanded to its comment and attack time.",
+      "variants": {
+        "desktop-dark": {
+          "file": "abuseipdb-reports-desktop-dark.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "desktop-light": {
+          "file": "abuseipdb-reports-desktop-light.webp",
+          "width": 2160,
+          "height": 1350
+        },
+        "phone-dark": {
+          "file": "abuseipdb-reports-phone-dark.webp",
+          "width": 786,
+          "height": 1704
+        },
+        "phone-light": {
+          "file": "abuseipdb-reports-phone-light.webp",
           "width": 786,
           "height": 1704
         }
