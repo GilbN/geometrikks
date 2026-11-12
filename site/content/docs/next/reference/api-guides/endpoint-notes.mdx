@@ -9,7 +9,7 @@ The [API reference](../api/index.mdx) lists every parameter and field. This page
 
 Every `/api/v1/analytics` endpoint takes either `window`, such as `15m`, `24h` or `7d`, or both `startDate` and `endDate`. A window is a positive whole number of minutes, hours or days, up to 365 days, and ends now. Explicit ranges have no duration cap.
 
-Sending both modes, only one bound, a bound without a timezone, or a start that isn't before the end answers 400 with `code: invalid_range`.
+Sending no range at all, both modes, only one bound, a bound without a timezone, or a start that isn't before the end answers 400 with `code: invalid_range`.
 
 `window` exists only on the analytics endpoints, `/api/v1/access-logs` and `/api/v1/integration/summary`. The geo, map and abuse report endpoints don't take it. `/api/v1/geo-events`, `/api/v1/geo-locations` and `/api/v1/crowdsec/banned-locations` take `fromTimestamp` and `toTimestamp`, and `/api/v1/reports/abuse` takes `startDate` and `endDate`, each with its own defaults. [Polling for recent records](./polling.mdx) covers `window` on the access logs.
 
@@ -19,7 +19,7 @@ Sending both modes, only one bound, a bound without a timezone, or a start that 
 
 `fromTimestamp` is inclusive and `toTimestamp` exclusive. Leave out the start and the window begins 30 days ago. Leave out the end and it stops now. A start at or after the end returns an empty collection, not an error. Repeat `countryCode`, `city` and `serverIn` to filter the way the map does.
 
-Membership matches `/api/v1/crowdsec/banned-ips`: every IP with an `Ip` scoped decision, of any origin and any type. Range, country and AS decisions don't put their addresses on the map. The response shows current decisions only. It says nothing about expired decisions or whether a request was blocked, and it can't see further back than the retained geo events.
+Membership matches `/api/v1/crowdsec/banned-ips`: every IP with an `Ip` scoped decision, of any origin and any type. Range, country and AS decisions don't put their addresses on the map. The response shows current decisions only. It says nothing about expired decisions or whether a request was blocked, and it sees only as far back as the stored traffic history: raw geo events for recent windows, the hourly and daily aggregates beyond.
 
 ### Features
 
@@ -32,7 +32,7 @@ Each feature is one point. IPs at exactly the same coordinates share it.
 - `bannedIps` runs from the highest `eventCount` down. Equal counts sort by the address as text.
 - Features sort by longitude, then latitude.
 
-Each IP appears at one place. Windows of 24 hours or less, and any request with `serverIn`, use the place of the IP's newest event. Longer windows read hourly or daily aggregates and use the place from the newest bucket, the busiest place in that bucket on a tie. That makes it a place the IP was seen, not its exact last request. IPs whose stored coordinates are out of range are left out.
+Each IP appears at one place. Windows of 24 hours or less, and any request with `serverIn`, use the place of the IP's newest event. Longer windows read hourly or daily aggregates for the whole buckets and raw geo events for the partial ones at either edge, then use the place from the newest of those, the busiest place on a tie. An IP seen in the current partial hour therefore gets its newest event's place. That makes it a place the IP was seen, not its exact last request. IPs whose stored coordinates are out of range are left out.
 
 ### Stats
 
@@ -62,7 +62,7 @@ None of these times proves that a record reached the database.
 
 ### Deadlines
 
-The server reads the sections one after another, so the response is not one atomic snapshot. Each database section has three seconds. The CrowdSec count makes one LAPI request per call with a two-second deadline. A section that fails or times out comes back unavailable, and the others still come back.
+The server reads the sections one after another, so the response is not one atomic snapshot. Each database section has three seconds. The CrowdSec count makes one LAPI request per call with a two-second deadline. A section that loses the database or runs past its deadline comes back unavailable, and the others still come back. Any other database error fails the whole request with a 500.
 
 With an API key the request needs the key store first. When the store is down the call answers 503 with `code: api_keys_unavailable` before any section runs.
 
@@ -74,7 +74,7 @@ With an API key the request needs the key store first. When the store is down th
 | `not_running` | `ingestion` | Log ingestion is configured but this process isn't running it. |
 | `not_started` | `crowdsec` | CrowdSec is configured but its client hasn't started. |
 | `services_inactive` | `traffic`, `instances` | The database-backed services haven't started or recovered. The database itself may be reachable. |
-| `database_unavailable` | `traffic`, `instances` | A query failed or ran past its deadline, or an earlier section found the database down. |
+| `database_unavailable` | `traffic`, `instances` | A query lost the database or ran past its deadline, or an earlier section found the database down. |
 | `crowdsec_unreachable` | `crowdsec` | The LAPI request failed. |
 | `crowdsec_timeout` | `crowdsec` | The full decision list didn't arrive within two seconds. |
 | `crowdsec_credentials_rejected` | `crowdsec` | The LAPI rejected the configured credentials. |

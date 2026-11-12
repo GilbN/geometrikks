@@ -75,6 +75,16 @@ Watch the app log for these events:
 | `url_caggs_refresh_done` | The recreated URL aggregates are filled again. |
 | `url_caggs_refresh_failed` | Refreshing a recreated URL aggregate failed. The event names the views. The next start finds the gap and fills it. |
 
+To fill the URL aggregates without a restart, refresh both by hand once the cause is fixed:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "CALL refresh_continuous_aggregate('url_hourly_stats', NULL, NULL);" \
+  -c "CALL refresh_continuous_aggregate('url_daily_stats', NULL, NULL);"
+```
+
+Per-URL history older than the raw retention window doesn't come back, because the raw rows it was built from are gone.
+
 ## One-off backfills
 
 Some upgrades leave older rows without data that new rows get. These commands fill it in. Each one runs once, inside the app container, for example:

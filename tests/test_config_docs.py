@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from geometrikks.config import settings as settings_module
 
 _spec = importlib.util.spec_from_file_location("generate_config_docs", Path("scripts/generate_config_docs.py"))
@@ -20,13 +22,16 @@ def _doc_groups() -> tuple[str, str, str]:
     return regular, advanced, developer
 
 
-def test_configuration_md_is_a_pointer():
+def test_configuration_md_is_a_pointer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     text = Path("docs/configuration.md").read_text(encoding="utf-8")
     assert "https://geometrikks.dev/docs/reference/configuration/" in text
     assert "GENERATED" not in text and len(text.splitlines()) < 10
-    before = text
-    subprocess.run([sys.executable, "scripts/generate_config_docs.py"], check=True, timeout=60)
-    assert Path("docs/configuration.md").read_text(encoding="utf-8") == before
+    # Writing the real page here would let test_configuration_docs_are_fresh pass on a stale page.
+    monkeypatch.setattr(gen, "SITE_OUTPUT", tmp_path / "configuration.mdx")
+    monkeypatch.setattr(sys, "argv", ["generate_config_docs.py"])
+    assert gen.main() == 0
+    assert (tmp_path / "configuration.mdx").exists()
+    assert Path("docs/configuration.md").read_text(encoding="utf-8") == text
 
 
 def test_configuration_docs_are_fresh():
