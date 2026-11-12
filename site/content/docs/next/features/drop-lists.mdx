@@ -23,7 +23,7 @@ Each feed is checked on its own. A feed that fails to download, or whose content
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `DROP_ENABLED` | `true` | Downloads the lists and marks listed traffic. With `false`, the downloads stop and every DROP element in the UI goes away: badges, outlines, the DROP card on Overview, the DROP networks card on Security and the DROP lists card on Settings > About. |
+| `DROP_ENABLED` | `true` | Downloads the lists and marks listed traffic. With `false`, the downloads stop and every DROP element in the UI goes away: badges, outlines, the DROP card on Overview, the DROP tab on Security and the DROP lists card on Settings > About. |
 | `DROP_REFRESH_HOURS` | `24` | Hours between downloads. |
 
 The scheduler runs the downloads. With `SCHEDULER_ENABLED=false` nothing downloads or refreshes, but lists already in the database keep loading, so their markings stay and go stale. A database that never downloaded the lists marks nothing. The first run comes a minute after startup. At that run a feed that downloaded within the last `DROP_REFRESH_HOURS` is skipped, so a restart doesn't refetch everything. A feed is never fetched again within an hour of its last attempt, whatever `DROP_REFRESH_HOURS` says, and Run now on Settings > Scheduler follows the same rule.
@@ -44,7 +44,7 @@ Under every DROP figure, an attribution line credits The Spamhaus Project and gi
 
 ## The DROP networks card
 
-With CrowdSec set up, the Security page has a card named DROP networks in your traffic. It lists every DROP network that sent requests in the last 7, 30 or 90 days, busiest first, with its SBL record, ASN, hits, distinct IPs, last request and ban status. A client inside nested networks counts under the narrowest one. The card appears once a network feed has downloaded.
+With CrowdSec set up, the Security page has a DROP tab holding a card named DROP networks in your traffic. The card lists every DROP network that sent requests in the last 7, 30 or 90 days, busiest first, with its SBL record, ASN, hits, distinct IPs, last request and ban status. A client inside nested networks counts under the narrowest one. The tab appears once a network feed has downloaded, and `/security?tab=drop` links to it.
 
 With CrowdSec machine credentials, `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`, each row has a ban button, and Ban all unbanned for… bans every listed network with traffic in the window and no ban yet, on every page of the card. Each ban is a CrowdSec Range decision, or an Ip decision for a network of one address, with the reason `Spamhaus DROP <SBL id>`. A network with an active decision of any type keeps it and gets no new one. One run bans at most the 1,000 busiest networks; run it again for the rest. It stops early after three unreachable answers from the Local API in a row or after 120 seconds, and the card counts the networks it didn't get to. When the Local API doesn't answer at all, the card still lists the traffic and says the ban status is unknown.
 

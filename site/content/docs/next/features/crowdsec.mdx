@@ -52,7 +52,7 @@ Where the controls are:
 - In the tables, such as Access Logs and the top-IP tables on Analytics and Geo Logs, the IP actions menu after each IP has Ban IP for 1 hour, 4 hours, 24 hours, 7 days or Forever, and More options… for the ban dialog. On a banned IP it has Unban IP instead. The [IP inspector page](./ip-inspector.mdx#the-ip-actions-menu) covers the rest of the menu.
 - In the map popups, a shield button sits next to each IP and opens the same choices. On a phone the map's detail panel has a Ban button that opens them in a drawer.
 - The IP inspector has its own ban or unban button next to the address.
-- The Security page has a Ban IP button that opens the ban dialog.
+- The Decisions tab on the Security page has a Ban IP button that opens the ban dialog.
 
 A ban or unban from a menu or button waits 5 seconds before it reaches CrowdSec, behind a toast with Undo.
 
@@ -66,12 +66,16 @@ In `cscli machines list` and the CrowdSec console, the `geometrikks` machine can
 
 ## The Security page
 
-The Security page appears in the sidebar once `CROWDSEC_LAPI_URL` and `CROWDSEC_BOUNCER_API_KEY` are set. It has:
+The Security page appears in the sidebar once `CROWDSEC_LAPI_URL` and `CROWDSEC_BOUNCER_API_KEY` are set. Stat cards sit at the top: active decisions, local bans, the top scenario, and the LAPI state with whether ban and unban are on. Below them the page shows one table at a time, in tabs:
 
-- Stat cards: active decisions, local bans, the top scenario, and the LAPI state with whether ban and unban are on.
-- The DROP networks in your traffic, covered under [Spamhaus DROP lists](./drop-lists.mdx#the-drop-networks-card).
-- The active decisions. The Local tab shows decisions from `crowdsec`, `cscli` and `geometrikks`. All origins adds the community blocklist (CAPI) and the lists you subscribe to, and Crowd (CAPI) shows only those. The community blocklist can hold tens of thousands of decisions, which is why Local is the default.
-- The alert history, with machine credentials. Without them the card says the history needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`.
+- **Decisions**, the active decisions. Local shows decisions from `crowdsec`, `cscli` and `geometrikks`. All origins adds the community blocklist (CAPI) and the lists you subscribe to, and Crowd (CAPI) shows only those. The community blocklist can hold tens of thousands of decisions, which is why Local is the default.
+- **Alerts**, the alert history, with machine credentials. Without them the tab says the history needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`.
+- **DROP**, the DROP networks in your traffic, once a network feed has downloaded. [Spamhaus DROP lists](./drop-lists.mdx#the-drop-networks-card) covers it.
+- **Reports**, the reports GeoMetrikks has sent to AbuseIPDB, when [AbuseIPDB reporting](./abuseipdb.mdx#the-reports-tab) is on.
+
+The open tab is in the URL, such as `/security?tab=alerts`, so a reload or a shared link opens the same tab. Decisions, the first tab, needs no `tab` in the URL. A link to `/security#drop-networks` opens the DROP tab.
+
+With AbuseIPDB reporting on and CrowdSec not set up, Security stays in the navigation and shows only the Reports table, without the stat cards or a tab bar.
 
 Select an alert to open its context, events and decisions. In the Banned map popup, a decision's scenario name opens its alert too. A blocklist decision has no alert of its own to open, because CrowdSec pulls those in bulk.
 

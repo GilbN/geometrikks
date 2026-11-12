@@ -3,7 +3,7 @@ title: The app, page by page
 description: What each page in the GeoMetrikks web UI shows, in the order the navigation lists them.
 ---
 
-The sidebar lists the pages in this order. On a phone the tab bar holds Overview, Map, Access Logs and either Security or Analytics, and More holds the rest. Security only appears once CrowdSec is set up.
+The sidebar lists the pages in this order. On a phone the tab bar holds Overview, Map, Access Logs and either Security or Analytics, and More holds the rest. Security only appears once CrowdSec is set up or AbuseIPDB reporting is on, and then takes the fourth place in the tab bar. Without either, Analytics takes it.
 
 Most pages read the time range picker in the header, and Access Logs, Geo Logs, Analytics and the map keep their filters in the page URL, so a filtered view is a link you can share. Wherever an IP address appears in a table, the button after it opens the IP actions menu. The [IP inspector](./ip-inspector.mdx) page covers what it offers.
 
@@ -69,7 +69,9 @@ Request latency and the other response-time figures leave out status 101 and sta
 
 ## Security
 
-CrowdSec decisions and alerts next to your own traffic: who is banned, and whether they are still sending requests. The page has stat cards, the DROP networks in your traffic, the active decisions, and the alerts, which need CrowdSec machine credentials. Without CrowdSec set up, the page says how to connect it. [CrowdSec](./crowdsec.mdx) covers the setup and the ban actions. The DROP networks card is described under [Spamhaus DROP lists](./drop-lists.mdx#the-drop-networks-card).
+CrowdSec decisions and alerts next to your own traffic: who is banned, and whether they are still sending requests. Stat cards sit at the top, and below them the page shows one table at a time in the Decisions, Alerts, DROP and Reports tabs. Alerts needs CrowdSec machine credentials, and DROP appears once the DROP lists have downloaded. Reports lists what GeoMetrikks has sent to AbuseIPDB and appears with AbuseIPDB reporting on. The open tab is in the URL, so a reload or a shared link keeps it.
+
+With AbuseIPDB reporting on and CrowdSec not set up, the page shows only Reports. With neither, it says how to connect CrowdSec. [CrowdSec](./crowdsec.mdx#the-security-page) covers the setup, the ban actions and each tab. The DROP tab is described under [Spamhaus DROP lists](./drop-lists.mdx#the-drop-networks-card), and Reports under [AbuseIPDB](./abuseipdb.mdx#the-reports-tab).
 
 ## Settings
 
@@ -93,7 +95,7 @@ Keys for scripts, monitors and dashboards. A key is Read or Read/write, and a Re
 
 ### Scheduler
 
-The background jobs, such as the GeoLite2 refresh, the server location refresh and the DROP lists refresh, with their recent runs and next run. Run now starts a job straight away.
+The background jobs, such as the GeoLite2 refresh, the server location refresh, the DROP lists refresh and the AbuseIPDB blacklist refresh, with their recent runs and next run. Run now starts a job straight away.
 
 ### Logs
 
