@@ -225,6 +225,8 @@ import type {
   ApiV1SystemAsnClassificationGetAsnClassificationResponses,
   ApiV1SystemChangelogGetChangelogData,
   ApiV1SystemChangelogGetChangelogResponses,
+  ApiV1SystemClientIpGetClientIpData,
+  ApiV1SystemClientIpGetClientIpResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemReleaseCheckGetReleaseCheckData,
@@ -2672,6 +2674,37 @@ export const apiV1SystemChangelogGetChangelog = <
       { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/system/changelog",
+    ...options,
+  });
+
+/**
+ * Get the caller's IP address
+ *
+ * Returns the address this server sees for the request, so a client can filter out its own traffic. Behind a reverse proxy, it is the real address only when the proxy is in APP_TRUSTED_PROXIES. `behindUntrustedProxy` is true when it is not.
+ */
+export const apiV1SystemClientIpGetClientIp = <
+  ThrowOnError extends boolean = false,
+>(
+  options?: Options<ApiV1SystemClientIpGetClientIpData, ThrowOnError>,
+): RequestResult<
+  ApiV1SystemClientIpGetClientIpResponses,
+  unknown,
+  ThrowOnError
+> =>
+  (options?.client ?? client).get<
+    ApiV1SystemClientIpGetClientIpResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/system/client-ip",
     ...options,
   });
 

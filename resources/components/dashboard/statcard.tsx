@@ -29,8 +29,8 @@ export function StatGrid({ className, children }: { className?: string; children
 
 // A two-row subgrid of the StatGrid, so titles and values line up across a
 // row when one title wraps onto more lines than its neighbours.
-const CARD_CLASS = "relative row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid overflow-hidden gap-1.5 py-3 md:gap-6 md:py-4"
-const HEADER_CLASS = "flex flex-row items-center justify-between px-3 md:px-6 md:pb-2"
+const CARD_CLASS = "relative row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid overflow-hidden gap-1.5 py-3 md:gap-2 md:py-4"
+const HEADER_CLASS = "flex flex-row items-center justify-between px-3 md:px-6"
 const CONTENT_CLASS = "px-3 md:px-6"
 
 const SPARKLINE_CLASS = "mt-2 h-10 w-full md:mt-3"

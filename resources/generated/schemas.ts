@@ -222,6 +222,8 @@ import type {
   ApiV1SystemAsnClassificationGetAsnClassificationResponses,
   ApiV1SystemChangelogGetChangelogData,
   ApiV1SystemChangelogGetChangelogResponses,
+  ApiV1SystemClientIpGetClientIpData,
+  ApiV1SystemClientIpGetClientIpResponses,
   ApiV1SystemDatabaseGetDatabaseInfoData,
   ApiV1SystemDatabaseGetDatabaseInfoResponses,
   ApiV1SystemReleaseCheckGetReleaseCheckData,
@@ -272,6 +274,7 @@ export type OperationName =
   | 'get_asn_classification'
   | 'get_blacklist'
   | 'get_changelog'
+  | 'get_client_ip'
   | 'get_cumulative_time_series'
   | 'get_database_info'
   | 'get_decision_alert'
@@ -363,6 +366,7 @@ export interface OperationDataTypes {
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationData
   'get_blacklist': ApiV1AbuseipdbBlacklistGetBlacklistData
   'get_changelog': ApiV1SystemChangelogGetChangelogData
+  'get_client_ip': ApiV1SystemClientIpGetClientIpData
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesData
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoData
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertData
@@ -455,6 +459,7 @@ export interface OperationResponseTypes {
   'get_asn_classification': ApiV1SystemAsnClassificationGetAsnClassificationResponses
   'get_blacklist': ApiV1AbuseipdbBlacklistGetBlacklistResponses
   'get_changelog': ApiV1SystemChangelogGetChangelogResponses
+  'get_client_ip': ApiV1SystemClientIpGetClientIpResponses
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesResponses
   'get_database_info': ApiV1SystemDatabaseGetDatabaseInfoResponses
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertResponses
@@ -547,6 +552,7 @@ export interface OperationErrorTypes {
   'get_asn_classification': never
   'get_blacklist': ApiV1AbuseipdbBlacklistGetBlacklistErrors
   'get_changelog': never
+  'get_client_ip': never
   'get_cumulative_time_series': ApiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeriesErrors
   'get_database_info': never
   'get_decision_alert': ApiV1CrowdsecDecisionsDecisionIdAlertGetDecisionAlertErrors

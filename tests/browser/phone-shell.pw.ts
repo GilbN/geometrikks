@@ -24,8 +24,13 @@ async function settledToast(page: Page, text: string | RegExp) {
   return settledToastBox(toast)
 }
 
-const MAP_WATER_DARK = "rgb(44, 53, 60)"
-const bodyColor = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+async function emulateInstalledApp(page: Page) {
+  // Chromium accepts a display-mode emulation request and ignores it.
+  await page.route(/\/assets\/main-[^/]+\.css/, async (route) => {
+    const response = await route.fetch()
+    await route.fulfill({ response, body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0") })
+  })
+}
 
 async function degradeHealth(page: Page) {
   await page.route("**/health", async (route) => {
@@ -34,6 +39,30 @@ async function degradeHealth(page: Page) {
     health.status = "degraded"
     return route.fulfill({ response, json: health })
   })
+}
+
+async function expectLogOutConfirmed(page: Page) {
+  let logoutRequests = 0
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/api/v1/auth/logout")) logoutRequests++
+  })
+  const menu = moreMenu(page)
+  const confirm = page.getByRole("alertdialog", { name: "Log out?" })
+
+  await menu.getByRole("button", { name: "Log out" }).tap()
+  await expect(confirm).toBeVisible()
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused()
+  expect(logoutRequests).toBe(0)
+
+  await confirm.getByRole("button", { name: "Cancel" }).tap()
+  await expect(confirm).toBeHidden()
+  await expect(menu).toBeVisible()
+  expect(logoutRequests).toBe(0)
+
+  await menu.getByRole("button", { name: "Log out" }).tap()
+  await confirm.getByRole("button", { name: "Log out" }).tap()
+  await expect(page).toHaveURL(/\/login/)
+  expect(logoutRequests).toBe(1)
 }
 
 test.describe("portrait phone", () => {
@@ -131,6 +160,13 @@ test.describe("portrait phone", () => {
     await expect(moreCell(page)).not.toBeFocused()
   })
 
+  test("asks before logging out from More", async ({ page }) => {
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).tap()
+    await expectLogOutConfirmed(page)
+  })
+
   test("closes More when the phone turns sideways", async ({ page }) => {
     await login(page)
     await page.goto("/")
@@ -160,28 +196,43 @@ test.describe("portrait phone", () => {
     expect(toast.width).toBeCloseTo(393 - 40, 0)
   })
 
-  test("gives an installed app's page the water color on the map only", async ({ page }) => {
+  test("sizes an installed app from the large viewport without a document scroll", async ({ page }) => {
     await login(page)
-    // Chromium accepts a display-mode emulation request and ignores it.
-    await page.route(/\/assets\/main-[^/]+\.css/, async (route) => {
-      const response = await route.fetch()
-      await route.fulfill({ response, body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0") })
-    })
+    await emulateInstalledApp(page)
+    await page.goto("/")
+    await expect(tabBar(page)).toBeVisible()
 
-    await page.goto("/map")
-    await expect.poll(() => bodyColor(page)).toBe(MAP_WATER_DARK)
-
-    await barCells(page).filter({ hasText: "Overview" }).click()
-    await expect(page).toHaveURL(/\/$/)
-    await expect.poll(() => bodyColor(page)).not.toBe(MAP_WATER_DARK)
+    const measured = await page.evaluate(() => ({
+      appHeight: getComputedStyle(document.documentElement).getPropertyValue("--app-height").trim(),
+      root: document.getElementById("app")!.getBoundingClientRect().height,
+      scrollHeight: document.documentElement.scrollHeight,
+    }))
+    expect(measured).toEqual({ appHeight: "100lvh", root: 852, scrollHeight: 852 })
   })
 
-  test("keeps the page color in a browser tab on the map", async ({ page }) => {
+  test("keeps a record sheet's header clear of the status bar", async ({ page }) => {
     await login(page)
-    await page.goto("/map")
-    await expect(page.locator(".maplibregl-canvas")).toBeVisible()
-    await expect(page.locator("[data-shell-top]")).toBeEmpty()
-    expect(await bodyColor(page)).not.toBe(MAP_WATER_DARK)
+    await emulateSafeAreas(page, { top: 47, left: 0, right: 0, bottom: 34 })
+    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
+      items: [{
+        id: 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: "203.0.113.7", remoteUser: null,
+        method: "GET", url: "/request/detail", httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
+        referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
+        host: "example.test", server: null, logFormat: null, countryCode: "NO",
+        countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
+      }],
+      total: 1, limit: 20, offset: 0,
+    } }))
+    await page.goto("/access-logs")
+    await page.locator("table tr[data-index='0']").getByText("/request/detail").click()
+
+    const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
+    await expect(sheet).toBeVisible()
+    await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
+
+    expect((await sheet.boundingBox())!.y).toBe(0)
+    expect((await sheet.locator('[data-slot="sheet-title"]').boundingBox())!.y).toBeGreaterThanOrEqual(47)
+    expect((await sheet.getByRole("button", { name: "Close" }).boundingBox())!.y).toBeGreaterThanOrEqual(47)
   })
 
   test("stops toasts on the map short of the pill", async ({ page }) => {
@@ -318,6 +369,14 @@ test.describe("More on a phone held sideways", () => {
     const box = (await menu.boundingBox())!
     expect(box.x).toBeGreaterThanOrEqual(narrowInsets.left)
     expect(box.x + box.width).toBeLessThanOrEqual(844 - narrowInsets.right)
+  })
+
+  test("asks before logging out", async ({ page }) => {
+    await emulateSafeAreas(page, insets)
+    await login(page)
+    await page.goto("/")
+    await moreCell(page).tap()
+    await expectLogOutConfirmed(page)
   })
 
   test("closes on a scrim tap that never reaches the map", async ({ page }) => {

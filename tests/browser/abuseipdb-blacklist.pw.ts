@@ -7,6 +7,7 @@ const LISTED_IP = "3.5.140.2"
 const LISTED_IPV6 = "2600:1f18::1"
 const UNLISTED_IP = "3.5.140.9"
 const BADGE_LABEL = "AbuseIPDB blacklist"
+const BADGE_HINT = "On AbuseIPDB's blacklist of IPs with a 100% abuse confidence score"
 const SETTLE_MS = 300
 
 const statusOn: AbuseIpdbStatusResponse = {
@@ -65,7 +66,8 @@ const ipActions = (page: Page, ip = LISTED_IP) => page.getByRole("button", { nam
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
 const openSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
 const openMenu = (page: Page) => page.locator('[data-slot="dropdown-menu-content"][data-state="open"]')
-const badgeIn = (container: Locator) => container.getByTitle("On AbuseIPDB's blacklist")
+const badgeIn = (container: Locator) => container.getByText(BADGE_LABEL, { exact: true })
+const hint = (page: Page) => page.locator('[data-slot="popover-content"]')
 
 test.describe("desktop", () => {
   test.use({ viewport: { width: 1360, height: 900 } })
@@ -83,7 +85,7 @@ test.describe("desktop", () => {
     const sheet = openSheet(page)
     const badge = badgeIn(sheet)
     await expect(badge).toBeVisible()
-    await expect(badge).toHaveText(BADGE_LABEL)
+    await expect(sheet.getByTitle(BADGE_HINT)).toHaveText(BADGE_LABEL)
   })
 
   test("the inspector leaves an unlisted IP unmarked", async ({ page }) => {
@@ -158,6 +160,17 @@ test.describe("portrait phone", () => {
     await ipActions(page).click()
     const drawer = openDrawer(page)
     await expect(badgeIn(drawer)).toBeVisible()
+  })
+
+  test("a tap on the mark explains it and leaves the inspector open", async ({ page }) => {
+    await setup(page)
+    await page.goto(`/access-logs?inspect=${LISTED_IP}`)
+    const sheet = openSheet(page)
+    await badgeIn(sheet).tap()
+    await expect(hint(page)).toHaveText(BADGE_HINT)
+    await page.touchscreen.tap(200, 700)
+    await expect(hint(page)).toHaveCount(0)
+    await expect(sheet).toBeVisible()
   })
 })
 

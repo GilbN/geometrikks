@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { asnCoverage, largestAsnCategory } from "./asn-coverage"
+import { asnCoverage, headlineAsnCategory } from "./asn-coverage"
 
 const cats = (hosting: number, other: number) => [
   { category: "hosting" as const, hits: hosting },
@@ -75,21 +75,26 @@ describe("asnCoverage", () => {
   })
 })
 
-describe("largestAsnCategory", () => {
-  it("picks the category with the most hits", () => {
+describe("headlineAsnCategory", () => {
+  it("picks the larger of DROP and Hosting", () => {
     const drop = { category: "drop" as const, hits: 8_389 }
-    expect(largestAsnCategory([drop, ...cats(3_931, 10_942)])?.category).toBe("other")
-    expect(largestAsnCategory([drop, ...cats(3_931, 1_000)])?.category).toBe("drop")
-    expect(largestAsnCategory(cats(60, 40))?.category).toBe("hosting")
+    expect(headlineAsnCategory([drop, ...cats(3_931, 1_000)])?.category).toBe("drop")
+    expect(headlineAsnCategory([drop, ...cats(9_000, 1_000)])?.category).toBe("hosting")
+    expect(headlineAsnCategory(cats(60, 40))?.category).toBe("hosting")
   })
 
-  it("breaks a tie toward DROP, then Hosting", () => {
-    expect(largestAsnCategory([...cats(50, 50), { category: "drop" as const, hits: 50 }])?.category).toBe("drop")
-    expect(largestAsnCategory(cats(50, 50))?.category).toBe("hosting")
+  it("never picks Other, even when it sent the most requests", () => {
+    const drop = { category: "drop" as const, hits: 1_200 }
+    expect(headlineAsnCategory([drop, ...cats(2_800, 14_096)])).toEqual({ category: "hosting", hits: 2_800 })
+    expect(headlineAsnCategory(cats(0, 500))).toEqual({ category: "hosting", hits: 0 })
+  })
+
+  it("breaks a tie toward DROP", () => {
+    expect(headlineAsnCategory([...cats(50, 50), { category: "drop" as const, hits: 50 }])?.category).toBe("drop")
   })
 
   it("returns nothing when there are no categories", () => {
-    expect(largestAsnCategory(undefined)).toBeUndefined()
-    expect(largestAsnCategory([])).toBeUndefined()
+    expect(headlineAsnCategory(undefined)).toBeUndefined()
+    expect(headlineAsnCategory([])).toBeUndefined()
   })
 })

@@ -3,6 +3,17 @@ import { createPortal } from "react-dom"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { ChevronRight, LogOut } from "lucide-react"
 import { SiDocker } from "react-icons/si"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ReloadNoticeMenuCard } from "@/components/reload-notice"
@@ -96,17 +107,34 @@ function Footer() {
           </Link>
         )}
       </span>
-      {me?.mode === "session" && (
+      {me?.mode === "session" && <LogOutButton />}
+    </div>
+  )
+}
+
+function LogOutButton() {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
         <button
           type="button"
-          onClick={logOut}
           className="flex h-11 items-center gap-2 rounded-[10px] px-3 font-sans text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-foreground/5"
         >
           <LogOut aria-hidden className="size-5" />
           Log out
         </button>
-      )}
-    </div>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Log out?</AlertDialogTitle>
+          <AlertDialogDescription>You will need to sign in again on this device.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={logOut}>Log out</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
