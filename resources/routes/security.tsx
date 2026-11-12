@@ -11,6 +11,7 @@ import { DropNetworksCard } from "@/components/security/drop-networks-card"
 import { SecurityStatCards } from "@/components/security/security-stat-cards"
 import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
+import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
 import { dropNetworksLoaded } from "@/lib/drop-lists"
 import { useAbout, useAbuseIpdbStatus, useCrowdsecLiveUpdates, useCrowdsecStatus } from "@/lib/queries"
 import { activeSecurityTab, availableSecurityTabs, type SecurityTab } from "@/lib/security-tabs"
@@ -99,10 +100,16 @@ function SecurityPage() {
             <p className="font-medium">CrowdSec integration is not configured</p>
             <p className="max-w-md text-sm text-muted-foreground">
               Set CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY to connect
-              GeoMetrikks to your CrowdSec Local API, then run docker compose up -d. The README
-              covers the setup, including the optional machine credentials
-              that enable ban and unban from this page.
+              GeoMetrikks to your CrowdSec Local API, then run docker compose up -d.
             </p>
+            <a
+              href={CROWDSEC_DOCS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-primary underline underline-offset-2"
+            >
+              CrowdSec setup, including the machine credentials for ban and unban
+            </a>
           </CardContent>
         </Card>
       </div>
