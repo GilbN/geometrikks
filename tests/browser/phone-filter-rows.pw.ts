@@ -118,6 +118,9 @@ test.describe("touch screen", () => {
 
   test("changing a filter leaves the page where iOS scrolled it for the keyboard", async ({ page }) => {
     const drawer = await openFilters(page)
+    // On a slow CI runner the drawer is still sliding in here, and a scroll
+    // set during the slide moves (300 came back as 172).
+    await drawer.evaluate((element) => Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)))
     await page.evaluate(() => {
       document.documentElement.style.height = "2000px"
       window.scrollTo(0, 300)
