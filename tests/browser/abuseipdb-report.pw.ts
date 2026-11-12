@@ -26,8 +26,12 @@ interface Fixture {
   evidenceFor: (url: URL) => AbuseReportResponse
   /** How many /check requests fail before one answers. */
   checkFailures: number
-  /** The IP of the one Access Logs row. */
+  /** Every /check request from this one on fails. */
+  checkFailsFrom: number | null
+  /** The IP of the first Access Logs row. */
   rowIp: string
+  /** More Access Logs rows, one per IP. */
+  extraRowIps: string[]
   /** Fails the earlier-reports list with this detail. */
   storedReportsFailure: string | null
   /** Fails the evidence request with this detail. */
@@ -36,6 +40,7 @@ interface Fixture {
 
 interface Recorded {
   checks: number
+  checkedIps: string[]
   evidenceRequests: URL[]
   posts: unknown[]
   extraPosts: number
@@ -109,7 +114,9 @@ function defaultFixture(): Fixture {
     postBody: { results: [{ ipAddress: IP, status: "reported", abuseConfidenceScore: 88, reportedAt: new Date().toISOString(), error: null }] },
     evidenceFor: () => evidence(),
     checkFailures: 0,
+    checkFailsFrom: null,
     rowIp: IP,
+    extraRowIps: [],
     storedReportsFailure: null,
     evidenceFailure: null,
   }
@@ -130,7 +137,7 @@ async function login(page: Page) {
  *  off, so a POST that slipped past these routes would get a 403. */
 async function setup(page: Page, changes: Partial<Fixture> = {}) {
   const fixture = { ...defaultFixture(), ...changes }
-  const recorded: Recorded = { checks: 0, evidenceRequests: [], posts: [], extraPosts: 0 }
+  const recorded: Recorded = { checks: 0, checkedIps: [], evidenceRequests: [], posts: [], extraPosts: 0 }
   const gates: { evidence: Promise<void> | null; post: Promise<void> | null } = { evidence: null, post: null }
   /** Holds the requests that arrive from now on until the returned function releases them. */
   const hold = (name: keyof typeof gates) => {
@@ -148,10 +155,12 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
   await page.route("**/api/v1/abuseipdb/reported-ips", (route) => route.fulfill({ json: fixture.reportedIps }))
   await page.route("**/api/v1/abuseipdb/check?*", (route) => {
     recorded.checks += 1
-    if (recorded.checks <= fixture.checkFailures) {
+    const ipAddress = new URL(route.request().url()).searchParams.get("ipAddress") ?? ""
+    recorded.checkedIps.push(ipAddress)
+    if (recorded.checks <= fixture.checkFailures || (fixture.checkFailsFrom !== null && recorded.checks >= fixture.checkFailsFrom)) {
       return route.fulfill({ status: 502, json: { status_code: 502, detail: "AbuseIPDB did not answer.", code: "abuseipdb_unavailable" } })
     }
-    return route.fulfill({ json: check })
+    return route.fulfill({ json: ipAddress === IP ? check : { ...check, ipAddress, abuseConfidenceScore: 12, totalReports: 3 } })
   })
   await page.route("**/api/v1/abuseipdb/reports*", async (route) => {
     if (route.request().method() !== "POST") {
@@ -182,13 +191,13 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
   } }))
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
   await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
-    items: [{
-      id: 1, timestamp: minutesAgo(30), ipAddress: fixture.rowIp, remoteUser: null,
+    items: [fixture.rowIp, ...fixture.extraRowIps].map((ipAddress, index) => ({
+      id: index + 1, timestamp: minutesAgo(30), ipAddress, remoteUser: null,
       method: "GET", url: "/.env", httpVersion: "HTTP/1.1", statusCode: 404, bytesSent: 100,
       referrer: null, userAgent: "Mozilla/5.0 zgrab/0.x", requestTime: 10, upstreamResponseTime: null,
       host: "example.test", server: null, logFormat: null, countryCode: "US",
       countryName: "United States", city: null, autonomousSystemNumber: 16509, autonomousSystemOrganization: "Amazon.com, Inc.",
-    }],
+    })),
     total: 1, limit: 20, offset: 0,
   } }))
   return { fixture, recorded, hold }
@@ -199,6 +208,7 @@ const reportItem = (page: Page) => page.getByRole("menuitem", { name: /^Report t
 const reportButton = (drawer: Locator) => drawer.getByRole("button", { name: /^Report to AbuseIPDB…/ })
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
 const openSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
+const SCORE_LABEL = "AbuseIPDB 87% · 1,204 reports"
 const reportDialog = (page: Page) => page.getByRole("dialog", { name: REPORT_TITLE })
 
 async function openReportFromMenu(page: Page) {
@@ -533,6 +543,105 @@ test.describe("desktop", () => {
     await expect(dialog).toHaveCount(0)
     await expect(sheet).toBeVisible()
     await expect(footerActions).toBeFocused()
+  })
+
+  const inspectFromMenu = async (page: Page, ip = IP) => {
+    await ipActions(page, ip).click()
+    await page.getByRole("menuitem", { name: "Inspect IP", exact: true }).click()
+    return openSheet(page)
+  }
+
+  const closeSheet = async (page: Page) => {
+    await page.keyboard.press("Escape")
+    await expect(openSheet(page)).toHaveCount(0)
+  }
+
+  test("the inspector loads the score when it opens and spends one check", async ({ page }) => {
+    const { recorded } = await setup(page)
+    await page.goto(`/access-logs?inspect=${IP}`)
+    await expect(openSheet(page).getByText(SCORE_LABEL)).toBeVisible()
+    expect(recorded.checks).toBe(1)
+    await closeSheet(page)
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(recorded.checks).toBe(1)
+  })
+
+  test("a failed inspector check waits for Retry, even after reopening", async ({ page }) => {
+    const { recorded } = await setup(page, { checkFailures: 1 })
+    await page.goto(`/access-logs?inspect=${IP}`)
+    await expect(openSheet(page).getByText("AbuseIPDB did not answer.")).toBeVisible()
+    await closeSheet(page)
+    const sheet = await inspectFromMenu(page)
+    await expect(sheet.getByText("AbuseIPDB did not answer.")).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(recorded.checks).toBe(1)
+    await sheet.getByRole("button", { name: "Retry AbuseIPDB check" }).click()
+    await expect(sheet.getByText(SCORE_LABEL)).toBeVisible()
+    expect(recorded.checks).toBe(2)
+  })
+
+  test("each IP gets its own score", async ({ page }) => {
+    const { recorded } = await setup(page, { extraRowIps: ["8.8.8.8"] })
+    await page.goto("/access-logs")
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await closeSheet(page)
+    await expect((await inspectFromMenu(page, "8.8.8.8")).getByText("AbuseIPDB 12% · 3 reports")).toBeVisible()
+    expect(recorded.checkedIps).toEqual([IP, "8.8.8.8"])
+  })
+
+  test("a score older than 15 minutes refreshes on the next open", async ({ page }) => {
+    const { recorded } = await setup(page)
+    await page.clock.install()
+    await page.goto("/access-logs")
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await page.clock.fastForward("14:00")
+    await closeSheet(page)
+    await page.clock.fastForward("02:00")
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await expect.poll(() => recorded.checks).toBe(2)
+  })
+
+  test("a failed refresh shows the reason and waits for Retry", async ({ page }) => {
+    const { recorded } = await setup(page, { checkFailsFrom: 2 })
+    await page.clock.install()
+    await page.goto("/access-logs")
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await page.clock.fastForward("14:00")
+    await closeSheet(page)
+    await page.clock.fastForward("02:00")
+    await expect((await inspectFromMenu(page)).getByText("AbuseIPDB did not answer.")).toBeVisible()
+    expect(recorded.checks).toBe(2)
+    await closeSheet(page)
+    const sheet = await inspectFromMenu(page)
+    await expect(sheet.getByRole("button", { name: "Retry AbuseIPDB check" })).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(recorded.checks).toBe(2)
+  })
+
+  test("a score from the report dialog shows in the inspector without another check", async ({ page }) => {
+    const { recorded } = await setup(page)
+    const dialog = await openReportFromMenu(page)
+    await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
+    await expect(dialog.getByText("87% confidence")).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(dialog).toHaveCount(0)
+    await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(recorded.checks).toBe(1)
+  })
+
+  test("the inspector runs no check for a private address or without a key", async ({ page }) => {
+    const { recorded: privateAddress } = await setup(page)
+    await page.goto("/access-logs?inspect=10.0.0.5")
+    await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(privateAddress.checks).toBe(0)
+    const { recorded: noKey } = await setup(page, { status: { enabled: false, reportingEnabled: false, reports: null, checks: null } })
+    await page.goto(`/access-logs?inspect=${IP}`)
+    await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(noKey.checks).toBe(0)
   })
 
   test("inspector shows the AbuseIPDB link without a key", async ({ page }) => {

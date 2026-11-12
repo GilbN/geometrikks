@@ -113,6 +113,7 @@ import {
   type GeoLogSparklines,
   type OverviewSparklines,
 } from "./sparklines"
+import { canonicalIp } from "./abuseipdb"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
 import type { DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
@@ -2039,10 +2040,10 @@ export function useAbuseIpdbReports(ip: string, enabled: boolean) {
   })
 }
 
-/** Leaves the server and spends AbuseIPDB quota, so it runs only when asked. */
+/** Leaves the server and spends AbuseIPDB quota: runs for a missing or expired score, never after a failure. */
 export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.abuseipdb.check(ip),
+    queryKey: queryKeys.abuseipdb.check(canonicalIp(ip) ?? ip),
     queryFn: () => fetchAbuseIpdbCheck(ip),
     enabled,
     staleTime: 15 * 60_000,
@@ -2050,7 +2051,8 @@ export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
     retry: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    refetchOnMount: false,
+    refetchOnMount: (query) => query.state.status !== "error",
+    retryOnMount: false,
   })
 }
 

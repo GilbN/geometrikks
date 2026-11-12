@@ -14,6 +14,7 @@ import {
   reportedItemRefreshIn,
   reportedItemState,
   reportItemState,
+  abuseScoreTone,
 } from "./abuseipdb"
 
 function ipEvidence(overrides: Partial<ReportIpDto> = {}): ReportIpDto {
@@ -392,4 +393,17 @@ describe("reportItemState", () => {
 
 test("check url keeps colons", () => {
   expect(abuseipdbCheckUrl("2600:1f18::1")).toBe("https://www.abuseipdb.com/check/2600:1f18::1")
+})
+
+describe("abuseScoreTone", () => {
+  test.each([
+    [0, "low"],
+    [24, "low"],
+    [25, "medium"],
+    [74, "medium"],
+    [75, "high"],
+    [100, "high"],
+  ] as const)("score %i is %s", (score, tone) => {
+    expect(abuseScoreTone(score)).toBe(tone)
+  })
 })

@@ -1117,7 +1117,8 @@ class AbuseIpdbSettings(BaseSettings):
         default=None,
         description=(
             "AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against "
-            "api.abuseipdb.com, which sends each checked IP to AbuseIPDB."
+            "api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB "
+            "and uses one daily check, at most once per IP every 15 minutes."
         ),
     )
     reporting_enabled: bool = Field(

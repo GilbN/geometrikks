@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The Check button in the report spends one AbuseIPDB check to show the IP's current score.
   - Read/write API keys can send reports with `POST /api/v1/abuseipdb/reports`.
   - The IP inspector links to the IP's page on AbuseIPDB, even without an API key.
+  - With a key, the IP inspector shows the IP's AbuseIPDB score when it opens. Each lookup uses one daily AbuseIPDB check, at most once per IP every 15 minutes.
 
 ## [0.24.0] - 2026-11-09
 
