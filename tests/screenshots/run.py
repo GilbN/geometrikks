@@ -522,13 +522,14 @@ def dry_run(args: argparse.Namespace) -> int:
         except Interrupted:
             code = EXIT_INTERRUPTED
         finally:
-            for line in _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch):
-                say(f"teardown: {line}")
-            if _ledger_holds(private):
-                say(f"teardown: kept {scratch}, its ledger still lists resources; run --cleanup")
-                code = code or EXIT_FAILED
-            else:
-                shutil.rmtree(scratch, ignore_errors=True)
+            with interrupts_ignored():
+                for line in _teardown(private.owned(), private, env, logs if logs.is_dir() else scratch):
+                    say(f"teardown: {line}")
+                if _ledger_holds(private):
+                    say(f"teardown: kept {scratch}, its ledger still lists resources; run --cleanup")
+                    code = code or EXIT_FAILED
+                else:
+                    shutil.rmtree(scratch, ignore_errors=True)
     return code
 
 
@@ -733,15 +734,17 @@ def full_run(args: argparse.Namespace) -> int:
             say(f"{interrupt}; tearing down")
             code = EXIT_INTERRUPTED
         finally:
-            try:
-                if not _recover("publish recovery"):
-                    code = code or EXIT_FAILED
-            finally:
-                report = _teardown(ledger.owned(), ledger, env, logs if logs.is_dir() else RUN_ROOT)
-                swept, sweep_failed = sweep_marked(lambda pair: pair == plan_marker)
-                _print_teardown(report + swept)
-                if code == EXIT_DONE and (ledger.owned() or sweep_failed):
-                    code = EXIT_FAILED
+            # A signal that lands while interrupts_raise restores its handlers can leave them raising.
+            with interrupts_ignored():
+                try:
+                    if not _recover("publish recovery"):
+                        code = code or EXIT_FAILED
+                finally:
+                    report = _teardown(ledger.owned(), ledger, env, logs if logs.is_dir() else RUN_ROOT)
+                    swept, sweep_failed = sweep_marked(lambda pair: pair == plan_marker)
+                    _print_teardown(report + swept)
+                    if code == EXIT_DONE and (ledger.owned() or sweep_failed):
+                        code = EXIT_FAILED
     say(f"exit {code}")
     return code
 

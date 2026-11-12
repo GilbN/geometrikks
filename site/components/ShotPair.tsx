@@ -62,7 +62,9 @@ export function ShotPair({
     return (
       <figure className={styles.figure}>
         <div className={styles.landscape}>
-          {landscape.map(({ theme: shotTheme, shot }) => image(shot, entry.alt, themeClass(shotTheme), shotTheme))}
+          {landscape.map(({ theme: shotTheme, shot }) =>
+            image(shot, `The ${entry.title} page on a phone held sideways.`, themeClass(shotTheme), shotTheme),
+          )}
         </div>
         {figcaption}
       </figure>

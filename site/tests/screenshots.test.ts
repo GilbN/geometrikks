@@ -131,7 +131,7 @@ describe("ShotPair", () => {
     for (const tag of tags) {
       expect(attribute(tag, "width")).toBe(String(landscape.width));
       expect(attribute(tag, "height")).toBe(String(landscape.height));
-      expect(attribute(tag, "alt")).toBe(sceneEntry(realManifest, "map").alt.replaceAll("'", "&#x27;"));
+      expect(attribute(tag, "alt")).toBe("The Map page on a phone held sideways.");
       expect(attribute(tag, "loading")).toBe("lazy");
       expect(attribute(tag, "decoding")).toBe("async");
     }
