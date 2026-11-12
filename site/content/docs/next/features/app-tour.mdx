@@ -5,13 +5,15 @@ description: What each page in the GeoMetrikks web UI shows, in the order the na
 
 The sidebar lists the pages in this order. On a phone the tab bar holds Overview, Map, Access Logs and either Security or Analytics, and More holds the rest. Security only appears once CrowdSec is set up or AbuseIPDB reporting is on, and then takes the fourth place in the tab bar. Without either, Analytics takes it.
 
+<Screenshot scene="nav-more" />
+
 Most pages read the time range picker in the header, and Access Logs, Geo Logs, Analytics and the map keep their filters in the page URL, so a filtered view is a link you can share. Wherever an IP address appears in a table, the button after it opens the IP actions menu. The [IP inspector](./ip-inspector.mdx) page covers what it offers.
 
 ## Overview
 
 Traffic, status codes and response times for the selected range, each figure with its trend against the previous range of the same length. The page has four sections: Traffic Overview, Traffic Origin, HTTP Status Codes, and Performance & Bandwidth. The Charts switch in the header draws a small chart under each figure; on a phone it is in the time range drawer.
 
-![The Overview page with request, visitor and status cards](/screenshots/dashboard.webp)
+<Screenshot scene="dashboard" />
 
 Traffic Origin splits the range's traffic by the network it came from:
 
@@ -29,9 +31,11 @@ The live world map, with heatmap, markers and a banned view, live routes to each
 
 Every stored request, newest first, in two tabs: History and Live tail.
 
-![Access Logs with the filter bar and the request table](/screenshots/access-logs.webp)
+<Screenshot scene="access-logs" />
 
 History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. Exclude your IP drops your own address from the view. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. Bytes and Req time show by default, except on a phone. The column picker adds upstream response time, HTTP version, remote user, user agent, server, source format, ASN and AS organization.
+
+<Screenshot scene="filter-drawer" />
 
 The IP actions menu on each row can also filter by the row's IP, host, server, country or ASN, and exclude the values that have an exclude field.
 
@@ -39,13 +43,13 @@ The IP actions menu on each row can also filter by the row's IP, host, server, c
 
 Live tail shows new requests as your proxy logs them. It keeps the most recent few hundred rows and pauses while the pointer is over the list. The pause button works on every device, and on a touch screen it is the only way to pause. Requests that arrive while it is paused wait in a buffer and appear when you resume. The History filters don't apply to it.
 
-![The live tail on Access Logs, with new requests at the top](/screenshots/live-tail.webp)
+<Screenshot scene="live-tail" />
 
 ## Geo Logs
 
 Traffic grouped by location and IP: where requests come from, how that changes over time, and which clients come back. The page has a map preview, cards for total events, unique IPs, countries and cities, an event chart, Top IPs, and Top locations with Countries, Cities and ASNs tabs. The ASNs tab has an abuse report button on each row; see [Abuse reports](./abuse-reports.mdx). The table below lists one row per location and IP.
 
-![Geo Logs with the map preview, cards and top lists](/screenshots/geo-logs.webp)
+<Screenshot scene="geo-logs" />
 
 ## Debug Logs
 
@@ -53,7 +57,7 @@ Debug Logs holds the lines the parser could not read and the requests it flags a
 
 With `LOGPARSER_STORE_DEBUG_LINES=true` the parser stores every line here as well, parsed or not. That grows the database by a row per request, so turn it on only while you chase a parsing problem.
 
-![Debug Logs with the debug line counts and the table](/screenshots/debug-logs.webp)
+<Screenshot scene="debug-logs" />
 
 ## Analytics
 
@@ -65,7 +69,7 @@ Charts and top lists for the range, all following one filter set: IP address, Ex
 
 Request latency and the other response-time figures leave out status 101 and status 0. Under 101, nginx and Traefik log a WebSocket's whole connection time, and 0 means the connection ended before any response, so neither time is a response time. Those rows stay in Access Logs with the time the proxy logged.
 
-![Analytics with the request, status and latency charts](/screenshots/analytics.webp)
+<Screenshot scene="analytics" />
 
 ## Security
 
@@ -79,7 +83,7 @@ With AbuseIPDB reporting on and CrowdSec not set up, the page shows only Reports
 
 Status shows the health of the whole app on one page, with a card each for Authentication, Ingestion, Database, GeoIP, CrowdSec, Scheduler, Live feed and Recent errors. An Agents card joins them once agents write to the database, and a Server locations card once a server has a location. Advisories at the top say when something needs attention, such as a missing ASN database or a server whose location could not be detected.
 
-![Settings > Status with its cards](/screenshots/status.webp)
+<Screenshot scene="status" />
 
 ### Agents
 
@@ -104,6 +108,8 @@ The app's own log in three tabs: System log, Login log, and Downloads for the ra
 ### Appearance
 
 The color scheme and theme for this browser. There are eight themes, Aurora, Moss, Forge, Night, Glacier, Dusk, Lyng and Storm, each with a light and a dark palette.
+
+<Screenshot scene="settings" />
 
 ### Changelog
 

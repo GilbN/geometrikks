@@ -5,7 +5,7 @@ description: The map's views, live routes, filters and server location, on a des
 
 The map plots every request GeoLite2 can place for the selected time range. A request with no location in the database stays off the map and still shows up in Access Logs. The basemap comes from CARTO and needs a key of your own; see [GeoLite2 and the CARTO key](../get-started/geolite2.mdx#carto-basemap-key).
 
-![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
+<Screenshot scene="map" />
 
 ## Map controls
 
@@ -19,7 +19,7 @@ Three tabs pick the view:
 - **Markers** draws one marker per location. This is the default.
 - **Banned** shows the IPs under a current CrowdSec decision that sent traffic in the selected range, with counts of banned IPs, events, countries and cities. The tab only appears when CrowdSec is set up. If CrowdSec stops answering, the map keeps the last result and says so instead of showing an empty map.
 
-![The Banned view, with banned IPs plotted by location](/screenshots/banned-map.webp)
+<Screenshot scene="banned-map" />
 
 The **Globe** switch turns the flat Mercator map into a globe you can spin. It is off by default.
 
