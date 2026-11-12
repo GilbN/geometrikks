@@ -106,7 +106,7 @@ function SecurityPage() {
               href={CROWDSEC_DOCS_URL}
               target="_blank"
               rel="noreferrer"
-              className="text-xs text-primary underline underline-offset-2"
+              className="tap-area text-xs text-primary underline underline-offset-2"
             >
               CrowdSec setup, including the machine credentials for ban and unban
             </a>
