@@ -26,7 +26,7 @@ const screens: Screen[] = [
   { id: "ip-inspector", label: "IP inspector", scene: "ip-inspector", cap: "IP inspector. Select an address to see its network, request counts, bandwidth, response codes over time, hosts, paths, user agents and recent requests. Its CrowdSec decision and any Spamhaus DROP listing sit at the top, and you can ban it from there." },
   { id: "security", label: "Security", scene: "security", cap: "Security. Active CrowdSec decisions with each address's country and scenario, and the Spamhaus DROP networks in your traffic with a button to ban them." },
   { id: "debug-logs", label: "Debug logs", scene: "debug-logs", cap: "Debug logs. Source lines that failed to parse, each with its parse error. Turn on debug capture and it keeps the lines that parsed too, linked to their requests." },
-  { id: "status", label: "Status", path: "settings/status", scene: "status", cap: "Status. Ingestion, database, GeoIP and CrowdSec health on one page, with every log file and Loki selector listed. Advisories flag what needs attention, such as a missing ASN database or a server whose location could not be detected." },
+  { id: "status", label: "Status", path: "settings/status", scene: "status", cap: "Status. Ingestion, database, GeoIP and CrowdSec health on one page, with every log source listed and how much each has read. Advisories flag what needs attention, such as a missing ASN database." },
 ];
 
 export function Screens() {

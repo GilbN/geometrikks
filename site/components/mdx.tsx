@@ -3,7 +3,7 @@ import type { MDXComponents } from "mdx/types";
 import type { ComponentProps } from "react";
 import { ShotPair } from "./ShotPair";
 
-function Screenshot(props: Omit<ComponentProps<typeof ShotPair>, "theme">) {
+function Screenshot(props: Omit<ComponentProps<typeof ShotPair>, "theme" | "zoom">) {
   return <ShotPair {...props} theme="auto" />;
 }
 

@@ -30,6 +30,8 @@ export function ShotPair({ scene, phoneScene, theme = "auto", caption, zoom = fa
   const themeClass = (shotTheme: "dark" | "light") => (theme === "auto" ? `shot-${shotTheme}` : undefined);
   const desktop = variants(entry, "desktop", themes);
   const phone = variants(phoneEntry, "phone", themes);
+  // Beside its own desktop shot, the manifest's alt would be read out twice.
+  const phoneAlt = desktop.length > 0 && !phoneScene ? `The same ${entry.title} page on a phone.` : phoneEntry.alt;
 
   const image = (shot: ShotVariant, alt: string, className?: string, key?: string) => (
     <img
@@ -71,7 +73,7 @@ export function ShotPair({ scene, phoneScene, theme = "auto", caption, zoom = fa
         )}
         {phone.length > 0 && (
           <div className={styles.phone}>
-            {phone.map(({ theme: shotTheme, shot }) => image(shot, phoneEntry.alt, themeClass(shotTheme), shotTheme))}
+            {phone.map(({ theme: shotTheme, shot }) => image(shot, phoneAlt, themeClass(shotTheme), shotTheme))}
           </div>
         )}
       </div>
