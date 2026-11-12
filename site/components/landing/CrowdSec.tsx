@@ -65,7 +65,7 @@ export function CrowdSec() {
             href={inspector.src}
             data-zoom=""
             data-zoom-alt={inspector.alt}
-            data-zoom-caption="IP inspector over the map for a banned address on a DROP list and AbuseIPDB's blacklist."
+            data-zoom-caption="IP inspector over the map for a banned address, with its DROP and AbuseIPDB blacklist marks and its AbuseIPDB score."
             aria-label="View the IP inspector larger"
           >
             <img
