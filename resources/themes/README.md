@@ -1,8 +1,8 @@
 # Themes
 
 A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge, Night,
-Glacier, Dusk, Lyng and Storm ship today. Three preferences pick what the page paints: the color mode, the theme
-for light mode and the theme for dark mode.
+Glacier, Dusk, Lyng and Storm ship today. Three preferences pick what the page
+paints: the color mode, the theme for light mode and the theme for dark mode.
 
 | Preference | Values | Storage key |
 | --- | --- | --- |
