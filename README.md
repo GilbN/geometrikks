@@ -9,8 +9,7 @@ GeoMetrikks tails your reverse-proxy access logs (nginx, Nginx Proxy
 Manager, Traefik and Caddy) or reads them from Grafana Loki, geolocates
 every request with MaxMind GeoLite2, and shows the result on a
 real-time map and a traffic analytics dashboard. It runs on your own
-hardware from one Docker image. If you run CrowdSec, connect its Local
-API and manage bans next to the traffic that caused them.
+hardware from one Docker image.
 
 <p align="center">
   <picture>
@@ -38,13 +37,20 @@ docker compose up -d
 Open http://localhost:8000 and log in with `APP_ADMIN_USER` / `APP_ADMIN_PASSWORD`.
 The [Quickstart](https://geometrikks.dev/docs/get-started/quickstart/) covers the GeoLite2 keys, log paths and image tags.
 
+## Integrations
+
+- **Reverse proxies.** Tails the access logs of [nginx](https://geometrikks.dev/docs/sources/nginx/), [Nginx Proxy Manager](https://geometrikks.dev/docs/sources/nginx-proxy-manager/), [Traefik](https://geometrikks.dev/docs/sources/traefik/) (Pangolin included) and [Caddy](https://geometrikks.dev/docs/sources/caddy/).
+- **[Grafana Loki](https://geometrikks.dev/docs/sources/loki/).** Reads proxy logs your Loki already collects, instead of or next to log files.
+- **[CrowdSec](https://geometrikks.dev/docs/features/crowdsec/).** Shows decisions and alerts from your Local API next to the traffic behind them, and bans or unbans an IP from the map, the tables or the IP inspector.
+- **[Spamhaus DROP](https://geometrikks.dev/docs/features/drop-lists/).** Marks traffic from networks on the DROP and ASN-DROP lists, ready to ban through CrowdSec.
+- **[MaxMind GeoLite2](https://geometrikks.dev/docs/get-started/geolite2/).** Places requests on the map and names the network each came from. With a free MaxMind key, the databases download and refresh on their own.
+- **[OpenID Connect](https://geometrikks.dev/docs/features/authentication/oidc/).** Single sign-on through Authelia, Authentik, Keycloak, Pocket ID, Google or another provider.
+- **[API keys](https://geometrikks.dev/docs/features/authentication/api-keys/).** Read or read/write keys for scripts and dashboard widgets that call the REST API.
+- **[Abuse reports](https://geometrikks.dev/docs/features/abuse-reports/).** Builds a report for a network's abuse desk and looks up the contact address over RDAP.
+
 ## Documentation
 
-The docs live at [geometrikks.dev/docs](https://geometrikks.dev/docs/). Good places to start:
-
-- [Log sources](https://geometrikks.dev/docs/sources/nginx/) has a setup page for nginx, Nginx Proxy Manager, Traefik, Caddy and Loki.
-- [CrowdSec](https://geometrikks.dev/docs/features/crowdsec/) covers connecting the Local API, the Security page and banning or unbanning from the app.
-- The [configuration reference](https://geometrikks.dev/docs/reference/configuration/) lists every setting with its default.
+The docs live at [geometrikks.dev/docs](https://geometrikks.dev/docs/). The [configuration reference](https://geometrikks.dev/docs/reference/configuration/) lists every setting with its default.
 
 ## Project
 
