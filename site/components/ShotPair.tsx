@@ -7,6 +7,7 @@ const manifest = screenshots as Manifest;
 type ShotPairProps = {
   scene: string;
   phoneScene?: string;
+  viewport?: "desktop" | "landscape";
   theme?: "dark" | "auto";
   caption?: string;
   zoom?: boolean;
@@ -14,24 +15,32 @@ type ShotPairProps = {
 
 type Variants = { theme: "dark" | "light"; shot: ShotVariant }[];
 
-function variants(entry: SceneEntry, viewport: "desktop" | "phone", themes: ("dark" | "light")[]): Variants {
+function variants(
+  entry: SceneEntry,
+  viewport: "desktop" | "phone" | "landscape",
+  themes: ("dark" | "light")[],
+): Variants {
   return themes.flatMap((theme) => {
     const shot = variant(entry, viewport, theme);
     return shot ? [{ theme, shot }] : [];
   });
 }
 
-// A desktop shot with the phone shot beside it. theme="auto" renders both
-// themes and docs.css hides the one that does not match html.dark.
-export function ShotPair({ scene, phoneScene, theme = "auto", caption, zoom = false }: ShotPairProps) {
+// A desktop shot with the phone shot beside it, or with viewport="landscape"
+// the sideways phone shot alone. theme="auto" renders both themes and docs.css
+// hides the one that does not match html.dark.
+export function ShotPair({
+  scene,
+  phoneScene,
+  viewport = "desktop",
+  theme = "auto",
+  caption,
+  zoom = false,
+}: ShotPairProps) {
   const entry = sceneEntry(manifest, scene);
   const phoneEntry = sceneEntry(manifest, phoneScene ?? scene);
   const themes: ("dark" | "light")[] = theme === "dark" ? ["dark"] : ["light", "dark"];
   const themeClass = (shotTheme: "dark" | "light") => (theme === "auto" ? `shot-${shotTheme}` : undefined);
-  const desktop = variants(entry, "desktop", themes);
-  const phone = variants(phoneEntry, "phone", themes);
-  // Beside its own desktop shot, the manifest's alt would be read out twice.
-  const phoneAlt = desktop.length > 0 && !phoneScene ? `The same ${entry.title} page on a phone.` : phoneEntry.alt;
 
   const image = (shot: ShotVariant, alt: string, className?: string, key?: string) => (
     <img
@@ -45,6 +54,25 @@ export function ShotPair({ scene, phoneScene, theme = "auto", caption, zoom = fa
       decoding="async"
     />
   );
+  const figcaption = caption && !zoom && <figcaption className={styles.caption}>{caption}</figcaption>;
+
+  if (viewport === "landscape") {
+    const landscape = variants(entry, "landscape", themes);
+    if (landscape.length === 0) throw new Error(`screenshot scene ${scene} has no landscape shot`);
+    return (
+      <figure className={styles.figure}>
+        <div className={styles.landscape}>
+          {landscape.map(({ theme: shotTheme, shot }) => image(shot, entry.alt, themeClass(shotTheme), shotTheme))}
+        </div>
+        {figcaption}
+      </figure>
+    );
+  }
+
+  const desktop = variants(entry, "desktop", themes);
+  const phone = variants(phoneEntry, "phone", themes);
+  // Beside its own desktop shot, the manifest's alt would be read out twice.
+  const phoneAlt = desktop.length > 0 && !phoneScene ? `The same ${entry.title} page on a phone.` : phoneEntry.alt;
 
   return (
     <figure className={styles.figure}>
@@ -77,7 +105,7 @@ export function ShotPair({ scene, phoneScene, theme = "auto", caption, zoom = fa
           </div>
         )}
       </div>
-      {caption && !zoom && <figcaption className={styles.caption}>{caption}</figcaption>}
+      {figcaption}
     </figure>
   );
 }

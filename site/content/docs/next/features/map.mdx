@@ -62,6 +62,8 @@ A pill on the map's right edge holds four icon buttons: Layers and filters, All 
 
 Held sideways, a phone counts as a phone when it is a touch screen at least 4:3 wide and under 30rem tall. The detail panel and the drawers then open on the right edge instead of from the bottom.
 
+<Screenshot scene="map" viewport="landscape" />
+
 ## Server location
 
 Live routes end at the location of the server that recorded the request. Each ingesting process works out its own location. At startup it looks up its public IP through `MAP_PUBLIC_IP_URL` and places that address with the local GeoLite2 City database. It re-detects the location every `MAP_SERVER_LOCATION_REFRESH_HOURS`, 24 by default.

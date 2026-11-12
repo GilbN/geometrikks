@@ -13,7 +13,8 @@
 }
 /* No display here: it would outrank docs.css's .shot-dark { display: none }. */
 .desktop img,
-.phone img {
+.phone img,
+.landscape img {
   width: 100%;
   height: auto;
   margin: 0;
@@ -21,7 +22,8 @@
 .single .phone {
   width: min(100%, 320px);
 }
-.phone img {
+.phone img,
+.landscape img {
   border-radius: 14px;
   border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
 }

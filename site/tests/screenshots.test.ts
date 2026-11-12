@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ShotPair } from "../components/ShotPair";
 import { type Manifest, manifestFiles, sceneEntry, shotSrc, variant } from "../lib/screenshots";
 
 const screenshotsDir = join(import.meta.dir, "..", "..", "data", "screenshots");
@@ -96,5 +99,57 @@ describe("the published manifest", () => {
         expect(entry.variants[`${viewport}-${other}`], `${id} ${key}`).toBeDefined();
       }
     }
+  });
+});
+
+describe("ShotPair", () => {
+  const images = (html: string) => [...html.matchAll(/<img [^>]*>/g)].map((match) => match[0]);
+  const attribute = (tag: string, name: string) => tag.match(new RegExp(`${name}="([^"]*)"`))?.[1];
+
+  test("shows desktop and phone by default", () => {
+    const sources = images(renderToStaticMarkup(createElement(ShotPair, { scene: "map" }))).map((tag) =>
+      attribute(tag, "src"),
+    );
+    expect(sources).toEqual([
+      "/screenshots/map-desktop-light.webp",
+      "/screenshots/map-desktop-dark.webp",
+      "/screenshots/map-phone-light.webp",
+      "/screenshots/map-phone-dark.webp",
+    ]);
+  });
+
+  test("viewport landscape shows the sideways shot alone in the reader's theme", () => {
+    const html = renderToStaticMarkup(
+      createElement(ShotPair, { scene: "map", viewport: "landscape", caption: "Held sideways" }),
+    );
+    const tags = images(html);
+    expect(tags.map((tag) => [attribute(tag, "src"), attribute(tag, "class")])).toEqual([
+      ["/screenshots/map-landscape-light.webp", "shot-light"],
+      ["/screenshots/map-landscape-dark.webp", "shot-dark"],
+    ]);
+    const landscape = sceneEntry(realManifest, "map").variants["landscape-dark"];
+    for (const tag of tags) {
+      expect(attribute(tag, "width")).toBe(String(landscape.width));
+      expect(attribute(tag, "height")).toBe(String(landscape.height));
+      expect(attribute(tag, "alt")).toBe(sceneEntry(realManifest, "map").alt.replaceAll("'", "&#x27;"));
+      expect(attribute(tag, "loading")).toBe("lazy");
+      expect(attribute(tag, "decoding")).toBe("async");
+    }
+    expect(html).toContain("<figcaption");
+    expect(html).toContain("Held sideways");
+  });
+
+  test("viewport landscape with theme dark shows only the dark shot", () => {
+    const tags = images(
+      renderToStaticMarkup(createElement(ShotPair, { scene: "map", viewport: "landscape", theme: "dark" })),
+    );
+    expect(tags.map((tag) => attribute(tag, "src"))).toEqual(["/screenshots/map-landscape-dark.webp"]);
+    expect(attribute(tags[0], "class")).toBeUndefined();
+  });
+
+  test("viewport landscape throws for a scene with no sideways shot", () => {
+    expect(() => renderToStaticMarkup(createElement(ShotPair, { scene: "dashboard", viewport: "landscape" }))).toThrow(
+      "screenshot scene dashboard has no landscape shot",
+    );
   });
 });
