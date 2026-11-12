@@ -1129,6 +1129,27 @@ class AbuseIpdbSettings(BaseSettings):
             "they are public. Needs ABUSEIPDB_API_KEY."
         ),
     )
+    blacklist_enabled: bool = Field(
+        default=False,
+        description=(
+            "Download AbuseIPDB's blacklist from api.abuseipdb.com every "
+            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS and mark listed IPs in the UI. "
+            "The request sends your key and no IPs. Needs ABUSEIPDB_API_KEY and the "
+            "scheduler. The list is for your own use: AbuseIPDB forbids republishing "
+            "it, and free plans can't be used commercially."
+        ),
+    )
+    blacklist_refresh_hours: int = Field(
+        default=24,
+        ge=6,
+        le=36,
+        description=(
+            "Hours between blacklist downloads, from 6 to 36. The list is never fetched "
+            "again within 5 hours of the last attempt, since free plans get 5 calls a day. "
+            "If downloads keep failing, a list more than 72 hours old is no longer shown."
+        ),
+        json_schema_extra=ADVANCED_FIELD,
+    )
     request_timeout: float = Field(
         default=10.0,
         gt=0,
@@ -1155,6 +1176,13 @@ class AbuseIpdbSettings(BaseSettings):
         """Fail at startup, not at the first report."""
         if self.reporting_enabled and self.api_key is None:
             raise ValueError("ABUSEIPDB_REPORTING_ENABLED requires ABUSEIPDB_API_KEY")
+        return self
+
+    @model_validator(mode="after")
+    def validate_blacklist_has_key(self) -> "AbuseIpdbSettings":
+        """Fail at startup, not at the first download."""
+        if self.blacklist_enabled and self.api_key is None:
+            raise ValueError("ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY")
         return self
 
 

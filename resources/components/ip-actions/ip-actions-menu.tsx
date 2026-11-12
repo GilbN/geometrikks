@@ -37,6 +37,7 @@ import {
 import { stopRowActivation } from "@/components/data/row-activation"
 import { CountryFlag } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import { AbuseIpdbReportDialog } from "@/components/abuseipdb/abuseipdb-report-dialog"
@@ -67,6 +68,7 @@ import {
   useBannedIps,
   useBannedRanges,
   useCrowdsecStatus,
+  useAbuseIpdbBlacklisted,
   useDropNetwork,
   useIpDecisions,
   useReportedIps,
@@ -341,6 +343,7 @@ export function IpActionsMenu({
   const { data: status } = useCrowdsecStatus()
   const { data: bannedIps } = useBannedIps()
   const dropNetwork = useDropNetwork(ip)
+  const blacklisted = useAbuseIpdbBlacklisted(ip)
   const ipActions = useIpActions()
   const pendingAction = usePendingIpAction(ip)
   const [banDialogOpen, setBanDialogOpen] = useState(false)
@@ -535,6 +538,7 @@ export function IpActionsMenu({
                     <span className="[overflow-wrap:anywhere]">{ip}</span>
                     {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
                     {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+                    {blacklisted && <AbuseIpdbBlacklistBadge className="font-sans" />}
                   </DrawerTitle>
                   <DrawerDescription className="flex flex-col gap-0.5">
                     <IpContext values={values} decision={decision} wrap />
@@ -548,6 +552,7 @@ export function IpActionsMenu({
                   {ip}
                   {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
                   {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+                  {blacklisted && <AbuseIpdbBlacklistBadge className="font-sans" />}
                 </DrawerTitle>
                 <DrawerDescription className="flex flex-col items-center justify-center gap-0.5">
                   <IpContext values={values} decision={decision} />
@@ -652,6 +657,7 @@ export function IpActionsMenu({
                   <span className="[overflow-wrap:anywhere]">{ip}</span>
                   {decision !== null && <DecisionBadge type={decision} className="font-sans" />}
                   {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+                  {blacklisted && <AbuseIpdbBlacklistBadge className="font-sans" />}
                 </span>
                 <IpContext values={values} decision={decision} />
               </DropdownMenuLabel>
@@ -804,7 +810,12 @@ export function IpActionsMenu({
           }}
           onMoreOptions={() => openIpBanDialog(afterBanClose)}
           returnFocusTo={triggerRef}
-          badges={dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+          badges={
+            <>
+              {dropNetwork !== null && <DropBadge variant="long" sblId={dropNetwork.sblId} className="font-sans" />}
+              {blacklisted && <AbuseIpdbBlacklistBadge className="font-sans" />}
+            </>
+          }
         >
           {dropBanShown && (
             <DropNetworkChoices

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, MutableMapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from litestar import Litestar, Router, head, post, route
@@ -305,13 +305,17 @@ async def test_read_key_cannot_ban_networks():
     assert read_attempt.status_code == 403
 
 
-async def test_read_key_reads_abuseipdb_status_but_cannot_report():
+def abuseipdb_app() -> Litestar:
     abuseipdb_router = Router(
         path=API_V1_PREFIX,
         route_handlers=[AbuseIpdbController],
-        dependencies={"db_session": Provide(lambda: AsyncMock(spec=AsyncSession), sync_to_thread=False)},
+        dependencies={"db_session": Provide(lambda: AsyncMock(spec=AsyncSession, bind=MagicMock()), sync_to_thread=False)},
     )
-    app = make_app(extra_handlers=[abuseipdb_router])
+    return make_app(extra_handlers=[abuseipdb_router])
+
+
+async def test_read_key_reads_abuseipdb_status_but_cannot_report():
+    app = abuseipdb_app()
     report_body = {
         "reports": [
             {"ipAddress": "3.5.140.2", "categories": [18], "comment": "probing", "attackTime": "2026-11-06T14:02:00Z"}
@@ -324,6 +328,21 @@ async def test_read_key_reads_abuseipdb_status_but_cannot_report():
     assert report_attempt.status_code == 403
     assert report_attempt.json()["code"] == "api_key_read_only"
     assert status.status_code == 200
+
+
+async def test_abuseipdb_blacklist_needs_credentials():
+    async with AsyncTestClient(app=abuseipdb_app()) as client:
+        res = await client.get("/api/v1/abuseipdb/blacklist")
+    assert res.status_code == 401
+
+
+async def test_read_key_reads_the_abuseipdb_blacklist():
+    app = abuseipdb_app()
+    async with AsyncTestClient(app=app) as client:
+        read_key = await create_key(app, name="dashboard")
+        res = await client.get("/api/v1/abuseipdb/blacklist", headers=bearer(read_key))
+    assert res.status_code == 200
+    assert res.json() == {"generatedAt": None, "refreshedAt": None, "ips": []}
 
 
 async def test_read_write_key_can_post():

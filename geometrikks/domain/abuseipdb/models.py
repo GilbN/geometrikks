@@ -1,4 +1,4 @@
-"""AbuseIPDB reports sent from GeoMetrikks."""
+"""AbuseIPDB reports sent from GeoMetrikks, and the local copy of AbuseIPDB's blacklist."""
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -41,3 +41,29 @@ class AbuseIpdbReport(base.UUIDBase):
 
 
 Index("ix_abuseipdb_reports_ip_reported_at", AbuseIpdbReport.ip_address, desc(AbuseIpdbReport.reported_at))
+
+
+class AbuseIpdbBlacklistEntry(base.DefaultBase):
+    """One IP on AbuseIPDB's blacklist. Only the address, since the mark needs nothing else."""
+
+    __tablename__ = "abuseipdb_blacklist"
+
+    ip_address: Mapped[str] = mapped_column(postgresql.INET, primary_key=True)
+
+    def __repr__(self) -> str:
+        return f"<AbuseIpdbBlacklistEntry {self.ip_address}>"
+
+
+class AbuseIpdbBlacklistStatus(base.DefaultBase):
+    """The single row saying how current the blacklist is and when a download was last tried."""
+
+    __tablename__ = "abuseipdb_blacklist_status"
+    __table_args__ = (CheckConstraint("id = 1", name="single_row"),)
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, autoincrement=False)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+    refreshed_at: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTimeUTC(timezone=True), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<AbuseIpdbBlacklistStatus refreshed_at={self.refreshed_at}>"

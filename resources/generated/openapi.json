@@ -278,9 +278,56 @@
         "title": "AbuseContactResponse",
         "type": "object"
       },
+      "AbuseIpdbBlacklistResponse": {
+        "description": "The IPs on AbuseIPDB's blacklist, as of the last download.",
+        "properties": {
+          "generatedAt": {
+            "description": "When AbuseIPDB generated the list, as ISO 8601 in UTC. Null when `ips` is empty.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ips": {
+            "description": "The listed IPs in their canonical spelling.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "refreshedAt": {
+            "description": "When GeoMetrikks downloaded the list, as ISO 8601 in UTC. Null when `ips` is empty.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "generatedAt",
+          "ips",
+          "refreshedAt"
+        ],
+        "title": "AbuseIpdbBlacklistResponse",
+        "type": "object"
+      },
       "AbuseIpdbStatusResponse": {
         "description": "Whether checks and reports are available, and the quota left for each.",
         "properties": {
+          "blacklistEnabled": {
+            "description": "True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.",
+            "type": "boolean"
+          },
           "checks": {
             "description": "The check quota from AbuseIPDB's latest answer. Null until a check since startup.",
             "oneOf": [
@@ -313,6 +360,7 @@
           }
         },
         "required": [
+          "blacklistEnabled",
           "checks",
           "enabled",
           "reportingEnabled",
@@ -9020,6 +9068,40 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/abuseipdb/blacklist": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the last download is more than 72 hours old. The list is for your own use, and AbuseIPDB forbids republishing it.",
+        "operationId": "ApiV1AbuseipdbBlacklistGetBlacklist",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbuseIpdbBlacklistResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The request has no valid session or API key."
+          }
+        },
+        "summary": "List the IPs on AbuseIPDB's blacklist",
+        "tags": [
+          "AbuseIPDB"
+        ]
+      }
+    },
     "/api/v1/abuseipdb/check": {
       "get": {
         "deprecated": false,
@@ -9253,7 +9335,7 @@
     "/api/v1/abuseipdb/status": {
       "get": {
         "deprecated": false,
-        "description": "Says whether ABUSEIPDB_API_KEY is set, which enables checks, and whether ABUSEIPDB_REPORTING_ENABLED=true, which enables reports. The quotas come from AbuseIPDB's latest answer to each kind of request since startup and are null before the first one. Nothing leaves the server.",
+        "description": "Says whether ABUSEIPDB_API_KEY is set, which enables checks, whether ABUSEIPDB_REPORTING_ENABLED=true, which enables reports, and whether ABUSEIPDB_BLACKLIST_ENABLED=true, which enables the blacklist. The quotas come from AbuseIPDB's latest answer to each kind of request since startup and are null before the first one. Nothing leaves the server.",
         "operationId": "ApiV1AbuseipdbStatusGetAbuseipdbStatus",
         "responses": {
           "200": {
@@ -19999,7 +20081,7 @@
       "name": "Reports"
     },
     {
-      "description": "Check IPs on AbuseIPDB and report them there. Checks need ABUSEIPDB_API_KEY, and reports also need ABUSEIPDB_REPORTING_ENABLED=true.",
+      "description": "Check IPs on AbuseIPDB and report them there. Checks need ABUSEIPDB_API_KEY, reports also need ABUSEIPDB_REPORTING_ENABLED=true, and the blacklist also needs ABUSEIPDB_BLACKLIST_ENABLED=true.",
       "name": "AbuseIPDB"
     },
     {

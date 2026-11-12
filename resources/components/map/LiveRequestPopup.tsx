@@ -18,6 +18,7 @@ import { IpBanControls } from "./IpBanControls"
 import { CountryLabel } from "@/components/country-flag"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { AbuseIpdbBlacklistPopupRow } from "./AbuseIpdbBlacklistPopupRow"
 import { DropPopupRow } from "./DropPopupRow"
 import { POPUP_OFFSET, POPUP_ROW_ICON_STYLE, PopupCard, PopupRow as Row } from "./PopupCard"
 import { ArrowDownToLine, Building2, Globe, Link2, MapPin, MapPinOff, MonitorSmartphone, Network, Server, Timer } from "lucide-react"
@@ -29,9 +30,10 @@ import type { DecisionRef } from "@/components/security/alert-detail-sheet"
 import { PanelBanButton } from "./PanelBanButton"
 import { countryLabel } from "@/lib/ip-filter-targets"
 import { DetailField } from "@/components/data/detail-sheet"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { resolveDecision } from "@/lib/crowdsec"
-import { useBannedIps, useDropNetwork } from "@/lib/queries"
+import { useAbuseIpdbBlacklisted, useBannedIps, useDropNetwork } from "@/lib/queries"
 import type { LiveRequest } from "@/lib/live-traffic/types"
 
 function asnText(log: LiveRequest["log"]): string | null {
@@ -106,6 +108,7 @@ function LiveRequestDetail({
         }
       />
       <DropPopupRow ip={request.ip} />
+      <AbuseIpdbBlacklistPopupRow ip={request.ip} />
       {request.server && <Row label="Server" icon={<Server style={POPUP_ROW_ICON_STYLE} />} value={request.server} />}
       <Row
         label="Location"
@@ -195,6 +198,7 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
 }) {
   const log = request.log
   const dropNetwork = useDropNetwork(request.ip)
+  const blacklisted = useAbuseIpdbBlacklisted(request.ip)
   const { data: bannedIps } = useBannedIps()
   const decision = resolveDecision(bannedIps, request.ip, request.decisionType)
   const asn = asnText(log)
@@ -217,6 +221,7 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
         {log?.url ?? "No access log url data for this event"}
       </p>
       <div className="mb-1 flex items-center gap-1 border-b border-border/60 pb-3">
+        <CopyIpButton ip={request.ip} className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />
         <IpStatusDetails
           ip={request.ip}
           context={[[request.city, request.countryCode && countryLabel(request.countryCode)].filter(Boolean).join(", "), asn].filter(Boolean).join(" · ")}
@@ -227,9 +232,9 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
             <span className="min-w-0 break-all font-mono text-xl">{request.ip}</span>
             {decision !== null && <DecisionBadge type={decision} insideButton />}
             {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} insideButton />}
+            {blacklisted && <AbuseIpdbBlacklistBadge insideButton />}
           </span>
         </IpStatusDetails>
-        <CopyIpButton ip={request.ip} className="ml-auto size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />
       </div>
       <dl>
         {request.server && <DetailField label="Server" value={request.server} />}

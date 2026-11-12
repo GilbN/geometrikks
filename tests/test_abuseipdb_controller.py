@@ -77,6 +77,7 @@ def make_app(
             "abuseipdb": Provide(lambda: client, sync_to_thread=False),
             # Every route here except the maybe-sent report fails before it reaches the database.
             "abuseipdb_reports": Provide(lambda: reports, sync_to_thread=False),
+            "abuseipdb_blacklist": Provide(lambda: None, sync_to_thread=False),
         }
 
     return Litestar(
@@ -91,7 +92,13 @@ async def test_status_without_a_key():
     async with AsyncTestClient(make_app(None)) as http:
         resp = await http.get("/api/v1/abuseipdb/status")
     assert resp.status_code == 200
-    assert resp.json() == {"enabled": False, "reportingEnabled": False, "reports": None, "checks": None}
+    assert resp.json() == {
+        "enabled": False,
+        "reportingEnabled": False,
+        "blacklistEnabled": False,
+        "reports": None,
+        "checks": None,
+    }
 
 
 async def test_check_404_without_a_key():

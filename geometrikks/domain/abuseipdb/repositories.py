@@ -1,12 +1,20 @@
-"""Repository for AbuseIPDB reports."""
+"""Repositories for AbuseIPDB reports and the blacklist."""
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, delete, func, insert, or_, select
 from sqlalchemy.dialects import postgresql
 
-from geometrikks.domain.abuseipdb.models import AbuseIpdbReport, ReportStatus
+from geometrikks.domain.abuseipdb.models import (
+    AbuseIpdbBlacklistEntry,
+    AbuseIpdbBlacklistStatus,
+    AbuseIpdbReport,
+    ReportStatus,
+)
+
+BLACKLIST_STATUS_ID = 1
 
 
 @dataclass(frozen=True)
@@ -51,3 +59,40 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
             ReportedIp(ip_address=str(ip_address), reported_at=reported_at, status=status)
             for ip_address, reported_at, status in (await self.session.execute(statement)).all()
         ]
+
+
+class AbuseIpdbBlacklistRepository(SQLAlchemyAsyncRepository[AbuseIpdbBlacklistEntry]):
+    model_type = AbuseIpdbBlacklistEntry
+
+    async def status(self) -> AbuseIpdbBlacklistStatus | None:
+        statement = select(AbuseIpdbBlacklistStatus).where(AbuseIpdbBlacklistStatus.id == BLACKLIST_STATUS_ID)
+        return (await self.session.execute(statement)).scalar_one_or_none()
+
+    async def ips(self) -> list[str]:
+        statement = select(AbuseIpdbBlacklistEntry.ip_address).order_by(AbuseIpdbBlacklistEntry.ip_address)
+        return [str(ip_address) for ip_address in (await self.session.execute(statement)).scalars()]
+
+    async def claim_attempt(self, now: datetime, *, last_allowed: datetime) -> bool:
+        """Record an attempt at ``now`` unless one happened after ``last_allowed``; False means it did."""
+        statement = (
+            postgresql.insert(AbuseIpdbBlacklistStatus)
+            .values(id=BLACKLIST_STATUS_ID, last_attempt_at=now)
+            .on_conflict_do_update(
+                index_elements=["id"],
+                set_={"last_attempt_at": now},
+                where=or_(
+                    AbuseIpdbBlacklistStatus.last_attempt_at.is_(None),
+                    AbuseIpdbBlacklistStatus.last_attempt_at <= last_allowed,
+                ),
+            )
+            .returning(AbuseIpdbBlacklistStatus.id)
+        )
+        return (await self.session.execute(statement)).first() is not None
+
+    async def replace(self, ips: Sequence[str], *, generated_at: datetime, refreshed_at: datetime) -> None:
+        """Swap the rows and the status inside the caller's transaction."""
+        await self.session.execute(delete(AbuseIpdbBlacklistEntry))
+        await self.session.execute(insert(AbuseIpdbBlacklistEntry), [{"ip_address": ip} for ip in ips])
+        status_values = {"generated_at": generated_at, "refreshed_at": refreshed_at}
+        statement = postgresql.insert(AbuseIpdbBlacklistStatus).values(id=BLACKLIST_STATUS_ID, **status_values)
+        await self.session.execute(statement.on_conflict_do_update(index_elements=["id"], set_=status_values))

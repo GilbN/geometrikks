@@ -20,6 +20,8 @@ from geometrikks.services.abuseipdb import (
     AbuseIpdbRateLimitedError,
     AbuseIpdbRejectedError,
     AbuseIpdbUnavailableError,
+    BlacklistResult,
+    MAX_BLACKLIST_RESPONSE_BYTES,
     RateLimit,
     ReportResult,
     get_abuseipdb_client,
@@ -356,3 +358,218 @@ async def test_naive_timestamp_is_refused():
     with pytest.raises(ValueError, match="timezone-aware"):
         await client.report("3.5.140.2", [21], "probing", datetime(2026, 11, 6, 14, 2))
     assert calls == []
+
+
+GENERATED_AT = datetime(2026, 11, 8, 6, 0, tzinfo=UTC)
+
+
+def blacklist_body(*ip_addresses: object, generated_at: object = "2026-11-08T06:00:00+00:00") -> dict[str, object]:
+    return {
+        "meta": {"generatedAt": generated_at},
+        "data": [
+            {"ipAddress": ip_address, "abuseConfidenceScore": 100, "lastReportedAt": "2026-11-08T05:00:00+00:00"}
+            for ip_address in ip_addresses
+        ],
+    }
+
+
+async def test_blacklist_sends_the_limit_and_key_and_parses_the_answer():
+    client, calls = build_client(httpx2.Response(200, json=blacklist_body("3.5.140.2", "2600:1f18::1")))
+
+    result = await client.blacklist()
+
+    assert result == BlacklistResult(generated_at=GENERATED_AT, ips=["3.5.140.2", "2600:1f18::1"])
+    request = calls[0]
+    assert request.method == "GET" and request.url.path == "/api/v2/blacklist"
+    assert dict(request.url.params) == {"limit": "10000"}
+    assert request.headers["Key"] == "test-key"
+    assert request.headers["Accept"] == "application/json"
+
+
+async def test_blacklist_canonicalizes_and_drops_what_is_not_global():
+    client, _ = build_client(
+        httpx2.Response(
+            200,
+            json=blacklist_body(
+                " 3.5.140.2 ",
+                "2600:1F18:0::1",
+                "::ffff:3.5.140.9",
+                "3.5.140.2",
+                "10.0.0.5",
+                "203.0.113.7",
+                "fe80::1%eth0",
+                "not-an-ip",
+            ),
+        )
+    )
+
+    result = await client.blacklist()
+
+    assert result.ips == ["3.5.140.2", "2600:1f18::1", "3.5.140.9"]
+
+
+async def test_blacklist_remembers_its_own_rate_limit():
+    client, _ = build_client(
+        httpx2.Response(
+            200,
+            json=blacklist_body("3.5.140.2"),
+            headers={"X-RateLimit-Limit": "5", "X-RateLimit-Remaining": "4", "X-RateLimit-Reset": str(RESET)},
+        )
+    )
+
+    await client.blacklist()
+
+    assert client.rate_limit("blacklist") == RateLimit(5, 4, datetime.fromtimestamp(RESET, UTC))
+    assert client.rate_limit("check") is None
+
+
+async def test_blacklist_is_never_cached():
+    client, calls = build_client(httpx2.Response(200, json=blacklist_body("3.5.140.2")))
+
+    await client.blacklist()
+    await client.blacklist()
+
+    assert len(calls) == 2
+
+
+async def test_blacklist_takes_an_answer_above_the_check_cap():
+    ip_addresses = [f"3.{first}.{second}.1" for first in range(5, 60) for second in range(0, 200)]
+    response = httpx2.Response(200, json=blacklist_body(*ip_addresses))
+    assert len(response.content) > MAX_RESPONSE_BYTES
+    client, _ = build_client(response)
+
+    result = await client.blacklist()
+
+    assert len(result.ips) == len(ip_addresses)
+
+
+async def test_blacklist_refuses_an_answer_above_its_own_cap():
+    client, _ = build_client(httpx2.Response(200, content=b"x" * (MAX_BLACKLIST_RESPONSE_BYTES + 1)))
+
+    with pytest.raises(AbuseIpdbUnavailableError, match="oversized"):
+        await client.blacklist()
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx2.Response(503),
+        httpx2.Response(200, content=b"<html>"),
+        httpx2.Response(200, json=[]),
+        httpx2.Response(200, json={"meta": {"generatedAt": "2026-11-08T06:00:00+00:00"}}),
+        httpx2.Response(200, json={"data": [{"ipAddress": "3.5.140.2"}]}),
+        httpx2.Response(200, json={"meta": None, "data": [{"ipAddress": "3.5.140.2"}]}),
+        httpx2.Response(200, json=blacklist_body("3.5.140.2", generated_at="yesterday")),
+        httpx2.Response(200, json=blacklist_body("3.5.140.2", generated_at=1762560000)),
+        httpx2.Response(200, json=blacklist_body("3.5.140.2", generated_at="2026-11-08T06:00:00")),
+        httpx2.Response(200, json={"meta": {"generatedAt": "2026-11-08T06:00:00+00:00"}, "data": {}}),
+        httpx2.Response(200, json={"meta": {"generatedAt": "2026-11-08T06:00:00+00:00"}, "data": ["3.5.140.2"]}),
+        httpx2.Response(200, json=blacklist_body(None)),
+        httpx2.Response(200, json=blacklist_body()),
+        httpx2.Response(200, json=blacklist_body("10.0.0.5")),
+    ],
+    ids=[
+        "5xx",
+        "not-json",
+        "not-an-object",
+        "no-data",
+        "no-meta",
+        "null-meta",
+        "unparseable-time",
+        "numeric-time",
+        "naive-time",
+        "data-not-a-list",
+        "entry-not-an-object",
+        "ip-not-a-string",
+        "empty-list",
+        "nothing-global",
+    ],
+)
+async def test_blacklist_treats_an_unusable_answer_as_unavailable(response):
+    client, _ = build_client(response)
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        await client.blacklist()
+    assert exc.value.maybe_sent is False
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_error"),
+    [
+        (httpx2.Response(401, json={"errors": [{"detail": "bad key", "status": 401}]}), AbuseIpdbAuthError),
+        (httpx2.Response(422, json={"errors": [{"detail": "bad limit", "status": 422}]}), AbuseIpdbRejectedError),
+        (httpx2.Response(429, json={"errors": [{"detail": "daily", "status": 429}]}), AbuseIpdbRateLimitedError),
+    ],
+    ids=["401", "422", "429"],
+)
+async def test_blacklist_maps_errors_like_check(response, expected_error):
+    client, _ = build_client(response)
+
+    with pytest.raises(expected_error):
+        await client.blacklist()
+
+
+async def test_blacklist_does_not_follow_redirects():
+    client, calls = build_client(httpx2.Response(302, headers={"Location": "https://example.com/"}))
+
+    with pytest.raises(AbuseIpdbUnavailableError):
+        await client.blacklist()
+    assert len(calls) == 1
+
+
+async def test_blacklist_transport_errors_drop_their_cause():
+    client, _ = build_client(httpx2.ReadTimeout("Key: test-key"))
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        await client.blacklist()
+    assert exc.value.__cause__ is None
+    assert "test-key" not in "".join(traceback.format_exception(exc.value))
+
+
+async def test_blacklist_error_detail_never_contains_the_key():
+    client, _ = build_client(httpx2.Response(422, json={"errors": [{"detail": "bad key test-key", "status": 422}]}))
+
+    with pytest.raises(AbuseIpdbRejectedError) as exc:
+        await client.blacklist()
+    assert "test-key" not in exc.value.detail
+
+
+@pytest.mark.parametrize(
+    ("call", "body"),
+    [
+        (lambda client: client.blacklist(), blacklist_body("3.5.140.2", generated_at="not a time test-key")),
+        (
+            lambda client: client.check("3.5.140.2"),
+            {"data": {**CHECK_BODY["data"], "lastReportedAt": "not a time test-key"}},
+        ),
+    ],
+    ids=["blacklist-generated-at", "check-last-reported-at"],
+)
+async def test_a_malformed_timestamp_never_puts_the_key_in_a_traceback(call, body):
+    client, _ = build_client(httpx2.Response(200, json=body))
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        await call(client)
+    assert "test-key" not in "".join(traceback.format_exception(exc.value))
+
+
+@pytest.mark.parametrize(
+    ("call", "response"),
+    [
+        (lambda client: client.check("3.5.140.2"), httpx2.Response(200, content=b"<html>")),
+        (lambda client: client.check("3.5.140.2"), httpx2.Response(200, json={"data": {"ipAddress": None}})),
+        (
+            lambda client: client.report("3.5.140.2", [21], "probing", REPORTED_AT),
+            httpx2.Response(200, json={"data": {"ipAddress": None}}),
+        ),
+        (lambda client: client.blacklist(), httpx2.Response(200, content=b"<html>")),
+        (lambda client: client.blacklist(), httpx2.Response(200, json=blacklist_body(None))),
+    ],
+    ids=["request-not-json", "check-wrong-type", "report-wrong-type", "blacklist-not-json", "blacklist-wrong-type"],
+)
+async def test_a_malformed_answer_keeps_no_exception_cause(call, response):
+    client, _ = build_client(response)
+
+    with pytest.raises(AbuseIpdbUnavailableError) as exc:
+        await call(client)
+    assert exc.value.__cause__ is None

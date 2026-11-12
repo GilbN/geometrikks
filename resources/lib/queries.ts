@@ -68,6 +68,7 @@ import {
   fetchIpProfile,
   fetchAbuseReport,
   fetchAbuseContact,
+  fetchAbuseIpdbBlacklist,
   fetchAbuseIpdbStatus,
   fetchReportedIps,
   fetchAbuseIpdbReports,
@@ -115,7 +116,7 @@ import {
 } from "./sparklines"
 import { canonicalIp } from "./abuseipdb"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
-import type { DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
+import type { AbuseIpdbBlacklistResponse, DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -273,6 +274,7 @@ export const queryKeys = {
   },
   abuseipdb: {
     status: ["abuseipdb", "status"] as const,
+    blacklist: ["abuseipdb", "blacklist"] as const,
     reportedIps: ["abuseipdb", "reported-ips"] as const,
     reports: (ip: string) => ["abuseipdb", "reports", ip] as const,
     check: (ip: string) => ["abuseipdb", "check", ip] as const,
@@ -2002,6 +2004,44 @@ export function useAbuseIpdbStatus() {
     queryFn: fetchAbuseIpdbStatus,
     staleTime: 60_000,
   })
+}
+
+// Every IP menu is an observer, so the Set is cached per response like selectBannedRanges.
+const blacklistSets = new WeakMap<AbuseIpdbBlacklistResponse, Set<string>>()
+
+function selectBlacklist(blacklist: AbuseIpdbBlacklistResponse): Set<string> {
+  let blacklistSet = blacklistSets.get(blacklist)
+  if (blacklistSet === undefined) {
+    blacklistSet = new Set(blacklist.ips)
+    blacklistSets.set(blacklist, blacklistSet)
+  }
+  return blacklistSet
+}
+
+export function abuseIpdbBlacklistQueryOptions(enabled: boolean) {
+  return {
+    queryKey: queryKeys.abuseipdb.blacklist,
+    queryFn: fetchAbuseIpdbBlacklist,
+    enabled,
+    // An empty answer means no download yet or an expired list, so it goes stale fast.
+    staleTime: (query: Query<AbuseIpdbBlacklistResponse>) => (query.state.data?.refreshedAt ? 60 * 60_000 : 60_000),
+    // A map popup can be the only observer. With the default five minutes, reopening one downloads the list again.
+    gcTime: 60 * 60_000,
+    select: selectBlacklist,
+  }
+}
+
+export function useAbuseIpdbBlacklist() {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery(abuseIpdbBlacklistQueryOptions(status?.blacklistEnabled === true))
+}
+
+export function useAbuseIpdbBlacklisted(ip: string): boolean {
+  const { data: status } = useAbuseIpdbStatus()
+  const { data: blacklist } = useAbuseIpdbBlacklist()
+  // A disabled query keeps its cached data, so turning the feature off has to be checked here too.
+  if (status?.blacklistEnabled !== true) return false
+  return blacklist?.has(canonicalIp(ip) ?? ip) ?? false
 }
 
 // Every IP menu is an observer, so the Map is cached per response like selectBannedRanges.

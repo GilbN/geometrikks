@@ -125,11 +125,35 @@ export type AbuseContactResponse = {
 };
 
 /**
+ * AbuseIpdbBlacklistResponse
+ *
+ * The IPs on AbuseIPDB's blacklist, as of the last download.
+ */
+export type AbuseIpdbBlacklistResponse = {
+  /**
+   * When AbuseIPDB generated the list, as ISO 8601 in UTC. Null when `ips` is empty.
+   */
+  generatedAt: string | null;
+  /**
+   * The listed IPs in their canonical spelling.
+   */
+  ips: Array<string>;
+  /**
+   * When GeoMetrikks downloaded the list, as ISO 8601 in UTC. Null when `ips` is empty.
+   */
+  refreshedAt: string | null;
+};
+
+/**
  * AbuseIpdbStatusResponse
  *
  * Whether checks and reports are available, and the quota left for each.
  */
 export type AbuseIpdbStatusResponse = {
+  /**
+   * True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.
+   */
+  blacklistEnabled: boolean;
   /**
    * The check quota from AbuseIPDB's latest answer. Null until a check since startup.
    */
@@ -4387,6 +4411,33 @@ export type UnbanRequest = {
 export type UnbanResponse = {
   deleted: number;
 };
+
+export type ApiV1AbuseipdbBlacklistGetBlacklistData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/abuseipdb/blacklist";
+};
+
+export type ApiV1AbuseipdbBlacklistGetBlacklistErrors = {
+  /**
+   * The request has no valid session or API key.
+   */
+  401: ErrorEnvelope;
+};
+
+export type ApiV1AbuseipdbBlacklistGetBlacklistError =
+  ApiV1AbuseipdbBlacklistGetBlacklistErrors[keyof ApiV1AbuseipdbBlacklistGetBlacklistErrors];
+
+export type ApiV1AbuseipdbBlacklistGetBlacklistResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: AbuseIpdbBlacklistResponse;
+};
+
+export type ApiV1AbuseipdbBlacklistGetBlacklistResponse =
+  ApiV1AbuseipdbBlacklistGetBlacklistResponses[keyof ApiV1AbuseipdbBlacklistGetBlacklistResponses];
 
 export type ApiV1AbuseipdbCheckCheckIpData = {
   body?: never;

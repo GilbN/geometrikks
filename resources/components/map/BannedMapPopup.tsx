@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react"
 import type { Popup as MapLibrePopup } from "maplibre-gl"
 import { Popup } from "react-map-gl/maplibre"
 import { Activity, ChevronLeft, ChevronRight, ExternalLink, Globe, Loader2, MapPin, Network, ShieldBan } from "lucide-react"
-import { useCrowdsecStatus, useDropNetwork, useIpDecisions } from "@/lib/queries"
+import { useAbuseIpdbBlacklisted, useCrowdsecStatus, useDropNetwork, useIpDecisions } from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
 import { crowdsecCtiUrl, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
 import { decisionHasAlert, isBlocklistOrigin } from "@/lib/crowdsec-alerts"
@@ -16,10 +16,12 @@ import type { BannedMapIp, DecisionView } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
+import { AbuseIpdbBlacklistPopupRow } from "./AbuseIpdbBlacklistPopupRow"
 import { DropPopupRow } from "./DropPopupRow"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { ExternalLinkButton } from "@/components/crowdsec/external-link"
 import type { DecisionRef } from "@/components/security/alert-detail-sheet"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { DetailField } from "@/components/data/detail-sheet"
 import { Button } from "@/components/ui/button"
@@ -133,6 +135,7 @@ function IpDetails({
         }
       />
       <DropPopupRow ip={member.ip} />
+      <AbuseIpdbBlacklistPopupRow ip={member.ip} />
       <PopupRow label="Events" icon={<Activity style={POPUP_ROW_ICON_STYLE} />} value={<PopupBadge>{formatNumber(member.eventCount)}</PopupBadge>} />
       <PopupRow label="Location" icon={<MapPin style={POPUP_ROW_ICON_STYLE} />} value={member.city ?? "Unknown"} />
       {member.countryCode && (
@@ -346,11 +349,15 @@ function PanelDecisionLine({ decision, onOpen, note }: { decision: DecisionView;
 function PanelIpDetails({ member, onOpenAlert }: { member: BannedMapIp; onOpenAlert: (decision: DecisionRef) => void }) {
   const { decisions, writeEnabled, active } = useIpDecisionState(member.ip)
   const dropNetwork = useDropNetwork(member.ip)
+  const blacklisted = useAbuseIpdbBlacklisted(member.ip)
   return (
     <>
-      <PanelIp ip={member.ip}>
+      <PanelIp
+        ip={member.ip}
+        copyButton={<CopyIpButton ip={member.ip} className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />}
+      >
         {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
-        <CopyIpButton ip={member.ip} className="ml-auto size-11 [&_svg:not([class*='size-'])]:size-5" />
+        {blacklisted && <AbuseIpdbBlacklistBadge />}
       </PanelIp>
       <dl>
         <DetailField label="Events" value={formatNumber(member.eventCount)} />

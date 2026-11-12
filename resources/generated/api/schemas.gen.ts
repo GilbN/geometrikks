@@ -276,10 +276,57 @@ export const AbuseContactResponseSchema = {
   type: "object",
 } as const;
 
+export const AbuseIpdbBlacklistResponseSchema = {
+  description: "The IPs on AbuseIPDB's blacklist, as of the last download.",
+  properties: {
+    generatedAt: {
+      description:
+        "When AbuseIPDB generated the list, as ISO 8601 in UTC. Null when `ips` is empty.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ips: {
+      description: "The listed IPs in their canonical spelling.",
+      items: {
+        type: "string",
+      },
+      type: "array",
+    },
+    refreshedAt: {
+      description:
+        "When GeoMetrikks downloaded the list, as ISO 8601 in UTC. Null when `ips` is empty.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["generatedAt", "ips", "refreshedAt"],
+  title: "AbuseIpdbBlacklistResponse",
+  type: "object",
+} as const;
+
 export const AbuseIpdbStatusResponseSchema = {
   description:
     "Whether checks and reports are available, and the quota left for each.",
   properties: {
+    blacklistEnabled: {
+      description:
+        "True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.",
+      type: "boolean",
+    },
     checks: {
       description:
         "The check quota from AbuseIPDB's latest answer. Null until a check since startup.",
@@ -314,7 +361,13 @@ export const AbuseIpdbStatusResponseSchema = {
       ],
     },
   },
-  required: ["checks", "enabled", "reportingEnabled", "reports"],
+  required: [
+    "blacklistEnabled",
+    "checks",
+    "enabled",
+    "reportingEnabled",
+    "reports",
+  ],
   title: "AbuseIpdbStatusResponse",
   type: "object",
 } as const;

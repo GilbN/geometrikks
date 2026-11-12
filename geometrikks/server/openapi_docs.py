@@ -204,8 +204,8 @@ API_TAGS: list[Tag] = [
     Tag(
         name="AbuseIPDB",
         description=(
-            "Check IPs on AbuseIPDB and report them there. Checks need ABUSEIPDB_API_KEY, and reports also need "
-            "ABUSEIPDB_REPORTING_ENABLED=true."
+            "Check IPs on AbuseIPDB and report them there. Checks need ABUSEIPDB_API_KEY, reports also need "
+            "ABUSEIPDB_REPORTING_ENABLED=true, and the blacklist also needs ABUSEIPDB_BLACKLIST_ENABLED=true."
         ),
     ),
     Tag(

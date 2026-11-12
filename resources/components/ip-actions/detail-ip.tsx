@@ -8,27 +8,30 @@ import { LocateFixed, ScanSearch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { CopyIpButton, IpActionsMenu, IpContext } from "@/components/ip-actions/ip-actions-menu"
 import type { IpRowValues } from "@/lib/ip-filter-targets"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { flyToSearch } from "@/lib/map-filters"
-import { useBannedIps, useDropNetwork } from "@/lib/queries"
+import { useAbuseIpdbBlacklisted, useBannedIps, useDropNetwork } from "@/lib/queries"
 
 /** Sits first in a DetailSheet body; the negative margins take it to the
  *  body's edges so its rule meets the sheet's sides. */
 export function DetailIpBlock({ values, children }: { values: IpRowValues; children?: React.ReactNode }) {
   const { data: bannedIps } = useBannedIps()
   const dropNetwork = useDropNetwork(values.ip)
+  const blacklisted = useAbuseIpdbBlacklisted(values.ip)
   const decision = bannedIps?.get(values.ip) ?? null
   return (
     <div className="-mx-4 -mt-4 mb-2 border-b border-border/50 px-4 py-3">
       <div className="flex items-start gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span className="min-w-0 break-all font-mono text-xl">{values.ip}</span>
-          {(decision !== null || dropNetwork) && (
-            <span className="flex items-center gap-2">
+          {(decision !== null || dropNetwork || blacklisted) && (
+            <span className="flex flex-wrap items-center gap-2">
               {decision !== null && <DecisionBadge type={decision} />}
               {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
+              {blacklisted && <AbuseIpdbBlacklistBadge />}
             </span>
           )}
         </div>
