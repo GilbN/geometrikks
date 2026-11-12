@@ -40,7 +40,10 @@ async function answerAbuseIpdb(route: Route): Promise<boolean> {
   else if (pathname === `${ABUSEIPDB_API}check` && ip in answers.checks) json = answers.checks[ip]
   else if (pathname === `${ABUSEIPDB_API}reports`) {
     // The app refuses a documentation address here, so the list comes from the history the Reports tab reads.
-    const history = await route.fetch({ url: `${appOrigin}${ABUSEIPDB_API}reports/history?pageSize=100&q=${encodeURIComponent(ip)}` })
+    const history = await route
+      .fetch({ url: `${appOrigin}${ABUSEIPDB_API}reports/history?pageSize=100&q=${encodeURIComponent(ip)}` })
+      .catch(() => null)
+    if (!history?.ok()) return false
     const { items } = (await history.json()) as { items: { ipAddress: string }[] }
     json = items.filter((report) => report.ipAddress === ip)
   } else return false

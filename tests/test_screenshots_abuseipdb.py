@@ -1,6 +1,7 @@
 """AbuseIPDB fixtures for the screenshot run: stored reports, the browser's answers and the outbound checks."""
 
 import asyncio
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -124,3 +125,10 @@ def test_any_blacklist_row_fails_the_run() -> None:
     problems = asyncio.run(stored_abuseipdb_problems(cast(Any, StoredRows([], blacklisted=3))))
     assert len(problems) == 1 and "so the app downloaded" in problems[0]
 
+
+def test_the_screenshot_build_anchor_still_opens_is_public_ip() -> None:
+    root = Path(__file__).parents[1]
+    config = (root / "tests" / "screenshots" / "vite.config.ts").read_text()
+    match = re.search(r'export const PUBLIC_IP_ANCHOR =\s*("(?:[^"\\]|\\.)*")', config)
+    assert match, "PUBLIC_IP_ANCHOR is no longer a plain string literal"
+    assert json.loads(match.group(1)) in (root / "resources" / "lib" / "abuseipdb.ts").read_text()

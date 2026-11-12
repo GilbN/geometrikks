@@ -24,7 +24,7 @@ uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] 
 | --- | --- |
 | `--dry-run` | Runs the preflight and prints its problems, the app's environment with secrets as `***`, the shots in capture order, the teardown plan and Playwright's test list. It starts no container, database or server and never touches `data/screenshots/`. Exits 2 when the preflight found problems, else 1 when Playwright cannot list the tests, else 0. A scene with no stage fails the list with `unknown scene: <id>`. |
 | `--cleanup` | Removes what a crashed or killed run left behind. See below. |
-| `--only map,live` | Retakes these scenes. Their files and manifest entries are replaced, and every other scene's files and entries stay as they are. A retake needs a readable `data/screenshots/manifest.json`. Without one the run exits 2 before it starts anything, and you need a full run first. The captcha and range picks and each ban's scenario can change between runs, so retake `security`, `drop-networks`, `banned-map`, `ip-inspector` and `abuse-report` together, or their decisions won't match. |
+| `--only map,live` | Retakes these scenes. Their files and manifest entries are replaced, and every other scene's files and entries stay as they are. A retake needs a readable `data/screenshots/manifest.json`. Without one the run exits 2 before it starts anything, and you need a full run first. The captcha and range picks and each ban's scenario can change between runs, so retake `security`, `drop-networks`, `banned-map`, `ip-inspector`, `abuse-report` and `abuseipdb-report` together, or their decisions won't match. |
 | `--hold` | Waits after capture, whether it passed or failed, and prints the PNG folder, the instance's URLs and the login. Enter goes on to encode and publish. Ctrl-C tears down without publishing. |
 | `--own-db` | Starts a private `timescale/timescaledb-ha:pg18-ts2.30` container with `--memory 1g` instead of a database on the shared server. Use it when the shared server is down or already holds `geometrikks_screenshots`. |
 | `--no-build` | Uses the bundle already in `public/`. Without it the run builds the bundle with `vite build` through `tests/screenshots/vite.config.ts`, then fails if the build rewrote `resources/generated`. |
@@ -115,7 +115,7 @@ The DROP feeds also always carry a filler record, 192.0.2.64/26 and 2001:db8:fff
 These visitors have no location. GeoLite2 places none of these addresses, so ingestion would store their requests with no country or city and write no `geo_events` row. The fixture rows do the same. That affects three scenes:
 
 - `drop-networks` lists 203.0.113.0/24 with 3 IPs, 198.51.100.14/32 and 2001:db8:d0c::5/128, each under AS64496. The card has no country column.
-- `ip-inspector` opens 198.51.100.14. The header shows the ASN with no flag or city, and the AbuseIPDB blacklist mark but no AbuseIPDB score, the locations block is empty, and the map behind the sheet keeps its view, since the address has no marker.
+- `ip-inspector` opens 198.51.100.14. The header shows the ASN with no flag or city, the locations block is empty, and the map behind the sheet keeps its view, since the address has no marker. Its badges include the AbuseIPDB blacklist mark and score, which only the screenshot build allows for a documentation address (see AbuseIPDB below).
 - `abuse-report` for 198.51.100.14 names the network as `AS64496 Fictional Example Hosting` with no country code. Its DROP notice covers both the v4 listing and the ASN-DROP listing.
 
 ### AbuseIPDB
@@ -124,14 +124,14 @@ The app starts with `ABUSEIPDB_API_KEY` empty and reporting and the blacklist of
 
 What the shots need from AbuseIPDB comes from elsewhere:
 
-- The fixture step writes four reports straight into `abuseipdb_reports`, for 203.0.113.23, 2001:db8:d0c::5, 198.51.100.14 and 203.0.113.10. They were sent by the user `admin` or the API key `homepage-widget`, and the one for 2001:db8:d0c::5 is Unconfirmed.
+- The fixture step writes four reports straight into `abuseipdb_reports`, for the AS64496 visitors 203.0.113.23, 2001:db8:d0c::5, 198.51.100.14 and 203.0.113.10. They were sent by the user `admin` or the API key `homepage-widget`, and the one for 2001:db8:d0c::5 is Unconfirmed.
 - The capture browser answers `status` (key set, reporting and blacklist on), `blacklist` (198.51.100.14 only) and `check` (198.51.100.14, 100%) from the plan, which `abuseipdb.py` builds with the app's own response types.
-- The app refuses a documentation address on `GET /api/v1/abuseipdb/reports`, so the browser answers that one from `reports/history`, which reads the same table.
+- The app refuses a documentation address on `GET /api/v1/abuseipdb/reports`, so the browser answers that one from `reports/history`, which reads the same table. If that read fails, the request is refused.
 - `reports/history` and `reported-ips` reach the app. Any other AbuseIPDB call, a `POST` above all, is refused, and the shot fails.
 
-Before it publishes, the run fails if `abuseipdb_reports` holds an address outside documentation space, if either blacklist table holds a row, or if the app log has an AbuseIPDB event (`abuseipdb_check`, `abuseipdb_report_*`, `abuseipdb_blacklist_*`), `abuseipdb.com`, or a request to the app's `check` or `POST reports`.
+After capture and any `--hold`, the run stops the app with SIGINT. uvicorn re-raises the signal once it has shut down, and SIGINT then ends in a normal interpreter exit whose exit hook drains the app's log queue into `app.log`. SIGTERM would kill it before that. An app that doesn't exit within 30 seconds fails the run. Then, before anything is encoded or published, the run fails if `abuseipdb_reports` holds an address other than the AS64496 visitors, if either blacklist table holds a row, or if the app log has an AbuseIPDB event (`abuseipdb_check`, `abuseipdb_report_*`, `abuseipdb_blacklist_*`), `abuseipdb.com`, or a request to the app's `check` or `POST reports`.
 
-The app hides AbuseIPDB features for addresses that aren't public. The inspector shows no score badge for 198.51.100.14, and Report to AbuseIPDB… is disabled for it with "not a public address". So `abuseipdb-report` opens the dialog by calling its own `onOpenChange` through React's fiber, from the row's actions button on the Reports tab, then presses Check to show the score. It never presses Send.
+The app hides the AbuseIPDB score and disables Report to AbuseIPDB… for an address that isn't public, and every fixture address is documentation space. So `tests/screenshots/vite.config.ts` patches `isPublicIp` in `resources/lib/abuseipdb.ts` to also take 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24 and 2001:db8::/32, in the screenshot bundle only. If the app changes the start of `isPublicIp`, or the build never loads that file, the build fails. `abuseipdb-report` opens the form from Report to AbuseIPDB… in the actions menu of the 198.51.100.14 row on the Reports tab, checks that Send report is enabled and that "not a public address" appears nowhere, then presses Check to show the score. It never presses Send.
 
 ### Home visitors
 

@@ -104,7 +104,7 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="ip-inspector",
         title="IP inspector",
-        alt="The IP inspector for a banned documentation address under AS64496 that is on a DROP list and AbuseIPDB's blacklist, with no known location, showing its request stats, targets and paths.",
+        alt="The IP inspector for a banned documentation address under AS64496 with no known location, showing its DROP and AbuseIPDB blacklist marks, its AbuseIPDB score, its request stats, targets and paths.",
         path="/map?inspect={inspect_ip}",
         viewports=("desktop", "phone"),
     ),
@@ -132,7 +132,7 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="abuseipdb-report",
         title="Report to AbuseIPDB",
-        alt="The Report to AbuseIPDB dialog for a documentation address, with Web App Attack picked from its CrowdSec alerts, the prefilled comment, its AbuseIPDB score and an earlier report.",
+        alt="The Report to AbuseIPDB form for a documentation address, with Web App Attack picked from its CrowdSec alerts and a comment prefilled from its requests.",
         path="/security?tab=reports",
         viewports=("desktop", "phone"),
     ),
