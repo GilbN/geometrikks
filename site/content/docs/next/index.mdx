@@ -33,16 +33,18 @@ GeoMetrikks is one container, `ghcr.io/gilbn/geometrikks`, plus a TimescaleDB da
 
 The server makes these requests on its own:
 
-| What | Where to | When | How to turn it off |
-| --- | --- | --- | --- |
-| GeoLite2 City and ASN download | `download.maxmind.com` | At startup when the file is missing or older than `GEOIP_REFRESH_DAYS` (default 7), then every `GEOIP_REFRESH_DAYS` | Leave `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` unset. Without a database file the app has no geo lookups. `GEOIP_ASN_ENABLED=false` skips only the ASN download. |
-| Public-IP lookup for the server's map location | `api64.ipify.org` by default (`MAP_PUBLIC_IP_URL`) | At startup, then every `MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24) | `MAP_AUTO_DETECT_SERVER_LOCATION=false`, or set `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE` |
-| Update check | `api.github.com` | Every 12 hours | `APP_UPDATE_CHECK=false` |
-| [Spamhaus DROP lists](./features/drop-lists.mdx) | `www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
-| Abuse contact lookup over RDAP | `data.iana.org`, then the regional registry that holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https. | Only when someone clicks Find abuse contact in an [abuse report](./features/abuse-reports.mdx#the-abuse-contact), or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
-| [AbuseIPDB](./features/abuseipdb.mdx) score | `api.abuseipdb.com` | When someone opens a public IP in the IP inspector, presses Check in an AbuseIPDB report, or calls the check API. An IP checked in the last 15 minutes is usually not sent again. | Leave `ABUSEIPDB_API_KEY` unset. Only the IP address and your key leave the server. |
-| AbuseIPDB report | `api.abuseipdb.com` | Only when someone sends a report | `ABUSEIPDB_REPORTING_ENABLED=false`, the default. AbuseIPDB publishes the IP, the categories, the comment and the attack time. |
-| AbuseIPDB blacklist | `api.abuseipdb.com` | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` (default 24), never twice within 5 hours | `ABUSEIPDB_BLACKLIST_ENABLED=false`, the default. Only your key leaves the server. |
+| Request | When | How to turn it off |
+| --- | --- | --- |
+| GeoLite2 City and ASN download<br />`download.maxmind.com` | At startup when the file is missing or older than `GEOIP_REFRESH_DAYS` (default 7), then every `GEOIP_REFRESH_DAYS` | Leave `MAXMINDDB_USER_ID` and `MAXMINDDB_LICENSE_KEY` unset. Without a database file the app has no geo lookups. `GEOIP_ASN_ENABLED=false` skips only the ASN download. |
+| Public-IP lookup for the server's map location<br />`api64.ipify.org`, or `MAP_PUBLIC_IP_URL` | At startup, then every `MAP_SERVER_LOCATION_REFRESH_HOURS` (default 24) | `MAP_AUTO_DETECT_SERVER_LOCATION=false`, or set `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE` |
+| Update check<br />`api.github.com` | Every 12 hours | `APP_UPDATE_CHECK=false` |
+| [Spamhaus DROP lists](./features/drop-lists.mdx)<br />`www.spamhaus.org` | Every `DROP_REFRESH_HOURS` (default 24) | `DROP_ENABLED=false` |
+| Abuse contact lookup over RDAP<br />`data.iana.org`, then the registries below | Only when someone clicks Find abuse contact in an [abuse report](./features/abuse-reports.mdx#the-abuse-contact), or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
+| [AbuseIPDB](./features/abuseipdb.mdx) score<br />`api.abuseipdb.com` | When someone opens a public IP in the IP inspector, presses Check in an AbuseIPDB report, or calls the check API. An IP checked in the last 15 minutes is usually not sent again. | Leave `ABUSEIPDB_API_KEY` unset. Only the IP address and your key leave the server. |
+| AbuseIPDB report<br />`api.abuseipdb.com` | Only when someone sends a report | `ABUSEIPDB_REPORTING_ENABLED=false`, the default. AbuseIPDB publishes the IP, the categories, the comment and the attack time. |
+| AbuseIPDB blacklist<br />`api.abuseipdb.com` | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` (default 24), never twice within 5 hours | `ABUSEIPDB_BLACKLIST_ENABLED=false`, the default. Only your key leaves the server. |
+
+The RDAP lookup asks `data.iana.org` which regional registry holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), then asks that registry, and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https.
 
 The update check, the DROP lists and the AbuseIPDB blacklist run on the full instance only, never on an [agent](./sources/multiple-sources.mdx).
 
