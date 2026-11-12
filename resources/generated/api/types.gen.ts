@@ -1028,6 +1028,22 @@ export type CheckResponse = {
 };
 
 /**
+ * ClientIpResponse
+ *
+ * The address this server sees for the caller.
+ */
+export type ClientIpResponse = {
+  /**
+   * True when the request carried an X-Forwarded-For header that was not used, so `ip` is most likely the reverse proxy's address. Add the proxy to APP_TRUSTED_PROXIES to fix it.
+   */
+  behindUntrustedProxy: boolean;
+  /**
+   * The caller's address, read from X-Forwarded-For when the request came through a proxy in APP_TRUSTED_PROXIES. Null when the connection has no usable address.
+   */
+  ip: string | null;
+};
+
+/**
  * CountryFacet
  *
  * A country that appears in the access logs.
@@ -8202,6 +8218,23 @@ export type ApiV1SystemChangelogGetChangelogResponses = {
 
 export type ApiV1SystemChangelogGetChangelogResponse =
   ApiV1SystemChangelogGetChangelogResponses[keyof ApiV1SystemChangelogGetChangelogResponses];
+
+export type ApiV1SystemClientIpGetClientIpData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/system/client-ip";
+};
+
+export type ApiV1SystemClientIpGetClientIpResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: ClientIpResponse;
+};
+
+export type ApiV1SystemClientIpGetClientIpResponse =
+  ApiV1SystemClientIpGetClientIpResponses[keyof ApiV1SystemClientIpGetClientIpResponses];
 
 export type ApiV1SystemDatabaseGetDatabaseInfoData = {
   body?: never;

@@ -14,7 +14,7 @@ const sectionKeys = (rawFields: RawLineFields) =>
   rawLineSections(rawFields).map((section) => [section.title, section.fields.map((f) => f.key)])
 
 describe("rawLineSections", () => {
-  it("orders headers, then not stored, then stored, keeping line order inside each", () => {
+  it("orders unstored headers, then not stored, then everything stored, keeping line order inside each", () => {
     const rawFields: RawLineFields = {
       format: "traefik-json",
       fields: [
@@ -29,11 +29,11 @@ describe("rawLineSections", () => {
       ],
     }
     expect(sectionKeys(rawFields)).toEqual([
-      ["Request headers", ["User-Agent", "X-Tenant-Id"]],
+      ["Request headers", ["X-Tenant-Id"]],
       ["Response headers", ["Content-Type"]],
       ["Origin response headers", ["X-Upstream"]],
       ["Not stored", ["TLSVersion", "entryPointName"]],
-      ["Stored in the access log", ["ClientHost", "DownstreamStatus"]],
+      ["Stored in the access log", ["ClientHost", "User-Agent", "DownstreamStatus"]],
     ])
   })
 

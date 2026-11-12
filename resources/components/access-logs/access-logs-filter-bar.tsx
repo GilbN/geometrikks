@@ -8,18 +8,20 @@
 import { CountryFlag } from "@/components/country-flag"
 import { useEffect, useRef, useState } from "react"
 import { Search } from "lucide-react"
+import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-my-ip"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FilterExcludedIpRows, FilterListRow, FilterMyIpRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAccessLogFacets } from "@/lib/queries"
 import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { isValidIp } from "@/lib/crowdsec"
 import { HTTP_METHODS } from "@/lib/http-methods"
-import { cn } from "@/lib/utils"
 import {
   countActiveAccessLogFilters,
   EMPTY_ACCESS_LOG_FILTERS,
@@ -46,6 +48,11 @@ export function AccessLogsFilterBar() {
     enabled: facetsEnabled || filters.asns.length > 0 || filters.asnsExclude.length > 0,
   })
   const asnLabel = useAsnLabel(facets?.asns)
+  const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
+  const countryLabel = (code: string) => {
+    const name = countryName(code)
+    return name ? `${name} (${code})` : code
+  }
 
   // The search box is the one free-text field left, so it stays local and
   // debounced: writing every keystroke to the URL would spam navigation.
@@ -77,10 +84,12 @@ export function AccessLogsFilterBar() {
 
   const add = (key: ListKey) => (value: string) => {
     if (filters[key].includes(value)) return
-    setFilters((prev) => ({ ...prev, [key]: [...prev[key], value] }))
+    // A tap on Exclude your IP lands after a lookup, so the closure can be stale.
+    setFilters((prev) => (prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] }))
   }
   const remove = (key: ListKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
+  const myIp = useMyIpExclusion(filters.ipsExclude, add("ipsExclude"), (ip) => remove("ipsExclude", ip))
   const setAsns = (key: AsnKey) => (values: number[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
   const removeAsn = (key: AsnKey, asn: number) =>
@@ -111,7 +120,7 @@ export function AccessLogsFilterBar() {
     )
   }
 
-  const search = (inDrawer: boolean) => (
+  const search = () => (
     <FilterField label="Search">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -119,24 +128,21 @@ export function AccessLogsFilterBar() {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="URL, referrer or user agent"
-          className={cn("h-8 pl-7 text-xs", inDrawer ? "w-full" : "w-64")}
+          className="h-8 pl-7 text-xs w-64"
         />
       </div>
     </FilterField>
   )
-  const ipPair = (inDrawer: boolean) => (
+  const ipPair = () => (
     <FilterPair
       label="IP address"
       excludeLabel="Exclude IP"
-      stacked={inDrawer}
-      includeChips={chipRow(["ips"])}
-      excludeChips={chipRow(["ipsExclude"])}
       include={
         <TagInput
           onAdd={add("ips")}
           validate={isValidIp}
           placeholder="203.0.113.7"
-          className={inDrawer ? "w-full" : "w-36"}
+          className="w-36"
         />
       }
       exclude={
@@ -145,17 +151,15 @@ export function AccessLogsFilterBar() {
           onAdd={add("ipsExclude")}
           validate={isValidIp}
           placeholder="Exclude"
-          className={inDrawer ? "w-full" : "w-32"}
+          className="w-32"
         />
       }
     />
   )
-  const hostPair = (inDrawer: boolean) => (
+  const hostPair = () => (
     <FilterPair
       label="Host"
       excludeLabel="Exclude host"
-      stacked={inDrawer}
-      excludeChips={chipRow(["hostsExclude"])}
       include={
         <FilterCombobox
           label="Host"
@@ -165,7 +169,6 @@ export function AccessLogsFilterBar() {
           loading={!facets}
           emptyText="No hosts"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       }
       exclude={
@@ -173,17 +176,15 @@ export function AccessLogsFilterBar() {
           exclude
           onAdd={add("hostsExclude")}
           placeholder="Exclude"
-          className={inDrawer ? "w-full" : "w-36"}
+          className="w-36"
         />
       }
     />
   )
-  const serverPair = (inDrawer: boolean) => (
+  const serverPair = () => (
     <FilterPair
       label="Server"
       excludeLabel="Exclude server"
-      stacked={inDrawer}
-      excludeChips={chipRow(["serversExclude"])}
       include={
         <FilterCombobox
           label="Server"
@@ -193,7 +194,6 @@ export function AccessLogsFilterBar() {
           loading={!facets}
           emptyText="No servers"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       }
       exclude={
@@ -201,18 +201,15 @@ export function AccessLogsFilterBar() {
           exclude
           onAdd={add("serversExclude")}
           placeholder="Exclude"
-          className={inDrawer ? "w-full" : "w-36"}
+          className="w-36"
         />
       }
     />
   )
-  const asnPair = (inDrawer: boolean) => (
+  const asnPair = () => (
     <FilterPair
       label="ASN"
       excludeLabel="Exclude ASN"
-      stacked={inDrawer}
-      includeChips={chipRow(["asns"])}
-      excludeChips={chipRow(["asnsExclude"])}
       include={
         <FilterCombobox<number>
           label="ASN"
@@ -223,7 +220,6 @@ export function AccessLogsFilterBar() {
           loading={!facets}
           emptyText="No ASN data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       }
       exclude={
@@ -236,54 +232,47 @@ export function AccessLogsFilterBar() {
           loading={!facets}
           emptyText="No ASN data"
           onOpenChange={(open) => open && setFacetsEnabled(true)}
-          forceInline={inDrawer}
         />
       }
     />
   )
-  const method = (inDrawer: boolean) => (
-    <FilterField label="Method" hideLabel={!inDrawer}>
+  const method = () => (
+    <FilterField label="Method" hideLabel>
       <FilterCombobox
         label="Method"
         options={[...HTTP_METHODS]}
         selected={filters.methods}
         onChange={(values) => setFilters((prev) => ({ ...prev, methods: values }))}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
-  const status = (inDrawer: boolean) => (
-    <FilterField label="Status" hideLabel={!inDrawer}>
+  const status = () => (
+    <FilterField label="Status" hideLabel>
       <FilterCombobox
         label="Status"
         options={[...STATUS_CODES]}
         selected={filters.statusCodes}
         onChange={(values) => setFilters((prev) => ({ ...prev, statusCodes: values }))}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
-  const country = (inDrawer: boolean) => (
-    <FilterField label="Country" hideLabel={!inDrawer}>
+  const country = () => (
+    <FilterField label="Country" hideLabel>
       <FilterCombobox
         label="Country"
         iconFor={(code) => <CountryFlag code={code} />}
         options={facets?.countries.map((c) => c.code) ?? []}
         selected={filters.countryCodes}
         onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
-        labelFor={(code) => {
-          const name = facets?.countries.find((c) => c.code === code)?.name
-          return name ? `${name} (${code})` : code
-        }}
+        labelFor={countryLabel}
         loading={!facets}
         emptyText="No geo data"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
-  const city = (inDrawer: boolean) => (
-    <FilterField label="City" hideLabel={!inDrawer}>
+  const city = () => (
+    <FilterField label="City" hideLabel>
       <FilterCombobox
         label="City"
         options={facets?.cities ?? []}
@@ -292,12 +281,11 @@ export function AccessLogsFilterBar() {
         loading={!facets}
         emptyText="No geo data"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
-  const logFormat = (inDrawer: boolean) => (
-    <FilterField label="Source format" hideLabel={!inDrawer}>
+  const logFormat = () => (
+    <FilterField label="Source format" hideLabel>
       <FilterCombobox
         label="Source format"
         options={facets?.logFormats ?? []}
@@ -306,7 +294,6 @@ export function AccessLogsFilterBar() {
         loading={!facets}
         emptyText="No formats"
         onOpenChange={(open) => open && setFacetsEnabled(true)}
-        forceInline={inDrawer}
       />
     </FilterField>
   )
@@ -319,18 +306,124 @@ export function AccessLogsFilterBar() {
 
   if (phone) {
     return (
-      <div onClick={() => setFacetsEnabled(true)}>
+      <div className="flex items-center gap-2" onClick={() => setFacetsEnabled(true)}>
+        <ExcludeMyIpButton exclusion={myIp} />
         <FiltersDrawer activeCount={activeCount} onClear={clear}>
-          {search(true)}
-          {ipPair(true)}
-          {hostPair(true)}
-          {serverPair(true)}
-          {method(true)}
-          {status(true)}
-          {logFormat(true)}
-          {country(true)}
-          {city(true)}
-          {asnPair(true)}
+          <Input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="Search"
+            placeholder="URL, referrer or user agent"
+            className="h-10 w-full"
+          />
+          <TagInput
+            onAdd={add("ips")}
+            validate={isValidIp}
+            placeholder="203.0.113.7"
+            aria-label="IP address"
+            className="w-full"
+            inputClassName="h-10"
+          />
+          {chipRow(["ips"])}
+          <FilterSection label="Show only">
+            <FilterListRow
+              label="Host"
+              search
+              options={facets?.hosts ?? []}
+              selected={filters.hosts}
+              onChange={(values) => setFilters((prev) => ({ ...prev, hosts: values }))}
+              loading={!facets}
+              emptyText="No hosts"
+            />
+            <FilterListRow
+              label="Server"
+              options={facets?.servers ?? []}
+              selected={filters.servers}
+              onChange={(values) => setFilters((prev) => ({ ...prev, servers: values }))}
+              loading={!facets}
+            />
+            <FilterListRow
+              label="Method"
+              options={[...HTTP_METHODS]}
+              selected={filters.methods}
+              onChange={(values) => setFilters((prev) => ({ ...prev, methods: values }))}
+            />
+            <FilterListRow
+              label="Status"
+              options={[...STATUS_CODES]}
+              selected={filters.statusCodes}
+              onChange={(values) => setFilters((prev) => ({ ...prev, statusCodes: values }))}
+            />
+            <FilterListRow
+              label="Source format"
+              options={facets?.logFormats ?? []}
+              selected={filters.logFormats}
+              onChange={(values) => setFilters((prev) => ({ ...prev, logFormats: values }))}
+              loading={!facets}
+            />
+            <FilterListRow
+              label="Country"
+              search
+              iconFor={(code) => <CountryFlag code={code} />}
+              options={facets?.countries.map((c) => c.code) ?? []}
+              selected={filters.countryCodes}
+              onChange={(values) => setFilters((prev) => ({ ...prev, countryCodes: values }))}
+              labelFor={countryLabel}
+              valueFor={(code) => countryName(code) ?? code}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+            <FilterListRow
+              label="City"
+              search
+              options={facets?.cities ?? []}
+              selected={filters.cities}
+              onChange={(values) => setFilters((prev) => ({ ...prev, cities: values }))}
+              loading={!facets}
+              emptyText="No geo data"
+            />
+            <FilterListRow<number>
+              label="ASN"
+              search
+              options={facets?.asns.map((a) => a.asn) ?? []}
+              selected={filters.asns}
+              onChange={setAsns("asns")}
+              labelFor={asnLabel}
+              splitLabel
+              loading={!facets}
+              emptyText="No ASN data"
+            />
+          </FilterSection>
+          <FilterSection label="Exclude">
+            <FilterMyIpRow exclusion={myIp} />
+            <FilterExcludedIpRows values={filters.ipsExclude} onAdd={add("ipsExclude")} onRemove={(ip) => remove("ipsExclude", ip)} validate={isValidIp} />
+            <FilterListRow
+              label="Host" exclude
+              search
+              options={facets?.hosts ?? []}
+              selected={filters.hostsExclude}
+              onChange={(values) => setFilters((prev) => ({ ...prev, hostsExclude: values }))}
+              loading={!facets}
+            />
+            <FilterListRow
+              label="Server" exclude
+              options={facets?.servers ?? []}
+              selected={filters.serversExclude}
+              onChange={(values) => setFilters((prev) => ({ ...prev, serversExclude: values }))}
+              loading={!facets}
+            />
+            <FilterListRow<number>
+              label="ASN" exclude
+              search
+              options={facets?.asns.map((a) => a.asn) ?? []}
+              selected={filters.asnsExclude}
+              onChange={setAsns("asnsExclude")}
+              labelFor={asnLabel}
+              splitLabel
+              loading={!facets}
+              emptyText="No ASN data"
+            />
+          </FilterSection>
         </FiltersDrawer>
       </div>
     )
@@ -339,18 +432,19 @@ export function AccessLogsFilterBar() {
   return (
     <FilterRail label="Request filters" activeCount={activeCount} onClear={clear}>
       <FilterRow>
-        {search(false)}
-        {ipPair(false)}
-        {hostPair(false)}
-        {serverPair(false)}
+        {search()}
+        {ipPair()}
+        {hostPair()}
+        {serverPair()}
       </FilterRow>
       <FilterRow>
-        {method(false)}
-        {status(false)}
-        {logFormat(false)}
-        {country(false)}
-        {city(false)}
-        {asnPair(false)}
+        {method()}
+        {status()}
+        {logFormat()}
+        {country()}
+        {city()}
+        {asnPair()}
+        <ExcludeMyIpField exclusion={myIp} />
       </FilterRow>
       {chipRow(["ips", "ipsExclude", "hostsExclude", "serversExclude", "asns", "asnsExclude"])}
     </FilterRail>

@@ -2025,6 +2025,32 @@ export const CheckResponseSchema = {
   type: "object",
 } as const;
 
+export const ClientIpResponseSchema = {
+  description: "The address this server sees for the caller.",
+  properties: {
+    behindUntrustedProxy: {
+      description:
+        "True when the request carried an X-Forwarded-For header that was not used, so `ip` is most likely the reverse proxy's address. Add the proxy to APP_TRUSTED_PROXIES to fix it.",
+      type: "boolean",
+    },
+    ip: {
+      description:
+        "The caller's address, read from X-Forwarded-For when the request came through a proxy in APP_TRUSTED_PROXIES. Null when the connection has no usable address.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["behindUntrustedProxy", "ip"],
+  title: "ClientIpResponse",
+  type: "object",
+} as const;
+
 export const CountryFacetSchema = {
   description: "A country that appears in the access logs.",
   properties: {

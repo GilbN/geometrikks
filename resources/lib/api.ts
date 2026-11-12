@@ -50,6 +50,7 @@ import type {
   AsnClassificationListResponse,
   ChangelogResponse,
   ReleaseCheckResponse,
+  ClientIpResponse,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
@@ -390,6 +391,12 @@ export async function fetchDropLists(): Promise<DropListsResponse> {
 
 export async function fetchReleaseCheck(): Promise<ReleaseCheckResponse> {
   const { data } = await api.get<ReleaseCheckResponse>("/system/release-check")
+  return data
+}
+
+export async function fetchClientIp(): Promise<ClientIpResponse> {
+  // A phone switching networks can stall the request, and taps wait for it.
+  const { data } = await api.get<ClientIpResponse>("/system/client-ip", { timeout: 10_000 })
   return data
 }
 

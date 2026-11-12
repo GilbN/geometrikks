@@ -6,6 +6,7 @@ import { X } from "lucide-react"
 import { FilterField, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
@@ -78,15 +79,28 @@ export function AlertScenarioFilter({
       onOpenChange={onOpenChange}
       disabled={disabled}
       maxSelected={MAX_ALERT_SCENARIOS}
-      forceInline={inDrawer}
     />
   )
   if (!inDrawer) return <span title={disabled ? BOT_SCENARIO_NOTE : undefined}>{combobox}</span>
   return (
-    <FilterField label="Scenario" group>
-      {combobox}
+    <>
+      <FilterSection>
+        <FilterListRow
+          label="Scenario"
+          search
+          options={options}
+          selected={selected}
+          onChange={onChange}
+          labelFor={labelFor}
+          loading={loading}
+          emptyText={emptyText}
+          disabled={disabled}
+          maxSelected={MAX_ALERT_SCENARIOS}
+          onOpen={() => onOpenChange(true)}
+        />
+      </FilterSection>
       {disabled && <p className="text-xs text-muted-foreground">{BOT_SCENARIO_NOTE}</p>}
-    </FilterField>
+    </>
   )
 }
 

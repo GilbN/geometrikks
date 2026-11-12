@@ -528,3 +528,101 @@ async def test_release_check_dev_release_uses_tag_style(monkeypatch):
     latest = resp.json()["latest"]
     assert latest["version"] == "0.22.1.dev2"
     assert latest["displayVersion"] == "v0.22.1-dev.2"
+
+
+def client_ip_app(peer: str) -> Litestar:
+    """System API whose requests all arrive from ``peer``."""
+
+    def from_peer(app):
+        async def middleware(scope, receive, send):
+            scope["client"] = (peer, 50000)
+            await app(scope, receive, send)
+
+        return middleware
+
+    return Litestar(
+        route_handlers=[create_api_v1_router([SystemController])],
+        middleware=[from_peer],
+        dependencies={
+            **ambient_settings_dependency(),
+            "db_engine": Provide(UnreachableEngine, sync_to_thread=False),
+        },
+    )
+
+
+async def get_client_ip(peer: str, headers: dict[str, str] | None = None):
+    async with AsyncTestClient(app=client_ip_app(peer)) as client:
+        return await client.get("/api/v1/system/client-ip", headers=headers)
+
+
+async def test_client_ip_is_the_direct_peer():
+    resp = await get_client_ip("198.51.100.23")
+    assert resp.status_code == 200
+    assert resp.json() == {"ip": "198.51.100.23", "behindUntrustedProxy": False}
+    assert resp.headers["cache-control"] == "no-store"
+
+
+async def test_client_ip_comes_from_a_trusted_proxy(monkeypatch):
+    monkeypatch.setenv("APP_TRUSTED_PROXIES", "172.18.0.0/16")
+    resp = await get_client_ip("172.18.0.2", {"x-forwarded-for": "2001:DB8:4F1:0::1A"})
+    assert resp.json() == {"ip": "2001:db8:4f1::1a", "behindUntrustedProxy": False}
+
+
+async def test_client_ip_flags_a_proxy_that_is_not_trusted():
+    resp = await get_client_ip("172.18.0.2", {"x-forwarded-for": "203.0.113.7"})
+    assert resp.json() == {"ip": "172.18.0.2", "behindUntrustedProxy": True}
+
+
+async def test_client_ip_trusts_a_peer_the_asgi_server_already_resolved():
+    resp = await get_client_ip("203.0.113.7", {"x-forwarded-for": "203.0.113.7"})
+    assert resp.json() == {"ip": "203.0.113.7", "behindUntrustedProxy": False}
+
+
+async def test_client_ip_trusts_a_peer_resolved_through_trusted_hops(monkeypatch):
+    monkeypatch.setenv("APP_TRUSTED_PROXIES", "10.0.0.0/8")
+    resp = await get_client_ip("203.0.113.7", {"x-forwarded-for": "203.0.113.7, 10.0.0.2"})
+    assert resp.json() == {"ip": "203.0.113.7", "behindUntrustedProxy": False}
+
+
+async def test_client_ip_flags_an_untrusted_proxy_named_in_the_callers_own_header():
+    resp = await get_client_ip("172.18.0.2", {"x-forwarded-for": "172.18.0.2, 203.0.113.7"})
+    assert resp.json() == {"ip": "172.18.0.2", "behindUntrustedProxy": True}
+
+
+async def test_client_ip_is_the_first_hop_when_every_hop_is_trusted(monkeypatch):
+    monkeypatch.setenv("APP_TRUSTED_PROXIES", "192.168.1.0/24")
+    resp = await get_client_ip("192.168.1.10", {"x-forwarded-for": "192.168.1.5"})
+    assert resp.json() == {"ip": "192.168.1.5", "behindUntrustedProxy": False}
+
+
+async def test_client_ip_is_null_when_a_trusted_hop_is_not_an_address(monkeypatch):
+    monkeypatch.setenv("APP_TRUSTED_PROXIES", "172.18.0.0/16")
+    resp = await get_client_ip("172.18.0.2", {"x-forwarded-for": "unknown"})
+    assert resp.json() == {"ip": None, "behindUntrustedProxy": False}
+
+
+async def test_client_ip_is_null_when_a_malformed_entry_hides_untrusted_hops(monkeypatch):
+    monkeypatch.setenv("APP_TRUSTED_PROXIES", "10.0.0.0/8")
+    resp = await get_client_ip("10.0.0.2", {"x-forwarded-for": "198.51.100.99, 203.0.113.7,"})
+    assert resp.json() == {"ip": None, "behindUntrustedProxy": False}
+
+
+async def test_client_ip_keeps_ipv4_mapped_ipv6_as_the_logs_store_it():
+    resp = await get_client_ip("::ffff:198.51.100.23")
+    assert resp.json()["ip"] == "::ffff:198.51.100.23"
+
+
+async def test_client_ip_ignores_an_empty_forwarded_header():
+    resp = await get_client_ip("198.51.100.23", {"x-forwarded-for": ""})
+    assert resp.json() == {"ip": "198.51.100.23", "behindUntrustedProxy": False}
+
+
+async def test_client_ip_flags_a_proxy_when_neither_peer_nor_last_entry_is_an_address():
+    resp = await get_client_ip("testclient", {"x-forwarded-for": "203.0.113.7, unknown"})
+    assert resp.json() == {"ip": None, "behindUntrustedProxy": True}
+
+
+async def test_client_ip_is_null_when_the_peer_is_not_an_address():
+    for peer in ("testclient", "fe80::1%eth0"):
+        resp = await get_client_ip(peer)
+        assert resp.json() == {"ip": None, "behindUntrustedProxy": False}

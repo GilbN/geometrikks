@@ -124,6 +124,8 @@
   --map-top-inset: 0px;
   --range-chip-top: calc(var(--map-top-inset) + 12px);
   --range-chip-height: 44px;
+
+  --app-height: 100dvh;
 }
 
 /* The phone map has no header. Unless a banner takes the top of the screen,
@@ -132,17 +134,18 @@
   --map-top-inset: env(safe-area-inset-top, 0px);
 }
 
-/* An installed iOS app tints the blur over the status bar with the page color.
-   These are the water colors of the two CARTO basemaps. */
+/* With a translucent status bar, iOS can lay out an installed app one status bar
+   short of the screen, in dvh, svh and fixed positioning alike. A document as
+   tall as the large viewport makes it use the whole screen. */
 @media (display-mode: standalone) {
-  :root:has([data-shell-top]:empty),
-  :root:has([data-shell-top]:empty) body {
-    background-color: #d4dadc;
+  :root {
+    --app-height: 100lvh;
   }
 
-  :root.dark:has([data-shell-top]:empty),
-  :root.dark:has([data-shell-top]:empty) body {
-    background-color: #2c353c;
+  html,
+  body,
+  #app {
+    height: var(--app-height);
   }
 }
 

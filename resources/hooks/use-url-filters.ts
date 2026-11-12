@@ -18,7 +18,7 @@ import { applyFilterUpdate, type FilterCodec } from "@/lib/url-filters"
 interface UseUrlFiltersOptions<TSearch extends object, TFilters>
   extends FilterCodec<TSearch, TFilters> {
   search: TSearch
-  navigate: (opts: { search: (prev: TSearch) => TSearch; replace: boolean }) => void
+  navigate: (opts: { search: (prev: TSearch) => TSearch; replace: boolean; resetScroll?: boolean }) => void
 }
 
 export function useUrlFilters<TSearch extends object, TFilters>({
@@ -36,6 +36,8 @@ export function useUrlFilters<TSearch extends object, TFilters>({
         search: (prev: TSearch) =>
           applyFilterUpdate(prev, updater, { decode, encode, resetOnChange }),
         replace: true,
+        // iOS scrolls the page to show a focused field above the keyboard.
+        resetScroll: false,
       })
     },
     [navigate, decode, encode, resetOnChange],
