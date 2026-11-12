@@ -233,7 +233,6 @@ nothing, and the folder goes live with the next build that a push starts.
 ## Generated pages
 
 - **Configuration.** `scripts/generate_config_docs.py` writes
-  `docs/configuration.md` and
   `content/docs/next/reference/configuration.mdx` from the settings
   classes. After a settings change, run this from the repository root:
   `uv run python scripts/generate_config_docs.py`. CI's `backend unit` job

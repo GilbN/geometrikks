@@ -1,4 +1,4 @@
-"""docs/configuration.md must match the settings classes (generated file)."""
+"""site/content/docs/next/reference/configuration.mdx must match the settings classes (generated file)."""
 import importlib.util
 import re
 import subprocess
@@ -14,10 +14,19 @@ _spec.loader.exec_module(gen)
 
 
 def _doc_groups() -> tuple[str, str, str]:
-    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     regular, rest = text.split("## Advanced tuning", 1)
     advanced, developer = rest.split("## Developer settings", 1)
     return regular, advanced, developer
+
+
+def test_configuration_md_is_a_pointer():
+    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    assert "https://geometrikks.dev/docs/reference/configuration/" in text
+    assert "GENERATED" not in text and len(text.splitlines()) < 10
+    before = text
+    subprocess.run([sys.executable, "scripts/generate_config_docs.py"], check=True, timeout=60)
+    assert Path("docs/configuration.md").read_text(encoding="utf-8") == before
 
 
 def test_configuration_docs_are_fresh():
@@ -46,7 +55,7 @@ def test_advanced_settings_are_listed_only_in_their_own_section():
 
 
 def test_every_documented_variable_has_one_row():
-    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     documented = re.findall(r"^\| `([A-Z0-9_]+)` \|", text, flags=re.M)
     assert len(documented) == len(set(documented))
 
@@ -75,19 +84,12 @@ def test_site_reference_has_frontmatter_and_no_html_comment():
     assert '\\{job="traefik"\\}' in text
 
 
-def test_site_reference_lists_the_same_variables_as_docs():
-    pattern = r"^\| `([A-Z0-9_]+)` \|"
-    docs = re.findall(pattern, Path("docs/configuration.md").read_text(encoding="utf-8"), flags=re.M)
-    site = re.findall(pattern, gen.SITE_OUTPUT.read_text(encoding="utf-8"), flags=re.M)
-    assert docs == site
-
-
 def test_escape_mdx_keeps_a_code_span_after_an_empty_one():
     assert gen.escape_mdx("| `FOO` | `` | use `{x}` here |") == "| `FOO` | `` | use `{x}` here |"
 
 
 def test_container_variables_are_listed():
-    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     for name in ("PUID", "PGID", "ACCESS_LOG_DIR", "POSTGRES_PASSWORD", "WEB_CONCURRENCY", "LITESTAR_APP"):
         assert f"| `{name}` |" in text
 
@@ -108,12 +110,12 @@ def test_container_variables_exist_in_their_sources():
 
 
 def test_instance_section_heading():
-    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     assert "### Application mode" not in text and "### Instance and notices" in text
 
 
 def test_oidc_section_names_its_startup_failures():
-    section = Path("docs/configuration.md").read_text(encoding="utf-8").split("### OpenID Connect", 1)[1]
+    section = gen.SITE_OUTPUT.read_text(encoding="utf-8").split("### OpenID Connect", 1)[1]
     note = section.split("| Variable |", 1)[0]
     for needle in (
         "/api/v1/auth/oidc/callback",
@@ -127,7 +129,7 @@ def test_oidc_section_names_its_startup_failures():
 
 
 def test_defaults_are_readable():
-    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     assert "*(computed)*" not in text and "| `` |" not in text
     assert re.search(r"^\| `LOKI_QUERIES` \| \*\(empty\)\* \|", text, flags=re.M)
     assert re.search(r"^\| `LOGPARSER_LOG_PATHS` \| `/var/log/access/access.log` \|", text, flags=re.M)
@@ -141,7 +143,7 @@ def test_trusted_proxies_description_names_api_keys():
 
 
 def _container_row(name: str) -> str:
-    match = re.search(rf"^\| `{name}` \|.*$", Path("docs/configuration.md").read_text(encoding="utf-8"), flags=re.M)
+    match = re.search(rf"^\| `{name}` \|.*$", gen.SITE_OUTPUT.read_text(encoding="utf-8"), flags=re.M)
     assert match, name
     return match.group(0)
 
@@ -159,7 +161,7 @@ def test_worker_row_states_the_multi_worker_consequences():
 
 
 def test_names_in_container_rows_and_notes_exist():
-    rows = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", gen.build(), flags=re.M))
+    rows = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", gen.build_site(), flags=re.M))
     container = {name for name, _, _ in gen.CONTAINER_VARIABLES}
     texts = [desc for _, _, desc in gen.CONTAINER_VARIABLES]
     texts += [line for lines in gen.SECTION_NOTES.values() for line in lines]
@@ -168,7 +170,7 @@ def test_names_in_container_rows_and_notes_exist():
 
 
 def test_list_defaults_stay_json_where_env_needs_json():
-    text = Path("docs/configuration.md").read_text(encoding="utf-8")
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     assert '| `GEOIP_LOCALES` | `["en"]` |' in text
 
 
