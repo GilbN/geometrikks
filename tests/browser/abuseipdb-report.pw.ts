@@ -11,7 +11,7 @@ import { settledToastBox } from "./toasts"
 
 // Away from UTC, so the tests exercise the attack time's local-to-UTC conversion.
 const TIMEZONE = "Europe/Oslo"
-test.use({ serviceWorkers: "block", timezoneId: TIMEZONE })
+test.use({ serviceWorkers: "block", timezoneId: TIMEZONE, locale: "en-US" })
 
 const IP = "3.5.140.2"
 const MINUTE_MS = 60_000
@@ -46,7 +46,7 @@ interface Recorded {
   extraPosts: number
 }
 
-/** The datetime-local value the browser shows for `iso` in TIMEZONE. */
+/** `iso` as "2026-11-07T14:57" on TIMEZONE's wall clock. */
 function localInputValue(iso: string) {
   const format = new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
@@ -221,6 +221,38 @@ async function openReportFromMenu(page: Page) {
   return dialog
 }
 
+const attackDateButton = (dialog: Locator) => dialog.getByRole("button", { name: /^Attack date/ })
+
+/** The local day "2026-11-07" as UTC midnight. Formatted in UTC, it stays on that day. */
+const utcDay = (localValue: string) => new Date(`${localValue.slice(0, 10)}T00:00:00Z`)
+
+async function expectAttackTime(dialog: Locator, localValue: string) {
+  const day = utcDay(localValue).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  await expect(attackDateButton(dialog)).toHaveAccessibleName(`Attack date ${day}`)
+  await expect(dialog.getByLabel("Attack time")).toHaveValue(localValue.slice(11, 16))
+}
+
+async function setAttackTime(page: Page, dialog: Locator, localValue: string) {
+  await attackDateButton(dialog).click()
+  const calendar = page.locator('[data-slot="calendar"]')
+  const day = utcDay(localValue)
+  const caption = (date: Date) => date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  const heading = calendar.locator(".rdp-caption_label")
+  const target = caption(day)
+  const months = Array.from({ length: 12 }, (_, month) => caption(new Date(Date.UTC(2000, month))).split(" ")[0])
+  for (let clicks = 0; clicks < 24 && (await heading.textContent()) !== target; clicks++) {
+    const [shownName, shownYear] = (await heading.textContent())!.split(" ")
+    const shownIndex = Number(shownYear) * 12 + months.indexOf(shownName)
+    const step = shownIndex > day.getUTCFullYear() * 12 + day.getUTCMonth() ? "Go to the Previous Month" : "Go to the Next Month"
+    await calendar.getByRole("button", { name: step }).click()
+  }
+  await expect(heading).toHaveText(target)
+  const month = day.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })
+  await calendar.getByRole("button", { name: new RegExp(`${month} ${day.getUTCDate()}(st|nd|rd|th), ${day.getUTCFullYear()}`) }).click()
+  await expect(calendar).toHaveCount(0)
+  await dialog.getByLabel("Attack time").fill(localValue.slice(11, 16))
+}
+
 async function openRecordSheet(page: Page) {
   await page.goto("/access-logs")
   await page.getByText("/.env").first().click()
@@ -277,7 +309,7 @@ test.describe("desktop", () => {
     const firstSeen = FIRST_SEEN
     const firstSeenUtc = firstSeen.slice(0, 16).replace("T", " ")
     expect(localInputValue(firstSeen).replace("T", " ")).not.toBe(firstSeenUtc)
-    await expect(dialog.getByLabel("Attack time")).toHaveValue(localInputValue(firstSeen))
+    await expectAttackTime(dialog, localInputValue(firstSeen))
     await expect(dialog.getByText(`sent as ${firstSeenUtc} UTC`)).toBeVisible()
     const picker = dialog.getByRole("combobox", { name: "Evidence window" })
     expect(await picker.evaluate((element) => element.tagName)).toBe("BUTTON")
@@ -310,7 +342,7 @@ test.describe("desktop", () => {
     const { recorded } = await setup(page)
     const dialog = await openReportFromMenu(page)
     // November in Oslo is UTC+1.
-    await dialog.getByLabel("Attack time").fill("2026-11-05T10:15")
+    await setAttackTime(page, dialog, "2026-11-05T10:15")
     await expect(dialog.getByText("sent as 2026-11-05 09:15 UTC")).toBeVisible()
     await dialog.getByRole("button", { name: "Send report" }).click()
     const toast = page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB. Confidence score 88%.` })
@@ -328,9 +360,11 @@ test.describe("desktop", () => {
   })
 
   test("an attack time in the future is refused after the UTC conversion", async ({ page }) => {
+    // At midday, a later time today is still there to pick.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(new Date())
+    await page.clock.setFixedTime(new Date(`${today}T11:00:00Z`))
     await setup(page)
     const dialog = await openReportFromMenu(page)
-    const attackTime = dialog.getByLabel("Attack time")
     const send = dialog.getByRole("button", { name: "Send report" })
     const localFromNow = (offsetMinutes: number) =>
       page.evaluate((offset) => {
@@ -340,17 +374,17 @@ test.describe("desktop", () => {
       }, offsetMinutes)
     const futureError = dialog.getByText("The attack time can't be in the future.")
 
-    await attackTime.fill(await localFromNow(30))
+    await setAttackTime(page, dialog, `${today}T14:00`)
     await expect(futureError).toBeVisible()
     await expect(send).toBeDisabled()
 
     // Read as UTC, this local time would land in the future.
-    await attackTime.fill(await localFromNow(-30))
+    await setAttackTime(page, dialog, await localFromNow(-30))
     await expect(futureError).toHaveCount(0)
     await expect(dialog.getByText(/^sent as .* UTC$/)).toBeVisible()
     await expect(send).toBeEnabled()
 
-    await attackTime.fill("")
+    await dialog.getByLabel("Attack time").fill("")
     await expect(send).toBeDisabled()
   })
 
@@ -373,12 +407,13 @@ test.describe("desktop", () => {
     await expect(send).toBeDisabled()
     await expect(comment).toBeDisabled()
     await expect(dialog.getByLabel("Attack time")).toBeDisabled()
+    await expect(attackDateButton(dialog)).toBeDisabled()
     await expect(dialog.getByRole("button", { name: "21 Web App Attack" })).toBeDisabled()
     await expect(comment).toHaveValue(/Probed \/\.env/)
 
     release()
     await expect(comment).toHaveValue(/Probed \/wp-login\.php/)
-    await expect(dialog.getByLabel("Attack time")).toHaveValue(localInputValue(firstSeen24h))
+    await expectAttackTime(dialog, localInputValue(firstSeen24h))
     await expect(dialog.getByText("Loading the evidence for this window…")).toHaveCount(0)
     await expect(send).toBeEnabled()
   })
@@ -390,7 +425,7 @@ test.describe("desktop", () => {
       evidenceFor: () => evidence(ipEvidence({ firstSeen, lastSeen: "2026-10-25T03:00:00Z" })),
     })
     const dialog = await openReportFromMenu(page)
-    await expect(dialog.getByLabel("Attack time")).toHaveValue("2026-10-25T02:30")
+    await expectAttackTime(dialog, "2026-10-25T02:30")
     await expect(dialog.getByText("sent as 2026-10-25 01:30 UTC")).toBeVisible()
     await dialog.getByRole("button", { name: "Send report" }).click()
     await expect(dialog).toHaveCount(0)
@@ -402,10 +437,10 @@ test.describe("desktop", () => {
     await setup(page)
     const dialog = await openReportFromMenu(page)
     // Oslo jumps from 02:00 to 03:00 on 2026-03-29.
-    await dialog.getByLabel("Attack time").fill("2026-03-29T02:30")
+    await setAttackTime(page, dialog, "2026-03-29T02:30")
     await expect(dialog.getByText("That time doesn't exist in your time zone, because the clocks skip it.")).toBeVisible()
     await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled()
-    await dialog.getByLabel("Attack time").fill("2026-03-29T03:30")
+    await dialog.getByLabel("Attack time").fill("03:30")
     await expect(dialog.getByText(/clocks skip it/)).toHaveCount(0)
     await expect(dialog.getByText("sent as 2026-03-29 01:30 UTC")).toBeVisible()
   })
@@ -764,6 +799,23 @@ test.describe("portrait phone", () => {
     await expect(picker).toHaveValue("30d")
     await expect.poll(latestWindowHours).toBe(30 * 24)
     await expect(comment).toHaveValue(prefilled)
+  })
+
+  test("a day picked in the calendar over the drawer keeps the drawer open", async ({ page }) => {
+    await setup(page)
+    await page.goto("/access-logs")
+    await ipActions(page).click()
+    const drawer = openDrawer(page)
+    await reportButton(drawer).click()
+    await expect(drawer.getByRole("heading", { name: REPORT_TITLE })).toBeVisible()
+    await expect(drawer.getByLabel("Comment")).not.toHaveValue("")
+
+    const picked = `${localInputValue(minutesAgo(20 * 24 * 60)).slice(0, 10)}T09:30`
+    await setAttackTime(page, drawer, picked)
+    await expect(drawer.getByRole("heading", { name: REPORT_TITLE })).toBeVisible()
+    await expectAttackTime(drawer, picked)
+    await expect(drawer.getByText(/^sent as .* UTC$/)).toBeVisible()
+    await expect(drawer.getByRole("button", { name: "Send report" })).toBeEnabled()
   })
 
   test("Back with Discard your changes? open leaves the page usable", async ({ page }) => {
