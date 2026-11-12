@@ -15,7 +15,7 @@ from geometrikks.services.ingestion import LogInput
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import LogSource, LokiSource, SourceStatus
 from geometrikks.services.logsources import loki as loki_module
-from geometrikks.services.logsources.loki import NS, QUERY_RANGE_PATH
+from geometrikks.services.logsources.loki import LOKI_DOCS_URL, NS, QUERY_RANGE_PATH
 from tests.test_ingestion import TEST_DB_IPS, added_geo_events, make_log_line, make_service
 
 pytestmark = pytest.mark.anyio
@@ -535,6 +535,8 @@ async def test_a_full_page_at_one_timestamp_steps_past_it_and_warns_once(
     assert len(warnings) == 1
     assert warnings[0]["event"].startswith("More than %d lines in %s share the timestamp %s")
     assert warnings[0]["positional_args"][:2] == (2, QUERY)
+    assert LOKI_DOCS_URL in warnings[0]["positional_args"]
+    assert "README" not in warnings[0]["event"]
 
 
 async def test_unreachable_then_recovers(fake: FakeLoki, clock: list[int]) -> None:
