@@ -41,14 +41,14 @@ The frontend build and the encoder don't read your dotenv files either. Both run
 In order:
 
 1. The scratch database `geometrikks_screenshots`, migrated and set up for TimescaleDB. That name is reserved for this script: a run creates and drops it, and `--cleanup` drops it whenever it exists.
-2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below) and the DROP fixture lists.
+2. The seed: 150,000 requests over 30 days with seed 42 for the servers `edge` and `homelab`, plus seven documentation-range scanners, twelve documentation-range home browsers (see below), the DROP fixture lists and four AbuseIPDB reports.
 3. `geometrikks-shots-crowdsec`, a CrowdSec LAPI with 512 MB of memory, on the internal network `geometrikks-shots-net`. Both carry the label `geometrikks.screenshots.run=<run id>`. The run loads it with alerts and decisions for the fixture IPs.
 4. The app under uvicorn on a free port, bound to `0.0.0.0`, tailing two empty log files in the run folder.
 5. Playwright with one worker, in two passes. The live scenes come last, while the live feeder appends requests from the seeded visitors to those log files.
 
 Then the run encodes the PNGs, writes `manifest.json` and swaps the new folder in for `data/screenshots/` in two renames. A failed or interrupted run publishes nothing, with one exception. The run ignores Ctrl-C and SIGTERM during the two renames, so an interrupt that lands there does not stop the swap. That run still publishes and exits 0. PNGs and files whose names the run does not recognize always stay in `data/screenshots/`.
 
-Nothing in the run contacts the owner's CrowdSec LAPI, Spamhaus, RDAP, GitHub releases or a public-IP service. The CrowdSec container sits on a network with no route out. The DROP lists come from fixture bodies through a mock transport, and the run fails before publishing if their copyright marker changed or any DROP entry falls outside documentation space. It also stops before capture if the LAPI holds a decision for an IP the fixtures did not create. Playwright loads basemap tiles from CARTO with your key.
+Nothing in the run contacts the owner's CrowdSec LAPI, Spamhaus, AbuseIPDB, RDAP, GitHub releases or a public-IP service. The CrowdSec container sits on a network with no route out. The DROP lists come from fixture bodies through a mock transport, and the run fails before publishing if their copyright marker changed or any DROP entry falls outside documentation space. It also stops before capture if the LAPI holds a decision for an IP the fixtures did not create. AbuseIPDB has its own section below. Playwright loads basemap tiles from CARTO with your key.
 
 A full run takes about 15 to 20 minutes, most of it seeding and capture. At its peak it holds the CrowdSec container, the app, Playwright with one browser and, with `--own-db`, a 1 GB database container.
 
@@ -115,8 +115,23 @@ The DROP feeds also always carry a filler record, 192.0.2.64/26 and 2001:db8:fff
 These visitors have no location. GeoLite2 places none of these addresses, so ingestion would store their requests with no country or city and write no `geo_events` row. The fixture rows do the same. That affects three scenes:
 
 - `drop-networks` lists 203.0.113.0/24 with 3 IPs, 198.51.100.14/32 and 2001:db8:d0c::5/128, each under AS64496. The card has no country column.
-- `ip-inspector` opens 198.51.100.14. The header shows the ASN with no flag or city, the locations block is empty, and the map behind the sheet keeps its view, since the address has no marker.
+- `ip-inspector` opens 198.51.100.14. The header shows the ASN with no flag or city, and the AbuseIPDB blacklist mark but no AbuseIPDB score, the locations block is empty, and the map behind the sheet keeps its view, since the address has no marker.
 - `abuse-report` for 198.51.100.14 names the network as `AS64496 Fictional Example Hosting` with no country code. Its DROP notice covers both the v4 listing and the ASN-DROP listing.
+
+### AbuseIPDB
+
+The app starts with `ABUSEIPDB_API_KEY` empty and reporting and the blacklist off. With no key it builds no AbuseIPDB client, so the check, the report and the blacklist download have nothing to send with. The run asks `/api/v1/abuseipdb/status` after login and stops if the server says any of the three is on.
+
+What the shots need from AbuseIPDB comes from elsewhere:
+
+- The fixture step writes four reports straight into `abuseipdb_reports`, for 203.0.113.23, 2001:db8:d0c::5, 198.51.100.14 and 203.0.113.10. They were sent by the user `admin` or the API key `homepage-widget`, and the one for 2001:db8:d0c::5 is Unconfirmed.
+- The capture browser answers `status` (key set, reporting and blacklist on), `blacklist` (198.51.100.14 only) and `check` (198.51.100.14, 100%) from the plan, which `abuseipdb.py` builds with the app's own response types.
+- The app refuses a documentation address on `GET /api/v1/abuseipdb/reports`, so the browser answers that one from `reports/history`, which reads the same table.
+- `reports/history` and `reported-ips` reach the app. Any other AbuseIPDB call, a `POST` above all, is refused, and the shot fails.
+
+Before it publishes, the run fails if `abuseipdb_reports` holds an address outside documentation space, if either blacklist table holds a row, or if the app log has an AbuseIPDB event (`abuseipdb_check`, `abuseipdb_report_*`, `abuseipdb_blacklist_*`), `abuseipdb.com`, or a request to the app's `check` or `POST reports`.
+
+The app hides AbuseIPDB features for addresses that aren't public. The inspector shows no score badge for 198.51.100.14, and Report to AbuseIPDB… is disabled for it with "not a public address". So `abuseipdb-report` opens the dialog by calling its own `onOpenChange` through React's fiber, from the row's actions button on the Reports tab, then presses Check to show the score. It never presses Send.
 
 ### Home visitors
 

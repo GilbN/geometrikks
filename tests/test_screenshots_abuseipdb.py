@@ -1,6 +1,8 @@
 """AbuseIPDB fixtures for the screenshot run: stored reports, the browser's answers and the outbound checks."""
 
+import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import msgspec
 
@@ -78,3 +80,8 @@ def test_outbound_log_lines_pass_the_local_reads() -> None:
     ]
     assert outbound_log_lines("\n".join(lines)) == []
 
+
+def test_the_report_scene_opens_the_inspected_ip() -> None:
+    scenes = (Path(__file__).parent / "screenshots" / "scenes.ts").read_text()
+    match = re.search(r'export const REPORTED_IP = "([^"]+)"', scenes)
+    assert match and match.group(1) == DOC_INSPECT_IP

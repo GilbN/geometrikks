@@ -61,9 +61,12 @@ async function charts(page: Page): Promise<void> {
   await noSkeletons(page)
 }
 
+/** DOC_INSPECT_IP in doc_traffic.py: the inspected address, and the one the report scene opens. */
+export const REPORTED_IP = "198.51.100.14"
+
 const inspectorSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
 
-/** The inspector for the documentation visitor: ban and DROP badges, its ASN, every block loaded. */
+/** The inspector for the documentation visitor: ban, DROP and AbuseIPDB blacklist badges, its ASN, every block loaded. */
 async function inspector(page: Page): Promise<Locator> {
   const sheet = inspectorSheet(page)
   await expect(sheet).toBeVisible({ timeout: LOAD_TIMEOUT })
@@ -72,9 +75,59 @@ async function inspector(page: Page): Promise<Locator> {
   // A touch screen turns the badge into its hint's trigger, which replaces its data-slot.
   const dropBadge = sheet.locator('[data-slot="badge"], [data-badge-hint]').filter({ hasText: /^DROP\W*SBL/ })
   await expect(dropBadge).toBeVisible({ timeout: LOAD_TIMEOUT })
+  const blacklistBadge = sheet.locator('[data-slot="badge"], [data-badge-hint]').filter({ hasText: /^AbuseIPDB blacklist$/ })
+  await expect(blacklistBadge).toBeVisible({ timeout: LOAD_TIMEOUT })
   await noSkeletons(sheet)
   await animationsDone(sheet)
   return sheet
+}
+
+/** The page's own tab bar; the Decisions and Alerts tables have tab rows of their own. */
+const securityTabs = (page: Page) => page.getByRole("tablist").first()
+
+async function securityTab(page: Page, name: string): Promise<void> {
+  const tabs = securityTabs(page)
+  await expect(tabs.getByRole("tab")).toHaveText(["Decisions", "Alerts", "DROP", "Reports"], { timeout: LOAD_TIMEOUT })
+  await expect(tabs.getByRole("tab", { name, selected: true })).toBeVisible({ timeout: LOAD_TIMEOUT })
+}
+
+const reportRows = (page: Page) => page.locator('tr[aria-label^="Report of "]')
+
+/**
+ * Report to AbuseIPDB… is disabled for an address that isn't public, and every fixture address is
+ * documentation space, so this calls the dialog's own onOpenChange, found through React's fiber
+ * from the row's actions button, as findMap finds the map.
+ */
+async function openReportDialog(page: Page, ip: string): Promise<void> {
+  const trigger = reportRows(page).filter({ hasText: ip }).first().getByRole("button", { name: `Actions for ${ip}` })
+  await trigger.evaluate((element, reported) => {
+    type Fiber = { return: Fiber | null; child: Fiber | null; sibling: Fiber | null; memoizedProps: Record<string, unknown> | null }
+    const isReportDialog = (props: Record<string, unknown> | null) =>
+      props !== null &&
+      Object.keys(props).sort().join() === "ip,onOpenChange,open,returnFocusTo" &&
+      props.ip === reported &&
+      typeof props.onOpenChange === "function"
+    const find = (root: Fiber): Fiber | null => {
+      const stack: Fiber[] = [root]
+      while (stack.length > 0) {
+        const fiber = stack.pop()!
+        if (isReportDialog(fiber.memoizedProps)) return fiber
+        if (fiber.sibling && fiber !== root) stack.push(fiber.sibling)
+        if (fiber.child) stack.push(fiber.child)
+      }
+      return null
+    }
+    const key = Object.keys(element).find((name) => name.startsWith("__reactFiber$"))
+    for (let fiber = (element as unknown as Record<string, Fiber>)[key!]; fiber; fiber = fiber.return!) {
+      const dialog = find(fiber)
+      if (dialog) {
+        ;(dialog.memoizedProps!.onOpenChange as (open: boolean) => void)(true)
+        return
+      }
+      if (!fiber.return) break
+    }
+    throw new Error(`no AbuseIPDB report dialog for ${reported}`)
+  }, ip)
 }
 
 async function mapDetail(page: Page, shot: PlannedShot): Promise<void> {
@@ -197,13 +250,45 @@ export const STAGES: Record<string, Stage> = {
   },
   security: async (page) => {
     await expect(page.getByRole("heading", { name: "Security" })).toBeVisible({ timeout: LOAD_TIMEOUT })
+    await securityTab(page, "Decisions")
     await noSkeletons(page)
   },
   "drop-networks": async (page) => {
+    await securityTab(page, "DROP")
     const card = page.locator("#drop-networks")
     await expect(card.getByText("203.0.113.0/24")).toBeVisible({ timeout: LOAD_TIMEOUT })
     await noSkeletons(page)
-    await card.evaluate((element) => element.scrollIntoView({ block: "start" }))
+    await securityTabs(page).evaluate((element) => element.scrollIntoView({ block: "start" }))
+  },
+  "abuseipdb-report": async (page, shot) => {
+    await securityTab(page, "Reports")
+    await expect(reportRows(page).filter({ hasText: REPORTED_IP })).toHaveCount(1, { timeout: LOAD_TIMEOUT })
+    await noSkeletons(page)
+    await openReportDialog(page, REPORTED_IP)
+    const dialog = (shot.viewport.isMobile ? page.locator('[data-slot="drawer-content"]') : page.getByRole("dialog")).filter({
+      hasText: "to AbuseIPDB",
+    })
+    await expect(dialog).toBeVisible({ timeout: LOAD_TIMEOUT })
+    await expect(dialog.getByText(/^\d+ picked from CrowdSec$/)).toBeVisible({ timeout: LOAD_TIMEOUT })
+    await expect(dialog.getByRole("button", { name: "21 Web App Attack", pressed: true })).toBeVisible()
+    await expect(dialog.getByLabel("Comment")).toHaveValue(/CrowdSec: /)
+    await expect(dialog.getByText(/ UTC · 21 · by admin$/)).toBeVisible({ timeout: LOAD_TIMEOUT })
+    // Check is answered by the browser from the plan; Send is never pressed.
+    await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
+    await expect(dialog.getByText("100% confidence")).toBeVisible({ timeout: LOAD_TIMEOUT })
+    await dialog.locator(".overflow-y-auto").first().evaluate((element) => element.scrollTo({ top: 0 }))
+    await animationsDone(dialog)
+  },
+  "abuseipdb-reports": async (page) => {
+    await securityTab(page, "Reports")
+    const rows = reportRows(page)
+    await expect(rows).toHaveCount(4, { timeout: LOAD_TIMEOUT })
+    await noSkeletons(page)
+    await expect(page.getByText("Unconfirmed", { exact: true })).toBeVisible()
+    await rows.first().press("Enter")
+    await expect(rows.first()).toHaveAttribute("aria-expanded", "true")
+    await expect(page.getByText("Attack time", { exact: true })).toBeVisible()
+    await securityTabs(page).evaluate((element) => element.scrollIntoView({ block: "start" }))
   },
   "banned-map": async (page, shot) => {
     await expect(page.locator(".maplibregl-canvas")).toBeVisible({ timeout: LOAD_TIMEOUT })

@@ -104,7 +104,7 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="ip-inspector",
         title="IP inspector",
-        alt="The IP inspector for a banned documentation address on a DROP list under AS64496, with no known location, showing its request stats, targets and paths.",
+        alt="The IP inspector for a banned documentation address under AS64496 that is on a DROP list and AbuseIPDB's blacklist, with no known location, showing its request stats, targets and paths.",
         path="/map?inspect={inspect_ip}",
         viewports=("desktop", "phone"),
     ),
@@ -118,15 +118,29 @@ SCENES: tuple[Scene, ...] = (
     Scene(
         id="security",
         title="Security",
-        alt="The Security page with CrowdSec stat cards above the DROP networks card and the active decisions.",
+        alt="The Security page with CrowdSec stat cards above the Decisions, Alerts, DROP and Reports tabs, open on the active decisions.",
         path="/security",
         viewports=("desktop", "phone"),
     ),
     Scene(
         id="drop-networks",
         title="DROP networks",
-        alt="The DROP networks in your traffic card on the Security page, listing three documentation-range networks under AS64496, two of them banned.",
-        path="/security",
+        alt="The Security page's DROP tab with the DROP networks in your traffic card, listing three documentation-range networks under AS64496, two of them banned.",
+        path="/security?tab=drop",
+        viewports=("desktop", "phone"),
+    ),
+    Scene(
+        id="abuseipdb-report",
+        title="Report to AbuseIPDB",
+        alt="The Report to AbuseIPDB dialog for a documentation address, with Web App Attack picked from its CrowdSec alerts, the prefilled comment, its AbuseIPDB score and an earlier report.",
+        path="/security?tab=reports",
+        viewports=("desktop", "phone"),
+    ),
+    Scene(
+        id="abuseipdb-reports",
+        title="AbuseIPDB reports",
+        alt="The Security page's Reports tab listing reports sent to AbuseIPDB for documentation addresses, one of them unconfirmed, with the newest expanded to its comment and attack time.",
+        path="/security?tab=reports",
         viewports=("desktop", "phone"),
     ),
     Scene(
