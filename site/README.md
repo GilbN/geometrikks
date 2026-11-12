@@ -197,19 +197,17 @@ rule, got a 307 to `/docs/quickstart/` from the asset server.
 
 ## Releasing
 
-The `chore(release): X.Y.Z` commit for a stable release does three things
-in `site/`:
+In the `chore(release): X.Y.Z` commit for a stable release, in `site/`:
 
-1. It sets the image tags in `content/docs/next/`. The Quickstart page
+1. Set the image tags in `content/docs/next/`. The Quickstart page
    (`get-started/quickstart.mdx`) has the dev example `X.Y.Z-dev.1` in its
    tags table and the pinned `ghcr.io/gilbn/geometrikks:X.Y.Z`. The Multiple
    sources page (`sources/multiple-sources.mdx`) has the same pinned tag in
    its agent snippet.
-2. It runs `bun run docs:release X.Y.Z`, after the tags are set so the
-   release folder gets them. The script's last line names the folder it
-   wrote and the superseded versions it deleted, in its `dropped=[...]`
-   field.
-3. It stages `content/docs/X.Y.Z/`, `content/openapi/X.Y.Z.json` and the
+2. Run `bun run docs:release X.Y.Z`, after the tags are set so the release
+   folder gets them. The script's last line names the folder it wrote and
+   the superseded versions it deleted, in its `dropped=[...]` field.
+3. Stage `content/docs/X.Y.Z/`, `content/openapi/X.Y.Z.json` and the
    deletion of each dropped version's folder and snapshot.
 
 `docs:release` copies `content/docs/next/` to
@@ -239,21 +237,23 @@ every release folder marked as published. That promotes the pending folder
 early, so its dead links and redirect errors fail the pull request before
 the release does.
 
-Retake the screenshots for a release with
-`uv run python -m tests.screenshots` from the repository root.
-[tests/screenshots/README.md](../tests/screenshots/README.md) covers what a
-run needs. Every docs version shows the same `data/screenshots/` files. The
-desktop shots show the installed package version in the sidebar, which Hatch
-derives from git when uv installs the project. `uv run` reinstalls it when
-the commit or tags change, so run the retake from a checkout of the
-`vX.Y.Z` tag to show the release version, then commit the new files on
-`develop`.
-
 Once the image is published, the next site build promotes the folder. The
 `docs-promote` job in `.github/workflows/release.yml` triggers that build
 for a stable tag by posting to the `DOCS_DEPLOY_HOOK_URL` repository
 secret. Until someone sets that secret, the job prints a notice and does
 nothing, and the folder goes live with the next build that a push starts.
+
+Retake the screenshots once the `vX.Y.Z` tag exists, with
+`uv run python -m tests.screenshots` from the repository root.
+[tests/screenshots/README.md](../tests/screenshots/README.md) covers what a
+run needs. Every docs version shows the same `data/screenshots/` files. The
+desktop shots show the installed package version in the sidebar, which Hatch
+takes from the nearest git tag when uv installs the project. `uv run`
+reinstalls it when the commit or tags change, so run the retake from a
+checkout of the tag to show the release version. Then copy the changed files
+under `data/screenshots/` to a branch off `develop` and open a pull request.
+A full run writes the tag's scene list, so if `develop` has added scenes
+since the release commit, keep their files and `manifest.json` entries.
 
 ## Generated pages
 
