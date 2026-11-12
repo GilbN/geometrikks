@@ -14,7 +14,7 @@ MAXMINDDB_USER_ID=<your-account-id>
 MAXMINDDB_LICENSE_KEY=<your-license-key>
 ```
 
-Then run `docker compose up -d`. Compose recreates the app container with the new values, and the app downloads the databases at startup. `docker compose restart` keeps the old container and its old values, so the keys would not reach the app.
+Then run `docker compose up -d`. Compose recreates the app container with the new values, and the app downloads the databases at startup.
 
 Using the databases means accepting the [GeoLite2 EULA](https://www.maxmind.com/en/geolite2/eula).
 

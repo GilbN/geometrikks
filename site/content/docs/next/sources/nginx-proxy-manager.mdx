@@ -39,7 +39,7 @@ The `/data/...` paths below are inside the NPM container. With the usual `./data
    LOGPARSER_LOG_FORMATS=geometrikks-json
    ```
 
-   Run `docker compose up -d` to recreate the container with the new mount. `docker compose restart` keeps the old one.
+   Run `docker compose up -d` to recreate the container with the new mount.
 
 Every proxy host shares the one file. Each line carries `host`, so the host filter still tells them apart. NPM's logrotate rule matches `/data/logs/*_access.log`, so this file rotates weekly along with NPM's own logs, and GeoMetrikks follows the rotation.
 
