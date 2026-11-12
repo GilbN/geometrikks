@@ -8,6 +8,7 @@ if (!envDir) {
   throw new Error("SHOTS_VITE_ENV_DIR is not set; this config is for the screenshot run's build only");
 }
 
+export const PUBLIC_IP_HELPERS = ["inRanges", "ipv4Range", "ipv6Range", "ipv6Value"];
 export const PUBLIC_IP_MODULE = "/resources/lib/abuseipdb.ts";
 export const PUBLIC_IP_ANCHOR =
   "export function isPublicIp(ip: string): boolean {\n  const parsed = parseIp(ip)\n  if (parsed === null) return false\n";
@@ -30,6 +31,10 @@ function documentationIsPublic(): Plugin {
       if (!code.includes(PUBLIC_IP_ANCHOR)) {
         throw new Error(`${PUBLIC_IP_MODULE} no longer opens isPublicIp as the screenshot build expects; update PUBLIC_IP_ANCHOR`);
       }
+      const missing = PUBLIC_IP_HELPERS.filter((helper) => !code.includes(helper));
+      if (missing.length > 0) {
+        throw new Error(`${PUBLIC_IP_MODULE} no longer defines ${missing.join(", ")}, which the documentation-range patch calls`);
+      }
       patched = true;
       return code.replace(PUBLIC_IP_ANCHOR, PUBLIC_IP_ANCHOR + DOCUMENTATION_IS_PUBLIC);
     },
@@ -37,6 +42,9 @@ function documentationIsPublic(): Plugin {
       if (!error && !patched) {
         throw new Error(`the screenshot build never transformed ${PUBLIC_IP_MODULE}, so isPublicIp still refuses documentation addresses`);
       }
+    },
+    generateBundle() {
+      this.emitFile({ type: "asset", fileName: ".screenshot-bundle", source: "documentation addresses count as public\n" });
     },
   };
 }

@@ -132,3 +132,12 @@ def test_the_screenshot_build_anchor_still_opens_is_public_ip() -> None:
     match = re.search(r'export const PUBLIC_IP_ANCHOR =\s*("(?:[^"\\]|\\.)*")', config)
     assert match, "PUBLIC_IP_ANCHOR is no longer a plain string literal"
     assert json.loads(match.group(1)) in (root / "resources" / "lib" / "abuseipdb.ts").read_text()
+
+
+def test_the_screenshot_build_patch_still_finds_its_helpers() -> None:
+    root = Path(__file__).parents[1]
+    config = (root / "tests" / "screenshots" / "vite.config.ts").read_text()
+    match = re.search(r"export const PUBLIC_IP_HELPERS = (\[[^\]]*\])", config)
+    assert match, "PUBLIC_IP_HELPERS is no longer a plain array literal"
+    source = (root / "resources" / "lib" / "abuseipdb.ts").read_text()
+    assert [helper for helper in json.loads(match.group(1)) if helper not in source] == []
