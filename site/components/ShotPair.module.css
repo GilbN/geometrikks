@@ -1,6 +1,10 @@
 .figure {
   margin: 0;
 }
+/* Back-to-back screenshots have no paragraph between them to space them apart. */
+.figure + .figure {
+  margin-top: 2.5em;
+}
 .pair {
   display: grid;
   grid-template-columns: minmax(0, 4fr) minmax(0, 1fr);
