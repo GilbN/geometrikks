@@ -11,7 +11,7 @@ When traffic comes in through more than one reverse proxy or host, you have thre
 
 ## How it works
 
-The full instance, which Settings > Agents calls the head, owns the UI, the API, [database migrations](../operate/deployment.mdx#migrations), the scheduler and CrowdSec. An agent is the same image started with `APP_MODE=agent`. It runs next to the access logs it reads, on the proxy's host or Docker network, and does the ingestion there: tail, parse, geolocate, write and publish. Every agent and the head share one TimescaleDB.
+The full instance, which Settings > Agents calls the head, does everything a single install does. It serves the UI and the API, runs [database migrations](../operate/deployment.mdx#migrations) and the background jobs, and is the only process that talks to CrowdSec, AbuseIPDB and Spamhaus. An agent is the same image started with `APP_MODE=agent`. It runs next to the access logs it reads, on the proxy's host or Docker network, and does the ingestion there: tail, parse, geolocate, write and publish. Every agent and the head share one TimescaleDB.
 
 Live traffic reaches the map whichever process ingested it. Every process publishes the requests it writes through Postgres LISTEN/NOTIFY, and the head's `/ws/live` feed relays all of them.
 
