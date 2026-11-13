@@ -151,6 +151,7 @@ services:
       # Hourly re-detection instead of the 24h default, so cadence-driven
       # server-location refreshes are observable within a test session.
       MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      APP_INSTANCE_NAME: agent-nginx
       LOGPARSER_SERVER_NAME: nginx-01
       LOGPARSER_LOG_PATHS: /var/log/access/nginx.log
       LOGPARSER_LOG_FORMATS: nginx
@@ -186,6 +187,7 @@ services:
     environment:
       APP_MODE: agent
       MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      APP_INSTANCE_NAME: agent-traefik
       LOGPARSER_SERVER_NAME: traefik-01
       LOGPARSER_LOG_PATHS: /var/log/access/traefik.log
       LOGPARSER_LOG_FORMATS: traefik-json
@@ -221,6 +223,7 @@ services:
     environment:
       APP_MODE: agent
       MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      APP_INSTANCE_NAME: agent-json
       LOGPARSER_SERVER_NAME: json-01
       LOGPARSER_LOG_PATHS: /var/log/access/nginx-json.log
       LOGPARSER_LOG_FORMATS: geometrikks-json
@@ -256,6 +259,7 @@ services:
     environment:
       APP_MODE: agent
       MAP_SERVER_LOCATION_REFRESH_HOURS: 1
+      APP_INSTANCE_NAME: agent-caddy
       LOGPARSER_SERVER_NAME: caddy-01
       LOGPARSER_LOG_PATHS: /var/log/access/caddy.log
       LOGPARSER_LOG_FORMATS: caddy-json
