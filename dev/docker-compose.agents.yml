@@ -29,8 +29,9 @@
 #   - deliberately no env_file: on the services: .env carries ignore-IPs and
 #     auth overrides that would leak into this isolated stack. The --env-file
 #     flag above only feeds the ${...} interpolations below (admin login,
-#     MaxMind creds, and the CrowdSec LAPI settings on the head, which stay
-#     empty and therefore disabled when .env has none).
+#     MaxMind creds, the map keys, and the CrowdSec LAPI and AbuseIPDB
+#     settings on the head, which stay empty and therefore disabled when
+#     .env has none).
 #   - ./data/geoip (the dev mmdb) is bind-mounted rw into all five
 #     services; the entrypoint chowns it, and rw lets the agents' weekly
 #     geoip-refresh job work. Fine for a test stack, one-volume-per-agent
@@ -121,6 +122,9 @@ services:
       CROWDSEC_MACHINE_PASSWORD: ${CROWDSEC_MACHINE_PASSWORD:-}
       MAP_CARTO_API_KEY: ${MAP_CARTO_API_KEY:-}
       MAP_ESRI_API_KEY: ${MAP_ESRI_API_KEY:-}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      ABUSEIPDB_REPORTING_ENABLED: ${ABUSEIPDB_REPORTING_ENABLED:-false}
+      ABUSEIPDB_BLACKLIST_ENABLED: ${ABUSEIPDB_BLACKLIST_ENABLED:-false}
     ports:
       - "8000:8000"
     volumes:
