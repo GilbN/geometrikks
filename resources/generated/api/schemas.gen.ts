@@ -5909,6 +5909,18 @@ export const MapSettingsViewSchema = {
         },
       ],
     },
+    esriApiKey: {
+      description:
+        "The Esri imagery key from MAP_ESRI_API_KEY, or null. Null turns the map's Satellite view off. It is no secret, since the browser sends it with every satellite tile request.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     serverLatitude: {
       description:
         "Where this server sits, in decimal degrees. Null when unknown.",
@@ -5943,6 +5955,7 @@ export const MapSettingsViewSchema = {
   required: [
     "cartoApiKey",
     "defaultView",
+    "esriApiKey",
     "serverLatitude",
     "serverLocationSource",
     "serverLongitude",

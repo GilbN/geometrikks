@@ -702,6 +702,20 @@ watermark or refuse keyless tiles at any time.
 The map shows the CARTO and OpenStreetMap attribution in its corner. Keep
 it visible; both licenses require it.
 
+The Satellite switch in the map controls draws Esri World Imagery under
+CARTO's borders and place names. Esri needs its own key. Create a free
+ArcGIS Location Platform account at
+[location.arcgis.com](https://location.arcgis.com), make an API key with
+basemap access, and set:
+
+```bash
+MAP_ESRI_API_KEY=<your-key>
+```
+
+Like the CARTO key, the browser sends it with every satellite tile, so
+treat it as public. Without a key the Satellite switch is greyed out. Esri
+counts tile use against the account's monthly free allowance.
+
 Live routes fly to the location of the server that recorded them (see
 [Multi-source setup](#multi-source-setup)); with a single server that is
 the app server's own location, discovered at startup through ipify and

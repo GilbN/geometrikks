@@ -75,8 +75,10 @@ import {
   loadFrameRatePreference,
   saveFrameRatePreference,
   loadLivePreference,
+  loadSatellitePreference,
   saveLayerPreference,
   saveLivePreference,
+  saveSatellitePreference,
 } from "@/lib/map-preferences"
 import { LiveTrafficProvider, useLiveTrafficStore } from "@/lib/live-traffic/context"
 import type { LiveRequest } from "@/lib/live-traffic/types"
@@ -212,7 +214,9 @@ function GeoMapInner({
 }) {
   const demoTrafficMode = getDemoTrafficMode()
   const mapRef = useRef<MapRef>(null)
-  const { mapStyle, transformRequest, ready: mapReady } = useMapStyle()
+  const [satellite, setSatellite] = useState(loadSatellitePreference)
+  useEffect(() => saveSatellitePreference(satellite), [satellite])
+  const { mapStyle, transformRequest, satelliteAvailable, satelliteFailed, ready: mapReady } = useMapStyle({ satellite })
   const { failure: mapFailure, onError: onMapError } = useMapStartFailure()
   const isMobile = usePhoneLayout()
   const liveSlot = useMapLiveSlot()
@@ -901,7 +905,12 @@ function GeoMapInner({
 
   return (
     <MapProvider>
-    <div data-geo-map="" data-phone-side={phoneSide ? "" : undefined} className="h-full w-full relative">
+    <div
+      data-geo-map=""
+      data-phone-side={phoneSide ? "" : undefined}
+      data-satellite={typeof mapStyle === "string" ? undefined : ""}
+      className="h-full w-full relative"
+    >
       <Map
         ref={mapRef}
         workerUrl={MAPLIBRE_WORKER_URL}
@@ -933,6 +942,7 @@ function GeoMapInner({
           key={isMobile && !phoneSide ? "line" : phoneSide ? "side" : "pill"}
           compact={!isMobile || phoneSide}
           startCollapsed={phoneSide}
+          foldEsriCredit={(isMobile || phoneSide) && typeof mapStyle !== "string"}
         />
 
         {/* GeoJSON data source */}
@@ -1117,6 +1127,10 @@ function GeoMapInner({
         onLayerChange={changeLayer}
         projection={projection}
         onProjectionChange={changeProjection}
+        satellite={satellite && satelliteAvailable}
+        satelliteAvailable={satelliteAvailable}
+        satelliteFailed={satelliteFailed}
+        onSatelliteChange={setSatellite}
         liveMode={liveMode}
         demoTrafficMode={demoTrafficMode}
         onLiveModeChange={onLiveModeChange}

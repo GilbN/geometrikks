@@ -52,6 +52,7 @@ import {
   Maximize2,
   MoreHorizontal,
   Radio,
+  Satellite,
   Server,
   SlidersHorizontal,
   Sparkles,
@@ -83,6 +84,12 @@ interface MapControlsProps {
   onLayerChange: (layer: LayerType) => void
   projection: MapProjection
   onProjectionChange: (projection: MapProjection) => void
+  satellite: boolean
+  /** False without an Esri key, which disables the Satellite switch. */
+  satelliteAvailable: boolean
+  /** The satellite style failed to load, so the street map is still showing. */
+  satelliteFailed: boolean
+  onSatelliteChange: (enabled: boolean) => void
   liveMode: boolean
   demoTrafficMode?: DemoTrafficMode
   onLiveModeChange: (enabled: boolean) => void
@@ -228,6 +235,10 @@ export function MapControls({
   onLayerChange,
   projection,
   onProjectionChange,
+  satellite,
+  satelliteAvailable,
+  satelliteFailed,
+  onSatelliteChange,
   liveMode,
   demoTrafficMode = "off",
   onLiveModeChange,
@@ -465,6 +476,23 @@ export function MapControls({
           checked={projection === "globe"}
           onCheckedChange={(on) => onProjectionChange(on ? "globe" : "mercator")}
           title={projection === "globe" ? "Switch to a flat Mercator map" : "Switch to an interactive globe"}
+        />
+        <SwitchRow
+          icon={Satellite}
+          label="Satellite"
+          meta={!satelliteAvailable ? "no key" : satelliteFailed ? "failed" : undefined}
+          checked={satellite}
+          disabled={!satelliteAvailable}
+          onCheckedChange={onSatelliteChange}
+          title={
+            !satelliteAvailable
+              ? "Set MAP_ESRI_API_KEY to turn on satellite imagery"
+              : satelliteFailed
+                ? "The satellite map failed to load"
+                : satellite
+                  ? "Switch back to the street map"
+                  : "Show satellite imagery"
+          }
         />
       </Section>
 
