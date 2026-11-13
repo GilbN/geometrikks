@@ -90,6 +90,7 @@ Set these only for a feature you use, or to change a default.
 | `MAP_SERVER_LOCATIONS` | *(computed)* | Fixed map locations per server name, as a JSON object of {"server": [latitude, longitude]}. An entry here wins over the location that server detects for itself. Removing an entry deletes its row at the next startup. Use it for a server whose public IP geolocates wrong (CGNAT, VPN), or whose logs are shipped from another machine. Formerly `MAP_HOME_LOCATIONS`, which still works until 1.0. |
 | `MAP_DEFAULT_VIEW` | - | Where the map opens, as latitude,longitude or latitude,longitude,zoom (zoom 0-22, default 3). Example: 71.129982,27.653369,15 opens on northern Norway at zoom 15. When unset, the map opens on the server locations, or on the whole world if there are none. |
 | `MAP_CARTO_API_KEY` | `` | CARTO basemaps API key, sent as ?key= on every basemap request the browser makes. CARTO's terms require one per deployment; keys are free at https://carto.com/basemaps/apikey. Not a secret: it is visible to anyone who can open the map. |
+| `MAP_ESRI_API_KEY` | `` | ArcGIS Location Platform API key for the map's Satellite view, which draws Esri World Imagery. Keys are free at https://location.arcgis.com. Without one the Satellite switch stays off. It is not a secret, since anyone who can open the map can see it. |
 
 ### CrowdSec
 

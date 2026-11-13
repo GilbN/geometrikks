@@ -923,6 +923,16 @@ class MapSettings(LegacyEnvNamesSettings):
             "secret: it is visible to anyone who can open the map."
         ),
     )
+    esri_api_key: str = Field(
+        default="",
+        description=(
+            "ArcGIS Location Platform API key for the map's Satellite view, "
+            "which draws Esri World Imagery. Keys are free at "
+            "https://location.arcgis.com. Without one the Satellite switch "
+            "stays off. It is not a secret, since anyone who can open the "
+            "map can see it."
+        ),
+    )
     home_locations: dict[str, tuple[float, float]] | None = Field(
         default=None,
         description="Replaced by `MAP_SERVER_LOCATIONS`.",

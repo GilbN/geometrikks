@@ -44,6 +44,7 @@ def test_settings_response_is_whitelisted():
         "serverLongitude": -74.006,
         "serverLocationSource": "external_ip",
         "cartoApiKey": None,
+        "esriApiKey": None,
         "defaultView": None,
     }
 
@@ -74,6 +75,16 @@ def test_settings_exposes_carto_api_key(monkeypatch):
         body = client.get("/api/v1/settings").json()
 
     assert body["map"]["cartoApiKey"] == "carto-public-key"
+
+
+def test_settings_exposes_esri_api_key(monkeypatch):
+    """The imagery key goes to the browser on purpose, because MapLibre puts it on satellite tile URLs."""
+    monkeypatch.setenv("MAP_ESRI_API_KEY", "esri-public-key")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/api/v1/settings").json()
+
+    assert body["map"]["esriApiKey"] == "esri-public-key"
 
 
 def test_settings_exposes_default_view(monkeypatch):

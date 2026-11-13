@@ -3,9 +3,11 @@ import {
   loadAttributionPreference,
   loadLayerPreference,
   loadLivePreference,
+  loadSatellitePreference,
   saveAttributionPreference,
   saveLayerPreference,
   saveLivePreference,
+  saveSatellitePreference,
 } from "@/lib/map-preferences"
 
 function stubStorage(initial: Record<string, string> = {}) {
@@ -44,11 +46,20 @@ describe("map preferences", () => {
     saveAttributionPreference(true)
     expect(loadAttributionPreference()).toBe(true)
   })
+  it("defaults satellite to off and round-trips turning it on", () => {
+    const data = stubStorage()
+    expect(loadSatellitePreference()).toBe(false)
+    saveSatellitePreference(true)
+    expect(data.get("geometrikks-map-satellite")).toBe("true")
+    expect(loadSatellitePreference()).toBe(true)
+  })
   it("survives a missing localStorage", () => {
     // no stub at all: loaders must return defaults, savers must not throw
     expect(loadLayerPreference()).toBe("markers")
     expect(() => saveLivePreference(true)).not.toThrow()
     expect(loadAttributionPreference()).toBe(true)
     expect(() => saveAttributionPreference(false)).not.toThrow()
+    expect(loadSatellitePreference()).toBe(false)
+    expect(() => saveSatellitePreference(true)).not.toThrow()
   })
 })

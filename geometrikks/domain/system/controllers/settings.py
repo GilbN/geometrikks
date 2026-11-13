@@ -91,6 +91,15 @@ class MapSettingsView(msgspec.Struct, rename="camel"):
             )
         ),
     ]
+    esri_api_key: Annotated[
+        str | None,
+        msgspec.Meta(
+            description=(
+                "The Esri imagery key from MAP_ESRI_API_KEY, or null. Null turns the map's Satellite view off. It "
+                "is no secret, since the browser sends it with every satellite tile request."
+            )
+        ),
+    ]
     default_view: Annotated[
         DefaultMapView | None,
         msgspec.Meta(description="Null means the map opens on the server locations, or on the whole world."),
@@ -163,6 +172,7 @@ async def read_settings(
             server_longitude=self_location.longitude if self_location else None,
             server_location_source=self_location.source if self_location else None,
             carto_api_key=s.map.carto_api_key or None,
+            esri_api_key=s.map.esri_api_key or None,
             default_view=(
                 DefaultMapView(
                     latitude=s.map.default_view[0],
