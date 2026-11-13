@@ -42,7 +42,7 @@ real_ip_recursive on;
 
 ## Cloudflare Tunnel
 
-A Tunnel changes which peer your proxy sees. `cloudflared` opens the connection to your proxy itself, from localhost or a Docker network address, not from one of Cloudflare's public ranges. Cloudflare's edge still puts the visitor in [`CF-Connecting-IP` and `X-Forwarded-For`](https://developers.cloudflare.com/fundamentals/reference/http-headers/#x-forwarded-for), and `cloudflared` passes those headers on. The peer to trust changes. It is the address `cloudflared` connects from.
+A Tunnel changes which peer your proxy sees. `cloudflared` opens the connection to your proxy itself, from localhost or a Docker network address, not from one of Cloudflare's public ranges. Cloudflare's edge still puts the visitor in [`CF-Connecting-IP` and `X-Forwarded-For`](https://developers.cloudflare.com/fundamentals/reference/http-headers/#x-forwarded-for), and `cloudflared` passes those headers on. So your proxy should trust the address `cloudflared` connects from, not Cloudflare's ranges.
 
 For nginx, put that address in `set_real_ip_from` and keep reading `CF-Connecting-IP`, which holds the visitor's address alone:
 
