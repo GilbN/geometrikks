@@ -56,7 +56,9 @@ Where the controls are:
 
 A ban or unban from a menu or button waits 5 seconds before it reaches CrowdSec, behind a toast with Undo.
 
-The ban dialog takes an IP or a CIDR range, a ban or a captcha, a preset or custom duration such as `90m`, `12h` or `3d`, and an optional reason. A captcha only works with a bouncer that has captcha set up. The dialog starts at 4 hours whatever the setting below says, and sends the decision as soon as you submit it, with no Undo window. Forever is a 10-year ban. A ban request over the API without a duration lasts `CROWDSEC_DEFAULT_BAN_DURATION`, `4h` by default.
+The ban dialog takes an IP or a CIDR range, a ban or a captcha, a duration and an optional reason. A captcha only works with a bouncer that has captcha set up. The duration is a preset or a custom value such as `90m`, `12h` or `3d`, and Forever is a 10-year ban. Unlike a menu, the dialog has no Undo window and sends the decision as soon as you submit it.
+
+A ban request over the API without a duration lasts `CROWDSEC_DEFAULT_BAN_DURATION`, `4h` by default. The dialog doesn't read that setting and always starts at 4 hours.
 
 Every manual decision carries origin `geometrikks` and the scenario `geometrikks/manual-ban` or `geometrikks/manual-captcha`. Without a reason it says `manual ban from GeoMetrikks`, or `manual captcha from GeoMetrikks` for a captcha. The app log records every ban and unban with the user who made it, or `api-key:<name>` for an API key.
 
