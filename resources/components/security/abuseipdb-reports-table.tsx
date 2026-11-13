@@ -4,6 +4,7 @@
  */
 import { useRef, useState } from "react"
 import { Search, X } from "lucide-react"
+import { BadgeHint } from "@/components/badge-hint"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -183,13 +184,11 @@ export function AbuseIpdbReportsTable() {
 
 function UnconfirmedBadge({ className }: { className?: string }) {
   return (
-    <Badge
-      variant="outline"
-      title="AbuseIPDB did not confirm this report. It may have been sent."
-      className={cn("text-amber-500", className)}
-    >
-      Unconfirmed
-    </Badge>
+    <BadgeHint hint="AbuseIPDB did not confirm this report. It may have been sent." hover="tooltip">
+      <Badge variant="outline" className={cn("cursor-help text-amber-500", className)}>
+        Unconfirmed
+      </Badge>
+    </BadgeHint>
   )
 }
 

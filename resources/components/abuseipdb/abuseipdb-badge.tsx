@@ -43,15 +43,15 @@ export function AbuseIpdbBadge({ ip }: { ip: string }) {
       result.isWhitelisted ? "whitelisted" : null,
     ]
     const title = [
-      `${result.abuseConfidenceScore}% confidence from ${formatNumber(result.numDistinctUsers)} ${result.numDistinctUsers === 1 ? "user" : "users"}`,
+      `${result.abuseConfidenceScore}% confidence from ${formatNumber(result.numDistinctUsers)} ${result.numDistinctUsers === 1 ? "reporter" : "reporters"}`,
       result.lastReportedAt ? `last reported ${agoText(result.lastReportedAt, Date.now())}` : "never reported",
       result.usageType,
     ]
     return (
-      <BadgeHint hint={title.filter(Boolean).join(" · ")}>
+      <BadgeHint hint={title.filter(Boolean).join(" · ")} hover="tooltip">
         <Badge
           variant="outline"
-          className={cn("h-auto max-w-full whitespace-normal break-words text-left", TONE_CLASS[abuseScoreTone(result.abuseConfidenceScore)])}
+          className={cn("h-auto max-w-full cursor-help whitespace-normal break-words text-left", TONE_CLASS[abuseScoreTone(result.abuseConfidenceScore)])}
         >
           {label.filter(Boolean).join(" · ")}
         </Badge>

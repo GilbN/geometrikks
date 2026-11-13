@@ -118,6 +118,8 @@ test.describe("desktop", () => {
     await page.goto("/security?tab=reports")
     const row = reportRow(page, "3.5.140.9")
     await expect(row).toContainText("Unconfirmed")
+    await row.getByText("Unconfirmed", { exact: true }).hover()
+    await expect(page.getByRole("tooltip")).toHaveText("AbuseIPDB did not confirm this report. It may have been sent.")
     await expect(row).toContainText("homepage")
     await expect(row).not.toContainText("100")
   })

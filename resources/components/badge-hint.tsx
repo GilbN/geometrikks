@@ -74,7 +74,9 @@ export function BadgeHint({
   if (hover === "tooltip") {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipTrigger asChild tabIndex={0}>
+          {children}
+        </TooltipTrigger>
         <TooltipContent className="max-w-xs">{hint}</TooltipContent>
       </Tooltip>
     )

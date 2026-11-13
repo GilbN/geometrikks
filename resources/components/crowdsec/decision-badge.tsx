@@ -16,6 +16,7 @@ export function DecisionBadge({
   className,
   title,
   insideButton = false,
+  hover,
   children,
 }: {
   type: string
@@ -24,6 +25,7 @@ export function DecisionBadge({
   /** Replaces the default "Active CrowdSec … decision" title. */
   title?: string
   insideButton?: boolean
+  hover?: "title" | "tooltip"
   /** Replaces the label; the inspector header appends scenario and expiry. */
   children?: ReactNode
 }) {
@@ -50,7 +52,7 @@ export function DecisionBadge({
     )
   }
   return (
-    <BadgeHint hint={badgeTitle} tappable={!insideButton}>
+    <BadgeHint hint={badgeTitle} tappable={!insideButton} hover={hover}>
       <Badge
         variant={type === "ban" ? "destructive" : "secondary"}
         className={cn(
