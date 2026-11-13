@@ -16,6 +16,7 @@ export function DropBadge({
   showListName = false,
   linked = false,
   insideButton = false,
+  hover,
   className,
 }: {
   sblId?: string
@@ -26,12 +27,13 @@ export function DropBadge({
   /** The long variant links its SBL id to the Spamhaus record. Off inside menus and dialog titles. */
   linked?: boolean
   insideButton?: boolean
+  hover?: "title" | "tooltip"
   className?: string
 }) {
   const label = dropBadgeLabel(list, showListName)
   const title = list === "asn-drop" ? "On the ASN-DROP list" : sblId ? `On the DROP list as ${sblId}` : "On the DROP list"
   return (
-    <BadgeHint hint={title} tappable={!insideButton} holdsLink={linked}>
+    <BadgeHint hint={title} tappable={!insideButton} holdsLink={linked} hover={hover}>
       <Badge
         variant="outline"
         className={cn(

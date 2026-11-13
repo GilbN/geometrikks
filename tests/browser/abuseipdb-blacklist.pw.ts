@@ -85,7 +85,9 @@ test.describe("desktop", () => {
     const sheet = openSheet(page)
     const badge = badgeIn(sheet)
     await expect(badge).toBeVisible()
-    await expect(sheet.getByTitle(BADGE_HINT)).toHaveText(BADGE_LABEL)
+    await expect(badge).toHaveText(BADGE_LABEL)
+    await badge.hover()
+    await expect(page.getByRole("tooltip")).toHaveText(BADGE_HINT)
   })
 
   test("the inspector leaves an unlisted IP unmarked", async ({ page }) => {

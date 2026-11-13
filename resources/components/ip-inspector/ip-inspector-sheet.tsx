@@ -165,14 +165,15 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
             {decision && (
               <DecisionBadge
                 type={decision.type}
-                className="h-auto max-w-full whitespace-normal break-words text-left"
+                hover="tooltip"
+                className="h-auto max-w-full cursor-help whitespace-normal break-words text-left"
                 title={`Origin: ${decision.origin}`}
               >
                 {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
               </DecisionBadge>
             )}
-            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
-            {blacklisted && <AbuseIpdbBlacklistBadge />}
+            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked hover="tooltip" className="cursor-help" />}
+            {blacklisted && <AbuseIpdbBlacklistBadge hover="tooltip" className="cursor-help" />}
             {abuseChecksOn && <AbuseIpdbBadge key={ip} ip={ip} />}
           </div>
         )}

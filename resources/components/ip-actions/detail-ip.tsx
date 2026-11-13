@@ -29,9 +29,9 @@ export function DetailIpBlock({ values, children }: { values: IpRowValues; child
           <span className="min-w-0 break-all font-mono text-xl">{values.ip}</span>
           {(decision !== null || dropNetwork || blacklisted) && (
             <span className="flex flex-wrap items-center gap-2">
-              {decision !== null && <DecisionBadge type={decision} />}
-              {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
-              {blacklisted && <AbuseIpdbBlacklistBadge />}
+              {decision !== null && <DecisionBadge type={decision} hover="tooltip" className="cursor-help" />}
+              {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked hover="tooltip" className="cursor-help" />}
+              {blacklisted && <AbuseIpdbBlacklistBadge hover="tooltip" className="cursor-help" />}
             </span>
           )}
         </div>

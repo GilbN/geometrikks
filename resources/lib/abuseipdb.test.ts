@@ -18,6 +18,7 @@ import {
   reportedItemState,
   reportItemState,
   abuseScoreTone,
+  shortAgoText,
 } from "./abuseipdb"
 
 function ipEvidence(overrides: Partial<ReportIpDto> = {}): ReportIpDto {
@@ -444,5 +445,21 @@ describe("categoryChipOrder", () => {
     expect(order[0]).toBe(22)
     expect(order).toHaveLength(ABUSEIPDB_CATEGORIES.length)
     expect(new Set(order).size).toBe(order.length)
+  })
+})
+
+describe("shortAgoText", () => {
+  // Local times, so the calendar day is the same in every timezone.
+  const now = Date.parse("2027-01-05T12:00:00")
+
+  test("reads as a compact age within a week", () => {
+    expect(shortAgoText("2027-01-05T11:01:00", now, "en-US")).toBe("59m ago")
+    expect(shortAgoText("2027-01-05T00:00:00", now, "en-US")).toBe("12h ago")
+    expect(shortAgoText("2026-12-30T11:00:00", now, "en-US")).toBe("6d ago")
+  })
+
+  test("falls back to the day, then the month, as the report ages", () => {
+    expect(shortAgoText("2026-12-28T12:00:00", now, "en-US")).toBe("Dec 28")
+    expect(shortAgoText("2026-03-15T12:00:00", now, "en-US")).toBe("Mar 2026")
   })
 })

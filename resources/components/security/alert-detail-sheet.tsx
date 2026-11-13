@@ -237,8 +237,8 @@ function AlertBody({
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <AlertKindBadge kind={alert.kind} scenario={alert.scenario} />
         {alert.simulated && (
-          <BadgeHint hint="CrowdSec ran this scenario in simulation mode and enforced nothing">
-            <Badge variant="outline">Simulated</Badge>
+          <BadgeHint hint="CrowdSec ran this scenario in simulation mode and enforced nothing" hover="tooltip">
+            <Badge variant="outline" className="cursor-help">Simulated</Badge>
           </BadgeHint>
         )}
       </div>
@@ -307,6 +307,8 @@ function AlertBody({
             >
               <DecisionBadge
                 type={decision.type}
+                hover="tooltip"
+                className="cursor-help"
                 title={decision.expired ? `Expired CrowdSec ${decision.type} decision` : undefined}
               />
               <span className="font-mono">{decision.value}</span>
