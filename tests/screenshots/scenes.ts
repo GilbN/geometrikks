@@ -33,6 +33,7 @@ export const SCENE_STORAGE: Record<string, Record<string, string>> = {
   "ip-inspector": { "geometrikks-map-layer": "markers", "geometrikks-map-live": "false" },
   "abuse-report": { "geometrikks-map-layer": "markers", "geometrikks-map-live": "false" },
   "banned-map": { "geometrikks-map-layer": "banned", "geometrikks-map-live": "false" },
+  satellite: { "geometrikks-map-layer": "markers", "geometrikks-map-live": "false", "geometrikks-map-satellite": "true" },
   live: { "geometrikks-map-layer": "markers", "geometrikks-map-live": "true" },
 }
 
@@ -142,6 +143,15 @@ async function moveCamera(page: Page, move: () => Promise<void>): Promise<void> 
         new Promise((_, reject) => setTimeout(() => reject(new Error("the map camera did not stop within 15 s")), 15_000)),
       ]),
   )
+}
+
+/** Fits the camera to the plotted points: the panel's button on a desktop, All traffic in the phone's pill. */
+async function fitToData(page: Page, shot: PlannedShot): Promise<void> {
+  const fit = shot.viewport.isMobile
+    ? page.getByRole("navigation", { name: "Map actions" }).getByRole("button", { name: "All traffic", exact: true })
+    : page.getByRole("button", { name: "Fit to data bounds" })
+  await expect(fit).toBeEnabled({ timeout: LOAD_TIMEOUT })
+  await moveCamera(page, () => fit.click())
 }
 
 /** Mercator draws the world 512 px wide at zoom 0; one copy across the map means no repeats beside it. */
@@ -280,11 +290,16 @@ export const STAGES: Record<string, Stage> = {
         { timeout: LOAD_TIMEOUT },
       )
       .toBeGreaterThan(0)
-    const fit = shot.viewport.isMobile
-      ? page.getByRole("navigation", { name: "Map actions" }).getByRole("button", { name: "All traffic", exact: true })
-      : page.getByRole("button", { name: "Fit to data bounds" })
-    await expect(fit).toBeEnabled({ timeout: LOAD_TIMEOUT })
-    await moveCamera(page, () => fit.click())
+    await fitToData(page, shot)
+  },
+  satellite: async (page, shot) => {
+    await expect(page.locator(".maplibregl-canvas")).toBeVisible({ timeout: LOAD_TIMEOUT })
+    await findMap(page)
+    // The satellite style swaps in after the street map, once CARTO's style it is built from has loaded.
+    await page.waitForFunction(() => "satellite" in (window.__shotsMap as unknown as CameraMap).getStyle().sources, undefined, {
+      timeout: LOAD_TIMEOUT,
+    })
+    await fitToData(page, shot)
   },
   status: async (page, shot) => {
     await expect(page.getByText("CrowdSec").first()).toBeVisible({ timeout: LOAD_TIMEOUT })

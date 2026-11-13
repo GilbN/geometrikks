@@ -14,6 +14,7 @@ const PLAN_SCENES = [
   "login",
   "dashboard",
   "map",
+  "satellite",
   "access-logs",
   "filter-drawer",
   "geo-logs",

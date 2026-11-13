@@ -58,6 +58,9 @@ PASSTHROUGH: frozenset[str] = frozenset(
 )
 ENV_FILE_VAR = "GEOMETRIKKS_ENV_FILE"
 CARTO_VAR = "MAP_CARTO_API_KEY"
+ESRI_VAR = "MAP_ESRI_API_KEY"
+ESRI_PLACEHOLDER = "screenshot-placeholder"
+SATELLITE_SCENE = "satellite"
 PG_ADMIN_VAR = "SHOTS_PG_ADMIN_URL"
 MACHINE_ID = "geometrikks-shots"
 MIN_MEMORY = 3 * 2**30
@@ -68,6 +71,7 @@ MIN_DISK = 10 * 10**9
 class ShotInputs:
     carto_key: str | None
     pg_admin_url: str | None
+    esri_key: str | None = None
 
 
 def _scrubbed(name: str) -> bool:
@@ -78,7 +82,11 @@ def _scrubbed(name: str) -> bool:
 
 def scrub_process_env(environ: MutableMapping[str, str]) -> ShotInputs:
     """Keep the explicit screenshot inputs, then delete every app setting and turn dotenv loading off."""
-    inputs = ShotInputs(carto_key=environ.get(CARTO_VAR) or None, pg_admin_url=environ.get(PG_ADMIN_VAR) or None)
+    inputs = ShotInputs(
+        carto_key=environ.get(CARTO_VAR) or None,
+        pg_admin_url=environ.get(PG_ADMIN_VAR) or None,
+        esri_key=environ.get(ESRI_VAR) or None,
+    )
     for name in [name for name in environ if _scrubbed(name)]:
         del environ[name]
     environ[ENV_FILE_VAR] = ""
@@ -97,6 +105,7 @@ class RunConfig:
     city_db: Path
     asn_db: Path
     carto_key: str
+    esri_key: str = ""
     servers: tuple[str, ...] = ("edge", "homelab")
     live_dir: Path
 
@@ -138,9 +147,9 @@ def app_env(
         "GEOIP_ASN_DB_PATH": str(config.asn_db),
         "MAP_AUTO_DETECT_SERVER_LOCATION": "false",
         "MAP_CARTO_API_KEY": config.carto_key,
-        # Any key enables the Satellite switch. Satellite stays off, so no tile is requested, and the
-        # capture browser refuses every host but the app and CARTO, so this key never reaches Esri.
-        "MAP_ESRI_API_KEY": "screenshot-placeholder",
+        # Any key enables the Satellite switch. Only the satellite scene turns Satellite on, and the
+        # capture browser lets Esri through for that scene alone, so the placeholder never reaches Esri.
+        "MAP_ESRI_API_KEY": config.esri_key or ESRI_PLACEHOLDER,
         "LOGPARSER_ENABLED": "true",
         "LOGPARSER_LOG_PATHS": json.dumps([str(path) for _, _, path in log_targets]),
         "LOGPARSER_LOG_FORMATS": json.dumps([log_format for _, log_format, _ in log_targets]),
@@ -181,6 +190,9 @@ class Facts:
     city_db_exists: bool
     asn_db_exists: bool
     carto_key_set: bool
+    esri_key_needed: bool
+    """Whether the run takes the satellite scene, the one that loads Esri imagery."""
+    esri_key_set: bool
     site_deps_installed: bool
     vite_dev_running: bool
     ledger_exists: bool
@@ -212,6 +224,11 @@ def preflight_problems(facts: Facts) -> list[str]:
         problems.append("The GeoLite2 ASN database is missing: pass --asn-db.")
     if not facts.carto_key_set:
         problems.append(f"No CARTO key: export {CARTO_VAR} or pass --carto-key.")
+    if facts.esri_key_needed and not facts.esri_key_set:
+        problems.append(
+            f"No Esri key: the {SATELLITE_SCENE} scene needs one. Export {ESRI_VAR} or pass --esri-key, "
+            f"or leave the scene out with --only."
+        )
     if not facts.site_deps_installed:
         problems.append("site/node_modules has no sharp: run bun install in site/.")
     if facts.vite_dev_running:

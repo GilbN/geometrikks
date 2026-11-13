@@ -9,6 +9,7 @@ Scene ids in `plan.py` are public. The docs place shots with `<Screenshot scene=
 - Docker running, and the shared TimescaleDB server at `postgresql://geouser:geopass@localhost:5432/postgres` (the dev `timescale_db` container), unless you pass `--own-db`. The preflight refuses when that server does not answer.
 - GeoLite2 City and ASN databases. The defaults are `~/dev/geometrikks/data/geoip/GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb`.
 - A CARTO basemap key. CARTO's terms want one key per deployment, so export your own as `MAP_CARTO_API_KEY` or pass `--carto-key`.
+- An Esri key for the `satellite` scene, the one shot of the map's Satellite view. Export it as `MAP_ESRI_API_KEY` or pass `--esri-key`. A run that leaves the scene out with `--only` needs none.
 - `bun install` at the repo root and in `site/`. The encoder needs `site/node_modules/sharp`.
 - No Vite dev server for this checkout. The run refuses while `public/hot` exists, because the app would load its assets from the dev server.
 - At least 3 GiB of available memory and 10 GB of free disk. The preflight names both numbers when either is short.
@@ -18,6 +19,7 @@ Scene ids in `plan.py` are public. The docs place shots with `<Screenshot scene=
 ```bash
 uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] [--hold] [--own-db] [--no-build]
                                    [--pg-admin-url URL] [--city-db PATH] [--asn-db PATH] [--carto-key KEY]
+                                   [--esri-key KEY]
 ```
 
 | Flag | What it does |
@@ -31,6 +33,7 @@ uv run python -m tests.screenshots [--dry-run] [--cleanup] [--only scene,scene] 
 | `--pg-admin-url` | Admin URL of the TimescaleDB server. Defaults to `SHOTS_PG_ADMIN_URL`, then the dev server above. |
 | `--city-db`, `--asn-db` | The GeoLite2 files the seed and the live feeder place visitors with. |
 | `--carto-key` | Defaults to `MAP_CARTO_API_KEY` as exported in your shell. |
+| `--esri-key` | Defaults to `MAP_ESRI_API_KEY` as exported in your shell. |
 
 The script never reads `.env`. Before it imports any app code it removes every app setting from its own environment (`APP_`, `DB_`, `CROWDSEC_` and the other prefixes in `environment.py`, in any letter case, plus the proxy variables), and turns dotenv loading off. Each process it starts gets an environment built from scratch. The instance logs in as `admin` / `admin`.
 
@@ -48,7 +51,7 @@ In order:
 
 Then the run encodes the PNGs, writes `manifest.json` and swaps the new folder in for `data/screenshots/` in two renames. A failed or interrupted run publishes nothing, with one exception. The run ignores Ctrl-C and SIGTERM during the two renames, so an interrupt that lands there does not stop the swap. That run still publishes and exits 0. PNGs and files whose names the run does not recognize always stay in `data/screenshots/`.
 
-Nothing in the run contacts the owner's CrowdSec LAPI, Spamhaus, AbuseIPDB, RDAP, GitHub releases or a public-IP service. The CrowdSec container sits on a network with no route out. The DROP lists come from fixture bodies through a mock transport, and the run fails before publishing if their copyright marker changed or any DROP entry falls outside documentation space. It also stops before capture if the LAPI holds a decision for an IP the fixtures did not create. AbuseIPDB has its own section below. Playwright loads basemap tiles from CARTO with your key. The app gets a placeholder Esri key so the map's Satellite switch shows as available. Satellite stays off, and the browser refuses Esri's host, so the placeholder never reaches Esri.
+Nothing in the run contacts the owner's CrowdSec LAPI, Spamhaus, AbuseIPDB, RDAP, GitHub releases or a public-IP service. The CrowdSec container sits on a network with no route out. The DROP lists come from fixture bodies through a mock transport, and the run fails before publishing if their copyright marker changed or any DROP entry falls outside documentation space. It also stops before capture if the LAPI holds a decision for an IP the fixtures did not create. AbuseIPDB has its own section below. Playwright loads basemap tiles from CARTO with your key, and Esri imagery with your Esri key in the `satellite` scene only. Every other scene refuses Esri's host. Without an Esri key, as in a retake that leaves `satellite` out, the app gets a placeholder so the Satellite switch still shows as available, and nothing sends it to Esri.
 
 A full run takes about 15 to 20 minutes, most of it seeding and capture. At its peak it holds the CrowdSec container, the app, Playwright with one browser and, with `--own-db`, a 1 GB database container.
 

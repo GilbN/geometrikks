@@ -208,6 +208,7 @@ def run_args(**overrides: object) -> argparse.Namespace:
         "city_db": Path("/geo/city.mmdb"),
         "asn_db": Path("/geo/asn.mmdb"),
         "carto_key": "k",
+        "esri_key": "e",
     }
     return argparse.Namespace(**{**values, **overrides})
 

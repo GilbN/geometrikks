@@ -16,6 +16,9 @@ const appOrigin = new URL(plan.baseUrl).origin
 const allowed = (url: URL) =>
   url.origin === appOrigin || url.protocol === "data:" || url.protocol === "blob:" || /(^|\.)cartocdn\.com$/i.test(url.hostname)
 
+/** Esri World Imagery, which only the satellite scene loads. */
+const ESRI_TILE_HOST = "ibasemaps-api.arcgis.com"
+
 const ABUSEIPDB_API = "/api/v1/abuseipdb/"
 /** The AbuseIPDB endpoints that only read the database. */
 const ABUSEIPDB_LOCAL_READS = new Set([`${ABUSEIPDB_API}reports/history`, `${ABUSEIPDB_API}reported-ips`])
@@ -75,9 +78,9 @@ for (const shot of plan.shots) {
       }
       const refused: string[] = []
       await context.route(
-        (url) => !allowed(url),
+        (url) => !allowed(url) && !(shot.scene === "satellite" && url.hostname === ESRI_TILE_HOST),
         (route) => {
-          refused.push(route.request().url())
+          refused.push(route.request().url().replace(/([?&]token=)[^&]*/, "$1***"))
           return route.abort("blockedbyclient")
         },
       )

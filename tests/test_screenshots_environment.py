@@ -51,6 +51,8 @@ GOOD_FACTS = Facts(
     city_db_exists=True,
     asn_db_exists=True,
     carto_key_set=True,
+    esri_key_needed=True,
+    esri_key_set=True,
     site_deps_installed=True,
     vite_dev_running=False,
     ledger_exists=False,
@@ -144,6 +146,7 @@ def test_scrub_keeps_inputs_and_removes_settings() -> None:
     environ = {
         "PATH": "/bin",
         "MAP_CARTO_API_KEY": "c",
+        "MAP_ESRI_API_KEY": "e",
         "SHOTS_PG_ADMIN_URL": "postgresql://a",
         "DB_HOST": "x",
         "LOGPARSER_ENABLED": "true",
@@ -151,7 +154,7 @@ def test_scrub_keeps_inputs_and_removes_settings() -> None:
         "GEOMETRIKKS_ENV_FILE": ".env",
         "CI": "",
     }
-    assert scrub_process_env(environ) == ShotInputs(carto_key="c", pg_admin_url="postgresql://a")
+    assert scrub_process_env(environ) == ShotInputs(carto_key="c", pg_admin_url="postgresql://a", esri_key="e")
     assert environ == {"PATH": "/bin", "SHOTS_PG_ADMIN_URL": "postgresql://a", "GEOMETRIKKS_ENV_FILE": "", "CI": ""}
 
 
@@ -232,6 +235,7 @@ def test_entry_point_scrubs_hostile_settings(tmp_path: Path) -> None:
         ({"database_exists": True}, "geometrikks_screenshots"),
         ({"database_reachable": False}, "does not answer"),
         ({"carto_key_set": False}, "MAP_CARTO_API_KEY"),
+        ({"esri_key_set": False}, "MAP_ESRI_API_KEY"),
         ({"vite_dev_running": True}, "public/hot"),
         ({"city_db_exists": False}, "--city-db"),
         ({"asn_db_exists": False}, "--asn-db"),
@@ -250,3 +254,15 @@ def test_preflight_names_both_resource_numbers() -> None:
     assert len(problems) == 2
     assert "2.5 GiB" in problems[0] and "3 GiB" in problems[0]
     assert "9.0 GB" in problems[1] and "10 GB" in problems[1]
+
+
+def test_esri_key_reaches_the_app_or_falls_back_to_the_placeholder() -> None:
+    real = app_env({"PATH": "/bin"}, dataclasses.replace(config, esri_key="esri-secret"), lapi_url="http://x", log_targets=TARGETS)
+    assert real["MAP_ESRI_API_KEY"] == "esri-secret"
+    assert app_env({"PATH": "/bin"}, config, lapi_url="http://x", log_targets=TARGETS)["MAP_ESRI_API_KEY"] == (
+        "screenshot-placeholder"
+    )
+
+
+def test_preflight_needs_no_esri_key_without_the_satellite_scene() -> None:
+    assert preflight_problems(dataclasses.replace(GOOD_FACTS, esri_key_needed=False, esri_key_set=False)) == []

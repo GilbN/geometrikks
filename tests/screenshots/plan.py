@@ -67,6 +67,13 @@ SCENES: tuple[Scene, ...] = (
         viewports=("desktop", "phone", "landscape"),
     ),
     Scene(
+        id="satellite",
+        title="Satellite map",
+        alt="The map's Satellite view, with request markers over Esri World Imagery and CARTO's borders and place names.",
+        path="/map",
+        viewports=("desktop", "phone"),
+    ),
+    Scene(
         id="access-logs",
         title="Access logs",
         alt="The Access Logs request history, each request with its time, status, method, URL and client IP.",

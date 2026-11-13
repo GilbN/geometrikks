@@ -53,6 +53,7 @@ from tests.screenshots.drop import (
     import_fixture_lists,
 )
 from tests.screenshots.environment import (
+    SATELLITE_SCENE,
     Facts,
     RunConfig,
     ShotInputs,
@@ -205,6 +206,9 @@ def parse_args(argv: Sequence[str], inputs: ShotInputs) -> argparse.Namespace:
     parser.add_argument("--asn-db", type=path, default=GEOIP_DIR / "GeoLite2-ASN.mmdb", help="GeoLite2-ASN.mmdb")
     parser.add_argument(
         "--carto-key", default=inputs.carto_key, help="CARTO basemap key (default: MAP_CARTO_API_KEY)"
+    )
+    parser.add_argument(
+        "--esri-key", default=inputs.esri_key, help="Esri key for the satellite scene (default: MAP_ESRI_API_KEY)"
     )
     return parser.parse_args(list(argv))
 
@@ -386,6 +390,8 @@ def gather_facts(args: argparse.Namespace, runner: Runner, *, ledger_exists: boo
         city_db_exists=args.city_db.is_file(),
         asn_db_exists=args.asn_db.is_file(),
         carto_key_set=bool(args.carto_key),
+        esri_key_needed=not args.only or SATELLITE_SCENE in args.only,
+        esri_key_set=bool(args.esri_key),
         site_deps_installed=SITE_SHARP.is_dir(),
         vite_dev_running=VITE_HOT.exists(),
         ledger_exists=ledger_exists,
@@ -570,6 +576,7 @@ def _print_dry_env(args: argparse.Namespace, env: dict[str, str]) -> None:
         city_db=args.city_db,
         asn_db=args.asn_db,
         carto_key=args.carto_key or "",
+        esri_key=args.esri_key or "",
         live_dir=RUN_ROOT / "run-<id>" / "live",
     )
     targets = live_log_targets(config.servers, config.live_dir)
@@ -813,6 +820,7 @@ class FullRun:
             city_db=self.args.city_db,
             asn_db=self.args.asn_db,
             carto_key=self.args.carto_key,
+            esri_key=self.args.esri_key or "",
             live_dir=self.run_dir / "live",
         )
         self.url = database_url(self.config)
