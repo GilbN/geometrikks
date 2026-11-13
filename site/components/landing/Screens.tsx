@@ -20,7 +20,7 @@ type Screen = {
 };
 
 const screens: Screen[] = [
-  { id: "map", label: "Map", video: { src: "/media/map", label: "The live map with marker clusters, a live request feed, a live route to the server location, and map controls offering the Heatmap, Markers and Banned views" }, cap: "Live map. Show requests as markers, clusters or a heatmap on a flat map or globe, over a street map or satellite imagery. Switch to the Banned IPs view to see where CrowdSec bans come from. Live routes end at the server location you configure." },
+  { id: "map", label: "Map", video: { src: "/media/map", label: "The live map with marker clusters, a live request feed and live routes to several servers, then a request popup, the IP inspector for a banned address, the globe and the Satellite view" }, cap: "Live map. Show requests as markers, clusters or a heatmap on a flat map or globe, over a street map or satellite imagery. Switch to the Banned IPs view to see where CrowdSec bans come from. Live routes end at the server location you configure." },
   { id: "overview", label: "Overview", scene: "dashboard", cap: "Overview. Requests, visitors, bandwidth and errors for the chosen time period, compared with the previous period." },
   { id: "analytics", label: "Analytics", scene: "analytics", cap: "Analytics. Request volume, response codes, latency percentiles, bandwidth, top URLs by host, user agents and ASNs." },
   { id: "access-logs", label: "Access logs", scene: "access-logs", cap: "Access logs. Search every request and filter by status, method, IP, host, country or server." },
@@ -106,8 +106,9 @@ export function Screens() {
                       height={1034}
                       aria-label={screen.video?.label}
                     >
-                      <source src={`${screen.video?.src}.webm`} type="video/webm" />
+                      {/* mp4 first: iPhone Safari takes the WebM when it is listed first and stalls a second in. */}
                       <source src={`${screen.video?.src}.mp4`} type="video/mp4" />
+                      <source src={`${screen.video?.src}.webm`} type="video/webm" />
                     </video>
                     <img
                       src={shotSrc(livePhone)}
