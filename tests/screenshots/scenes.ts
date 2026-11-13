@@ -67,20 +67,22 @@ export const REPORTED_IP = "198.51.100.14"
 
 const inspectorSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
 
+/**
+ * A badge whose text matches. A badge with a hint is its hint's trigger, which replaces its data-slot:
+ * the tooltip's on a desktop, and on a touch screen the popover's, marked data-badge-hint.
+ */
+const badge = (scope: Locator, text: RegExp) =>
+  scope.locator('[data-slot="badge"], [data-slot="tooltip-trigger"], [data-badge-hint]').filter({ hasText: text })
+
 /** The inspector for the documentation visitor, with its ban, DROP, AbuseIPDB blacklist and score badges, its ASN and every block loaded. */
 async function inspector(page: Page): Promise<Locator> {
   const sheet = inspectorSheet(page)
   await expect(sheet).toBeVisible({ timeout: LOAD_TIMEOUT })
   await expect(sheet.getByText("AS64496 Fictional Example Hosting", { exact: true })).toBeVisible({ timeout: LOAD_TIMEOUT })
   await expect(sheet.getByText(/^Banned · /)).toBeVisible({ timeout: LOAD_TIMEOUT })
-  // A touch screen turns the badge into its hint's trigger, which replaces its data-slot.
-  const dropBadge = sheet.locator('[data-slot="badge"], [data-badge-hint]').filter({ hasText: /^DROP\W*SBL/ })
-  await expect(dropBadge).toBeVisible({ timeout: LOAD_TIMEOUT })
-  const blacklistBadge = sheet.locator('[data-slot="badge"], [data-badge-hint]').filter({ hasText: /^AbuseIPDB blacklist$/ })
-  await expect(blacklistBadge).toBeVisible({ timeout: LOAD_TIMEOUT })
-  await expect(sheet.locator('[data-slot="badge"]').filter({ hasText: /^AbuseIPDB 100% · 412 reports$/ })).toBeVisible({
-    timeout: LOAD_TIMEOUT,
-  })
+  await expect(badge(sheet, /^DROP\W*SBL/)).toBeVisible({ timeout: LOAD_TIMEOUT })
+  await expect(badge(sheet, /^AbuseIPDB blacklist$/)).toBeVisible({ timeout: LOAD_TIMEOUT })
+  await expect(badge(sheet, /^AbuseIPDB 100% · 412 reports$/)).toBeVisible({ timeout: LOAD_TIMEOUT })
   await noSkeletons(sheet)
   await animationsDone(sheet)
   return sheet
