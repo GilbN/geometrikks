@@ -28,7 +28,6 @@ const PLAN_SCENES = [
   "banned-map",
   "status",
   "settings",
-  "nav-more",
   "live",
   "live-tail",
 ];

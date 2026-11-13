@@ -443,22 +443,6 @@
         }
       }
     },
-    "nav-more": {
-      "title": "Phone navigation",
-      "alt": "The phone's More menu, opened from the navigation bar, with the ingestion status, the remaining pages and Log out.",
-      "variants": {
-        "phone-dark": {
-          "file": "nav-more-phone-dark.webp",
-          "width": 786,
-          "height": 1704
-        },
-        "phone-light": {
-          "file": "nav-more-phone-light.webp",
-          "width": 786,
-          "height": 1704
-        }
-      }
-    },
     "live": {
       "title": "Live map",
       "alt": "The map in live mode, with arcs carrying incoming requests to the servers and a readout of the live request rate.",

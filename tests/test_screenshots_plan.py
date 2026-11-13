@@ -46,7 +46,6 @@ EXPECTED_SCENES = [
     ("banned-map", "Banned IPs map", "/map", ("desktop", "phone"), False),
     ("status", "Status", "/settings/status", ("desktop", "phone"), True),
     ("settings", "Appearance", "/settings/appearance", ("desktop", "phone"), False),
-    ("nav-more", "Phone navigation", "/", ("phone",), False),
     ("live", "Live map", "/map", ("desktop", "phone", "landscape"), True),
     ("live-tail", "Live tail", "/access-logs", ("desktop", "phone"), True),
 ]
@@ -80,13 +79,13 @@ def test_every_scene_has_alt_text_and_a_known_viewport() -> None:
 
 def test_build_shots_counts_and_order() -> None:
     shots = build_shots()
-    assert len(shots) == 80
+    assert len(shots) == 78
     assert sum(shot.scene.live for shot in shots) == 14
     assert [shot.name for shot in shots[:2]] == ["login-desktop-dark", "login-desktop-light"]
     first_live = next(index for index, shot in enumerate(shots) if shot.scene.live)
     assert all(shot.scene.live for shot in shots[first_live:])
     assert {shot.viewport for shot in shots if shot.scene.id == "map"} == {"desktop", "phone", "landscape"}
-    assert {shot.viewport for shot in shots if shot.scene.id in ("filter-drawer", "nav-more")} == {"phone"}
+    assert {shot.viewport for shot in shots if shot.scene.id == "filter-drawer"} == {"phone"}
 
 
 def test_build_shots_only_and_unknown() -> None:

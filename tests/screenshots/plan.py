@@ -166,13 +166,6 @@ SCENES: tuple[Scene, ...] = (
         viewports=("desktop", "phone"),
     ),
     Scene(
-        id="nav-more",
-        title="Phone navigation",
-        alt="The phone's More menu, opened from the navigation bar, with the ingestion status, the remaining pages and Log out.",
-        path="/",
-        viewports=("phone",),
-    ),
-    Scene(
         id="live",
         title="Live map",
         alt="The map in live mode, with arcs carrying incoming requests to the servers and a readout of the live request rate.",

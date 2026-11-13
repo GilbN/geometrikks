@@ -480,7 +480,7 @@ def test_dry_run_exits_refused_on_problems_else_failed_when_the_list_fails(
     expected: int,
 ) -> None:
     def fake_run(runner: run.Runner, argv: list[str], *, label: str, log: str, **_: object) -> int:
-        (runner.log_dir / log).write_text("Error: unknown scene: nav-more\n" if listed else "Total: 72 tests\n")
+        (runner.log_dir / log).write_text("Error: unknown scene: maps\n" if listed else "Total: 72 tests\n")
         return listed
 
     monkeypatch.setattr(run, "gather_facts", lambda args, runner, ledger_exists: None)

@@ -314,14 +314,6 @@ export const STAGES: Record<string, Stage> = {
   settings: async (page) => {
     await expect(page.getByRole("heading", { name: "Appearance" }).first()).toBeVisible({ timeout: LOAD_TIMEOUT })
   },
-  "nav-more": async (page) => {
-    await charts(page)
-    // CSS, not a role: the open drawer hides the bar from the accessibility tree.
-    await page.locator("[data-tab-bar] button").click()
-    const menu = page.getByRole("dialog", { name: "More" })
-    await expect(menu).toBeVisible({ timeout: LOAD_TIMEOUT })
-    await animationsDone(menu)
-  },
   live: liveRequests,
   "live-tail": async (page) => {
     await page.getByRole("tab", { name: "Live tail" }).click()
