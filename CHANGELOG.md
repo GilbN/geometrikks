@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On a phone, the map's Layers drawer shows Country, City and Server as rows, like the Filters drawer on the log pages. Country and City open a search page in the drawer, and Server opens the phone's own list. They used to be three stacked lists with their own search boxes. In the Debug Logs Filters drawer, Lines is a row that opens the phone's own list.
 - The Security page splits Decisions, Alerts, DROP and Reports into tabs, one table at a time. The open tab is in the URL, so a reload or a shared link keeps it. With AbuseIPDB reporting on and CrowdSec off, Security stays in the navigation and shows only Reports.
 
 ## [0.24.0] - 2026-11-09

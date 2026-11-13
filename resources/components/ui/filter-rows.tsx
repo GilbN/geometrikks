@@ -172,6 +172,43 @@ export function FilterListRow<T extends string | number>({
   )
 }
 
+/** One choice from a short list; the first option is the unfiltered one. */
+export function FilterChoiceRow<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  const text = options.find((option) => option.value === value)?.label ?? value
+  return (
+    <label className={cn(ROW, "relative")}>
+      <span>{label}</span>
+      <RowValue
+        text={text}
+        tone={value === options[0]?.value ? undefined : "include"}
+        icon={<ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />}
+      />
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="absolute inset-0 size-full opacity-0"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 export function FilterMyIpRow({ exclusion }: { exclusion: MyIpExclusion }) {
   if (exclusion.behindUntrustedProxy) {
     return (

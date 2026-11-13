@@ -592,10 +592,12 @@ function GeoMapInner({
   // deriving options from it would leave the comboboxes empty after reload.
   const filterOptions = useMemo(() => {
     const countryLabels: Record<string, string> = {}
+    const countryNames: Record<string, string> = {}
     for (const c of facets?.countries ?? []) {
       // Display "<name> (<code>)" but keep the code as the option value,
       // since the value feeds useGeoJSON({ countryCodes }).
       countryLabels[c.code] = c.name ? `${c.name} (${c.code})` : c.code
+      if (c.name) countryNames[c.code] = c.name
     }
     return {
       // Sort country codes by their display label.
@@ -604,6 +606,7 @@ function GeoMapInner({
       ),
       cities: [...(facets?.cities ?? [])].sort(),
       countryLabels,
+      countryNames,
     }
   }, [facets])
 
@@ -1137,6 +1140,7 @@ function GeoMapInner({
         phoneDetailOpen={phoneDetailOpen}
         countryOptions={filterOptions.countries}
         countryLabels={filterOptions.countryLabels}
+        countryNames={filterOptions.countryNames}
         cityOptions={filterOptions.cities}
         selectedCountries={selectedCountries}
         selectedCities={selectedCities}

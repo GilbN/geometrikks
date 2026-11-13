@@ -198,6 +198,26 @@ test.describe("phone", () => {
     await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Security" })).toBeVisible()
   })
 
+  test("Category and Status are rows in one Filters drawer", async ({ page }) => {
+    await page.addInitScript(() => Object.defineProperty(HTMLSelectElement.prototype, "offsetHeight", { get: () => 44 }))
+    const requests = await setup(page)
+    await page.goto("/security?tab=reports")
+    await reportRow(page, SENT.ipAddress).waitFor()
+    await page.getByRole("button", { name: /^Filters/ }).click()
+    const drawer = page.locator('[data-slot="drawer-content"]')
+
+    await drawer.getByRole("button", { name: "Category: Any", exact: true }).click()
+    await drawer.getByRole("textbox", { name: "Search category", exact: true }).fill("brute")
+    await drawer.getByRole("button", { name: "Brute-Force", exact: true }).click()
+    await expect.poll(() => lastRequest(requests).getAll("categoryIn")).toEqual(["18"])
+
+    await drawer.getByRole("button", { name: "Filters", exact: true }).click()
+    await drawer.getByRole("listbox", { name: "Status", exact: true }).selectOption("unconfirmed")
+    await expect.poll(() => lastRequest(requests).getAll("statusIn")).toEqual(["unconfirmed"])
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("button", { name: /^Filters.*\(2\)$/ })).toBeVisible()
+  })
+
   test("a report row fits on two lines and expands", async ({ page }) => {
     await setup(page)
     await page.goto("/security?tab=reports")

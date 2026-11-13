@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
+import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { Input } from "@/components/ui/input"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -18,6 +20,7 @@ import { rowActivation } from "@/components/data/row-activation"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import type { StoredReportDto } from "@/generated/api/types.gen"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
+import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { ABUSEIPDB_CATEGORIES, CATEGORY_NAMES, reportCategoryNames, reporterLabel } from "@/lib/abuseipdb"
 import { useAbuseIpdbReportHistory } from "@/lib/queries"
 import { formatRowTime } from "@/lib/row-time"
@@ -43,6 +46,7 @@ export function AbuseIpdbReportsTable() {
   const searchRef = useRef<HTMLInputElement>(null)
   const q = useDebouncedValue(searchInput.trim())
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
+  const phone = usePhoneLayout()
 
   const filterKey = `${q}|${categories.join()}|${statuses.join()}`
   const [filteredBy, setFilteredBy] = useState(filterKey)
@@ -70,23 +74,27 @@ export function AbuseIpdbReportsTable() {
         <CardTitle className="mr-auto max-md:basis-full text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           AbuseIPDB reports
         </CardTitle>
-        <FilterCombobox<number>
-          label="Category"
-          options={CATEGORY_IDS}
-          selected={categories}
-          onChange={setCategories}
-          labelFor={categoryLabel}
-          contentClassName="min-w-60"
-        />
-        <FilterCombobox<ReportStatus>
-          label="Status"
-          options={STATUSES}
-          selected={statuses}
-          onChange={setStatuses}
-          labelFor={statusLabel}
-          contentClassName="min-w-44"
-        />
-        <div className="relative max-md:basis-full md:w-64">
+        {!phone && (
+          <>
+            <FilterCombobox<number>
+              label="Category"
+              options={CATEGORY_IDS}
+              selected={categories}
+              onChange={setCategories}
+              labelFor={categoryLabel}
+              contentClassName="min-w-60"
+            />
+            <FilterCombobox<ReportStatus>
+              label="Status"
+              options={STATUSES}
+              selected={statuses}
+              onChange={setStatuses}
+              labelFor={statusLabel}
+              contentClassName="min-w-44"
+            />
+          </>
+        )}
+        <div className={cn("relative", phone ? "min-w-0 flex-1" : "max-md:basis-full md:w-64")}>
           <Search
             aria-hidden
             className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -117,6 +125,33 @@ export function AbuseIpdbReportsTable() {
             </Button>
           )}
         </div>
+        {phone && (
+          <FiltersDrawer
+            activeCount={(categories.length > 0 ? 1 : 0) + (statuses.length > 0 ? 1 : 0)}
+            onClear={() => {
+              setCategories([])
+              setStatuses([])
+            }}
+          >
+            <FilterSection>
+              <FilterListRow<number>
+                label="Category"
+                search
+                options={CATEGORY_IDS}
+                selected={categories}
+                onChange={setCategories}
+                labelFor={categoryLabel}
+              />
+              <FilterListRow<ReportStatus>
+                label="Status"
+                options={STATUSES}
+                selected={statuses}
+                onChange={setStatuses}
+                labelFor={statusLabel}
+              />
+            </FilterSection>
+          </FiltersDrawer>
+        )}
       </CardHeader>
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
