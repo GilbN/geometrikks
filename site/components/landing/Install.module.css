@@ -4,42 +4,41 @@
 .cols {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 40px;
-  align-items: start;
+  gap: 56px;
+  margin-top: 44px;
 }
-.check {
+.cols h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.cols ul {
   list-style: none;
   margin: 0;
   padding: 0;
   font-size: 15px;
   color: var(--fg-dim);
 }
-.check li {
-  padding: 10px 0 10px 34px;
-  position: relative;
+.cols li {
+  padding: 12px 0;
   border-top: 1px solid var(--line);
 }
-.check li::before {
-  content: "[x]";
-  position: absolute;
-  left: 0;
-  top: 11px;
-  font: 13px var(--mono);
-  color: var(--green);
-}
-.check li.no::before {
-  content: "[ ]";
-  color: var(--fg-faint);
-}
-.check b {
+.cols b,
+.note b {
   color: var(--fg);
   font-weight: 600;
+}
+.note {
+  margin: 36px 0 0;
+  max-width: 80ch;
+  font-size: 15px;
+  color: var(--fg-dim);
 }
 .links {
   display: flex;
   gap: 22px;
   flex-wrap: wrap;
-  margin: 32px 0 0;
+  margin: 28px 0 0;
 }
 .links a {
   color: var(--accent);
@@ -51,5 +50,6 @@
 @media (max-width: 900px) {
   .cols {
     grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
   }
 }

@@ -1,5 +1,14 @@
+import { siCaddy, siGrafana, siNginx, siNginxproxymanager, siTraefikproxy } from "simple-icons";
 import styles from "./Hero.module.css";
 import { Terminal } from "./Terminal";
+
+const sources = [
+  { name: "nginx", icon: siNginx.path },
+  { name: "Nginx Proxy Manager", icon: siNginxproxymanager.path },
+  { name: "Traefik", icon: siTraefikproxy.path },
+  { name: "Caddy", icon: siCaddy.path },
+  { name: "Loki", icon: siGrafana.path },
+];
 
 // Headline beside the pipeline terminal, over a faint dot-grid world
 // (Natural Earth 110m land, equirectangular, 1000x500). The dots live in
@@ -24,16 +33,27 @@ export function Hero() {
             <a className="btn primary" href="#install">
               Install with Docker
             </a>
-            <a className="btn" href="#screens">
-              View the map and logs
+            <a className="btn" href="/docs/">
+              Read the docs
             </a>
           </div>
-          <ul className={styles.facts}>
-            <li>MIT</li>
-            <li>ghcr.io/gilbn/geometrikks</li>
-            <li>amd64 + arm64</li>
-            <li>no telemetry</li>
-          </ul>
+          <a
+            className={styles.reads}
+            href="#sources"
+            aria-label={`Log sources: ${sources.map((source) => source.name).join(", ")}`}
+          >
+            <ul>
+              {sources.map((source) => (
+                <li key={source.name}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={source.icon} />
+                  </svg>
+                  {source.name}
+                </li>
+              ))}
+            </ul>
+          </a>
+          <p className={styles.facts}>MIT licensed. One Docker image for amd64 and arm64. No telemetry.</p>
         </div>
         <Terminal />
       </div>

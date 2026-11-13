@@ -59,19 +59,38 @@
   padding: 13px 20px;
   font-size: 15px;
 }
-.facts {
+.reads {
   display: flex;
-  gap: 16px;
   flex-wrap: wrap;
-  margin: 28px 0 0;
-  padding: 0;
-  list-style: none;
-  font: 13px var(--mono);
-  color: var(--fg-faint);
+  align-items: center;
+  gap: 8px 18px;
+  margin: 32px 0 0;
+  font-size: 14px;
+  color: var(--fg-dim);
 }
-.facts li::before {
-  content: "· ";
-  color: var(--accent-dim);
+.reads ul {
+  display: contents;
+  list-style: none;
+}
+.reads li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.reads svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+.reads:hover li {
+  color: var(--fg);
+}
+.facts {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--fg-dim);
 }
 @media (max-width: 900px) {
   .hero {

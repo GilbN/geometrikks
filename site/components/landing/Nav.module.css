@@ -30,6 +30,10 @@
 .nav ul a:hover {
   color: var(--fg);
 }
+.docs {
+  color: var(--fg);
+  font-weight: 600;
+}
 .menu {
   display: none;
   width: 40px;

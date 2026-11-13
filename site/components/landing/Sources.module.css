@@ -1,3 +1,6 @@
+.sources {
+  border-top: 1px solid var(--line);
+}
 .panel {
   --panel-display: grid;
   display: grid;
@@ -30,11 +33,9 @@
 }
 .panel h3 {
   margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--fg-dim);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
 }
 .side pre.env {
   margin-bottom: 24px;
@@ -48,14 +49,6 @@
 }
 .panel li {
   margin: 0 0 8px;
-}
-.more {
-  color: var(--accent);
-  font-weight: 500;
-  font-size: 15px;
-}
-.more:hover {
-  text-decoration: underline;
 }
 @media (max-width: 900px) {
   .panel {

@@ -159,9 +159,8 @@ loki.write "local" {
 export function Sources() {
   const { tabProps, panelProps } = useTabs(proxies.length);
   return (
-    <section className="sources" id="sources">
+    <section className={styles.sources} id="sources">
       <div className="wrap">
-        <p className="kicker">Sources</p>
         <h2 className="section-title">Point it at the log your proxy already writes.</h2>
         <p className="sub">
           The format is detected per file. Rotated files are followed. If a shipper already sends the lines to Loki,
@@ -206,7 +205,7 @@ export function Sources() {
                   <li key={note}>{note}</li>
                 ))}
               </ul>
-              <a className={styles.more} href={proxy.docs}>
+              <a className="more" href={proxy.docs}>
                 {proxy.name} setup in the docs
               </a>
             </div>

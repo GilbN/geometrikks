@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import screenshots from "@/.generated/screenshots.json";
+import { type Manifest, sceneEntry, shotSrc, variant } from "@/lib/screenshots";
 import { ShotPair } from "../ShotPair";
 import styles from "./Screens.module.css";
 import { useTabs } from "./useTabs";
@@ -24,10 +26,18 @@ const screens: Screen[] = [
   { id: "access-logs", label: "Access logs", scene: "access-logs", cap: "Access logs. Search every request and filter by status, method, IP, host, country or server." },
   { id: "geo-logs", label: "Geo logs", scene: "geo-logs", cap: "Geo logs. Traffic grouped by place: which locations send requests and how that changes over time." },
   { id: "ip-inspector", label: "IP inspector", scene: "ip-inspector", cap: "IP inspector. Select an address to see its network, request counts, bandwidth, response codes over time, hosts, paths, user agents and recent requests. Its CrowdSec decision, any Spamhaus DROP listing and its AbuseIPDB score sit at the top, and you can ban it or report it from there." },
-  { id: "security", label: "Security", scene: "security", cap: "Security. One tab each for CrowdSec decisions and alerts, the Spamhaus DROP networks in your traffic, and the reports you sent to AbuseIPDB. Decisions show each address's country and scenario, and the DROP tab bans a whole network." },
+  { id: "security", label: "Security", scene: "security", cap: "Security. One tab each for CrowdSec decisions and alerts, the Spamhaus DROP networks in your traffic, and the reports you sent to AbuseIPDB. Decisions show each address's country and scenario, and with machine credentials the DROP tab bans a whole network." },
   { id: "debug-logs", label: "Debug logs", scene: "debug-logs", cap: "Debug logs. Source lines that failed to parse, each with its parse error. Turn on debug capture and it keeps the lines that parsed too, linked to their requests." },
   { id: "status", label: "Status", path: "settings/status", scene: "status", cap: "Status. Ingestion, database, GeoIP and CrowdSec health on one page, with every log source listed and how much each has read. Advisories flag what needs attention, such as a missing ASN database." },
 ];
+
+// The map tab is a clip, so its phone shot is placed by hand where ShotPair
+// would put one.
+const livePhone = (() => {
+  const shot = variant(sceneEntry(screenshots as Manifest, "live"), "phone", "dark");
+  if (!shot) throw new Error("screenshot scene live has no phone-dark variant");
+  return shot;
+})();
 
 export function Screens() {
   const { tabProps, panelProps } = useTabs(screens.length);
@@ -49,7 +59,6 @@ export function Screens() {
   return (
     <section className={styles.screens} id="screens">
       <div className="wrap">
-        <p className="kicker">Inside GeoMetrikks</p>
         <h2 className="section-title">The logs must flow.</h2>
         <div className="tabs" role="tablist" aria-label="GeoMetrikks interface">
           {screens.map((screen, index) => (
@@ -85,20 +94,30 @@ export function Screens() {
                     <ShotPair scene={screen.scene} theme="dark" caption={screen.cap} zoom />
                   </div>
                 ) : (
-                  <video
-                    ref={video}
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    poster={`${screen.video?.src}-poster.jpg`}
-                    width={1912}
-                    height={1034}
-                    aria-label={screen.video?.label}
-                  >
-                    <source src={`${screen.video?.src}.webm`} type="video/webm" />
-                    <source src={`${screen.video?.src}.mp4`} type="video/mp4" />
-                  </video>
+                  <div className={styles.clip}>
+                    <video
+                      ref={video}
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      poster={`${screen.video?.src}-poster.jpg`}
+                      width={1912}
+                      height={1034}
+                      aria-label={screen.video?.label}
+                    >
+                      <source src={`${screen.video?.src}.webm`} type="video/webm" />
+                      <source src={`${screen.video?.src}.mp4`} type="video/mp4" />
+                    </video>
+                    <img
+                      src={shotSrc(livePhone)}
+                      width={livePhone.width}
+                      height={livePhone.height}
+                      alt="The live map on a phone, with routes arriving at the server."
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
                 )}
               </div>
               <p className={styles.cap}>{screen.cap}</p>

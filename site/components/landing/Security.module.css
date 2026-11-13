@@ -1,12 +1,16 @@
-.crowdsec {
+.security {
   border-top: 1px solid var(--line);
 }
-.kicker {
+.lockup {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-dim);
 }
-.crowdsec :global(.sub) {
+.security :global(.sub) {
   margin-bottom: 36px;
 }
 .map {
@@ -71,7 +75,50 @@
 .detail dd a:hover {
   text-decoration: underline;
 }
+.also {
+  margin: 72px 0 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.signals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.signals a {
+  display: block;
+  height: 100%;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line-strong);
+  transition: border-color 0.15s;
+}
+.signals b {
+  display: block;
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+.signals span {
+  color: var(--fg-dim);
+  font-size: 15px;
+}
+.signals a:hover {
+  border-color: var(--accent);
+}
+.signals a:hover b {
+  color: var(--accent);
+}
 @media (max-width: 900px) {
+  .also {
+    margin-top: 48px;
+  }
+  .signals {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
   .detail {
     grid-template-columns: minmax(0, 1fr);
     gap: 32px;

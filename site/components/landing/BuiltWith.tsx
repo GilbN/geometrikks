@@ -36,7 +36,6 @@ export function BuiltWith() {
   return (
     <section className={styles.built} id="built-with">
       <div className="wrap">
-        <p className="kicker">Built with</p>
         <h2 className="section-title">What it runs on.</h2>
         <div className={styles.grid}>
           {items.map((item) => (
