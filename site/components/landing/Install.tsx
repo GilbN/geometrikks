@@ -41,6 +41,10 @@ export function Install() {
               Optional today; keyless tiles may stop working at any time.
             </li>
             <li>
+              <b>An Esri key, if you want satellite.</b> Optional. The map's Satellite view draws Esri World Imagery
+              under a free ArcGIS key.
+            </li>
+            <li>
               <b>A log file, or Loki.</b> Not stdout. Traefik and Caddy need one directive to write a file.
             </li>
             <li>

@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import {
   siCarto,
+  siEsri,
   siMaplibre,
   siPostgresql,
   siPython,
@@ -28,6 +29,7 @@ const items = [
   { name: "Tailwind CSS", role: "styling", href: "https://tailwindcss.com", icon: siTailwindcss },
   { name: "MapLibre GL JS", role: "the map, flat and globe", href: "https://maplibre.org", icon: siMaplibre },
   { name: "CARTO", role: "basemap tiles on OpenStreetMap data", href: "https://carto.com/basemaps", icon: siCarto },
+  { name: "Esri", role: "World Imagery for the Satellite view", href: "https://www.esri.com", icon: siEsri },
 ];
 
 export function BuiltWith() {
