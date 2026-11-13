@@ -251,7 +251,7 @@ export const STAGES: Record<string, Stage> = {
     await expect(dialog.getByText("not a public address")).toHaveCount(0)
     // The browser answers Check from the plan. Send is never pressed.
     await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
-    await expect(dialog.getByText("100% confidence")).toBeVisible({ timeout: LOAD_TIMEOUT })
+    await expect(dialog.getByText("confidence", { exact: true })).toBeVisible({ timeout: LOAD_TIMEOUT })
     await dialog.locator(".overflow-y-auto").first().evaluate((element) => element.scrollTo({ top: 0 }))
     await animationsDone(dialog)
   },
@@ -317,8 +317,11 @@ export const STAGES: Record<string, Stage> = {
   live: liveRequests,
   "live-tail": async (page) => {
     await page.getByRole("tab", { name: "Live tail" }).click()
+    // The card's row count is the span after its title.
+    const rowCount = page.getByRole("heading", { name: "Live tail", exact: true }).locator("xpath=following-sibling::span[1]")
+    await expect(page.getByText("Streaming", { exact: true })).toBeVisible({ timeout: LOAD_TIMEOUT })
     await expect
-      .poll(async () => Number(/Streaming - (\d+) rows/.exec((await page.getByText(/^Streaming - \d+ rows/).textContent({ timeout: 2000 }).catch(() => "")) ?? "")?.[1] ?? 0), {
+      .poll(async () => Number(((await rowCount.textContent({ timeout: 2000 }).catch(() => "")) ?? "").replace(/\D/g, "")), {
         timeout: LOAD_TIMEOUT,
       })
       .toBeGreaterThanOrEqual(15)
