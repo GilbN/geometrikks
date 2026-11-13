@@ -63,4 +63,18 @@ The reader's browser sends the key with every basemap request, so anyone who ope
 
 The map shows the CARTO and OpenStreetMap attribution in its corner. Both licenses require it, so keep it visible.
 
+## Esri satellite key
+
+The map's Satellite view is optional. It draws Esri World Imagery, and Esri needs its own key. Create a free ArcGIS Location Platform account at [location.arcgis.com](https://location.arcgis.com), make an API key with basemap access, and set it in `.env`:
+
+```bash
+MAP_ESRI_API_KEY=<your-key>
+```
+
+Then run `docker compose up -d`.
+
+Like the CARTO key, the browser sends it with every satellite tile, so treat it as public. Without a key the Satellite switch is greyed out. Esri counts tile use against the account's monthly free allowance.
+
+With Satellite on, Esri's credit joins CARTO's. On a phone it folds behind an Esri button at the end of the credit line, and a tap opens it.
+
 The other GeoIP and map settings are in the configuration reference under [GeoIP](../reference/configuration.mdx#geoip) and [Map](../reference/configuration.mdx#map).

@@ -50,7 +50,7 @@ The update check, the DROP lists and the AbuseIPDB blacklist run on the full ins
 
 On top of these, the server talks to the services you configure: the CrowdSec Local API (`CROWDSEC_LAPI_URL`), Loki (`LOKI_URL`) and your OpenID Connect provider (`OIDC_ISSUER`). Each one stays unused until you set it.
 
-The map's basemap tiles come from CARTO. The reader's browser fetches them from `basemaps.cartocdn.com`, not the server, and sends the key in `MAP_CARTO_API_KEY` with every tile request.
+The map's basemap tiles come from CARTO. The reader's browser fetches them from `basemaps.cartocdn.com`, not the server, and sends the key in `MAP_CARTO_API_KEY` with every tile request. With `MAP_ESRI_API_KEY` set, the Satellite view also fetches imagery from `ibasemaps-api.arcgis.com`, again from the browser and with that key.
 
 ## Where to go next
 
