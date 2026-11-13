@@ -274,6 +274,16 @@ export function agoText(at: string, now: number): string {
   return ageLabel(Math.max(0, now - Date.parse(at)), at)
 }
 
+/** "59m ago", "12h ago" or "6d ago" in the first week, then "Nov 1", then "Mar 2025" past half a year. In English each fits a quarter-width tile on a 360px phone. */
+export function shortAgoText(at: string, now: number, locale?: string): string {
+  const ageMs = Math.max(0, now - Date.parse(at))
+  if (ageMs < HOUR_MS) return `${Math.floor(ageMs / MINUTE_MS)}m ago`
+  if (ageMs < DAY_MS) return `${Math.floor(ageMs / HOUR_MS)}h ago`
+  if (ageMs < 7 * DAY_MS) return `${Math.floor(ageMs / DAY_MS)}d ago`
+  const recent = ageMs < 180 * DAY_MS
+  return new Date(at).toLocaleDateString(locale, recent ? { month: "short", day: "numeric" } : { month: "short", year: "numeric" })
+}
+
 /** How long until the item's countdown moves on, or null when nothing on it is counting down. */
 export function reportedItemRefreshIn(entry: ReportedIpDto | undefined, now: number): number | null {
   if (!entry) return null

@@ -209,6 +209,8 @@ const reportButton = (drawer: Locator) => drawer.getByRole("button", { name: /^R
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
 const openSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
 const SCORE_LABEL = "AbuseIPDB 87% · 1,204 reports"
+/** The tiles under "On AbuseIPDB now", after the evidence tiles. */
+const checkResult = (dialog: Locator) => dialog.locator("section").filter({ hasText: "On AbuseIPDB now" }).locator(".grid > div")
 const reportDialog = (page: Page) => page.getByRole("dialog", { name: REPORT_TITLE })
 
 async function openReportFromMenu(page: Page) {
@@ -332,8 +334,8 @@ test.describe("desktop", () => {
     await page.waitForTimeout(500)
     expect(recorded.checks).toBe(0)
     await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
-    await expect(dialog.getByText("87% confidence")).toBeVisible()
-    await expect(dialog.getByText(/1,204 reports from 311 users/)).toBeVisible()
+    await expect(checkResult(dialog)).toHaveText(["87%confidence", "1,204reports", "311reporters", /^\d+m agolast report$/])
+    await expect(dialog.getByText("Usage type: Data Center/Web Hosting/Transit")).toBeVisible()
     await page.waitForTimeout(300)
     expect(recorded.checks).toBe(1)
   })
@@ -476,7 +478,7 @@ test.describe("desktop", () => {
     await expect(dialog.getByText("AbuseIPDB did not answer.")).toBeVisible()
     expect(recorded.checks).toBe(1)
     await checkButton.click()
-    await expect(dialog.getByText("87% confidence")).toBeVisible()
+    await expect(checkResult(dialog).first()).toHaveText("87%confidence")
     expect(recorded.checks).toBe(2)
   })
 
@@ -669,12 +671,21 @@ test.describe("desktop", () => {
     const { recorded } = await setup(page)
     const dialog = await openReportFromMenu(page)
     await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
-    await expect(dialog.getByText("87% confidence")).toBeVisible()
+    await expect(checkResult(dialog).first()).toHaveText("87%confidence")
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
     await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
     await page.waitForTimeout(500)
     expect(recorded.checks).toBe(1)
+  })
+
+  test("the inspector's score badge shows its details in a tooltip like the signal badges", async ({ page }) => {
+    await setup(page)
+    await page.goto(`/access-logs?inspect=${IP}`)
+    const badge = openSheet(page).getByText(SCORE_LABEL)
+    await expect(badge).not.toHaveAttribute("title")
+    await badge.hover()
+    await expect(page.getByRole("tooltip")).toHaveText(/^87% confidence from 311 reporters · last reported \d+ min ago · Data Center\/Web Hosting\/Transit$/)
   })
 
   test("the inspector runs no check for a private address or without a key", async ({ page }) => {
@@ -730,7 +741,7 @@ test.describe("portrait phone", () => {
     await setup(page)
     await page.goto(`/access-logs?inspect=${IP}`)
     await page.getByText(SCORE_LABEL).tap()
-    await expect(page.locator('[data-slot="popover-content"]')).toContainText("87% confidence from 311 users")
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText("87% confidence from 311 reporters")
   })
 
   test("the phone menu's Report is disabled with a countdown", async ({ page }) => {
@@ -913,4 +924,27 @@ test.describe("turning a phone with the report open", () => {
     await expect(drawer).toHaveCount(0)
     await expect(sheet).toBeVisible()
   })
+})
+
+test.describe("narrow phone", () => {
+  test.use({ viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true })
+
+  for (const [age, minutes, shape] of [
+    ["an hour-old", 59, /^59m ago$/],
+    ["a 20-day-old", 20 * 24 * 60, /^[A-Z][a-z]{2} \d{1,2}$/],
+    ["a year-old", 400 * 24 * 60, /^[A-Z][a-z]{2} \d{4}$/],
+  ] as const) {
+    test(`${age} last report fits its tile`, async ({ page }) => {
+      await setup(page)
+      await page.route("**/api/v1/abuseipdb/check?*", (route) => route.fulfill({ json: { ...check, lastReportedAt: minutesAgo(minutes) } }))
+      await page.goto("/access-logs")
+      await ipActions(page).click()
+      await reportButton(openDrawer(page)).click()
+      const drawer = openDrawer(page)
+      await drawer.getByRole("button", { name: "Check (uses 1 check)" }).click()
+      const value = checkResult(drawer).last().locator("b")
+      await expect(value).toHaveText(shape)
+      expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    })
+  }
 })

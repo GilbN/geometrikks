@@ -50,7 +50,7 @@ import {
   FALLBACK_CATEGORY_IDS,
   MAX_COMMENT_LENGTH,
   REPORT_INTERVAL_MS,
-  agoText,
+  abuseScoreTone,
   buildReportComment,
   CATEGORY_NAMES,
   categoryChipOrder,
@@ -59,6 +59,8 @@ import {
   defaultAttackTime,
   localScenarios,
   reporterLabel,
+  shortAgoText,
+  type AbuseScoreTone,
 } from "@/lib/abuseipdb"
 import { TIME_RANGE_PRESETS, formatNumber, type CustomTimeRange, type TimeRangeValue } from "@/lib/api"
 import { formatTs } from "@/lib/datetime"
@@ -198,15 +200,21 @@ function Fact({ value, label, title }: { value: string; label: string; title?: s
   )
 }
 
-function ScoreRing({ score }: { score: number }) {
+const SCORE_TONE: Record<AbuseScoreTone, { value: string; meter: string }> = {
+  high: { value: "text-destructive", meter: "bg-destructive" },
+  medium: { value: "text-amber-600 dark:text-amber-400", meter: "bg-amber-500" },
+  low: { value: "", meter: "bg-muted-foreground/70" },
+}
+
+function ScoreFact({ score }: { score: number }) {
+  const tone = SCORE_TONE[abuseScoreTone(score)]
   return (
-    <div className="relative grid size-9 flex-none place-items-center text-[11px] font-bold">
-      <div
-        aria-hidden
-        className="absolute inset-0 rounded-full [mask:radial-gradient(farthest-side,transparent_calc(100%-4px),#000_calc(100%-4px))]"
-        style={{ background: `conic-gradient(var(--destructive) 0 ${score}%, var(--muted) ${score}% 100%)` }}
-      />
-      {score}%
+    <div className="relative min-w-0 overflow-hidden rounded-md bg-muted px-2 py-1.5">
+      <b className={cn("block truncate text-[13px] tabular-nums", tone.value)}>{score}%</b>
+      <span className="block text-[10.5px] leading-tight text-muted-foreground">confidence</span>
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-[3px] bg-foreground/10">
+        <div className={cn("h-full", tone.meter)} style={{ width: `${score}%` }} />
+      </div>
     </div>
   )
 }
@@ -232,23 +240,29 @@ function CheckResult({ ip }: { ip: string }) {
       }
     >
       {result ? (
-        <div className="flex items-center gap-2.5">
-          <ScoreRing score={result.abuseConfidenceScore} />
-          <div className="min-w-0 text-xs">
-            <b>{result.abuseConfidenceScore}% confidence</b> · {formatNumber(result.totalReports)} reports from{" "}
-            {formatNumber(result.numDistinctUsers)} users
-            <div className="text-[11px] text-muted-foreground">
+        <>
+          <div className="grid grid-cols-4 gap-1.5">
+            <ScoreFact score={result.abuseConfidenceScore} />
+            <Fact value={formatNumber(result.totalReports)} label={result.totalReports === 1 ? "report" : "reports"} />
+            <Fact value={formatNumber(result.numDistinctUsers)} label={result.numDistinctUsers === 1 ? "reporter" : "reporters"} />
+            <Fact
+              value={result.lastReportedAt ? shortAgoText(result.lastReportedAt, Date.now()) : "never"}
+              label="last report"
+              title={result.lastReportedAt ? formatTs(result.lastReportedAt, "hourly") : undefined}
+            />
+          </div>
+          {(result.usageType || result.isTor || result.isWhitelisted) && (
+            <p className="text-[11px] text-muted-foreground">
               {[
-                result.lastReportedAt ? `Last reported ${agoText(result.lastReportedAt, Date.now())}` : "Never reported",
-                result.usageType ? `usage type ${result.usageType}` : null,
+                result.usageType ? `Usage type: ${result.usageType}` : null,
                 result.isTor ? "Tor exit node" : null,
-                result.isWhitelisted ? "whitelisted" : null,
+                result.isWhitelisted ? "Whitelisted on AbuseIPDB" : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
-            </div>
-          </div>
-        </div>
+            </p>
+          )}
+        </>
       ) : check.isError ? (
         <p className="text-sm text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</p>
       ) : (
