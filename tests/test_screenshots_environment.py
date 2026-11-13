@@ -105,6 +105,7 @@ def test_app_env_points_every_setting_at_the_run() -> None:
     assert env["CROWDSEC_BOUNCER_API_KEY"] == "bouncer-secret"
     assert env["CROWDSEC_MACHINE_PASSWORD"] == "machine-secret"
     assert env["MAP_CARTO_API_KEY"] == "carto-secret"
+    assert env["MAP_ESRI_API_KEY"] == "screenshot-placeholder"
     assert env["GEOIP_DB_PATH"] == "/geo/GeoLite2-City.mmdb" and env["GEOIP_ASN_DB_PATH"] == "/geo/GeoLite2-ASN.mmdb"
     assert env["APP_AUTH_DISABLED"] == "false" and env["VITE_DEV_MODE"] == "false"
 

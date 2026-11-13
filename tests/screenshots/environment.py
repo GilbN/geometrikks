@@ -138,6 +138,9 @@ def app_env(
         "GEOIP_ASN_DB_PATH": str(config.asn_db),
         "MAP_AUTO_DETECT_SERVER_LOCATION": "false",
         "MAP_CARTO_API_KEY": config.carto_key,
+        # Any key enables the Satellite switch. Satellite stays off, so no tile is requested, and the
+        # capture browser refuses every host but the app and CARTO, so this key never reaches Esri.
+        "MAP_ESRI_API_KEY": "screenshot-placeholder",
         "LOGPARSER_ENABLED": "true",
         "LOGPARSER_LOG_PATHS": json.dumps([str(path) for _, _, path in log_targets]),
         "LOGPARSER_LOG_FORMATS": json.dumps([log_format for _, log_format, _ in log_targets]),
