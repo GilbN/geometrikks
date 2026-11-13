@@ -2,6 +2,7 @@
   "name": "geometrikks-site",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.4.0",
   "scripts": {
     "sync": "node scripts/sync-content.mjs",
     "predev": "node scripts/sync-content.mjs",

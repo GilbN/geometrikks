@@ -2,11 +2,15 @@ import { expect, test, type Page } from "@playwright/test"
 
 test.use({ serviceWorkers: "block", viewport: { width: 393, height: 852 } })
 
-async function openFilters(page: Page, search = "") {
+async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
   expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+}
+
+async function openFilters(page: Page, search = "") {
+  await login(page)
   await page.route("**/api/v1/access-logs/facets*", (route) => route.fulfill({ json: {
     hosts: ["cloud.example.com", "git.example.com"],
     servers: ["edge-1"],
@@ -147,6 +151,22 @@ test.describe("touch screen", () => {
     await remove.click()
     await expect(remove).toHaveCount(0)
   })
+})
+
+test("Debug logs' Lines is a native single-choice row", async ({ page }) => {
+  await login(page)
+  const requests: URL[] = []
+  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-log-debug", (route) => {
+    requests.push(new URL(route.request().url()))
+    return route.fulfill({ json: { items: [], total: 0, limit: 25, offset: 0 } })
+  })
+  await page.goto("/debug-logs")
+  await page.getByRole("button", { name: /^Filters/ }).click()
+  const drawer = page.locator('[data-slot="drawer-content"]')
+  const lines = drawer.getByRole("combobox", { name: "Lines", exact: true })
+  await lines.selectOption("malformed")
+  await expect(page.locator("label").filter({ has: page.getByRole("combobox", { name: "Lines", exact: true }) })).toContainText("Malformed only")
+  await expect.poll(() => requests.at(-1)?.searchParams.get("malformed")).toBe("true")
 })
 
 test("a mouse gets the search page, since a multi-select would be an inline list box", async ({ page }) => {
