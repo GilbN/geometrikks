@@ -224,6 +224,9 @@ test.describe("desktop", () => {
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange", { bubbles: true })))
     await statusAnswered
     await expect(mark).toHaveCount(0)
+    const ipText = page.getByText(LISTED_IP, { exact: true }).first()
+    await expect(ipText).toBeVisible()
+    await expect(ipText).not.toHaveCSS("outline-style", "dashed")
   })
 
   test("every row shares one download", async ({ page }) => {
