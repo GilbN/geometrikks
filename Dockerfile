@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ------------------------------------------------------------------------------
 # Stage 3: Production runtime
 # ------------------------------------------------------------------------------
-FROM python:3.13-slim-bookworm AS production
+FROM python:3.15-slim-bookworm AS production
 
 RUN groupadd --gid 1000 geometrikks \
     && useradd --uid 1000 --gid geometrikks --shell /bin/bash --create-home geometrikks
