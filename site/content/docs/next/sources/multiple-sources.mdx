@@ -91,7 +91,7 @@ Compose doesn't act on health status. On plain Docker, `docker ps` shows a stuck
 
 ## Settings > Agents
 
-The head and every agent write a heartbeat to the shared database every 30 seconds. Settings > Agents on the head lists them, the head first. Each row shows the version, the server names, the lines and failures of the last 5 minutes, and when it last checked in. Click a row for the rest of what that process reports: ingestion counters, GeoIP databases, scheduled jobs, each log source with its own light, server locations and the last error.
+The head and every agent write a heartbeat to the shared database every 30 seconds. Settings > Agents on the head lists them, the head first. Each row shows the version, the server names, the lines and failures of the last 5 minutes, and when it last checked in. Click a row for the rest of what that process reports: ingestion counters, GeoIP databases, scheduled jobs, each log source with its own light, server locations and the last error. A lock after each name, and a Connection row under Database in the details, show whether that instance's database connection is encrypted, as [The lock and the Connection row](#the-lock-and-the-connection-row) explains.
 
 An agent that hasn't checked in for 180 seconds is marked not checking in, and only then does its row get a Remove button. If the agent is in fact still running, its next heartbeat brings the row back.
 
@@ -135,9 +135,224 @@ Everything else a full instance does keeps running.
 
 Point `CROWDSEC_LAPI_URL` and the CrowdSec credentials at the central LAPI on the head only. Agents ignore every `CROWDSEC_*` setting, and bans stay with the head. CrowdSec's own agents on each machine keep reporting to that LAPI as usual. [CrowdSec](../features/crowdsec.mdx) covers the setup.
 
+## Encrypt the database link
+
+The bundled database ships with TLS off, so everything an agent writes and reads crosses the network in plain text. GeoMetrikks has no TLS settings of its own. The database driver reads the standard PostgreSQL variables `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` and `PGSSLKEY` from the environment. With none of them set, an instance uses TLS whenever the database offers it, without checking the database's certificate.
+
+The steps below start from the shipped `docker-compose.yml` on the head.
+
+### Make the certificates
+
+Make a CA, a certificate authority of your own, and a server certificate it signs. Run this in a `certs` directory next to the head's `docker-compose.yml`:
+
+```bash
+openssl req -x509 -new -nodes -newkey rsa:4096 -days 3650 \
+  -keyout ca.key -out ca.crt -subj "/CN=GeoMetrikks database CA"
+openssl req -new -nodes -newkey rsa:2048 \
+  -keyout server.key -out server.csr -subj "/CN=timescale.example.internal"
+printf 'subjectAltName=DNS:timescale.example.internal,IP:100.64.0.10\n' > server.ext
+openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -days 825 -extfile server.ext -out server.crt
+```
+
+The server certificate must name what your agents put in `DB_HOST`. A host name goes in a `DNS:` entry and an address in an `IP:` entry. An address in a `DNS:` entry fails `verify-full` with `IP address mismatch`. The example names `timescale.example.internal` from [Deploy an agent](#deploy-an-agent) and `100.64.0.10`, the address the head publishes its port on. List every name and address your agents use, separated by commas.
+
+`ca.key` signs certificates and stays in this directory, and nothing mounts it. `ca.crt` goes to every agent. The server certificate is good for 825 days. After that, agents on `verify-full` can't connect until you sign a new one with the last command.
+
+### Turn TLS on in the database
+
+The database checks its key file before it starts. The file must be owned by uid 1000, the `postgres` user in the `timescale/timescaledb-ha` image, with mode 600:
+
+```bash
+chmod 600 server.key
+sudo chown 1000:1000 server.key
+```
+
+If other users can read the key, the database doesn't start, and its log says `private key file "/certs/server.key" has group or world access`.
+
+In the head's `docker-compose.yml`, add three flags to the end of the `command:` list of `timescale_db`, and mount the certificate and the key:
+
+```yaml
+services:
+  timescale_db:
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+    volumes:
+      - timescale_data:/home/postgres/pgdata/data
+      - ./certs/server.crt:/certs/server.crt:ro
+      - ./certs/server.key:/certs/server.key:ro
+```
+
+Keep the entries already in the list. Without them, TimescaleDB loses its background-worker tuning and logs `out of background workers` when its jobs fire together.
+
+Recreate the container and check that TLS is on:
+
+```bash
+docker compose up -d timescale_db
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SHOW ssl'
+```
+
+It answers `on`.
+
+### Point each agent at the CA
+
+Copy `ca.crt` next to the agent's `docker-compose.yml`, and add these entries to the agent from [Deploy an agent](#deploy-an-agent), next to the ones already there:
+
+```yaml
+services:
+  agent:
+    environment:
+      DB_HOST: timescale.example.internal
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /certs/ca.crt
+    volumes:
+      - ./ca.crt:/certs/ca.crt:ro
+```
+
+`verify-full` checks that your CA signed the database's certificate and that the certificate names `DB_HOST`. Against a database whose certificate your CA didn't sign, the agent can't connect and logs `certificate verify failed`.
+
+The `PGSSL*` variables are environment variables of the process, read by the database driver rather than by GeoMetrikks. Put them under `environment:` or in a file named by `env_file:`. In a `.env` that compose only uses to fill in `${...}` values, or that only the app reads, they do nothing. Leave out the ones you don't use, because an empty `PGSSLMODE` fails every connection.
+
+`ca.crt` must be readable by the user the app runs as, `PUID`, 1000 by default. It holds no secret, so mode 644 is fine. Apply the change with `docker compose up -d agent`.
+
+### Refuse connections without TLS
+
+The database still takes a plain connection from a client that doesn't ask for TLS, such as an agent with `PGSSLMODE=disable`. To refuse those, change the last rule in `pg_hba.conf` from `host` to `hostssl` and reload the database's configuration:
+
+```bash
+docker compose exec timescale_db sed -i 's/^host all all all scram-sha-256$/hostssl all all all scram-sha-256/' /home/postgres/pgdata/data/pg_hba.conf
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_reload_conf()'
+```
+
+`pg_hba.conf` lives in the `timescale_data` volume, so the change stays through restarts and recreated containers. A client without TLS now gets `no pg_hba.conf entry for host ..., no encryption`. The head needs no change. With no `PGSSL*` variables it asks for TLS first and gets it.
+
+### Restart after a change
+
+Restart every instance after a TLS change, whether on the database or on an instance. Each instance keeps a pool of open connections, and each one keeps the state it was opened with for up to `DB_POOL_RECYCLE`, an hour by default. Until then the lock on Settings > Agents can flip between heartbeats. After a change on the database side, run `docker compose restart app` on the head and `docker compose restart agent` on each agent.
+
+### Client certificates
+
+A client certificate is a second factor beside the password. The database then turns away a connection that has the password but no certificate signed by your CA. It's optional, but once the rule is on, every instance needs one, the head included.
+
+Sign one per instance in the `certs` directory. The CN must be the database user, `geouser` in the shipped compose file:
+
+```bash
+openssl req -new -nodes -newkey rsa:2048 \
+  -keyout edge-01.key -out edge-01.csr -subj "/CN=geouser"
+openssl x509 -req -in edge-01.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -days 825 -out edge-01.crt
+```
+
+Run it again with `head` in place of `edge-01` for the head.
+
+Give the database the CA first, so it can check client certificates. Add `ssl_ca_file` to the `command:` list of `timescale_db` and mount `ca.crt`:
+
+```yaml
+services:
+  timescale_db:
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+      - -c
+      - ssl_ca_file=/certs/ca.crt
+    volumes:
+      - timescale_data:/home/postgres/pgdata/data
+      - ./certs/server.crt:/certs/server.crt:ro
+      - ./certs/server.key:/certs/server.key:ro
+      - ./certs/ca.crt:/certs/ca.crt:ro
+```
+
+Run `docker compose up -d timescale_db`. Then add `clientcert=verify-full` to the rule and reload:
+
+```bash
+docker compose exec timescale_db sed -i 's/^hostssl all all all scram-sha-256$/hostssl all all all scram-sha-256 clientcert=verify-full/' /home/postgres/pgdata/data/pg_hba.conf
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_reload_conf()'
+```
+
+Keep that order. A `clientcert` rule on a database without `ssl_ca_file` refuses every connection with `client certificates can only be checked if a root certificate store is available`.
+
+Copy each agent's certificate and key next to its `docker-compose.yml`. Each instance needs them mounted, with `PGSSLCERT` and `PGSSLKEY` pointing at them. The key must be readable by `PUID`, so give it to that user with mode 600. Use your `PUID` in place of 1000 if you changed it:
+
+```bash
+chmod 600 edge-01.key
+sudo chown 1000:1000 edge-01.key
+```
+
+On an agent:
+
+```yaml
+services:
+  agent:
+    environment:
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: /certs/ca.crt
+      PGSSLCERT: /certs/edge-01.crt
+      PGSSLKEY: /certs/edge-01.key
+    volumes:
+      - ./ca.crt:/certs/ca.crt:ro
+      - ./edge-01.crt:/certs/edge-01.crt:ro
+      - ./edge-01.key:/certs/edge-01.key:ro
+```
+
+On the head, in the `app` service, next to its existing entries:
+
+```yaml
+services:
+  app:
+    environment:
+      PGSSLCERT: /certs/head.crt
+      PGSSLKEY: /certs/head.key
+    volumes:
+      - ./certs/head.crt:/certs/head.crt:ro
+      - ./certs/head.key:/certs/head.key:ro
+```
+
+An instance without a certificate can't connect. On `verify-full` it logs `connection requires a valid client certificate`. With no `PGSSLMODE`, as on the head, it tries again without TLS and logs `no pg_hba.conf entry ... no encryption` instead. A certificate whose CN isn't the database user fails with `password authentication failed`, and the database's own log says `CN mismatch`.
+
+### The lock and the Connection row
+
+Each instance reports its own connection, from itself to the address in `DB_HOST`. Behind a connection pooler such as PgBouncer, that is the link to the pooler.
+
+| Lock | Connection row | When |
+|---|---|---|
+| Closed, green | `encrypted, server verified` | `PGSSLMODE=verify-full` |
+| Closed, in the normal text color | `encrypted` | TLS without a check of the server's name: no `PGSSL*` variables, `require` or `verify-ca` |
+| Open, grey | `not encrypted` | `PGSSLMODE=disable`, or a database with TLS off |
+
+`verify-ca` checks that your CA signed the certificate but not the name in it, so it reads `encrypted`. So does `require` with `PGSSLROOTCERT`.
+
+In the list, the lock follows the instance name. On a screen narrower than 360 px, a row that also shows a version badge leaves the lock out to keep room for the name. The Connection row sits under Database in the instance's details. On a desktop, click the row. On a phone, tap it and open the Instance section. The phone drawer also shows the lock after the name in its title, and the line under the title ends with the same text, such as `connection encrypted, server verified`. An instance on an older release sends no report and gets no lock. `/health` doesn't report the link state.
+
+Each instance logs `database_link_state` at info level, with `encrypted` and `server_verified`, when it first learns the state and whenever it changes.
+
+### Errors that name no file
+
+`[Errno 2] No such file or directory` and `[Errno 13] Permission denied` in a `heartbeat_write_failed` warning mean a `PGSSL*` path is wrong, or the app's user can't read the file. Neither says which file. At startup, the `database_tls_file_unusable` warning names it, with `variable`, `path` and `reason`.
+
 ## Trust model
 
-Agents connect with ordinary database credentials, and GeoMetrikks accepts whatever reaches the database. Anyone who can run an agent has full read and write access to the whole database: every source's traffic history, every server, with no per-agent identity and no tenant separation. Revoking one agent means changing the shared password on every instance. Sharing one database between parties works as long as everyone knows they share everything. Run agent connections over a VPN or tailnet, not the open internet.
+Agents connect with ordinary database credentials, and GeoMetrikks accepts whatever reaches the database. Anyone who can run an agent has full read and write access to the whole database: every source's traffic history, every server, with no per-agent identity and no tenant separation. Revoking one agent means changing the shared password on every instance. Sharing one database between parties works as long as everyone knows they share everything. Run agent connections over a VPN or tailnet, not the open internet. If that traffic has to cross a network you don't control, [Encrypt the database link](#encrypt-the-database-link) shows how to turn TLS on.
 
 ## One instance, several files
 
