@@ -605,7 +605,7 @@ describe("instanceHeaderLine", () => {
         .at(-1)
         ?.map((part) => part.text)
         .join(""),
-    ).toBe("connection encrypted, server verified")
+    ).toBe("database\u00a0connection\u00a0encrypted, server verified")
   })
   it("puts the database connection before the last-heartbeat note for a stale agent", () => {
     const stale = makeInstance({
@@ -618,7 +618,7 @@ describe("instanceHeaderLine", () => {
     expect(groups.map((group) => group.map((part) => part.text).join(""))).toEqual([
       "Last seen 3d ago",
       "v0.23.0-dev.5",
-      "connection not encrypted",
+      "database\u00a0connection\u00a0not encrypted",
       "details from its last heartbeat",
     ])
   })

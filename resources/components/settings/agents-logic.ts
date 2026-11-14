@@ -314,7 +314,8 @@ export function instanceRowLine(instance: InstanceView): TextPart[] {
 }
 
 /** The line under the agent's name in its details: when it was last seen,
- *  how long it has run and whether its version matches the head's. */
+ *  how long it has run, whether its version matches the head's, and its
+ *  database connection when it reports one. */
 export function instanceHeaderLine(
   instance: InstanceView,
   head: HeadIdentityView,
@@ -330,8 +331,9 @@ export function instanceHeaderLine(
       ]
     : [{ text: shortVersion(instance.appVersion), nowrap: true }]
   const databaseLink = databaseLinkState(instance.payload?.databaseLink)
+  // Non-breaking up to the state, so a wrapped line never ends on "database" or "connection".
   const connection: TextPart[][] = databaseLink
-    ? [[{ text: `connection ${databaseLink.text}` }]]
+    ? [[{ text: `database\u00a0connection\u00a0${databaseLink.text}` }]]
     : []
   if (!instance.checkingIn) {
     return [
