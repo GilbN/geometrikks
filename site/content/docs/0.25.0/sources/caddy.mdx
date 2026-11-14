@@ -1,0 +1,53 @@
+---
+title: Caddy
+description: Write Caddy's JSON access log to a file, add upstream timing, and keep the time and duration formats GeoMetrikks reads.
+---
+
+GeoMetrikks reads Caddy's native JSON access log, the `caddy-json` format. Caddy logs to stderr by default, so give the site, or a wildcard site block, a `log` directive that writes to a file.
+
+## Write the log to a file
+
+```text
+(log_settings) {
+    log {
+        output file /var/log/caddy/access.log
+        format json
+        level INFO
+    }
+    log_append upstream_duration_ms {rp.upstream.duration_ms}
+}
+
+app.example.com {
+    import log_settings
+    reverse_proxy app:8000
+}
+```
+
+The `log_append` line is optional. It adds an `upstream_duration_ms` field, which GeoMetrikks divides by 1000 and stores as the upstream response time. That fills the "Upstream res time" column in Access Logs, hidden until you tick it in the Columns menu, and the "Upstream response" field in a request's details panel. Without it, the column shows `-` and the details field reads "Not recorded". Caddy's measurement includes writing the response body to the client, so it doesn't measure quite the same thing as nginx's `$upstream_response_time`.
+
+## Point GeoMetrikks at the file
+
+Set the host folder Caddy writes to as `ACCESS_LOG_DIR` in `.env`. The compose file mounts it read-only at `/var/log/access`:
+
+```dotenv
+ACCESS_LOG_DIR=/path/to/caddy/logs
+LOGPARSER_LOG_PATHS=/var/log/access/access.log
+```
+
+Run `docker compose up -d` to recreate the container with the new mount. GeoMetrikks detects the format from the file's lines. `LOGPARSER_LOG_FORMATS=caddy-json` pins it.
+
+Caddy rotates the log file itself by default, and GeoMetrikks follows the rotation.
+
+## Client address
+
+GeoMetrikks reads the logged `client_ip`, which is the address Caddy resolved through its `trusted_proxies` setting. Logs from Caddy older than 2.7 have no `client_ip`, and GeoMetrikks falls back to `remote_ip`, the connecting peer. GeoMetrikks never reads `X-Forwarded-For` from a Caddy log.
+
+Behind a CDN or another proxy, set `trusted_proxies` under `servers` in Caddy's global options. Without it, the log carries the proxy's address and the map shows the proxy. [Real client IP behind a proxy](./proxy-setup.mdx#caddy) has the config.
+
+## Time and duration formats
+
+Leave the JSON encoder's `time_format` and `duration_format` at their defaults. GeoMetrikks handles them like this:
+
+- **Timestamps.** A numeric `ts` works in seconds, milliseconds or nanoseconds, because GeoMetrikks picks the unit from the size of the number. A text `ts` must be ISO 8601 with a UTC offset, such as the `iso8601` or `rfc3339` formats. GeoMetrikks skips every line written with `wall`, `common_log` or another layout, so that file records nothing.
+- **Request time.** GeoMetrikks reads the numeric `duration` field as seconds, which is what the default `duration_format` writes, so request times come out right. With a text format such as `string`, the duration isn't a number, and requests have no request time. The numeric `ms` and `ns` variants look the same as seconds to GeoMetrikks, so it stores them 1,000 or 1,000,000,000 times too large, and the response-time charts show those values.
+- **Upstream time.** The appended `upstream_duration_ms` is always milliseconds, whatever `duration_format` says.

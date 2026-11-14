@@ -54,16 +54,16 @@ Images are published as `ghcr.io/gilbn/geometrikks`. The compose file uses `late
 
 | Tag | Example | What it points at |
 | --- | --- | --- |
-| `X.Y.Z` | `0.24.0` | One stable release. It never moves, so use it for reproducible deployments. |
-| `X.Y` | `0.24` | The newest stable patch release of that minor series. |
+| `X.Y.Z` | `0.25.0` | One stable release. It never moves, so use it for reproducible deployments. |
+| `X.Y` | `0.25` | The newest stable patch release of that minor series. |
 | `latest` | `latest` | The newest stable release. |
 | `develop` | `develop` | The newest development release. It moves with every one. |
-| `X.Y.Z-dev.N` | `0.25.0-dev.1` | One development build of an upcoming release, for testing. |
+| `X.Y.Z-dev.N` | `0.26.0-dev.1` | One development build of an upcoming release, for testing. |
 
 To pin a version, change the `image:` line of the `app` service:
 
 ```yaml
-image: ghcr.io/gilbn/geometrikks:0.24.0
+image: ghcr.io/gilbn/geometrikks:0.25.0
 ```
 
 [Upgrading](./upgrading.mdx) covers moving to a newer tag.
