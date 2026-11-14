@@ -185,6 +185,7 @@ async def test_list_page_shows_each_report_of_a_reported_twice_ip(pg_session_mak
         ("homepage", {"9.9.9.9"}),
         ("%", {"1.0.0.1"}),
         ("2600:1f18::1%eth0", set()),
+        ("2600:1F18:0::", {"2600:1f18::1"}),
     ],
     ids=[
         "ip-start",
@@ -196,6 +197,7 @@ async def test_list_page_shows_each_report_of_a_reported_twice_ip(pg_session_mak
         "sent-by",
         "percent-is-literal",
         "ipv6-zone-is-text",
+        "ipv6-network-is-prefix",
     ],
 )
 async def test_list_page_search(pg_session_maker, clean_abuseipdb_reports, q, expected):
