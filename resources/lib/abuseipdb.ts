@@ -161,6 +161,14 @@ function inRanges<Address extends number | bigint>(ranges: [Address, Address][],
   return ranges.some(([start, end]) => start <= value && value <= end)
 }
 
+export const BLACKLIST_MARK_TEXT = "On AbuseIPDB's blacklist"
+export const BLACKLIST_MARK_SR_TEXT = " (on AbuseIPDB's blacklist)"
+
+export function blacklistMarkTitle(previousTitle?: string): string {
+  if (!previousTitle) return BLACKLIST_MARK_TEXT
+  return `${previousTitle.replace(/\.$/, "")}. ${BLACKLIST_MARK_TEXT}`
+}
+
 export type AbuseScoreTone = "high" | "medium" | "low"
 
 export function abuseScoreTone(score: number): AbuseScoreTone {

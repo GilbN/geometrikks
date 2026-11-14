@@ -1,8 +1,9 @@
 /**
  * Why an IP on the map is tinted or outlined: its CrowdSec decisions, its
- * DROP listing and the actions for it. Clicking the IP opens them, in a
- * drawer on a phone and a popover elsewhere, since a phone has no hover
- * for the tooltip the tables use. An IP with neither renders as it is.
+ * DROP listing, its AbuseIPDB blacklist listing and the actions for it.
+ * Clicking the IP opens them, in a drawer on a phone and a popover
+ * elsewhere, since a phone has no hover for the tooltip the tables use. An
+ * IP with none of them renders as it is.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Loader2, ScanSearch, ShieldBan, ShieldOff } from "lucide-react"
@@ -17,6 +18,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { SblRecordLink } from "@/components/drop/sbl-record-link"
@@ -25,11 +27,20 @@ import { CopyIpButton } from "@/components/ip-actions/ip-actions-menu"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import type { DecisionRef } from "@/components/security/alert-detail-sheet"
 import type { DecisionView } from "@/generated/api/types.gen"
+import { abuseipdbCheckUrl } from "@/lib/abuseipdb"
 import { crowdsecErrorMessage, decisionLabel, resolveDecision } from "@/lib/crowdsec"
 import { decisionHasAlert, formatTimeLeft, isBlocklistOrigin } from "@/lib/crowdsec-alerts"
+import { formatTs } from "@/lib/datetime"
 import { useIpInspectorActions } from "@/lib/ip-inspector"
 import { useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
-import { useBannedIps, useCrowdsecStatus, useDropNetwork, useIpDecisions } from "@/lib/queries"
+import {
+  useAbuseIpdbBlacklisted,
+  useAbuseIpdbBlacklistGeneratedAt,
+  useBannedIps,
+  useCrowdsecStatus,
+  useDropNetwork,
+  useIpDecisions,
+} from "@/lib/queries"
 import { scenarioText } from "@/lib/scenario-name"
 import { usePollingHold } from "@/lib/time-range-context"
 import { cn } from "@/lib/utils"
@@ -51,15 +62,17 @@ function decisionTone(type: string): string {
   return "text-foreground"
 }
 
-/** "Banned · On DROP · " ahead of a row's other details, or nothing. */
+/** "Banned · On DROP · On AbuseIPDB blacklist · " ahead of a row's other details, or nothing. */
 export function IpStatusWords({ ip }: { ip: string }) {
   const { data: bannedIps } = useBannedIps()
   const dropNetwork = useDropNetwork(ip)
+  const blacklisted = useAbuseIpdbBlacklisted(ip)
   const decision = bannedIps?.get(ip) ?? null
   return (
     <>
       {decision !== null && <><span className={cn("font-semibold", decisionTone(decision))}>{decisionLabel(decision)}</span> · </>}
       {dropNetwork !== null && <><span className="font-semibold text-destructive">On DROP</span> · </>}
+      {blacklisted && <><span className="font-semibold text-destructive">On AbuseIPDB blacklist</span> · </>}
     </>
   )
 }
@@ -139,6 +152,8 @@ function StatusBody({ ip, banned, onOpenAlert, Close, compact }: {
   const crowdsecEnabled = status?.enabled === true
   const decisions = useIpDecisions(ip)
   const dropNetwork = useDropNetwork(ip)
+  const blacklisted = useAbuseIpdbBlacklisted(ip)
+  const blacklistGeneratedAt = useAbuseIpdbBlacklistGeneratedAt()
   const active = decisions.data?.filter((decision) => decision.scope === "Ip") ?? []
   const styles = blockStyles(compact)
   return (
@@ -185,7 +200,40 @@ function StatusBody({ ip, banned, onOpenAlert, Close, compact }: {
           </dl>
           <p className="mt-2 text-xs text-muted-foreground">
             DROP stands for Don't Route Or Peer. Spamhaus lists networks run by spam and cybercrime operations, so
-            traffic from them is almost never legitimate.{!banned && " GeoMetrikks has not blocked this IP."}
+            traffic from them is almost never legitimate.{!banned && !blacklisted && " GeoMetrikks has not blocked this IP."}
+          </p>
+        </section>
+      )}
+      {blacklisted && (
+        <section className={styles.block}>
+          <h3 className={styles.heading}>
+            <AbuseIpdbBlacklistBadge variant="short" />
+            AbuseIPDB blacklist
+          </h3>
+          <dl className={styles.list}>
+            <dt className="text-muted-foreground">Score</dt>
+            <dd>100% abuse confidence</dd>
+            {blacklistGeneratedAt !== null && (
+              <>
+                <dt className="text-muted-foreground">List</dt>
+                <dd>Generated {formatTs(blacklistGeneratedAt, "hourly")}</dd>
+              </>
+            )}
+            <dt className="text-muted-foreground">Entry</dt>
+            <dd>
+              <a
+                href={abuseipdbCheckUrl(ip)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tap-area text-primary underline decoration-dotted underline-offset-2 hover:text-foreground"
+              >
+                View on AbuseIPDB
+              </a>
+            </dd>
+          </dl>
+          <p className="mt-2 text-xs text-muted-foreground">
+            AbuseIPDB's blacklist holds IPs whose reports give them a 100% abuse confidence score.
+            {!banned && " GeoMetrikks has not blocked this IP."}
           </p>
         </section>
       )}
@@ -212,10 +260,11 @@ type IpStatusDetailsProps = {
 export function IpStatusDetails(props: IpStatusDetailsProps) {
   const { data: bannedIps } = useBannedIps()
   const dropNetwork = useDropNetwork(props.ip)
+  const blacklisted = useAbuseIpdbBlacklisted(props.ip)
   const decision = resolveDecision(bannedIps, props.ip, props.initialDecision ?? null)
   // The open state and its polling hold live in MarkedIpStatus, so they go
   // with it when a decision expires or is lifted while the details are open.
-  if (decision === null && dropNetwork === null) return <>{props.children}</>
+  if (decision === null && dropNetwork === null && !blacklisted) return <>{props.children}</>
   return <MarkedIpStatus {...props} decision={decision} />
 }
 

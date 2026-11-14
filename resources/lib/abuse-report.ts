@@ -13,6 +13,7 @@ import type {
   ReportLineDto,
 } from "@/generated/api/types.gen"
 import { SIGNAL_THRESHOLDS } from "@/components/ip-inspector/signals"
+import { canonicalIp } from "@/lib/abuseipdb"
 import type { AbuseReportTarget } from "@/lib/api"
 import { goDurationMs } from "@/lib/crowdsec-alerts"
 import { sblRecordUrl } from "@/lib/drop-lists"
@@ -286,6 +287,22 @@ function addressesInDropClause(addressNetworks: AddressDropNetwork[], addressCou
     return addressCount === 1 ? `the one address the report lists is ${where}` : `all ${count(addressCount)} addresses the report lists are ${where}`
   }
   return `${count(inDrop)} of the ${count(addressCount)} addresses the report lists ${inDrop === 1 ? "is" : "are"} ${where}`
+}
+
+/** How many of the addresses are on AbuseIPDB's blacklist, matched in canonical form. */
+export function blacklistedAddressCount(ips: readonly Pick<ReportIpDto, "ipAddress">[], blacklist: ReadonlySet<string>): number {
+  return ips.filter((reportIp) => blacklist.has(canonicalIp(reportIp.ipAddress) ?? reportIp.ipAddress)).length
+}
+
+/** The bold first sentence of the dialog's blacklist notice, or null when nothing is listed. */
+export function blacklistNoticeHeadline(kind: "ip" | "asn", listed: number, total: number): string | null {
+  if (listed === 0) return null
+  if (kind === "ip") return "On AbuseIPDB's blacklist, with a 100% abuse confidence score."
+  const where = "on AbuseIPDB's blacklist"
+  if (listed === total) {
+    return total === 1 ? `The one address the report lists is ${where}.` : `All ${count(total)} addresses the report lists are ${where}.`
+  }
+  return `${count(listed)} of the ${count(total)} addresses the report lists ${listed === 1 ? "is" : "are"} ${where}.`
 }
 
 /** The SBL records behind the report's DROP listings, with their check.spamhaus.org links. */

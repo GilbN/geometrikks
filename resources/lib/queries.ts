@@ -2034,17 +2034,32 @@ export function abuseIpdbBlacklistQueryOptions(enabled: boolean) {
   }
 }
 
-export function useAbuseIpdbBlacklist() {
+function useAbuseIpdbBlacklist() {
   const { data: status } = useAbuseIpdbStatus()
   return useQuery(abuseIpdbBlacklistQueryOptions(status?.blacklistEnabled === true))
 }
 
-export function useAbuseIpdbBlacklisted(ip: string): boolean {
+export function useAbuseIpdbBlacklistSet(): ReadonlySet<string> | null {
   const { data: status } = useAbuseIpdbStatus()
   const { data: blacklist } = useAbuseIpdbBlacklist()
   // A disabled query keeps its cached data, so turning the feature off has to be checked here too.
-  if (status?.blacklistEnabled !== true) return false
-  return blacklist?.has(canonicalIp(ip) ?? ip) ?? false
+  if (status?.blacklistEnabled !== true) return null
+  return blacklist ?? null
+}
+
+export function useAbuseIpdbBlacklistGeneratedAt(): string | null {
+  const { data: status } = useAbuseIpdbStatus()
+  const enabled = status?.blacklistEnabled === true
+  const { data: generatedAt } = useQuery({
+    ...abuseIpdbBlacklistQueryOptions(enabled),
+    select: (blacklist: AbuseIpdbBlacklistResponse) => blacklist.generatedAt,
+  })
+  if (!enabled) return null
+  return generatedAt ?? null
+}
+
+export function useAbuseIpdbBlacklisted(ip: string): boolean {
+  return useAbuseIpdbBlacklistSet()?.has(canonicalIp(ip) ?? ip) ?? false
 }
 
 // Every IP menu is an observer, so the Map is cached per response like selectBannedRanges.

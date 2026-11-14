@@ -3,6 +3,7 @@ import type { ReportIpDto, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   abuseipdbCheckUrl,
   ABUSEIPDB_CATEGORIES,
+  blacklistMarkTitle,
   buildReportComment,
   canonicalIp,
   categoriesForScenarios,
@@ -20,6 +21,7 @@ import {
   abuseScoreTone,
   shortAgoText,
 } from "./abuseipdb"
+import { dropMarkTitle } from "./drop-lists"
 
 function ipEvidence(overrides: Partial<ReportIpDto> = {}): ReportIpDto {
   return {
@@ -462,4 +464,22 @@ describe("shortAgoText", () => {
     expect(shortAgoText("2026-12-28T12:00:00", now, "en-US")).toBe("Dec 28")
     expect(shortAgoText("2026-03-15T12:00:00", now, "en-US")).toBe("Mar 2026")
   })
+})
+
+test("blacklistMarkTitle stands alone without an earlier title", () => {
+  expect(blacklistMarkTitle()).toBe("On AbuseIPDB's blacklist")
+})
+
+test("blacklistMarkTitle follows a decision title", () => {
+  expect(blacklistMarkTitle("Active CrowdSec ban decision")).toBe("Active CrowdSec ban decision. On AbuseIPDB's blacklist")
+})
+
+test("blacklistMarkTitle follows the decision and DROP text, in that order", () => {
+  expect(blacklistMarkTitle(dropMarkTitle("SBL000001", "Active CrowdSec ban decision"))).toBe(
+    "Active CrowdSec ban decision. On the DROP list (SBL000001). On AbuseIPDB's blacklist",
+  )
+})
+
+test("blacklistMarkTitle drops a trailing full stop before joining", () => {
+  expect(blacklistMarkTitle("Banned by hand.")).toBe("Banned by hand. On AbuseIPDB's blacklist")
 })

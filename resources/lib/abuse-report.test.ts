@@ -4,6 +4,8 @@ import {
   CSV_COLUMNS,
   WRAP_WIDTH,
   behaviorFindings,
+  blacklistNoticeHeadline,
+  blacklistedAddressCount,
   dropNoticeHeadline,
   formatAbuseReportCsv,
   formatAbuseReportText,
@@ -393,6 +395,30 @@ describe("titleDropBadgeKind", () => {
     })
     expect(titleDropBadgeKind(reportDropListings(asnReport))).toBe("asn")
     expect(titleDropBadgeKind({ dropNetwork: null, asnDropAsn: null })).toBeNull()
+  })
+})
+
+describe("blacklistedAddressCount", () => {
+  it("counts listed addresses, matching any IPv6 spelling", () => {
+    const blacklist = new Set(["192.0.2.1", "2600:1f18::1"])
+    const ips = [{ ipAddress: "192.0.2.1" }, { ipAddress: "2600:1F18:0:0::1" }, { ipAddress: "192.0.2.9" }]
+    expect(blacklistedAddressCount(ips, blacklist)).toBe(2)
+  })
+})
+
+describe("blacklistNoticeHeadline", () => {
+  it("says an IP report's IP is listed", () => {
+    expect(blacklistNoticeHeadline("ip", 1, 1)).toBe("On AbuseIPDB's blacklist, with a 100% abuse confidence score.")
+  })
+  it("returns null when nothing is listed", () => {
+    expect(blacklistNoticeHeadline("ip", 0, 1)).toBeNull()
+    expect(blacklistNoticeHeadline("asn", 0, 25)).toBeNull()
+  })
+  it("counts an ASN report's listed addresses", () => {
+    expect(blacklistNoticeHeadline("asn", 3, 25)).toBe("3 of the 25 addresses the report lists are on AbuseIPDB's blacklist.")
+    expect(blacklistNoticeHeadline("asn", 1, 25)).toBe("1 of the 25 addresses the report lists is on AbuseIPDB's blacklist.")
+    expect(blacklistNoticeHeadline("asn", 25, 25)).toBe("All 25 addresses the report lists are on AbuseIPDB's blacklist.")
+    expect(blacklistNoticeHeadline("asn", 1, 1)).toBe("The one address the report lists is on AbuseIPDB's blacklist.")
   })
 })
 

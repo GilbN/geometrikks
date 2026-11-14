@@ -5,19 +5,28 @@ import type { AbuseIpdbBlacklistResponse } from "@/generated/api/types.gen"
 const mocks = vi.hoisted(() => ({
   fetchAbuseIpdbBlacklist: vi.fn(),
   status: undefined as { blacklistEnabled: boolean } | undefined,
-  cachedBlacklist: undefined as Set<string> | undefined,
+  cachedBlacklist: undefined as AbuseIpdbBlacklistResponse | undefined,
+  listQueryKeys: [] as (readonly string[])[],
 }))
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQuery: (options: { queryKey: readonly string[] }) => ({
-    data: options.queryKey[1] === "status" ? mocks.status : mocks.cachedBlacklist,
-  }),
+  useQuery: (options: { queryKey: readonly string[]; select?: (response: AbuseIpdbBlacklistResponse) => unknown }) => {
+    if (options.queryKey[1] === "status") return { data: mocks.status }
+    mocks.listQueryKeys.push(options.queryKey)
+    const response = mocks.cachedBlacklist
+    return { data: response !== undefined && options.select ? options.select(response) : response }
+  },
 }))
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   fetchAbuseIpdbBlacklist: mocks.fetchAbuseIpdbBlacklist,
 }))
-import { abuseIpdbBlacklistQueryOptions, useAbuseIpdbBlacklisted } from "./queries"
+import {
+  abuseIpdbBlacklistQueryOptions,
+  useAbuseIpdbBlacklisted,
+  useAbuseIpdbBlacklistGeneratedAt,
+  useAbuseIpdbBlacklistSet,
+} from "./queries"
 
 const BLACKLIST_KEY = ["abuseipdb", "blacklist"]
 const MINUTE_MS = 60_000
@@ -35,6 +44,7 @@ beforeEach(() => {
   mocks.fetchAbuseIpdbBlacklist.mockReset()
   mocks.status = undefined
   mocks.cachedBlacklist = undefined
+  mocks.listQueryKeys = []
 })
 
 afterEach(() => {
@@ -49,12 +59,43 @@ function observe() {
 }
 
 it("stops marking an IP once the feature turns off, though the list stays cached", () => {
-  mocks.cachedBlacklist = new Set(["3.5.140.2"])
+  mocks.cachedBlacklist = blacklistResponse()
   mocks.status = { blacklistEnabled: true }
   expect(useAbuseIpdbBlacklisted("3.5.140.2")).toBe(true)
 
   mocks.status = { blacklistEnabled: false }
   expect(useAbuseIpdbBlacklisted("3.5.140.2")).toBe(false)
+})
+
+it("gives the cached set while the feature is on", () => {
+  mocks.cachedBlacklist = blacklistResponse()
+  mocks.status = { blacklistEnabled: true }
+  expect(useAbuseIpdbBlacklistSet()).toEqual(new Set(["3.5.140.2"]))
+})
+
+it("gives no set once the feature turns off, though the list stays cached", () => {
+  mocks.cachedBlacklist = blacklistResponse()
+  mocks.status = { blacklistEnabled: false }
+  expect(useAbuseIpdbBlacklistSet()).toBeNull()
+})
+
+it("gives no set while nothing is cached", () => {
+  mocks.status = { blacklistEnabled: true }
+  expect(useAbuseIpdbBlacklistSet()).toBeNull()
+})
+
+it("gives the list's generation time while the feature is on", () => {
+  mocks.cachedBlacklist = blacklistResponse()
+  mocks.status = { blacklistEnabled: true }
+  expect(useAbuseIpdbBlacklistGeneratedAt()).toBe("2026-11-08T06:00:00Z")
+  // A different key would download the list a second time.
+  expect(mocks.listQueryKeys).toEqual([BLACKLIST_KEY])
+})
+
+it("gives no generation time once the feature turns off, though the list stays cached", () => {
+  mocks.cachedBlacklist = blacklistResponse()
+  mocks.status = { blacklistEnabled: false }
+  expect(useAbuseIpdbBlacklistGeneratedAt()).toBeNull()
 })
 
 it("builds one Set per response however many IPs read it", async () => {

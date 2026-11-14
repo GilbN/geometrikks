@@ -19,11 +19,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { ExternalLink } from "@/components/crowdsec/external-link"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { BanIpDialog } from "@/components/security/ban-ip-dialog"
 import type { AbuseContactResponse, AbuseReportResponse } from "@/generated/api/types.gen"
 import {
+  blacklistedAddressCount,
+  blacklistNoticeHeadline,
   dropNoticeHeadline,
   errorDetail,
   formatAbuseReportCsv,
@@ -38,7 +41,7 @@ import type { AbuseReportTarget } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
 import { dropBanReason, dropNetworkBanOffered, sblRecordUrl } from "@/lib/drop-lists"
 import { focusTarget } from "@/lib/drop-networks"
-import { useAbuseContact, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
+import { useAbuseContact, useAbuseIpdbBlacklistSet, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { formatTs } from "@/lib/datetime"
@@ -122,6 +125,7 @@ function AbuseReportBody({
   const targetKey = target.kind === "ip" ? `ip:${target.ip}` : `asn:${target.asn}`
 
   const report = useAbuseReport(target, { maxIps, linesPerIp, enabled: true })
+  const blacklist = useAbuseIpdbBlacklistSet()
   const contact = useAbuseContact(target, lookups.has(targetKey))
 
   const data = report.data
@@ -164,8 +168,13 @@ function AbuseReportBody({
 
   const title = target.kind === "asn" ? asLabel(target.asn, subject.organization) : target.ip
   const loading = report.isLoading || (report.isPlaceholderData && report.isFetching)
-  const dropListings = data && (!report.isPlaceholderData || reportIsFor(data, target)) ? reportDropListings(data) : null
+  const targetReport = data && (!report.isPlaceholderData || reportIsFor(data, target)) ? data : null
+  const dropListings = targetReport ? reportDropListings(targetReport) : null
   const titleDropBadge = dropListings ? titleDropBadgeKind(dropListings) : null
+  const blacklistedCount = targetReport && blacklist ? blacklistedAddressCount(targetReport.ips, blacklist) : 0
+  const blacklistHeadline = targetReport
+    ? blacklistNoticeHeadline(target.kind, blacklistedCount, targetReport.ips.length)
+    : null
 
   return (
     <div ref={container} className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -181,6 +190,9 @@ function AbuseReportBody({
               sblId={titleDropBadge === "network" ? dropListings?.dropNetwork?.sblId : undefined}
               className="ml-2 align-[2px]"
             />
+          )}
+          {target.kind === "ip" && blacklistedCount > 0 && (
+            <AbuseIpdbBlacklistBadge variant="short" className="ml-2 align-[2px]" />
           )}
         </DialogTitle>
         <DialogDescription className="text-xs sm:text-sm">{period}, times in UTC.</DialogDescription>
@@ -251,6 +263,8 @@ function AbuseReportBody({
         </div>
 
         {!expanded && dropListings && <DropNotice listings={dropListings} />}
+
+        {!expanded && blacklistHeadline && <BlacklistNotice headline={blacklistHeadline} />}
 
         {!expanded && (
         <ContactPanel
@@ -426,6 +440,19 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
           returnFocusTo={returnFocusTo}
         />
       )}
+    </div>
+  )
+}
+
+/** Says the report's addresses are on AbuseIPDB's blacklist, which the report text must not repeat. */
+function BlacklistNotice({ headline }: { headline: string }) {
+  return (
+    <div className="flex gap-2 rounded-md border border-destructive/45 bg-destructive/10 px-3 py-2 text-xs">
+      <ShieldAlert aria-hidden className="mt-px size-3.5 shrink-0 text-destructive" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-semibold text-destructive">{headline}</p>
+        <p>AbuseIPDB forbids republishing its blacklist, so the report text leaves this out.</p>
+      </div>
     </div>
   )
 }
