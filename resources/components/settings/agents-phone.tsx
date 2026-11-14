@@ -88,7 +88,9 @@ export function AgentList({
                   <MonoChip className="min-w-0 truncate text-foreground">{instance.instanceName}</MonoChip>
                   {databaseLink && (
                     <BadgeHint hint={databaseLink.hint} tappable={false}>
-                      <span className="-ml-0.5 inline-flex shrink-0">
+                      {/* Under 360px a version badge leaves a long name about three characters;
+                          the lock yields there, and the drawer title still shows it. */}
+                      <span className={cn("-ml-0.5 inline-flex shrink-0", drift && "max-[359px]:hidden")}>
                         <ConnectionLock lock={databaseLink.lock} className="size-3" />
                         <span className="sr-only">{databaseLink.hint}</span>
                       </span>
@@ -189,6 +191,7 @@ function AgentDetail({
 }) {
   const sections = instanceDetailSections(instance, checkedAt)
   const headerGroups = instanceHeaderLine(instance, head, checkedAt)
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
   const problemCount = instance.problems.length
   const titleRef = useRef<HTMLHeadingElement>(null)
   const [announcement, setAnnouncement] = useState("")
@@ -221,6 +224,7 @@ function AgentDetail({
           <DrawerTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-2 outline-none">
             <StatusLed tone={instanceTone(instance)} />
             <MonoChip className="min-w-0 truncate text-[13px] text-foreground">{instance.instanceName}</MonoChip>
+            {databaseLink && <ConnectionLock lock={databaseLink.lock} className="size-3 shrink-0" />}
             <span className="sr-only">, {instanceStatusLabel(instance.status)}</span>
           </DrawerTitle>
           <DrawerDescription className="text-xs">

@@ -469,6 +469,30 @@ describe("instanceHeaderLine", () => {
     ])
     expect(groups[0][0].tone).toBe("red")
   })
+  it("ends with the database connection when the instance reports it", () => {
+    const verified = makeInstance({
+      appVersion: "0.23.0.dev5",
+      lastSeen: "2026-10-17T10:00:18+00:00",
+      payload: { databaseLink: { encrypted: true, serverVerified: true } },
+    })
+    const groups = instanceHeaderLine(verified, head, CHECKED_AT)
+    expect(groups.at(-1)?.map((part) => part.text).join("")).toBe("connection encrypted, server verified")
+  })
+  it("puts the database connection before the last-heartbeat note for a stale agent", () => {
+    const stale = makeInstance({
+      appVersion: "0.23.0.dev5",
+      checkingIn: false,
+      lastSeen: "2026-10-14T10:00:30+00:00",
+      payload: { databaseLink: { encrypted: false, serverVerified: false } },
+    })
+    const groups = instanceHeaderLine(stale, head, CHECKED_AT)
+    expect(groups.map((group) => group.map((part) => part.text).join(""))).toEqual([
+      "Last seen 3d ago",
+      "v0.23.0-dev.5",
+      "connection not encrypted",
+      "details from its last heartbeat",
+    ])
+  })
 })
 
 describe("shortVersion", () => {

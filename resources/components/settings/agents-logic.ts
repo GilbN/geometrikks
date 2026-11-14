@@ -313,11 +313,18 @@ export function instanceHeaderLine(instance: InstanceView, head: HeadIdentityVie
         { text: shortVersion(head.appVersion), nowrap: true },
       ]
     : [{ text: shortVersion(instance.appVersion), nowrap: true }]
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
+  const connection: TextPart[][] = databaseLink ? [[{ text: `connection ${databaseLink.text}` }]] : []
   if (!instance.checkingIn) {
-    return [[{ text: `Last seen ${seen}`, tone: "red" }], version, [{ text: "details from its last heartbeat" }]]
+    return [
+      [{ text: `Last seen ${seen}`, tone: "red" }],
+      version,
+      ...connection,
+      [{ text: "details from its last heartbeat" }],
+    ]
   }
   const uptime = formatUptime(instance.startedAt, checkedAtMs)
-  return [[{ text: `Seen ${seen}` }], ...(uptime ? [[{ text: uptime }]] : []), version]
+  return [[{ text: `Seen ${seen}` }], ...(uptime ? [[{ text: uptime }]] : []), version, ...connection]
 }
 
 export type LinkLock = "verified" | "encrypted" | "open"
