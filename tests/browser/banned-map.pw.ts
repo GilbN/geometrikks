@@ -765,7 +765,7 @@ test.describe("AbuseIPDB blacklist", () => {
     const drawer = page.locator('[data-slot="drawer-content"][data-state="open"]')
     const heading = drawer.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" })
     await expect(heading).toBeVisible()
-    await expect(heading).toContainText("Blacklist")
+    await expect(heading.getByText("Blacklist", { exact: true })).toBeVisible()
     await expect(drawer.getByText("100% abuse confidence", { exact: true })).toBeVisible()
     await expect(drawer.getByText(/^Generated /)).toBeVisible()
     await expect(drawer.getByRole("link", { name: "View on AbuseIPDB", exact: true }))

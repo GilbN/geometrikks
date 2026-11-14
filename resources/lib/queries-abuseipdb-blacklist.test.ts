@@ -6,11 +6,13 @@ const mocks = vi.hoisted(() => ({
   fetchAbuseIpdbBlacklist: vi.fn(),
   status: undefined as { blacklistEnabled: boolean } | undefined,
   cachedBlacklist: undefined as AbuseIpdbBlacklistResponse | undefined,
+  listQueryKeys: [] as (readonly string[])[],
 }))
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: (options: { queryKey: readonly string[]; select?: (response: AbuseIpdbBlacklistResponse) => unknown }) => {
     if (options.queryKey[1] === "status") return { data: mocks.status }
+    mocks.listQueryKeys.push(options.queryKey)
     const response = mocks.cachedBlacklist
     return { data: response !== undefined && options.select ? options.select(response) : response }
   },
@@ -42,6 +44,7 @@ beforeEach(() => {
   mocks.fetchAbuseIpdbBlacklist.mockReset()
   mocks.status = undefined
   mocks.cachedBlacklist = undefined
+  mocks.listQueryKeys = []
 })
 
 afterEach(() => {
@@ -85,6 +88,8 @@ it("gives the list's generation time while the feature is on", () => {
   mocks.cachedBlacklist = blacklistResponse()
   mocks.status = { blacklistEnabled: true }
   expect(useAbuseIpdbBlacklistGeneratedAt()).toBe("2026-11-08T06:00:00Z")
+  // A different key would download the list a second time.
+  expect(mocks.listQueryKeys).toEqual([BLACKLIST_KEY])
 })
 
 it("gives no generation time once the feature turns off, though the list stays cached", () => {
