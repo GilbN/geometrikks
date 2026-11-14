@@ -227,7 +227,7 @@ export function MapPopup({
 }
 
 /** A top IP row on a phone: address, its events and network, then copy, inspect and ban.
- *  The address carries its decision fill and DROP outline, as in the tables. */
+ *  The address carries its decision fill and list outline, as in the tables. */
 function PanelTopIpRow({ rank, ip, network, place, eventCount, locationId, onOpenAlert }: {
   rank: number
   ip: string

@@ -2034,7 +2034,7 @@ export function abuseIpdbBlacklistQueryOptions(enabled: boolean) {
   }
 }
 
-export function useAbuseIpdbBlacklist() {
+function useAbuseIpdbBlacklist() {
   const { data: status } = useAbuseIpdbStatus()
   return useQuery(abuseIpdbBlacklistQueryOptions(status?.blacklistEnabled === true))
 }

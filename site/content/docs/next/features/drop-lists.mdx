@@ -34,7 +34,7 @@ Settings > About has a DROP lists card with the state of the lists, the record c
 
 ## How listed traffic shows up
 
-- An IP on a DROP network gets a dashed red outline wherever the app shows it as a label, in tables and in map popups. A CrowdSec decision is a red fill, so a banned DROP address shows the fill inside the outline. The tooltip names the SBL record.
+- An IP on a DROP network gets a dashed red outline wherever the app shows it as a label, in tables and in map popups. A CrowdSec decision is a red fill, so a banned DROP address shows the fill inside the outline. The tooltip names the SBL record. An address on [AbuseIPDB's blacklist](./abuseipdb.mdx#the-blacklist) gets the same outline, and its tooltip names that list.
 - A DROP badge, red text in a red ring with a stop icon, names the listing in the IP inspector, the IP actions menu, record sheets and map popups. Its SBL id links to the record on `check.spamhaus.org`.
 - On Analytics, a Top ASNs row for an AS on ASN-DROP carries a DROP badge, and the Traffic Origin card counts DROP traffic apart from hosting traffic. Overview has a Spamhaus DROP card with the share of requests from ASN-DROP networks.
 - The [IP inspector](./ip-inspector.mdx#signals) shows a DROP ASN chip for an address in a listed AS.
