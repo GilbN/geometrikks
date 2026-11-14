@@ -88,14 +88,18 @@ The app log gets an `abuseipdb_report_sent` line for each sent report, with the 
 
 AbuseIPDB's blacklist lists IPs with a 100% confidence score. With `ABUSEIPDB_BLACKLIST_ENABLED=true`, GeoMetrikks downloads up to 10,000 of them every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` hours, 24 by default, and keeps the public addresses.
 
-An IP on the list gets an AbuseIPDB blacklist mark, red text in a red ring with a shield icon. It shows in:
+An IP on the list gets the same dashed red outline as an IP on a [Spamhaus DROP list](./drop-lists.mdx), wherever the app shows it as a label, in tables and in map popups. A CrowdSec decision is a red fill, so a banned listed address shows the fill inside the outline. An address on both lists gets one outline, and the tooltip names both.
+
+An AbuseIPDB blacklist mark, red text in a red ring with a shield icon, names the listing in:
 
 - the IP inspector's header;
 - the IP actions menu's header, and the ban drawer it opens on a phone;
 - record sheets, such as an access log row's details;
 - map popups about one IP, such as a banned IP's details and a live request's details.
 
-Hover or tap the mark for what it means.
+Hover or tap the mark for what it means. In a map location's top IPs, a listed address reads On AbuseIPDB blacklist, and clicking it explains the listing with a link to the address's page on abuseipdb.com.
+
+The [abuse report](./abuse-reports.mdx) dialog notes when the address, or some of an AS's addresses, are on the list. The report text and CSV leave the listing out, since AbuseIPDB forbids republishing the list.
 
 The scheduler runs the download, so it needs `SCHEDULER_ENABLED=true`, the default. The first run comes a minute after startup, and skips the download when the stored list is younger than the refresh interval. A download is never tried again within 5 hours of the last attempt, since free plans get 5 blacklist calls a day. Run now on Settings > Scheduler follows the same rule. Only the full instance downloads the list, never an [agent](../sources/multiple-sources.mdx).
 
