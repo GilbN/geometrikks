@@ -9,6 +9,7 @@ import type { HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { useDeleteInstance } from "@/lib/queries"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
+import { BadgeHint } from "@/components/badge-hint"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -24,6 +25,7 @@ import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import { relativeTime } from "@/components/settings/status-logic"
 import {
   canRemove,
+  databaseLinkState,
   type DetailSection,
   type DetailSectionId,
   instanceDetailSections,
@@ -37,6 +39,7 @@ import {
   versionTone,
 } from "@/components/settings/agents-logic"
 import {
+  ConnectionLock,
   GeoipFacts,
   IngestionFacts,
   InstanceFacts,
@@ -70,6 +73,7 @@ export function AgentList({
     <ul className="border-t">
       {instances.map((instance) => {
         const drift = versionTone(instance, head)
+        const databaseLink = databaseLinkState(instance.payload?.databaseLink)
         return (
           <li key={instance.instanceName} className="border-b last:border-b-0">
             <button
@@ -82,6 +86,14 @@ export function AgentList({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <MonoChip className="min-w-0 truncate text-foreground">{instance.instanceName}</MonoChip>
+                  {databaseLink && (
+                    <BadgeHint hint={databaseLink.hint} tappable={false}>
+                      <span className="-ml-0.5 inline-flex shrink-0">
+                        <ConnectionLock lock={databaseLink.lock} className="size-3" />
+                        <span className="sr-only">{databaseLink.hint}</span>
+                      </span>
+                    </BadgeHint>
+                  )}
                   {instance.isSelf && (
                     <Badge variant="outline" className={cn(rowBadgeClasses, "text-muted-foreground")}>
                       this instance

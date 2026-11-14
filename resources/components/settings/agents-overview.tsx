@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { BadgeHint } from "@/components/badge-hint"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,6 +38,7 @@ import { SectionIcon } from "@/components/settings/status-overview"
 import {
   agentInstances,
   canRemove,
+  databaseLinkState,
   deepLinkedInstance,
   deepLinkScrollDelta,
   instanceStatusLabel,
@@ -47,6 +49,7 @@ import {
   versionTone,
 } from "@/components/settings/agents-logic"
 import {
+  ConnectionLock,
   GeoipFacts,
   IngestionFacts,
   InstanceFacts,
@@ -244,6 +247,7 @@ function InstanceRows({
   const drift = versionTone(instance, head)
   const driftText = versionDriftText(drift)
   const serverNames = instance.payload?.serverNames ?? []
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
   return (
     <Collapsible open={open} onOpenChange={onOpenChange} asChild>
       <TableBody className="border-b last:border-b-0">
@@ -269,6 +273,16 @@ function InstanceRows({
                   <MonoChip className="text-foreground">{instance.instanceName}</MonoChip>
                 </button>
               </CollapsibleTrigger>
+              {databaseLink && (
+                <span className="-ml-0.5 inline-flex shrink-0" onClick={(event) => event.stopPropagation()}>
+                  <BadgeHint hint={databaseLink.hint}>
+                    <span className="inline-flex">
+                      <ConnectionLock lock={databaseLink.lock} className="size-3" />
+                      <span className="sr-only">{databaseLink.hint}</span>
+                    </span>
+                  </BadgeHint>
+                </span>
+              )}
               {instance.isSelf && (
                 <Badge variant="outline" className="hidden sm:inline-flex">
                   this instance

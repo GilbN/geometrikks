@@ -3,7 +3,7 @@
  * cards and the bottom drawer on narrow ones.
  */
 import { useEffect, useRef, useState } from "react"
-import { AlertTriangle, Check, Copy } from "lucide-react"
+import { AlertTriangle, Check, Copy, Lock, LockOpen } from "lucide-react"
 import { toast } from "sonner"
 import type { Advisory, HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
@@ -14,7 +14,9 @@ import { type LedTone, MonoChip, StatusLed } from "@/components/settings/status-
 import { formatUptime, relativeTime } from "@/components/settings/status-logic"
 import {
   agentIngestionState,
+  databaseLinkState,
   jobReportState,
+  type LinkLock,
   liveTone,
   schemaWaitState,
   sourceReasonLabel,
@@ -73,6 +75,17 @@ function LedValue({ tone, children }: { tone: LedTone; children: React.ReactNode
       <span className="min-w-0 break-words">{children}</span>
     </>
   )
+}
+
+const lockClasses: Record<LinkLock, string> = {
+  verified: "text-emerald-500",
+  encrypted: "text-foreground",
+  open: "text-muted-foreground",
+}
+
+export function ConnectionLock({ lock, className }: { lock: LinkLock; className?: string }) {
+  const Icon = lock === "open" ? LockOpen : Lock
+  return <Icon aria-hidden className={cn("shrink-0", lockClasses[lock], className)} />
 }
 
 function NoHealthReport() {
@@ -185,6 +198,7 @@ export function InstanceFacts({
   const buildSuffix = buildSuffixStart === -1 ? null : instance.appVersion.slice(buildSuffixStart + 1)
   const serverNames = instance.payload?.serverNames ?? []
   const whenLastSeen = instance.checkingIn ? "" : " when last seen"
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
   return (
     <Facts>
       <Fact label="Mode">{instance.mode}</Fact>
@@ -224,6 +238,15 @@ export function InstanceFacts({
             {health.database.reachable ? "reachable" : "unreachable"}
             {whenLastSeen}
           </LedValue>
+        </Fact>
+      )}
+      {databaseLink && (
+        <Fact label="Connection">
+          <ConnectionLock lock={databaseLink.lock} className="mt-0.5 size-[13px]" />
+          <span className="min-w-0 break-words">
+            {databaseLink.text}
+            {whenLastSeen}
+          </span>
         </Fact>
       )}
     </Facts>

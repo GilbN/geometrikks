@@ -3,6 +3,7 @@
  *  amber and healthy, each by name, so nothing here re-sorts. */
 import type {
   Advisory,
+  DatabaseLinkReport,
   HealthResponse,
   HeadIdentityView,
   InstanceView,
@@ -317,6 +318,29 @@ export function instanceHeaderLine(instance: InstanceView, head: HeadIdentityVie
   }
   const uptime = formatUptime(instance.startedAt, checkedAtMs)
   return [[{ text: `Seen ${seen}` }], ...(uptime ? [[{ text: uptime }]] : []), version]
+}
+
+export type LinkLock = "verified" | "encrypted" | "open"
+
+export interface DatabaseLinkState {
+  text: string
+  hint: string
+  lock: LinkLock
+}
+
+/** Null for an instance on a release that doesn't report its link. */
+export function databaseLinkState(link: DatabaseLinkReport | null | undefined): DatabaseLinkState | null {
+  if (!link) return null
+  let lock: LinkLock = "open"
+  let text = "not encrypted"
+  if (link.encrypted && link.serverVerified) {
+    lock = "verified"
+    text = "encrypted, server verified"
+  } else if (link.encrypted) {
+    lock = "encrypted"
+    text = "encrypted"
+  }
+  return { text, hint: `Database connection ${text}`, lock }
 }
 
 /** Why the version is colored, in words. */
