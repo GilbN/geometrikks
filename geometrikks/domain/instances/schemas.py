@@ -79,6 +79,18 @@ class LastErrorReport(msgspec.Struct, rename="camel", kw_only=True):
     at: datetime | None = None
 
 
+class DatabaseLinkReport(msgspec.Struct, rename="camel", kw_only=True):
+    """The TLS state of the instance's database connection."""
+
+    encrypted: Annotated[
+        bool, msgspec.Meta(description="The session that wrote this heartbeat uses TLS.")
+    ] = False
+    server_verified: Annotated[
+        bool,
+        msgspec.Meta(description="The instance checked the server's certificate chain and its name."),
+    ] = False
+
+
 class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
     """The details an instance sends with each heartbeat.
 
@@ -122,6 +134,15 @@ class HeartbeatPayload(msgspec.Struct, rename="camel", kw_only=True):
             description="`configured` when APP_INSTANCE_NAME is set, `fallback` when the name is the default."
         ),
     ] = "fallback"
+    database_link: Annotated[
+        DatabaseLinkReport | None,
+        msgspec.Meta(
+            description=(
+                "The TLS state of the instance's database connection. Null from an older release or when the state "
+                "could not be read."
+            )
+        ),
+    ] = None
 
 
 def decode_payload(raw: dict[str, Any]) -> HeartbeatPayload | None:
