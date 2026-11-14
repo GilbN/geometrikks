@@ -12,8 +12,8 @@ from litestar import Litestar
 from sqlalchemy import text
 
 from geometrikks.config.settings import AppSettings, Settings, get_installed_version
-from geometrikks.domain.instances.heartbeat import HeartbeatWriter
 from geometrikks.domain.instances.database_link import read_database_link
+from geometrikks.domain.instances.heartbeat import HeartbeatWriter
 from geometrikks.domain.instances.repositories import fetch_heartbeats, read_heartbeat
 from geometrikks.domain.instances.schemas import decode_payload
 from geometrikks.server.schema_wait import bundled_head_revision
@@ -163,14 +163,17 @@ async def test_link_state_matches_what_the_server_reports(pg_engine):
     assert database_link.encrypted is server_says_ssl
 
 
-async def test_beat_stores_the_link_state(pg_engine, clean_instance_heartbeats):
+async def test_beat_stores_and_logs_the_link_state(pg_engine, clean_instance_heartbeats):
     writer = _writer(pg_engine)
 
-    assert await writer.beat() is True
+    with structlog.testing.capture_logs() as captured:
+        assert await writer.beat() is True
 
     stored_payload = await _stored_payload(pg_engine)
     assert stored_payload["databaseLink"] is not None
     assert set(stored_payload["databaseLink"]) == {"encrypted", "serverVerified"}
+    (link_event,) = [log_entry for log_entry in captured if log_entry["event"] == "database_link_state"]
+    assert link_event["encrypted"] is stored_payload["databaseLink"]["encrypted"]
 
 
 async def test_beat_survives_an_unreadable_link_state(pg_engine, clean_instance_heartbeats, monkeypatch):
