@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -47,6 +48,7 @@ from geometrikks.lib.advisories import (
     Advisory,
 )
 from geometrikks.lib.utils import retries_disabled
+from geometrikks.server.database_tls import unusable_tls_files
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
 from geometrikks.server import runtime
@@ -188,6 +190,13 @@ async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
                 {"old": legacy_env_name.old, "new": legacy_env_name.new}
                 for legacy_env_name in legacy_env_names
             ],
+        )
+    for tls_file in unusable_tls_files(os.environ):
+        logger.warning(
+            "database_tls_file_unusable",
+            variable=tls_file.variable,
+            path=tls_file.path,
+            reason=tls_file.reason,
         )
     yield
 
