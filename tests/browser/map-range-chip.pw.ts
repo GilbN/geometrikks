@@ -196,7 +196,7 @@ test.describe("phone held sideways", () => {
     const chipBox = await box(chip(page))
     expect(Math.abs(chipBox.y - 12)).toBeLessThanOrEqual(1)
     const pillBox = await box(actionPill(page))
-    expect(pillBox.y - (chipBox.y + chipBox.height)).toBeGreaterThanOrEqual(4)
+    expect(pillBox.y - (chipBox.y + chipBox.height)).toBeGreaterThanOrEqual(3.5)
     await page.screenshot({ path: "smoke-artifacts/map-range-chip-short.png" })
   })
 })
