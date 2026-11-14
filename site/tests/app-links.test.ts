@@ -54,6 +54,16 @@ describe("findAppDocsUrls", () => {
     expect(findAppDocsUrls([root]).map((entry) => entry.url)).toEqual(["https://geometrikks.dev/docs/json/"]);
   });
 
+  test("scans a file root whatever its name or extension", () => {
+    const root = tree({
+      Dockerfile: "# https://geometrikks.dev/docs/x/\n",
+      ".env.example": "# https://geometrikks.dev/docs/x/\n",
+    });
+    const found = findAppDocsUrls([join(root, "Dockerfile"), join(root, ".env.example")]);
+    expect(found.map((entry) => entry.file)).toEqual([join(root, "Dockerfile"), join(root, ".env.example")]);
+    expect(found.map((entry) => entry.url)).toEqual(["https://geometrikks.dev/docs/x/", "https://geometrikks.dev/docs/x/"]);
+  });
+
   test("stops at link syntax and drops sentence punctuation", () => {
     const root = tree({
       "README.md": [

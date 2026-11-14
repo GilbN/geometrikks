@@ -12,7 +12,7 @@ shipper's, lines the shipper stamps in the first seconds after startup fall
 below it. After the first poll the window follows the newest line seen.
 
 The shipper stamps each entry when it reads it, unless a pipeline stage
-takes the timestamp from the line. The README tells users to drop that
+takes the timestamp from the line. The Loki docs page tells users to drop that
 stage when the line carries the request's start time. A request stamped
 when it began but logged when it ended can land behind the window, and
 query_range cannot ask for entries by arrival time.
@@ -46,6 +46,7 @@ TIMEOUT_SECONDS = 10.0
 # still gives the format check something to judge.
 SAMPLE_WINDOW_SECONDS = 24 * 3600
 QUERY_RANGE_PATH = "/loki/api/v1/query_range"
+LOKI_DOCS_URL = "https://geometrikks.dev/docs/sources/loki/"
 
 # (timestamp_ns, stream labels serialized in sorted order, line)
 Entry = tuple[int, str, str]
@@ -297,12 +298,12 @@ class LokiSource:
                         "More than %d lines in %s share the timestamp %s, and GeoMetrikks "
                         "skipped all but the first %d. The log pipeline sets the entry "
                         "timestamp from a line with second precision. Remove that stage so "
-                        "the shipper stamps each line when it reads it. See \"Loki setup\" in "
-                        "the README.",
+                        "the shipper stamps each line when it reads it. See %s.",
                         PAGE_LIMIT,
                         self.query,
                         datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),
                         PAGE_LIMIT,
+                        LOKI_DOCS_URL,
                     )
                     self._warned_timestamps.add(last)
                 cursor = last + 1

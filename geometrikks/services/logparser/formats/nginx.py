@@ -1,4 +1,4 @@
-"""Adapter for the project's custom nginx log_format (see README, Nginx setup)."""
+"""Adapter for the project's custom nginx log_format (see the nginx page on the docs site)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

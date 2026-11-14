@@ -6,7 +6,13 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from geometrikks.services.logparser.constants import ipv4_pattern, ipv6_pattern
-from geometrikks.services.logparser.formats import FORMATS, IMPORT_FORMATS, sniff_format
+from geometrikks.services.logparser.formats import (
+    FORMATS,
+    IMPORT_FORMATS,
+    IMPORT_ONLY_FORMATS,
+    NPM_DOCS_URL,
+    sniff_format,
+)
 from geometrikks.services.logparser.formats.base import (
     VALID_HTTP_METHODS,
     detect_probe,
@@ -1279,3 +1285,8 @@ def test_traefik_missing_duration_is_none() -> None:
     norm = TraefikJsonFormat().parse(json.dumps(data))
     assert norm is not None
     assert norm.request_time is None
+
+
+def test_npm_live_tailing_message_links_the_npm_page() -> None:
+    message = IMPORT_ONLY_FORMATS["npm"].live_tailing_message
+    assert NPM_DOCS_URL in message and "README" not in message

@@ -6,6 +6,7 @@ import type { HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { useDeleteInstance, useInstances } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { displayVersion } from "@/lib/version"
+import { AGENT_DOCS_URL } from "@/lib/docs-links"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,8 +58,6 @@ import {
 } from "@/components/settings/agents-detail"
 import { AgentDrawer, AgentList } from "@/components/settings/agents-phone"
 import { NARROW_TABLE_WIDTH, useNarrowLayout } from "@/components/data/narrow-layout"
-
-const AGENT_DOCS_URL = "https://github.com/GilbN/geometrikks/blob/main/README.md#multi-source-setup"
 
 const COLUMN_COUNT = 7
 
