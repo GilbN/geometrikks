@@ -16,7 +16,9 @@ def _ssl(verify_mode: ssl.VerifyMode, check_hostname: bool) -> SimpleNamespace:
 
 
 def _driver(ssl_object: object) -> SimpleNamespace:
-    return SimpleNamespace(_transport=SimpleNamespace(get_extra_info=lambda name: ssl_object))
+    return SimpleNamespace(
+        _transport=SimpleNamespace(get_extra_info=lambda name: ssl_object if name == "ssl_object" else None)
+    )
 
 
 def _driver_raising(error: Exception) -> SimpleNamespace:
@@ -61,6 +63,16 @@ def test_driver_without_a_transport_is_unknown() -> None:
 
 def test_transport_that_raises_is_unknown() -> None:
     assert database_link_of(_driver_raising(RuntimeError("closed"))) is None
+
+
+@pytest.mark.anyio
+async def test_read_reports_the_driver_connection_of_the_raw_connection() -> None:
+    async def get_raw_connection() -> Any:
+        return SimpleNamespace(driver_connection=_driver(_ssl(ssl.CERT_REQUIRED, True)))
+
+    connection = cast(AsyncConnection, SimpleNamespace(get_raw_connection=get_raw_connection))
+
+    assert await read_database_link(connection) == DatabaseLinkReport(encrypted=True, server_verified=True)
 
 
 @pytest.mark.anyio

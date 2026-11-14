@@ -306,6 +306,22 @@ def test_build_payload_round_trips_through_decode() -> None:
     assert decoded == payload
 
 
+def test_build_payload_carries_the_database_link() -> None:
+    database_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+    payload = build_payload(
+        Litestar(route_handlers=[]),
+        _settings(),
+        lines_5m=None,
+        failed_5m=None,
+        written_5m=None,
+        failed_batches_5m=None,
+        recent_starts=[],
+        name_conflict_at=None,
+        database_link=database_link,
+    )
+    assert payload.database_link == database_link
+
+
 def test_agent_schema_wait_reports_waiting_before_result() -> None:
     payload = build_payload(
         Litestar(route_handlers=[]),
