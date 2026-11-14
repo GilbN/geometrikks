@@ -1,8 +1,5 @@
 import styles from "./Install.module.css";
 
-// The quickstart block is the README's, verbatim.
-const readme = "https://github.com/GilbN/geometrikks";
-
 const quickstart = (
   <>
     <span className="c"># Docker. Images for amd64 and arm64.</span>
@@ -44,26 +41,33 @@ export function Install() {
               Optional today; keyless tiles may stop working at any time.
             </li>
             <li>
+              <b>An Esri key, if you want satellite.</b> Optional. The map's Satellite view draws Esri World Imagery
+              under a free ArcGIS key.
+            </li>
+            <li>
               <b>A log file, or Loki.</b> Not stdout. Traefik and Caddy need one directive to write a file.
             </li>
             <li>
               <b>One admin password, or OpenID Connect.</b> Single-user login with a password, or through a provider
-              such as Authelia, Authentik or Keycloak. An authenticating proxy or a tailnet can take over instead, and
-              the built-in login switches off.
+              such as Authelia, Authentik or Keycloak. Behind a proxy that authenticates every request, you can switch the
+              built-in login off.
             </li>
             <li className={styles.no}>
               <b>No CrowdSec needed.</b> Optional. Add a LAPI key later and the Security page lights up.
             </li>
             <li className={styles.no}>
-              <b>No telemetry.</b> Outbound traffic is the GeoLite2 download and, unless disabled, one public-IP lookup
-              for the map's server location.
+              <b>No telemetry.</b> On its own the server contacts MaxMind for GeoLite2, a public-IP service for the
+              map's server location, GitHub for the update check and Spamhaus for the DROP lists. Each one can be
+              turned off. Add an AbuseIPDB key and it also asks AbuseIPDB about the IPs you open in the IP inspector,
+              sends the reports you write, and can download AbuseIPDB's blacklist.{" "}
+              <a href="/docs/#outbound-traffic">Outbound traffic</a> has the switches.
             </li>
           </ul>
         </div>
         <p className={styles.links}>
-          <a href={`${readme}#quickstart`}>Quickstart</a>
-          <a href={`${readme}#maxmind-geolite2`}>GeoLite2 and the CARTO key</a>
-          <a href={`${readme}#running-behind-a-reverse-proxy`}>Behind a CDN or tunnel</a>
+          <a href="/docs/get-started/quickstart/">Quickstart</a>
+          <a href="/docs/get-started/geolite2/">GeoLite2 and the CARTO key</a>
+          <a href="/docs/sources/proxy-setup/">Behind a CDN or tunnel</a>
         </p>
       </div>
     </section>

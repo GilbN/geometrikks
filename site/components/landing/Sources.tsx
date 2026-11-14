@@ -4,9 +4,7 @@ import { siCaddy, siGrafana, siNginx, siNginxproxymanager, siTraefikproxy } from
 import styles from "./Sources.module.css";
 import { useTabs } from "./useTabs";
 
-// One tab per source: the log config it needs, the two .env lines,
-// and the traps. Snippets mirror the README sections the docs are built from.
-const readme = "https://github.com/GilbN/geometrikks";
+// The snippets come from the source pages in content/docs/next/sources/. Change both together.
 
 const proxies = [
   {
@@ -40,7 +38,7 @@ access_log /config/log/nginx/access.log geometrikks_json;`,
       "The older positional format and nginx's built-in combined parse too, so archives import without a config change.",
       "Behind a CDN, set real_ip so $remote_addr is the visitor and not the CDN.",
     ],
-    docs: `${readme}#nginx-setup`,
+    docs: "/docs/sources/nginx/",
   },
   {
     id: "npm",
@@ -75,7 +73,7 @@ access_log /data/logs/geometrikks_access.log geometrikks_json;`,
       "Every proxy host writes to the one file. The host filter tells them apart.",
       "Hosts with Cache Assets on never log CSS, JS, images or fonts, so GeoMetrikks never sees them.",
     ],
-    docs: `${readme}#nginx-proxy-manager-setup`,
+    docs: "/docs/sources/nginx-proxy-manager/",
   },
   {
     id: "traefik",
@@ -97,7 +95,7 @@ access_log /data/logs/geometrikks_access.log geometrikks_json;`,
       "Rotate with logrotate, then docker kill --signal=USR1 traefik. GeoMetrikks follows the rotation.",
       "Behind a CDN, set forwardedHeaders.trustedIPs on the entry point. Never forwardedHeaders.insecure.",
     ],
-    docs: `${readme}#traefik-setup`,
+    docs: "/docs/sources/traefik/",
   },
   {
     id: "caddy",
@@ -124,7 +122,7 @@ app.example.com {
       "The log_append line fills the upstream response time column. Without it the column shows a dash.",
       "Behind a CDN, set trusted_proxies in the global options so client_ip is the visitor.",
     ],
-    docs: `${readme}#caddy-setup`,
+    docs: "/docs/sources/caddy/",
   },
   {
     id: "loki",
@@ -153,7 +151,7 @@ loki.write "local" {
       "One LogQL selector per log format. LOKI_SERVER_NAMES gives each selector its own server name.",
       "Reading starts when the app starts. Lines logged while it was down are not read.",
     ],
-    docs: `${readme}#loki-setup`,
+    docs: "/docs/sources/loki/",
   },
 ];
 

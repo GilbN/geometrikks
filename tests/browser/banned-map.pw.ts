@@ -265,6 +265,7 @@ test("with a banner on the phone map the chip and the toasts sit under it", asyn
   })
   await setup(page)
   await expect(page.locator("[data-shell-top]")).toContainText("Geo lookups disabled")
+  await expect(page.locator("[data-shell-top]")).toContainText("docker compose up -d")
   const shellTop = await box(page.locator("[data-shell-top]"))
   expect(shellTop.y).toBe(0)
   expect(shellTop.height).toBeGreaterThan(59)

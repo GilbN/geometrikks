@@ -37,5 +37,19 @@
     "scope": "article",
     "contains": ["Check that the app is up"],
     "absent": ["FIXTURE-API-0.1.0"]
+  },
+  {
+    "path": "/docs/reference/api/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["FIXTURE-API-INTRO-0.1.0"],
+    "absent": ["snake_case"]
+  },
+  {
+    "path": "/docs/next/reference/api/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["snake_case"],
+    "absent": ["FIXTURE-API-INTRO-0.1.0"]
   }
 ]

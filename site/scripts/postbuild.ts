@@ -1,9 +1,9 @@
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { checkAppDocsUrls, findAppDocsUrls } from "./lib/app-links";
 import { findDeadLinks } from "./lib/links";
 import { exportedPages } from "./lib/out-pages";
-import { buildRedirects, formatRedirects, type RedirectRule } from "./lib/redirects";
+import { buildRedirects, type RedirectRule, writeRedirects } from "./lib/redirects";
 
 const siteRoot = resolve(import.meta.dir, "..");
 const repoRoot = resolve(siteRoot, "..");
@@ -27,14 +27,14 @@ if (existsSync(notFoundPage)) {
 }
 
 const pages = exportedPages(outDir);
-const renames: Record<string, string> = JSON.parse(readFileSync(join(contentDir, "renames.json"), "utf8"));
+const renames: unknown = JSON.parse(readFileSync(join(contentDir, "renames.json"), "utf8"));
 let rules: RedirectRule[];
 try {
   rules = buildRedirects({ ...pages, renames });
+  writeRedirects(outDir, join(siteRoot, "public"), rules);
 } catch (error) {
   fail((error as Error).message);
 }
-writeFileSync(join(outDir, "_redirects"), formatRedirects(rules));
 console.log(
   `postbuild: ${rules.length} redirects written to out/_redirects (${pages.latest.size} latest pages, ${pages.next.size} next pages)`,
 );

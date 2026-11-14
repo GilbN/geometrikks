@@ -220,10 +220,11 @@ class DatabaseSettings(BaseSettings):
     migrate_on_startup: bool = Field(
         default=True,
         description=(
-            "Run alembic migrations automatically at app startup. Disable when "
-            "migrations run as a separate deployment step (`litestar database "
-            "upgrade`); the app then expects the schema to already be at head "
-            "and fails startup if it is not usable"
+            "Run alembic migrations at app startup. Set to false when migrations "
+            "run as a separate deployment step (`litestar database upgrade`). "
+            "Startup then doesn't check the schema revision, so run the migration "
+            "before the new version starts, or startup and later requests fail "
+            "where the code expects tables the old schema lacks."
         ),
         json_schema_extra=ADVANCED_FIELD,
     )
@@ -1128,7 +1129,8 @@ class AbuseIpdbSettings(BaseSettings):
         description=(
             "AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against "
             "api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB "
-            "and uses one daily check, at most once per IP every 15 minutes."
+            "and uses one daily check. An IP checked again within 15 minutes usually "
+            "costs nothing, since the last 512 answers are kept for 15 minutes."
         ),
     )
     reporting_enabled: bool = Field(
@@ -1145,7 +1147,7 @@ class AbuseIpdbSettings(BaseSettings):
             "Download AbuseIPDB's blacklist from api.abuseipdb.com every "
             "ABUSEIPDB_BLACKLIST_REFRESH_HOURS and mark listed IPs in the UI. "
             "The request sends your key and no IPs. Needs ABUSEIPDB_API_KEY and the "
-            "scheduler. The list is for your own use: AbuseIPDB forbids republishing "
+            "scheduler. The list is for your own use. AbuseIPDB forbids republishing "
             "it, and free plans can't be used commercially."
         ),
     )
@@ -1210,8 +1212,11 @@ class OidcSettings(BaseSettings):
         description=(
             "Issuer URL of the identity provider, e.g. https://auth.example.com. "
             "Discovery is read from {issuer}/.well-known/openid-configuration "
-            "and the iss claim must equal this value exactly. Must be https "
-            "unless the host is localhost."
+            "and the issuer it names must match this value apart from a trailing "
+            "slash. The ID token's iss claim must equal that discovered issuer. "
+            "Must be https unless the host is localhost or a loopback IP address, "
+            "and must not carry credentials, a query string or a fragment, or "
+            "startup fails."
         ),
     )
     client_id: str | None = Field(
@@ -1225,7 +1230,9 @@ class OidcSettings(BaseSettings):
         description=(
             "The exact callback URL registered at the identity provider: the "
             f"public https address of this app plus {OIDC_CALLBACK_PATH}. "
-            "Plain http is only allowed on localhost."
+            "Plain http works only on localhost or a loopback IP address, and "
+            "credentials, a query string or a fragment in the URI stop startup. "
+            "An https URI also needs APP_SESSION_SECURE=true, or startup fails."
         ),
     )
     allowed_users: Annotated[list[str], NoDecode] = Field(
@@ -1391,7 +1398,11 @@ class AppSettings(BaseSettings):
 
     mode: Literal["full", "agent"] = Field(
         default="full",
-        description="Application mode: full (all components) or agent (logparser only)"
+        description=(
+            "Either full, which runs everything, or agent, which only tails logs "
+            "into the head's database and serves the two health routes, /health "
+            "and /health/ready."
+        ),
     )
     proxy_advisory: bool = Field(
         default=True,
@@ -1501,8 +1512,11 @@ class Settings(BaseSettings):
     auth_disabled: bool = Field(
         default=False,
         description=(
-            "Disable the built-in session auth entirely. Set true only when an "
-            "authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app."
+            "Disable the built-in login and sessions. Anyone who reaches the port "
+            "can then use every API action, so set true only behind a reverse proxy "
+            "that authenticates every request, such as one guarded by Authelia. "
+            "Setting it together with OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET "
+            "and OIDC_REDIRECT_URI stops startup."
         ),
     )
     admin_user: str = Field(default="admin", description="Admin login username")
@@ -1517,7 +1531,8 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Mark the session cookie Secure so browsers only send it over "
-            "HTTPS. Recommended when serving behind a TLS reverse proxy."
+            "HTTPS. OpenID Connect with an https OIDC_REDIRECT_URI needs it, or "
+            "startup fails. Recommended behind any TLS reverse proxy."
         ),
     )
     session_max_age_days: int = Field(
@@ -1534,9 +1549,15 @@ class Settings(BaseSettings):
     trusted_proxies: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description=(
-            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env "
-            "accepts one value, comma-separated values, or a JSON list. "
-            "Empty (default): forwarded headers are never trusted."
+            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. The "
+            "login log, the OIDC login lines, an API key's last-used-from IP and "
+            "the api_key_rejected, api_key_created and api_key_revoked log lines "
+            "all record the client IP resolved through it, and the Exclude your IP "
+            "filter on the log pages looks up your address through it. Env accepts "
+            "one value, comma-separated values, or a JSON list. Empty (default): "
+            "forwarded headers are never trusted, so behind a proxy all of these "
+            "record the proxy's address and the filter shows Needs "
+            "APP_TRUSTED_PROXIES instead of excluding your IP."
         ),
     )
 

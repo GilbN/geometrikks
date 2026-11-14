@@ -140,7 +140,7 @@ function GeoDegradedBanner() {
   return (
     <div className="bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs px-4 py-1.5 border-b border-amber-500/30">
       Geo lookups disabled: no GeoLite2 database. Set MAXMINDDB_USER_ID and
-      MAXMINDDB_LICENSE_KEY in your .env and restart. (Free key: maxmind.com/en/geolite2/signup)
+      MAXMINDDB_LICENSE_KEY in your .env, then run docker compose up -d. (Free key: maxmind.com/en/geolite2/signup)
     </div>
   )
 }

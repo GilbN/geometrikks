@@ -1,0 +1,98 @@
+---
+title: Upgrading
+description: How to move to a newer release, and the renames, slow starts and one-off commands some upgrades bring.
+---
+
+## Upgrade
+
+From the folder that holds `docker-compose.yml`:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+`pull` fetches the image the compose file names, and `up -d` recreates the containers that changed. The app migrates the database on its first start. With the default `latest` tag every pull can bring a new release. To decide when you upgrade, pin a version tag such as `0.24.0` on the `image:` line and change it when you are ready. The [Quickstart](./quickstart.mdx#docker-image-tags) lists the tags.
+
+Lines your proxy logs while the app or an agent is down never reach the database by themselves. Every start reads each log file from its end, and each Loki source from the moment it starts, so no source picks up where the last run stopped. To fill the gap, import the missed lines with [import-logs](../operate/cli/import-logs.mdx) for files or [import-loki](../operate/cli/import-loki.mdx) for Loki.
+
+Read the [changelog](../reference/changelog.mdx) before a jump of several releases. Entries marked **Breaking** say what to change on your side.
+
+## Several instances
+
+With a full instance and agents writing to one database, upgrade every instance to the same release together. The full instance migrates the schema; agents wait for it and never migrate. An agent that finds the database at a revision it doesn't know, as it does once the full instance has migrated to a newer release, logs a warning and keeps going. That covers the minutes of a rolling upgrade. Left behind for longer, an older agent can fail every insert, as it does across the server rename below. [Multiple sources](../sources/multiple-sources.mdx) covers running agents.
+
+## Renamed settings
+
+Six settings were renamed when "hostname" became "server". The old names keep working until 1.0:
+
+| Old name | New name |
+| --- | --- |
+| `LOGPARSER_HOST_NAME` | `LOGPARSER_SERVER_NAME` |
+| `MAP_HOME_LOCATIONS` | `MAP_SERVER_LOCATIONS` |
+| `MAP_HOME_LATITUDE` | `MAP_SERVER_LATITUDE` |
+| `MAP_HOME_LONGITUDE` | `MAP_SERVER_LONGITUDE` |
+| `MAP_AUTO_DETECT_HOME` | `MAP_AUTO_DETECT_SERVER_LOCATION` |
+| `MAP_HOME_REFRESH_HOURS` | `MAP_SERVER_LOCATION_REFRESH_HOURS` |
+
+A process that reads an old name logs a `legacy_env_names_in_use` event at startup, and its `/health` carries a `legacy-env-names` advisory naming each replacement. The full instance shows that advisory on Settings > Status for its own settings, and Settings > Agents shows it on the row of each agent that reads an old name. If an old and a new name are both set to different values, startup fails with an error that names both. Rename the line in `.env` and run `docker compose up -d`.
+
+The compose file mounts the log folder from `ACCESS_LOG_DIR`. It falls back to the older `NGINX_LOG_DIR` only when `ACCESS_LOG_DIR` is unset, so an existing `.env` with `NGINX_LOG_DIR` keeps working. Set both and `ACCESS_LOG_DIR` wins. See [Container and compose variables](../reference/configuration.mdx#container-and-compose-variables).
+
+## The positional nginx format
+
+Before the `geometrikks-json` format existed, the docs described a positional nginx `log_format` (`LOGPARSER_LOG_FORMATS=nginx`). It still works for live tailing and for `import-logs`, so an install that uses it needs no change, and archives written in it import as before. New setups should use `geometrikks-json`, which rejects a broken line instead of putting values in the wrong columns. The [nginx page](../sources/nginx.mdx#the-positional-nginx-format) has both formats.
+
+## Hostname became server
+
+Release 0.21.0 renamed "hostname" to "server" everywhere: the UI, the API, the database and the CLI.
+
+- The full instance renames the database columns and tables on its first start, without rewriting any data. Queries that read the database directly need the new names (`server` columns, the `server_locations` table, the `server_daily_stats` aggregate).
+- API filters take `serverIn` and `serverNotIn`, and responses carry `server` and `servers`. Page URLs use `?server=`, so an old bookmark opens the page without its filter.
+- `backfill-hostname` is now `backfill-server` and `backfill-geo-hostnames` is now `backfill-geo-servers`. `import-logs` and `backfill-timings` take `--server` instead of `--hostname`.
+- An agent from before 0.21.0 fails every insert against the renamed database. See [Agents from before heartbeats](#agents-from-before-heartbeats).
+
+The [changelog's 0.21.0 entry](../reference/changelog.mdx#0210---2026-10-18) lists every renamed endpoint and advisory id.
+
+## Slow first start after some upgrades
+
+The charts read from continuous aggregates, rollups that TimescaleDB keeps up to date. Some releases add columns to an aggregate or change how one groups its rows. The first start on such a release updates those aggregates before the app serves anything. Until it finishes, the full instance answers nothing, `/health` included. On a database with tens of millions of rows, expect minutes. A container stopped halfway resumes on its next start.
+
+How much aggregate history survives depends on the change:
+
+- A column added in place keeps every existing bucket. The app computes the new column from the raw rows still in the raw retention window (`ANALYTICS_RAW_RETENTION_DAYS`, default 180). Buckets older than that window keep the figures they had before the upgrade, because the raw rows needed to recount them are gone. The Geo Logs server columns are the exception. The app adds them but leaves their history empty until you run [backfill-geo-servers](../operate/cli/backfills.mdx#backfill-geo-servers).
+- A new grouping can't be made in place. The app drops the aggregate and rebuilds it from the raw rows, so its history older than the raw retention window is lost. The URL aggregates went through this when Top URLs gained the host next to the path.
+- A failed in-place add loses the same history. Adding columns in place needs TimescaleDB 2.28 or later. When the add fails, on an older TimescaleDB or on another database error, the app drops and recreates the aggregate instead, which discards its history older than the raw retention window. The Geo Logs server columns are the exception. For those the app keeps the old aggregate as it is and logs `server_cagg_columns_unavailable`. Geo Logs then shows no servers for ranges over 24 hours until you upgrade the database and restart.
+
+Watch the app log for these events:
+
+| Event | Meaning |
+| --- | --- |
+| `cagg_column_added` | A column was added to an aggregate in place. |
+| `cagg_columns_refresh_done` | The aggregates with new columns are recomputed. |
+| `cagg_columns_refresh_failed` | Recomputing an aggregate with new columns failed. The event names the views. Their history stays unfilled until the next start finds the gap and refreshes them again. |
+| `url_caggs_recreated` | The URL aggregates were dropped and recreated with a new grouping, here the host next to the path for Top URLs. |
+| `url_caggs_refresh_done` | The recreated URL aggregates are filled again. |
+| `url_caggs_refresh_failed` | Refreshing a recreated URL aggregate failed. The event names the views. The next start finds the gap and fills it. |
+
+## One-off backfills
+
+Some upgrades leave older rows without data that new rows get. These commands fill it in. Each one runs once, inside the app container, for example:
+
+```bash
+docker compose exec -u geometrikks app litestar backfill-timings
+```
+
+| Command | When you need it |
+| --- | --- |
+| `backfill-timings` | You imported nginx `combined`-format archives before 0.12.0. Those rows carry a placeholder `0.0` response time that drags averages and percentiles toward zero. The command clears it on rows the positional nginx format wrote without a host. `--server` and `--before` narrow the set. |
+| `backfill-server NAME` | Rows from before the app recorded a server name have none, so the Server filter can't find them. The plain form stamps `NAME` on Access Logs rows that have no server and leaves every other row alone. |
+| `backfill-server NAME --consolidate` | The database holds many bogus server names, usually 12-character container IDs recorded while `LOGPARSER_SERVER_NAME` was unset and the compose file had no `hostname:` key. This rewrites every server name to `NAME` after a confirmation, and nothing can split them apart again. On a setup with several real servers, don't use it. |
+| `backfill-geo-servers` | Geo Logs shows an empty Servers column for ranges over 24 hours on history from before 0.15.0. The command fills it from the raw events still in retention. It needs the aggregate's new server columns, which need TimescaleDB 2.28 or later. |
+| `backfill-asn --table access-logs\|geo-events\|all` | Rows ingested before ASN support, or while the ASN database was missing, have no network data, so Top ASNs and the ASN filters skip them. Only rows with no ASN data change. |
+
+Every command except plain `backfill-server` asks for confirmation first, and `--yes` skips the prompt. `backfill-server`, `backfill-timings` and `backfill-asn` decompress compressed history first, so expect extra disk use until the compression policy compresses it again. Every backfill refreshes the aggregates it touched, so expect minutes on a large database. [Backfill commands](../operate/cli/backfills.mdx) has the details.
+
+## Agents from before heartbeats
+
+Agents report to Settings > Agents with a heartbeat every 30 seconds, since 0.21.0. An older agent never appears there, and because it also predates the server rename, its inserts fail. Upgrade it to the full instance's release and set `APP_INSTANCE_NAME` on it, so each agent gets its own row.

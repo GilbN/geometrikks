@@ -1,9 +1,10 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import sharp from "sharp";
 import { includeCopy } from "./lib/markdown";
 import { imageExists, publishedFromEnv, RegistryError } from "./lib/registry";
 import { resolveVersions } from "./lib/resolve-versions";
+import { NEXT } from "../lib/versions";
 
 const siteRoot = resolve(import.meta.dir, "..");
 const contentDir = resolve(siteRoot, process.env.DOCS_CONTENT_DIR ?? "content");
@@ -48,4 +49,14 @@ try {
   console.error("docs: cannot reach ghcr.io; refusing to guess which release is latest");
   console.error(error.message);
   process.exit(1);
+}
+
+// The API pages leave the schema out of their props (includeDocument: false) and import these instead.
+const { openapiFor } = await import("../lib/openapi");
+const plan = JSON.parse(readFileSync(join(siteRoot, ".generated", "versions.json"), "utf8"));
+rmSync(join(siteRoot, ".generated", "openapi"), { recursive: true, force: true });
+mkdirSync(join(siteRoot, ".generated", "openapi"), { recursive: true });
+for (const version of [NEXT, ...(plan.latest === null ? [] : [plan.latest])]) {
+  const { bundled } = await openapiFor(version).getSchema(version);
+  writeFileSync(join(siteRoot, ".generated", "openapi", `${version}.json`), JSON.stringify(bundled));
 }

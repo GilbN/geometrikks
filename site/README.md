@@ -28,7 +28,12 @@ checkout until one of them has run.
 
 `build` ends with `scripts/postbuild.ts`, which writes `out/_redirects` and
 fails on a dead link anywhere in `out/` or on a geometrikks.dev docs URL in
-`geometrikks/` or `resources/` with no page or redirect behind it.
+`geometrikks/` or `resources/` with no page or redirect behind it. A link
+with a `#fragment` is dead when the page it lands on has no element with
+that `id`. postbuild also fails when `public/_redirects` exists. Next
+copies that file into `out/`, where postbuild would overwrite it with the
+generated rules. Put renames in `content/renames.json` instead. Running
+postbuild again on the same `out/` is fine.
 
 `smoke` starts `wrangler dev` on port 8788 (`SMOKE_PORT` changes it),
 requests every case in the JSON file and stops wrangler again. The cases
@@ -48,6 +53,39 @@ bun run smoke tests/smoke/fixture.json
 ```
 
 CI's `site` job runs the install, the tests, the build, the type check and both smoke runs.
+
+## Writing docs
+
+Pages for the next release live in `content/docs/next/`, one `.mdx` file
+per page. Each needs a `title` and a one-sentence `description` in its
+frontmatter. A folder's `meta.json` lists its pages in sidebar order. Add
+a new page's file name there, without `.mdx`. A page missing from the list
+still builds and has a URL, but nothing in the sidebar leads to it.
+
+Link to other pages with relative file links, such as `[Loki](./loki.mdx)`
+or `[Map settings](../reference/configuration.mdx#map)`. Inside `next`, an
+absolute `/docs/...` link breaks: `/docs/<page>/` points at latest, and
+`/docs/next/...` fails `docs:release`. The tests reject both. Link
+to a repo file with `https://github.com/GilbN/geometrikks/blob/main/<path>`.
+
+Moving or renaming a page changes its URL. Add the old slug and the new
+one to `content/renames.json`. Without the entry, a bookmark of the old URL
+gets a 404 once latest no longer has the page, and postbuild fails if the
+app links to it. postbuild checks each entry (see [Redirects](#redirects)).
+`tests/renames.test.ts` follows every URL the old Starlight docs had to a
+page in `next`, so moving one of those pages fails the test until its
+entry is in.
+
+`bun test` runs `tests/content.test.ts` over every page in `next`. It
+fails on an absolute docs link, an em dash, an HTML comment, missing
+frontmatter, and an environment variable name that has no row on the
+generated configuration page. The env var check reads inline code spans
+and `NAME=value` or `NAME: value` lines in code blocks. A name the app
+itself never reads, such as a Docker image's or a test runner's variable,
+goes in `EXTRA_ENV_NAMES` at the top of that file, with a comment that
+says what reads it.
+
+Run the `unslop` skill over a page before you commit it.
 
 ## Versions and URLs
 
@@ -90,7 +128,13 @@ Link between pages with relative file links such as `./quickstart.mdx`. The
 same file then works in `next` and in every release folder copied from it.
 `docs:release` refuses a link to `/docs/next/`, which would break once the
 folder becomes latest, and postbuild fails on any relative or `.mdx` href
-left in the exported docs.
+left in the exported docs. Both `docs:release` and `tests/content.test.ts`
+parse each page as MDX and read only real links: Markdown links, images,
+reference definitions, and `href` or `src` strings on JSX elements, also
+when the element sits inside a `{...}` expression or an `export` block. Code
+spans and fenced code hold no links, so a page can show a wrong link as an
+example. A page that fails to parse fails both checks. A computed value
+such as ``href={`/docs/${slug}/`}`` is not read.
 
 ### Redirects
 
@@ -103,9 +147,14 @@ without the trailing slash:
 - `content/renames.json` maps old page paths to new ones, without the
   version, for example `{"old-name": "renamed"}`. A rename becomes a 301
   only once latest no longer has the old page. Until the release that
-  drops it is promoted, readers of latest still get the old page. postbuild
-  rejects a rename cycle, an old path that still exists in `next` and a
-  target that exists nowhere.
+  drops it is promoted, readers of latest still get the old page. Keys and
+  targets are slugs such as `operate/geolite2`: no `docs/` prefix, no slash
+  at either end, no `next` or `X.Y.Z` first segment, no `.mdx` or `.md`
+  ending, no trailing `index`. Each segment is letters, digits, `.`, `_`
+  and `-`, starting with a letter or digit. `""` is allowed as a target and
+  means the docs index. postbuild rejects a malformed slug, a target that is
+  not a string, a rename cycle, an old path that still exists in `next` and
+  a target that exists nowhere.
 
 Workers allows 2,000 static redirects. postbuild counts the rules after the
 slash doubling and fails above the limit. Every operation that exists only

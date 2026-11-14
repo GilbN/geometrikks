@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - The Access Logs live tail now sits in the same kind of card as the history table, with a title, row count, status and the Pause button in its header. Long IPv6 addresses get cut short instead of running into the next column. If the server starts without its database, the card says the live feed is paused instead of showing empty column headers.
+- The missing-GeoLite2 banner and the CrowdSec setup notes on the Security page now say to run `docker compose up -d` after editing `.env`. `docker compose restart` keeps the old values.
 
 ## [0.24.0] - 2026-11-09
 

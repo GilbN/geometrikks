@@ -181,6 +181,17 @@ describe("releaseDocs", () => {
     '<img src\n=\n{"/docs/next/a.png"} />',
     "[a](/docs/next)",
     "[ref]: /docs/next/quickstart/",
+    "<a href={`/docs/next/quickstart/`}>a</a>",
+    "Use `code` and <a href={`/docs/next/quickstart/`}>a</a> with `more code`.",
+    "See ``` [a](/docs/next/quickstart/) `` here.",
+    '<a href={"/docs/next/x/"}>a</a>',
+    "[r]: /docs/next/x/",
+    "Stray ` tick\n```\nx\n```\n[a](/docs/next/q/) and `y`",
+    "Press the ` key.\n```bash\necho `date`\n```\n\n[a](/docs/next/q/)",
+    "<span title={`}`} /> [a](/docs/next/quickstart/) then `example`",
+    '{<a href="/docs/next/quickstart/">Guide</a>}',
+    '{cond && <img src={"/docs/next/x.png"} />}',
+    "{<a href={`/docs/next/quickstart/`}>Guide</a>}",
   ])("the link %p into next fails", async (link) => {
     const { dir, schemaPath } = makeContent();
     write(join(dir, "docs/next/index.mdx"), `${link}\n`);
@@ -195,6 +206,60 @@ describe("releaseDocs", () => {
     write(join(dir, "docs/next/index.mdx"), "Unreleased pages live under `/docs/next/`.\n");
     await releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") });
     expect(existsSync(`${dir}/docs/0.25.0/index.mdx`)).toBe(true);
+  });
+
+  test.each([
+    "Never write `[a](/docs/next/quickstart/)`.\n",
+    "``[a](/docs/next/quickstart/)``\n",
+    "```mdx\n[a](/docs/next/quickstart/)\n<a href=\"/docs/next/quickstart/\">a</a>\n```\n",
+    "~~~~\n```\n[a](/docs/next/quickstart/)\n```\n~~~~\n",
+    "Write `<a href={`/docs/next/quickstart/`}>` as a relative link.\n",
+    "```jsx\n<a href={`/docs/next/quickstart/`}>a</a>\n```\n",
+    "```\n[a](/docs/next/x/)\n```\n",
+    '```mdx\n{<a href="/docs/next/quickstart/">Guide</a>}\n```\n',
+    "Inline `[a](/docs/next/x/)` only.\n",
+  ])("a link into next inside a code example passes: %p", async (body) => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/index.mdx"), body);
+    await releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") });
+    expect(existsSync(`${dir}/docs/0.25.0/index.mdx`)).toBe(true);
+  });
+
+  test("a link into next after a closed code example fails", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/index.mdx"), "```\nexample\n```\n\n`code` then [a](/docs/next/quickstart/)\n");
+    await expect(
+      releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
+    ).rejects.toThrow(/relative/);
+  });
+
+  test("a page that fails to parse as MDX fails and names the file", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/guides/broken.mdx"), "An unclosed { brace.\n");
+    const release = releaseDocs({
+      version: "0.25.0",
+      contentDir: dir,
+      openapiSource: schemaPath,
+      isPublished: published("0.24.0"),
+    });
+    await expect(release).rejects.toThrow(/guides\/broken\.mdx .*brace.*failed to parse/);
+    expect(existsSync(`${dir}/docs/0.25.0`)).toBe(false);
+  });
+
+  test("a .md page is read as Markdown, so raw HTML parses and its links are checked", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/guides/plain.md"), "Line<br>\n\n<a href=\"/docs/next/x/\">a</a>\n");
+    await expect(
+      releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
+    ).rejects.toThrow(/guides\/plain\.md link to \/docs\/next/);
+  });
+
+  test("a stray backtick does not hide a link in a later paragraph", async () => {
+    const { dir, schemaPath } = makeContent();
+    write(join(dir, "docs/next/index.mdx"), "A stray ` here.\n\n[a](/docs/next/quickstart/) and ` there.\n");
+    await expect(
+      releaseDocs({ version: "0.25.0", contentDir: dir, openapiSource: schemaPath, isPublished: published("0.24.0") }),
+    ).rejects.toThrow(/relative/);
   });
 
   test.each(["next.mdx", "next/index.mdx", "(guides)/next.mdx", "(guides)/next/index.mdx"])("a top-level page with the slug next fails: %p", async (page) => {

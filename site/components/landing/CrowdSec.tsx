@@ -7,8 +7,6 @@ import { ZoomHint } from "./Screens";
 // then the IP inspector beside the copy and the two-line setup. The inspector
 // picture is the screenshot cropped to its right edge, where the sheet with
 // the ban badge sits; the zoom link opens the whole thing.
-const readme = "https://github.com/GilbN/geometrikks";
-
 const inspectorAlt =
   "The IP inspector for a banned address, showing when the ban expires, a warning for requests seen after the ban, request counts, response codes over time and recent requests";
 const bannedMapAlt =
@@ -88,9 +86,10 @@ export function CrowdSec() {
             <div>
               <dt>Ban and unban from the UI</dt>
               <dd>
-                With machine credentials, a shield button appears next to IPs on the map, in the tables and in the IP
-                inspector, with a duration picker from an hour to forever. Every ban and unban is audit-logged with the
-                acting user.
+                With machine credentials, the IP actions menu in the tables gets Ban and Unban, and a shield button
+                beside the IP does the same in map popups and the IP inspector. Pick a preset from an hour to forever, or type
+                your own duration. Every
+                ban and unban is audit-logged with the acting user.
               </dd>
             </div>
             <div>
@@ -106,7 +105,7 @@ export function CrowdSec() {
                 <pre className="block">{connect}</pre>
                 CrowdSec decides; a bouncer in front of your stack still does the blocking. GeoMetrikks shows and
                 manages decisions, it does not block traffic.{" "}
-                <a href={`${readme}#crowdsec-integration-optional`}>CrowdSec setup in the docs</a>
+                <a href="/docs/features/crowdsec/">CrowdSec setup in the docs</a>
               </dd>
             </div>
           </dl>

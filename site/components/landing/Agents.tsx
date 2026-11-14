@@ -18,8 +18,8 @@ export function Agents() {
           <h2 className="section-title">Several proxies, one map.</h2>
           <p className="sub">
             When traffic comes in through more than one proxy or host, run one full instance plus an agent next to
-            each log file. The agent tails, parses, geolocates and writes locally. The full instance owns everything
-            else: the UI, the API, migrations, the scheduler and CrowdSec.
+            each log file. The agent tails, parses, geolocates and writes locally. The full instance runs everything
+            else: the UI, the API, migrations, the background jobs and every integration.
           </p>
           <p>
             Every writer publishes committed events over PostgreSQL LISTEN/NOTIFY, so the live map shows a request the
@@ -39,7 +39,7 @@ LOGPARSER_SERVER_NAME=edge-01`}</pre>
             You don't need agents if the logs already reach one machine. A single instance tails every shipped file
             and gives each one its own server name, or reads each proxy from Loki with one LogQL selector per proxy.
           </p>
-          <a className={styles.more} href="https://github.com/GilbN/geometrikks#multi-source-setup">
+          <a className={styles.more} href="/docs/sources/multiple-sources/">
             Multi-source setup in the docs
           </a>
         </div>

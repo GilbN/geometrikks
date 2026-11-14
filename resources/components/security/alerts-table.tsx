@@ -73,7 +73,7 @@ export function AlertHistoryUnavailable() {
         <p>Alert history needs CrowdSec machine credentials.</p>
         <p>
           Set <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_ID</code> and{" "}
-          <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_PASSWORD</code>, then restart.
+          <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_PASSWORD</code>, then run docker compose up -d.
         </p>
       </CardContent>
     </Card>

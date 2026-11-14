@@ -1,8 +1,12 @@
 ---
-title: API
-description: Every endpoint of the GeoMetrikks HTTP API.
+title: API reference
+description: Every endpoint of the GeoMetrikks HTTP API, with how to authenticate, read errors and page through results.
 ---
 
-Generated from the OpenAPI schema the app serves at `/schema`.
+This reference is generated from the OpenAPI schema the app serves at `/schema`. Each operation has its own page in the sidebar, grouped by tag.
 
-Examples use `https://geometrikks.example.com` as the server; substitute the URL of your own instance.
+Scripts send an API key as a bearer header. [API keys](../../features/authentication/api-keys.mdx) covers creating one and what each scope may do. The [API guides](../api-guides/polling.mdx) walk through polling for recent records, the [WebSocket messages](../api-guides/websockets.mdx) and the [abuse report redaction](../api-guides/abuse-report-redaction.mdx) rules.
+
+Examples on the operation pages use `https://geometrikks.example.com` as the server. Put the URL of your own instance in its place.
+
+<ApiIntro />

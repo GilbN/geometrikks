@@ -1,0 +1,90 @@
+---
+title: Nginx Proxy Manager
+description: Have Nginx Proxy Manager write a geometrikks-json log next to its own, and import the logs it already wrote.
+---
+
+Nginx Proxy Manager writes each proxy host's log in its own `proxy` format. That format has no request time, upstream time, protocol, remote user or raw request line, so GeoMetrikks doesn't tail it live. Setting `LOGPARSER_LOG_FORMATS=npm` fails startup with a message that says to have NPM write a `geometrikks-json` log instead. The `npm` format is for `import-logs` only, as [Import NPM's existing logs](#import-npms-existing-logs) describes.
+
+NPM can write a second log next to its own through its [custom nginx configuration](https://nginxproxymanager.com/advanced-config/#custom-nginx-configurations) files. Point that second log at the `geometrikks-json` format and tail it. NPM's own logs stay as they are.
+
+## Set up the JSON log
+
+The `/data/...` paths below are inside the NPM container. With the usual `./data:/data` mount, `/data/nginx/custom/http_top.conf` is `./data/nginx/custom/http_top.conf` on the host.
+
+1. Copy the `log_format geometrikks_json` block from the [nginx page](./nginx.mdx#add-the-log-format) into `/data/nginx/custom/http_top.conf`. NPM includes this file at the top of the `http` block, before it loads the proxy hosts. If the file already exists, append the block. Define it once.
+
+2. Turn the log on. For every proxy host, put this line in `/data/nginx/custom/server_proxy.conf`:
+
+   ```nginx
+   access_log /data/logs/geometrikks_access.log geometrikks_json;
+   ```
+
+   NPM includes that file in every proxy host's `server` block, so hosts you add later log there too. To log only some hosts, leave `server_proxy.conf` alone and paste the same line into each host's Advanced tab, under Custom Nginx Configuration. Pick one of the two for a given host. With both, nginx writes every request twice.
+
+   Keep the JSON in its own file. Pointing it at NPM's `proxy-host-*_access.log` puts two formats in one file. Don't put `access_log off;` in front of the line either. `off` cancels every `access_log` at that level, this one included.
+
+3. Check the config and reload nginx inside the NPM container:
+
+   ```bash
+   docker exec <npm-container> sh -c 'nginx -t && nginx -s reload'
+   ```
+
+   Open one of your sites, and its requests show up in `data/logs/geometrikks_access.log`.
+
+4. Point GeoMetrikks at the file in `.env`:
+
+   ```dotenv
+   ACCESS_LOG_DIR=/path/to/npm/data/logs
+   LOGPARSER_LOG_PATHS=/var/log/access/geometrikks_access.log
+   LOGPARSER_LOG_FORMATS=geometrikks-json
+   ```
+
+   Run `docker compose up -d` to recreate the container with the new mount.
+
+Every proxy host shares the one file. Each line carries `host`, so the host filter still tells them apart. NPM's logrotate rule matches `/data/logs/*_access.log`, so this file rotates weekly along with NPM's own logs, and GeoMetrikks follows the rotation.
+
+Behind Cloudflare or another proxy, `$remote_addr` is that proxy's address and the map shows its datacenter. The `realip` lines that fix this go in the same `http_top.conf`. See [Real client IP behind a proxy](./proxy-setup.mdx#nginx-proxy-manager).
+
+## What the log leaves out
+
+- **Cache Assets.** On a host with Cache Assets on, NPM serves CSS, JS, images and fonts from a location that sets [`access_log off`](https://github.com/NginxProxyManager/nginx-proxy-manager/blob/develop/docker/rootfs/etc/nginx/conf.d/include/assets.conf#L28). Those requests never reach any log, so GeoMetrikks never sees them. NPM adds the same location inside each custom location on that host. Turn Cache Assets off on the hosts where you want that traffic counted.
+- **Other host types.** `server_proxy.conf` covers proxy hosts only. Redirection hosts, 404 hosts and the default site don't write to this log, so their requests don't reach the map or Access Logs. To log redirection and 404 hosts, add the same `access_log` line to NPM's snippet files for them, `server_redirect.conf` and `server_dead.conf`. The line's shape comes from the `geometrikks_json` format it names, so those requests parse like proxy hosts' requests. They have no upstream time, because nothing is proxied.
+- **Streams.** TCP and UDP streams aren't HTTP, and this format doesn't apply to them.
+
+## Import NPM's existing logs
+
+`import-logs` reads NPM's own `proxy-host-<id>_access.log` files and their rotated copies, in the `npm` format. [Its page](../operate/cli/import-logs.mdx#cut-off-at-a-time-with---before) covers the `--before` cutoff and the checksum rules in full. This section has the NPM-specific parts.
+
+NPM keeps writing its own logs after the JSON log is on, so every request since then is in both. Pass `--before` with the time GeoMetrikks started reading the JSON log, and the import stops there. If you started GeoMetrikks right after the reload in step 3, that is the first line of the oldest `geometrikks_access.log` file on disk:
+
+```bash
+ls data/logs/geometrikks_access.log*
+# open the highest-numbered one; zcat -f reads plain and .gz files
+zcat -f data/logs/geometrikks_access.log.2.gz | head -n 1
+# {"client_ip":"...","timestamp":"2026-10-01T14:03:12+02:00",...}
+```
+
+GeoMetrikks starts reading a log at its end, so it never ingested what the JSON log wrote before GeoMetrikks started. If GeoMetrikks started later, use the time of the oldest request on the Access Logs page instead, or the requests in between stay missing.
+
+Import the rotated `.gz` copies only:
+
+```bash
+docker compose exec -u geometrikks app sh -c \
+  'litestar import-logs --before 2026-10-01T14:03:12+02:00 /var/log/access/proxy-host-*_access.log.*.gz'
+```
+
+The `sh -c` makes the container expand the glob against its own paths. Leave the current `proxy-host-<id>_access.log` out while NPM still writes to it. After NPM rotates it, it comes back as `.1.gz` with a new checksum, and importing that adds its lines a second time.
+
+If the JSON log is less than a week old, the current files still hold requests from before the cutoff. Wait for NPM's next weekly rotation, then import.
+
+NPM rotates these logs weekly and keeps four compressed copies, `.1.gz` to `.4.gz`. That is about five weeks of history on disk, and each rotation deletes the oldest week, so import soon after turning on the JSON log. A later run skips the archives it already imported, because NPM renumbers them without changing their content.
+
+NPM's other access logs import the same way:
+
+- `redirection-host-<id>_access.log` for redirection hosts
+- `dead-host-<id>_access.log` for 404 hosts
+- `fallback_http_access.log` for requests that matched no host
+
+`default-host_access.log` is in nginx's `combined` format and imports as `nginx`, without host or timings. The [nginx page](./nginx.mdx#backfilling-archives-in-nginxs-own-format) lists what that format lacks.
+
+Imported NPM rows have no response time, upstream time, protocol or remote user. The map, host filter, status codes, URLs, referrers, user agents and bytes are unaffected.

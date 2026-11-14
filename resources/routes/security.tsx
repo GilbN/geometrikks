@@ -99,7 +99,7 @@ function SecurityPage() {
             <p className="font-medium">CrowdSec integration is not configured</p>
             <p className="max-w-md text-sm text-muted-foreground">
               Set CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY to connect
-              GeoMetrikks to your CrowdSec Local API, then restart. The README
+              GeoMetrikks to your CrowdSec Local API, then run docker compose up -d. The README
               covers the setup, including the optional machine credentials
               that enable ban and unban from this page.
             </p>

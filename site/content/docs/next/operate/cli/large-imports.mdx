@@ -1,0 +1,57 @@
+---
+title: Large imports and backfills
+description: Raise the PostgreSQL WAL settings before an import or backfill over a lot of history, so checkpoints don't slow it down.
+---
+
+Bulk operations write WAL, PostgreSQL's write-ahead log, much faster than live tailing does. That covers `import-logs` over months of archives, `import-loki` over a long range, and any backfill on a database with real history. With PostgreSQL's default `max_wal_size` of 1GB, the database checkpoints every few seconds and logs:
+
+```text
+LOG:  checkpoints are occurring too frequently (21 seconds apart)
+HINT: Consider increasing the configuration parameter "max_wal_size".
+```
+
+No data is at risk. Each checkpoint makes the next change to every page write the whole page to WAL again, so the run gets slower the longer this goes on.
+
+## Raise the settings for one run
+
+Both settings reload without a restart, so you can raise them while a run is already going. With the shipped compose file, the database service is `timescale_db`, the user `geouser` and the database `geometrikks`:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "ALTER SYSTEM SET max_wal_size = '4GB';" \
+  -c "ALTER SYSTEM SET checkpoint_timeout = '15min';" \
+  -c "SELECT pg_reload_conf();"
+```
+
+Expect about `max_wal_size` of extra disk use for WAL during the run, on top of the chunks a backfill decompresses. It is a soft limit, and WAL can grow past it under heavy writes, so leave the database volume more free space than that.
+
+`ALTER SYSTEM` values stay in the database volume until you reset them. To go back to the defaults after the run:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks \
+  -c "ALTER SYSTEM RESET max_wal_size;" \
+  -c "ALTER SYSTEM RESET checkpoint_timeout;" \
+  -c "SELECT pg_reload_conf();"
+```
+
+## Keep them in the compose file
+
+To keep the settings, add them to the `command:` block of the `timescale_db` service. The shipped block already sets the TimescaleDB worker pool: `timescaledb.max_background_workers=40`, `max_parallel_workers=8` and `max_worker_processes=51`. Keep those lines. With fewer background workers, the refresh jobs that fire together fail with `out of background workers`.
+
+```yaml
+services:
+  timescale_db:
+    command:
+      - -c
+      - timescaledb.max_background_workers=40
+      - -c
+      - max_parallel_workers=8
+      - -c
+      - max_worker_processes=51
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - checkpoint_timeout=15min
+```
+
+Run `docker compose up -d` to recreate the database container with the new command. Then run the `ALTER SYSTEM RESET` commands above once. Command-line flags override `ALTER SYSTEM` values, so a leftover `ALTER SYSTEM` value changes nothing while the flag is set, but it comes back into force if you later remove the flag from the compose file.

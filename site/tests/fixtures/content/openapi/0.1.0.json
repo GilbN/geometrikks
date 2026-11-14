@@ -1,6 +1,10 @@
 {
   "openapi": "3.1.0",
-  "info": { "title": "Fixture", "version": "0.1.0" },
+  "info": {
+    "title": "Fixture",
+    "version": "0.1.0",
+    "description": "FIXTURE-API-INTRO-0.1.0 marks the 0.1.0 snapshot."
+  },
   "paths": {
     "/health": {
       "get": {

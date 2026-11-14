@@ -122,6 +122,29 @@ describe("findDeadLinks", () => {
     expect(findDeadLinks(outDir, rules)).toHaveLength(1);
   });
 
+  test("checks a fragment on the page the link resolves to", () => {
+    const outDir = outTree({
+      "docs/next/index.html": page("/docs/x/#present", "/docs/x/#missing", "/docs/y/#present", "/docs/old/#missing"),
+      "docs/x/index.html": `<html><body><h2 id="present">Present</h2></body></html>`,
+    });
+    const rules: RedirectRule[] = [
+      { from: "/docs/old/", to: "/docs/y/", status: 301 },
+      { from: "/docs/y/", to: "/docs/x/", status: 302 },
+    ];
+    expect(findDeadLinks(outDir, rules)).toEqual([
+      "docs/next/index.html -> /docs/x/#missing",
+      "docs/next/index.html -> /docs/old/#missing",
+    ]);
+  });
+
+  test("decodes the fragment and ignores ids inside scripts", () => {
+    const outDir = outTree({
+      "docs/next/index.html": page("/docs/x/#f%C3%B8r", "/docs/x#single", "/docs/x/#scripted", "/docs/x/#"),
+      "docs/x/index.html": `<html><body><h2 id="før">x</h2><p id='single'>y</p><script>self.a = ' id="scripted"';</script></body></html>`,
+    });
+    expect(findDeadLinks(outDir, [])).toEqual(["docs/next/index.html -> /docs/x/#scripted"]);
+  });
+
   test("ignores href-like text inside inline scripts", () => {
     const outDir = outTree({
       "docs/index.html": `<html><body><script>self.x = ' href="./nope.mdx" src="/nope.js"';</script></body></html>`,

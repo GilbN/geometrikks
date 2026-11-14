@@ -1,0 +1,89 @@
+---
+title: Map
+description: The map's views, live routes, filters and server location, on a desktop and on a phone.
+---
+
+The map plots every request GeoLite2 can place for the selected time range. A request with no location in the database stays off the map and still shows up in Access Logs. The basemap comes from CARTO and needs a key of your own; see [GeoLite2 and the CARTO key](../get-started/geolite2.mdx#carto-basemap-key).
+
+![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
+
+## Map controls
+
+On a desktop the controls sit in a panel in the top-right corner. Hide it with its close button. While filters are active, the collapsed button carries a dot, so a filtered map never passes for the whole dataset.
+
+### Visualization
+
+Three tabs pick the view:
+
+- **Heatmap** shows where traffic concentrates.
+- **Markers** draws one marker per location. This is the default.
+- **Banned** shows the IPs under a current CrowdSec decision that sent traffic in the selected range, with counts of banned IPs, events, countries and cities. The tab only appears when CrowdSec is set up. If CrowdSec stops answering, the map keeps the last result and says so instead of showing an empty map.
+
+![The Banned view, with banned IPs plotted by location](/screenshots/banned-map.webp)
+
+The **Globe** switch turns the flat Mercator map into a globe you can spin. It is off by default.
+
+The **Satellite** switch draws Esri World Imagery under CARTO's country borders and place names, on the flat map or the globe. The heatmap, markers and live routes stay on top. It needs an Esri key of its own; see [Esri satellite key](../get-started/geolite2.mdx#esri-satellite-key). Without one the switch is greyed out and says no key. If the imagery fails to load, the street map stays and the switch says failed.
+
+### Live
+
+- **Live** streams requests onto the map as they are ingested. It is off by default. With demo traffic running, the switch reads Demo traffic.
+- **Route effects** animates each live request as a route flying to the server that logged it. Without a server location the row reads No server location and the switch is disabled.
+- **Server markers** puts a beacon on each server location. Click the beacon's head to fly to it.
+- **Live rail** shows or hides the live rail. The switch appears only while Live is on, and only on a desktop.
+
+The live rail is a glass column over the map's left edge. From the top it shows the request rate and its trend, the response mix, the top origins, and a feed of every request in the window, newest first. The feed has two tabs: All, and Threats. A threat is a request the server turned away, with status 401, 403, 429 or 444, or any request from an IP CrowdSec has banned. A 404 doesn't count, and neither does a 5xx, which is the server's own failure. Click a feed row to open that request's details.
+
+### Filters
+
+Country and City filter the map. The Server filter appears once two or more servers have recorded traffic, or while a server is already selected. Clear filters resets all three. The filters live in the page URL, so a filtered map is a link you can share.
+
+### Summary and Top IPs
+
+Under the filters, the panel counts the events, countries, cities and locations on the map, or the banned totals in the Banned view. Top IPs lists the busiest addresses; click one to jump to its location, or use its inspect button to open the [IP inspector](./ip-inspector.mdx).
+
+The map tools menu, behind the three dots, has Go to server location and Show frame rate. The panel header also has a Fit to data bounds button that zooms to everything on the map.
+
+The map remembers the view, Globe, Satellite, Live, Route effects, Server markers and the live rail in your browser's storage. Another browser starts from the defaults.
+
+## Location details
+
+Click a location for its details: event count, unique IPs, its share of all events, the last hit, the top IPs with their network and ban state, and a link to OpenStreetMap. Each top IP has an inspect button and, with CrowdSec write access, ban controls. IPs on a [Spamhaus DROP list](./drop-lists.mdx) carry a dashed red outline.
+
+The details of a banned IP in the Banned view, and of a request in the live feed, are about one IP. They add a DROP badge for an address on a DROP list and an [AbuseIPDB blacklist](./abuseipdb.mdx#the-blacklist) mark for an address on AbuseIPDB's blacklist.
+
+On a desktop the details open as a popup anchored to the point. On a phone they open in a panel above the tab bar, with larger text and buttons. The map beside it stays live. A tap on another point swaps the panel's content, and the map pans so the point stays in view.
+
+## On a phone
+
+The map fills the screen. Its top row holds the refresh button and time range on the right and, while Live is on, the live vitals pill on the left. The pill shows whether traffic is flowing and whether anything is attacking right now. Tap it to open the live feed sheet, which carries the same summary and feed as the desktop rail.
+
+A pill on the map's right edge holds four icon buttons: Layers and filters, All traffic, Server and Live. Press and hold one to see its name. Layers and filters opens a drawer with the same sections as the desktop panel, with Filters last. There, Country and City are rows that open a search page inside the drawer, and Server opens the phone's own picker. When the map is too short for the whole pill, All traffic and Server move into the map tools menu as Show all traffic and Go to server. Pinch to zoom; there are no zoom buttons.
+
+Held sideways, a phone counts as a phone when it is a touch screen at least 4:3 wide and under 30rem tall. The detail panel and the drawers then open on the right edge instead of from the bottom.
+
+## Server location
+
+Live routes end at the location of the server that recorded the request. Each ingesting process works out its own location. At startup it looks up its public IP through `MAP_PUBLIC_IP_URL` and places that address with the local GeoLite2 City database. It re-detects the location every `MAP_SERVER_LOCATION_REFRESH_HOURS`, 24 by default.
+
+Detection fails or lands in the wrong place behind CGNAT, a VPN egress, or for logs shipped from another machine. You have three ways to fix it:
+
+- Set `MAP_SERVER_LATITUDE` and `MAP_SERVER_LONGITUDE` to pin this server. Set both or neither, because one without the other fails startup. With both set, the app skips the public-IP lookup.
+- Set `MAP_SERVER_LOCATIONS` on the full instance to pin servers by name. See [Server names and locations](../sources/multiple-sources.mdx#server-names-and-locations).
+- Set `MAP_AUTO_DETECT_SERVER_LOCATION=false` to turn the lookup off. Without a pinned location the map then has no server location, so Route effects and Server markers have nothing to show.
+
+When detection fails, the app logs a warning and starts anyway, and the map draws no routes for that server. The Server locations card on Settings > Status lists each server's location and whether it came from detection or an override.
+
+[Upgrading](../get-started/upgrading.mdx#renamed-settings) lists the old names of renamed settings.
+
+## Where the map opens
+
+Without `MAP_DEFAULT_VIEW`, the map opens on the server locations, or on the whole world when there are none. To open it somewhere else, set it to `latitude,longitude` or `latitude,longitude,zoom`. Zoom runs from 0 to 22 and defaults to 3.
+
+```dotenv
+MAP_DEFAULT_VIEW=71.129982,27.653369,15
+```
+
+That opens on northern Norway at zoom 15. A value with the wrong number of parts, a part that isn't a number, or a latitude, longitude or zoom out of range fails startup.
+
+The other map settings are in the configuration reference under [Map](../reference/configuration.mdx#map).

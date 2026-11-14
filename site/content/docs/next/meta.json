@@ -1,1 +1,6 @@
-{"title":"Next","description":"Unreleased, on develop","root":"version"}
+{
+  "title": "Next",
+  "description": "Unreleased, on develop",
+  "root": "version",
+  "pages": ["---Get started---", "index", "...get-started", "sources", "features", "operate", "reference", "contribute"]
+}

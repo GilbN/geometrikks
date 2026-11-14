@@ -1,4 +1,6 @@
-import { NEXT } from "../../lib/versions";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { NEXT, SEMVER } from "../../lib/versions";
 
 export type RedirectRule = { from: string; to: string; status: 301 | 302 };
 
@@ -8,7 +10,50 @@ function docsPath(key: string, prefix = "/docs"): string {
   return key === "" ? `${prefix}/` : `${prefix}/${key}/`;
 }
 
-function checkRenames(renames: Record<string, string>, latest: Set<string>, next: Set<string>): void {
+const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+function slugProblem(slug: string): string | null {
+  if (slug.startsWith("/") || slug.endsWith("/")) return "has a leading or trailing slash";
+  if (slug === "docs" || slug.startsWith("docs/")) return 'starts with "docs/"';
+  const segments = slug.split("/");
+  if (segments.includes("")) return "has an empty segment";
+  if (segments.some((segment) => segment === "." || segment === "..")) return 'has a "." or ".." segment';
+  const bad = segments.find((segment) => !SEGMENT.test(segment));
+  if (bad !== undefined) {
+    return `has the segment ${JSON.stringify(bad)}, which is not letters, digits, ".", "_" and "-" starting with a letter or digit`;
+  }
+  if (/\.mdx?$/i.test(slug)) return "ends in a file extension; drop the .mdx or .md";
+  if (segments.at(-1) === "index") return 'ends in "index"; name the folder instead, or use "" for the docs index';
+  if (segments[0] === NEXT || SEMVER.test(segments[0])) {
+    return `starts with the version folder ${JSON.stringify(segments[0])}; renames apply to every version, so leave it out`;
+  }
+  return null;
+}
+
+function checkSlugs(renames: unknown): asserts renames is Record<string, string> {
+  if (typeof renames !== "object" || renames === null || Array.isArray(renames)) {
+    throw new Error('renames.json must be an object that maps old slugs to new ones, such as {"old-name": "renamed"}');
+  }
+  const shape = 'write slugs as "operate/geolite2", without "/docs/" or slashes at either end';
+  for (const [old, target] of Object.entries(renames)) {
+    const oldProblem = old === "" ? "is empty" : slugProblem(old);
+    if (oldProblem) throw new Error(`renames.json: key ${JSON.stringify(old)} is not a slug: it ${oldProblem}; ${shape}`);
+    if (typeof target !== "string") {
+      throw new Error(`renames.json: key ${JSON.stringify(old)} maps to ${JSON.stringify(target)}, which is not a slug string; ${shape}`);
+    }
+    const targetProblem = target === "" ? null : slugProblem(target);
+    if (targetProblem) {
+      throw new Error(`renames.json: target ${JSON.stringify(target)} is not a slug: it ${targetProblem}; ${shape}`);
+    }
+  }
+}
+
+function checkRenames(
+  renames: unknown,
+  latest: Set<string>,
+  next: Set<string>,
+): asserts renames is Record<string, string> {
+  checkSlugs(renames);
   for (const start of Object.keys(renames)) {
     const seen = new Set([start]);
     let current = renames[start];
@@ -31,7 +76,7 @@ function checkRenames(renames: Record<string, string>, latest: Set<string>, next
 export function buildRedirects(input: {
   latest: Set<string>;
   next: Set<string>;
-  renames: Record<string, string>;
+  renames: unknown;
 }): RedirectRule[] {
   const { latest, next, renames } = input;
   checkRenames(renames, latest, next);
@@ -60,4 +105,14 @@ export function buildRedirects(input: {
 
 export function formatRedirects(rules: RedirectRule[]): string {
   return rules.map((rule) => `${rule.from} ${rule.to} ${rule.status}\n`).join("");
+}
+
+/** Next copies `public/` into `out/`, and this overwrites `out/_redirects`, so a `public/_redirects` would vanish. */
+export function writeRedirects(outDir: string, publicDir: string, rules: RedirectRule[]): void {
+  if (existsSync(join(publicDir, "_redirects"))) {
+    throw new Error(
+      "public/_redirects exists, and postbuild would overwrite its copy in out/. Delete public/_redirects and put renames in content/renames.json.",
+    );
+  }
+  writeFileSync(join(outDir, "_redirects"), formatRedirects(rules));
 }
