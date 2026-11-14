@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Settings > Agents shows whether each instance's database connection is encrypted and whether the instance verified the server, with a lock after its name and a Connection row in its details. [Multiple sources](https://geometrikks.dev/docs/sources/multiple-sources#encrypt-the-database-link) explains how to encrypt the link between an agent and the database with the standard `PGSSL*` variables. At startup, the log names a `PGSSL*` file the app can't read.
+
 ## [0.25.0] - 2026-11-14
 
 ### Added
