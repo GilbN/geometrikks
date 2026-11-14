@@ -12,6 +12,7 @@ from litestar import Litestar
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from geometrikks.config.settings import Settings, get_installed_version
+from geometrikks.domain.instances.database_link import read_database_link
 from geometrikks.domain.instances.payload import RollingCounter, build_payload
 from geometrikks.domain.instances.repositories import (
     HeartbeatWrite,
@@ -19,7 +20,7 @@ from geometrikks.domain.instances.repositories import (
     read_heartbeat,
     upsert_heartbeat,
 )
-from geometrikks.domain.instances.schemas import HeartbeatPayload, decode_payload
+from geometrikks.domain.instances.schemas import DatabaseLinkReport, HeartbeatPayload, decode_payload
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.schema_wait import bundled_head_revision
@@ -88,6 +89,7 @@ class HeartbeatWriter:
         self._name_conflict_at: datetime | None = None
         self._conflict_logged = False
         self._failing = False
+        self._database_link: DatabaseLinkReport | None = None
 
     def start(self) -> None:
         if self._task is not None and not self._task.done():
@@ -157,6 +159,8 @@ class HeartbeatWriter:
                 recent_starts = await self._merge_recent_starts(connection)
             else:
                 recent_starts = self._recent_starts
+            database_link = await read_database_link(connection)
+            self._note_database_link(database_link)
             payload = build_payload(
                 self._app,
                 self._settings,
@@ -166,6 +170,7 @@ class HeartbeatWriter:
                 failed_batches_5m=window_counts.failed_batches,
                 recent_starts=recent_starts,
                 name_conflict_at=self._name_conflict_at,
+                database_link=database_link,
             )
             previous_heartbeat = await upsert_heartbeat(
                 connection, self._heartbeat_write(payload, schema_revision)
@@ -178,6 +183,17 @@ class HeartbeatWriter:
                 payload = msgspec.structs.replace(payload, name_conflict_at=self._name_conflict_at)
                 await upsert_heartbeat(connection, self._heartbeat_write(payload, schema_revision))
         self._recent_starts = recent_starts
+
+    def _note_database_link(self, database_link: DatabaseLinkReport | None) -> None:
+        if database_link is None or database_link == self._database_link:
+            return
+        self._database_link = database_link
+        logger.info(
+            "database_link_state",
+            instance_name=self._instance_name,
+            encrypted=database_link.encrypted,
+            server_verified=database_link.server_verified,
+        )
 
     def _sample_counters(self, at_monotonic: float) -> WindowCounts:
         ingestion_service = runtime.get_ingestion_service(self._app)

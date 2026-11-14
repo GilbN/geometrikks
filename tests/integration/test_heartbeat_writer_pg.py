@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
@@ -12,6 +13,7 @@ from sqlalchemy import text
 
 from geometrikks.config.settings import AppSettings, Settings, get_installed_version
 from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+from geometrikks.domain.instances.database_link import read_database_link
 from geometrikks.domain.instances.repositories import fetch_heartbeats, read_heartbeat
 from geometrikks.domain.instances.schemas import decode_payload
 from geometrikks.server.schema_wait import bundled_head_revision
@@ -149,3 +151,34 @@ async def test_writer_survives_missing_table_and_recovers(pg_engine, clean_insta
     events = [log_entry["event"] for log_entry in captured]
     assert events.count("heartbeat_write_failed") == 1
     assert events.count("heartbeat_write_recovered") == 1
+
+
+async def test_link_state_matches_what_the_server_reports(pg_engine):
+    async with pg_engine.begin() as connection:
+        database_link = await read_database_link(connection)
+        server_says_ssl = (
+            await connection.execute(text("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()"))
+        ).scalar_one()
+    assert database_link is not None
+    assert database_link.encrypted is server_says_ssl
+
+
+async def test_beat_stores_the_link_state(pg_engine, clean_instance_heartbeats):
+    writer = _writer(pg_engine)
+
+    assert await writer.beat() is True
+
+    stored_payload = await _stored_payload(pg_engine)
+    assert stored_payload["databaseLink"] is not None
+    assert set(stored_payload["databaseLink"]) == {"encrypted", "serverVerified"}
+
+
+async def test_beat_survives_an_unreadable_link_state(pg_engine, clean_instance_heartbeats, monkeypatch):
+    monkeypatch.setattr(
+        "geometrikks.domain.instances.heartbeat.read_database_link", AsyncMock(return_value=None)
+    )
+    writer = _writer(pg_engine)
+
+    assert await writer.beat() is True
+
+    assert (await _stored_payload(pg_engine))["databaseLink"] is None
