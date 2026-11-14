@@ -5,6 +5,9 @@ from typing import Any, cast
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from geometrikks.domain.instances.schemas import DatabaseLinkReport
+from geometrikks.server.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def database_link_of(driver_connection: object) -> DatabaseLinkReport | None:
@@ -20,7 +23,8 @@ def database_link_of(driver_connection: object) -> DatabaseLinkReport | None:
             encrypted=True,
             server_verified=context.verify_mode == ssl.CERT_REQUIRED and bool(context.check_hostname),
         )
-    except Exception:
+    except Exception as error:
+        logger.debug("database_link_unreadable", error=str(error) or type(error).__name__)
         return None
 
 
@@ -29,5 +33,6 @@ async def read_database_link(connection: AsyncConnection) -> DatabaseLinkReport 
     try:
         raw_connection = await connection.get_raw_connection()
         return database_link_of(raw_connection.driver_connection)
-    except Exception:
+    except Exception as error:
+        logger.debug("database_link_unreadable", error=str(error) or type(error).__name__)
         return None
