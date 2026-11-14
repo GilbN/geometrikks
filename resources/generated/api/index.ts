@@ -520,6 +520,7 @@ export type {
   CumulativeTimeSeriesResponse,
   DatabaseHealth,
   DatabaseInfoResponse,
+  DatabaseLinkReport,
   DatabaseVersionsView,
   DecisionGroupView,
   DecisionView,

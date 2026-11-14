@@ -1267,6 +1267,22 @@ export type DatabaseInfoResponse = {
 };
 
 /**
+ * DatabaseLinkReport
+ *
+ * The TLS state of the instance's database connection.
+ */
+export type DatabaseLinkReport = {
+  /**
+   * The session that wrote this heartbeat uses TLS.
+   */
+  encrypted?: boolean;
+  /**
+   * The instance checked the server's certificate chain and its name.
+   */
+  serverVerified?: boolean;
+};
+
+/**
  * DatabaseVersionsView
  *
  * The database server, its extensions and the schema version.
@@ -2106,6 +2122,10 @@ export type HealthResponse = {
  * The 5-minute counts are null until the instance has run for 5 minutes.
  */
 export type HeartbeatPayload = {
+  /**
+   * The TLS state of the instance's database connection. Null from an older release or when the state could not be read.
+   */
+  databaseLink?: DatabaseLinkReport | null;
   /**
    * Records that failed to write in the last 5 minutes.
    */

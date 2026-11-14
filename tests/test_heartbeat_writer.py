@@ -13,6 +13,7 @@ from litestar import Litestar
 
 from geometrikks.config.settings import AppSettings, Settings
 from geometrikks.domain.instances.heartbeat import STARTUP_GRACE_SECONDS, HeartbeatWriter, WindowCounts
+from geometrikks.domain.instances.schemas import DatabaseLinkReport
 
 pytestmark = pytest.mark.anyio
 
@@ -158,3 +159,46 @@ def test_one_counter_going_back_restarts_every_counter() -> None:
     ingestion_service.failed_records = 5
 
     assert writer._sample_counters(1300.0) == WindowCounts()
+
+
+def _link_events(captured: list[Any]) -> list[Any]:
+    return [log_entry for log_entry in captured if log_entry["event"] == "database_link_state"]
+
+
+def test_first_link_state_is_logged_once() -> None:
+    writer = _writer(_UnreachableEngine())
+    encrypted_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+
+    with structlog.testing.capture_logs() as captured:
+        writer._note_database_link(encrypted_link)
+        writer._note_database_link(encrypted_link)
+
+    (event,) = _link_events(captured)
+    assert event["log_level"] == "info"
+    assert event["instance_name"] == "agent"
+    assert event["encrypted"] is True
+    assert event["server_verified"] is False
+
+
+def test_a_changed_link_state_is_logged_again() -> None:
+    writer = _writer(_UnreachableEngine())
+
+    with structlog.testing.capture_logs() as captured:
+        writer._note_database_link(DatabaseLinkReport(encrypted=True, server_verified=False))
+        writer._note_database_link(DatabaseLinkReport(encrypted=True, server_verified=True))
+
+    first_event, second_event = _link_events(captured)
+    assert first_event["server_verified"] is False
+    assert second_event["server_verified"] is True
+
+
+def test_an_unknown_link_state_logs_nothing_and_is_not_a_change() -> None:
+    writer = _writer(_UnreachableEngine())
+    encrypted_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+
+    with structlog.testing.capture_logs() as captured:
+        writer._note_database_link(encrypted_link)
+        writer._note_database_link(None)
+        writer._note_database_link(encrypted_link)
+
+    assert len(_link_events(captured)) == 1

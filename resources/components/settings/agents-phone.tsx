@@ -9,6 +9,7 @@ import type { HeadIdentityView, InstanceView } from "@/generated/api/types.gen"
 import { useDeleteInstance } from "@/lib/queries"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { cn } from "@/lib/utils"
+import { BadgeHint } from "@/components/badge-hint"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -24,6 +25,8 @@ import { MonoChip, StatusLed } from "@/components/settings/status-led"
 import { relativeTime } from "@/components/settings/status-logic"
 import {
   canRemove,
+  databaseLinkState,
+  type DatabaseLinkState,
   type DetailSection,
   type DetailSectionId,
   instanceDetailSections,
@@ -37,6 +40,7 @@ import {
   versionTone,
 } from "@/components/settings/agents-logic"
 import {
+  ConnectionLock,
   GeoipFacts,
   IngestionFacts,
   InstanceFacts,
@@ -55,6 +59,20 @@ const driftBadgeClasses = {
   amber: "border-amber-500/45 text-amber-500",
 } as const
 
+/** Each row renders this twice and a container query shows one: beside the name, or on the
+ *  second line when the row is too narrow to fit it next to a long name. The row is one
+ *  button, so the lock is never a tap target of its own. */
+function ListLock({ databaseLink, className }: { databaseLink: DatabaseLinkState; className: string }) {
+  return (
+    <BadgeHint hint={databaseLink.hint} tappable={false}>
+      <span className={cn("shrink-0", className)}>
+        <ConnectionLock lock={databaseLink.lock} className="size-3" />
+        <span className="sr-only">{databaseLink.hint}</span>
+      </span>
+    </BadgeHint>
+  )
+}
+
 export function AgentList({
   instances,
   head,
@@ -70,6 +88,7 @@ export function AgentList({
     <ul className="border-t">
       {instances.map((instance) => {
         const drift = versionTone(instance, head)
+        const databaseLink = databaseLinkState(instance.payload?.databaseLink)
         return (
           <li key={instance.instanceName} className="border-b last:border-b-0">
             <button
@@ -79,9 +98,12 @@ export function AgentList({
               className="flex min-h-[62px] w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
             >
               <StatusLed tone={instanceTone(instance)} />
-              <span className="min-w-0 flex-1">
+              <span className="@container/row min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <MonoChip className="min-w-0 truncate text-foreground">{instance.instanceName}</MonoChip>
+                  {databaseLink && (
+                    <ListLock databaseLink={databaseLink} className="-ml-0.5 inline-flex @max-[15rem]/row:hidden" />
+                  )}
                   {instance.isSelf && (
                     <Badge variant="outline" className={cn(rowBadgeClasses, "text-muted-foreground")}>
                       this instance
@@ -102,12 +124,17 @@ export function AgentList({
                     {relativeTime(instance.lastSeen, checkedAt)}
                   </span>
                 </span>
-                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  {/* A healthy row's line already starts with "Healthy". */}
-                  {instance.status !== "ok" && (
-                    <span className="sr-only">{instanceStatusLabel(instance.status)}: </span>
+                <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {databaseLink && (
+                    <ListLock databaseLink={databaseLink} className="hidden @max-[15rem]/row:inline-flex" />
                   )}
-                  <PartsLine parts={instanceRowLine(instance)} />
+                  <span className="min-w-0 truncate">
+                    {/* A healthy row's line already starts with "Healthy". */}
+                    {instance.status !== "ok" && (
+                      <span className="sr-only">{instanceStatusLabel(instance.status)}: </span>
+                    )}
+                    <PartsLine parts={instanceRowLine(instance)} />
+                  </span>
                 </span>
               </span>
               <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
@@ -177,6 +204,7 @@ function AgentDetail({
 }) {
   const sections = instanceDetailSections(instance, checkedAt)
   const headerGroups = instanceHeaderLine(instance, head, checkedAt)
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
   const problemCount = instance.problems.length
   const titleRef = useRef<HTMLHeadingElement>(null)
   const [announcement, setAnnouncement] = useState("")
@@ -209,6 +237,7 @@ function AgentDetail({
           <DrawerTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-2 outline-none">
             <StatusLed tone={instanceTone(instance)} />
             <MonoChip className="min-w-0 truncate text-[13px] text-foreground">{instance.instanceName}</MonoChip>
+            {databaseLink && <ConnectionLock lock={databaseLink.lock} className="size-3 shrink-0" />}
             <span className="sr-only">, {instanceStatusLabel(instance.status)}</span>
           </DrawerTitle>
           <DrawerDescription className="text-xs">

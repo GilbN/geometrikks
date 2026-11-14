@@ -110,6 +110,58 @@ async def test_startup_without_old_env_names_logs_nothing(monkeypatch):
     assert _legacy_env_events(captured) == []
 
 
+def _tls_file_events(
+    captured: list[MutableMapping[str, Any]],
+) -> list[MutableMapping[str, Any]]:
+    return [log_entry for log_entry in captured if log_entry["event"] == "database_tls_file_unusable"]
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+async def test_startup_warns_about_an_unusable_tls_file(monkeypatch, tmp_path, mode):
+    from geometrikks.server import lifecycle as lc
+
+    missing_path = str(tmp_path / "ca.crt")
+    monkeypatch.setenv("APP_MODE", mode)
+    monkeypatch.setenv("PGSSLROOTCERT", missing_path)
+    monkeypatch.delenv("PGSSLCERT", raising=False)
+    monkeypatch.delenv("PGSSLKEY", raising=False)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    (event,) = _tls_file_events(captured)
+    assert event["log_level"] == "warning"
+    assert event["variable"] == "PGSSLROOTCERT"
+    assert event["path"] == missing_path
+    assert event["reason"] == "missing"
+
+
+@pytest.mark.parametrize("mode", ["full", "agent"])
+async def test_startup_is_quiet_without_tls_variables(monkeypatch, mode):
+    from geometrikks.server import lifecycle as lc
+
+    monkeypatch.setenv("APP_MODE", mode)
+    for variable in ("PGSSLROOTCERT", "PGSSLCERT", "PGSSLKEY"):
+        monkeypatch.delenv(variable, raising=False)
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(lc, "wait_for_schema", AsyncMock(return_value="ready"))
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with structlog.testing.capture_logs() as captured:
+        async with enter_lifespan(app):
+            pass
+
+    assert _tls_file_events(captured) == []
+
+
 async def test_startup_failure_unwinds_started_managers(monkeypatch):
     """A migration failure fails startup, but the CrowdSec client the earlier
     manager already opened must still be closed (partial-startup cleanup)."""

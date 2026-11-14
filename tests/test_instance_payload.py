@@ -12,7 +12,12 @@ from litestar import Litestar
 
 from geometrikks.config.settings import AppSettings, Settings
 from geometrikks.domain.instances.payload import RollingCounter, build_payload
-from geometrikks.domain.instances.schemas import decode_payload, payload_advisories
+from geometrikks.domain.instances.schemas import (
+    DatabaseLinkReport,
+    HeartbeatPayload,
+    decode_payload,
+    payload_advisories,
+)
 from geometrikks.services.ingestion import LogInput, LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource, LokiSource
@@ -301,6 +306,22 @@ def test_build_payload_round_trips_through_decode() -> None:
     assert decoded == payload
 
 
+def test_build_payload_carries_the_database_link() -> None:
+    database_link = DatabaseLinkReport(encrypted=True, server_verified=False)
+    payload = build_payload(
+        Litestar(route_handlers=[]),
+        _settings(),
+        lines_5m=None,
+        failed_5m=None,
+        written_5m=None,
+        failed_batches_5m=None,
+        recent_starts=[],
+        name_conflict_at=None,
+        database_link=database_link,
+    )
+    assert payload.database_link == database_link
+
+
 def test_agent_schema_wait_reports_waiting_before_result() -> None:
     payload = build_payload(
         Litestar(route_handlers=[]),
@@ -313,3 +334,26 @@ def test_agent_schema_wait_reports_waiting_before_result() -> None:
         name_conflict_at=None,
     )
     assert payload.health["schemaWait"] == "waiting"
+
+
+def test_payload_without_a_database_link_decodes_to_none() -> None:
+    payload = decode_payload({})
+    assert payload is not None
+    assert payload.database_link is None
+
+
+def test_database_link_with_one_flag_defaults_the_other() -> None:
+    payload = decode_payload({"databaseLink": {"encrypted": True}})
+    assert payload is not None
+    assert payload.database_link == DatabaseLinkReport(encrypted=True, server_verified=False)
+
+
+def test_database_link_ignores_keys_from_a_newer_release() -> None:
+    payload = decode_payload({"databaseLink": {"encrypted": True, "serverVerified": True, "tlsVersion": "TLSv1.3"}})
+    assert payload is not None
+    assert payload.database_link == DatabaseLinkReport(encrypted=True, server_verified=True)
+
+
+def test_database_link_serializes_with_camel_case_keys() -> None:
+    payload = HeartbeatPayload(database_link=DatabaseLinkReport(encrypted=True, server_verified=True))
+    assert msgspec.to_builtins(payload)["databaseLink"] == {"encrypted": True, "serverVerified": True}

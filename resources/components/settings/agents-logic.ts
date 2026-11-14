@@ -3,6 +3,7 @@
  *  amber and healthy, each by name, so nothing here re-sorts. */
 import type {
   Advisory,
+  DatabaseLinkReport,
   HealthResponse,
   HeadIdentityView,
   InstanceView,
@@ -301,7 +302,8 @@ export function instanceRowLine(instance: InstanceView): TextPart[] {
 }
 
 /** The line under the agent's name in its details: when it was last seen,
- *  how long it has run and whether its version matches the head's. */
+ *  how long it has run, whether its version matches the head's, and its
+ *  database connection when it reports one. */
 export function instanceHeaderLine(instance: InstanceView, head: HeadIdentityView, checkedAtMs: number): TextPart[][] {
   const seen = relativeTime(instance.lastSeen, checkedAtMs)
   const drift = versionTone(instance, head)
@@ -312,11 +314,44 @@ export function instanceHeaderLine(instance: InstanceView, head: HeadIdentityVie
         { text: shortVersion(head.appVersion), nowrap: true },
       ]
     : [{ text: shortVersion(instance.appVersion), nowrap: true }]
+  const databaseLink = databaseLinkState(instance.payload?.databaseLink)
+  // Non-breaking up to the state, so a wrapped line never ends on "database" or "connection".
+  const connection: TextPart[][] = databaseLink
+    ? [[{ text: `database\u00a0connection\u00a0${databaseLink.text}` }]]
+    : []
   if (!instance.checkingIn) {
-    return [[{ text: `Last seen ${seen}`, tone: "red" }], version, [{ text: "details from its last heartbeat" }]]
+    return [
+      [{ text: `Last seen ${seen}`, tone: "red" }],
+      version,
+      ...connection,
+      [{ text: "details from its last heartbeat" }],
+    ]
   }
   const uptime = formatUptime(instance.startedAt, checkedAtMs)
-  return [[{ text: `Seen ${seen}` }], ...(uptime ? [[{ text: uptime }]] : []), version]
+  return [[{ text: `Seen ${seen}` }], ...(uptime ? [[{ text: uptime }]] : []), version, ...connection]
+}
+
+export type LinkLock = "verified" | "encrypted" | "open"
+
+export interface DatabaseLinkState {
+  text: string
+  hint: string
+  lock: LinkLock
+}
+
+/** Null for an instance on a release that doesn't report its link. */
+export function databaseLinkState(link: DatabaseLinkReport | null | undefined): DatabaseLinkState | null {
+  if (!link) return null
+  let lock: LinkLock = "open"
+  let text = "not encrypted"
+  if (link.encrypted && link.serverVerified) {
+    lock = "verified"
+    text = "encrypted, server verified"
+  } else if (link.encrypted) {
+    lock = "encrypted"
+    text = "encrypted"
+  }
+  return { text, hint: `Database connection ${text}`, lock }
 }
 
 /** Why the version is colored, in words. */
