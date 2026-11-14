@@ -25,18 +25,22 @@ class ReportedIp:
     status: ReportStatus
 
 
-def _whole_ip(q: str) -> str | None:
-    """The canonical spelling of ``q`` when it is a whole address, so every spelling finds the same rows."""
+def _ip_search(q: str) -> tuple[str, bool]:
+    """The text an IP must match, and whether it must match exactly rather than start with it.
+
+    An address is canonicalised so every spelling finds the same rows. One ending in ``::``
+    is how an IPv6 network is written, so it stays a prefix.
+    """
     try:
         address = ipaddress.ip_address(q)
     except ValueError:
-        return None
+        return q.lower(), False
     if isinstance(address, ipaddress.IPv6Address):
         # Postgres's INET rejects a zone index, and no stored address has one.
         if address.scope_id is not None:
-            return None
+            return q.lower(), False
         address = address.ipv4_mapped or address
-    return str(address)
+    return str(address), not q.endswith("::")
 
 
 class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
@@ -81,11 +85,11 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
         """
         conditions = []
         if q:
-            whole_ip = _whole_ip(q)
+            ip_text, exact = _ip_search(q)
             ip_match = (
-                func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(q.lower(), autoescape=True)
-                if whole_ip is None
-                else AbuseIpdbReport.ip_address == cast(whole_ip, postgresql.INET)
+                AbuseIpdbReport.ip_address == cast(ip_text, postgresql.INET)
+                if exact
+                else func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(ip_text, autoescape=True)
             )
             conditions.append(
                 or_(
