@@ -1,14 +1,14 @@
 # Themes
 
-A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge and Night
-ship today. Three preferences pick what the page paints: the color mode, the theme
-for light mode and the theme for dark mode.
+A theme is a pair of palettes, one light and one dark. Aurora, Moss, Forge, Night,
+Glacier, Dusk, Lyng and Storm ship today. Three preferences pick what the page
+paints: the color mode, the theme for light mode and the theme for dark mode.
 
 | Preference | Values | Storage key |
 | --- | --- | --- |
 | Color mode | `system`, `light`, `dark` | `geometrikks-theme` |
-| Light mode theme | `aurora`, `moss`, `forge`, `night` | `geometrikks-light-theme` |
-| Dark mode theme | `aurora`, `moss`, `forge`, `night` | `geometrikks-dark-theme` |
+| Light mode theme | `aurora`, `moss`, `forge`, `night`, `glacier`, `dusk`, `lyng`, `storm` | `geometrikks-light-theme` |
+| Dark mode theme | `aurora`, `moss`, `forge`, `night`, `glacier`, `dusk`, `lyng`, `storm` | `geometrikks-dark-theme` |
 
 Mode defaults to `dark` and both themes to `aurora`. `system` follows
 `prefers-color-scheme` and re-resolves when the OS setting changes. The page paints
@@ -34,7 +34,7 @@ in `resources/lib/theme.ts`, and the startup script repeats it for the side it p
    catalog keys, so parsing, the settings cards, the startup script and the previews
    pick up the entry.
 2. Add `resources/themes/<id>.css` with the two selectors below, and import it after
-   `night.css` in `resources/main.css`. Use the catalog ID as the file name.
+   the last theme in `resources/main.css`. Use the catalog ID as the file name.
 3. Run the checks below and inspect the development preview.
 
 | Scheme | Selector |

@@ -57,9 +57,8 @@ import {
   type DropNetworkRange,
 } from "@/lib/drop-networks"
 import { useAbout, useBanDropNetworks, useBanIp, useCrowdsecStatus, useDropNetworks } from "@/lib/queries"
+import { DROP_NETWORKS_CARD_ID } from "@/lib/security-tabs"
 import { cn } from "@/lib/utils"
-
-export const DROP_NETWORKS_CARD_ID = "drop-networks"
 
 type BanDuration = (typeof BAN_DURATIONS)[number]
 

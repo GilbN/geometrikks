@@ -1,0 +1,133 @@
+.agents {
+  border-top: 1px solid var(--line);
+}
+.agents :global(.wrap) {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 56px;
+  align-items: center;
+}
+.copy p {
+  color: var(--fg-dim);
+  margin: 0 0 14px;
+}
+.copy :global(.sub) {
+  margin-bottom: 14px;
+}
+.copy pre:global(.block) {
+  margin: 20px 0;
+}
+
+.diagram {
+  --link: var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.sites {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+.site {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.proxy {
+  width: 100%;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.proxy svg {
+  width: 20px;
+  height: 20px;
+  fill: var(--fg-dim);
+  flex: none;
+}
+.host {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--fg-faint);
+  font-weight: 400;
+}
+.agent {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 16px;
+  border: 1px dashed var(--accent-dim);
+  border-radius: 10px;
+  background: var(--accent-wash);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.agent :global(.mono) {
+  font-size: 12px;
+  color: var(--accent);
+}
+.agent small,
+.db small,
+.head small {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.agent::after {
+  content: "";
+  align-self: center;
+  width: 1px;
+  height: 24px;
+  background: var(--link);
+  margin-bottom: -10px;
+}
+.bus {
+  width: calc(100% / 3 * 2);
+  height: 1px;
+  background: var(--link);
+  margin-top: 10px;
+}
+.stem {
+  width: 1px;
+  height: 24px;
+  background: var(--link);
+}
+.db,
+.head {
+  width: 100%;
+  padding: 14px 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-weight: 600;
+}
+.diagram .head {
+  border-color: var(--accent-dim);
+}
+@media (max-width: 900px) {
+  .agents :global(.wrap) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+  }
+  .sites {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .agent::after,
+  .bus {
+    display: none;
+  }
+  .site + .site {
+    margin-top: 8px;
+  }
+  .stem:first-of-type {
+    margin-top: 8px;
+  }
+  .db,
+  .head {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

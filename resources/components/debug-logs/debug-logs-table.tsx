@@ -46,7 +46,7 @@ import {
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FilterField, FilterRail, FilterRow } from "@/components/data/filter-rail"
-import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
+import { FilterChoiceRow, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { DebugLogDetailSheet } from "@/components/debug-logs/debug-log-detail-sheet"
 import { DataTableFrame } from "@/components/data/data-table-frame"
@@ -68,6 +68,11 @@ import { useColumnVisibility } from "@/lib/column-visibility"
 const PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000] as const
 
 type MalformedFilter = "all" | "malformed" | "wellformed"
+const MALFORMED_OPTIONS: { value: MalformedFilter; label: string }[] = [
+  { value: "all", label: "All lines" },
+  { value: "malformed", label: "Malformed only" },
+  { value: "wellformed", label: "Well-formed only" },
+]
 
 interface ColumnDef {
   key: string
@@ -446,18 +451,18 @@ export function DebugLogsTable() {
       </FilterField>
     )
     const malformedField = (
-      <FilterField label="Lines" hideLabel={!inDrawer}>
+      <FilterField label="Lines" hideLabel>
         <Select
           value={malformedFilter}
           onValueChange={(v) => setMalformedFilter(v as MalformedFilter)}
         >
-          <SelectTrigger size="sm" className={cn("h-8 text-xs", inDrawer ? "w-full" : "w-40")}>
+          <SelectTrigger size="sm" className="h-8 w-40 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All lines</SelectItem>
-            <SelectItem value="malformed">Malformed only</SelectItem>
-            <SelectItem value="wellformed">Well-formed only</SelectItem>
+            {MALFORMED_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </FilterField>
@@ -498,8 +503,13 @@ export function DebugLogsTable() {
         <>
           {searchField}
           {ipField}
-          {malformedField}
           <FilterSection>
+            <FilterChoiceRow
+              label="Lines"
+              options={MALFORMED_OPTIONS}
+              value={malformedFilter}
+              onChange={setMalformedFilter}
+            />
             <FilterListRow
               label="Country"
               search

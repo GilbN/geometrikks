@@ -1,10 +1,27 @@
-/** localStorage persistence for the map's layer choice, Live toggle and
- *  attribution pill. Defaults preserve pre-persistence behavior: markers,
- *  live off, attribution expanded. */
+/** localStorage persistence for the map's layer choice, Live toggle,
+ *  Satellite switch and attribution pill. Markers, live off, satellite off
+ *  and attribution expanded are the defaults. */
 export const MAP_LAYER_STORAGE_KEY = "geometrikks-map-layer"
 export const MAP_LIVE_STORAGE_KEY = "geometrikks-map-live"
 export const MAP_ATTRIBUTION_STORAGE_KEY = "geometrikks-map-attribution"
 export const MAP_FRAME_RATE_STORAGE_KEY = "geometrikks-map-frame-rate"
+export const MAP_SATELLITE_STORAGE_KEY = "geometrikks-map-satellite"
+
+export function loadSatellitePreference(): boolean {
+  try {
+    return localStorage.getItem(MAP_SATELLITE_STORAGE_KEY) === "true"
+  } catch {
+    return false
+  }
+}
+
+export function saveSatellitePreference(enabled: boolean): void {
+  try {
+    localStorage.setItem(MAP_SATELLITE_STORAGE_KEY, String(enabled))
+  } catch {
+    // Keep the in-memory preference when storage is unavailable.
+  }
+}
 
 export function loadFrameRatePreference(): boolean {
   try {

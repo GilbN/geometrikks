@@ -220,10 +220,11 @@ class DatabaseSettings(BaseSettings):
     migrate_on_startup: bool = Field(
         default=True,
         description=(
-            "Run alembic migrations automatically at app startup. Disable when "
-            "migrations run as a separate deployment step (`litestar database "
-            "upgrade`); the app then expects the schema to already be at head "
-            "and fails startup if it is not usable"
+            "Run alembic migrations at app startup. Set to false when migrations "
+            "run as a separate deployment step (`litestar database upgrade`). "
+            "Startup then doesn't check the schema revision, so run the migration "
+            "before the new version starts, or startup and later requests fail "
+            "where the code expects tables the old schema lacks."
         ),
         json_schema_extra=ADVANCED_FIELD,
     )
@@ -923,6 +924,16 @@ class MapSettings(LegacyEnvNamesSettings):
             "secret: it is visible to anyone who can open the map."
         ),
     )
+    esri_api_key: str = Field(
+        default="",
+        description=(
+            "ArcGIS Location Platform API key for the map's Satellite view, "
+            "which draws Esri World Imagery. Keys are free at "
+            "https://location.arcgis.com. Without one the Satellite switch "
+            "stays off. It is not a secret, since anyone who can open the "
+            "map can see it."
+        ),
+    )
     home_locations: dict[str, tuple[float, float]] | None = Field(
         default=None,
         description="Replaced by `MAP_SERVER_LOCATIONS`.",
@@ -1108,6 +1119,95 @@ class DropSettings(BaseSettings):
     )
 
 
+class AbuseIpdbSettings(BaseSettings):
+    """AbuseIPDB integration: IP checks and, separately, abuse reports."""
+
+    model_config = SettingsConfigDict(env_prefix="ABUSEIPDB_", env_file=_env_file(), extra="ignore")
+
+    api_key: SecretStr | None = Field(
+        default=None,
+        description=(
+            "AbuseIPDB API key. Setting it lets GeoMetrikks check IPs against "
+            "api.abuseipdb.com. Opening a public IP in the inspector sends it to AbuseIPDB "
+            "and uses one daily check. An IP checked again within 15 minutes usually "
+            "costs nothing, since the last 512 answers are kept for 15 minutes."
+        ),
+    )
+    reporting_enabled: bool = Field(
+        default=False,
+        description=(
+            "Allow reporting IPs to AbuseIPDB from the UI. A report sends the IP, "
+            "your comment, the categories and the attack time to AbuseIPDB, where "
+            "they are public. Needs ABUSEIPDB_API_KEY."
+        ),
+    )
+    blacklist_enabled: bool = Field(
+        default=False,
+        description=(
+            "Download AbuseIPDB's blacklist from api.abuseipdb.com every "
+            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS, or read ABUSEIPDB_BLACKLIST_FILE, and mark listed IPs in the UI. "
+            "The request sends your key and no IPs. Needs the scheduler and either ABUSEIPDB_API_KEY "
+            "or ABUSEIPDB_BLACKLIST_FILE. The list is for your own use. AbuseIPDB forbids republishing "
+            "it, and free plans can't be used commercially."
+        ),
+    )
+    blacklist_file: Path | None = Field(
+        default=None,
+        description=(
+            "Read the blacklist from this file instead of downloading it, for a list you "
+            "already download some other way. It takes AbuseIPDB's JSON answer as saved, "
+            "or one IP per line. GeoMetrikks checks the file every 5 minutes and needs no "
+            "API key for it. Needs ABUSEIPDB_BLACKLIST_ENABLED=true."
+        ),
+    )
+    blacklist_refresh_hours: int = Field(
+        default=24,
+        ge=6,
+        le=36,
+        description=(
+            "Hours between blacklist downloads, from 6 to 36. The list is never fetched "
+            "again within 5 hours of the last attempt, since free plans get 5 calls a day. "
+            "If downloads keep failing, a list more than 72 hours old is no longer shown. "
+            "Not used with ABUSEIPDB_BLACKLIST_FILE."
+        ),
+        json_schema_extra=ADVANCED_FIELD,
+    )
+    request_timeout: float = Field(
+        default=10.0,
+        gt=0,
+        description="AbuseIPDB request timeout in seconds",
+        json_schema_extra=ADVANCED_FIELD,
+    )
+
+    @field_validator("api_key", "blacklist_file", mode="before")
+    @classmethod
+    def blank_reads_as_unset(cls, value: object) -> object:
+        """Strip the value, so ``ABUSEIPDB_API_KEY=`` in a compose file reads as unset."""
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        return value
+
+    @property
+    def enabled(self) -> bool:
+        """IP checks are available: an API key is set."""
+        return self.api_key is not None
+
+    @model_validator(mode="after")
+    def validate_reporting_has_key(self) -> "AbuseIpdbSettings":
+        """Fail at startup, not at the first report."""
+        if self.reporting_enabled and self.api_key is None:
+            raise ValueError("ABUSEIPDB_REPORTING_ENABLED requires ABUSEIPDB_API_KEY")
+        return self
+
+    @model_validator(mode="after")
+    def validate_blacklist_has_key(self) -> "AbuseIpdbSettings":
+        """Fail at startup, not at the first download."""
+        if self.blacklist_enabled and self.api_key is None and self.blacklist_file is None:
+            raise ValueError("ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY or ABUSEIPDB_BLACKLIST_FILE")
+        return self
+
+
 class OidcSettings(BaseSettings):
     """OpenID Connect login against one identity provider.
 
@@ -1122,8 +1222,11 @@ class OidcSettings(BaseSettings):
         description=(
             "Issuer URL of the identity provider, e.g. https://auth.example.com. "
             "Discovery is read from {issuer}/.well-known/openid-configuration "
-            "and the iss claim must equal this value exactly. Must be https "
-            "unless the host is localhost."
+            "and the issuer it names must match this value apart from a trailing "
+            "slash. The ID token's iss claim must equal that discovered issuer. "
+            "Must be https unless the host is localhost or a loopback IP address, "
+            "and must not carry credentials, a query string or a fragment, or "
+            "startup fails."
         ),
     )
     client_id: str | None = Field(
@@ -1137,7 +1240,9 @@ class OidcSettings(BaseSettings):
         description=(
             "The exact callback URL registered at the identity provider: the "
             f"public https address of this app plus {OIDC_CALLBACK_PATH}. "
-            "Plain http is only allowed on localhost."
+            "Plain http works only on localhost or a loopback IP address, and "
+            "credentials, a query string or a fragment in the URI stop startup. "
+            "An https URI also needs APP_SESSION_SECURE=true, or startup fails."
         ),
     )
     allowed_users: Annotated[list[str], NoDecode] = Field(
@@ -1303,7 +1408,11 @@ class AppSettings(BaseSettings):
 
     mode: Literal["full", "agent"] = Field(
         default="full",
-        description="Application mode: full (all components) or agent (logparser only)"
+        description=(
+            "Either full, which runs everything, or agent, which only tails logs "
+            "into the head's database and serves the two health routes, /health "
+            "and /health/ready."
+        ),
     )
     proxy_advisory: bool = Field(
         default=True,
@@ -1413,8 +1522,11 @@ class Settings(BaseSettings):
     auth_disabled: bool = Field(
         default=False,
         description=(
-            "Disable the built-in session auth entirely. Set true only when an "
-            "authenticating reverse proxy (Authelia, Tailscale, ...) fronts the app."
+            "Disable the built-in login and sessions. Anyone who reaches the port "
+            "can then use every API action, so set true only behind a reverse proxy "
+            "that authenticates every request, such as one guarded by Authelia. "
+            "Setting it together with OIDC_ISSUER, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET "
+            "and OIDC_REDIRECT_URI stops startup."
         ),
     )
     admin_user: str = Field(default="admin", description="Admin login username")
@@ -1429,7 +1541,8 @@ class Settings(BaseSettings):
         default=False,
         description=(
             "Mark the session cookie Secure so browsers only send it over "
-            "HTTPS. Recommended when serving behind a TLS reverse proxy."
+            "HTTPS. OpenID Connect with an https OIDC_REDIRECT_URI needs it, or "
+            "startup fails. Recommended behind any TLS reverse proxy."
         ),
     )
     session_max_age_days: int = Field(
@@ -1446,9 +1559,15 @@ class Settings(BaseSettings):
     trusted_proxies: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description=(
-            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. Env "
-            "accepts one value, comma-separated values, or a JSON list. "
-            "Empty (default): forwarded headers are never trusted."
+            "Reverse-proxy IPs/CIDRs allowed to supply X-Forwarded-For. The "
+            "login log, the OIDC login lines, an API key's last-used-from IP and "
+            "the api_key_rejected, api_key_created and api_key_revoked log lines "
+            "all record the client IP resolved through it, and the Exclude your IP "
+            "filter on the log pages looks up your address through it. Env accepts "
+            "one value, comma-separated values, or a JSON list. Empty (default): "
+            "forwarded headers are never trusted, so behind a proxy all of these "
+            "record the proxy's address and the filter shows Needs "
+            "APP_TRUSTED_PROXIES instead of excluding your IP."
         ),
     )
 
@@ -1496,6 +1615,7 @@ class Settings(BaseSettings):
     map: MapSettings = Field(default_factory=MapSettings)
     crowdsec: CrowdSecSettings = Field(default_factory=CrowdSecSettings)
     drop: DropSettings = Field(default_factory=DropSettings)
+    abuseipdb: AbuseIpdbSettings = Field(default_factory=AbuseIpdbSettings)
     oidc: OidcSettings = Field(default_factory=OidcSettings)
     vite: ViteSettings = Field(default_factory=ViteSettings)
 

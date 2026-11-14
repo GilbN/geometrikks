@@ -1,0 +1,155 @@
+---
+title: Multiple sources
+description: Run one full instance plus agents next to each proxy, or read several proxies from one instance, all into one database.
+---
+
+When traffic comes in through more than one reverse proxy or host, you have three ways to get it all into one GeoMetrikks:
+
+- One full instance tails several log files that already reach its machine, through a shared mount, rsyslog or log shipping. See [One instance, several files](#one-instance-several-files).
+- One full instance reads every proxy's lines from Grafana Loki. See [Loki as the alternative](#loki-as-the-alternative).
+- One full instance plus an agent on each proxy host, all writing into one database. The rest of this page is about this setup.
+
+## How it works
+
+The full instance, which Settings > Agents calls the head, does everything a single install does. It serves the UI and the API, runs [database migrations](../operate/deployment.mdx#migrations) and the background jobs, and is the only process that talks to CrowdSec, AbuseIPDB and Spamhaus. An agent is the same image started with `APP_MODE=agent`. It runs next to the access logs it reads, on the proxy's host or Docker network, and does the ingestion there: tail, parse, geolocate, write and publish. Every agent and the head share one TimescaleDB.
+
+Live traffic reaches the map whichever process ingested it. Every process publishes the requests it writes through Postgres LISTEN/NOTIFY, and the head's `/ws/live` feed relays all of them.
+
+An agent:
+
+- needs `LOGPARSER_ENABLED=true`, the default. An agent with `LOGPARSER_ENABLED=false` fails startup, because it would do nothing.
+- skips session auth and the OpenAPI schema, so it needs no `APP_ADMIN_PASSWORD`. It serves only `/health` and `/health/ready`, with no UI, API or WebSocket feeds.
+- downloads and refreshes its own GeoLite2 databases, so it needs MaxMind credentials and a geoip volume of its own.
+- never migrates the database or creates TimescaleDB objects. At startup it waits up to 120 seconds for the head to bring the schema to the revision the agent was built against. See [Health during the schema wait](#health-during-the-schema-wait).
+- writes the events it ingests, its own `server_locations` row and a heartbeat every 30 seconds. Nothing else.
+
+## Deploy an agent
+
+An agent needs `APP_MODE=agent`, credentials for the shared database, MaxMind credentials and its own log mount. Run the same image tag as the head.
+
+```yaml
+services:
+  agent:
+    image: ghcr.io/gilbn/geometrikks:0.25.0   # the same tag as the head
+    restart: unless-stopped
+    stop_grace_period: 20s
+    environment:
+      APP_MODE: agent
+      APP_INSTANCE_NAME: edge-01
+      DB_HOST: timescale.example.internal
+      DB_PORT: "5432"
+      DB_USER: geouser
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: geometrikks
+      MAXMINDDB_USER_ID: ${MAXMINDDB_USER_ID}
+      MAXMINDDB_LICENSE_KEY: ${MAXMINDDB_LICENSE_KEY}
+      LOGPARSER_LOG_PATHS: '["/var/log/access/access.log"]'
+      LOGPARSER_SERVER_NAME: edge-01
+    volumes:
+      - geoip_data:/app/data/geoip
+      - /var/log/nginx:/var/log/access:ro
+    healthcheck:
+      # Nothing answers during the GeoLite2 download or the schema wait,
+      # so start_period covers both.
+      # After a timed-out wait, /health answers 200 and /health/ready 503.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready', timeout=5).read()\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 150s
+
+volumes:
+  geoip_data:
+```
+
+The agent has to reach the head's database. The shipped compose file publishes no port for `timescale_db`, so an agent on another host can't connect until you add a `ports:` entry for 5432 on the head. Bind it to the head's VPN or tailnet address:
+
+```yaml
+services:
+  timescale_db:
+    ports:
+      - "100.64.0.10:5432:5432"
+```
+
+A bare `5432:5432` listens on every interface of the head, the public one included. See [Trust model](#trust-model) for why that matters.
+
+Upgrade the head and every agent to the same release together. [Upgrading](../get-started/upgrading.mdx#several-instances) has what an agent does while the head runs a newer schema.
+
+### Health during the schema wait
+
+The schema wait runs inside the app's startup, before it serves any request. For those up to 120 seconds nothing answers on port 8000, `/health` included. The agent keeps writing its heartbeat meanwhile, so Settings > Agents on the head shows it waiting instead of missing.
+
+Before the schema wait, the agent downloads GeoLite2 if its files are missing or due for a refresh, as on a first start, and looks up its public IP for the map. Nothing answers during that either, and the heartbeat hasn't started yet. A download usually takes seconds, but on a slow link it can take minutes.
+
+- When the schema reaches the agent's revision, the agent starts ingesting and both routes answer 200.
+- When the database runs a revision the agent doesn't know, as it does while the head runs a newer release, the agent logs a warning and starts anyway.
+- When the 120 seconds run out, the agent stays up without ingesting. `/health` answers 200 and `/health/ready` answers 503 until the agent restarts. The agent never retries by itself.
+
+The image's own healthcheck probes `/health`, so after a timed-out wait it reports a stuck agent as healthy. [Health checks](../operate/deployment.mdx#health-checks) describes both routes. The compose example above probes `/health/ready` instead. Its `start_period` of 150 seconds covers the schema wait and a normal download. Failed probes inside it don't count. On a slow link, raise it so a first start doesn't show the agent as `unhealthy` while it is still downloading.
+
+Compose doesn't act on health status. On plain Docker, `docker ps` shows a stuck agent as `unhealthy`, and a service with `depends_on: condition: service_healthy` on it keeps waiting, but nothing restarts it. `restart: unless-stopped` reacts to a container exiting, and a stuck agent stays up. Turning `unhealthy` into a restart takes Docker Swarm, an autoheal sidecar, or a Kubernetes liveness probe on `/health/ready`. Without one, run `docker compose restart agent` once the head has finished migrating.
+
+## Settings > Agents
+
+The head and every agent write a heartbeat to the shared database every 30 seconds. Settings > Agents on the head lists them, the head first. Each row shows the version, the server names, the lines and failures of the last 5 minutes, and when it last checked in. Click a row for the rest of what that process reports: ingestion counters, GeoIP databases, scheduled jobs, each log source with its own light, server locations and the last error.
+
+An agent that hasn't checked in for 180 seconds is marked not checking in, and only then does its row get a Remove button. If the agent is in fact still running, its next heartbeat brings the row back.
+
+Each agent that needs attention also gets a card at the top of Settings > Status, red or amber by its worst problem, linking to its row. An Agents card further down sums them up, worst problem first, for example "3 agents, 1 not checking in, 1 out of date", and the sidebar status dot turns amber. With no agents, Settings > Status shows none of these cards.
+
+### Instance names
+
+Set `APP_INSTANCE_NAME` on every agent. The heartbeat row is keyed by that name. Without it, an agent goes by `agent` and the head by `head`, so two unnamed agents write to the same `agent` row and overwrite each other's status. The page then shows whichever wrote last. The head flags an agent running under the default name, and a name that more than one process uses. A unique name per agent fixes both.
+
+`APP_INSTANCE_NAME` names the process. `LOGPARSER_SERVER_NAME` names the server on each request it records, so one agent tailing two servers' logs is still one row.
+
+## Server names and locations
+
+Every request records the server that ingested it, and Access Logs, Geo Logs and the map filter by server. `LOGPARSER_SERVER_NAME` sets that name. It is a name you choose, not your nginx `server_name`. Unset, it is the machine's hostname, and in Docker that is the container's hostname. The shipped compose file pins `hostname: geometrikks`, but the shipped `.env.example` sets `LOGPARSER_SERVER_NAME=my-server`, so a stock install records `my-server`. Give each agent its own name.
+
+Live map routes fly to the location of the server that recorded them, one beacon per server. Each ingesting process detects its public-IP location at startup and re-checks it every `MAP_SERVER_LOCATION_REFRESH_HOURS`, 24 by default.
+
+Detection goes wrong behind CGNAT, a VPN egress, or for logs shipped from another machine. Pin those servers on the head with `MAP_SERVER_LOCATIONS`, a JSON object keyed by server name:
+
+```dotenv
+MAP_SERVER_LOCATIONS={"edge-01": [60.39, 5.32]}
+```
+
+An override wins over detection, and an agent's detection never replaces it. Removing an entry deletes its row at the head's next start, and the server's own detection fills it in again at its next check. The Server locations card on Settings > Status lists each server's location and whether it came from detection or an override. See [Map settings](../reference/configuration.mdx#map).
+
+### CDN advisories
+
+While `APP_PROXY_ADVISORY` is on, as it is by default, the head scans the last hour of access-log rows every 5 minutes for requests that come from CDN addresses, so CDN advisories for an agent's sources reach the head's Settings > Status. The scan covers only sources with `LOGPARSER_SEND_LOGS=true`. Private-peer lines are never stored, so each agent checks its own and sends the advisory in its heartbeat. [Real client IP behind a proxy](./proxy-setup.mdx#limits) has the details.
+
+## A head that tails nothing
+
+To keep the UI and API on a machine that ingests nothing itself, with all traffic coming from agents, set this on the head:
+
+```dotenv
+LOGPARSER_ENABLED=false
+```
+
+Everything else a full instance does keeps running.
+
+## CrowdSec
+
+Point `CROWDSEC_LAPI_URL` and the CrowdSec credentials at the central LAPI on the head only. Agents ignore every `CROWDSEC_*` setting, and bans stay with the head. CrowdSec's own agents on each machine keep reporting to that LAPI as usual. [CrowdSec](../features/crowdsec.mdx) covers the setup.
+
+## Trust model
+
+Agents connect with ordinary database credentials, and GeoMetrikks accepts whatever reaches the database. Anyone who can run an agent has full read and write access to the whole database: every source's traffic history, every server, with no per-agent identity and no tenant separation. Revoking one agent means changing the shared password on every instance. Sharing one database between parties works as long as everyone knows they share everything. Run agent connections over a VPN or tailnet, not the open internet.
+
+## One instance, several files
+
+When the log files already reach one machine, a single full instance can tail them all and keep them apart. Give `LOGPARSER_SERVER_NAME` a JSON list in the order of `LOGPARSER_LOG_PATHS`:
+
+```dotenv
+LOGPARSER_LOG_PATHS=["/var/log/access/edge-01.log", "/var/log/access/edge-02.log"]
+LOGPARSER_SERVER_NAME=["edge-01", "edge-02"]
+```
+
+Each file is then its own server in the Server filters and gets its own server location on the map, like traffic from separate agents.
+
+## Loki as the alternative
+
+If the logs already go to Grafana Loki, one full instance can read every proxy's lines from there, with one LogQL selector and one server name per proxy. That needs no agents and no database port open to other hosts. See [Grafana Loki](./loki.mdx).

@@ -1,0 +1,5 @@
+{
+  "title": "Log sources",
+  "defaultOpen": true,
+  "pages": ["nginx", "nginx-proxy-manager", "traefik", "caddy", "loki", "multiple-sources", "proxy-setup"]
+}

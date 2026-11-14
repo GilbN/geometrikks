@@ -89,3 +89,20 @@ jobs:
           # amd64 layers CI cached for the same commit. Nothing would ever read
           # a cache this run wrote, so there is no cache-to.
           cache-from: type=gha,scope=container-smoke
+
+  docs-promote:
+    name: Rebuild the docs for a stable release
+    needs: publish-image
+    if: ${{ !contains(github.ref_name, '-dev.') }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Trigger the develop docs build
+        env:
+          DOCS_DEPLOY_HOOK_URL: ${{ secrets.DOCS_DEPLOY_HOOK_URL }}
+        run: |
+          if [[ -z "${DOCS_DEPLOY_HOOK_URL}" ]]; then
+            echo "::notice::DOCS_DEPLOY_HOOK_URL is not set; the release folder is promoted by the next develop build."
+            exit 0
+          fi
+          curl -fsS --retry 3 -X POST "${DOCS_DEPLOY_HOOK_URL}" -o /dev/null

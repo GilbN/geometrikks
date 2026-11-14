@@ -16,7 +16,7 @@ export function IpSignalsStrip({ signals }: { signals: Signal[] }) {
     <div className="flex flex-wrap gap-1.5" aria-label="Signals">
       {signals.map((s) => (
         <BadgeHint key={s.key} hint={SIGNAL_DESCRIPTIONS[s.key]} hover="tooltip">
-          <Badge variant="outline" tabIndex={0} className={cn("cursor-help font-medium", TONE[s.tone])}>
+          <Badge variant="outline" className={cn("cursor-help font-medium", TONE[s.tone])}>
             {s.label}
           </Badge>
         </BadgeHint>

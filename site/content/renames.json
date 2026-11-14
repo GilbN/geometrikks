@@ -1,0 +1,9 @@
+{
+  "get-started/configuration": "reference/configuration",
+  "operate/geolite2": "get-started/geolite2",
+  "operate/authentication": "features/authentication",
+  "features/multi-source": "sources/multiple-sources",
+  "features/cli": "operate/cli",
+  "reference/faq": "operate/faq",
+  "reference/api-conventions": "contribute/api-conventions"
+}

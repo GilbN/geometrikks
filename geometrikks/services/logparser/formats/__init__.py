@@ -23,6 +23,9 @@ FORMATS: dict[str, LogLineFormat] = {
 }
 
 
+NPM_DOCS_URL = "https://geometrikks.dev/docs/sources/nginx-proxy-manager/"
+
+
 class ImportOnlyFormat(NamedTuple):
     """A format only `litestar import-logs` reads, and what to tail instead."""
 
@@ -39,8 +42,7 @@ IMPORT_ONLY_FORMATS: dict[str, ImportOnlyFormat] = {
         live_tailing_message=(
             "'npm' is Nginx Proxy Manager's own log format, and only "
             "`litestar import-logs` reads it. For live logs, have NPM write a "
-            "geometrikks-json log as the README's Nginx Proxy Manager section "
-            "describes."
+            "geometrikks-json log. See " + NPM_DOCS_URL + "."
         ),
     ),
 }

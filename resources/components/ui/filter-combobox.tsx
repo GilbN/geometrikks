@@ -3,9 +3,7 @@
  * the app's existing filter-bar buttons) opens either a floating combobox
  * popup with a search box (desktop) or a drawer with the same search +
  * checklist body (phones, touch-friendly; from the right held sideways).
- * Pass `forceInline` when the
- * host already provides its own on-mobile overlay (e.g. a panel that's
- * itself a Drawer) so this component doesn't nest a second one.
+ * A phone drawer that holds several filters uses FilterListRow instead.
  */
 import { useState } from "react"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react"
@@ -47,11 +45,6 @@ interface FilterComboboxProps<T extends string | number> {
   contentClassName?: string
   /** Fired when the popup/drawer opens or closes (e.g. to lazy-load facets). */
   onOpenChange?: (open: boolean) => void
-  /**
-   * Render just the search + checklist body in place, with no trigger or
-   * overlay. For hosts that already manage their own mobile overlay.
-   */
-  forceInline?: boolean
   disabled?: boolean
   /** Unpicked options turn inactive once this many are picked. */
   maxSelected?: number
@@ -171,7 +164,6 @@ export function FilterCombobox<T extends string | number>({
   className,
   contentClassName,
   onOpenChange,
-  forceInline = false,
   disabled = false,
   maxSelected,
 }: FilterComboboxProps<T>) {
@@ -180,34 +172,10 @@ export function FilterCombobox<T extends string | number>({
     setOpen(next)
     onOpenChange?.(next)
   }
-  const drawer = usePhoneDrawer("filter-combobox", open, () => changeOpen(false), forceInline ? { phone: false } : undefined)
+  const drawer = usePhoneDrawer("filter-combobox", open, () => changeOpen(false))
   const count = selected.length
   const atMax = maxSelected !== undefined && count >= maxSelected
   const triggerLabel = `${label}${count > 0 ? ` (${count})` : ""}`
-
-  if (forceInline) {
-    if (disabled) {
-      return (
-        <Button variant="outline" size="sm" disabled className={cn("h-8 justify-between pointer-coarse:h-10", className)}>
-          {label}
-          <ChevronsUpDown className="ml-1 h-3.5 w-3.5" />
-        </Button>
-      )
-    }
-    return (
-      <FilterComboboxBody
-        options={options}
-        selected={selected}
-        onChange={onChange}
-        labelFor={labelFor}
-        iconFor={iconFor}
-        loading={loading}
-        emptyText={emptyText}
-        label={label}
-        maxSelected={maxSelected}
-      />
-    )
-  }
 
   if (drawer.phone) {
     return (

@@ -33,7 +33,8 @@ from geometrikks.services.rdap import RdapUnavailableError
 logger = get_logger(__name__)
 
 
-# Litestar's native envelope keeps snake_case keys (docs/api-conventions.md).
+# Litestar's native envelope keeps snake_case keys
+# (see https://geometrikks.dev/docs/contribute/api-conventions/).
 class ErrorEnvelope(msgspec.Struct):
     """The JSON body of an error response.
 

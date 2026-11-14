@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 from litestar import Litestar
+from litestar.di import Provide
 from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers.settings import read_settings
+from geometrikks.domain.system.controllers.system import SystemController
 from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.server.routes import create_api_v1_router
 from tests.support import ambient_settings_dependency
+from tests.test_system_controller import UnreachableEngine
 
 
 def make_app() -> Litestar:
@@ -41,6 +44,7 @@ def test_settings_response_is_whitelisted():
         "serverLongitude": -74.006,
         "serverLocationSource": "external_ip",
         "cartoApiKey": None,
+        "esriApiKey": None,
         "defaultView": None,
     }
 
@@ -73,6 +77,16 @@ def test_settings_exposes_carto_api_key(monkeypatch):
     assert body["map"]["cartoApiKey"] == "carto-public-key"
 
 
+def test_settings_exposes_esri_api_key(monkeypatch):
+    """The imagery key goes to the browser on purpose, because MapLibre puts it on satellite tile URLs."""
+    monkeypatch.setenv("MAP_ESRI_API_KEY", "esri-public-key")
+
+    with TestClient(app=make_app()) as client:
+        body = client.get("/api/v1/settings").json()
+
+    assert body["map"]["esriApiKey"] == "esri-public-key"
+
+
 def test_settings_exposes_default_view(monkeypatch):
     monkeypatch.setenv("MAP_DEFAULT_VIEW", "71.129982,27.653369,15")
 
@@ -80,3 +94,21 @@ def test_settings_exposes_default_view(monkeypatch):
         body = client.get("/api/v1/settings").json()
 
     assert body["map"]["defaultView"] == {"latitude": 71.129982, "longitude": 27.653369, "zoom": 15.0}
+
+
+def test_system_settings_lists_abuseipdb_without_the_key(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_API_KEY", "abuseipdb-secret-key")
+    app = Litestar(
+        route_handlers=[create_api_v1_router([SystemController])],
+        dependencies={
+            **ambient_settings_dependency(),
+            "db_engine": Provide(UnreachableEngine, sync_to_thread=False),
+        },
+    )
+
+    with TestClient(app=app) as client:
+        response = client.get("/api/v1/system/settings")
+
+    assert response.status_code == 200
+    assert "abuseipdb" in [section["name"] for section in response.json()["sections"]]
+    assert "abuseipdb-secret-key" not in response.text

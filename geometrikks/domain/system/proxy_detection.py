@@ -9,7 +9,7 @@ from typing import Any, Iterable, Literal
 
 from geometrikks.lib.advisories import Advisory
 
-PROXY_SETUP_DOCS_URL = "https://github.com/GilbN/geometrikks/blob/main/docs/proxy-setup.md"
+PROXY_SETUP_DOCS_URL = "https://geometrikks.dev/docs/sources/proxy-setup/"
 
 _TRAEFIK_REMEDY = "entryPoints.<name>.forwardedHeaders.trustedIPs"
 _CADDY_REMEDY = "servers.trusted_proxies"

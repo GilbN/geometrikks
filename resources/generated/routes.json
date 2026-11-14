@@ -15,6 +15,16 @@
       ],
       "uri": "/api/v1/crowdsec/ban-networks"
     },
+    "check_ip": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "ipAddress": "string"
+      },
+      "uri": "/api/v1/abuseipdb/check"
+    },
     "connection": {
       "method": "get",
       "methods": [
@@ -28,6 +38,13 @@
         "POST"
       ],
       "uri": "/api/v1/auth/api-keys"
+    },
+    "create_reports": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/abuseipdb/reports"
     },
     "delete_instance": {
       "method": "delete",
@@ -103,6 +120,13 @@
       },
       "uri": "/api/v1/reports/abuse"
     },
+    "get_abuseipdb_status": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/abuseipdb/status"
+    },
     "get_access_log_debug_stats": {
       "method": "get",
       "methods": [
@@ -141,12 +165,26 @@
       ],
       "uri": "/api/v1/system/asn-classification"
     },
+    "get_blacklist": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/abuseipdb/blacklist"
+    },
     "get_changelog": {
       "method": "get",
       "methods": [
         "GET"
       ],
       "uri": "/api/v1/system/changelog"
+    },
+    "get_client_ip": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/system/client-ip"
     },
     "get_cumulative_time_series": {
       "method": "get",
@@ -812,6 +850,37 @@
         "GET"
       ],
       "uri": "/api/v1/instances"
+    },
+    "list_report_history": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "categoryIn": "number[] | undefined",
+        "currentPage": "number | undefined",
+        "pageSize": "number | undefined",
+        "q": "string | undefined",
+        "statusIn": "(\"unconfirmed\" | \"sent\")[] | undefined"
+      },
+      "uri": "/api/v1/abuseipdb/reports/history"
+    },
+    "list_reported_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/abuseipdb/reported-ips"
+    },
+    "list_reports": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "queryParameters": {
+        "ipAddress": "string"
+      },
+      "uri": "/api/v1/abuseipdb/reports"
     },
     "login": {
       "method": "post",

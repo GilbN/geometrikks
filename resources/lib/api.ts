@@ -3,6 +3,7 @@
  */
 
 import axios from "axios"
+import type { ReportItemInput } from "@/generated/api/types.gen"
 import {
   apiV1GeoEventsFacetsGetGeoLogFacets,
   apiV1GeoEventsLogsGetGeoLogs,
@@ -27,6 +28,13 @@ import {
   apiV1AnalyticsIpProfileGetIpProfile,
   apiV1ReportsAbuseGetAbuseReport,
   apiV1ReportsAbuseContactGetAbuseContact,
+  apiV1AbuseipdbCheckCheckIp,
+  apiV1AbuseipdbReportedIpsListReportedIps,
+  apiV1AbuseipdbReportsCreateReports,
+  apiV1AbuseipdbReportsHistoryListReportHistory,
+  apiV1AbuseipdbReportsListReports,
+  apiV1AbuseipdbBlacklistGetBlacklist,
+  apiV1AbuseipdbStatusGetAbuseipdbStatus,
   apiV1AuthApiKeysListApiKeys,
   apiV1AuthApiKeysCreateApiKey,
   apiV1AuthApiKeysKeyIdRevokeApiKey,
@@ -44,6 +52,7 @@ import type {
   AsnClassificationListResponse,
   ChangelogResponse,
   ReleaseCheckResponse,
+  ClientIpResponse,
   CrowdSecStatusResponse,
   CrowdSecStatsResponse,
   AlertView,
@@ -384,6 +393,12 @@ export async function fetchDropLists(): Promise<DropListsResponse> {
 
 export async function fetchReleaseCheck(): Promise<ReleaseCheckResponse> {
   const { data } = await api.get<ReleaseCheckResponse>("/system/release-check")
+  return data
+}
+
+export async function fetchClientIp(): Promise<ClientIpResponse> {
+  // A phone switching networks can stall the request, and taps wait for it.
+  const { data } = await api.get<ClientIpResponse>("/system/client-ip", { timeout: 10_000 })
   return data
 }
 
@@ -907,6 +922,47 @@ export async function fetchAbuseContact(target: AbuseReportTarget) {
     query: target.kind === "ip" ? { ipAddress: target.ip } : { asn: target.asn },
     throwOnError: true,
   })
+  return data
+}
+
+export async function fetchAbuseIpdbStatus() {
+  const { data } = await apiV1AbuseipdbStatusGetAbuseipdbStatus({ throwOnError: true })
+  return data
+}
+
+export async function fetchAbuseIpdbBlacklist() {
+  const { data } = await apiV1AbuseipdbBlacklistGetBlacklist({ throwOnError: true })
+  return data
+}
+
+export async function fetchReportedIps() {
+  const { data } = await apiV1AbuseipdbReportedIpsListReportedIps({ throwOnError: true })
+  return data
+}
+
+export async function fetchAbuseIpdbReports(ipAddress: string) {
+  const { data } = await apiV1AbuseipdbReportsListReports({ query: { ipAddress }, throwOnError: true })
+  return data
+}
+
+export async function fetchAbuseIpdbReportHistory(params: {
+  q?: string
+  categoryIn?: number[]
+  statusIn?: ("sent" | "unconfirmed")[]
+  currentPage: number
+  pageSize: number
+}) {
+  const { data } = await apiV1AbuseipdbReportsHistoryListReportHistory({ query: params, throwOnError: true })
+  return data
+}
+
+export async function fetchAbuseIpdbCheck(ipAddress: string) {
+  const { data } = await apiV1AbuseipdbCheckCheckIp({ query: { ipAddress }, throwOnError: true })
+  return data
+}
+
+export async function submitAbuseIpdbReport(report: ReportItemInput) {
+  const { data } = await apiV1AbuseipdbReportsCreateReports({ body: { reports: [report] }, throwOnError: true })
   return data
 }
 

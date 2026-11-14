@@ -119,7 +119,7 @@ type DropRanges<Address extends number | bigint> = {
 export type DropIndex = { v4: DropRanges<number>; v6: DropRanges<bigint> }
 
 /** Parses a dotted quad and rejects leading zeros. It scans characters because split and a regex per octet took most of a lookup's time. */
-function parseIpv4Number(text: string): number | null {
+export function parseIpv4Number(text: string): number | null {
   let value = 0
   let octet = 0
   let digits = 0
@@ -144,7 +144,7 @@ function parseIpv4Number(text: string): number | null {
 }
 
 /** The eight 16-bit groups of an IPv6 address, with `::` expanded and a dotted-quad tail split in two. */
-function parseIpv6Groups(text: string): number[] | null {
+export function parseIpv6Groups(text: string): number[] | null {
   const head: number[] = []
   const tail: number[] = []
   let groups = head
@@ -198,7 +198,7 @@ function parseIpv6Groups(text: string): number[] | null {
   return head
 }
 
-function ipv6Value(groups: readonly number[]): bigint {
+export function ipv6Value(groups: readonly number[]): bigint {
   let hex = ""
   for (const group of groups) hex += group.toString(16).padStart(4, "0")
   return BigInt(`0x${hex}`)

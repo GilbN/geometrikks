@@ -18,15 +18,15 @@ function collection(features: BannedMapFeature[]): BannedMapCollection {
     ips: ips.length, locations: features.length, events: ips.reduce((sum, ip) => sum + ip.eventCount, 0), countries: 1, cities: 1,
   } }
 }
-async function setup(page: Page, data = collection([group("2", 25)])) {
+async function setup(page: Page, data = collection([group("2", 25)]), { live = false } = {}) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
-  await page.addInitScript(() => {
+  await page.addInitScript((liveOn) => {
     localStorage.setItem("geometrikks-map-layer", "banned")
-    localStorage.setItem("geometrikks-map-live", "false")
+    localStorage.setItem("geometrikks-map-live", String(liveOn))
     localStorage.setItem("geometrikks-server-markers-enabled", "false")
-  })
+  }, live)
   let socket: WebSocketRoute | undefined
   await page.routeWebSocket("**/ws/crowdsec", (ws) => { socket = ws })
   const state = { data, failed: false, enabled: true, decisions: 2, requests: [] as URL[] }
@@ -265,6 +265,7 @@ test("with a banner on the phone map the chip and the toasts sit under it", asyn
   })
   await setup(page)
   await expect(page.locator("[data-shell-top]")).toContainText("Geo lookups disabled")
+  await expect(page.locator("[data-shell-top]")).toContainText("docker compose up -d")
   const shellTop = await box(page.locator("[data-shell-top]"))
   expect(shellTop.y).toBe(0)
   expect(shellTop.height).toBeGreaterThan(59)
@@ -662,4 +663,154 @@ test("IP inspection preserves the range and can focus another traffic location",
   await expect(page.locator(".geo-popup").getByText("Stockholm", { exact: true })).toBeVisible()
   await expect(page.locator(".geo-popup").getByText("Sweden", { exact: true })).toBeVisible()
   await page.screenshot({ path: "smoke-artifacts/banned-map-inspect-return.png" })
+})
+
+test.describe("AbuseIPDB blacklist", () => {
+  const LISTED_IP = "192.0.2.1"
+  const BLACKLIST_TITLE = "On AbuseIPDB's blacklist of IPs with a 100% abuse confidence score"
+  const bannedPopup = (page: Page) => page.getByRole("dialog", { name: "Banned IPs", exact: true })
+  const ipRow = (popup: Locator) => popup.getByRole("button", { name: /^192\.0\.2\.1 / })
+
+  async function mockBlacklist(page: Page) {
+    await page.route("**/api/v1/abuseipdb/status", (route) => route.fulfill({ json: {
+      enabled: false, reportingEnabled: false, blacklistEnabled: true, reports: null, checks: null,
+    } }))
+    await page.route("**/api/v1/abuseipdb/blacklist", (route) => route.fulfill({ json: {
+      generatedAt: "2026-11-08T06:00:00Z", refreshedAt: "2026-11-08T06:05:00Z", ips: [LISTED_IP],
+    } }))
+  }
+
+  async function mockDropListing(page: Page) {
+    const updatedAt = "2026-11-08T06:00:00Z"
+    await page.route("**/api/v1/system/about", async (route) => {
+      const about = await (await route.fetch()).json()
+      about.dropLists = { ...about.dropLists, enabled: true, loaded: true, updatedAt }
+      return route.fulfill({ json: about })
+    })
+    await page.route("**/api/v1/drop/lists", (route) => route.fulfill({ json: {
+      enabled: true, loaded: true, stale: false, updatedAt, copyright: null, feeds: [], asns: [],
+      networks: [{ cidr: "192.0.2.0/24", sblId: "SBL000001" }],
+    } }))
+  }
+
+  test("a desktop popup gives a listed IP a Listed on row", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await mockBlacklist(page)
+    await setup(page, collection([group("2", 3)]))
+    await openCenterPopup(page)
+    const popup = bannedPopup(page)
+    await ipRow(popup).click()
+    await expect(popup.getByText("Listed on", { exact: true })).toHaveCount(1)
+    await expect(popup.getByTitle(BLACKLIST_TITLE)).toHaveText("AbuseIPDB blacklist")
+  })
+
+  test("a desktop popup gives an IP on both lists a row for each", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await mockBlacklist(page)
+    await mockDropListing(page)
+    await setup(page, collection([group("2", 3)]))
+    await openCenterPopup(page)
+    const popup = bannedPopup(page)
+    await ipRow(popup).click()
+    await expect(popup.getByText("Listed on", { exact: true })).toHaveCount(2)
+    await expect(popup.getByTitle(BLACKLIST_TITLE)).toBeVisible()
+    await expect(popup.getByTitle("On the DROP list as SBL000001")).toBeVisible()
+  })
+
+  test("a phone panel marks a listed IP", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await mockBlacklist(page)
+    await mockDropListing(page)
+    await setup(page, collection([group("2", 3)]))
+    await openCenterPopup(page)
+    const panel = bannedPopup(page)
+    await ipRow(panel).click()
+    await expect(panel.getByTitle(BLACKLIST_TITLE)).toBeVisible()
+    await expect(panel.getByTitle("On the DROP list as SBL000001")).toBeVisible()
+  })
+
+  async function mockLiveRequest(page: Page) {
+    await page.routeWebSocket("**/ws/live", (socket) => {
+      socket.send(JSON.stringify({ type: "batch", dropped: 0, events: [{ type: "request", geo: null, log: {
+        timestamp: new Date().toISOString(), ip_address: LISTED_IP, remote_user: null, method: "GET", url: "/wp-login.php",
+        http_version: "HTTP/1.1", status_code: 403, bytes_sent: 120, referrer: null, user_agent: null, request_time: null,
+        upstream_response_time: null, host: "a.test", country_code: null, country_name: null, city: null,
+        autonomous_system_number: null, autonomous_system_organization: null, server: "a.test",
+      } }] }))
+    })
+  }
+
+  async function openLiveRequest(page: Page) {
+    const { state } = await setup(page, collection([group("2", 3)]), { live: true })
+    state.decisions = 0
+    await page.locator("[data-live-pill] button").click()
+    await page.getByRole("button", { name: /wp-login/ }).click()
+    return page.getByRole("dialog", { name: "Live request", exact: true })
+  }
+
+  test("a phone live request panel marks a listed IP", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await mockBlacklist(page)
+    await mockLiveRequest(page)
+    const panel = await openLiveRequest(page)
+    await expect(panel.getByTitle(BLACKLIST_TITLE)).toBeVisible()
+  })
+
+  test("a phone tap on a listed IP explains the blacklist", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await mockBlacklist(page)
+    await mockLiveRequest(page)
+    const panel = await openLiveRequest(page)
+    await panel.getByRole("button", { name: /^192\.0\.2\.1/ }).click()
+    const drawer = page.locator('[data-slot="drawer-content"][data-state="open"]')
+    const heading = drawer.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" })
+    await expect(heading).toBeVisible()
+    await expect(heading.getByText("Blacklist", { exact: true })).toBeVisible()
+    await expect(drawer.getByText("100% abuse confidence", { exact: true })).toBeVisible()
+    await expect(drawer.getByText(/^Generated /)).toBeVisible()
+    await expect(drawer.getByRole("link", { name: "View on AbuseIPDB", exact: true }))
+      .toHaveAttribute("href", `https://www.abuseipdb.com/check/${LISTED_IP}`)
+    await expect(drawer.getByText("GeoMetrikks has not blocked this IP.", { exact: false })).toHaveCount(1)
+  })
+
+  test("an IP on both lists says it is not blocked once", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await mockBlacklist(page)
+    await mockDropListing(page)
+    await mockLiveRequest(page)
+    const panel = await openLiveRequest(page)
+    await panel.getByRole("button", { name: /^192\.0\.2\.1/ }).click()
+    const drawer = page.getByRole("dialog", { name: /^192\.0\.2\.1 \(on the DROP list as SBL000001\) \(on AbuseIPDB's blacklist\)/ })
+    await expect(drawer.getByRole("heading").filter({ hasText: "Spamhaus DROP list" })).toBeVisible()
+    await expect(drawer.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" })).toBeVisible()
+    await settled(drawer)
+    await page.screenshot({ path: "smoke-artifacts/banned-map-both-lists-drawer.png" })
+    const drawerText = await drawer.innerText()
+    const notBlocked = "GeoMetrikks has not blocked this IP."
+    expect(drawerText.split(notBlocked)).toHaveLength(2)
+    expect(drawerText.indexOf(notBlocked)).toBeGreaterThan(drawerText.indexOf("AbuseIPDB's blacklist holds"))
+  })
+
+  test("a desktop location popup says a listed IP is on the blacklist and explains it", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await mockBlacklist(page)
+    await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
+      type: "FeatureCollection", stats: { events: 3, countries: 1, cities: 1, locations: 1 },
+      features: [{ type: "Feature", geometry: { type: "Point", coordinates: [18, 59] }, properties: {
+        id: 131, geohash: "u6sc", city: "Stockholm", countryCode: "SE", countryName: "Sweden", eventCount: 3, lastHit: null, topIps: [],
+      } }],
+    } }))
+    await page.route("**/api/v1/geo-locations/131/top-ips*", (route) => route.fulfill({ json: {
+      locationId: 131, uniqueIps: 1, topIps: [{ ipAddress: LISTED_IP, eventCount: 3, location: null }],
+    } }))
+    const { state } = await setup(page, collection([group("2", 3)]))
+    state.decisions = 0
+    await page.goto("/map?focus=131")
+    const popup = page.locator(".geo-popup")
+    await expect(popup.getByText(/^On AbuseIPDB blacklist · 3 events/)).toBeVisible()
+    await popup.getByRole("button", { name: /^1\.\s+192\.0\.2\.1/ }).click()
+    const popover = page.getByRole("dialog", { name: `Why ${LISTED_IP} is marked`, exact: true })
+    await expect(popover.getByRole("heading").filter({ hasText: "AbuseIPDB blacklist" })).toBeVisible()
+    await expect(popover.getByRole("link", { name: "View on AbuseIPDB", exact: true })).toBeVisible()
+  })
 })

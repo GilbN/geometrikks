@@ -200,6 +200,59 @@ test.describe("portrait", () => {
     expect(badge.y + badge.height).toBeLessThan(line.y)
   })
 
+  test("the Layers drawer's filters are rows, and a long list opens a search page in the drawer", async ({ page }) => {
+    await page.route("**/api/v1/geo-events/facets*", (route) => route.fulfill({ json: {
+      servers: ["edge-1", "edge-2"],
+      countries: [{ code: "NO", name: "Norway" }, { code: "SE", name: "Sweden" }],
+      cities: ["Oslo"],
+      asns: [],
+    } }))
+    await setup(page)
+    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    const drawer = page.locator('[data-slot="drawer-content"]')
+    await expect(drawer.getByRole("textbox")).toHaveCount(0)
+
+    const row = drawer.getByRole("button", { name: "Country: Any", exact: true })
+    await row.click()
+    await expect(drawer.getByRole("heading", { name: "Country", exact: true })).toBeVisible()
+    await expect(drawer.getByRole("button", { name: "Map tools" })).toHaveCount(0)
+    const back = drawer.getByRole("button", { name: "Map controls", exact: true })
+    await expect(back).toBeFocused()
+    await drawer.getByRole("textbox", { name: "Search country", exact: true }).fill("nor")
+    await drawer.getByRole("button", { name: "Norway (NO)", exact: true }).click()
+    await expect.poll(() => new URL(page.url()).searchParams.get("countries")).toContain("NO")
+
+    await back.click()
+    const picked = drawer.getByRole("button", { name: "Country: Norway", exact: true })
+    await expect(picked).toBeFocused()
+    await expect(drawer.getByRole("button", { name: "Map tools" })).toBeVisible()
+
+    await picked.click()
+    await expect(drawer.getByRole("heading", { name: "Country", exact: true })).toBeVisible()
+    await page.keyboard.press("Escape")
+    await expect(drawer).toHaveCount(0)
+    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await expect(drawer.getByRole("button", { name: "Country: Norway", exact: true })).toBeVisible()
+    await expect(drawer.getByRole("button", { name: "Map tools" })).toBeVisible()
+  })
+
+  test("leaving the phone layout closes the Layers drawer, search page and all", async ({ page }) => {
+    await setup(page)
+    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    const drawer = page.locator('[data-slot="drawer-content"]')
+    await drawer.getByRole("button", { name: "Country: Any", exact: true }).click()
+    await expect(drawer.getByRole("heading", { name: "Country", exact: true })).toBeVisible()
+
+    await page.setViewportSize({ width: 900, height: 852 })
+    await expect(page.getByRole("complementary", { name: "Map controls" })).toBeVisible()
+    await page.setViewportSize({ width: 393, height: 852 })
+    await expect(pill(page)).toBeVisible()
+    await expect(drawer).toHaveCount(0)
+
+    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await expect(drawer.getByRole("heading", { name: "Map controls", exact: true })).toBeVisible()
+  })
+
   test("Live is a toggle", async ({ page }) => {
     await setup(page)
     const live = pill(page).getByRole("button", { name: "Live", exact: true })

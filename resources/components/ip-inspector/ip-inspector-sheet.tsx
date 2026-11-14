@@ -4,9 +4,11 @@ import { BarChart3, Bug, ChevronDown, FileText, RotateCcw, RotateCw, type Lucide
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AbuseReportButton } from "@/components/abuse-report/abuse-report-dialog"
+import { AbuseIpdbBadge } from "@/components/abuseipdb/abuseipdb-badge"
 import { CountryFlag } from "@/components/country-flag"
 import { DetailSheet } from "@/components/data/detail-sheet"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
+import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
 import { DropBadge } from "@/components/drop/drop-badge"
 import { ExternalLink } from "@/components/crowdsec/external-link"
 import { IpBanAction } from "@/components/crowdsec/ip-ban-controls"
@@ -16,9 +18,10 @@ import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, isValidIp, winningDecision } f
 import { cn } from "@/lib/utils"
 import { formatTs } from "@/lib/datetime"
 import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
+import { abuseipdbCheckUrl, isPublicIp } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
-import { useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
+import { useAbuseIpdbBlacklisted, useAbuseIpdbStatus, useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
@@ -125,6 +128,8 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
   const latestAlert = useIpLatestAlert(ip)
   const locations = useIpLocations(ip)
   const dropNetwork = useDropNetwork(ip)
+  const blacklisted = useAbuseIpdbBlacklisted(ip)
+  const abuseChecksOn = useAbuseIpdbStatus().data?.enabled === true && isPublicIp(ip)
 
   const profile = profileQuery.data
   const decision = winningDecision(decisions.data)
@@ -152,19 +157,24 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
               <ExternalLink href={crowdsecCtiUrl(ip)}>CrowdSec CTI</ExternalLink>
             </>
           )}
+          {(primary || profile?.asn != null || crowdsecEnabled) && " · "}
+          <ExternalLink href={abuseipdbCheckUrl(ip)}>AbuseIPDB</ExternalLink>
         </p>
-        {(decision || dropNetwork) && (
+        {(decision || dropNetwork || blacklisted || abuseChecksOn) && (
           <div className="flex flex-wrap items-center gap-2">
             {decision && (
               <DecisionBadge
                 type={decision.type}
-                className="h-auto max-w-full whitespace-normal break-words text-left"
+                hover="tooltip"
+                className="h-auto max-w-full cursor-help whitespace-normal break-words text-left"
                 title={`Origin: ${decision.origin}`}
               >
                 {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
               </DecisionBadge>
             )}
-            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked />}
+            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked hover="tooltip" className="cursor-help" />}
+            {blacklisted && <AbuseIpdbBlacklistBadge hover="tooltip" className="cursor-help" />}
+            {abuseChecksOn && <AbuseIpdbBadge key={ip} ip={ip} />}
           </div>
         )}
       </header>

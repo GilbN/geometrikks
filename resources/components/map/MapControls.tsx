@@ -8,7 +8,7 @@
  * Layers button opens a drawer with the same sections.
  */
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useMap } from "react-map-gl/maplibre"
 import { MapActionPill, usePillSize } from "./MapActionPill"
 import { MapOverlay } from "./MapOverlay"
@@ -37,6 +37,8 @@ import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useCoverBar, usePhoneChrome } from "@/lib/phone-chrome"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
+import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
+import { FilterPageBack, FilterPageHost, FilterPagesProvider, useFilterPageState } from "@/components/ui/filters-drawer"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -50,6 +52,7 @@ import {
   Maximize2,
   MoreHorizontal,
   Radio,
+  Satellite,
   Server,
   SlidersHorizontal,
   Sparkles,
@@ -81,6 +84,12 @@ interface MapControlsProps {
   onLayerChange: (layer: LayerType) => void
   projection: MapProjection
   onProjectionChange: (projection: MapProjection) => void
+  satellite: boolean
+  /** False without an Esri key, which disables the Satellite switch. */
+  satelliteAvailable: boolean
+  /** The satellite style failed to load, so the street map is still showing. */
+  satelliteFailed: boolean
+  onSatelliteChange: (enabled: boolean) => void
   liveMode: boolean
   demoTrafficMode?: DemoTrafficMode
   onLiveModeChange: (enabled: boolean) => void
@@ -105,6 +114,8 @@ interface MapControlsProps {
   onSelectIp?: (ip: TopIPDTO) => void
   countryOptions: string[]
   countryLabels?: Record<string, string>
+  /** Country names for the phone's filter rows, which have no room for the code. */
+  countryNames?: Record<string, string>
   cityOptions: string[]
   selectedCountries: string[]
   selectedCities: string[]
@@ -224,6 +235,10 @@ export function MapControls({
   onLayerChange,
   projection,
   onProjectionChange,
+  satellite,
+  satelliteAvailable,
+  satelliteFailed,
+  onSatelliteChange,
   liveMode,
   demoTrafficMode = "off",
   onLiveModeChange,
@@ -246,6 +261,7 @@ export function MapControls({
   onSelectIp,
   countryOptions,
   countryLabels,
+  countryNames,
   cityOptions,
   selectedCountries,
   selectedCities,
@@ -263,12 +279,20 @@ export function MapControls({
   const activeFilterCount =
     (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const filterPages = useFilterPageState()
+  const { reset: resetFilterPage } = filterPages
+  const changeDrawerOpen = useCallback((open: boolean) => {
+    setDrawerOpen(open)
+    if (!open) resetFilterPage()
+  }, [resetFilterPage])
   const isMobile = usePhoneLayout()
   const drawer = useSideDrawer()
-  // vaul cannot turn an open drawer around, so a rotation closes it.
-  useEffect(() => setDrawerOpen(false), [drawer.direction])
+  // vaul cannot turn an open drawer around, so a rotation closes it. The
+  // desktop layout has no drawer, and an open one would come back on a
+  // search page whose row has remounted under a new id.
+  useEffect(() => changeDrawerOpen(false), [drawer.direction, isMobile, changeDrawerOpen])
   useCoverBar(drawerOpen && drawer.side)
-  useOverlayEntry("map-layers", drawerOpen, () => setDrawerOpen(false))
+  useOverlayEntry("map-layers", drawerOpen, () => changeDrawerOpen(false))
   const { default: map } = useMap()
   const pillSize = usePillSize(isMobile ? map?.getContainer() : undefined)
   const { barCovered } = usePhoneChrome()
@@ -288,7 +312,7 @@ export function MapControls({
           <DropdownMenuItem
             disabled={!canFit}
             onSelect={() => {
-              setDrawerOpen(false)
+              changeDrawerOpen(false)
               onFitBounds()
             }}
           >
@@ -300,7 +324,7 @@ export function MapControls({
           <DropdownMenuItem
             disabled={!canGoToServer}
             onSelect={() => {
-              setDrawerOpen(false)
+              changeDrawerOpen(false)
               onGoToServerLocation?.()
             }}
           >
@@ -341,7 +365,51 @@ export function MapControls({
     </div>
   )
 
-  const filtersSection = (
+  const showServers = serverOptions.length >= 2 || selectedServers.length > 0
+  const clearFilters = () => {
+    onCountriesChange([])
+    onCitiesChange([])
+    onServersChange([])
+  }
+  const clearButton = activeFilterCount > 0 && (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 w-full justify-start px-2 pointer-coarse:h-11"
+      onClick={clearFilters}
+    >
+      Clear filters
+    </Button>
+  )
+
+  const filtersSection = isMobile ? (
+    <Section label="Filters">
+      <FilterSection>
+        <FilterListRow
+          label="Country"
+          search
+          iconFor={(code) => <CountryFlag code={code} />}
+          options={countryOptions}
+          selected={selectedCountries}
+          onChange={onCountriesChange}
+          labelFor={(code) => countryLabels?.[code] ?? code}
+          valueFor={(code) => countryNames?.[code] ?? code}
+        />
+        <FilterListRow label="City" search options={cityOptions} selected={selectedCities} onChange={onCitiesChange} />
+        {showServers && (
+          <FilterListRow
+            label="Server"
+            options={serverOptions}
+            selected={selectedServers}
+            onChange={onServersChange}
+            loading={serversLoading}
+            emptyText="No servers recorded"
+          />
+        )}
+      </FilterSection>
+      {clearButton}
+    </Section>
+  ) : (
     <Section label="Filters">
       <FilterCombobox
         label="Country"
@@ -350,7 +418,6 @@ export function MapControls({
         selected={selectedCountries}
         onChange={onCountriesChange}
         labelFor={(code) => countryLabels?.[code] ?? code}
-        forceInline={isMobile}
         className="w-full justify-between"
       />
       <FilterCombobox
@@ -358,10 +425,9 @@ export function MapControls({
         options={cityOptions}
         selected={selectedCities}
         onChange={onCitiesChange}
-        forceInline={isMobile}
         className="w-full justify-between"
       />
-      {(serverOptions.length >= 2 || selectedServers.length > 0) && (
+      {showServers && (
         <FilterCombobox
           label="Server"
           options={serverOptions}
@@ -369,24 +435,10 @@ export function MapControls({
           onChange={onServersChange}
           loading={serversLoading}
           emptyText="No servers recorded"
-          forceInline={isMobile}
           className="w-full justify-between"
         />
       )}
-      {activeFilterCount > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 w-full justify-start px-2"
-          onClick={() => {
-            onCountriesChange([])
-            onCitiesChange([])
-            onServersChange([])
-          }}
-        >
-          Clear filters
-        </Button>
-      )}
+      {clearButton}
     </Section>
   )
 
@@ -424,6 +476,23 @@ export function MapControls({
           checked={projection === "globe"}
           onCheckedChange={(on) => onProjectionChange(on ? "globe" : "mercator")}
           title={projection === "globe" ? "Switch to a flat Mercator map" : "Switch to an interactive globe"}
+        />
+        <SwitchRow
+          icon={Satellite}
+          label="Satellite"
+          meta={!satelliteAvailable ? "no key" : satelliteFailed ? "failed" : undefined}
+          checked={satellite}
+          disabled={!satelliteAvailable}
+          onCheckedChange={onSatelliteChange}
+          title={
+            !satelliteAvailable
+              ? "Set MAP_ESRI_API_KEY to turn on satellite imagery"
+              : satelliteFailed
+                ? "The satellite map failed to load"
+                : satellite
+                  ? "Switch back to the street map"
+                  : "Show satellite imagery"
+          }
         />
       </Section>
 
@@ -504,7 +573,7 @@ export function MapControls({
                 <button
                   onClick={() => {
                     onSelectIp?.(ip)
-                    setDrawerOpen(false)
+                    changeDrawerOpen(false)
                   }}
                   disabled={!ip.location}
                   className="flex min-w-0 flex-1 items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
@@ -519,7 +588,7 @@ export function MapControls({
                 </button>
                 {/* Selects before the button opens the inspector, so it lands like a row click. */}
                 <span onClickCapture={() => onSelectIp?.(ip)}>
-                  <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} onOpen={() => setDrawerOpen(false)} />
+                  <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} onOpen={() => changeDrawerOpen(false)} />
                 </span>
               </div>
             ))}
@@ -535,7 +604,7 @@ export function MapControls({
   // buttons.
   if (isMobile) {
     return (
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} direction={drawer.direction}>
+      <Drawer open={drawerOpen} onOpenChange={changeDrawerOpen} direction={drawer.direction}>
         <MapActionPill
           size={pillSize}
           liveMode={liveMode}
@@ -552,19 +621,25 @@ export function MapControls({
         <DrawerContent className={drawer.contentClassName}>
           <DrawerHeader>
             <div className="flex items-center justify-between gap-2">
-              <DrawerTitle>Map controls</DrawerTitle>
-              <div className="flex items-center gap-1">
-                {toolsMenu}
-                {drawer.side && <SideDrawerClose />}
-              </div>
+              {filterPages.page && <FilterPageBack state={filterPages} label="Map controls" />}
+              <DrawerTitle>{filterPages.page?.title ?? "Map controls"}</DrawerTitle>
+              {(!filterPages.page || drawer.side) && (
+                <div className="flex items-center gap-1">
+                  {!filterPages.page && toolsMenu}
+                  {drawer.side && <SideDrawerClose />}
+                </div>
+              )}
             </div>
             <DrawerDescription className="sr-only">
               Switch map layers, filter by country and city, and view statistics.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6">
-            {sections}
-          </div>
+          <FilterPagesProvider value={filterPages.pages}>
+            <div className={cn("flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6", filterPages.page && "hidden")}>
+              {sections}
+            </div>
+          </FilterPagesProvider>
+          <FilterPageHost state={filterPages} />
         </DrawerContent>
       </Drawer>
     )

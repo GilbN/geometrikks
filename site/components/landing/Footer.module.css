@@ -1,0 +1,71 @@
+.footer {
+  border-top: 1px solid var(--line);
+  background: var(--bg-deep);
+  padding: 96px 0 56px;
+}
+.lead :global(.sub) {
+  margin-bottom: 28px;
+}
+.lead :global(.btn) {
+  padding: 13px 20px;
+  font-size: 15px;
+}
+.map {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 32px 24px;
+  margin: 72px 0 0;
+  padding: 40px 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.map h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.map ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--fg-dim);
+}
+.map a:hover {
+  color: var(--fg);
+}
+.legal {
+  margin: 56px 0 0;
+  color: var(--fg-faint);
+  font-size: 13px;
+}
+.legal p {
+  margin: 12px 0 0;
+  max-width: 70ch;
+}
+.legal .made {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+@media (max-width: 1000px) {
+  .map {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .footer {
+    padding-top: 64px;
+  }
+  .map {
+    margin-top: 48px;
+  }
+}
+@media (max-width: 520px) {
+  .map {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

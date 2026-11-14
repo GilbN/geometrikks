@@ -22,7 +22,7 @@ import { logOut } from "@/lib/log-out"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { usePhoneChrome } from "@/lib/phone-chrome"
 import { moreItems, slotFour } from "@/lib/phone-nav"
-import { useChangelogUnseen, useCrowdsecStatus, useMe, useRuntimeSettings, useUnseenRelease } from "@/lib/queries"
+import { useChangelogUnseen, useMe, useRuntimeSettings, useSecurityNavStatus, useUnseenRelease } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/version"
 
@@ -57,10 +57,10 @@ function StatusLink() {
 }
 
 function Destinations({ compact }: { compact: boolean }) {
-  const { data: crowdsecStatus, isError } = useCrowdsecStatus()
+  const { status: securityStatus, isError } = useSecurityNavStatus()
   const changelogUnseen = useChangelogUnseen()
 
-  return moreItems(slotFour(crowdsecStatus, isError)).map((item) => {
+  return moreItems(slotFour(securityStatus, isError)).map((item) => {
     const Icon = item.icon
     const notice = item.id === "settings" && changelogUnseen
     return (

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-14
+
+### Added
+
+- Access Logs and Geo Logs can leave out your own traffic with one tap. On a phone, the button next to Filters adds the IP GeoMetrikks sees for you to the excluded IPs, and a second tap removes it. The Filters drawer shows that address in a Your IP row. On a wider screen, the filter bar has an Exclude your IP button. When your phone moves to another network, the next tap adds the new address next to the old one. Behind a reverse proxy, GeoMetrikks sees only the proxy's address unless the proxy is in `APP_TRUSTED_PROXIES`, and the drawer then names that setting. Scripts can read the same address from `GET /api/v1/system/client-ip`.
+- With `ABUSEIPDB_API_KEY` set and `ABUSEIPDB_REPORTING_ENABLED=true`, any IP's menu has a Report to AbuseIPDB… item. It opens a report prefilled from what GeoMetrikks saw, with categories, a comment and the attack time, and you can edit all three before you send it.
+  - GeoMetrikks keeps a record of every report it sends and who sent it.
+  - The menu shows when an IP was last reported, and blocks a second report of the same IP within 15 minutes.
+  - The Check button in the report spends one AbuseIPDB check to show the IP's current score.
+  - Read/write API keys can send reports with `POST /api/v1/abuseipdb/reports`.
+  - The IP inspector links to the IP's page on AbuseIPDB, even without an API key.
+  - With a key, the IP inspector shows the IP's AbuseIPDB score when it opens. Each lookup uses one daily AbuseIPDB check, at most once per IP every 15 minutes.
+  - With a key and `ABUSEIPDB_BLACKLIST_ENABLED=true`, GeoMetrikks downloads AbuseIPDB's blacklist once a day and marks listed IPs with the dashed outline DROP IPs get, in tables and on the map. The IP inspector, the IP menu, record sheets, the phone IP menu's ban drawer and map popups about one IP name the list, and tapping a marked IP on the map explains it. The abuse report dialog notes listed addresses but leaves them out of the report text. `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` changes the interval, from 6 to 36 hours. A list more than 72 hours old stops showing. The list is for your own use: AbuseIPDB forbids republishing it, and free plans can't be used commercially.
+  - If you already download the blacklist yourself, set `ABUSEIPDB_BLACKLIST_ENABLED=true` and point `ABUSEIPDB_BLACKLIST_FILE` at that file. GeoMetrikks then reads it instead, with no API key and none of your daily blacklist calls. It takes AbuseIPDB's JSON answer as saved, or one IP per line, and picks up a new file within 5 minutes.
+  - The Security page has a Reports tab listing every report GeoMetrikks has sent, newest first. Search by IP, comment or sender, or filter by category and status. Expanding a row shows the comment and attack time. `GET /api/v1/abuseipdb/reports/history` returns the same list.
+- Settings > Appearance has four new themes. Glacier is clear blue, Dusk is indigo, Lyng is heather pink and Storm is a muted steel blue. Each has a light and a dark palette, and each side mixes with any other theme.
+- The map has a Satellite switch under Globe that shows Esri World Imagery, with country borders and place names on top. It needs an ArcGIS key in `MAP_ESRI_API_KEY`, free at location.arcgis.com. Without one the switch stays off and says so. The browser remembers your choice.
+
+### Changed
+
+- The documentation moved from the README to [geometrikks.dev/docs](https://geometrikks.dev/docs/). The proxy warnings on Settings > Status, "Set up an agent" on Settings > Agents, the CrowdSec setup note on the Security page and the missing GeoLite2 database banner now link to it. The Loki and Nginx Proxy Manager messages in the log name the page to read.
+- On a phone, the map's Layers drawer shows Country, City and Server as rows, like the Filters drawer on the log pages. Country and City open a search page in the drawer, and Server opens the phone's own list. They used to be three stacked lists with their own search boxes. In the Debug Logs Filters drawer, Lines is a row that opens the phone's own list.
+- The Security page splits Decisions, Alerts, DROP and Reports into tabs, one table at a time. The open tab is in the URL, so a reload or a shared link keeps it. With AbuseIPDB reporting on and CrowdSec off, Security stays in the navigation and shows only Reports.
+
+### Fixed
+
+- The Access Logs live tail now sits in the same kind of card as the history table, with a title, row count, status and the Pause button in its header. Long IPv6 addresses get cut short instead of running into the next column. If the server starts without its database, the card says the live feed is paused instead of showing empty column headers.
+- The missing-GeoLite2 banner and the CrowdSec setup notes on the Security page now say to run `docker compose up -d` after editing `.env`. `docker compose restart` keeps the old values.
+
 ## [0.24.0] - 2026-11-09
 
 ### Added
@@ -1303,7 +1332,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings endpoint no longer exposes the full settings tree (database credentials leaked via `model_dump()`); response is now an explicit whitelist.
 - Timestamps in `CALL refresh_continuous_aggregate` are bound as asyncpg parameters instead of interpolated into SQL.
 
-[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.24.0...develop
+[Unreleased]: https://github.com/GilbN/geometrikks/compare/v0.25.0...develop
+[0.25.0]: https://github.com/GilbN/geometrikks/compare/v0.24.0...v0.25.0
 [0.24.0]: https://github.com/GilbN/geometrikks/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/GilbN/geometrikks/compare/v0.22.1...v0.23.0
 [0.22.1]: https://github.com/GilbN/geometrikks/compare/v0.22.0...v0.22.1

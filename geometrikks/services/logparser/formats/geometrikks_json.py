@@ -1,8 +1,8 @@
 """Adapter for the GeoMetrikks keyed JSON access-log format.
 
-The recommended nginx setup (README, Nginx setup). nginx has no typed
-output, so every value is a JSON string and this adapter does the number
-parsing; an unquoted empty variable would break the whole line. ``""``,
+The recommended nginx setup (see the nginx page on the docs site). nginx has
+no typed output, so every value is a JSON string and this adapter does the
+number parsing; an unquoted empty variable would break the whole line. ``""``,
 ``"-"`` and a missing key all mean absent. Only ``client_ip`` and
 ``timestamp`` are required. Unknown keys are ignored so users can add
 fields for other consumers of the same file.

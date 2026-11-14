@@ -1,0 +1,42 @@
+---
+title: FAQ
+description: Short answers to the questions that come up most, each with a link to the page that has the details.
+---
+
+## I use Nginx Proxy Manager. What log path do I use?
+
+Set `ACCESS_LOG_DIR` to the host folder where NPM writes its logs, usually its `data/logs` folder. Then set `LOGPARSER_LOG_PATHS` to the file inside it as the container sees it, starting with `/var/log/access/`, not the host path. GeoMetrikks doesn't tail NPM's own per-host logs. Set up the extra JSON log and point at that one. [`import-logs`](./cli/import-logs.mdx) can backfill the old per-host logs. See [Nginx Proxy Manager](../sources/nginx-proxy-manager.mdx).
+
+## Can I read logs from Loki instead of mounting files?
+
+Yes, if Loki holds the raw access-log lines. Set `LOKI_URL` and `LOKI_QUERIES`, and comment out the `LOGPARSER_LOG_PATHS` line in `.env`. Left in, GeoMetrikks keeps waiting for that file too. See [Grafana Loki](../sources/loki.mdx#loki-only-or-loki-and-files).
+
+## Permission denied reading my log files?
+
+The app runs as `PUID`:`PGID`, 1000:1000 by default, and mounts your logs read-only. Make the log files and their parent folder readable by that user on the host, with `chmod`, `chown` or an ACL entry. GeoMetrikks never writes to your access logs. See [Container user and hardening](./deployment.mdx#container-user-and-hardening).
+
+## Does it run on arm64?
+
+Yes. The image on GHCR is built for `linux/amd64` and `linux/arm64`. See the [Quickstart](../get-started/quickstart.mdx).
+
+## The map is empty
+
+Check these in order:
+
+1. The geo-degraded banner. If it shows, GeoMetrikks has no GeoLite2 database and records no traffic. See [What does the geo-degraded banner mean?](#what-does-the-geo-degraded-banner-mean)
+2. A source is receiving traffic in a format GeoMetrikks reads: a file in `LOGPARSER_LOG_PATHS` or a selector in `LOKI_QUERIES`. Settings > Status lists each source with its state. NPM's own per-host logs can only be imported, never tailed. See [Point it at your logs](../get-started/quickstart.mdx#point-it-at-your-logs).
+3. New lines have arrived since the app started. GeoMetrikks starts reading a file at its end, so lines written before that only show up after an [`import-logs`](./cli/import-logs.mdx) run.
+4. Your proxy logs the visitor's address, not a CDN, tunnel or upstream proxy. Settings > Status shows an advisory when it doesn't. See [Real client IP behind a proxy](../sources/proxy-setup.mdx).
+
+## The map says my browser could not start WebGL2
+
+The map draws with WebGL2, and the message adds the browser's own reason when it gives one. Usually graphics acceleration is off or blocked. Turn hardware acceleration back on in the browser settings, or try another browser or device. The rest of the app works without it. See [Map](../features/map.mdx).
+
+## What does the geo-degraded banner mean?
+
+The app has no usable GeoLite2 City database. The UI and API stay up and show the data already stored, but ingestion waits, so no new traffic is recorded. The sidebar's status dot also shows Degraded. There are two causes:
+
+- `MAXMINDDB_USER_ID` or `MAXMINDDB_LICENSE_KEY` is missing. Set both in `.env` and run `docker compose up -d`, which recreates the container and downloads the database at startup.
+- The keys are set, but the download hasn't finished, for example because it failed at startup. Ingestion starts by itself once the file is there, with no restart. The GeoLite2 refresh job runs every `GEOIP_REFRESH_DAYS` days, 7 by default, and downloads it on its next run. To get it today, open Settings > Scheduler and use Run now on that job.
+
+See [Geo-degraded mode](../get-started/geolite2.mdx#geo-degraded-mode).

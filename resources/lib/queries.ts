@@ -7,7 +7,7 @@ import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
 import type { LatestReleaseView } from "@/generated/api/types.gen"
-import { keepPreviousData, type InfiniteData, type Query, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { keepPreviousData, type InfiniteData, type Query, type QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -68,7 +68,16 @@ import {
   fetchIpProfile,
   fetchAbuseReport,
   fetchAbuseContact,
+  fetchAbuseIpdbBlacklist,
+  fetchAbuseIpdbStatus,
+  fetchReportedIps,
+  fetchAbuseIpdbReportHistory,
+  fetchAbuseIpdbReports,
+  fetchAbuseIpdbCheck,
+  submitAbuseIpdbReport,
   type AbuseReportTarget,
+  type CustomTimeRange,
+  type TimeRangeValue,
   banIp,
   unbanIp,
   parseTimeRange,
@@ -94,6 +103,7 @@ import {
   type AccessLogDebugStats,
   type AlertPageView,
   fetchReleaseCheck,
+  fetchClientIp,
   fetchDropLists,
 } from "./api"
 import {
@@ -105,8 +115,10 @@ import {
   type GeoLogSparklines,
   type OverviewSparklines,
 } from "./sparklines"
+import { canonicalIp } from "./abuseipdb"
+import { securityNavStatus } from "./security-tabs"
 import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
-import type { DropListsResponse } from "@/generated/api/types.gen"
+import type { AbuseIpdbBlacklistResponse, DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   applyBannedIpsDelta,
   applyStatusFrame,
@@ -145,6 +157,7 @@ export const queryKeys = {
     about: ["system", "about"] as const,
     changelog: ["system", "changelog"] as const,
     releaseCheck: ["system", "release-check"] as const,
+    clientIp: ["system", "client-ip"] as const,
     asnClassification: ["system", "asn-classification"] as const,
     stats: ["system", "stats"] as const,
     database: ["system", "database"] as const,
@@ -261,6 +274,14 @@ export const queryKeys = {
       ["reports", "abuse", params, refreshKey] as const,
     abuseContact: (target: AbuseReportTarget) => ["reports", "abuse-contact", target] as const,
   },
+  abuseipdb: {
+    status: ["abuseipdb", "status"] as const,
+    blacklist: ["abuseipdb", "blacklist"] as const,
+    reportedIps: ["abuseipdb", "reported-ips"] as const,
+    reports: (ip: string) => ["abuseipdb", "reports", ip] as const,
+    reportHistory: (params: object) => ["abuseipdb", "reports", "history", params] as const,
+    check: (ip: string) => ["abuseipdb", "check", ip] as const,
+  },
 }
 
 // ============================================================================
@@ -366,6 +387,25 @@ export function useReleaseCheck() {
     staleTime: (query) => releaseCheckPollMs(query.state.data?.status) || Number.POSITIVE_INFINITY,
     refetchInterval: (query) => releaseCheckPollMs(query.state.data?.status),
   })
+}
+
+/** The address the server sees for this browser. A phone changes address between networks, so the query refetches whenever the tab regains focus. */
+export function useClientIp() {
+  return useQuery({
+    queryKey: queryKeys.system.clientIp,
+    queryFn: fetchClientIp,
+    staleTime: 30_000,
+    refetchOnWindowFocus: "always",
+  })
+}
+
+/** Asks the server for the address with a request of its own. fetchQuery would reuse a focus refetch already in flight, which may report the old network. */
+export async function fetchFreshClientIp(queryClient: QueryClient) {
+  // A slower refetch from before the tap would overwrite the fresh address.
+  await queryClient.cancelQueries({ queryKey: queryKeys.system.clientIp, exact: true })
+  const fresh = await fetchClientIp()
+  queryClient.setQueryData(queryKeys.system.clientIp, fresh)
+  return fresh
 }
 
 export function useChangelog() {
@@ -1918,20 +1958,32 @@ export function useIpLatestRequests(ip: string | undefined) {
 
 // ---- Abuse reports --------------------------------------------------------
 
-export function useAbuseReport(
+function abuseReportQueryOptions(
   target: AbuseReportTarget,
+  selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
   options: { maxIps: number; linesPerIp: number; enabled: boolean },
+  refreshKey?: number,
 ) {
-  const { range, customRange, lastRefresh } = useTimeRange()
+  const { range, customRange } = selection
   const { maxIps, linesPerIp, enabled } = options
-  return useQuery({
-    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, lastRefresh),
+  return {
+    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, refreshKey),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchAbuseReport({ startDate, endDate, target, maxIps, linesPerIp })
     },
     enabled,
     staleTime: 60 * 1000,
+  }
+}
+
+export function useAbuseReport(
+  target: AbuseReportTarget,
+  options: { maxIps: number; linesPerIp: number; enabled: boolean },
+) {
+  const { range, customRange, lastRefresh } = useTimeRange()
+  return useQuery({
+    ...abuseReportQueryOptions(target, { range, customRange }, options, lastRefresh),
     placeholderData: (previous) => previous,
   })
 }
@@ -1944,5 +1996,169 @@ export function useAbuseContact(target: AbuseReportTarget, enabled: boolean) {
     enabled,
     staleTime: 60 * 60 * 1000,
     retry: false,
+  })
+}
+
+// ---- AbuseIPDB -------------------------------------------------------------
+
+export function useAbuseIpdbStatus() {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.status,
+    queryFn: fetchAbuseIpdbStatus,
+    staleTime: 60_000,
+  })
+}
+
+// Every IP menu is an observer, so the Set is cached per response like selectBannedRanges.
+const blacklistSets = new WeakMap<AbuseIpdbBlacklistResponse, Set<string>>()
+
+function selectBlacklist(blacklist: AbuseIpdbBlacklistResponse): Set<string> {
+  let blacklistSet = blacklistSets.get(blacklist)
+  if (blacklistSet === undefined) {
+    blacklistSet = new Set(blacklist.ips)
+    blacklistSets.set(blacklist, blacklistSet)
+  }
+  return blacklistSet
+}
+
+export function abuseIpdbBlacklistQueryOptions(enabled: boolean) {
+  return {
+    queryKey: queryKeys.abuseipdb.blacklist,
+    queryFn: fetchAbuseIpdbBlacklist,
+    enabled,
+    // An empty answer means no download yet or an expired list, so it goes stale fast.
+    staleTime: (query: Query<AbuseIpdbBlacklistResponse>) => (query.state.data?.refreshedAt ? 60 * 60_000 : 60_000),
+    // A map popup can be the only observer. With the default five minutes, reopening one downloads the list again.
+    gcTime: 60 * 60_000,
+    select: selectBlacklist,
+  }
+}
+
+function useAbuseIpdbBlacklist() {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery(abuseIpdbBlacklistQueryOptions(status?.blacklistEnabled === true))
+}
+
+export function useAbuseIpdbBlacklistSet(): ReadonlySet<string> | null {
+  const { data: status } = useAbuseIpdbStatus()
+  const { data: blacklist } = useAbuseIpdbBlacklist()
+  // A disabled query keeps its cached data, so turning the feature off has to be checked here too.
+  if (status?.blacklistEnabled !== true) return null
+  return blacklist ?? null
+}
+
+export function useAbuseIpdbBlacklistGeneratedAt(): string | null {
+  const { data: status } = useAbuseIpdbStatus()
+  const enabled = status?.blacklistEnabled === true
+  const { data: generatedAt } = useQuery({
+    ...abuseIpdbBlacklistQueryOptions(enabled),
+    select: (blacklist: AbuseIpdbBlacklistResponse) => blacklist.generatedAt,
+  })
+  if (!enabled) return null
+  return generatedAt ?? null
+}
+
+export function useAbuseIpdbBlacklisted(ip: string): boolean {
+  return useAbuseIpdbBlacklistSet()?.has(canonicalIp(ip) ?? ip) ?? false
+}
+
+// Every IP menu is an observer, so the Map is cached per response like selectBannedRanges.
+const reportedIpMaps = new WeakMap<ReportedIpDto[], Map<string, ReportedIpDto>>()
+
+function selectReportedIps(reportedIps: ReportedIpDto[]): Map<string, ReportedIpDto> {
+  let reportedIpMap = reportedIpMaps.get(reportedIps)
+  if (reportedIpMap === undefined) {
+    reportedIpMap = new Map(reportedIps.map((reportedIp) => [reportedIp.ipAddress, reportedIp]))
+    reportedIpMaps.set(reportedIps, reportedIpMap)
+  }
+  return reportedIpMap
+}
+
+/** IP to its latest report, for every IP reported in the last 90 days. With
+ *  `active` false it never asks, so closed menus cost no polling. */
+export function useReportedIps(active = true) {
+  const { data: status } = useAbuseIpdbStatus()
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reportedIps,
+    queryFn: fetchReportedIps,
+    enabled: active && status?.reportingEnabled === true,
+    refetchInterval: 60_000,
+    select: selectReportedIps,
+  })
+}
+
+export function useAbuseIpdbReportHistory(params: Parameters<typeof fetchAbuseIpdbReportHistory>[0]) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reportHistory(params),
+    queryFn: () => fetchAbuseIpdbReportHistory(params),
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+  })
+}
+
+/** Security appears in the navigation for CrowdSec or for AbuseIPDB reporting. */
+export function useSecurityNavStatus() {
+  const crowdsec = useCrowdsecStatus()
+  const abuseIpdb = useAbuseIpdbStatus()
+  return securityNavStatus(crowdsec.data?.enabled, crowdsec.isError, abuseIpdb.data?.reportingEnabled, abuseIpdb.isError)
+}
+
+export function useAbuseIpdbReports(ip: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.reports(ip),
+    queryFn: () => fetchAbuseIpdbReports(ip),
+    enabled,
+    // The report dialog holds polling, which tells TanStack the window is unfocused and so
+    // pauses retries. A retry would leave the query paused with neither data nor an error.
+    retry: false,
+  })
+}
+
+/** Leaves the server and spends AbuseIPDB quota: runs for a missing or expired score, never after a failure. */
+export function useAbuseIpdbCheck(ip: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.abuseipdb.check(canonicalIp(ip) ?? ip),
+    queryFn: () => fetchAbuseIpdbCheck(ip),
+    enabled,
+    staleTime: 15 * 60_000,
+    gcTime: 15 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: (query) => query.state.status !== "error",
+    retryOnMount: false,
+  })
+}
+
+/** The evidence for one IP over the dialog's own range, not the page's. */
+export function useAbuseReportForRange(
+  target: AbuseReportTarget,
+  selection: { range: TimeRangeValue; customRange: CustomTimeRange | null },
+  enabled: boolean,
+) {
+  return useQuery({
+    ...abuseReportQueryOptions(target, selection, { maxIps: 1, linesPerIp: 0, enabled }),
+    // The polling hold pauses retries here too, as in useAbuseIpdbReports.
+    retry: false,
+    placeholderData: (previous, previousQuery) => {
+      const previousParams = previousQuery?.queryKey[2] as { target?: AbuseReportTarget } | undefined
+      return JSON.stringify(previousParams?.target) === JSON.stringify(target) ? previous : undefined
+    },
+  })
+}
+
+export function useSubmitAbuseIpdbReport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: submitAbuseIpdbReport,
+    retry: false,
+    // An unconfirmed answer is an error but still stored a row. The whole
+    // reports prefix goes stale because one IPv6 address has several spellings.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.reportedIps }),
+        queryClient.invalidateQueries({ queryKey: ["abuseipdb", "reports"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.abuseipdb.status }),
+      ]),
   })
 }

@@ -4,10 +4,12 @@
  */
 import { createPortal } from "react-dom"
 import { useId, type ReactNode } from "react"
-import { ChevronRight, ChevronsUpDown, X } from "lucide-react"
+import { Check, ChevronRight, ChevronsUpDown, X } from "lucide-react"
+import { UNTRUSTED_PROXY_HINT } from "@/components/data/exclude-my-ip"
 import { TagInput } from "@/components/data/tag-input"
 import { FilterComboboxBody } from "@/components/ui/filter-combobox"
 import { useFilterPages } from "@/components/ui/filters-drawer"
+import type { MyIpExclusion } from "@/lib/my-ip-exclusion"
 import { cn } from "@/lib/utils"
 
 const ROW = "flex h-11 items-center justify-between gap-3 px-3 text-[15px] not-first:border-t not-first:border-border/60"
@@ -105,10 +107,10 @@ export function FilterListRow<T extends string | number>({
   const text = selected.length === 0 ? empty : `${valueFor(selected[0])}${selected.length > 1 ? ` +${selected.length - 1}` : ""}`
   const tone = selected.length === 0 ? undefined : exclude ? "exclude" : "include"
   const iconClass = "size-3.5 shrink-0"
+  // A value set from elsewhere, such as an IP's menu, may not be in this range's facets.
+  const all = [...options, ...selected.filter((value) => !options.includes(value))]
 
   if (!search && opensSystemList()) {
-    // A value set from elsewhere, such as an IP's menu, may not be in this range's facets.
-    const all = [...options, ...selected.filter((value) => !options.includes(value))]
     const atMax = maxSelected !== undefined && selected.length >= maxSelected
     return (
       <label className={cn(ROW, "relative")}>
@@ -155,7 +157,7 @@ export function FilterListRow<T extends string | number>({
           fill
           splitLabel={splitLabel}
           label={label}
-          options={options}
+          options={all}
           selected={selected}
           onChange={onChange}
           labelFor={labelFor}
@@ -167,6 +169,75 @@ export function FilterListRow<T extends string | number>({
         pages.host,
       )}
     </>
+  )
+}
+
+/** One choice from a short list; the first option is the unfiltered one. */
+export function FilterChoiceRow<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  const text = options.find((option) => option.value === value)?.label ?? value
+  return (
+    <label className={cn(ROW, "relative")}>
+      <span>{label}</span>
+      <RowValue
+        text={text}
+        tone={value === options[0]?.value ? undefined : "include"}
+        icon={<ChevronsUpDown aria-hidden className="size-3.5 shrink-0" />}
+      />
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className="absolute inset-0 size-full opacity-0"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+export function FilterMyIpRow({ exclusion }: { exclusion: MyIpExclusion }) {
+  if (exclusion.behindUntrustedProxy) {
+    return (
+      <div className={ROW}>
+        <span>Your IP</span>
+        <span className="truncate text-xs text-muted-foreground">{UNTRUSTED_PROXY_HINT}</span>
+      </div>
+    )
+  }
+  if (exclusion.ip === null) return null
+  return (
+    <div className={ROW}>
+      <span className="shrink-0">Your IP</span>
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate font-mono text-xs text-muted-foreground">{exclusion.ip}</span>
+        <button
+          type="button"
+          aria-label="Exclude your IP"
+          aria-pressed={exclusion.excluded}
+          onClick={exclusion.toggle}
+          className={cn(
+            "grid h-8 shrink-0 place-items-center rounded-md text-xs font-medium",
+            exclusion.excluded ? "-mr-3 size-11 text-primary" : "border border-destructive/50 px-2 text-destructive",
+          )}
+        >
+          {exclusion.excluded ? <Check aria-hidden className="size-4" /> : "Exclude"}
+        </button>
+      </span>
+    </div>
   )
 }
 

@@ -17,7 +17,8 @@ def client(tmp_path, monkeypatch):
     log_dir = tmp_path / "logs"
     log_dir.mkdir()
     # First line carries raw structlog context keys: the tail endpoint must
-    # pass historical log records through unrenamed (see docs/api-conventions.md).
+    # pass historical log records through unrenamed
+    # (see https://geometrikks.dev/docs/contribute/api-conventions/).
     context_line = json.dumps(
         {"event": "request_finished", "level": "info", "request_id": "abc", "status_code": 200}
     )

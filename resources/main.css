@@ -7,6 +7,10 @@
 @import "./themes/moss.css";
 @import "./themes/forge.css";
 @import "./themes/night.css";
+@import "./themes/glacier.css";
+@import "./themes/dusk.css";
+@import "./themes/lyng.css";
+@import "./themes/storm.css";
 
 @font-face {
   font-family: "runr";
@@ -424,13 +428,22 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent) !important;
 }
 
+/* Wider screens keep the zoom buttons in the bottom-right corner. The full
+   satellite credit is long enough to reach them below about 1000px, so it
+   wraps 64px short of the right edge instead. */
+.fullscreen-map .maplibregl-ctrl-bottom-left {
+  right: 64px;
+}
+
 /* On a portrait phone the full-page map's attribution (MapAttribution, not
    compact) is a small line at the bottom left, 10px above the tab bar.
-   Scoped to .fullscreen-map so embedded card maps (geo-logs) are unaffected. */
+   Scoped to .fullscreen-map so embedded card maps (geo-logs) are unaffected.
+   It stops 8px short of the 54px action pill, PILL_WIDTH in phone-pill.ts.
+   The open Esri credit wraps and would otherwise run under it. */
 .fullscreen-map .maplibregl-ctrl-bottom-left {
   @variant phone {
     left: var(--tab-bar-side);
-    right: auto;
+    right: calc(var(--tab-bar-side) + 54px + 8px);
     bottom: calc(var(--tab-bar-top) + 10px);
   }
 }
@@ -445,6 +458,59 @@
     font-size: 10px;
     line-height: 1.2;
   }
+}
+
+/* Over satellite imagery the grey line vanishes on snow and sand. */
+.fullscreen-map [data-satellite] .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+  @variant phone {
+    color: rgb(255 255 255 / 0.8);
+    text-shadow: 0 0 3px rgb(0 0 0 / 0.9), 0 1px 2px rgb(0 0 0 / 0.9);
+  }
+}
+
+.fullscreen-map [data-satellite] .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) :is(a, .esri-credit-toggle) {
+  @variant phone {
+    color: #fff !important;
+  }
+}
+
+/* MapAttribution's folded Esri credit. The CARTO credit and the toggle share
+   one line, and the toggle's padding gives the 10px text a usable tap area.
+   MapLibre's open compact pill makes the inner credit a block, so the second
+   selector outranks it to keep the toggle on the same line. */
+.maplibregl-ctrl-attrib[data-esri-fold]:not(.maplibregl-compact) .maplibregl-ctrl-attrib-inner,
+.maplibregl-ctrl-attrib.maplibregl-compact-show[data-esri-fold] .maplibregl-ctrl-attrib-inner {
+  display: inline;
+}
+
+.maplibregl-ctrl-attrib[data-esri-fold]:not([data-esri-open]) .esri-credit {
+  display: none;
+}
+
+/* A map drag closes the compact pill by class alone and leaves <details open>,
+   so the portalled toggle has to hide with the credit it belongs to. */
+.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) .esri-credit-toggle {
+  display: none;
+}
+
+.esri-credit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: -8px -6px;
+  padding: 8px 6px;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.esri-credit-toggle svg {
+  width: 10px;
+  height: 10px;
 }
 
 /* Held sideways (GeoMap sets data-phone-side), the compact button mirrors the

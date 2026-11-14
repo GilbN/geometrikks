@@ -202,6 +202,13 @@ API_TAGS: list[Tag] = [
         description="Abuse reports for one IP or one ASN, and the RDAP abuse contact to send them to.",
     ),
     Tag(
+        name="AbuseIPDB",
+        description=(
+            "Check IPs on AbuseIPDB and report them there. Checks need ABUSEIPDB_API_KEY, reports also need "
+            "ABUSEIPDB_REPORTING_ENABLED=true, and the blacklist also needs ABUSEIPDB_BLACKLIST_ENABLED=true."
+        ),
+    ),
+    Tag(
         name="Instances",
         description="The head and every agent that sends heartbeats, with the problems each one reports.",
     ),

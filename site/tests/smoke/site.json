@@ -1,0 +1,256 @@
+[
+  { "path": "/", "status": 200, "headers": { "x-content-type-options": "nosniff" } },
+  { "path": "/docs/", "status": 302, "location": "/docs/next/" },
+  {
+    "path": "/docs/next/",
+    "status": 200,
+    "contains": ["noindex", "rel=\"canonical\" href=\"https://geometrikks.dev/docs/next/\""]
+  },
+  {
+    "path": "/docs/next/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["Introduction", "api.github.com", "www.spamhaus.org", "RDAP"]
+  },
+  {
+    "path": "/docs/next/get-started/quickstart/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["docker compose up -d"],
+    "absent": ["restart the app container"]
+  },
+  {
+    "path": "/docs/next/get-started/geolite2/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["GEOIP_LOCALES", "docker compose up -d"]
+  },
+  {
+    "path": "/docs/next/get-started/upgrading/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["backfill-timings", "NGINX_LOG_DIR"]
+  },
+  {
+    "path": "/docs/next/sources/nginx/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["geometrikks-json", "LOGPARSER_LOG_FORMATS"]
+  },
+  {
+    "path": "/docs/next/sources/nginx-proxy-manager/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["http_top.conf", "--before"]
+  },
+  {
+    "path": "/docs/next/sources/traefik/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["traefik-json", "OriginDuration"]
+  },
+  {
+    "path": "/docs/next/sources/caddy/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["duration_format", "1,000,000,000"],
+    "absent": ["loses request times"]
+  },
+  {
+    "path": "/docs/next/sources/loki/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["LOKI_USERNAME", "unavailableSources"]
+  },
+  {
+    "path": "/docs/next/sources/multiple-sources/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["APP_MODE=agent", "LISTEN/NOTIFY", "nothing answers"],
+    "absent": ["answers 200 for the whole schema wait"]
+  },
+  {
+    "path": "/docs/next/sources/proxy-setup/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["api_key_rejected", "Existing rows"],
+    "absent": ["id=\"history\""]
+  },
+  {
+    "path": "/docs/next/features/map/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["MAP_SERVER_LOCATION_REFRESH_HOURS", "Globe"]
+  },
+  {
+    "path": "/docs/next/features/app-tour/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["LOGPARSER_STORE_DEBUG_LINES", "Exclude ASN"],
+    "absent": ["raw source lines behind every request", "id=\"live\""]
+  },
+  {
+    "path": "/docs/next/features/ip-inspector/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["Hosting ASN", "IP actions"]
+  },
+  {
+    "path": "/docs/next/features/drop-lists/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["DROP_REFRESH_HOURS", "ASN-DROP"]
+  },
+  {
+    "path": "/docs/next/features/abuse-reports/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["RDAP", "CSV", "default 25", "default 50", "up to 200"],
+    "absent": ["500"]
+  },
+  {
+    "path": "/docs/next/features/crowdsec/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["CROWDSEC_DEFAULT_BAN_DURATION", "IP actions menu"],
+    "absent": ["shield button appears next to IPs"]
+  },
+  {
+    "path": "/docs/next/features/authentication/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["APP_SESSION_MAX_AGE_DAYS", "/sw.js"],
+    "absent": ["a network nobody else can reach"]
+  },
+  {
+    "path": "/docs/next/features/authentication/oidc/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["OIDC_GROUPS_CLAIM", "APP_SESSION_MAX_AGE_DAYS", "apart from a trailing slash"],
+    "absent": ["at the latest 7 days later"]
+  },
+  {
+    "path": "/docs/next/features/authentication/api-keys/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["gmk_", "APP_TRUSTED_PROXIES"]
+  },
+  {
+    "path": "/docs/next/operate/reverse-proxy/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["container_name", "api_key_rejected", "APP_TRUSTED_PROXIES"]
+  },
+  {
+    "path": "/docs/next/operate/deployment/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["LISTEN/NOTIFY", "APP_MODE=agent", "up to 10 seconds", "heartbeat writer", "still answers 200", "cap_drop", "/app/data/geoip"],
+    "absent": ["clients on another worker would see nothing", "ingestion drains and stops first", "waits up to 5s for its tail tasks before cancelling", "returns 503 while degraded", "ownership yourself"]
+  },
+  {
+    "path": "/docs/next/operate/faq/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["docker compose up -d", "starts by itself", "container-user-and-hardening"],
+    "absent": ["Add credentials and restart"]
+  },
+  {
+    "path": "/docs/next/operate/cli/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["litestar database upgrade", "LITESTAR_APP"]
+  },
+  {
+    "path": "/docs/next/operate/cli/import-logs/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["--server", "--batch-size"]
+  },
+  {
+    "path": "/docs/next/operate/cli/import-loki/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["--since", "--query"]
+  },
+  {
+    "path": "/docs/next/operate/cli/backfills/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["backfill-geo-servers", "--consolidate"]
+  },
+  {
+    "path": "/docs/next/operate/cli/large-imports/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["max_wal_size"]
+  },
+  { "path": "/api/search", "status": 200, "contains": ["Check that the app is up"] },
+  { "path": "/no-such-page/", "status": 404, "contains": ["href=\"/docs/\""] },
+  {
+    "path": "/docs/next/reference/configuration/",
+    "status": 200,
+    "contains": ["LOKI_QUERIES", "{job=&quot;traefik&quot;}"]
+  },
+  {
+    "path": "/docs/next/reference/configuration/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["PUID", "Instance and notices", "(empty)", "DB_DATABASE"],
+    "absent": ["Application mode", "(computed)", "DB_NAME"]
+  },
+  { "path": "/docs/reference/configuration/", "status": 302, "location": "/docs/next/reference/configuration/" },
+  { "path": "/docs/reference/configuration", "status": 302, "location": "/docs/next/reference/configuration/" },
+  { "path": "/docs/next/reference/api/", "status": 200 },
+  { "path": "/docs/next/reference/api/", "status": 200, "scope": "article", "contains": ["snake_case", "gmk_"] },
+  {
+    "path": "/docs/next/reference/api-guides/polling/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["window=10m", "pageSize"]
+  },
+  { "path": "/docs/next/reference/api-guides/websockets/", "status": 200, "scope": "article", "contains": ["/ws/crowdsec"] },
+  {
+    "path": "/docs/next/reference/api-guides/endpoint-notes/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["groupId", "services_inactive", "lastParsedAt", "Explicit ranges have no duration cap"]
+  },
+  {
+    "path": "/docs/next/reference/api-guides/abuse-report-redaction/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["linesPerIp", "appsec"],
+    "absent": ["replaces its earlier array"]
+  },
+  {
+    "path": "/docs/next/reference/api/health/HealthHealth/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["Check that the app is up and how its parts are doing", "https://geometrikks.example.com/health"],
+    "absent": ["'https://example.com/health", "https://geometrikks.dev/health"]
+  },
+  {
+    "path": "/docs/next/contribute/development/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["VITE_DEV_MODE=true", "--ignore=tests/integration"],
+    "absent": ["pip install uv", "--all-extras"]
+  },
+  {
+    "path": "/docs/next/contribute/api-conventions/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["ApiV1AnalyticsSummaryGetSummary", "status_2xx"],
+    "absent": ["0.7.0", "request_count_24h", "realtime refactor"]
+  },
+  { "path": "/docs/next/reference/changelog/", "status": 200, "contains": ["Unreleased"] },
+  { "path": "/docs/next/reference/security/", "status": 200 },
+  { "path": "/docs/operate/geolite2/", "status": 301, "location": "/docs/get-started/geolite2/" },
+  { "path": "/docs/features/cli", "status": 301, "location": "/docs/operate/cli/" },
+  { "path": "/docs/get-started/configuration/", "status": 301, "location": "/docs/reference/configuration/" },
+  { "path": "/docs/get-started/geolite2/", "status": 302, "location": "/docs/next/get-started/geolite2/" },
+  { "path": "/docs/sources/nginx/", "status": 302, "location": "/docs/next/sources/nginx/" },
+  { "path": "/api/search", "status": 200, "contains": ["Real client IP behind a proxy"] },
+  { "path": "/", "status": 200, "contains": ["href=\"/docs/sources/proxy-setup/\""] }
+]
