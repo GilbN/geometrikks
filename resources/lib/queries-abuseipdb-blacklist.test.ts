@@ -19,7 +19,12 @@ vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   fetchAbuseIpdbBlacklist: mocks.fetchAbuseIpdbBlacklist,
 }))
-import { abuseIpdbBlacklistQueryOptions, useAbuseIpdbBlacklisted, useAbuseIpdbBlacklistSet } from "./queries"
+import {
+  abuseIpdbBlacklistQueryOptions,
+  useAbuseIpdbBlacklisted,
+  useAbuseIpdbBlacklistGeneratedAt,
+  useAbuseIpdbBlacklistSet,
+} from "./queries"
 
 const BLACKLIST_KEY = ["abuseipdb", "blacklist"]
 const MINUTE_MS = 60_000
@@ -74,6 +79,18 @@ it("gives no set once the feature turns off, though the list stays cached", () =
 it("gives no set while nothing is cached", () => {
   mocks.status = { blacklistEnabled: true }
   expect(useAbuseIpdbBlacklistSet()).toBeNull()
+})
+
+it("gives the list's generation time while the feature is on", () => {
+  mocks.cachedBlacklist = blacklistResponse()
+  mocks.status = { blacklistEnabled: true }
+  expect(useAbuseIpdbBlacklistGeneratedAt()).toBe("2026-11-08T06:00:00Z")
+})
+
+it("gives no generation time once the feature turns off, though the list stays cached", () => {
+  mocks.cachedBlacklist = blacklistResponse()
+  mocks.status = { blacklistEnabled: false }
+  expect(useAbuseIpdbBlacklistGeneratedAt()).toBeNull()
 })
 
 it("builds one Set per response however many IPs read it", async () => {

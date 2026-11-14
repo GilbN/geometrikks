@@ -2047,6 +2047,17 @@ export function useAbuseIpdbBlacklistSet(): ReadonlySet<string> | null {
   return blacklist ?? null
 }
 
+export function useAbuseIpdbBlacklistGeneratedAt(): string | null {
+  const { data: status } = useAbuseIpdbStatus()
+  const enabled = status?.blacklistEnabled === true
+  const { data: generatedAt } = useQuery({
+    ...abuseIpdbBlacklistQueryOptions(enabled),
+    select: (blacklist: AbuseIpdbBlacklistResponse) => blacklist.generatedAt,
+  })
+  if (!enabled) return null
+  return generatedAt ?? null
+}
+
 export function useAbuseIpdbBlacklisted(ip: string): boolean {
   return useAbuseIpdbBlacklistSet()?.has(canonicalIp(ip) ?? ip) ?? false
 }
