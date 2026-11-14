@@ -1,0 +1,120 @@
+---
+title: CrowdSec
+description: Connect GeoMetrikks to the CrowdSec Local API to see active bans next to your traffic, and to ban and unban IPs from the app.
+---
+
+If a [CrowdSec](https://www.crowdsec.net/) instance protects your stack, GeoMetrikks can read its Local API (LAPI) and join the active decisions (bans) with the traffic it already stores. For each banned IP you see the country, city and request count from your own access logs. With machine credentials it can also ban and unban.
+
+<Callout type="warn">
+CrowdSec only decides. GeoMetrikks shows and manages decisions but blocks nothing. A bouncer in front of your stack, such as the firewall bouncer, the nginx bouncer or the Traefik plugin, has to enforce them, or a ban changes nothing for the client.
+</Callout>
+
+## Read access
+
+Register GeoMetrikks as a bouncer on the CrowdSec side. The command prints the API key:
+
+```bash
+docker exec crowdsec cscli bouncers add geometrikks
+```
+
+Then point the app at the LAPI in `.env` and run `docker compose up -d`:
+
+```dotenv
+CROWDSEC_LAPI_URL=http://crowdsec:8080
+CROWDSEC_BOUNCER_API_KEY=<key from cscli bouncers add>
+```
+
+The integration is on once both are set. With only one of them, or neither, it stays off and nothing else in the app changes. Read access gives you:
+
+- The [Security page](#the-security-page), with ban stats and the active decisions next to your traffic.
+- Decisions on the IPs in every table. An IP with an active ban takes a red fill, and one with a captcha an amber fill.
+- The Banned view on the map. Its red markers count the banned addresses seen at each location in the selected time range. The popup lists every banned IP there with its current decisions, and the map controls show the banned traffic totals and the top five banned IPs by requests. The [map page](./map.mdx) covers the view.
+
+Decisions reach the browser live. The app polls the LAPI decision stream every `CROWDSEC_STREAM_POLL_INTERVAL` seconds, 15 by default, and pushes the changes over the `/ws/crowdsec` WebSocket. The fills and badges change within seconds when CrowdSec bans or unbans an IP anywhere, not only from this app.
+
+## Ban and unban
+
+To ban and unban from the app, add machine credentials. The `-f -` flag prints the credentials instead of overwriting the container's own `/etc/crowdsec/local_api_credentials.yaml`:
+
+```bash
+docker exec crowdsec cscli machines add geometrikks --auto -f -
+```
+
+```dotenv
+CROWDSEC_MACHINE_ID=geometrikks
+CROWDSEC_MACHINE_PASSWORD=<password from cscli machines add>
+```
+
+Set both or neither. With only one, startup fails with an error saying they must be set together. The machine credentials work only on top of read access, so `CROWDSEC_LAPI_URL` and `CROWDSEC_BOUNCER_API_KEY` stay required. They unlock three things: ban, unban, and the alert history on the Security page.
+
+Where the controls are:
+
+- In the tables, such as Access Logs and the top-IP tables on Analytics and Geo Logs, the IP actions menu after each IP has Ban IP for 1 hour, 4 hours, 24 hours, 7 days or Forever, and More options… for the ban dialog. On a banned IP it has Unban IP instead. The [IP inspector page](./ip-inspector.mdx#the-ip-actions-menu) covers the rest of the menu.
+- In the map popups, a shield button sits next to each IP and opens the same choices. On a phone the map's detail panel has a Ban button that opens them in a drawer.
+- The IP inspector has its own ban or unban button next to the address.
+- The Decisions tab on the Security page has a Ban IP button that opens the ban dialog.
+
+A ban or unban from a menu or button waits 5 seconds before it reaches CrowdSec, behind a toast with Undo.
+
+The ban dialog takes an IP or a CIDR range, a ban or a captcha, a duration and an optional reason. A captcha only works with a bouncer that has captcha set up. The duration is a preset or a custom value such as `90m`, `12h` or `3d`, and Forever is a 10-year ban. Unlike a menu, the dialog has no Undo window and sends the decision as soon as you submit it.
+
+A ban request over the API without a duration lasts `CROWDSEC_DEFAULT_BAN_DURATION`, `4h` by default. The dialog doesn't read that setting and always starts at 4 hours.
+
+Every manual decision carries origin `geometrikks` and the scenario `geometrikks/manual-ban` or `geometrikks/manual-captcha`. Without a reason it says `manual ban from GeoMetrikks`, or `manual captcha from GeoMetrikks` for a captcha. The app log records every ban and unban with the user who made it, or `api-key:<name>` for an API key.
+
+An unban deletes every active decision on exactly that IP or range, from any origin. A range decision that covers the IP stays in place, so unban the range to lift it.
+
+In `cscli machines list` and the CrowdSec console, the `geometrikks` machine can show a "last seen" long ago. That is expected. GeoMetrikks logs in once and reuses its token until it expires.
+
+## The Security page
+
+The Security page appears in the sidebar once `CROWDSEC_LAPI_URL` and `CROWDSEC_BOUNCER_API_KEY` are set. Stat cards sit at the top: active decisions, local bans, the top scenario, and the LAPI state with whether ban and unban are on. Below them the page shows one table at a time, in tabs:
+
+- **Decisions**, the active decisions. Local shows decisions from `crowdsec`, `cscli` and `geometrikks`. All origins adds the community blocklist (CAPI) and the lists you subscribe to, and Crowd (CAPI) shows only those. The community blocklist can hold tens of thousands of decisions, which is why Local is the default.
+- **Alerts**, the alert history, with machine credentials. Without them the tab says the history needs `CROWDSEC_MACHINE_ID` and `CROWDSEC_MACHINE_PASSWORD`.
+- **DROP**, the DROP networks in your traffic, once a network feed has downloaded. [Spamhaus DROP lists](./drop-lists.mdx#the-drop-networks-card) covers it.
+- **Reports**, the reports GeoMetrikks has sent to AbuseIPDB, when [AbuseIPDB reporting](./abuseipdb.mdx#the-reports-tab) is on.
+
+The open tab is in the URL, such as `/security?tab=alerts`, so a reload or a shared link opens the same tab. Decisions, the first tab, needs no `tab` in the URL. A link to `/security#drop-networks` opens the DROP tab. A link to a tab the page doesn't show opens the first tab.
+
+With AbuseIPDB reporting on and CrowdSec not set up, Security stays in the navigation and shows only the Reports table, without the stat cards or a tab bar.
+
+Select an alert to open its context, events and decisions. In the Banned map popup, a decision's scenario name opens its alert too. A blocklist decision has no alert of its own to open, because CrowdSec pulls those in bulk.
+
+### Bot detection
+
+CrowdSec 1.8 adds bot detection to its WAF. A browser challenge rejects clients whose fingerprint scores like an automation tool. Each rejection is an alert of kind `bot-detection` with no decision of its own. The hub scenarios `crowdsecurity/appsec-bot-challenge-too-many-requests` and `crowdsecurity/appsec-bot-challenge-too-many-submissions` can still ban a client that keeps failing the challenge, and those bans show up like any other. With machine credentials the Security page lists these alerts and opens them with the challenge outcome, the score and the signals behind it. The challenge itself needs the AppSec component and a bouncer that supports it. The [CrowdSec docs](https://docs.crowdsec.net/docs/appsec/bot_detection/intro/) cover that setup.
+
+The alert history filters by kind. Requirements:
+
+- Filtering by kind needs CrowdSec 1.7 or newer. An older LAPI rejects the filter, and the app says the filter needs 1.7.
+- Bot detection alerts need CrowdSec 1.8 or newer.
+
+## Settings
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `CROWDSEC_LAPI_URL` | none | The LAPI base URL, such as `http://crowdsec:8080`. |
+| `CROWDSEC_BOUNCER_API_KEY` | none | The bouncer key. With the URL it turns on read access. |
+| `CROWDSEC_MACHINE_ID` | none | The machine name. With the password it turns on ban, unban and alert history. |
+| `CROWDSEC_MACHINE_PASSWORD` | none | The machine password. Set it with the ID or startup fails. |
+| `CROWDSEC_DEFAULT_BAN_DURATION` | `4h` | How long a manual ban lasts when the request gives no duration. |
+| `CROWDSEC_VERIFY_TLS` | `true` | Verify the LAPI's certificate when the URL is https. |
+| `CROWDSEC_REQUEST_TIMEOUT` | `10` | Seconds before a LAPI request gives up. |
+| `CROWDSEC_STREAM_POLL_INTERVAL` | `15` | Seconds between polls of the decision stream behind the live updates. |
+
+The [configuration reference](../reference/configuration.mdx#crowdsec) lists the first six rows under CrowdSec. `CROWDSEC_REQUEST_TIMEOUT` and `CROWDSEC_STREAM_POLL_INTERVAL` are under [Advanced tuning](../reference/configuration.mdx#advanced-tuning) there.
+
+## Networking
+
+GeoMetrikks has to reach the LAPI at `CROWDSEC_LAPI_URL`. With CrowdSec in Docker, put GeoMetrikks on the same Docker network and use the container name, or publish the LAPI port and use the host's address.
+
+Pangolin's CrowdSec container doesn't publish its LAPI port. To use this integration with a [Pangolin](../sources/traefik.mdx#pangolin) install, publish port 8080 or put GeoMetrikks on the same Docker network.
+
+With several GeoMetrikks instances, only the head talks to CrowdSec. Agents ignore every `CROWDSEC_*` setting. [Multiple sources](../sources/multiple-sources.mdx#crowdsec) has the details.
+
+## Screenshots
+
+<Screenshot scene="security" />
+
+<Screenshot scene="banned-map" />

@@ -1,0 +1,100 @@
+---
+title: OpenID Connect
+description: Sign in to GeoMetrikks through an identity provider such as Authelia, Authentik, Keycloak, Pocket ID or Google, and limit who gets in.
+---
+
+GeoMetrikks can sign you in through an OpenID Connect identity provider such as Authelia, Authentik, Keycloak, Pocket ID or Google. It uses the authorization code flow with PKCE (S256) and needs a confidential client at the provider, one with a client secret.
+
+## Setup
+
+```dotenv
+OIDC_ISSUER=https://auth.example.com
+OIDC_CLIENT_ID=geometrikks
+OIDC_CLIENT_SECRET=<client secret from the provider>
+OIDC_REDIRECT_URI=https://geo.example.com/api/v1/auth/oidc/callback
+OIDC_ALLOWED_GROUPS=admins
+APP_SESSION_SECURE=true
+```
+
+Login through the provider turns on when `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI` are all set. Setting only some of them stops startup with an error that names the missing ones. Run `docker compose up -d` after editing `.env`.
+
+`OIDC_ISSUER` is the provider's issuer URL. GeoMetrikks reads discovery from the issuer plus `/.well-known/openid-configuration`, and the issuer the discovery document names must match `OIDC_ISSUER` apart from a trailing slash. When they differ, discovery fails and nobody can sign in through the provider. The ID token's `iss` claim must equal the issuer exactly as the discovery document spells it. The provider's discovery has to list a userinfo endpoint and an asymmetric ID token signing algorithm such as RS256 or ES256. The client authenticates at the token endpoint with HTTP Basic, or with a form post when the provider only offers that.
+
+### The callback URL
+
+The callback path is fixed. `OIDC_REDIRECT_URI` must be the public address of the app plus exactly `/api/v1/auth/oidc/callback`, or startup fails. Register the same URL at the provider.
+
+An app served under a sub-path, such as `https://example.com/geo/`, can't use OpenID Connect. Its callback would be `/geo/api/v1/auth/oidc/callback`, which fails the check, so give GeoMetrikks its own host name to use a provider.
+
+Both URLs must use https. Plain http works only when the host is `localhost` or a loopback address such as `127.0.0.1` or `::1`. Credentials, a query string or a fragment in `OIDC_ISSUER` or `OIDC_REDIRECT_URI` stop startup.
+
+An https redirect URI also needs `APP_SESSION_SECURE=true`, or startup fails, because the session cookie must never travel over plain http.
+
+## Who gets in
+
+Set at least one of `OIDC_ALLOWED_USERS` and `OIDC_ALLOWED_GROUPS`, or startup fails. Without an allow list, anyone the provider authenticates could sign in, and with a public provider such as Google that is everyone with an account. Both take one value, comma-separated values, or a JSON list.
+
+- `OIDC_ALLOWED_USERS` holds email addresses or subject identifiers. An email only matches when the provider marks it verified (`email_verified` true). An unverified email never matches.
+- `OIDC_ALLOWED_GROUPS` holds group names. Membership in any one of them is enough. GeoMetrikks reads the groups from the claim `OIDC_GROUPS_CLAIM` names, `groups` by default.
+
+GeoMetrikks reads the claims from the ID token and from the userinfo endpoint, so a provider that serves groups or email only from userinfo works without extra mapping. The name shown in the app is the first of `preferred_username`, `name` and `email` that the provider sends, else the subject.
+
+GeoMetrikks checks the allow list when someone signs in. Removing a person or a group at the provider takes effect the next time they sign in, which is within `APP_SESSION_MAX_AGE_DAYS` days, when their session runs out. To lock someone out at once, change the allow list in `.env` and run `docker compose up -d`. A change to the allow lists, the issuer, the client id, the groups claim or the scopes ends every session on the next start. [Login and sessions](./index.mdx#sessions) lists every setting that does this.
+
+## Password login next to it
+
+Password login stays on while `APP_ADMIN_PASSWORD` is set, so you can still get in through the password form when the provider is down. Unset it to make the provider the only way in. The login page shows a button named `Sign in with` plus `OIDC_PROVIDER_NAME`, `SSO` by default.
+
+Enabling OpenID Connect together with `APP_AUTH_DISABLED=true` stops startup.
+
+## Logout
+
+Logout always clears the GeoMetrikks session. With `OIDC_LOGOUT_IDP=true` it also ends the session at the provider, when the provider's discovery lists an `end_session_endpoint`. Register the app's origin plus `/signed-out`, such as `https://geo.example.com/signed-out`, as the post-logout redirect URI at the provider before you turn it on. When the endpoint is missing, logout clears the GeoMetrikks session only, and the provider keeps you signed in.
+
+## Other settings
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `OIDC_SCOPES` | `openid profile email groups` | Scopes requested at login, separated by spaces. Must include `openid`, or startup fails. |
+| `OIDC_GROUPS_CLAIM` | `groups` | The claim that carries group membership. |
+| `OIDC_PROVIDER_NAME` | `SSO` | The provider's name on the login button. |
+| `OIDC_LOGOUT_IDP` | `false` | Also end the provider session on logout. |
+| `OIDC_CA_BUNDLE` | none | A PEM file with the CA that signed the provider's certificate. |
+
+The [OpenID Connect section of the configuration reference](../../reference/configuration.mdx#openid-connect) has every setting and the full list of startup checks.
+
+### Internal CA
+
+If your own CA signed the provider's certificate, point `OIDC_CA_BUNDLE` at its PEM file and mount the file into the container. Startup fails when the file is missing or unreadable. There is no switch to turn certificate checks off.
+
+### Provider availability
+
+Settings > Status shows whether GeoMetrikks could fetch the provider's discovery document, and the last error. Startup never waits for the provider. If it is still coming up, the next sign-in attempt tries discovery again.
+
+## Provider recipes
+
+### Authelia
+
+Add a client under `identity_providers.oidc.clients`:
+
+```yaml
+- client_id: geometrikks
+  client_name: GeoMetrikks
+  client_secret: '$pbkdf2-sha512$...'   # authelia crypto hash generate pbkdf2
+  public: false
+  authorization_policy: two_factor
+  redirect_uris:
+    - https://geo.example.com/api/v1/auth/oidc/callback
+  scopes: [openid, profile, email, groups]
+  token_endpoint_auth_method: client_secret_basic
+```
+
+Authelia serves `groups` and `email` from the userinfo endpoint rather than the ID token. GeoMetrikks reads both, so nothing extra is needed. Keep the `groups` scope in `OIDC_SCOPES`, as the default does. Authelia 4.39 doesn't advertise an end-session endpoint, so leave `OIDC_LOGOUT_IDP=false`.
+
+### Authentik
+
+Create an OAuth2/OpenID provider with client type Confidential, the redirect URI above, and the default `openid`, `email` and `profile` scope mappings. Groups come through the default `profile` mapping. Set `OIDC_ISSUER` to the application's issuer URL shown on the provider page, which ends in the application slug, and set `OIDC_SCOPES="openid profile email"` unless you add a `groups` scope.
+
+### Google
+
+Google doesn't accept a `groups` scope, so set `OIDC_SCOPES="openid profile email"` and allow people by verified email with `OIDC_ALLOWED_USERS`. Google's discovery document doesn't advertise an end-session endpoint, so leave `OIDC_LOGOUT_IDP=false`.

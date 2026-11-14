@@ -12,7 +12,7 @@ docker compose pull
 docker compose up -d
 ```
 
-`pull` fetches the image the compose file names, and `up -d` recreates the containers that changed. The app migrates the database on its first start. With the default `latest` tag every pull can bring a new release. To decide when you upgrade, pin a version tag such as `0.24.0` on the `image:` line and change it when you are ready. The [Quickstart](./quickstart.mdx#docker-image-tags) lists the tags.
+`pull` fetches the image the compose file names, and `up -d` recreates the containers that changed. The app migrates the database on its first start. With the default `latest` tag every pull can bring a new release. To decide when you upgrade, pin a version tag such as `0.25.0` on the `image:` line and change it when you are ready. The [Quickstart](./quickstart.mdx#docker-image-tags) lists the tags.
 
 Lines your proxy logs while the app or an agent is down never reach the database by themselves. Every start reads each log file from its end, and each Loki source from the moment it starts, so no source picks up where the last run stopped. To fill the gap, import the missed lines with [import-logs](../operate/cli/import-logs.mdx) for files or [import-loki](../operate/cli/import-loki.mdx) for Loki.
 
