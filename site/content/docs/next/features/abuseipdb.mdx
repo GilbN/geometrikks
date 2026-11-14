@@ -97,9 +97,9 @@ An AbuseIPDB blacklist mark, red text in a red ring with a shield icon, names th
 - record sheets, such as an access log row's details;
 - map popups about one IP, such as a banned IP's details and a live request's details.
 
-Hover or tap the mark for what it means. In a map location's top IPs, a listed address reads On AbuseIPDB blacklist, and clicking it explains the listing with a link to the address's page on abuseipdb.com.
+Hover or tap the mark for what it means. In a map location's top IPs, the line under a listed address starts with On AbuseIPDB blacklist, and clicking the address explains the listing with a link to the address's page on abuseipdb.com.
 
-The [abuse report](./abuse-reports.mdx) dialog notes when the address, or some of an AS's addresses, are on the list. The report text and CSV leave the listing out, since AbuseIPDB forbids republishing the list.
+The [abuse report](./abuse-reports.mdx) dialog notes when the address is on the list, or how many of the addresses an AS report lists are. The report text and CSV leave the listing out.
 
 The scheduler runs the download, so it needs `SCHEDULER_ENABLED=true`, the default. The first run comes a minute after startup, and skips the download when the stored list is younger than the refresh interval. A download is never tried again within 5 hours of the last attempt, since free plans get 5 blacklist calls a day. Run now on Settings > Scheduler follows the same rule. Only the full instance downloads the list, never an [agent](../sources/multiple-sources.mdx).
 
