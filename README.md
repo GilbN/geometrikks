@@ -13,12 +13,12 @@ hardware from one Docker image.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="data/screenshots/map-desktop-light.webp">
-    <img src="data/screenshots/map-desktop-dark.webp" alt="The Map page on a desktop browser" width="72%">
+    <source media="(prefers-color-scheme: light)" srcset="data/screenshots/live-desktop-light.webp">
+    <img src="data/screenshots/live-desktop-dark.webp" alt="The map in live mode on a desktop browser, with arcs carrying incoming requests to the servers" width="72%">
   </picture>
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="data/screenshots/map-phone-light.webp">
-    <img src="data/screenshots/map-phone-dark.webp" alt="The Map page on a phone" width="24%">
+    <source media="(prefers-color-scheme: light)" srcset="data/screenshots/live-phone-light.webp">
+    <img src="data/screenshots/live-phone-dark.webp" alt="The map in live mode on a phone" width="24%">
   </picture>
 </p>
 
