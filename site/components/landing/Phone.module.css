@@ -1,0 +1,56 @@
+.phone {
+  border-top: 1px solid var(--line);
+  background: var(--bg-deep);
+}
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  list-style: none;
+}
+.row a {
+  border-radius: 22px;
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: 0 24px 60px oklch(0 0 0 / 45%);
+}
+/* The default corner would cover the tab bar in the screenshot. */
+.row a :global(.hint) {
+  top: 12px;
+  bottom: auto;
+}
+.row img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.row h3 {
+  margin: 18px 4px 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.row p {
+  margin: 0 4px;
+  color: var(--fg-dim);
+  font-size: 14px;
+}
+@media (max-width: 900px) {
+  .row {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: min(62vw, 260px);
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 24px;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+  }
+  .row li {
+    scroll-snap-align: start;
+  }
+}

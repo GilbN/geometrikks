@@ -100,13 +100,6 @@ kbd {
 section {
   padding: 96px 0;
 }
-.kicker {
-  font: 500 12px/1 var(--mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 14px;
-}
 .section-title {
   font-size: clamp(28px, 3.6vw, 42px);
   letter-spacing: -0.025em;
@@ -114,6 +107,7 @@ section {
   font-weight: 600;
   margin: 0 0 14px;
   max-width: 22ch;
+  text-wrap: balance;
 }
 .sub {
   color: var(--fg-dim);
@@ -142,6 +136,13 @@ pre.block .c {
 }
 pre.block .k {
   color: var(--accent);
+}
+.more {
+  color: var(--accent);
+  font-weight: 500;
+}
+.more:hover {
+  text-decoration: underline;
 }
 
 /* Tab strips (sources, screens). Panels stack when scripting is off. */

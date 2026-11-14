@@ -2,12 +2,10 @@ import screenshots from "@/.generated/screenshots.json";
 import { type Manifest, sceneEntry, shotSrc, variant } from "@/lib/screenshots";
 import { ZoomHint } from "../ShotPair";
 import { CrowdSecLogo } from "./logos";
-import styles from "./CrowdSec.module.css";
+import styles from "./Security.module.css";
 
-// CrowdSec gets its own section: the Banned IPs map view across the top,
-// then the IP inspector beside the copy and the two-line setup. The inspector
-// picture is the screenshot cropped to its right edge, where the sheet with
-// the ban badge sits; the zoom link opens the whole thing.
+// The inspector picture is the screenshot cropped to its right edge, where the
+// sheet with the ban badge sits; the zoom link opens the whole thing.
 function desktopDark(id: string) {
   const entry = sceneEntry(screenshots as Manifest, id);
   const shot = variant(entry, "desktop", "dark");
@@ -29,12 +27,30 @@ CROWDSEC_BOUNCER_API_KEY=<key>`}
   </>
 );
 
-export function CrowdSec() {
+const signals = [
+  {
+    title: "Spamhaus DROP lists",
+    body: "GeoMetrikks downloads the DROP lists and marks traffic from the networks on them. With CrowdSec machine credentials, the DROP tab bans a whole network.",
+    href: "/docs/features/drop-lists/",
+  },
+  {
+    title: "AbuseIPDB",
+    body: "Add a key and the IP inspector shows an address's AbuseIPDB score. Turn on reporting to report an IP from its actions menu, and the blacklist to mark the IPs on it.",
+    href: "/docs/features/abuseipdb/",
+  },
+  {
+    title: "Abuse reports",
+    body: "Build a report about one IP or the busiest IPs of a network, look up the network's abuse contact, and copy or download it. The report leaves out your server names and hosts. Read it through before you send it.",
+    href: "/docs/features/abuse-reports/",
+  },
+];
+
+export function Security() {
   return (
-    <section className={styles.crowdsec} id="crowdsec">
+    <section className={styles.security} id="security">
       <div className="wrap">
-        <p className={`kicker ${styles.kicker}`}>
-          <CrowdSecLogo width={22} height={22} aria-hidden="true" /> CrowdSec
+        <p className={styles.lockup}>
+          <CrowdSecLogo width={22} height={22} aria-hidden="true" /> With CrowdSec
         </p>
         <h2 className="section-title">Watch hostile traffic fuck around and find out.</h2>
         <p className="sub">
@@ -91,9 +107,8 @@ export function CrowdSec() {
               <dt>Ban and unban from the UI</dt>
               <dd>
                 With machine credentials, the IP actions menu in the tables gets Ban and Unban, and a shield button
-                beside the IP does the same in map popups and the IP inspector. Pick a preset from an hour to forever, or type
-                your own duration. Every
-                ban and unban is audit-logged with the acting user.
+                beside the IP does the same in map popups and the IP inspector. Pick a preset from an hour to forever,
+                or type your own duration. Every ban and unban is audit-logged with the acting user.
               </dd>
             </div>
             <div>
@@ -114,6 +129,17 @@ export function CrowdSec() {
             </div>
           </dl>
         </div>
+        <h3 className={styles.also}>With or without CrowdSec</h3>
+        <ul className={styles.signals}>
+          {signals.map((signal) => (
+            <li key={signal.title}>
+              <a href={signal.href}>
+                <b>{signal.title}</b>
+                <span>{signal.body}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

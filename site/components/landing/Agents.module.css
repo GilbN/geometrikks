@@ -17,13 +17,6 @@
 .copy pre:global(.block) {
   margin: 20px 0;
 }
-.more {
-  color: var(--accent);
-  font-weight: 500;
-}
-.more:hover {
-  text-decoration: underline;
-}
 
 .diagram {
   --link: var(--line-strong);

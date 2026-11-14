@@ -6,9 +6,10 @@ import { Wordmark } from "@/components/brand/Wordmark";
 import styles from "./Nav.module.css";
 
 const links = [
+  { href: "#screens", label: "Tour" },
+  { href: "#phone", label: "Phone" },
+  { href: "#security", label: "Security" },
   { href: "#sources", label: "Sources" },
-  { href: "#screens", label: "Map and logs" },
-  { href: "#crowdsec", label: "CrowdSec" },
   { href: "#agents", label: "Agents" },
   { href: "#install", label: "Install" },
   { href: "/docs/", label: "Docs" },
@@ -42,7 +43,7 @@ export function Nav() {
         </a>
         <ul id="site-menu">
           {links.map((link) => (
-            <li key={link.href}>
+            <li key={link.href} className={link.href === "/docs/" ? styles.docs : undefined}>
               <a href={link.href} onClick={() => setOpen(false)}>
                 {link.label}
               </a>

@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { Agents } from "@/components/landing/Agents";
 import { BuiltWith } from "@/components/landing/BuiltWith";
-import { CrowdSec } from "@/components/landing/CrowdSec";
 import { Features } from "@/components/landing/Features";
 import { Footer } from "@/components/landing/Footer";
 import { Hero } from "@/components/landing/Hero";
 import { Install } from "@/components/landing/Install";
 import { Lightbox } from "@/components/landing/Lightbox";
 import { Nav } from "@/components/landing/Nav";
+import { Phone } from "@/components/landing/Phone";
 import { Screens } from "@/components/landing/Screens";
+import { Security } from "@/components/landing/Security";
 import { Sources } from "@/components/landing/Sources";
 
 const title = "GeoMetrikks · Your access logs, on a live map";
@@ -52,10 +53,11 @@ export default function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Nav />
       <Hero />
-      <Sources />
       <Screens />
+      <Phone />
+      <Security />
       <Features />
-      <CrowdSec />
+      <Sources />
       <Agents />
       <Install />
       <BuiltWith />

@@ -47,3 +47,24 @@
 .pair {
   padding: clamp(12px, 2.5vw, 28px);
 }
+/* The map clip beside its phone shot, on ShotPair's grid. */
+.clip {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 1fr);
+  gap: clamp(12px, 2.5%, 28px);
+  align-items: end;
+  padding: clamp(12px, 2.5vw, 28px);
+}
+.clip img {
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+}
+@media (max-width: 640px) {
+  .clip {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+  .clip img {
+    width: 50%;
+  }
+}
