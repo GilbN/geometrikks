@@ -363,6 +363,7 @@ test.describe("portrait phone", () => {
     await expect(hint(page)).toHaveCount(0)
     await expect(sheet).toBeVisible()
   })
+
   test("an IP report notes a listed IP without clipping the notice", async ({ page }) => {
     await setup(page)
     await routeAbuseReports(page)
@@ -374,6 +375,8 @@ test.describe("portrait phone", () => {
     const dialogBox = (await dialog.boundingBox())!
     expect(headlineBox.x).toBeGreaterThanOrEqual(dialogBox.x)
     expect(headlineBox.x + headlineBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width)
+    expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(page.viewportSize()!.width)
+    expect(await headline.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   })
 })
 
