@@ -26,6 +26,7 @@ import { relativeTime } from "@/components/settings/status-logic"
 import {
   canRemove,
   databaseLinkState,
+  type DatabaseLinkState,
   type DetailSection,
   type DetailSectionId,
   instanceDetailSections,
@@ -58,6 +59,20 @@ const driftBadgeClasses = {
   amber: "border-amber-500/45 text-amber-500",
 } as const
 
+/** Each row renders this twice and a container query shows one: beside the name, or on the
+ *  second line when the row is too narrow to fit it next to a long name. The row is one
+ *  button, so the lock is never a tap target of its own. */
+function ListLock({ databaseLink, className }: { databaseLink: DatabaseLinkState; className: string }) {
+  return (
+    <BadgeHint hint={databaseLink.hint} tappable={false}>
+      <span className={cn("shrink-0", className)}>
+        <ConnectionLock lock={databaseLink.lock} className="size-3" />
+        <span className="sr-only">{databaseLink.hint}</span>
+      </span>
+    </BadgeHint>
+  )
+}
+
 export function AgentList({
   instances,
   head,
@@ -83,18 +98,11 @@ export function AgentList({
               className="flex min-h-[62px] w-full items-center gap-3 px-4 py-2.5 text-left outline-none hover:bg-muted/30 focus-visible:bg-muted/30 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
             >
               <StatusLed tone={instanceTone(instance)} />
-              <span className="min-w-0 flex-1">
+              <span className="@container/row min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <MonoChip className="min-w-0 truncate text-foreground">{instance.instanceName}</MonoChip>
                   {databaseLink && (
-                    <BadgeHint hint={databaseLink.hint} tappable={false}>
-                      {/* Under 360px a version badge leaves a long name about three characters;
-                          the lock yields there, and the drawer title still shows it. */}
-                      <span className={cn("-ml-0.5 inline-flex shrink-0", drift && "max-[359px]:hidden")}>
-                        <ConnectionLock lock={databaseLink.lock} className="size-3" />
-                        <span className="sr-only">{databaseLink.hint}</span>
-                      </span>
-                    </BadgeHint>
+                    <ListLock databaseLink={databaseLink} className="-ml-0.5 inline-flex @max-[15rem]/row:hidden" />
                   )}
                   {instance.isSelf && (
                     <Badge variant="outline" className={cn(rowBadgeClasses, "text-muted-foreground")}>
@@ -116,12 +124,17 @@ export function AgentList({
                     {relativeTime(instance.lastSeen, checkedAt)}
                   </span>
                 </span>
-                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  {/* A healthy row's line already starts with "Healthy". */}
-                  {instance.status !== "ok" && (
-                    <span className="sr-only">{instanceStatusLabel(instance.status)}: </span>
+                <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {databaseLink && (
+                    <ListLock databaseLink={databaseLink} className="hidden @max-[15rem]/row:inline-flex" />
                   )}
-                  <PartsLine parts={instanceRowLine(instance)} />
+                  <span className="min-w-0 truncate">
+                    {/* A healthy row's line already starts with "Healthy". */}
+                    {instance.status !== "ok" && (
+                      <span className="sr-only">{instanceStatusLabel(instance.status)}: </span>
+                    )}
+                    <PartsLine parts={instanceRowLine(instance)} />
+                  </span>
                 </span>
               </span>
               <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
