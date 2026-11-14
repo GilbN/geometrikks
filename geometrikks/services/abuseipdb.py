@@ -166,7 +166,7 @@ def _optional(data: dict[str, Any], key: str, kind: type) -> Any:
     return value
 
 
-def _canonical_global_ip(value: str) -> str | None:
+def canonical_global_ip(value: str) -> str | None:
     try:
         address = ipaddress.ip_address(value.strip())
     except ValueError:
@@ -181,7 +181,28 @@ def _canonical_global_ip(value: str) -> str | None:
 def _blacklist_entry_ip(entry: object) -> str | None:
     if not isinstance(entry, dict):
         raise _BadPayloadError("data")
-    return _canonical_global_ip(_required_str(entry, "ipAddress"))
+    return canonical_global_ip(_required_str(entry, "ipAddress"))
+
+
+class BlacklistFormatError(Exception):
+    """A body that is not AbuseIPDB's JSON blacklist."""
+
+
+def parse_blacklist_json(body: bytes) -> BlacklistResult:
+    """AbuseIPDB's JSON blacklist, keeping only canonical global addresses. The list can come back empty."""
+    try:
+        payload = msgspec.json.decode(body)
+        generated_at = datetime.fromisoformat(payload["meta"]["generatedAt"])
+        if generated_at.tzinfo is None:
+            raise _BadPayloadError("generatedAt")
+        entries = payload["data"]
+        if not isinstance(entries, list):
+            raise _BadPayloadError("data")
+        ips = [ip for entry in entries if (ip := _blacklist_entry_ip(entry)) is not None]
+    # fromisoformat quotes the upstream value, and the exception logger prints causes.
+    except (msgspec.DecodeError, _BadPayloadError, KeyError, TypeError, ValueError):
+        raise BlacklistFormatError from None
+    return BlacklistResult(generated_at=generated_at, ips=list(dict.fromkeys(ips)))
 
 
 class AbuseIpdbClient:
@@ -355,20 +376,12 @@ class AbuseIpdbClient:
             "blacklist", "GET", {"limit": str(BLACKLIST_LIMIT)}, max_bytes=MAX_BLACKLIST_RESPONSE_BYTES
         )
         try:
-            payload = msgspec.json.decode(body)
-            generated_at = datetime.fromisoformat(payload["meta"]["generatedAt"])
-            if generated_at.tzinfo is None:
-                raise _BadPayloadError("generatedAt")
-            entries = payload["data"]
-            if not isinstance(entries, list):
-                raise _BadPayloadError("data")
-            ips = [ip for entry in entries if (ip := _blacklist_entry_ip(entry)) is not None]
-        # fromisoformat quotes the upstream value, and the exception logger prints causes.
-        except (msgspec.DecodeError, _BadPayloadError, KeyError, TypeError, ValueError):
+            result = parse_blacklist_json(body)
+        except BlacklistFormatError:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an unreadable answer", maybe_sent=False) from None
-        if not ips:
+        if not result.ips:
             raise AbuseIpdbUnavailableError("AbuseIPDB sent an empty blacklist", maybe_sent=False)
-        return BlacklistResult(generated_at=generated_at, ips=list(dict.fromkeys(ips)))
+        return result
 
 
 _client: AbuseIpdbClient | None = None

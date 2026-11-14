@@ -1145,10 +1145,19 @@ class AbuseIpdbSettings(BaseSettings):
         default=False,
         description=(
             "Download AbuseIPDB's blacklist from api.abuseipdb.com every "
-            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS and mark listed IPs in the UI. "
-            "The request sends your key and no IPs. Needs ABUSEIPDB_API_KEY and the "
-            "scheduler. The list is for your own use. AbuseIPDB forbids republishing "
+            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS, or read ABUSEIPDB_BLACKLIST_FILE, and mark listed IPs in the UI. "
+            "The request sends your key and no IPs. Needs the scheduler and either ABUSEIPDB_API_KEY "
+            "or ABUSEIPDB_BLACKLIST_FILE. The list is for your own use. AbuseIPDB forbids republishing "
             "it, and free plans can't be used commercially."
+        ),
+    )
+    blacklist_file: Path | None = Field(
+        default=None,
+        description=(
+            "Read the blacklist from this file instead of downloading it, for a list you "
+            "already download some other way. It takes AbuseIPDB's JSON answer as saved, "
+            "or one IP per line. GeoMetrikks checks the file every 5 minutes and needs no "
+            "API key for it. Needs ABUSEIPDB_BLACKLIST_ENABLED=true."
         ),
     )
     blacklist_refresh_hours: int = Field(
@@ -1158,7 +1167,8 @@ class AbuseIpdbSettings(BaseSettings):
         description=(
             "Hours between blacklist downloads, from 6 to 36. The list is never fetched "
             "again within 5 hours of the last attempt, since free plans get 5 calls a day. "
-            "If downloads keep failing, a list more than 72 hours old is no longer shown."
+            "If downloads keep failing, a list more than 72 hours old is no longer shown. "
+            "Not used with ABUSEIPDB_BLACKLIST_FILE."
         ),
         json_schema_extra=ADVANCED_FIELD,
     )
@@ -1169,10 +1179,10 @@ class AbuseIpdbSettings(BaseSettings):
         json_schema_extra=ADVANCED_FIELD,
     )
 
-    @field_validator("api_key", mode="before")
+    @field_validator("api_key", "blacklist_file", mode="before")
     @classmethod
-    def strip_key(cls, value: object) -> object:
-        """Strip the key, so ``ABUSEIPDB_API_KEY=`` in a compose file reads as unset."""
+    def blank_reads_as_unset(cls, value: object) -> object:
+        """Strip the value, so ``ABUSEIPDB_API_KEY=`` in a compose file reads as unset."""
         if isinstance(value, str):
             value = value.strip()
             return value or None
@@ -1193,8 +1203,8 @@ class AbuseIpdbSettings(BaseSettings):
     @model_validator(mode="after")
     def validate_blacklist_has_key(self) -> "AbuseIpdbSettings":
         """Fail at startup, not at the first download."""
-        if self.blacklist_enabled and self.api_key is None:
-            raise ValueError("ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY")
+        if self.blacklist_enabled and self.api_key is None and self.blacklist_file is None:
+            raise ValueError("ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY or ABUSEIPDB_BLACKLIST_FILE")
         return self
 
 

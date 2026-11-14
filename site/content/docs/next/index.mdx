@@ -42,7 +42,7 @@ The server makes these requests on its own:
 | Abuse contact lookup over RDAP<br />`data.iana.org`, then the registries below | Only when someone clicks Find abuse contact in an [abuse report](./features/abuse-reports.mdx#the-abuse-contact), or calls the abuse contact API | Don't use it. Only the IP address or AS number leaves the server. |
 | [AbuseIPDB](./features/abuseipdb.mdx) score<br />`api.abuseipdb.com` | When someone opens a public IP in the IP inspector, presses Check in an AbuseIPDB report, or calls the check API. An IP checked in the last 15 minutes is usually not sent again. | Leave `ABUSEIPDB_API_KEY` unset. Only the IP address and your key leave the server. |
 | AbuseIPDB report<br />`api.abuseipdb.com` | Only when someone sends a report | `ABUSEIPDB_REPORTING_ENABLED=false`, the default. AbuseIPDB publishes the IP, the categories, the comment and the attack time. |
-| AbuseIPDB blacklist<br />`api.abuseipdb.com` | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` (default 24), never twice within 5 hours | `ABUSEIPDB_BLACKLIST_ENABLED=false`, the default. Only your key leaves the server. |
+| AbuseIPDB blacklist<br />`api.abuseipdb.com` | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` (default 24), never twice within 5 hours | `ABUSEIPDB_BLACKLIST_ENABLED=false`, the default, or a list you download yourself in `ABUSEIPDB_BLACKLIST_FILE`. Only your key leaves the server. |
 
 The RDAP lookup asks `data.iana.org` which regional registry holds the address (ARIN, RIPE NCC, APNIC, LACNIC or AFRINIC), then asks that registry, and any national registry it redirects to, such as `rdap.registro.br`. Every hop is https.
 

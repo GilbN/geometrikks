@@ -277,11 +277,12 @@ export const AbuseContactResponseSchema = {
 } as const;
 
 export const AbuseIpdbBlacklistResponseSchema = {
-  description: "The IPs on AbuseIPDB's blacklist, as of the last download.",
+  description:
+    "The IPs on AbuseIPDB's blacklist, as of the last download or file read.",
   properties: {
     generatedAt: {
       description:
-        "When AbuseIPDB generated the list, as ISO 8601 in UTC. Null when `ips` is empty.",
+        "When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.",
       oneOf: [
         {
           format: "date-time",
@@ -301,7 +302,7 @@ export const AbuseIpdbBlacklistResponseSchema = {
     },
     refreshedAt: {
       description:
-        "When GeoMetrikks downloaded the list, as ISO 8601 in UTC. Null when `ips` is empty.",
+        "When GeoMetrikks downloaded the list, as ISO 8601 in UTC. With ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.",
       oneOf: [
         {
           format: "date-time",
@@ -324,7 +325,7 @@ export const AbuseIpdbStatusResponseSchema = {
   properties: {
     blacklistEnabled: {
       description:
-        "True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.",
+        "True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded, or read from ABUSEIPDB_BLACKLIST_FILE, and marked.",
       type: "boolean",
     },
     checks: {

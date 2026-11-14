@@ -36,7 +36,13 @@ class AbuseIpdbStatusResponse(msgspec.Struct, rename="camel", kw_only=True):
         bool, Meta(description="True when ABUSEIPDB_REPORTING_ENABLED=true, so reports can be sent.")
     ]
     blacklist_enabled: Annotated[
-        bool, Meta(description="True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.")
+        bool,
+        Meta(
+            description=(
+                "True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded, or read from "
+                "ABUSEIPDB_BLACKLIST_FILE, and marked."
+            )
+        ),
     ]
     reports: Annotated[
         RateLimitDTO | None,
@@ -49,13 +55,25 @@ class AbuseIpdbStatusResponse(msgspec.Struct, rename="camel", kw_only=True):
 
 
 class AbuseIpdbBlacklistResponse(msgspec.Struct, rename="camel", kw_only=True):
-    """The IPs on AbuseIPDB's blacklist, as of the last download."""
+    """The IPs on AbuseIPDB's blacklist, as of the last download or file read."""
 
     generated_at: Annotated[
-        datetime | None, Meta(description=f"When AbuseIPDB generated the list, {IN_UTC}. Null when `ips` is empty.")
+        datetime | None,
+        Meta(
+            description=(
+                f"When AbuseIPDB generated the list, {IN_UTC}. For a plaintext ABUSEIPDB_BLACKLIST_FILE, when the "
+                "file was last written. Null when `ips` is empty."
+            )
+        ),
     ]
     refreshed_at: Annotated[
-        datetime | None, Meta(description=f"When GeoMetrikks downloaded the list, {IN_UTC}. Null when `ips` is empty.")
+        datetime | None,
+        Meta(
+            description=(
+                f"When GeoMetrikks downloaded the list, {IN_UTC}. With ABUSEIPDB_BLACKLIST_FILE, when the file was "
+                "last written. Null when `ips` is empty."
+            )
+        ),
     ]
     ips: Annotated[list[str], Meta(description="The listed IPs in their canonical spelling.")]
 

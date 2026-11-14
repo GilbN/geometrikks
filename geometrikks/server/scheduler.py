@@ -239,24 +239,29 @@ async def abuseipdb_blacklist_refresh_job(
     settings: "Settings",
     first_run: "FirstRunFlag | None" = None,
 ) -> None:
-    """Refresh the AbuseIPDB blacklist; raise when the download or the write failed.
+    """Refresh the AbuseIPDB blacklist from the API or ABUSEIPDB_BLACKLIST_FILE; raise when that or the write failed.
 
     The first run after startup skips a list fetched within the refresh
     interval, so restart loops do not spend the daily calls.
     """
-    from geometrikks.domain.abuseipdb.blacklist import refresh_blacklist
+    from geometrikks.domain.abuseipdb.blacklist import refresh_blacklist, refresh_blacklist_file
     from geometrikks.services.abuseipdb import get_abuseipdb_client
 
-    client = get_abuseipdb_client(settings.abuseipdb)
-    if client is None:
-        return
-    outcome = await refresh_blacklist(
-        session_factory,
-        client,
-        now=datetime.now(timezone.utc),
-        startup=first_run.consume() if first_run is not None else False,
-        refresh_hours=settings.abuseipdb.blacklist_refresh_hours,
-    )
+    if settings.abuseipdb.blacklist_file is not None:
+        outcome = await refresh_blacklist_file(
+            session_factory, settings.abuseipdb.blacklist_file, now=datetime.now(timezone.utc)
+        )
+    else:
+        client = get_abuseipdb_client(settings.abuseipdb)
+        if client is None:
+            return
+        outcome = await refresh_blacklist(
+            session_factory,
+            client,
+            now=datetime.now(timezone.utc),
+            startup=first_run.consume() if first_run is not None else False,
+            refresh_hours=settings.abuseipdb.blacklist_refresh_hours,
+        )
     if outcome.status == "failed":
         raise RuntimeError(f"AbuseIPDB blacklist refresh failed: {outcome.reason}")
 
@@ -496,11 +501,18 @@ async def create_scheduler(
         logger.info("Scheduled DROP lists refresh every %d hour(s)", settings.drop.refresh_hours)
 
     if mode != "agent" and settings.abuseipdb.blacklist_enabled:
+        from geometrikks.domain.abuseipdb.blacklist_file import FILE_CHECK_MINUTES
         from geometrikks.domain.drop.refresh import FirstRunFlag
 
+        if settings.abuseipdb.blacklist_file is not None:
+            blacklist_trigger = IntervalTrigger(minutes=FILE_CHECK_MINUTES)
+            blacklist_schedule = f"{FILE_CHECK_MINUTES} minute(s) from {settings.abuseipdb.blacklist_file}"
+        else:
+            blacklist_trigger = IntervalTrigger(hours=settings.abuseipdb.blacklist_refresh_hours)
+            blacklist_schedule = f"{settings.abuseipdb.blacklist_refresh_hours} hour(s)"
         scheduler.add_job(
             abuseipdb_blacklist_refresh_job,
-            IntervalTrigger(hours=settings.abuseipdb.blacklist_refresh_hours),
+            blacklist_trigger,
             id="abuseipdb-blacklist-refresh",
             name="AbuseIPDB blacklist refresh",
             args=[session_factory, settings, FirstRunFlag()],
@@ -509,9 +521,7 @@ async def create_scheduler(
             max_instances=1,
             replace_existing=True,
         )
-        logger.info(
-            "Scheduled AbuseIPDB blacklist refresh every %d hour(s)", settings.abuseipdb.blacklist_refresh_hours
-        )
+        logger.info("Scheduled AbuseIPDB blacklist refresh every %s", blacklist_schedule)
 
     # CrowdSec decision-stream poll: feeds live ban/unban updates to the
     # /ws/crowdsec subscribers. Only registered when the integration is on;
