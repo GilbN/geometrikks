@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- On the Security page, switching tabs no longer clears the other tabs' search, filters and page.
+- A link to the Security page's DROP section opens on DROP instead of showing Decisions first.
+- Searching AbuseIPDB reports for a whole IP finds only that address, not longer ones that start with it.
+
 ## [0.25.0] - 2026-11-14
 
 ### Added

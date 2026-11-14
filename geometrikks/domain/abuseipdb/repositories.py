@@ -25,13 +25,16 @@ class ReportedIp:
     status: ReportStatus
 
 
-def _ip_search_prefix(q: str) -> str:
-    """What a matching address starts with. A whole address searches as its canonical spelling."""
+def _whole_ip(q: str) -> str | None:
+    """The canonical spelling of ``q`` when it is a whole address, so every spelling finds the same rows."""
     try:
         address = ipaddress.ip_address(q)
     except ValueError:
-        return q.lower()
+        return None
     if isinstance(address, ipaddress.IPv6Address):
+        # Postgres's INET rejects a zone index, and no stored address has one.
+        if address.scope_id is not None:
+            return None
         address = address.ipv4_mapped or address
     return str(address)
 
@@ -73,14 +76,20 @@ class AbuseIpdbReportRepository(SQLAlchemyAsyncRepository[AbuseIpdbReport]):
     ) -> tuple[list[AbuseIpdbReport], int]:
         """One page of the reports that match, newest first, and how many match in all.
 
-        ``q`` matches the start of the IP, or part of the comment or the sender's name.
+        ``q`` matches a whole IP exactly or the start of one, or part of the comment or the sender's name.
         A report needs any one of ``categories`` and any one of ``statuses``.
         """
         conditions = []
         if q:
+            whole_ip = _whole_ip(q)
+            ip_match = (
+                func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(q.lower(), autoescape=True)
+                if whole_ip is None
+                else AbuseIpdbReport.ip_address == cast(whole_ip, postgresql.INET)
+            )
             conditions.append(
                 or_(
-                    func.host(AbuseIpdbReport.ip_address, type_=Text).startswith(_ip_search_prefix(q), autoescape=True),
+                    ip_match,
                     AbuseIpdbReport.comment.icontains(q, autoescape=True),
                     AbuseIpdbReport.reporter_name.icontains(q, autoescape=True),
                 )

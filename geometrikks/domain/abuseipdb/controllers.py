@@ -241,8 +241,8 @@ class AbuseIpdbController(Controller):
                 required=False,
                 max_length=200,
                 description=(
-                    "Search, up to 200 characters. Matches the start of the IP, or part of the comment or the "
-                    "sender's name, ignoring case."
+                    "Search, up to 200 characters. A whole IP matches only that address, and other text matches "
+                    "the start of the IP. Either also matches part of the comment or the sender's name, ignoring case."
                 ),
             ),
         ] = None,

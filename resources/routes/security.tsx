@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router"
 import { ShieldBan } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -14,7 +15,7 @@ import { PageHeader } from "@/components/page-header"
 import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
 import { dropNetworksLoaded } from "@/lib/drop-lists"
 import { useAbout, useAbuseIpdbStatus, useCrowdsecLiveUpdates, useCrowdsecStatus } from "@/lib/queries"
-import { activeSecurityTab, availableSecurityTabs, type SecurityTab } from "@/lib/security-tabs"
+import { activeSecurityTab, availableSecurityTabs, DROP_NETWORKS_CARD_ID, type SecurityTab } from "@/lib/security-tabs"
 
 interface SecuritySearch {
   tab?: string
@@ -36,7 +37,7 @@ const TAB_LABELS: Record<SecurityTab, string> = {
 function SecurityPage() {
   const { data: status, isLoading, isError } = useCrowdsecStatus()
   const { data: abuseIpdbStatus, isLoading: abuseIpdbLoading } = useAbuseIpdbStatus()
-  const { data: about } = useAbout()
+  const { data: about, isLoading: aboutLoading } = useAbout()
   const { tab: requestedTab } = Route.useSearch()
   const hash = useLocation({ select: (location) => location.hash })
   const navigate = useNavigate({ from: "/security" })
@@ -49,6 +50,13 @@ function SecurityPage() {
     reporting: abuseIpdbStatus?.reportingEnabled === true,
   })
   const activeTab = activeSecurityTab(requestedTab, hash, tabs)
+  // DROP needs About to know it exists. Without waiting, a DROP link opens Decisions first.
+  const wantsDrop = (requestedTab ?? (hash === DROP_NETWORKS_CARD_ID ? "drop" : undefined)) === "drop"
+  // Not while a status loads: the tabs from a partial answer can name the wrong one.
+  const settled = !isLoading && !abuseIpdbLoading && !(wantsDrop && aboutLoading)
+  // A tab stays mounted once opened, so its search, filters and page survive a visit to another tab.
+  const [openedTabs, setOpenedTabs] = useState<readonly SecurityTab[]>([])
+  if (settled && activeTab !== null && !openedTabs.includes(activeTab)) setOpenedTabs([...openedTabs, activeTab])
 
   const header = (
     <PageHeader
@@ -61,7 +69,7 @@ function SecurityPage() {
     />
   )
 
-  if (isLoading || abuseIpdbLoading) {
+  if (!settled) {
     return (
       <div className="p-4 space-y-4">
         {header}
@@ -142,12 +150,16 @@ function SecurityPage() {
             ))}
           </TabsList>
         )}
-        <TabsContent value={activeTab}>
-          {activeTab === "decisions" && <DecisionsTable />}
-          {activeTab === "alerts" && (status?.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />)}
-          {activeTab === "drop" && <DropNetworksCard />}
-          {activeTab === "reports" && <AbuseIpdbReportsTable />}
-        </TabsContent>
+        {tabs
+          .filter((tab) => tab === activeTab || openedTabs.includes(tab))
+          .map((tab) => (
+            <TabsContent key={tab} value={tab} forceMount className="data-[state=inactive]:hidden">
+              {tab === "decisions" && <DecisionsTable />}
+              {tab === "alerts" && (status?.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />)}
+              {tab === "drop" && <DropNetworksCard />}
+              {tab === "reports" && <AbuseIpdbReportsTable />}
+            </TabsContent>
+          ))}
       </Tabs>
     </div>
   )
