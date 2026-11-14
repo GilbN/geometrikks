@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -63,8 +65,25 @@ def test_blacklist_is_off_by_default_and_refreshes_daily(monkeypatch):
 def test_blacklist_without_key_fails_at_startup(monkeypatch):
     monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
     monkeypatch.setenv("ABUSEIPDB_BLACKLIST_ENABLED", "true")
-    with pytest.raises(ValidationError, match="ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY"):
+    monkeypatch.delenv("ABUSEIPDB_BLACKLIST_FILE", raising=False)
+    with pytest.raises(
+        ValidationError, match="ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY or ABUSEIPDB_BLACKLIST_FILE"
+    ):
         AbuseIpdbSettings(_env_file=None)
+
+
+def test_blacklist_with_a_file_starts_without_a_key(monkeypatch):
+    monkeypatch.delenv("ABUSEIPDB_API_KEY", raising=False)
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_ENABLED", "true")
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_FILE", "/data/abuseipdb/blacklist.json")
+    settings = AbuseIpdbSettings(_env_file=None)
+    assert settings.blacklist_file == Path("/data/abuseipdb/blacklist.json")
+    assert settings.enabled is False
+
+
+def test_an_empty_blacklist_file_reads_as_unset(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_FILE", " ")
+    assert AbuseIpdbSettings(_env_file=None).blacklist_file is None
 
 
 def test_blacklist_with_key_starts(monkeypatch):

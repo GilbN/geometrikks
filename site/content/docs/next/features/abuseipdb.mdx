@@ -7,9 +7,9 @@ AbuseIPDB is a public database of IPs that people have reported for abuse. GeoMe
 
 - With an API key, the [IP inspector](./ip-inspector.mdx) shows the address's AbuseIPDB score.
 - With reporting on, the IP actions menu has Report to AbuseIPDB…, which sends a report with your key.
-- With the blacklist on, GeoMetrikks downloads AbuseIPDB's blacklist and marks the IPs on it.
+- With the blacklist on, GeoMetrikks downloads AbuseIPDB's blacklist, or reads a copy you already download, and marks the IPs on it.
 
-Without a key, the IP inspector still links to the address's page on abuseipdb.com, and nothing else on this page applies.
+Without a key, the IP inspector still links to the address's page on abuseipdb.com. The only other feature that works without one is [a blacklist file](#use-a-blacklist-you-already-download).
 
 ## Set it up
 
@@ -28,10 +28,11 @@ Run `docker compose up -d` to apply them.
 | `ABUSEIPDB_API_KEY` | none | The score in the IP inspector and the Check button in a report. |
 | `ABUSEIPDB_REPORTING_ENABLED` | `false` | Report to AbuseIPDB… in the IP actions menu, the Reports tab on the Security page, and the report API. |
 | `ABUSEIPDB_BLACKLIST_ENABLED` | `false` | The blacklist download and the AbuseIPDB blacklist marks. |
+| `ABUSEIPDB_BLACKLIST_FILE` | none | A blacklist file to read instead of downloading one. |
 | `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` | `24` | Hours between blacklist downloads, from 6 to 36. |
 | `ABUSEIPDB_REQUEST_TIMEOUT` | `10` | Seconds before a request to AbuseIPDB gives up. |
 
-Reporting and the blacklist both need the key. With either one on and no key, startup fails with `ABUSEIPDB_REPORTING_ENABLED requires ABUSEIPDB_API_KEY` or `ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY`. An empty `ABUSEIPDB_API_KEY=` counts as unset. The [configuration reference](../reference/configuration.mdx#abuseipdb) lists the first three settings under AbuseIPDB and the last two under Advanced tuning.
+Reporting needs the key. The blacklist needs the key or a file. Without them, startup fails with `ABUSEIPDB_REPORTING_ENABLED requires ABUSEIPDB_API_KEY` or `ABUSEIPDB_BLACKLIST_ENABLED requires ABUSEIPDB_API_KEY or ABUSEIPDB_BLACKLIST_FILE`. An empty `ABUSEIPDB_API_KEY=` or `ABUSEIPDB_BLACKLIST_FILE=` counts as unset. The [configuration reference](../reference/configuration.mdx#abuseipdb) lists the first four settings under AbuseIPDB and the last two under Advanced tuning.
 
 ## The score in the IP inspector
 
@@ -102,6 +103,33 @@ A failed download keeps the previous list, logs `abuseipdb_blacklist_refresh_fai
 
 The list is for your own use. AbuseIPDB's terms forbid republishing it, and free plans can't be used commercially.
 
+### Use a blacklist you already download
+
+If a script or cron job of yours already downloads the blacklist, GeoMetrikks can read that file instead of spending one of your daily blacklist calls. Mount the file's folder into the `app` container and point `ABUSEIPDB_BLACKLIST_FILE` at it:
+
+```yaml
+services:
+  app:
+    volumes:
+      - /srv/abuseipdb:/app/data/abuseipdb:ro
+```
+
+```bash
+ABUSEIPDB_BLACKLIST_ENABLED=true
+ABUSEIPDB_BLACKLIST_FILE=/app/data/abuseipdb/blacklist.json
+```
+
+The file can be in either of AbuseIPDB's formats:
+
+- the JSON answer from `GET /api/v2/blacklist`, saved as it came, on one line or many;
+- plaintext, one IP per line, as the `plaintext` parameter or an `Accept: text/plain` header returns it. Blank lines and anything after `#` are skipped, so lists with comments work too.
+
+GeoMetrikks checks the file every 5 minutes and reads it again whenever its modification time changes. Have your job write to a temporary file in the same folder and `mv` it over the old one. If the job rewrites the file in place, as `curl -o` does, GeoMetrikks can read it halfway through a write and keep a short list, or fail to parse it, until the next check. GeoMetrikks never writes to the file, so a read-only mount works. The file needs no API key. `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` and the 5-hour wait between attempts don't apply.
+
+The 72-hour limit counts from the older of the list's `generatedAt` and the time the file was last written. Plaintext has no `generatedAt`, so only the write time counts. If your download job stops, the marks disappear 72 hours after its last good run. GeoMetrikks refuses a file whose modification time is more than 5 minutes in the future, since that list would never expire.
+
+When the file is missing, unreadable, over 16 MB or holds no public IPs, GeoMetrikks keeps the previous list. The same goes for an AbuseIPDB error answer your job saved in place of the list. Each failure logs `abuseipdb_blacklist_refresh_failed` with the reason and the path, and marks the job as failed on Settings > Scheduler. From a longer list, GeoMetrikks keeps the first 100,000 IPs and logs `abuseipdb_blacklist_file_truncated`. The 16 MB limit comes first, and JSON takes about 110 bytes per IP, so save a list longer than about 150,000 IPs as plaintext or download it with `limit=100000`.
+
 ## The Reports tab
 
 With reporting on, the Security page has a Reports tab listing every report GeoMetrikks has sent, newest first. An IP reported twice appears twice. Each row has the IP with its actions menu, the categories, the score AbuseIPDB answered with, the time and who sent it. A report AbuseIPDB didn't confirm carries an Unconfirmed badge. Click a row for the comment and the attack time.
@@ -118,7 +146,7 @@ Every request goes to `api.abuseipdb.com` with your key.
 | --- | --- | --- |
 | Score | The IP | When someone opens a public IP in the IP inspector, presses Check in a report, or calls the check API. An IP still in the 15-minute cache isn't sent again. |
 | Report | The IP, the categories, the comment and the attack time | When someone sends a report. AbuseIPDB publishes all four. |
-| Blacklist | Nothing but the key | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` hours |
+| Blacklist | Nothing but the key, and nothing at all with `ABUSEIPDB_BLACKLIST_FILE` | Every `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` hours |
 
 Your browser opens the link to the IP's page on abuseipdb.com. The server never does. The [outbound traffic table](../index.mdx#outbound-traffic) lists these requests with everything else the server contacts.
 

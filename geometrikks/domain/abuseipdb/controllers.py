@@ -165,10 +165,11 @@ class AbuseIpdbController(Controller):
         summary="List the IPs on AbuseIPDB's blacklist",
         description=(
             "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every "
-            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default. Read from the local database; nothing leaves "
-            "the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the "
-            "first download, and when the last download is more than 72 hours old. The list is for your own use, "
-            "and AbuseIPDB forbids republishing it."
+            "ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read "
+            "from the local database; nothing leaves the server. `ips` is empty and both times are null with "
+            "ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours "
+            "old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and "
+            "AbuseIPDB forbids republishing it."
         ),
         responses={HTTP_401_UNAUTHORIZED: _error("The request has no valid session or API key.")},
     )

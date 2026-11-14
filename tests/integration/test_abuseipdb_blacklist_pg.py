@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import httpx2
+import msgspec
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
@@ -17,7 +21,8 @@ from structlog.testing import capture_logs
 
 from geometrikks.config.settings import AbuseIpdbSettings, Settings
 from geometrikks.domain.abuseipdb import blacklist as blacklist_module
-from geometrikks.domain.abuseipdb.blacklist import current_blacklist, refresh_blacklist
+from geometrikks.domain.abuseipdb import blacklist_file as blacklist_file_module
+from geometrikks.domain.abuseipdb.blacklist import current_blacklist, refresh_blacklist, refresh_blacklist_file
 from geometrikks.domain.abuseipdb.models import AbuseIpdbBlacklistEntry, AbuseIpdbBlacklistStatus
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
 from geometrikks.server.core import create_app
@@ -231,6 +236,22 @@ async def test_startup_skips_a_list_refreshed_within_the_interval(pg_session_mak
     assert calls == []
 
 
+async def test_startup_fetches_a_fresh_copy_of_an_old_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(
+        pg_session_maker,
+        ["3.5.140.9"],
+        generated_at=NOW - timedelta(hours=80),
+        refreshed_at=NOW - timedelta(hours=1),
+        last_attempt_at=NOW - timedelta(hours=6),
+    )
+    client, calls = blacklist_client(answer)
+
+    outcome = await refresh_blacklist(pg_session_maker, client, now=NOW, startup=True, refresh_hours=24)
+
+    assert outcome.status == "refreshed"
+    assert len(calls) == 1
+
+
 async def test_startup_fetches_a_list_older_than_the_interval(pg_session_maker, clean_abuseipdb_blacklist):
     await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=NOW - timedelta(hours=25))
     client, calls = blacklist_client(answer)
@@ -291,6 +312,185 @@ async def test_a_failed_write_keeps_the_list_and_the_status_together(pg_session_
     assert "3.5.140.2" not in failed_logs[0]["reason"]
 
 
+def write_blacklist_file(path: Path, body: bytes, *, modified_at: datetime, extra_ns: int = 0) -> Path:
+    path.write_bytes(body)
+    modified_ns = int(modified_at.timestamp()) * 1_000_000_000 + extra_ns
+    os.utime(path, ns=(modified_ns, modified_ns))
+    return path
+
+
+FILE_MODIFIED_AT = NOW - timedelta(hours=1)
+
+
+async def test_file_refresh_stores_the_list_with_the_file_times(
+    pg_session_maker, clean_abuseipdb_blacklist, tmp_path
+):
+    path = write_blacklist_file(
+        tmp_path / "blacklist.json", msgspec.json.encode(BLACKLIST_ANSWER), modified_at=FILE_MODIFIED_AT
+    )
+
+    with capture_logs() as captured_logs:
+        outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    assert outcome.status == "refreshed" and outcome.count == 2
+    assert await fetch_ips(pg_session_maker) == {"3.5.140.2", "2600:1f18::1"}
+    status = await fetch_status(pg_session_maker)
+    assert status is not None
+    assert (status.generated_at, status.refreshed_at, status.last_attempt_at) == (GENERATED_AT, FILE_MODIFIED_AT, None)
+    refreshed_logs = [entry for entry in captured_logs if entry["event"] == "abuseipdb_blacklist_refreshed"]
+    assert len(refreshed_logs) == 1
+    assert (refreshed_logs[0]["count"], refreshed_logs[0]["path"]) == (2, str(path))
+
+
+async def test_file_refresh_skips_a_file_modified_at_the_same_time(
+    pg_session_maker, clean_abuseipdb_blacklist, tmp_path
+):
+    sub_second = 123_456_789
+    path = write_blacklist_file(
+        tmp_path / "blacklist.txt", b"3.5.140.2\n", modified_at=FILE_MODIFIED_AT, extra_ns=sub_second
+    )
+    assert (await refresh_blacklist_file(pg_session_maker, path, now=NOW)).status == "refreshed"
+    write_blacklist_file(path, b"3.5.140.9\n", modified_at=FILE_MODIFIED_AT, extra_ns=sub_second)
+
+    with capture_logs() as captured_logs:
+        outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW + timedelta(minutes=5))
+
+    assert (outcome.status, outcome.reason) == ("skipped", "unchanged")
+    assert await fetch_ips(pg_session_maker) == {"3.5.140.2"}
+    assert captured_logs == []
+
+
+async def test_file_refresh_reads_a_modified_file(pg_session_maker, clean_abuseipdb_blacklist, tmp_path):
+    path = write_blacklist_file(tmp_path / "blacklist.txt", b"3.5.140.2\n", modified_at=FILE_MODIFIED_AT)
+    await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+    later = FILE_MODIFIED_AT + timedelta(minutes=30)
+    write_blacklist_file(path, b"3.5.140.9\n", modified_at=later)
+
+    outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    assert outcome.status == "refreshed"
+    assert await fetch_ips(pg_session_maker) == {"3.5.140.9"}
+    status = await fetch_status(pg_session_maker)
+    assert status is not None and (status.generated_at, status.refreshed_at) == (later, later)
+
+
+async def test_file_refresh_stores_the_time_of_the_file_it_read(
+    pg_session_maker, clean_abuseipdb_blacklist, tmp_path, monkeypatch
+):
+    path = write_blacklist_file(tmp_path / "blacklist.txt", b"3.5.140.2\n", modified_at=FILE_MODIFIED_AT)
+    replaced_after_the_stat = AsyncMock(return_value=FILE_MODIFIED_AT - timedelta(hours=80))
+    monkeypatch.setattr(blacklist_file_module, "blacklist_file_modified_at", replaced_after_the_stat)
+
+    await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    status = await fetch_status(pg_session_maker)
+    assert status is not None and status.refreshed_at == FILE_MODIFIED_AT
+
+
+async def test_file_refresh_ignores_the_five_hour_wait(pg_session_maker, clean_abuseipdb_blacklist, tmp_path):
+    await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=NOW - timedelta(hours=2), last_attempt_at=NOW)
+    path = write_blacklist_file(tmp_path / "blacklist.txt", b"3.5.140.2\n", modified_at=FILE_MODIFIED_AT)
+
+    outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    assert outcome.status == "refreshed"
+    assert await fetch_ips(pg_session_maker) == {"3.5.140.2"}
+
+
+def _missing(directory: Path) -> Path:
+    return directory / "missing.json"
+
+
+def _a_directory(directory: Path) -> Path:
+    return directory
+
+
+def _api_error(directory: Path) -> Path:
+    body = b'{"errors": [{"detail": "Authentication failed", "status": 401}]}'
+    return write_blacklist_file(directory / "blacklist.json", body, modified_at=FILE_MODIFIED_AT)
+
+
+def _only_private(directory: Path) -> Path:
+    return write_blacklist_file(directory / "blacklist.txt", b"10.0.0.5\n", modified_at=FILE_MODIFIED_AT)
+
+
+def _a_fifo(directory: Path) -> Path:
+    fifo = directory / "blacklist.txt"
+    os.mkfifo(fifo)
+    return fifo
+
+
+def _modified_in_the_future(directory: Path) -> Path:
+    return write_blacklist_file(
+        directory / "blacklist.txt", b"3.5.140.2\n", modified_at=NOW + timedelta(minutes=6)
+    )
+
+
+@pytest.mark.parametrize(
+    ("make_file", "reason"),
+    [
+        (_missing, "the file does not exist"),
+        (_a_directory, "the path is a directory"),
+        pytest.param(
+            _a_fifo,
+            "the path is not a regular file",
+            marks=pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="needs FIFOs"),
+        ),
+        (_api_error, "the file is not AbuseIPDB's JSON blacklist"),
+        (_only_private, "the file holds no public IPs"),
+        (_modified_in_the_future, "the file was modified in the future"),
+    ],
+    ids=["missing", "directory", "fifo", "api-error", "only-private", "future"],
+)
+async def test_a_bad_file_keeps_the_previous_list(
+    pg_session_maker, clean_abuseipdb_blacklist, tmp_path, make_file, reason
+):
+    earlier = NOW - timedelta(hours=24)
+    await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=earlier)
+    path = make_file(tmp_path)
+
+    with capture_logs() as captured_logs:
+        outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    assert (outcome.status, outcome.reason) == ("failed", reason)
+    assert await fetch_ips(pg_session_maker) == {"3.5.140.9"}
+    status = await fetch_status(pg_session_maker)
+    assert status is not None and status.refreshed_at == earlier
+    failed_logs = [entry for entry in captured_logs if entry["event"] == "abuseipdb_blacklist_refresh_failed"]
+    assert len(failed_logs) == 1
+    assert (failed_logs[0]["reason"], failed_logs[0]["path"]) == (reason, str(path))
+
+
+async def test_a_file_above_the_size_cap_is_refused(
+    pg_session_maker, clean_abuseipdb_blacklist, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(blacklist_file_module, "MAX_FILE_BYTES", 1024 * 1024)
+    path = write_blacklist_file(
+        tmp_path / "blacklist.txt", b"3.5.140.2\n" * (1024 * 1024 // 10 + 1), modified_at=FILE_MODIFIED_AT
+    )
+
+    outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    assert (outcome.status, outcome.reason) == ("failed", "the file is larger than 1 MB")
+    assert await fetch_ips(pg_session_maker) == set()
+
+
+async def test_a_long_file_keeps_its_first_ips(pg_session_maker, clean_abuseipdb_blacklist, tmp_path, monkeypatch):
+    monkeypatch.setattr(blacklist_file_module, "MAX_FILE_IPS", 2)
+    path = write_blacklist_file(
+        tmp_path / "blacklist.txt", b"3.5.140.2\n3.5.140.9\n3.5.140.12\n", modified_at=FILE_MODIFIED_AT
+    )
+
+    with capture_logs() as captured_logs:
+        outcome = await refresh_blacklist_file(pg_session_maker, path, now=NOW)
+
+    assert outcome.status == "refreshed" and outcome.count == 2
+    assert await fetch_ips(pg_session_maker) == {"3.5.140.2", "3.5.140.9"}
+    truncated_logs = [entry for entry in captured_logs if entry["event"] == "abuseipdb_blacklist_file_truncated"]
+    assert len(truncated_logs) == 1
+    assert (truncated_logs[0]["count"], truncated_logs[0]["kept"]) == (3, 2)
+
+
 async def read_view(pg_session_maker, *, enabled: bool, now: datetime):
     async with pg_session_maker() as session:
         repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
@@ -332,6 +532,23 @@ async def test_an_expired_list_is_hidden_and_logged_once(
     assert [entry["event"] for entry in captured_logs] == ["abuseipdb_blacklist_expired"]
 
 
+async def test_a_list_generated_more_than_72_hours_ago_is_hidden(
+    pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry
+):
+    await store_list(
+        pg_session_maker,
+        ["3.5.140.9"],
+        generated_at=NOW - timedelta(hours=72, seconds=1),
+        refreshed_at=NOW - timedelta(hours=1),
+    )
+
+    with capture_logs() as captured_logs:
+        view = await read_view(pg_session_maker, enabled=True, now=NOW)
+
+    assert view.ips == []
+    assert captured_logs[0]["generated_at"] == (NOW - timedelta(hours=72, seconds=1)).isoformat()
+
+
 async def test_a_later_expiry_is_logged_again(pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry):
     await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=NOW - timedelta(hours=80))
     with capture_logs() as first_expiry_logs:
@@ -355,7 +572,10 @@ def app_settings(migrated_database_url: str) -> Settings:
 
 async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
     refreshed_at = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
-    await store_list(pg_session_maker, ["3.5.140.2", "2600:1f18::1"], refreshed_at=refreshed_at)
+    generated_at = refreshed_at - timedelta(hours=2)
+    await store_list(
+        pg_session_maker, ["3.5.140.2", "2600:1f18::1"], generated_at=generated_at, refreshed_at=refreshed_at
+    )
 
     async with AsyncTestClient(create_app(settings=app_settings)) as http:
         blacklist_response = await http.get("/api/v1/abuseipdb/blacklist")
@@ -363,7 +583,7 @@ async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseip
 
     assert blacklist_response.status_code == 200
     assert blacklist_response.json() == {
-        "generatedAt": "2026-11-08T06:00:00Z",
+        "generatedAt": generated_at.isoformat().replace("+00:00", "Z"),
         "refreshedAt": refreshed_at.isoformat().replace("+00:00", "Z"),
         "ips": ["3.5.140.2", "2600:1f18::1"],
     }

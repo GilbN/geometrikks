@@ -127,11 +127,11 @@ export type AbuseContactResponse = {
 /**
  * AbuseIpdbBlacklistResponse
  *
- * The IPs on AbuseIPDB's blacklist, as of the last download.
+ * The IPs on AbuseIPDB's blacklist, as of the last download or file read.
  */
 export type AbuseIpdbBlacklistResponse = {
   /**
-   * When AbuseIPDB generated the list, as ISO 8601 in UTC. Null when `ips` is empty.
+   * When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.
    */
   generatedAt: string | null;
   /**
@@ -139,7 +139,7 @@ export type AbuseIpdbBlacklistResponse = {
    */
   ips: Array<string>;
   /**
-   * When GeoMetrikks downloaded the list, as ISO 8601 in UTC. Null when `ips` is empty.
+   * When GeoMetrikks downloaded the list, as ISO 8601 in UTC. With ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.
    */
   refreshedAt: string | null;
 };
@@ -151,7 +151,7 @@ export type AbuseIpdbBlacklistResponse = {
  */
 export type AbuseIpdbStatusResponse = {
   /**
-   * True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded and marked.
+   * True when ABUSEIPDB_BLACKLIST_ENABLED=true, so the blacklist is downloaded, or read from ABUSEIPDB_BLACKLIST_FILE, and marked.
    */
   blacklistEnabled: boolean;
   /**
