@@ -1,6 +1,6 @@
 [
   { "path": "/", "status": 200, "headers": { "x-content-type-options": "nosniff" } },
-  { "path": "/docs/", "status": 302, "location": "/docs/next/" },
+  { "path": "/docs/", "status": 200, "scope": "article", "contains": ["Introduction"] },
   {
     "path": "/docs/next/",
     "status": 200,
@@ -199,8 +199,8 @@
     "contains": ["PUID", "Instance and notices", "(empty)", "DB_DATABASE"],
     "absent": ["Application mode", "(computed)", "DB_NAME"]
   },
-  { "path": "/docs/reference/configuration/", "status": 302, "location": "/docs/next/reference/configuration/" },
-  { "path": "/docs/reference/configuration", "status": 302, "location": "/docs/next/reference/configuration/" },
+  { "path": "/docs/reference/configuration/", "status": 200, "scope": "article", "contains": ["LOKI_QUERIES"] },
+  { "path": "/docs/reference/configuration", "status": 307, "location": "/docs/reference/configuration/" },
   { "path": "/docs/next/reference/api/", "status": 200 },
   { "path": "/docs/next/reference/api/", "status": 200, "scope": "article", "contains": ["snake_case", "gmk_"] },
   {
@@ -249,8 +249,9 @@
   { "path": "/docs/operate/geolite2/", "status": 301, "location": "/docs/get-started/geolite2/" },
   { "path": "/docs/features/cli", "status": 301, "location": "/docs/operate/cli/" },
   { "path": "/docs/get-started/configuration/", "status": 301, "location": "/docs/reference/configuration/" },
-  { "path": "/docs/get-started/geolite2/", "status": 302, "location": "/docs/next/get-started/geolite2/" },
-  { "path": "/docs/sources/nginx/", "status": 302, "location": "/docs/next/sources/nginx/" },
+  { "path": "/docs/get-started/geolite2/", "status": 200, "scope": "article", "contains": ["GEOIP_LOCALES"] },
+  { "path": "/docs/sources/nginx/", "status": 200, "scope": "article", "contains": ["geometrikks-json"] },
+  { "path": "/docs/0.25.0/", "status": 404 },
   { "path": "/api/search", "status": 200, "contains": ["Real client IP behind a proxy"] },
   { "path": "/", "status": 200, "contains": ["href=\"/docs/sources/proxy-setup/\""] }
 ]
