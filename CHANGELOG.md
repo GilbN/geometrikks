@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The container no longer restarts in a loop when `/app/data/geoip` or `/app/logs` is a read-only mount, as it is when another container keeps the GeoLite2 files current. The entrypoint now changes ownership only of files `PUID`:`PGID` doesn't already own, and warns instead of exiting when the mount is read-only.
+
 ## [0.25.0] - 2026-11-14
 
 ### Added

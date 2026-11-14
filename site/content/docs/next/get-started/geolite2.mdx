@@ -33,6 +33,19 @@ At startup the app downloads a database that is missing or older than `GEOIP_REF
 
 Without keys, the app keeps whatever database file it already has and warns in the log once it is older than `GEOIP_REFRESH_DAYS`. The EULA requires a refresh within 30 days.
 
+### Databases you download yourself
+
+If another tool already keeps the `.mmdb` files current, such as `geoipupdate` in another container, leave the MaxMind keys unset and mount its folder over `/app/data/geoip` instead of the `geoip_data` volume. Without keys GeoMetrikks never writes there, so the mount can be read-only:
+
+```yaml
+  app:
+    # ...
+    volumes:
+      - /path/to/geoip:/app/data/geoip:ro
+```
+
+The files need to be readable by `PUID`:`PGID`. At startup the entrypoint changes the owner of any file in the folder that `PUID`:`PGID` doesn't already own. On a read-only mount it can't, so it logs a warning and starts anyway. The app picks up new files on the refresh job's next run, every `GEOIP_REFRESH_DAYS` days, or straight away from Run now on Settings > Scheduler. `geoipupdate` replaces each file in one rename, so the app never reads a half-written database.
+
 ### Place-name language
 
 `GEOIP_LOCALES` sets the language of country and city names, as a JSON list. The default is `["en"]`. The allowed values are the languages GeoLite2 carries: `de`, `en`, `es`, `fr`, `ja`, `pt-BR`, `ru` and `zh-CN`. Startup fails on any other value, with an error that lists the allowed ones. For German names:

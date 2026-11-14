@@ -34,6 +34,8 @@ The app reads its settings from environment variables and from `.env` in its wor
 
 The container starts as root. The entrypoint remaps its `geometrikks` user to `PUID` and `PGID`, both `1000` by default, makes that user the owner of `/app`, `./logs`, mounted at `/app/logs`, and the geoip volume at `/app/data/geoip`, and then starts the app as that user. The app never runs as root.
 
+The entrypoint only changes the owner of files that `PUID`:`PGID` doesn't already own. A read-only mount at `/app/logs` or `/app/data/geoip` that it can't change gets a warning in the log, and the app starts anyway.
+
 Set `PUID` and `PGID` in `.env` to the host user that should own `./logs`, usually your own, as `id -u` and `id -g` print them. That user also has to be able to read the access logs you mount. The log mounts are read-only, and GeoMetrikks never writes to them. If it can't read a file, Settings > Status shows that source as not readable, and nothing from it is recorded. Fix it on the host with `chmod`, `chown` or an ACL entry on the files and their parent folder.
 
 To harden the PUID and PGID path, drop every capability except the three the entrypoint needs to remap the user and change ownership:
