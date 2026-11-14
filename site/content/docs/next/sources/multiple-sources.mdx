@@ -333,7 +333,15 @@ services:
 
 Apply it with `docker compose up -d agent` on each agent and `docker compose up -d app` on the head. A restart alone doesn't pick up new variables or mounts.
 
-Last, once every instance is back up with its certificate, add `clientcert=verify-full` to the rule and reload. This builds on the `hostssl` rule from [Refuse connections without TLS](#refuse-connections-without-tls):
+Before the rule goes on, check that every instance sends its certificate:
+
+```bash
+docker compose exec timescale_db psql -U geouser -d geometrikks -Atc "SELECT client_addr, client_dn FROM pg_stat_ssl JOIN pg_stat_activity USING (pid) WHERE client_addr IS NOT NULL"
+```
+
+Each line is one open connection: the instance's address, then the name in its certificate. Every line should end in `/CN=geouser`. A line that ends after the `|` comes from an instance without a certificate, and the rule will refuse it.
+
+Then add `clientcert=verify-full` to the rule and reload. This builds on the `hostssl` rule from [Refuse connections without TLS](#refuse-connections-without-tls):
 
 ```bash
 docker compose exec timescale_db sed -i 's/^hostssl all all all scram-sha-256$/hostssl all all all scram-sha-256 clientcert=verify-full/' /home/postgres/pgdata/data/pg_hba.conf
@@ -343,6 +351,15 @@ docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_re
 Run the check from [Refuse connections without TLS](#refuse-connections-without-tls) again. It answers `hostssl|{clientcert=verify-full}|`.
 
 Keep that order. A `clientcert` rule on a database without `ssl_ca_file` refuses every connection with `client certificates can only be checked if a root certificate store is available`, and a rule that is on before an instance has its certificate locks that instance out.
+
+To take the rule off again, run the `sed` command with its two halves swapped and reload:
+
+```bash
+docker compose exec timescale_db sed -i 's/^hostssl all all all scram-sha-256 clientcert=verify-full$/hostssl all all all scram-sha-256/' /home/postgres/pgdata/data/pg_hba.conf
+docker compose exec timescale_db psql -U geouser -d geometrikks -c 'SELECT pg_reload_conf()'
+```
+
+`docker compose exec` keeps working whatever the rule says, because it connects inside the container.
 
 An instance without a certificate can't connect. On `verify-full` it logs `connection requires a valid client certificate`. With no `PGSSLMODE`, as on the head, it tries again without TLS and logs `no pg_hba.conf entry ... no encryption` instead. A certificate whose CN isn't the database user fails with `password authentication failed`, and the database's own log says `CN mismatch`.
 
@@ -364,7 +381,7 @@ Each instance logs `database_link_state` at info level, with `encrypted` and `se
 
 ### Errors that name no file
 
-`[Errno 2] No such file or directory` and `[Errno 13] Permission denied` in a `heartbeat_write_failed` warning mean a `PGSSL*` path is wrong, or the app's user can't read the file. Neither says which file. At startup, the `database_tls_file_unusable` warning names it, with `variable`, `path` and `reason`.
+`[Errno 2] No such file or directory`, `[Errno 13] Permission denied` and `[Errno 21] Is a directory` in a `heartbeat_write_failed` warning mean a `PGSSL*` path is wrong, or the app's user can't read the file. None of them says which file. Errno 21 is what you get when the file was missing at `docker compose up`: compose made a directory in its place. Remove the directory, copy the file and recreate the container. At startup, the `database_tls_file_unusable` warning names it, with `variable`, `path` and `reason`.
 
 ## Trust model
 
