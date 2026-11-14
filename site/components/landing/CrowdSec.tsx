@@ -1,18 +1,22 @@
 import screenshots from "@/.generated/screenshots.json";
+import { type Manifest, sceneEntry, shotSrc, variant } from "@/lib/screenshots";
+import { ZoomHint } from "../ShotPair";
 import { CrowdSecLogo } from "./logos";
 import styles from "./CrowdSec.module.css";
-import { ZoomHint } from "./Screens";
 
 // CrowdSec gets its own section: the Banned IPs map view across the top,
 // then the IP inspector beside the copy and the two-line setup. The inspector
 // picture is the screenshot cropped to its right edge, where the sheet with
 // the ban badge sits; the zoom link opens the whole thing.
-const inspectorAlt =
-  "The IP inspector for a banned address, showing when the ban expires, a warning for requests seen after the ban, request counts, response codes over time and recent requests";
-const bannedMapAlt =
-  "The map in its Banned IPs view: red markers count banned addresses per location across Europe, a popup shows one address with its CrowdSec decision, and the controls list the top banned IPs";
-const inspector = { src: "/screenshots/ip-inspector.webp", ...screenshots["ip-inspector"] };
-const bannedMap = { src: "/screenshots/banned-map.webp", ...screenshots["banned-map"] };
+function desktopDark(id: string) {
+  const entry = sceneEntry(screenshots as Manifest, id);
+  const shot = variant(entry, "desktop", "dark");
+  if (!shot) throw new Error(`screenshot scene ${id} has no desktop-dark variant`);
+  return { src: shotSrc(shot), width: shot.width, height: shot.height, alt: entry.alt };
+}
+
+const inspector = desktopDark("ip-inspector");
+const bannedMap = desktopDark("banned-map");
 
 const connect = (
   <>
@@ -41,7 +45,7 @@ export function CrowdSec() {
           className={`zoom ${styles.map}`}
           href={bannedMap.src}
           data-zoom=""
-          data-zoom-alt={bannedMapAlt}
+          data-zoom-alt={bannedMap.alt}
           data-zoom-caption="Banned IPs map view. Each marker counts the banned addresses seen at that location in the selected range."
           aria-label="View the Banned IPs map larger"
         >
@@ -49,7 +53,7 @@ export function CrowdSec() {
             src={bannedMap.src}
             width={bannedMap.width}
             height={bannedMap.height}
-            alt={bannedMapAlt}
+            alt={bannedMap.alt}
             loading="lazy"
             decoding="async"
           />
@@ -60,15 +64,15 @@ export function CrowdSec() {
             className={`zoom ${styles.shot}`}
             href={inspector.src}
             data-zoom=""
-            data-zoom-alt={inspectorAlt}
-            data-zoom-caption="IP inspector over the map for a banned address."
+            data-zoom-alt={inspector.alt}
+            data-zoom-caption="IP inspector over the map for a banned address, with its DROP and AbuseIPDB blacklist marks and its AbuseIPDB score."
             aria-label="View the IP inspector larger"
           >
             <img
               src={inspector.src}
               width={inspector.width}
               height={inspector.height}
-              alt={inspectorAlt}
+              alt={inspector.alt}
               loading="lazy"
               decoding="async"
             />

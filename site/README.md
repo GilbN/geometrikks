@@ -21,10 +21,21 @@ bun run smoke tests/smoke/site.json
 
 `dev` and `build` start with `scripts/prepare.ts`. It decides which docs
 versions to serve, copies `CHANGELOG.md` and `SECURITY.md` into
-`.generated/`, converts `data/screenshots/*.png` to webp in
-`public/screenshots/` and writes the hero's `public/land-dots.svg`. The
-types import `.generated/versions.json`, so `typecheck` fails on a fresh
-checkout until one of them has run.
+`.generated/`, copies the screenshots (see below) and writes the hero's
+`public/land-dots.svg`. The types import `.generated/versions.json` and
+`.generated/screenshots.json`, so `typecheck` fails on a fresh checkout
+until one of them has run.
+
+The screenshots in `data/screenshots/` are WebPs named
+`<scene>-<viewport>-<theme>.webp`, listed with their sizes and alt text in
+`manifest.json`. To remake them, run `uv run python -m tests.screenshots`
+from the repository root. That happens by hand during release prep, never
+in CI. [tests/screenshots/README.md](../tests/screenshots/README.md) covers
+what a run needs and how to retake one scene. `prepare.ts` copies the WebPs to
+`public/screenshots/` and the manifest to `.generated/screenshots.json`,
+and exits 1 when the manifest lists a file that is not on disk. A docs page
+shows a scene with `<Screenshot scene="map" />`. It renders the desktop
+shot with the phone shot beside it, in the reader's theme.
 
 `build` ends with `scripts/postbuild.ts`, which writes `out/_redirects` and
 fails on a dead link anywhere in `out/` or on a geometrikks.dev docs URL in

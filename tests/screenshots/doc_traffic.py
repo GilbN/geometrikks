@@ -1,0 +1,261 @@
+"""Visitors from documentation address space under the two RFC 5398 ASNs.
+
+Seed scanners are random addresses inside real hosting ASNs, so a DROP-listed
+seed scanner would print a real provider's name next to Spamhaus's wording.
+Seven scanners sit in RFC 5737 and RFC 3849 space under AS64496, the only
+addresses any DROP fixture lists. A dozen home browsers under AS64497 send
+enough requests to top the Overview's Top network card, which sits beside
+the DROP card. GeoLite2 places none of them, so they get no geo_events row
+and no map marker, just as ingestion would store them.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import math
+import random
+from datetime import UTC, datetime, timedelta
+from typing import Final, NamedTuple
+
+import asyncpg
+
+from tests.seed.catalog import (
+    BROWSER_USER_AGENTS,
+    SCANNER_USER_AGENTS,
+    SITES,
+    pick_weighted,
+)
+from tests.seed.config import SeedConfig
+from tests.seed.traffic import DIURNAL, Batch, TrafficGenerator, debug_row_for
+from tests.seed.visitors import Place, Resolved, Visitor
+from tests.seed.writer import SeedWriter
+
+DOCUMENTATION_NETWORKS: Final[tuple[str, ...]] = ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "2001:db8::/32")
+_DOCUMENTATION_V4: Final = tuple(ipaddress.IPv4Network(cidr) for cidr in DOCUMENTATION_NETWORKS if ":" not in cidr)
+_DOCUMENTATION_V6: Final = tuple(ipaddress.IPv6Network(cidr) for cidr in DOCUMENTATION_NETWORKS if ":" in cidr)
+
+DOC_ASN: Final = 64496
+DOC_AS_NAME: Final = "Fictional Example Hosting"
+
+DOC_VISITORS: Final[tuple[str, ...]] = (
+    "203.0.113.10",
+    "203.0.113.23",
+    "203.0.113.77",
+    "198.51.100.14",
+    "198.51.100.200",
+    "2001:db8:d0c::5",
+    "2001:db8:d0c::9e",
+)
+DOC_DROP_NETWORKS: Final[tuple[str, ...]] = ("198.51.100.14/32", "203.0.113.0/24", "2001:db8:d0c::5/128")
+DOC_INSPECT_IP: Final = "198.51.100.14"
+DOC_BANS: Final[tuple[str, ...]] = ("198.51.100.14", "2001:db8:d0c::5")
+
+# CensysInspect, l9scan and masscan name a real organization or person.
+DOC_USER_AGENTS: Final[tuple[tuple[str | None, float], ...]] = tuple(
+    (ua, weight) for ua, weight in SCANNER_USER_AGENTS if ua is None or "://" not in ua
+)
+
+HOME_ASN: Final = 64497
+HOME_AS_NAME: Final = "Example Broadband"
+HOME_NETWORKS: Final[tuple[str, ...]] = ("192.0.2.128/25", "2001:db8:b0b::/48")
+HOME_VISITORS: Final[tuple[str, ...]] = (
+    "192.0.2.131",
+    "192.0.2.137",
+    "192.0.2.150",
+    "192.0.2.164",
+    "192.0.2.171",
+    "192.0.2.189",
+    "192.0.2.203",
+    "192.0.2.226",
+    "192.0.2.248",
+    "2001:db8:b0b:12::7",
+    "2001:db8:b0b:40::21",
+    "2001:db8:b0b:9a::3",
+)
+HOME_USER_AGENTS: Final[tuple[tuple[str, float], ...]] = tuple(
+    (ua, weight) for ua, weight in BROWSER_USER_AGENTS if "://" not in ua
+)
+HOME_MIN_REQUESTS: Final = 6000
+HOME_LEAD: Final = 1.5
+HOME_UTC_OFFSET_HOURS: Final = 1.0
+# The shots are taken up to an hour or more after the fixture step, and the
+# 7-day range moves with them, so the earliest home rows keep a margin.
+HOME_WINDOW_START: Final = timedelta(days=7) - timedelta(hours=2)
+_HOME_ZIPF_EXPONENT: Final = 0.6
+
+UNPLACED: Final = Place(
+    latitude=0.0,
+    longitude=0.0,
+    geohash="",
+    country_code="",
+    country_name="",
+    state=None,
+    state_code=None,
+    city=None,
+    postal_code=None,
+    timezone=None,
+)
+
+WINDOW_START: Final = timedelta(days=6)
+WINDOW_END: Final = timedelta(hours=2)
+BURST_SECONDS: Final = (600, 3 * 3600)
+BURST_REQUESTS: Final = (30, 90)
+
+
+def is_documentation(value: str) -> bool:
+    """Whether an address or network lies wholly inside one of the documentation ranges."""
+    try:
+        network = ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        return False
+    if isinstance(network, ipaddress.IPv4Network):
+        return any(network.subnet_of(documentation) for documentation in _DOCUMENTATION_V4)
+    return any(network.subnet_of(documentation) for documentation in _DOCUMENTATION_V6)
+
+
+def overlaps_home_network(value: str) -> bool:
+    """Whether an address or network shares any address with the AS64497 home ranges."""
+    try:
+        network = ipaddress.ip_network(value, strict=False)
+    except ValueError:
+        return False
+    return any(network.overlaps(ipaddress.ip_network(home)) for home in HOME_NETWORKS)
+
+
+def doc_visitors(rng: random.Random) -> list[Visitor]:
+    resolved = Resolved(place=UNPLACED, asn=DOC_ASN, asn_org=DOC_AS_NAME)
+    return [
+        Visitor(
+            ip=ip,
+            kind="scanner",
+            resolved=resolved,
+            user_agent=pick_weighted(rng, DOC_USER_AGENTS),
+            hosts=tuple(SITES),
+            active_from=0.0,
+            active_to=0.0,
+            utc_offset_hours=0.0,
+        )
+        for ip in DOC_VISITORS
+    ]
+
+
+def doc_traffic(config: SeedConfig, *, now: datetime, rng: random.Random) -> Batch:
+    """One or two scanning bursts per documentation visitor between six days and two hours before ``now``."""
+    visitors = doc_visitors(rng)
+    generator = TrafficGenerator(config, visitors, {}, rng)
+    earliest = int((now - WINDOW_START).timestamp()) + 1
+    latest = int((now - WINDOW_END).timestamp())
+    batch = Batch()
+    for visitor in visitors:
+        for _ in range(rng.randint(1, 2)):
+            length = rng.randint(*BURST_SECONDS)
+            begin = rng.randint(earliest, latest - length)
+            for _ in range(rng.randint(*BURST_REQUESTS)):
+                timestamp = datetime.fromtimestamp(rng.randint(begin, begin + length), tz=UTC)
+                log, raw, parse_error = generator.line_at(visitor, timestamp)
+                log = log._replace(country_code=None, country_name=None, city=None)
+                if parse_error is not None or rng.random() < config.debug_share:
+                    batch.linked.append((log, debug_row_for(log, raw, parse_error)))
+                else:
+                    batch.access_logs.append(log)
+    return batch
+
+
+def home_visitors(rng: random.Random) -> list[Visitor]:
+    resolved = Resolved(place=UNPLACED, asn=HOME_ASN, asn_org=HOME_AS_NAME)
+    return [
+        Visitor(
+            ip=ip,
+            kind="browser",
+            resolved=resolved,
+            user_agent=pick_weighted(rng, HOME_USER_AGENTS),
+            hosts=tuple(SITES),
+            active_from=0.0,
+            active_to=0.0,
+            utc_offset_hours=HOME_UTC_OFFSET_HOURS,
+        )
+        for ip in HOME_VISITORS
+    ]
+
+
+def home_requests_for(rival_hits: int) -> int:
+    """Home requests that put AS64497 clearly ahead of the busiest other network."""
+    return max(HOME_MIN_REQUESTS, math.ceil(rival_hits * HOME_LEAD))
+
+
+def home_traffic(config: SeedConfig, *, now: datetime, rng: random.Random, requests: int) -> Batch:
+    """``requests`` browser requests from the home visitors, by local time of day, inside the 7-day range."""
+    visitors = home_visitors(rng)
+    weights = [1 / (rank + 1) ** _HOME_ZIPF_EXPONENT for rank in range(len(visitors))]
+    generator = TrafficGenerator(config, visitors, {}, rng)
+    earliest = int((now - HOME_WINDOW_START).timestamp()) + 1
+    latest = int((now - WINDOW_END).timestamp())
+    batch = Batch()
+    for visitor in rng.choices(visitors, weights=weights, k=requests):
+        while True:
+            moment = rng.randint(earliest, latest)
+            if rng.random() < DIURNAL[int((moment / 3600 + visitor.utc_offset_hours) % 24)]:
+                break
+        log, raw, parse_error = generator.line_at(visitor, datetime.fromtimestamp(moment, tz=UTC))
+        log = log._replace(country_code=None, country_name=None, city=None)
+        if rng.random() < config.debug_share:
+            batch.linked.append((log, debug_row_for(log, raw, parse_error)))
+        else:
+            batch.access_logs.append(log)
+    return batch
+
+
+class NetworkHits(NamedTuple):
+    asn: int
+    organization: str | None
+    hits: int
+
+
+# Raw rows, ranked like the app's /top-asns (hits, then the lower ASN).
+TOP_NETWORKS_SQL: Final = """
+SELECT autonomous_system_number AS asn, max(autonomous_system_organization) AS organization, count(*) AS hits
+FROM access_logs
+WHERE timestamp >= $1 AND timestamp < $2 AND autonomous_system_number IS NOT NULL
+GROUP BY autonomous_system_number
+ORDER BY hits DESC, asn
+LIMIT $3
+"""
+
+
+async def top_networks(conn: asyncpg.Connection, *, since: datetime, until: datetime, limit: int) -> list[NetworkHits]:
+    rows = await conn.fetch(TOP_NETWORKS_SQL, since, until, limit)
+    return [NetworkHits(row["asn"], row["organization"], row["hits"]) for row in rows]
+
+
+class DocTrafficWritten(NamedTuple):
+    scanner_requests: int
+    home_requests: int
+    top_networks: list[NetworkHits]
+
+
+async def write_doc_traffic(
+    conn: asyncpg.Connection, config: SeedConfig, *, now: datetime, rng: random.Random
+) -> DocTrafficWritten:
+    """Write the scanner and home visitors' rows, refresh the aggregates and check AS64497 leads.
+
+    The seed already refreshed the aggregates, and real-time aggregation
+    reads raw rows only past the watermark, so without this refresh the
+    DROP and Top network cards' aggregate legs would miss these rows.
+    """
+    writer = SeedWriter(conn)
+    scanners = await writer.write(doc_traffic(config, now=now, rng=rng))
+    since = now - timedelta(days=7)
+    rivals = await top_networks(conn, since=since, until=now, limit=1)
+    requests = home_requests_for(rivals[0].hits if rivals else 0)
+    homes = await writer.write(home_traffic(config, now=now, rng=rng, requests=requests))
+    failed = await writer.refresh_aggregates()
+    if failed:
+        raise RuntimeError(f"aggregate refresh failed after the documentation visitors: {', '.join(failed)}")
+    leaders = await top_networks(conn, since=since, until=now, limit=3)
+    runner_up = leaders[1].hits if len(leaders) > 1 else 0
+    if not leaders or leaders[0].asn != HOME_ASN or leaders[0].hits < HOME_LEAD * runner_up:
+        raise RuntimeError(
+            f"AS{HOME_ASN} must lead the last 7 days by {HOME_LEAD}x; the top networks are "
+            + ", ".join(f"AS{leader.asn} {leader.hits}" for leader in leaders)
+        )
+    return DocTrafficWritten(scanners.access_logs, homes.access_logs, leaders)

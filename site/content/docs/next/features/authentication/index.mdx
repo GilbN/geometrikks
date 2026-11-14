@@ -16,7 +16,7 @@ APP_ADMIN_PASSWORD=<a long random password>
 
 `APP_ADMIN_USER` defaults to `admin`. `APP_ADMIN_PASSWORD` has no default. Startup fails without it, unless OpenID Connect is set up or `APP_AUTH_DISABLED=true`.
 
-![The login page with the username and password form](/screenshots/login.webp)
+<Screenshot scene="login" />
 
 Log in through the web UI at `/login` or with `POST /api/v1/auth/login`. Everything under `/api/` and `/ws/` needs a session or an API key. A few paths stay open, because the login page and health checks need them before anyone has logged in:
 

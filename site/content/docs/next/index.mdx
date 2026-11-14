@@ -5,7 +5,7 @@ description: What GeoMetrikks does, what it runs on and which outside services i
 
 GeoMetrikks reads the access logs your reverse proxy writes, looks up where each request came from in MaxMind's GeoLite2 databases, and shows the result on a live world map and a traffic analytics dashboard. If you run CrowdSec, it connects to the CrowdSec Local API, so you can see who is banned next to the traffic they sent and ban or unban an IP from the app.
 
-![The live map with request routes flying to the server](/screenshots/live.webp)
+<Screenshot scene="live" />
 
 ## What it reads
 
@@ -17,11 +17,11 @@ With several proxies or hosts, each request records the server it came from, and
 
 The Overview page shows requests, bytes, unique visitors and the status mix for the selected time range, with trends against the previous range.
 
-![The Overview page with request, visitor and status cards](/screenshots/dashboard.webp)
+<Screenshot scene="dashboard" />
 
 Within seconds of ingestion, the map draws every request GeoLite2 can place. A request with no location in the database stays off the map but still shows up in Access Logs. Click a marker to see the location, its top IPs and the network behind each. See [Map](./features/map.mdx).
 
-![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
+<Screenshot scene="map" />
 
 Analytics has request volume, latency and bandwidth charts, top URLs, user agents, status codes and the networks (ASNs) your traffic comes from. Access Logs is a searchable history of every request, Geo Logs groups traffic by location, and Debug Logs shows lines that failed to parse.
 

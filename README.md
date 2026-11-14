@@ -5,7 +5,10 @@
   </picture>
 </h1>
 
-![Map](/data/screenshots/live.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/live-desktop-light.webp">
+  <img alt="Map" src="data/screenshots/live-desktop-dark.webp">
+</picture>
 
 GeoMetrikks tails your reverse-proxy access logs (nginx, Nginx Proxy
 Manager, Traefik and Caddy) or reads them from Grafana Loki, geolocates
@@ -27,12 +30,18 @@ that counts banned addresses per location. With several servers, filter
 the map by server and watch live routes fly to each server's own
 beacon (see [Multi-source setup](#multi-source-setup)).
 
-![Map](/data/screenshots/map.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/map-desktop-light.webp">
+  <img alt="Map" src="data/screenshots/map-desktop-dark.webp">
+</picture>
 
 **Overview.** Requests, bytes, unique visitors and status mix for the
 selected time range, with trends against the previous range.
 
-![Overview](/data/screenshots/dashboard.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/dashboard-desktop-light.webp">
+  <img alt="Overview" src="data/screenshots/dashboard-desktop-dark.webp">
+</picture>
 
 **Analytics.** Request volume, latency and bytes-transferred charts; top
 URLs (one row per host and path), user agents and status codes; and a
@@ -42,13 +51,19 @@ WebSocket connections (status 101) and connections that ended without a
 response (status 0). Their logged time covers the whole connection, not
 the response, and the rows stay in Access logs with that duration.
 
-![Analytics](/data/screenshots/analytics.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/analytics-desktop-light.webp">
+  <img alt="Analytics" src="data/screenshots/analytics-desktop-dark.webp">
+</picture>
 
 **Live feed.** A WebSocket-backed live tail on the access-logs page (new
 rows prepend as they arrive and pause while you hover) and a live pulse
 overlay on the map.
 
-![Live tail](/data/screenshots/live-tail.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/live-tail-desktop-light.webp">
+  <img alt="Live tail" src="data/screenshots/live-tail-desktop-dark.webp">
+</picture>
 
 **Access logs.** A searchable, server-paginated history of every request:
 free-text search across URL, referrer and user agent; filters for status,
@@ -57,19 +72,28 @@ sortable columns; and a column picker for the full log line (bytes,
 request time, upstream time, HTTP version and more). Select a row for the
 complete record.
 
-![Access Logs](/data/screenshots/access-logs.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/access-logs-desktop-light.webp">
+  <img alt="Access Logs" src="data/screenshots/access-logs-desktop-dark.webp">
+</picture>
 
 **Geo logs.** Traffic grouped by location: which places send requests, how
 that changes over time, and which clients keep coming back, with Top IPs
 and Top locations next to a map preview and an event chart.
 
-![Geo Logs](/data/screenshots/geo-logs.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/geo-logs-desktop-light.webp">
+  <img alt="Geo Logs" src="data/screenshots/geo-logs-desktop-dark.webp">
+</picture>
 
 **Debug logs.** The raw source lines behind every request, with parse
 failures called out and linked to their request. This is where to look when
 a log file is not producing events.
 
-![Debug Logs](/data/screenshots/debug-logs.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/debug-logs-desktop-light.webp">
+  <img alt="Debug Logs" src="data/screenshots/debug-logs-desktop-dark.webp">
+</picture>
 
 **Multi-source.** Several proxies or hosts? Run one full instance plus
 lightweight agents next to each log file, tail shipped files from one
@@ -82,7 +106,10 @@ check-in, and flags one that stopped reporting. See [Multi-source setup](#multi-
 live services on one page, with advisories when something needs attention
 (a missing ASN database, a server whose location could not be detected).
 
-![Settings > Status](/data/screenshots/status.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/status-desktop-light.webp">
+  <img alt="Settings > Status" src="data/screenshots/status-desktop-dark.webp">
+</picture>
 
 **Themes.** Settings > Appearance has eight themes, Aurora, Moss, Forge,
 Night, Glacier, Dusk, Lyng and Storm, each with a light and a dark
@@ -96,9 +123,15 @@ across the app. Badges and the map update live from the decision stream.
 See
 [CrowdSec integration](#crowdsec-integration-optional).
 
-![Banned IPs map view](/data/screenshots/banned-map.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/banned-map-desktop-light.webp">
+  <img alt="Banned IPs map view" src="data/screenshots/banned-map-desktop-dark.webp">
+</picture>
 
-![CrowdSec](/data/screenshots/crowdsec.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/security-desktop-light.webp">
+  <img alt="CrowdSec" src="data/screenshots/security-desktop-dark.webp">
+</picture>
 
 **Batch import.** Backfill rotated or archived logs (plain or `.gz`) with
 `litestar import-logs`, including Nginx Proxy Manager's own per-host logs.
@@ -741,7 +774,10 @@ APP_ADMIN_USER=admin          # defaults to "admin"
 APP_ADMIN_PASSWORD=           # required unless OpenID Connect is configured (see below)
 ```
 
-![Login](/data/screenshots/login.png)
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="data/screenshots/login-desktop-light.webp">
+  <img alt="Login" src="data/screenshots/login-desktop-dark.webp">
+</picture>
 
 Log in through the web UI (`/login`) or `POST /api/v1/auth/login`. Everything
 under `/api/` and `/ws/` requires a session or an [API key](#api-keys). The

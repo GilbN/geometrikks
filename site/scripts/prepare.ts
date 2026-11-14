@@ -1,9 +1,9 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
-import sharp from "sharp";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { includeCopy } from "./lib/markdown";
 import { imageExists, publishedFromEnv, RegistryError } from "./lib/registry";
 import { resolveVersions } from "./lib/resolve-versions";
+import { manifestFiles } from "../lib/screenshots";
 import { NEXT } from "../lib/versions";
 
 const siteRoot = resolve(import.meta.dir, "..");
@@ -19,17 +19,18 @@ for (const name of ["CHANGELOG.md", "SECURITY.md"]) {
 
 const screenshotsDir = join(siteRoot, "..", "data", "screenshots");
 const screenshotsOut = join(siteRoot, "public", "screenshots");
-mkdirSync(screenshotsOut, { recursive: true });
-const screenshotSizes: Record<string, { width: number; height: number }> = {};
-for (const file of readdirSync(screenshotsDir).filter((entry) => entry.endsWith(".png")).sort()) {
-  const name = basename(file, ".png");
-  const info = await sharp(join(screenshotsDir, file))
-    .resize({ width: 1912 })
-    .webp()
-    .toFile(join(screenshotsOut, `${name}.webp`));
-  screenshotSizes[name] = { width: info.width, height: info.height };
+const manifestText = readFileSync(join(screenshotsDir, "manifest.json"), "utf8");
+const missingShots = manifestFiles(JSON.parse(manifestText)).filter((file) => !existsSync(join(screenshotsDir, file)));
+if (missingShots.length > 0) {
+  console.error(`screenshots: manifest.json lists files missing from data/screenshots/: ${missingShots.join(", ")}`);
+  process.exit(1);
 }
-writeFileSync(join(siteRoot, ".generated", "screenshots.json"), `${JSON.stringify(screenshotSizes, null, 2)}\n`);
+rmSync(screenshotsOut, { recursive: true, force: true });
+mkdirSync(screenshotsOut, { recursive: true });
+for (const file of readdirSync(screenshotsDir).filter((entry) => entry.endsWith(".webp"))) {
+  copyFileSync(join(screenshotsDir, file), join(screenshotsOut, file));
+}
+writeFileSync(join(siteRoot, ".generated", "screenshots.json"), manifestText);
 
 const landDots: [number, number][] = JSON.parse(readFileSync(join(siteRoot, "data", "land-dots.json"), "utf8"));
 const dotCircles = landDots.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.5"/>`).join("");

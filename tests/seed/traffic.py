@@ -190,6 +190,22 @@ class TrafficGenerator:
             self._add_request(batch, visitor)
         return batch
 
+    def pick_visitor(self) -> Visitor:
+        """One visitor, weighted like the picks in ``_batch``."""
+        return self.rng.choices(self.public, cum_weights=self._cum_weights)[0]
+
+    def line_at(self, visitor: Visitor, timestamp: datetime) -> tuple[AccessLogRow, str, str | None]:
+        """One request from ``visitor`` at ``timestamp``: the row, its raw line, and the parse error of a probe."""
+        if timestamp.tzinfo is None:
+            raise ValueError("line_at needs an aware timestamp; both log formats write the offset")
+        timestamp = timestamp.replace(microsecond=0)
+        if visitor.kind == "scanner" and self.rng.random() < PROBE_SHARE:
+            log = self._probe_log(visitor, timestamp)
+            payload, reason = self.rng.choice(PROBES[log.log_format])
+            return log, raw_line(log, payload), reason
+        log = self._request_log(visitor, timestamp)
+        return log, raw_line(log, f"{log.method} {log.url} {log.http_version}"), None
+
     def _add_request(self, batch: Batch, visitor: Visitor) -> None:
         rng = self.rng
         # Both log formats write whole seconds.

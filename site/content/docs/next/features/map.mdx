@@ -5,7 +5,7 @@ description: The map's views, live routes, filters and server location, on a des
 
 The map plots every request GeoLite2 can place for the selected time range. A request with no location in the database stays off the map and still shows up in Access Logs. The basemap comes from CARTO and needs a key of your own; see [GeoLite2 and the CARTO key](../get-started/geolite2.mdx#carto-basemap-key).
 
-![The map on the globe, with request markers and live routes to the server](/screenshots/map.webp)
+<Screenshot scene="map" />
 
 ## Map controls
 
@@ -19,11 +19,13 @@ Three tabs pick the view:
 - **Markers** draws one marker per location. This is the default.
 - **Banned** shows the IPs under a current CrowdSec decision that sent traffic in the selected range, with counts of banned IPs, events, countries and cities. The tab only appears when CrowdSec is set up. If CrowdSec stops answering, the map keeps the last result and says so instead of showing an empty map.
 
-![The Banned view, with banned IPs plotted by location](/screenshots/banned-map.webp)
+<Screenshot scene="banned-map" />
 
 The **Globe** switch turns the flat Mercator map into a globe you can spin. It is off by default.
 
 The **Satellite** switch draws Esri World Imagery under CARTO's country borders and place names, on the flat map or the globe. The heatmap, markers and live routes stay on top. It needs an Esri key of its own; see [Esri satellite key](../get-started/geolite2.mdx#esri-satellite-key). Without one the switch is greyed out and says no key. If the imagery fails to load, the street map stays and the switch says failed.
+
+<Screenshot scene="satellite" />
 
 ### Live
 
@@ -61,6 +63,8 @@ The map fills the screen. Its top row holds the refresh button and time range on
 A pill on the map's right edge holds four icon buttons: Layers and filters, All traffic, Server and Live. Press and hold one to see its name. Layers and filters opens a drawer with the same sections as the desktop panel, with Filters last. There, Country and City are rows that open a search page inside the drawer, and Server opens the phone's own picker. When the map is too short for the whole pill, All traffic and Server move into the map tools menu as Show all traffic and Go to server. Pinch to zoom; there are no zoom buttons.
 
 Held sideways, a phone counts as a phone when it is a touch screen at least 4:3 wide and under 30rem tall. The detail panel and the drawers then open on the right edge instead of from the bottom.
+
+<Screenshot scene="map" viewport="landscape" />
 
 ## Server location
 
