@@ -25,12 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The documentation moved from the README to [geometrikks.dev/docs](https://geometrikks.dev/docs/). The proxy warnings on Settings > Status, "Set up an agent" on Settings > Agents, the CrowdSec setup note on the Security page and the missing GeoLite2 database banner now link to it. The Loki and Nginx Proxy Manager messages in the log name the page to read.
 - On a phone, the map's Layers drawer shows Country, City and Server as rows, like the Filters drawer on the log pages. Country and City open a search page in the drawer, and Server opens the phone's own list. They used to be three stacked lists with their own search boxes. In the Debug Logs Filters drawer, Lines is a row that opens the phone's own list.
 - The Security page splits Decisions, Alerts, DROP and Reports into tabs, one table at a time. The open tab is in the URL, so a reload or a shared link keeps it. With AbuseIPDB reporting on and CrowdSec off, Security stays in the navigation and shows only Reports.
-
-### Changed
-
-- The documentation moved from the README to [geometrikks.dev/docs](https://geometrikks.dev/docs/). The proxy warnings on Settings > Status, "Set up an agent" on Settings > Agents, the CrowdSec setup note on the Security page and the missing GeoLite2 database banner now link to it. The Loki and Nginx Proxy Manager messages in the log name the page to read.
 
 ### Fixed
 
