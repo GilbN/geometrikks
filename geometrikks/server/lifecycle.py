@@ -171,7 +171,7 @@ async def _wait_for_database(
 
 @asynccontextmanager
 async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
-    """Process start time and the log broadcaster's event loop binding.
+    """Process start time, the log broadcaster's event loop binding and startup warnings.
 
     Runs first so /about reports uptime even when later managers degrade.
     """

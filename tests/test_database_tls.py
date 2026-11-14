@@ -30,7 +30,9 @@ def test_a_missing_file_is_reported_with_its_variable(tmp_path):
 
 
 def test_a_directory_is_reported_as_missing(tmp_path):
-    assert unusable_tls_files({"PGSSLROOTCERT": str(tmp_path)})[0].reason == "missing"
+    assert unusable_tls_files({"PGSSLROOTCERT": str(tmp_path)}) == [
+        UnusableTlsFile(variable="PGSSLROOTCERT", path=str(tmp_path), reason="missing")
+    ]
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root can read any file")
@@ -38,7 +40,24 @@ def test_an_unreadable_file_is_reported_as_not_readable(tmp_path):
     key_file = tmp_path / "client.key"
     key_file.write_text("key")
     key_file.chmod(0o000)
-    assert unusable_tls_files({"PGSSLKEY": str(key_file)})[0].reason == "not readable"
+    assert unusable_tls_files({"PGSSLKEY": str(key_file)}) == [
+        UnusableTlsFile(variable="PGSSLKEY", path=str(key_file), reason="not readable")
+    ]
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root can search any directory")
+def test_a_file_in_an_unsearchable_directory_is_reported_as_not_readable(tmp_path):
+    locked_directory = tmp_path / "tls"
+    locked_directory.mkdir()
+    ca_file = locked_directory / "ca.crt"
+    ca_file.write_text("cert")
+    locked_directory.chmod(0o000)
+    try:
+        assert unusable_tls_files({"PGSSLROOTCERT": str(ca_file)}) == [
+            UnusableTlsFile(variable="PGSSLROOTCERT", path=str(ca_file), reason="not readable")
+        ]
+    finally:
+        locked_directory.chmod(0o700)
 
 
 def test_files_are_reported_in_a_fixed_order(tmp_path):
