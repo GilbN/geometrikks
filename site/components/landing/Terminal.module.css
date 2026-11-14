@@ -1,0 +1,109 @@
+.term {
+  background: var(--bg-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow:
+    0 30px 80px oklch(0 0 0 / 45%),
+    0 0 0 1px oklch(0 0 0 / 30%);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: oklch(0.15 0.026 245);
+  font: 12px var(--mono);
+  color: var(--fg-faint);
+}
+.bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  opacity: 0.5;
+}
+.bar span {
+  margin-left: 8px;
+}
+.body {
+  padding: 18px 20px;
+  font: 12.5px/1.75 var(--mono);
+  min-height: 420px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.l {
+  display: block;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 0.25s,
+    transform 0.25s;
+}
+.l.on {
+  opacity: 1;
+  transform: none;
+}
+.t-in {
+  color: var(--fg-faint);
+}
+.t-tag {
+  color: var(--accent);
+}
+.t-val {
+  color: var(--amber);
+}
+.t-ok {
+  color: var(--green);
+}
+.t-red {
+  color: var(--red);
+}
+.t-dim {
+  color: var(--fg-dim);
+}
+.body .caret {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background: var(--fg);
+  vertical-align: -2px;
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+/* Without JavaScript every line is visible. */
+@media (scripting: none) {
+  .l {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Keep the terminal from moving the page as wrapped lines are revealed. */
+@media (max-width: 900px) {
+  .body {
+    height: clamp(300px, 55svh, 420px);
+    min-height: 0;
+    font-size: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .l:not(.on) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .l {
+    transition: none;
+  }
+  .body .caret {
+    animation: none;
+  }
+}

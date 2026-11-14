@@ -1,10 +1,16 @@
 """docs/configuration.md must match the settings classes (generated file)."""
+import importlib.util
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 from geometrikks.config import settings as settings_module
+
+_spec = importlib.util.spec_from_file_location("generate_config_docs", Path("scripts/generate_config_docs.py"))
+assert _spec is not None and _spec.loader is not None
+gen = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(gen)
 
 
 def _doc_groups() -> tuple[str, str, str]:
@@ -56,3 +62,21 @@ def test_no_field_is_both_advanced_and_developer():
             assert not (
                 settings_module.is_advanced_field(extra) and settings_module.is_developer_field(extra)
             ), f"{settings_class.__name__}.{field_name}"
+
+
+def test_escape_mdx_escapes_braces_and_angle_brackets_outside_code():
+    assert gen.escape_mdx('e.g. {job="traefik"} and `{x}` <b>') == 'e.g. \\{job="traefik"\\} and `{x}` \\<b>'
+
+
+def test_site_reference_has_frontmatter_and_no_html_comment():
+    text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
+    assert text.startswith("---\ntitle: Configuration\n")
+    assert "<!--" not in text and "# Configuration Reference" not in text
+    assert '\\{job="traefik"\\}' in text
+
+
+def test_site_reference_lists_the_same_variables_as_docs():
+    pattern = r"^\| `([A-Z0-9_]+)` \|"
+    docs = re.findall(pattern, Path("docs/configuration.md").read_text(encoding="utf-8"), flags=re.M)
+    site = re.findall(pattern, gen.SITE_OUTPUT.read_text(encoding="utf-8"), flags=re.M)
+    assert docs == site

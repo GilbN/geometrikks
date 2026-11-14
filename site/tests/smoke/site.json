@@ -1,0 +1,28 @@
+[
+  { "path": "/", "status": 200, "headers": { "x-content-type-options": "nosniff" } },
+  { "path": "/docs/", "status": 302, "location": "/docs/next/" },
+  {
+    "path": "/docs/next/",
+    "status": 200,
+    "contains": ["GeoMetrikks docs", "noindex", "rel=\"canonical\" href=\"https://geometrikks.dev/docs/next/\""]
+  },
+  { "path": "/api/search", "status": 200, "contains": ["Check that the app is up"] },
+  { "path": "/no-such-page/", "status": 404, "contains": ["href=\"/docs/\""] },
+  {
+    "path": "/docs/next/reference/configuration/",
+    "status": 200,
+    "contains": ["LOKI_QUERIES", "{job=&quot;traefik&quot;}"]
+  },
+  { "path": "/docs/reference/configuration/", "status": 302, "location": "/docs/next/reference/configuration/" },
+  { "path": "/docs/reference/configuration", "status": 302, "location": "/docs/next/reference/configuration/" },
+  { "path": "/docs/next/reference/api/", "status": 200 },
+  {
+    "path": "/docs/next/reference/api/health/HealthHealth/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["Check that the app is up and how its parts are doing", "https://geometrikks.example.com/health"],
+    "absent": ["'https://example.com/health", "https://geometrikks.dev/health"]
+  },
+  { "path": "/docs/next/reference/changelog/", "status": 200, "contains": ["Unreleased"] },
+  { "path": "/docs/next/reference/security/", "status": 200 }
+]

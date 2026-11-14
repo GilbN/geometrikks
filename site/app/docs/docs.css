@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-openapi/css/preset.css";
+@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource/fragment-mono";
+
+@font-face {
+  font-family: "runr";
+  src: url("/fonts/runr-Regular.woff2") format("woff2");
+  font-display: swap;
+  /* Same coverage as the app: A-Z, ÅÆØ, digits, hyphen-minus, space. */
+  unicode-range: U+0020, U+002D, U+0030-0039, U+0041-005A, U+00C5, U+00C6, U+00D8;
+}
+
+@theme {
+  --font-sans: "Schibsted Grotesk Variable", system-ui, sans-serif;
+  --font-mono: "Fragment Mono", ui-monospace, monospace;
+
+  /* Fjord mist: the app's light theme, teal accent. */
+  --color-fd-background: oklch(1 0 0);
+  --color-fd-foreground: oklch(0.2 0.03 245);
+  --color-fd-muted: oklch(0.975 0.006 245);
+  --color-fd-muted-foreground: oklch(0.5 0.025 245);
+  --color-fd-popover: oklch(1 0 0);
+  --color-fd-popover-foreground: oklch(0.2 0.03 245);
+  --color-fd-card: oklch(0.975 0.006 245);
+  --color-fd-card-foreground: oklch(0.2 0.03 245);
+  --color-fd-border: oklch(0.85 0.015 245);
+  --color-fd-primary: oklch(0.5 0.11 178);
+  --color-fd-primary-foreground: oklch(1 0 0);
+  --color-fd-secondary: oklch(0.94 0.01 245);
+  --color-fd-secondary-foreground: oklch(0.2 0.03 245);
+  --color-fd-accent: oklch(0.9 0.05 178 / 50%);
+  --color-fd-accent-foreground: oklch(0.34 0.08 178);
+  --color-fd-ring: oklch(0.5 0.11 178);
+}
+
+:root {
+  /* The mark and the wordmark's ligature stroke with --accent, as on the landing page. */
+  --accent: oklch(0.5 0.11 178);
+}
+
+/* Aurora night, the landing page's tokens. */
+.dark {
+  --accent: oklch(0.78 0.15 178);
+  --color-fd-background: oklch(0.13 0.025 245);
+  --color-fd-foreground: oklch(0.97 0.01 220);
+  --color-fd-muted: oklch(0.17 0.028 245);
+  --color-fd-muted-foreground: oklch(0.62 0.02 240);
+  --color-fd-popover: oklch(0.17 0.028 245);
+  --color-fd-popover-foreground: oklch(0.93 0.012 220);
+  --color-fd-card: oklch(0.17 0.028 245);
+  --color-fd-card-foreground: oklch(0.97 0.01 220);
+  --color-fd-border: oklch(0.26 0.03 245);
+  --color-fd-primary: oklch(0.78 0.15 178);
+  --color-fd-primary-foreground: oklch(0.13 0.025 245);
+  --color-fd-secondary: oklch(0.17 0.028 245);
+  --color-fd-secondary-foreground: oklch(0.93 0.012 220);
+  --color-fd-accent: oklch(0.28 0.06 178 / 50%);
+  --color-fd-accent-foreground: oklch(0.9 0.08 178);
+  --color-fd-ring: oklch(0.78 0.15 178);
+}
+
+/* Repeats .dark values on purpose: neutral.css's `.dark #nd-sidebar` has the same specificity, so this must come later. */
+.dark #nd-sidebar,
+.dark #nd-sidebar-mobile {
+  --color-fd-card: oklch(0.12 0.025 245);
+  --color-fd-muted: oklch(0.17 0.028 245);
+  --color-fd-secondary: oklch(0.17 0.028 245);
+  --color-fd-muted-foreground: oklch(0.62 0.02 240);
+}
+
+/* The wordmark in the header: GEOMETRI + the hagall ligature + S, in runr. */
+.wordmark {
+  font-family: "runr", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.wordmark .lig {
+  height: 0.78em;
+  width: auto;
+  margin: 0 0.19em 0 0.06em;
+}

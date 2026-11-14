@@ -1,0 +1,117 @@
+import screenshots from "@/.generated/screenshots.json";
+import { CrowdSecLogo } from "./logos";
+import styles from "./CrowdSec.module.css";
+import { ZoomHint } from "./Screens";
+
+// CrowdSec gets its own section: the Banned IPs map view across the top,
+// then the IP inspector beside the copy and the two-line setup. The inspector
+// picture is the screenshot cropped to its right edge, where the sheet with
+// the ban badge sits; the zoom link opens the whole thing.
+const readme = "https://github.com/GilbN/geometrikks";
+
+const inspectorAlt =
+  "The IP inspector for a banned address, showing when the ban expires, a warning for requests seen after the ban, request counts, response codes over time and recent requests";
+const bannedMapAlt =
+  "The map in its Banned IPs view: red markers count banned addresses per location across Europe, a popup shows one address with its CrowdSec decision, and the controls list the top banned IPs";
+const inspector = { src: "/screenshots/ip-inspector.webp", ...screenshots["ip-inspector"] };
+const bannedMap = { src: "/screenshots/banned-map.webp", ...screenshots["banned-map"] };
+
+const connect = (
+  <>
+    <span className="c"># prints the API key</span>
+    {`
+docker exec crowdsec cscli bouncers add geometrikks
+
+CROWDSEC_LAPI_URL=http://crowdsec:8080
+CROWDSEC_BOUNCER_API_KEY=<key>`}
+  </>
+);
+
+export function CrowdSec() {
+  return (
+    <section className={styles.crowdsec} id="crowdsec">
+      <div className="wrap">
+        <p className={`kicker ${styles.kicker}`}>
+          <CrowdSecLogo width={22} height={22} aria-hidden="true" /> CrowdSec
+        </p>
+        <h2 className="section-title">Watch hostile traffic fuck around and find out.</h2>
+        <p className="sub">
+          Connect the Local API and the map's Banned IPs view shows where the bans come from. Open any of them in the
+          IP inspector to see what that address did to earn it.
+        </p>
+        <a
+          className={`zoom ${styles.map}`}
+          href={bannedMap.src}
+          data-zoom=""
+          data-zoom-alt={bannedMapAlt}
+          data-zoom-caption="Banned IPs map view. Each marker counts the banned addresses seen at that location in the selected range."
+          aria-label="View the Banned IPs map larger"
+        >
+          <img
+            src={bannedMap.src}
+            width={bannedMap.width}
+            height={bannedMap.height}
+            alt={bannedMapAlt}
+            loading="lazy"
+            decoding="async"
+          />
+          <ZoomHint />
+        </a>
+        <div className={styles.detail}>
+          <a
+            className={`zoom ${styles.shot}`}
+            href={inspector.src}
+            data-zoom=""
+            data-zoom-alt={inspectorAlt}
+            data-zoom-caption="IP inspector over the map for a banned address."
+            aria-label="View the IP inspector larger"
+          >
+            <img
+              src={inspector.src}
+              width={inspector.width}
+              height={inspector.height}
+              alt={inspectorAlt}
+              loading="lazy"
+              decoding="async"
+            />
+            <ZoomHint />
+          </a>
+          <dl>
+            <div>
+              <dt>Every ban with the traffic behind it</dt>
+              <dd>
+                The IP inspector shows an address's request counts, bandwidth, response codes over time, hosts, paths,
+                user agents and recent requests, with its CrowdSec decision and how long is left on it. Requests that
+                arrive after the ban are called out.
+              </dd>
+            </div>
+            <div>
+              <dt>Ban and unban from the UI</dt>
+              <dd>
+                With machine credentials, a shield button appears next to IPs on the map, in the tables and in the IP
+                inspector, with a duration picker from an hour to forever. Every ban and unban is audit-logged with the
+                acting user.
+              </dd>
+            </div>
+            <div>
+              <dt>Ban changes appear within seconds</dt>
+              <dd>
+                GeoMetrikks follows CrowdSec's live updates, including bans and unbans made outside GeoMetrikks. The
+                map and the badges refresh together.
+              </dd>
+            </div>
+            <div>
+              <dt>Two lines to connect</dt>
+              <dd>
+                <pre className="block">{connect}</pre>
+                CrowdSec decides; a bouncer in front of your stack still does the blocking. GeoMetrikks shows and
+                manages decisions, it does not block traffic.{" "}
+                <a href={`${readme}#crowdsec-integration-optional`}>CrowdSec setup in the docs</a>
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+    </section>
+  );
+}
