@@ -9,6 +9,7 @@ const UNLISTED_IP = "3.5.140.9"
 const BADGE_LABEL = "AbuseIPDB blacklist"
 const BADGE_HINT = "On AbuseIPDB's blacklist of IPs with a 100% abuse confidence score"
 const SETTLE_MS = 300
+const BLACKLIST_TITLE = "On AbuseIPDB's blacklist"
 
 const statusOn: AbuseIpdbStatusResponse = {
   enabled: false,
@@ -30,7 +31,15 @@ async function login(page: Page) {
   expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
 }
 
-async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; rowIps?: string[]; writeEnabled?: boolean } = {}) {
+async function setup(
+  page: Page,
+  options: {
+    status?: AbuseIpdbStatusResponse
+    rowIps?: string[]
+    writeEnabled?: boolean
+    bannedIps?: { ip: string; type: string }[]
+  } = {},
+) {
   const recorded = { blacklistRequests: 0, status: options.status ?? statusOn }
   const rowIps = options.rowIps ?? [LISTED_IP]
   await login(page)
@@ -42,7 +51,7 @@ async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; ro
   await page.route("**/api/v1/crowdsec/status", (route) =>
     route.fulfill({ json: { enabled: true, writeEnabled: options.writeEnabled ?? false, lapiReachable: true, liveUpdates: false } }),
   )
-  await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
+  await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: options.bannedIps ?? [] }))
   await page.route(
     (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
     (route) =>
@@ -61,6 +70,22 @@ async function setup(page: Page, options: { status?: AbuseIpdbStatusResponse; ro
   )
   return recorded
 }
+
+async function mockDropListing(page: Page) {
+  const updatedAt = "2026-11-08T06:00:00Z"
+  await page.route("**/api/v1/system/about", async (route) => {
+    const about = await (await route.fetch()).json()
+    about.dropLists = { ...about.dropLists, enabled: true, loaded: true, updatedAt }
+    return route.fulfill({ json: about })
+  })
+  await page.route("**/api/v1/drop/lists", (route) => route.fulfill({ json: {
+    enabled: true, loaded: true, stale: false, updatedAt, copyright: null, feeds: [], asns: [],
+    networks: [{ cidr: "3.5.140.0/24", sblId: "SBL000001" }],
+  } }))
+}
+
+const srTexts = (mark: Locator) =>
+  mark.locator("[data-sr-text]").evaluateAll((suffixes) => suffixes.map((suffix) => suffix.getAttribute("data-sr-text")))
 
 const ipActions = (page: Page, ip = LISTED_IP) => page.getByRole("button", { name: `Actions for ${ip}` }).first()
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
@@ -141,6 +166,64 @@ test.describe("desktop", () => {
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange", { bubbles: true })))
     await statusAnswered
     await expect(badge).toHaveCount(0)
+  })
+
+  test("the access log outlines a listed IP", async ({ page }) => {
+    await setup(page, { rowIps: [LISTED_IP, UNLISTED_IP] })
+    const blacklistAnswered = page.waitForResponse("**/api/v1/abuseipdb/blacklist")
+    await page.goto("/access-logs")
+    await blacklistAnswered
+    const mark = page.getByTitle(BLACKLIST_TITLE, { exact: true })
+    await expect(mark).toHaveCount(1)
+    await expect(mark).toHaveText(LISTED_IP)
+    await expect(mark).toHaveCSS("outline-style", "dashed")
+    await page.waitForTimeout(SETTLE_MS)
+    await expect(page.getByText(UNLISTED_IP, { exact: true })).not.toHaveAttribute("title")
+  })
+
+  test("a banned IP on both lists keeps the fill, one outline and every name", async ({ page }) => {
+    await mockDropListing(page)
+    await setup(page, { bannedIps: [{ ip: LISTED_IP, type: "ban" }] })
+    await page.goto("/access-logs")
+    const mark = page.getByTitle(
+      "Active CrowdSec ban decision. On the DROP list (SBL000001). On AbuseIPDB's blacklist",
+      { exact: true },
+    )
+    await expect(mark).toHaveCSS("outline-style", "dashed")
+    await expect(mark).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)")
+    await expect(mark.locator("[data-sr-text]")).toHaveCount(3)
+    expect(await srTexts(mark)).toEqual([" (Banned)", " (on the DROP list as SBL000001)", " (on AbuseIPDB's blacklist)"])
+  })
+
+  test("an unbanned IP on both lists names both", async ({ page }) => {
+    await mockDropListing(page)
+    await setup(page)
+    await page.goto("/access-logs")
+    const mark = page.getByTitle("On the DROP list (SBL000001). On AbuseIPDB's blacklist", { exact: true })
+    await expect(mark).toHaveCSS("outline-style", "dashed")
+    await expect(mark.locator("[data-sr-text]")).toHaveCount(2)
+    expect(await srTexts(mark)).toEqual([" (on the DROP list as SBL000001)", " (on AbuseIPDB's blacklist)"])
+  })
+
+  test("the outline finds another spelling of a listed IPv6 address", async ({ page }) => {
+    await setup(page, { rowIps: ["2600:1F18:0:0::1"] })
+    await page.goto("/access-logs")
+    await expect(page.getByTitle(BLACKLIST_TITLE, { exact: true })).toHaveText("2600:1F18:0:0::1")
+  })
+
+  test("turning the feature off mid-session removes the outline", async ({ page }) => {
+    await page.clock.install()
+    const recorded = await setup(page)
+    await page.goto("/access-logs")
+    const mark = page.getByTitle(BLACKLIST_TITLE, { exact: true })
+    await expect(mark).toBeVisible()
+
+    recorded.status = { ...statusOn, blacklistEnabled: false }
+    const statusAnswered = page.waitForResponse("**/api/v1/abuseipdb/status")
+    await page.clock.fastForward("01:05")
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange", { bubbles: true })))
+    await statusAnswered
+    await expect(mark).toHaveCount(0)
   })
 
   test("every row shares one download", async ({ page }) => {

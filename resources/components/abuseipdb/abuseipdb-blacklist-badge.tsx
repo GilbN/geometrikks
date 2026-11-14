@@ -9,10 +9,12 @@ const ABUSEIPDB_BLACKLIST_HINT = "On AbuseIPDB's blacklist of IPs with a 100% ab
 export function AbuseIpdbBlacklistBadge({
   insideButton = false,
   hover,
+  variant = "long",
   className,
 }: {
   insideButton?: boolean
   hover?: "title" | "tooltip"
+  variant?: "long" | "short"
   className?: string
 }) {
   return (
@@ -22,7 +24,7 @@ export function AbuseIpdbBlacklistBadge({
         className={cn("border-destructive/55 font-semibold tracking-[0.02em] text-destructive", className)}
       >
         <ShieldAlert aria-hidden />
-        AbuseIPDB blacklist
+        {variant === "short" ? "Blacklist" : "AbuseIPDB blacklist"}
       </Badge>
     </BadgeHint>
   )
