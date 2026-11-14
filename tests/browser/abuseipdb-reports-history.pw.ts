@@ -40,8 +40,11 @@ async function login(page: Page) {
   expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
 }
 
-async function setup(page: Page, options: { crowdsec?: boolean; reporting?: boolean; dropLoaded?: boolean } = {}) {
-  const { crowdsec = true, reporting = true, dropLoaded = false } = options
+async function setup(
+  page: Page,
+  options: { crowdsec?: boolean; reporting?: boolean; dropLoaded?: boolean; aboutDelayMs?: number } = {},
+) {
+  const { crowdsec = true, reporting = true, dropLoaded = false, aboutDelayMs = 0 } = options
   const requests: URL[] = []
   await login(page)
   await page.route("**/api/v1/abuseipdb/status", (route) =>
@@ -51,7 +54,8 @@ async function setup(page: Page, options: { crowdsec?: boolean; reporting?: bool
     const url = new URL(route.request().url())
     requests.push(url)
     const items = url.searchParams.get("q") === "nothing" ? [] : [SENT, UNCONFIRMED]
-    return route.fulfill({ json: { items, total: items.length, limit: 10, offset: 0 } })
+    // Three pages, so a test can leave page one.
+    return route.fulfill({ json: { items, total: items.length === 0 ? 0 : 25, limit: 10, offset: 0 } })
   })
   await page.route("**/api/v1/crowdsec/status", (route) =>
     route.fulfill({ json: { enabled: crowdsec, writeEnabled: false, lapiReachable: true, liveUpdates: false } }),
@@ -63,9 +67,11 @@ async function setup(page: Page, options: { crowdsec?: boolean; reporting?: bool
   const about = await (await page.request.get("/api/v1/system/about")).json()
   const fetchedAt = dropLoaded ? "2026-11-09T06:00:00Z" : null
   const feeds = [{ feed: "v4", fetchedAt, entries: 1, lastAttemptAt: fetchedAt, lastError: null }]
-  await page.route("**/api/v1/system/about", (route) =>
-    route.fulfill({ json: { ...about, dropLists: { ...about.dropLists, enabled: dropLoaded, feeds } } }),
-  )
+  await page.route("**/api/v1/system/about", async (route) => {
+    if (aboutDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, aboutDelayMs))
+    // The test may have ended during the delay.
+    await route.fulfill({ json: { ...about, dropLists: { ...about.dropLists, enabled: dropLoaded, feeds } } }).catch(() => {})
+  })
   await page.route(
     (url) => url.pathname.startsWith("/api/") && url.pathname.includes("/drop") && url.pathname.includes("networks"),
     (route) => route.fulfill({ json: { loaded: true, items: [], totalNetworks: 0, totalRequests: 0, limit: 10, offset: 0 } }),
@@ -138,16 +144,39 @@ test.describe("desktop", () => {
     await page.goto("/security?tab=reports")
     await reportRow(page, "3.5.140.2").waitFor()
 
+    const toPageTwo = async () => {
+      await page.getByRole("button", { name: "Next" }).click()
+      await expect.poll(() => lastRequest(requests).get("currentPage")).toBe("2")
+    }
+
+    await toPageTwo()
     await page.getByRole("searchbox", { name: "Search AbuseIPDB reports" }).fill("3.5.")
     await expect.poll(() => lastRequest(requests).get("q")).toBe("3.5.")
+    expect(lastRequest(requests).get("currentPage")).toBe("1")
 
+    await toPageTwo()
     await pickFilters(page, "Category", ["Brute-Force", "Port Scan"])
     await expect.poll(() => lastRequest(requests).getAll("categoryIn").sort()).toEqual(["14", "18"])
+    expect(lastRequest(requests).get("currentPage")).toBe("1")
 
+    await toPageTwo()
     await pickFilters(page, "Status", ["Unconfirmed"])
     await expect.poll(() => lastRequest(requests).getAll("statusIn")).toEqual(["unconfirmed"])
-    expect(lastRequest(requests).get("q")).toBe("3.5.")
     expect(lastRequest(requests).get("currentPage")).toBe("1")
+    expect(lastRequest(requests).get("q")).toBe("3.5.")
+  })
+
+  test("a tab keeps its search after another tab was open", async ({ page }) => {
+    await setup(page)
+    await page.goto("/security?tab=reports")
+    await page.getByRole("searchbox", { name: "Search AbuseIPDB reports" }).fill("3.5.")
+    await decisionsTab(page).click()
+    await page.getByRole("searchbox", { name: "Search active decisions" }).fill("1.2.3.4")
+    await reportsTab(page).click()
+    await expect(page.getByRole("searchbox", { name: "Search AbuseIPDB reports" })).toHaveValue("3.5.")
+    await expect(page.getByRole("searchbox", { name: "Search active decisions" })).toBeHidden()
+    await decisionsTab(page).click()
+    await expect(page.getByRole("searchbox", { name: "Search active decisions" })).toHaveValue("1.2.3.4")
   })
 
   test("says so when nothing matches", async ({ page }) => {
@@ -164,9 +193,22 @@ test.describe("desktop", () => {
     await expect(page.locator("#drop-networks")).toBeVisible()
   })
 
+  test("a DROP link waits for the lists instead of opening Decisions first", async ({ page }) => {
+    await setup(page, { dropLoaded: true, aboutDelayMs: 1500 })
+    const decisionRequests: string[] = []
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname.startsWith("/api/v1/crowdsec/decisions")) decisionRequests.push(request.url())
+    })
+    await page.goto("/security?tab=drop")
+    await expect(page.getByRole("tab", { name: "DROP", exact: true })).toHaveAttribute("aria-selected", "true")
+    expect(decisionRequests).toEqual([])
+  })
+
   test("the DROP tab is absent until the lists have loaded", async ({ page }) => {
     await setup(page, { dropLoaded: false })
+    const aboutAnswered = page.waitForResponse("**/api/v1/system/about")
     await page.goto("/security")
+    await aboutAnswered
     await expect(decisionsTab(page)).toBeVisible()
     await expect(page.getByRole("tab", { name: "DROP", exact: true })).toHaveCount(0)
   })

@@ -176,21 +176,36 @@ async def test_list_page_shows_each_report_of_a_reported_twice_ip(pg_session_mak
 @pytest.mark.parametrize(
     ("q", "expected"),
     [
-        ("3.5.1", {"3.5.140.2"}),
+        ("3.5.1", {"3.5.140.2", "3.5.140.20"}),
+        ("3.5.140.2", {"3.5.140.2"}),
         ("5.140", set()),
         ("2600:1F18", {"2600:1f18::1"}),
         ("2600:1F18:0::1", {"2600:1f18::1"}),
         ("WORDPRESS", {"8.8.4.4"}),
         ("homepage", {"9.9.9.9"}),
         ("%", {"1.0.0.1"}),
+        ("2600:1f18::1%eth0", set()),
+        ("2600:1F18:0::", {"2600:1f18::1"}),
     ],
-    ids=["ip-start", "ip-middle", "ipv6-case", "ipv6-spelling", "comment-case", "sent-by", "percent-is-literal"],
+    ids=[
+        "ip-start",
+        "whole-ip-is-exact",
+        "ip-middle",
+        "ipv6-case",
+        "ipv6-spelling",
+        "comment-case",
+        "sent-by",
+        "percent-is-literal",
+        "ipv6-zone-is-text",
+        "ipv6-network-is-prefix",
+    ],
 )
 async def test_list_page_search(pg_session_maker, clean_abuseipdb_reports, q, expected):
     now = datetime.now(UTC)
     await _store(
         pg_session_maker,
         _report("3.5.140.2", now),
+        _report("3.5.140.20", now),
         _report("2600:1f18::1", now),
         _report("8.8.4.4", now, comment="Probed wordpress paths"),
         _report("9.9.9.9", now, reporter_kind="api_key", reporter_name="homepage"),
