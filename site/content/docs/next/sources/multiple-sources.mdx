@@ -137,7 +137,7 @@ Point `CROWDSEC_LAPI_URL` and the CrowdSec credentials at the central LAPI on th
 
 ## Encrypt the database link
 
-The bundled database ships with TLS off, so the connection itself is plain text and the VPN or tailnet around it is its only encryption. You can add TLS on the connection as well. GeoMetrikks has no TLS settings of its own. The database driver reads the standard PostgreSQL variables `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` and `PGSSLKEY` from the environment. With none of them set, an instance uses TLS whenever the database offers it, without checking the database's certificate.
+The bundled database ships with TLS off, so the connection itself is plain text and any VPN or tailnet around it is its only encryption. You can add TLS on the connection as well. GeoMetrikks has no TLS settings of its own. The database driver reads the standard PostgreSQL variables `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` and `PGSSLKEY` from the environment. With none of them set, an instance uses TLS whenever the database offers it, without checking the database's certificate.
 
 The steps below start from the shipped `docker-compose.yml` on the head.
 
@@ -262,7 +262,7 @@ openssl x509 -req -in edge-01.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
   -days 825 -out edge-01.crt
 ```
 
-Run it again with `head` in place of `edge-01` for the head.
+Run it again with `head` in place of `edge-01` for the head. These certificates are good for 825 days as well, and once the rule is on, an instance with an expired one can't connect.
 
 Give the database the CA first, so it can check client certificates. Add `ssl_ca_file` to the `command:` list of `timescale_db` and mount `ca.crt`:
 
@@ -299,6 +299,8 @@ Copy each agent's certificate and key next to its `docker-compose.yml`. Each ins
 chmod 600 edge-01.key
 sudo chown 1000:1000 edge-01.key
 ```
+
+Do the same for `head.key` on the head.
 
 On an agent:
 
