@@ -122,3 +122,20 @@ def test_error_headline_strips_repeated_exception_prefixes() -> None:
 
 def test_error_headline_keeps_a_message_that_starts_with_a_parenthesis() -> None:
     assert error_headline("(see the server log) connection reset") == "(see the server log) connection reset"
+
+
+def test_scheduled_jobs_failing_names_one_job() -> None:
+    from geometrikks.lib.advisories import scheduled_jobs_failing_advisory
+
+    advisory = scheduled_jobs_failing_advisory(["Refresh GeoLite2 databases from MaxMind"])
+    assert advisory.id == "scheduled-jobs-failing"
+    assert advisory.severity == "warning"
+    assert advisory.summary == 'The scheduled job "Refresh GeoLite2 databases from MaxMind" failed.'
+
+
+def test_scheduled_jobs_failing_counts_and_lists_several_jobs() -> None:
+    from geometrikks.lib.advisories import scheduled_jobs_failing_advisory
+
+    advisory = scheduled_jobs_failing_advisory(["Alpha", "Beta", "Gamma"])
+    assert advisory.summary == '3 scheduled jobs failed: "Alpha", "Beta" and "Gamma".'
+    assert advisory.detail is not None and "Settings > Scheduler" in advisory.detail

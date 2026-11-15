@@ -32,10 +32,12 @@ from geometrikks.lib.advisories import (
     ONGOING_FAILED_BATCHES,
     Advisory,
     legacy_env_advisory,
+    scheduled_jobs_failing_advisory,
 )
 from geometrikks.lib.utils import geoip_info
 from geometrikks.server import runtime
 from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY
+from geometrikks.server.scheduler_tracking import failing_job_names
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
 
@@ -517,6 +519,11 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
                 ),
             ))
     advisories.extend(_stale_geoip_advisories(settings))
+    scheduler = runtime.get_scheduler(app)
+    if scheduler is not None:
+        job_names = failing_job_names(scheduler.get_jobs(), runtime.get_scheduler_tracker(app))
+        if job_names:
+            advisories.append(scheduled_jobs_failing_advisory(job_names))
     legacy_env_names = settings.legacy_env_names_in_use()
     if legacy_env_names:
         advisories.append(legacy_env_advisory(legacy_env_names))

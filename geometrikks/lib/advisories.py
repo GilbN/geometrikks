@@ -141,6 +141,29 @@ INGESTION_STOPPED = Advisory(
 )
 
 
+def scheduled_jobs_failing_advisory(job_names: list[str]) -> Advisory:
+    """One advisory for every failing scheduled job.
+
+    /health is public, so it names the jobs and never quotes their errors.
+    """
+    quoted = [f'"{job_name}"' for job_name in job_names]
+    if len(quoted) == 1:
+        summary = f"The scheduled job {quoted[0]} failed."
+    else:
+        summary = f"{len(quoted)} scheduled jobs failed: {', '.join(quoted[:-1])} and {quoted[-1]}."
+    return Advisory(
+        id="scheduled-jobs-failing",
+        severity="warning",
+        summary=summary,
+        detail=(
+            "Each job tries again at its next scheduled run and leaves this list "
+            "once a run succeeds. On this instance, Settings > Scheduler shows the "
+            "error, and Run now tries again straight away. For an agent, the error "
+            "is under that instance on Settings > Agents."
+        ),
+    )
+
+
 def legacy_env_advisory(names: list[LegacyEnvName]) -> Advisory:
     """Warn that this process reads env vars under names that were renamed."""
     renames = "\n".join(f"{legacy_env_name.old} → {legacy_env_name.new}" for legacy_env_name in names)
