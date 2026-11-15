@@ -28,7 +28,10 @@ export interface TextEntryCandidate {
 export function isTextEntryElement(element: TextEntryCandidate | null): boolean {
   if (element === null) return false
   if (element.isContentEditable || TEXT_ENTRY_TAG_NAMES.has(element.tagName)) return true
-  return element.tagName === "INPUT" && TEXT_ENTRY_INPUT_TYPES.has((element.type ?? "text").toLowerCase())
+  return (
+    element.tagName === "INPUT" &&
+    TEXT_ENTRY_INPUT_TYPES.has((element.type ?? "text").toLowerCase())
+  )
 }
 
 export function loadReloadGuard(): string | null {
@@ -42,8 +45,7 @@ export function loadReloadGuard(): string | null {
 export function clearReloadGuard(): void {
   try {
     sessionStorage.removeItem(RELOAD_GUARD_STORAGE_KEY)
-  } catch {
-  }
+  } catch {}
 }
 
 export function autoReloadAllowed(pageBuildKey: string | null, guardKey: string | null): boolean {
@@ -268,7 +270,8 @@ export function createPreloadErrorHandler(
 ): (preloadEvent: Event) => void {
   return (preloadEvent) => {
     if (!isPreloadFetchFailure(preloadEvent)) return
-    if (!shouldReloadOnChunkError(deps.isPending(), deps.lastStartedAtChangeAt(), deps.now())) return
+    if (!shouldReloadOnChunkError(deps.isPending(), deps.lastStartedAtChangeAt(), deps.now()))
+      return
     if (!deps.canAutoReload()) return
     if (deps.reload()) preloadEvent.preventDefault()
   }

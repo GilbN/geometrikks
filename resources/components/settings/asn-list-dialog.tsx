@@ -31,7 +31,8 @@ import { useAsnClassification } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
 const TITLE = "Hosting ASN list"
-const DESCRIPTION = "Networks on this list are badged Hosting in analytics; everything else shows as Other."
+const DESCRIPTION =
+  "Networks on this list are badged Hosting in analytics; everything else shows as Other."
 
 export function AsnListDialog() {
   const [open, setOpen] = useState(false)
@@ -89,9 +90,7 @@ export function AsnListDialog() {
                   <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground">
                     AS{entry.asn}
                   </span>
-                  <span className="min-w-0 break-words">
-                    {entry.entity || "Unknown"}
-                  </span>
+                  <span className="min-w-0 break-words">{entry.entity || "Unknown"}</span>
                 </div>
               ))
             )}
@@ -115,7 +114,14 @@ export function AsnListDialog() {
       </>
     )
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setOpen} onClosed={drawer.onClosed} autoFocus>
+      <Drawer
+        key={drawer.key}
+        direction={drawer.direction}
+        open={drawer.open}
+        onOpenChange={setOpen}
+        onClosed={drawer.onClosed}
+        autoFocus
+      >
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent
           className={cn(

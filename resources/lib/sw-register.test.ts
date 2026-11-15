@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { getReloadNoticeState, resetReloadNoticeForTests } from "./reload-notice"
-import { onServiceWorkerUpdate, resetServiceWorkerUpdateForTests, swRegisterOptions } from "./sw-register"
+import {
+  onServiceWorkerUpdate,
+  resetServiceWorkerUpdateForTests,
+  swRegisterOptions,
+} from "./sw-register"
 
 beforeEach(() => {
   resetReloadNoticeForTests()

@@ -1,4 +1,13 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactElement, type ReactNode, type RefObject } from "react"
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactElement,
+  type ReactNode,
+  type RefObject,
+} from "react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { MoreHorizontal, type LucideIcon } from "lucide-react"
 import { MoreMenu } from "@/components/phone-nav/more-menu"
@@ -15,7 +24,13 @@ import { cn } from "@/lib/utils"
 type Badge = { tone: "amber" | "accent"; description: string }
 type ServiceVariant = ReturnType<typeof useServiceStatus>["variant"]
 
-function useMoreBadge({ variant, tooltip }: { variant: ServiceVariant; tooltip: string }): Badge | null {
+function useMoreBadge({
+  variant,
+  tooltip,
+}: {
+  variant: ServiceVariant
+  tooltip: string
+}): Badge | null {
   const changelogUnseen = useChangelogUnseen()
   const unseenRelease = useUnseenRelease()
   const reload = useReloadNotice()
@@ -42,8 +57,7 @@ function suppressContextMenu(event: MouseEvent) {
 const BAR_FRAME = "rounded-full p-1"
 
 /** The bar's surface, shared with the map's action pill. */
-export const TAB_BAR_SURFACE =
-  "bg-floating shadow-[0_10px_30px_rgb(0_0_0/0.45)] backdrop-blur"
+export const TAB_BAR_SURFACE = "bg-floating shadow-[0_10px_30px_rgb(0_0_0/0.45)] backdrop-blur"
 
 const BAR_SURFACE = cn("fixed z-40 ring-1 ring-border", TAB_BAR_SURFACE)
 
@@ -65,7 +79,17 @@ function cellClass(layout: "portrait" | "compact" | "icons", selected: boolean):
   )
 }
 
-function CellContent({ icon: Icon, label, badge, showLabel }: { icon: LucideIcon; label: string; badge?: Badge["tone"] | null; showLabel: boolean }) {
+function CellContent({
+  icon: Icon,
+  label,
+  badge,
+  showLabel,
+}: {
+  icon: LucideIcon
+  label: string
+  badge?: Badge["tone"] | null
+  showLabel: boolean
+}) {
   return (
     <>
       <span className="relative grid shrink-0">
@@ -75,7 +99,9 @@ function CellContent({ icon: Icon, label, badge, showLabel }: { icon: LucideIcon
             aria-hidden
             className={cn(
               "absolute -top-0.5 -right-1 size-[7px] rounded-full",
-              badge === "amber" ? "bg-amber-400 shadow-[0_0_6px_rgb(245_165_36/0.6)]" : "bg-primary shadow-[0_0_6px_var(--primary)]",
+              badge === "amber"
+                ? "bg-amber-400 shadow-[0_0_6px_rgb(245_165_36/0.6)]"
+                : "bg-primary shadow-[0_0_6px_var(--primary)]",
             )}
           />
         )}
@@ -114,7 +140,11 @@ function CellName({
 
 /** Whether the labelled compact bar is wider than the room between the insets.
  *  `probe` is an invisible labelled copy of the bar; `bar` gives the room. */
-function useLabelsOverflow(compact: boolean, bar: RefObject<HTMLElement | null>, probe: RefObject<HTMLElement | null>): boolean {
+function useLabelsOverflow(
+  compact: boolean,
+  bar: RefObject<HTMLElement | null>,
+  probe: RefObject<HTMLElement | null>,
+): boolean {
   const [overflow, setOverflow] = useState(false)
 
   useEffect(() => {
@@ -208,7 +238,12 @@ export function TabBar({ compact }: { compact: boolean }) {
                 onContextMenu={suppressContextMenu}
                 className={cellClass(layout, selected)}
               >
-                <CellContent icon={item.icon} label={item.barTitle ?? item.title} badge={warning ? "amber" : null} showLabel={showLabel} />
+                <CellContent
+                  icon={item.icon}
+                  label={item.barTitle ?? item.title}
+                  badge={warning ? "amber" : null}
+                  showLabel={showLabel}
+                />
               </Link>
             }
           />
@@ -232,20 +267,38 @@ export function TabBar({ compact }: { compact: boolean }) {
               "aria-expanded:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--primary)_60%,transparent)]",
             )}
           >
-            <CellContent icon={MoreHorizontal} label="More" badge={more?.tone} showLabel={showLabel} />
+            <CellContent
+              icon={MoreHorizontal}
+              label="More"
+              badge={more?.tone}
+              showLabel={showLabel}
+            />
           </button>
         }
       />
       {descriptions}
       {compact && (
-        <div ref={probeRef} aria-hidden inert className={cn(BAR_FRAME, "invisible absolute top-0 left-0 flex h-12 w-max gap-0.5 phone-short:h-11")}>
-          {[...items.map((item) => ({ key: item.id, icon: item.icon, title: item.barTitle ?? item.title })), { key: "more", icon: MoreHorizontal, title: "More" }].map(
-            (cell) => (
-              <span key={cell.key} className={cellClass("compact", false)}>
-                <CellContent icon={cell.icon} label={cell.title} showLabel />
-              </span>
-            ),
+        <div
+          ref={probeRef}
+          aria-hidden
+          inert
+          className={cn(
+            BAR_FRAME,
+            "invisible absolute top-0 left-0 flex h-12 w-max gap-0.5 phone-short:h-11",
           )}
+        >
+          {[
+            ...items.map((item) => ({
+              key: item.id,
+              icon: item.icon,
+              title: item.barTitle ?? item.title,
+            })),
+            { key: "more", icon: MoreHorizontal, title: "More" },
+          ].map((cell) => (
+            <span key={cell.key} className={cellClass("compact", false)}>
+              <CellContent icon={cell.icon} label={cell.title} showLabel />
+            </span>
+          ))}
         </div>
       )}
     </nav>

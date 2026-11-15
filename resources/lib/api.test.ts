@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { client } from "@/generated/api/client.gen"
 import axios from "axios"
-import { api, deleteServerLocation, fetchHealth, fetchHealthWithin, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"
+import {
+  api,
+  deleteServerLocation,
+  fetchHealth,
+  fetchHealthWithin,
+  fetchCrowdsecAlertScenarios,
+  fetchCrowdsecAlerts,
+} from "./api"
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -74,7 +81,10 @@ describe("deleteServerLocation", () => {
     vi.stubGlobal("fetch", fetch)
     await deleteServerLocation("edge 01")
     await deleteServerLocation("nas.lan")
-    const sent = fetch.mock.calls.map(([request]) => [request.method, new URL(request.url).pathname])
+    const sent = fetch.mock.calls.map(([request]) => [
+      request.method,
+      new URL(request.url).pathname,
+    ])
     expect(sent).toEqual([
       ["DELETE", "/api/v1/geo-locations/server-locations/edge%2001"],
       ["DELETE", "/api/v1/geo-locations/server-locations/nas.lan"],
@@ -85,7 +95,10 @@ describe("deleteServerLocation", () => {
 describe("fetchHealth", () => {
   it("sends no request config, so a TanStack query context cannot reach axios", async () => {
     const get = vi.spyOn(axios, "get").mockResolvedValue({ data: { status: "healthy" } })
-    await (fetchHealth as (context: unknown) => Promise<unknown>)({ queryKey: ["health"], signal: new AbortController().signal })
+    await (fetchHealth as (context: unknown) => Promise<unknown>)({
+      queryKey: ["health"],
+      signal: new AbortController().signal,
+    })
     expect(get).toHaveBeenCalledExactlyOnceWith("/health")
   })
 })

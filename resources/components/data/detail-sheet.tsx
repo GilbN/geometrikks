@@ -51,12 +51,14 @@ export function DetailSheet({
         className={cn("gap-0", className)}
         onOpenAutoFocus={(event) => {
           const opener = document.activeElement
-          const previousSheet = opener?.closest('[data-slot="sheet-content"]')
-            ?? document.querySelector('[data-slot="sheet-content"][data-state="closed"]')
-          const previousOpeners = previousSheet ? sheetOpeners.get(previousSheet) ?? [] : []
-          openerRef.current = opener instanceof HTMLElement && opener !== document.body
-            ? [opener, ...previousOpeners]
-            : previousOpeners
+          const previousSheet =
+            opener?.closest('[data-slot="sheet-content"]') ??
+            document.querySelector('[data-slot="sheet-content"][data-state="closed"]')
+          const previousOpeners = previousSheet ? (sheetOpeners.get(previousSheet) ?? []) : []
+          openerRef.current =
+            opener instanceof HTMLElement && opener !== document.body
+              ? [opener, ...previousOpeners]
+              : previousOpeners
           if (event.target) sheetOpeners.set(event.target, openerRef.current)
         }}
         onCloseAutoFocus={(event) => {
@@ -73,7 +75,10 @@ export function DetailSheet({
             <Button
               variant="ghost"
               size="icon-sm"
-              className={cn("-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11", description && "row-span-2")}
+              className={cn(
+                "-my-1.5 pointer-coarse:-my-3 pointer-coarse:size-11",
+                description && "row-span-2",
+              )}
             >
               <XIcon />
               <span className="sr-only">Close</span>
@@ -83,7 +88,10 @@ export function DetailSheet({
             {description ?? "Record details"}
           </SheetDescription>
         </SheetHeader>
-        <div data-slot="detail-sheet-content" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
+        <div
+          data-slot="detail-sheet-content"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+        >
           {children}
         </div>
         {footer && (
@@ -115,7 +123,13 @@ export function DetailField({
   return (
     <div className="grid grid-cols-[minmax(7rem,1fr)_minmax(0,2fr)] gap-x-3 gap-y-0.5 border-b border-border/40 py-2 text-sm last:border-0">
       <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className={cn("min-w-0 break-words", mono && "font-mono text-xs", empty && "text-muted-foreground")}>
+      <dd
+        className={cn(
+          "min-w-0 break-words",
+          mono && "font-mono text-xs",
+          empty && "text-muted-foreground",
+        )}
+      >
         {empty ? "Not recorded" : value}
       </dd>
     </div>

@@ -1,7 +1,7 @@
-const assert = require("node:assert/strict");
-const test = require("node:test");
+const assert = require("node:assert/strict")
+const test = require("node:test")
 
-const summary = require("./pr-smoke-summary.cjs");
+const summary = require("./pr-smoke-summary.cjs")
 
 test("buildComment reports each shard in order, with steps that did not run", () => {
   const body = summary.buildComment({
@@ -32,7 +32,7 @@ test("buildComment reports each shard in order, with steps that did not run", ()
         ],
       },
     ],
-  });
+  })
 
   assert.equal(
     body,
@@ -49,17 +49,20 @@ test("buildComment reports each shard in order, with steps that did not run", ()
 | 2/2 | ❌ failure | ✅ success | ❌ failure | ⏭️ skipped | ✅ success |
 
 [View the workflow run and its \`container-smoke-<shard>-<attempt>\` artifacts](https://github.com/GilbN/geometrikks/actions/runs/123)`,
-  );
-});
+  )
+})
 
 test("buildComment marks the smoke test not run when no shard job exists", () => {
   const body = summary.buildComment({
     workflowRun: { conclusion: "cancelled", html_url: "https://example.test/run", run_attempt: 1 },
     jobs: [{ name: "frontend", conclusion: "cancelled", steps: [] }],
-  });
+  })
 
-  assert.match(body, /\| all \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \|/);
-});
+  assert.match(
+    body,
+    /\| all \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \| ⏭️ not run \|/,
+  )
+})
 
 test("main updates the existing smoke comment instead of adding a duplicate", async () => {
   const comments = [
@@ -73,7 +76,7 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
       user: { login: "maintainer" },
       body: "Keep this comment",
     },
-  ];
+  ]
   const jobs = [
     {
       name: "smoke 1/1",
@@ -85,7 +88,7 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
         { name: "Upload smoke artifacts", conclusion: "success" },
       ],
     },
-  ];
+  ]
   const github = {
     paginate: async (method, parameters) => (await method(parameters)).data,
     rest: {
@@ -98,18 +101,18 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
       issues: {
         listComments: async () => ({ data: comments }),
         updateComment: async ({ comment_id, body }) => {
-          comments.find((comment) => comment.id === comment_id).body = body;
+          comments.find((comment) => comment.id === comment_id).body = body
         },
         createComment: async ({ body }) => {
           comments.push({
             id: 9,
             user: { login: "github-actions[bot]" },
             body,
-          });
+          })
         },
       },
     },
-  };
+  }
   const context = {
     repo: { owner: "GilbN", repo: "geometrikks" },
     payload: {
@@ -123,17 +126,20 @@ test("main updates the existing smoke comment instead of adding a duplicate", as
         pull_requests: [{ number: 42, head: { sha: "source-head-sha" } }],
       },
     },
-  };
+  }
 
-  await summary.main({ github, context, core: { notice() {} } });
+  await summary.main({ github, context, core: { notice() {} } })
 
-  assert.equal(comments.length, 2);
-  assert.match(comments[0].body, /\| 1\/1 \| ✅ success \| ✅ success \| ✅ success \| ✅ success \| ✅ success \|/);
-  assert.equal(comments[1].body, "Keep this comment");
-});
+  assert.equal(comments.length, 2)
+  assert.match(
+    comments[0].body,
+    /\| 1\/1 \| ✅ success \| ✅ success \| ✅ success \| ✅ success \| ✅ success \|/,
+  )
+  assert.equal(comments[1].body, "Keep this comment")
+})
 
 test("main creates the first smoke comment when no marker comment exists", async () => {
-  const comments = [];
+  const comments = []
   const github = {
     paginate: async (method, parameters) => (await method(parameters)).data,
     rest: {
@@ -145,7 +151,7 @@ test("main creates the first smoke comment when no marker comment exists", async
       issues: {
         listComments: async () => ({ data: comments }),
         updateComment: async () => {
-          assert.fail("There is no existing comment to update");
+          assert.fail("There is no existing comment to update")
         },
         createComment: async ({ issue_number, body }) => {
           comments.push({
@@ -153,11 +159,11 @@ test("main creates the first smoke comment when no marker comment exists", async
             issue_number,
             user: { login: "github-actions[bot]" },
             body,
-          });
+          })
         },
       },
     },
-  };
+  }
   const context = {
     repo: { owner: "GilbN", repo: "geometrikks" },
     payload: {
@@ -170,14 +176,14 @@ test("main creates the first smoke comment when no marker comment exists", async
         pull_requests: [{ number: 43 }],
       },
     },
-  };
+  }
 
-  await summary.main({ github, context, core: { notice() {} } });
+  await summary.main({ github, context, core: { notice() {} } })
 
-  assert.equal(comments.length, 1);
-  assert.equal(comments[0].issue_number, 43);
-  assert.match(comments[0].body, /\| Overall CI \| ⚪ cancelled \|/);
-});
+  assert.equal(comments.length, 1)
+  assert.equal(comments[0].issue_number, 43)
+  assert.match(comments[0].body, /\| Overall CI \| ⚪ cancelled \|/)
+})
 
 test("main does not replace the comment with a stale workflow run", async () => {
   const comments = [
@@ -186,7 +192,7 @@ test("main does not replace the comment with a stale workflow run", async () => 
       user: { login: "github-actions[bot]" },
       body: "<!-- geometrikks-container-smoke -->\nnewer result",
     },
-  ];
+  ]
   const github = {
     paginate: async (method, parameters) => (await method(parameters)).data,
     rest: {
@@ -201,15 +207,15 @@ test("main does not replace the comment with a stale workflow run", async () => 
       issues: {
         listComments: async () => ({ data: comments }),
         updateComment: async ({ comment_id, body }) => {
-          comments.find((comment) => comment.id === comment_id).body = body;
+          comments.find((comment) => comment.id === comment_id).body = body
         },
         createComment: async () => {
-          assert.fail("A stale run must not create a comment");
+          assert.fail("A stale run must not create a comment")
         },
       },
     },
-  };
-  const notices = [];
+  }
+  const notices = []
   const context = {
     repo: { owner: "GilbN", repo: "geometrikks" },
     payload: {
@@ -223,27 +229,24 @@ test("main does not replace the comment with a stale workflow run", async () => 
         pull_requests: [{ number: 44, head: { sha: "old-source-head-sha" } }],
       },
     },
-  };
+  }
 
   await summary.main({
     github,
     context,
     core: {
       notice(message) {
-        notices.push(message);
+        notices.push(message)
       },
     },
-  });
+  })
 
-  assert.equal(
-    comments[0].body,
-    "<!-- geometrikks-container-smoke -->\nnewer result",
-  );
-  assert.deepEqual(notices, ["Skipping stale workflow run for an older PR head."]);
-});
+  assert.equal(comments[0].body, "<!-- geometrikks-container-smoke -->\nnewer result")
+  assert.deepEqual(notices, ["Skipping stale workflow run for an older PR head."])
+})
 
 test("main skips runs whose payload has no PR association", async () => {
-  const comments = [];
+  const comments = []
   const github = {
     paginate: async (method, parameters) => (await method(parameters)).data,
     rest: {
@@ -258,15 +261,15 @@ test("main skips runs whose payload has no PR association", async () => {
       issues: {
         listComments: async () => ({ data: comments }),
         updateComment: async () => {
-          assert.fail("There is no existing comment to update");
+          assert.fail("There is no existing comment to update")
         },
         createComment: async ({ issue_number, body }) => {
-          comments.push({ issue_number, body });
+          comments.push({ issue_number, body })
         },
       },
     },
-  };
-  const notices = [];
+  }
+  const notices = []
   const context = {
     repo: { owner: "GilbN", repo: "geometrikks" },
     payload: {
@@ -280,14 +283,18 @@ test("main skips runs whose payload has no PR association", async () => {
         pull_requests: [],
       },
     },
-  };
+  }
 
   await summary.main({
     github,
     context,
-    core: { notice(message) { notices.push(message); } },
-  });
+    core: {
+      notice(message) {
+        notices.push(message)
+      },
+    },
+  })
 
-  assert.equal(comments.length, 0);
-  assert.deepEqual(notices, ["No pull request is associated with this workflow run."]);
-});
+  assert.equal(comments.length, 0)
+  assert.deepEqual(notices, ["No pull request is associated with this workflow run."])
+})

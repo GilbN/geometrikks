@@ -14,7 +14,9 @@ async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 async function routeMap(page: Page) {
@@ -23,23 +25,52 @@ async function routeMap(page: Page) {
     localStorage.setItem("geometrikks-map-live", "false")
     localStorage.setItem("geometrikks-server-markers-enabled", "false")
   })
-  await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
-    type: "FeatureCollection", stats: { events: 40, countries: 1, cities: 1, locations: 1 },
-    features: [{
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [10.75, 59.91] },
-      properties: { id: 131, geohash: "u0yj", city: "Oslo", countryCode: "NO", countryName: "Norway", eventCount: 40, lastHit: null, topIps: [] },
-    }],
-  } }))
-  await page.route("**/api/v1/geo-locations/131/top-ips*", (route) => route.fulfill({ json: {
-    locationId: 131, uniqueIps: 1,
-    topIps: [{ ipAddress: IP, eventCount: 40, location: null, asn: null, asOrganization: null }],
-  } }))
-  await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
-    version: 8,
-    sources: {},
-    layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
-  } }))
+  await page.route("**/api/v1/geo-locations/geojson?*", (route) =>
+    route.fulfill({
+      json: {
+        type: "FeatureCollection",
+        stats: { events: 40, countries: 1, cities: 1, locations: 1 },
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [10.75, 59.91] },
+            properties: {
+              id: 131,
+              geohash: "u0yj",
+              city: "Oslo",
+              countryCode: "NO",
+              countryName: "Norway",
+              eventCount: 40,
+              lastHit: null,
+              topIps: [],
+            },
+          },
+        ],
+      },
+    }),
+  )
+  await page.route("**/api/v1/geo-locations/131/top-ips*", (route) =>
+    route.fulfill({
+      json: {
+        locationId: 131,
+        uniqueIps: 1,
+        topIps: [
+          { ipAddress: IP, eventCount: 40, location: null, asn: null, asOrganization: null },
+        ],
+      },
+    }),
+  )
+  await page.route("**/gl/*/style.json*", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          { id: "background", type: "background", paint: { "background-color": "#111827" } },
+        ],
+      },
+    }),
+  )
 }
 
 const tabBar = (page: Page) => page.locator("[data-tab-bar]")
@@ -74,9 +105,16 @@ test("Back closes a ban drawer over the map panel and leaves the panel open", as
   await login(page)
   await routeMap(page)
   // Only opens the drawer: no ban is sent.
-  await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
-    enabled: true, writeEnabled: true, lapiReachable: true, liveUpdates: true,
-  } }))
+  await page.route("**/api/v1/crowdsec/status", (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        writeEnabled: true,
+        lapiReachable: true,
+        liveUpdates: true,
+      },
+    }),
+  )
   await page.goto("/map?focus=131")
 
   const panel = page.getByRole("dialog", { name: "Oslo" })
@@ -93,16 +131,42 @@ test("Back closes a ban drawer over the map panel and leaves the panel open", as
 
 test("Back closes a log row's detail sheet and stays on Access Logs", async ({ page }) => {
   await login(page)
-  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
-    items: [{
-      id: 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: IP, remoteUser: null,
-      method: "GET", url: "/request/detail", httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
-      referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
-      host: "example.test", server: null, logFormat: null, countryCode: "NO",
-      countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
-    }],
-    total: 1, limit: 20, offset: 0,
-  } }))
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              id: 1,
+              timestamp: "2026-08-16T12:00:00Z",
+              ipAddress: IP,
+              remoteUser: null,
+              method: "GET",
+              url: "/request/detail",
+              httpVersion: "HTTP/2",
+              statusCode: 200,
+              bytesSent: 100,
+              referrer: null,
+              userAgent: null,
+              requestTime: 10,
+              upstreamResponseTime: null,
+              host: "example.test",
+              server: null,
+              logFormat: null,
+              countryCode: "NO",
+              countryName: "Norway",
+              city: "Oslo",
+              autonomousSystemNumber: null,
+              autonomousSystemOrganization: null,
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        },
+      }),
+  )
   await page.goto("/access-logs")
   await page.locator("table tr[data-index='0']").getByText("/request/detail").click()
   const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
@@ -114,21 +178,37 @@ test("Back closes a log row's detail sheet and stays on Access Logs", async ({ p
   await expect(page.locator("table tr[data-index='0']")).toBeVisible()
 })
 
-test("Back on the new API key drawer is blocked while creating and asks first on the reveal", async ({ page }) => {
+test("Back on the new API key drawer is blocked while creating and asks first on the reveal", async ({
+  page,
+}) => {
   await login(page)
   let release = () => {}
-  const created = new Promise<void>((resolve) => { release = resolve })
+  const created = new Promise<void>((resolve) => {
+    release = resolve
+  })
   await page.route("**/api/v1/auth/api-keys", async (route) => {
-    if (route.request().method() !== "POST") return route.fulfill({ json: { available: true, keys: [] } })
+    if (route.request().method() !== "POST")
+      return route.fulfill({ json: { available: true, keys: [] } })
     await created
     const now = new Date().toISOString()
-    return route.fulfill({ status: 201, json: {
-      key: "gmk_test_only_not_a_real_key",
-      apiKey: {
-        id: "k1", name: "Phone test", scope: "read", displayPrefix: "gmk_test", createdAt: now, createdBy: "admin",
-        expired: false, expiresAt: null, lastUsedAt: null, lastUsedIp: null,
+    return route.fulfill({
+      status: 201,
+      json: {
+        key: "gmk_test_only_not_a_real_key",
+        apiKey: {
+          id: "k1",
+          name: "Phone test",
+          scope: "read",
+          displayPrefix: "gmk_test",
+          createdAt: now,
+          createdBy: "admin",
+          expired: false,
+          expiresAt: null,
+          lastUsedAt: null,
+          lastUsedIp: null,
+        },
       },
-    } })
+    })
   })
   await page.goto("/settings/api-keys")
   await page.getByRole("button", { name: "Create key" }).click()
@@ -160,17 +240,31 @@ test("Back on the new API key drawer is blocked while creating and asks first on
   await expect(page.getByRole("button", { name: "Create key" })).toBeVisible()
 })
 
-test("Back on an API key drawer is blocked while revoking, however often it is pressed", async ({ page }) => {
+test("Back on an API key drawer is blocked while revoking, however often it is pressed", async ({
+  page,
+}) => {
   await login(page)
   let release = () => {}
-  const revoked = new Promise<void>((resolve) => { release = resolve })
+  const revoked = new Promise<void>((resolve) => {
+    release = resolve
+  })
   const now = new Date().toISOString()
   const apiKey = {
-    id: "k1", name: "Phone test", scope: "read", displayPrefix: "gmk_test", createdAt: now, createdBy: "admin",
-    expired: false, expiresAt: null, lastUsedAt: null, lastUsedIp: null,
+    id: "k1",
+    name: "Phone test",
+    scope: "read",
+    displayPrefix: "gmk_test",
+    createdAt: now,
+    createdBy: "admin",
+    expired: false,
+    expiresAt: null,
+    lastUsedAt: null,
+    lastUsedIp: null,
   }
   let keys = [apiKey]
-  await page.route("**/api/v1/auth/api-keys", (route) => route.fulfill({ json: { available: true, keys } }))
+  await page.route("**/api/v1/auth/api-keys", (route) =>
+    route.fulfill({ json: { available: true, keys } }),
+  )
   await page.route("**/api/v1/auth/api-keys/k1", async (route) => {
     await revoked
     keys = []

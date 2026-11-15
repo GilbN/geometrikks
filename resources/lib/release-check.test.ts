@@ -18,21 +18,24 @@ describe("releaseCheckLine", () => {
     expect(releaseCheckLine(undefined, NOW)).toBeNull()
   })
 
-  it.each(["off", "pending"] as const)("says nothing while the check is %s, whatever else is set", (status) => {
-    const releaseCheck: ReleaseCheckResponse = {
-      status,
-      latest: {
-        version: "0.23.0",
-        displayVersion: "v0.23.0",
-        url: NOTES_URL,
-        publishedAt: "2026-10-24T08:00:00Z",
-        newerReleaseCount: 1,
-        newerReleaseCountExact: true,
-      },
-      checkedAt: "2026-10-25T09:00:00Z",
-    }
-    expect(releaseCheckLine(releaseCheck, NOW)).toBeNull()
-  })
+  it.each(["off", "pending"] as const)(
+    "says nothing while the check is %s, whatever else is set",
+    (status) => {
+      const releaseCheck: ReleaseCheckResponse = {
+        status,
+        latest: {
+          version: "0.23.0",
+          displayVersion: "v0.23.0",
+          url: NOTES_URL,
+          publishedAt: "2026-10-24T08:00:00Z",
+          newerReleaseCount: 1,
+          newerReleaseCountExact: true,
+        },
+        checkedAt: "2026-10-25T09:00:00Z",
+      }
+      expect(releaseCheckLine(releaseCheck, NOW)).toBeNull()
+    },
+  )
 
   it("announces a newer release with a link to its notes", () => {
     const releaseCheck: ReleaseCheckResponse = {
@@ -121,12 +124,19 @@ describe("showsReleaseDot", () => {
     ["the latest release seen", "0.23.0", false],
     ["an older release seen", "0.22.1", true],
   ])("with %s and no reload pending", (_label, seenVersion, expected) => {
-    expect(showsReleaseDot({ reloadPending: false, latestVersion: "0.23.0", seenVersion })).toBe(expected)
+    expect(showsReleaseDot({ reloadPending: false, latestVersion: "0.23.0", seenVersion })).toBe(
+      expected,
+    )
   })
 
-  it.each([null, "0.23.0", "0.22.1"])("never shows while a reload is pending (seen %s)", (seenVersion) => {
-    expect(showsReleaseDot({ reloadPending: true, latestVersion: "0.23.0", seenVersion })).toBe(false)
-  })
+  it.each([null, "0.23.0", "0.22.1"])(
+    "never shows while a reload is pending (seen %s)",
+    (seenVersion) => {
+      expect(showsReleaseDot({ reloadPending: true, latestVersion: "0.23.0", seenVersion })).toBe(
+        false,
+      )
+    },
+  )
 
   it.each([null, "0.23.0"])("never shows without a newer release (seen %s)", (seenVersion) => {
     expect(showsReleaseDot({ reloadPending: false, latestVersion: null, seenVersion })).toBe(false)

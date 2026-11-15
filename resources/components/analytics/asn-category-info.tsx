@@ -25,28 +25,28 @@ export function AsnCategoryInfo() {
           <Info className="size-3.5" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent aria-label="How ASN categories are assigned" className="w-72 space-y-2 text-sm">
+      <PopoverContent
+        aria-label="How ASN categories are assigned"
+        className="w-72 space-y-2 text-sm"
+      >
         {dropLoaded ? (
           <>
             <p>
-              An ASN on the ASN-DROP list gets the DROP badge. The list names
-              networks hijacked or run by spam and cybercrime operations.
-              GeoMetrikks checks it first, so an ASN on it never counts as
-              Hosting.
+              An ASN on the ASN-DROP list gets the DROP badge. The list names networks hijacked or
+              run by spam and cybercrime operations. GeoMetrikks checks it first, so an ASN on it
+              never counts as Hosting.
             </p>
             <p>
-              Networks on a bundled community list of hosting and datacenter
-              operators are badged Hosting. Anything on neither list shows as
-              Other, meaning unclassified, not residential. Both lists are
-              under Settings &gt; About.
+              Networks on a bundled community list of hosting and datacenter operators are badged
+              Hosting. Anything on neither list shows as Other, meaning unclassified, not
+              residential. Both lists are under Settings &gt; About.
             </p>
           </>
         ) : (
           <p>
-            Networks on a bundled community list of hosting and datacenter
-            operators are badged Hosting. Anything not on the list shows as
-            Other, meaning unclassified, not residential. Browse the full list
-            under Settings &gt; About.
+            Networks on a bundled community list of hosting and datacenter operators are badged
+            Hosting. Anything not on the list shows as Other, meaning unclassified, not residential.
+            Browse the full list under Settings &gt; About.
           </p>
         )}
       </PopoverContent>

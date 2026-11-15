@@ -78,7 +78,10 @@ export function ChartOptionsMenu({
           })),
           onValueChange: (value) => options.setScale(value as ChartScale),
           stacked: true,
-          note: view.scales.length > 1 ? undefined : (view.fixedScaleNote ?? CHART_SCALE_LABELS[view.scales[0]]),
+          note:
+            view.scales.length > 1
+              ? undefined
+              : (view.fixedScaleNote ?? CHART_SCALE_LABELS[view.scales[0]]),
         },
       ]}
     />

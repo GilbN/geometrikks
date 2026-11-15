@@ -97,10 +97,16 @@ describe("overallState", () => {
       label: "Attention",
       detail: "2 advisories need attention. 1 agent needs attention.",
     })
-    expect(overallState(makeHealth(), false, 2)).toMatchObject({ label: "Attention", detail: "2 agents need attention." })
+    expect(overallState(makeHealth(), false, 2)).toMatchObject({
+      label: "Attention",
+      detail: "2 agents need attention.",
+    })
   })
   it("keeps Degraded ahead of Attention", () => {
-    const degraded = makeHealth({ status: "degraded", advisories: [{ id: "a", severity: "warning", summary: "a" }] })
+    const degraded = makeHealth({
+      status: "degraded",
+      advisories: [{ id: "a", severity: "warning", summary: "a" }],
+    })
     expect(overallState(degraded, false, 1)).toMatchObject({ label: "Degraded" })
   })
 })
@@ -153,9 +159,7 @@ describe("ingestionState", () => {
           parsedLines: 10,
           pendingRecords: 0,
           missingFiles: ["nginx_logs/access.log"],
-          unavailableSources: [
-            { kind: "file", label: "nginx_logs/access.log", reason: "missing" },
-          ],
+          unavailableSources: [{ kind: "file", label: "nginx_logs/access.log", reason: "missing" }],
           lastRecordAt: null,
         },
       }),
@@ -221,7 +225,9 @@ describe("ingestionState", () => {
     )
     expect(state.tone).toBe("amber")
     expect(state.label).toBe("Running, Loki rejected the query")
-    expect(state.detail).toBe("Check LOKI_QUERIES and the credentials. Ingestion retries every poll.")
+    expect(state.detail).toBe(
+      "Check LOKI_QUERIES and the credentials. Ingestion retries every poll.",
+    )
   })
   it("lets a rejected loki source win over a missing file", () => {
     const state = ingestionState(
@@ -375,9 +381,9 @@ describe("attentionParts", () => {
 describe("sidebarStatusTooltip", () => {
   it("keeps the base text and appends the advisory count", () => {
     expect(sidebarStatusTooltip("base", 0, "degraded")).toBe("base")
-    expect(
-      sidebarStatusTooltip("Service degraded - see Settings > Status", 1, "degraded"),
-    ).toBe("Service degraded - see Settings > Status. 1 advisory needs attention.")
+    expect(sidebarStatusTooltip("Service degraded - see Settings > Status", 1, "degraded")).toBe(
+      "Service degraded - see Settings > Status. 1 advisory needs attention.",
+    )
     expect(sidebarStatusTooltip("base.", 3, "degraded")).toBe(
       "base. 3 advisories need attention. See Settings > Status.",
     )
@@ -385,11 +391,7 @@ describe("sidebarStatusTooltip", () => {
 
   it("counts the actual attention tooltip without repeating its message", () => {
     expect(
-      sidebarStatusTooltip(
-        "Advisories need attention - see Settings > Status",
-        2,
-        "attention",
-      ),
+      sidebarStatusTooltip("Advisories need attention - see Settings > Status", 2, "attention"),
     ).toBe("2 advisories need attention. See Settings > Status.")
   })
 
@@ -409,9 +411,9 @@ describe("sidebarStatusTooltip", () => {
   })
 
   it("adds the agent count to a degraded head's tooltip", () => {
-    expect(
-      sidebarStatusTooltip("Service degraded - see Settings > Status", 0, "degraded", 1),
-    ).toBe("Service degraded - see Settings > Status. 1 agent needs attention.")
+    expect(sidebarStatusTooltip("Service degraded - see Settings > Status", 0, "degraded", 1)).toBe(
+      "Service degraded - see Settings > Status. 1 agent needs attention.",
+    )
     expect(sidebarStatusTooltip("base.", 2, "degraded", 2)).toBe(
       "base. 2 advisories need attention. 2 agents need attention. See Settings > Status.",
     )
@@ -455,7 +457,13 @@ describe("databaseState / geoipState", () => {
     expect(state.detail).toContain("recovery")
   })
   it("geoip missing is amber", () => {
-    expect(geoipState(makeHealth({ geoip: { available: false, dbBuildDate: null, asnAvailable: false, asnDbBuildDate: null } }))).toMatchObject({
+    expect(
+      geoipState(
+        makeHealth({
+          geoip: { available: false, dbBuildDate: null, asnAvailable: false, asnDbBuildDate: null },
+        }),
+      ),
+    ).toMatchObject({
       tone: "amber",
       label: "Missing",
     })
@@ -472,7 +480,10 @@ describe("crowdsecState", () => {
     })
   })
   it("reachable LAPI is emerald, unreachable is red", () => {
-    expect(crowdsecState(enabled, false)).toMatchObject({ tone: "emerald", label: "LAPI reachable" })
+    expect(crowdsecState(enabled, false)).toMatchObject({
+      tone: "emerald",
+      label: "LAPI reachable",
+    })
     expect(crowdsecState({ ...enabled, lapiReachable: false }, false)).toMatchObject({
       tone: "red",
       label: "LAPI unreachable",
@@ -527,7 +538,10 @@ describe("accessLogUnavailableLabel", () => {
   })
   it("treats a bare missingFiles entry as missing", () => {
     expect(
-      accessLogUnavailableLabel(file("access.log"), healthWith(undefined, ["nginx_logs/access.log"])),
+      accessLogUnavailableLabel(
+        file("access.log"),
+        healthWith(undefined, ["nginx_logs/access.log"]),
+      ),
     ).toBe("missing")
   })
   it("says unavailable when health has no matching source", () => {
@@ -739,7 +753,12 @@ describe("oidcState", () => {
   })
 
   it("is red with the detail when discovery failed", () => {
-    expect(oidcState({ ...base, discovery: "failed", detail: "discovery document answered HTTP 500" }, false)).toEqual({
+    expect(
+      oidcState(
+        { ...base, discovery: "failed", detail: "discovery document answered HTTP 500" },
+        false,
+      ),
+    ).toEqual({
       tone: "red",
       label: "Discovery failed",
       detail: "discovery document answered HTTP 500",
@@ -808,13 +827,34 @@ describe("serverLocationRows", () => {
     }
     const now = Date.parse("2026-08-23T15:00:00Z")
     expect(serverLocationRows(data, now)).toEqual([
-      { server: "nginx-01", coords: "59.91, 10.75", source: "auto", lastSeen: "Traffic today", stale: false },
-      { server: "nginx-02", coords: "-33.87, 151.21", source: "override", lastSeen: "No traffic", stale: false },
+      {
+        server: "nginx-01",
+        coords: "59.91, 10.75",
+        source: "auto",
+        lastSeen: "Traffic today",
+        stale: false,
+      },
+      {
+        server: "nginx-02",
+        coords: "-33.87, 151.21",
+        source: "override",
+        lastSeen: "No traffic",
+        stale: false,
+      },
     ])
   })
   it("flags auto rows with no traffic for two weeks as stale, never overrides", () => {
-    const serverLocation = (server: string, source: "auto" | "override", lastEventDay: string | null) => ({
-      server, latitude: 0, longitude: 0, source, detectedAt: null, lastEventDay,
+    const serverLocation = (
+      server: string,
+      source: "auto" | "override",
+      lastEventDay: string | null,
+    ) => ({
+      server,
+      latitude: 0,
+      longitude: 0,
+      source,
+      detectedAt: null,
+      lastEventDay,
     })
     const now = Date.parse("2026-08-23T15:00:00Z")
     const rows = serverLocationRows(
@@ -872,7 +912,8 @@ describe("advisoryCards", () => {
     expect(card.docsUrl).toBe("https://example.test/proxy-setup")
   })
   it("keeps one rename per line in the legacy env names remedy", () => {
-    const remedy = "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME\nMAP_HOME_LATITUDE → MAP_SERVER_LATITUDE"
+    const remedy =
+      "LOGPARSER_HOST_NAME → LOGPARSER_SERVER_NAME\nMAP_HOME_LATITUDE → MAP_SERVER_LATITUDE"
     const health = makeHealth({
       advisories: [{ id: "legacy-env-names", severity: "warning", summary: "s", remedy }],
     })
@@ -889,8 +930,20 @@ describe("statusProblems", () => {
     const rows = statusProblems(
       [{ id: "renamed-env", tone: "amber", label: "3 environment variables use their old names." }],
       [
-        { instanceName: "edge", tone: "amber", summary: "edge is behind.", moreCount: 0, lastSeenAgo: "12s ago" },
-        { instanceName: "agent", tone: "red", summary: "agent stopped checking in.", moreCount: 2, lastSeenAgo: "2d ago" },
+        {
+          instanceName: "edge",
+          tone: "amber",
+          summary: "edge is behind.",
+          moreCount: 0,
+          lastSeenAgo: "12s ago",
+        },
+        {
+          instanceName: "agent",
+          tone: "red",
+          summary: "agent stopped checking in.",
+          moreCount: 2,
+          lastSeenAgo: "2d ago",
+        },
       ],
     )
     expect(rows.map((row) => row.label)).toEqual([
@@ -898,14 +951,26 @@ describe("statusProblems", () => {
       "3 environment variables use their old names.",
       "edge is behind.",
     ])
-    expect(rows[0]).toMatchObject({ agentName: "agent", detail: "Last seen 2d ago, and 2 more problems" })
+    expect(rows[0]).toMatchObject({
+      agentName: "agent",
+      detail: "Last seen 2d ago, and 2 more problems",
+    })
     expect(rows[2]).toMatchObject({ agentName: "edge", detail: "Last seen 12s ago" })
   })
 
   it("names a single extra problem in the singular", () => {
-    const [row] = statusProblems([], [
-      { instanceName: "vps", tone: "amber", summary: "vps is behind.", moreCount: 1, lastSeenAgo: "3m ago" },
-    ])
+    const [row] = statusProblems(
+      [],
+      [
+        {
+          instanceName: "vps",
+          tone: "amber",
+          summary: "vps is behind.",
+          moreCount: 1,
+          lastSeenAgo: "3m ago",
+        },
+      ],
+    )
     expect(row.detail).toBe("Last seen 3m ago, and 1 more problem")
   })
 })
@@ -925,7 +990,14 @@ describe("verdictTitle", () => {
 describe("schedulerSummary", () => {
   const now = Date.parse("2026-10-29T12:00:00Z")
   const job = (overrides: Partial<SchedulerJobView>): SchedulerJobView =>
-    ({ id: "x", name: "x", running: false, lastStatus: "success", nextRunTime: null, ...overrides }) as SchedulerJobView
+    ({
+      id: "x",
+      name: "x",
+      running: false,
+      lastStatus: "success",
+      nextRunTime: null,
+      ...overrides,
+    }) as SchedulerJobView
 
   it("takes the worst job's light and the soonest next run", () => {
     const state = schedulerSummary(

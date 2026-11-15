@@ -5,7 +5,13 @@
 import type { ReactNode } from "react"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-export function RankedNarrowHeader({ label, valueLabel }: { label: ReactNode; valueLabel: string }) {
+export function RankedNarrowHeader({
+  label,
+  valueLabel,
+}: {
+  label: ReactNode
+  valueLabel: string
+}) {
   return (
     <TableHeader>
       <TableRow>

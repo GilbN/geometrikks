@@ -14,8 +14,18 @@ const H = 800
 const HOME: [number, number] = [640, 300]
 
 const ORIGINS: Array<[number, number]> = [
-  [0, 80], [0, 560], [160, 0], [380, 800], [1280, 40], [1280, 420],
-  [1040, 800], [820, 0], [1220, 760], [520, 0], [0, 330], [1280, 640],
+  [0, 80],
+  [0, 560],
+  [160, 0],
+  [380, 800],
+  [1280, 40],
+  [1280, 420],
+  [1040, 800],
+  [820, 0],
+  [1220, 760],
+  [520, 0],
+  [0, 330],
+  [1280, 640],
 ]
 
 /** Arcs from the frame's edges converging on the mark, one lit packet each. */
@@ -27,7 +37,14 @@ export function RoutesBackdrop() {
       preserveAspectRatio="xMidYMid slice"
       className="theme-decoration pointer-events-none absolute inset-0 h-full w-full text-primary"
     >
-      <circle cx={HOME[0]} cy={HOME[1]} r={220} fill="currentColor" opacity={0.1} style={{ filter: "blur(60px)" }} />
+      <circle
+        cx={HOME[0]}
+        cy={HOME[1]}
+        r={220}
+        fill="currentColor"
+        opacity={0.1}
+        style={{ filter: "blur(60px)" }}
+      />
       {ORIGINS.map(([x, y], i) => {
         const cx = (x + HOME[0]) / 2 + (i % 2 ? 1 : -1) * 120
         const cy = (y + HOME[1]) / 2 + (x < HOME[0] ? -90 : 90)
@@ -37,8 +54,20 @@ export function RoutesBackdrop() {
         const strong = i % 3 === 0
         return (
           <g key={i} stroke="currentColor" fill="none">
-            <path d={`M${x} ${y} Q${cx} ${cy} ${HOME[0]} ${HOME[1]}`} strokeWidth={strong ? 1.5 : 1} opacity={strong ? 0.45 : 0.18} />
-            <circle cx={px} cy={py} r={3.2} fill="currentColor" stroke="none" opacity={0.9} style={{ filter: "drop-shadow(0 0 6px currentColor)" }} />
+            <path
+              d={`M${x} ${y} Q${cx} ${cy} ${HOME[0]} ${HOME[1]}`}
+              strokeWidth={strong ? 1.5 : 1}
+              opacity={strong ? 0.45 : 0.18}
+            />
+            <circle
+              cx={px}
+              cy={py}
+              r={3.2}
+              fill="currentColor"
+              stroke="none"
+              opacity={0.9}
+              style={{ filter: "drop-shadow(0 0 6px currentColor)" }}
+            />
           </g>
         )
       })}
@@ -52,14 +81,33 @@ const seed = (x: number, y: number) => {
 }
 const lerp = (a: number, b: number, t: number) => a + (b - a) * (t * t * (3 - 2 * t))
 const noise = (x: number, y: number) => {
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi
-  return lerp(lerp(seed(xi, yi), seed(xi + 1, yi), xf), lerp(seed(xi, yi + 1), seed(xi + 1, yi + 1), xf), yf)
+  const xi = Math.floor(x),
+    yi = Math.floor(y),
+    xf = x - xi,
+    yf = y - yi
+  return lerp(
+    lerp(seed(xi, yi), seed(xi + 1, yi), xf),
+    lerp(seed(xi, yi + 1), seed(xi + 1, yi + 1), xf),
+    yf,
+  )
 }
 
 // Marching-squares edge table: which cell edges each corner pattern joins.
 const SEGMENTS: Record<number, string> = {
-  1: "lb", 2: "br", 3: "lr", 4: "tr", 5: "tl,br", 6: "tb", 7: "tl", 8: "tl",
-  9: "tb", 10: "tr,lb", 11: "tr", 12: "lr", 13: "br", 14: "lb",
+  1: "lb",
+  2: "br",
+  3: "lr",
+  4: "tr",
+  5: "tl,br",
+  6: "tb",
+  7: "tl",
+  8: "tl",
+  9: "tb",
+  10: "tr,lb",
+  11: "tr",
+  12: "lr",
+  13: "br",
+  14: "lb",
 }
 
 // The canvas renders once at its element's size times devicePixelRatio
@@ -91,7 +139,15 @@ function drawRelief(canvas: HTMLCanvasElement, accent: string, line: string, str
   drawContours(ctx, w, h, s, accent, line, strength)
 }
 
-function drawContours(ctx: CanvasRenderingContext2D, w: number, h: number, s: number, accent: string, line: string, strength: number) {
+function drawContours(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  s: number,
+  accent: string,
+  line: string,
+  strength: number,
+) {
   // Sample the field once on the grid; every level then reads the cache
   // instead of re-evaluating three octaves of noise per corner.
   const step = 8 * s
@@ -102,11 +158,10 @@ function drawContours(ctx: CanvasRenderingContext2D, w: number, h: number, s: nu
     for (let i = 0; i < cols; i++) {
       // Sample in the reference frame so the terrain is the same shapes at
       // every resolution, only sharper.
-      const x = (i * step) / s, y = (j * step) / s
+      const x = (i * step) / s,
+        y = (j * step) / s
       grid[j * cols + i] =
-        noise(x / 260, y / 260) * 0.6 +
-        noise(x / 90, y / 90) * 0.3 +
-        noise(x / 30, y / 30) * 0.1
+        noise(x / 260, y / 260) * 0.6 + noise(x / 90, y / 90) * 0.3 + noise(x / 30, y / 30) * 0.1
     }
   }
 
@@ -127,12 +182,17 @@ function drawContours(ctx: CanvasRenderingContext2D, w: number, h: number, s: nu
           (grid[(j + 1) * cols + i + 1] > iso ? 2 : 0) +
           (grid[(j + 1) * cols + i] > iso ? 1 : 0)
         if (idx === 0 || idx === 15) continue
-        const x = i * step, y = j * step
+        const x = i * step,
+          y = j * step
         const pts: Record<string, [number, number]> = {
-          t: [x + mid, y], r: [x + step, y + mid], b: [x + mid, y + step], l: [x, y + mid],
+          t: [x + mid, y],
+          r: [x + step, y + mid],
+          b: [x + mid, y + step],
+          l: [x, y + mid],
         }
         for (const seg of SEGMENTS[idx].split(",")) {
-          const p0 = pts[seg[0]], p1 = pts[seg[1]]
+          const p0 = pts[seg[0]],
+            p1 = pts[seg[1]]
           ctx.moveTo(p0[0], p0[1])
           ctx.lineTo(p1[0], p1[1])
         }
@@ -142,7 +202,6 @@ function drawContours(ctx: CanvasRenderingContext2D, w: number, h: number, s: nu
   }
   ctx.globalAlpha = 1
 }
-
 
 /** The brand banner's scene: graticule and contours as ground, a hashed
  *  scatter of markers with halo rings on the hot ones, and route arcs with
@@ -157,14 +216,25 @@ function drawMap(canvas: HTMLCanvasElement, accent: string, line: string, streng
   const home: [number, number] = [w / 2, HOME[1] * s]
   // Markers and routes stay out of this box so the card (or the page
   // title) sits on calm ground; it brackets the centered card.
-  const band = { l: home[0] - 220 * s, r: home[0] + 220 * s, t: home[1] - 150 * s, b: home[1] + 160 * s }
+  const band = {
+    l: home[0] - 220 * s,
+    r: home[0] + 220 * s,
+    t: home[1] - 150 * s,
+    b: home[1] + 160 * s,
+  }
 
   ctx.strokeStyle = line
   ctx.globalAlpha = 0.18 * strength
   ctx.lineWidth = 0.6 * s
   ctx.beginPath()
-  for (let x = 0; x <= w; x += 80 * s) { ctx.moveTo(x, 0); ctx.lineTo(x, h) }
-  for (let y = 0; y <= h; y += 80 * s) { ctx.moveTo(0, y); ctx.lineTo(w, y) }
+  for (let x = 0; x <= w; x += 80 * s) {
+    ctx.moveTo(x, 0)
+    ctx.lineTo(x, h)
+  }
+  for (let y = 0; y <= h; y += 80 * s) {
+    ctx.moveTo(0, y)
+    ctx.lineTo(w, y)
+  }
   ctx.stroke()
   ctx.globalAlpha = 1
 
@@ -174,10 +244,11 @@ function drawMap(canvas: HTMLCanvasElement, accent: string, line: string, streng
 
   // Marker count follows the visible area so density stays constant on
   // ultrawide screens; the hash keyed by index keeps it deterministic.
-  const count = Math.round(140 * ((w / s) * (h / s)) / (1280 * REF_H))
+  const count = Math.round((140 * ((w / s) * (h / s))) / (1280 * REF_H))
   const markers: Array<[number, number, number]> = []
   for (let i = 0; i < count; i++) {
-    const x = seed(i, 7) * w, y = seed(i, 13) * h
+    const x = seed(i, 7) * w,
+      y = seed(i, 13) * h
     if (x > band.l && x < band.r && y > band.t && y < band.b) continue
     markers.push([x, y, seed(i, 29)])
   }
@@ -199,30 +270,33 @@ function drawMap(canvas: HTMLCanvasElement, accent: string, line: string, streng
     ctx.fill()
   }
 
-  markers.filter(([, , wgt]) => wgt > 0.8).slice(0, 14).forEach(([x, y], i) => {
-    const cx = (x + home[0]) / 2 + (i % 2 ? 1 : -1) * 80 * s
-    const cy = (y + home[1]) / 2 + (y < home[1] ? -60 : 60) * s
-    const strong = i % 3 === 0
-    ctx.strokeStyle = accent
-    ctx.globalAlpha = (strong ? 0.45 : 0.18) * strength
-    ctx.lineWidth = (strong ? 1.3 : 0.9) * s
-    ctx.beginPath()
-    ctx.moveTo(x, y)
-    ctx.quadraticCurveTo(cx, cy, home[0], home[1])
-    ctx.stroke()
-    const u = 0.3 + ((i * 0.11) % 0.45)
-    const px = (1 - u) ** 2 * x + 2 * (1 - u) * u * cx + u * u * home[0]
-    const py = (1 - u) ** 2 * y + 2 * (1 - u) * u * cy + u * u * home[1]
-    ctx.save()
-    ctx.shadowColor = accent
-    ctx.shadowBlur = 8 * s
-    ctx.fillStyle = accent
-    ctx.globalAlpha = 0.9 * strength
-    ctx.beginPath()
-    ctx.arc(px, py, 2.8 * s, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
-  })
+  markers
+    .filter(([, , wgt]) => wgt > 0.8)
+    .slice(0, 14)
+    .forEach(([x, y], i) => {
+      const cx = (x + home[0]) / 2 + (i % 2 ? 1 : -1) * 80 * s
+      const cy = (y + home[1]) / 2 + (y < home[1] ? -60 : 60) * s
+      const strong = i % 3 === 0
+      ctx.strokeStyle = accent
+      ctx.globalAlpha = (strong ? 0.45 : 0.18) * strength
+      ctx.lineWidth = (strong ? 1.3 : 0.9) * s
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.quadraticCurveTo(cx, cy, home[0], home[1])
+      ctx.stroke()
+      const u = 0.3 + ((i * 0.11) % 0.45)
+      const px = (1 - u) ** 2 * x + 2 * (1 - u) * u * cx + u * u * home[0]
+      const py = (1 - u) ** 2 * y + 2 * (1 - u) * u * cy + u * u * home[1]
+      ctx.save()
+      ctx.shadowColor = accent
+      ctx.shadowBlur = 8 * s
+      ctx.fillStyle = accent
+      ctx.globalAlpha = 0.9 * strength
+      ctx.beginPath()
+      ctx.arc(px, py, 2.8 * s, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
+    })
   ctx.globalAlpha = 1
 }
 
@@ -271,7 +345,10 @@ function CanvasBackdrop({
     }
     draw()
     const mo = new MutationObserver(draw)
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] })
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    })
     return () => {
       cancelAnimationFrame(frame)
       mo.disconnect()

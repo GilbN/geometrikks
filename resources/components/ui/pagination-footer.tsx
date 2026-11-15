@@ -55,10 +55,7 @@ export function PaginationFooter({
             {/* The select's aria-label carries the name when the visible
                 label is hidden on narrow screens to fit one control row. */}
             <span className="hidden whitespace-nowrap sm:inline">Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => onPageSizeChange(Number(v))}
-            >
+            <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
               <SelectTrigger
                 size="sm"
                 aria-label="Rows per page"

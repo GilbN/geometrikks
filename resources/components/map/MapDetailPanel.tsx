@@ -8,7 +8,17 @@
  * Mounted beside the <Map>, not inside it, so MapLibre's unlayered CSS never
  * reaches it. GeoMapInner wraps both in a MapProvider for useMap().
  */
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, type CSSProperties, type ReactNode, type RefObject } from "react"
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react"
 import { ScanSearch, XIcon } from "lucide-react"
 import { useMap } from "react-map-gl/maplibre"
 import { Button } from "@/components/ui/button"
@@ -17,7 +27,13 @@ import { cn } from "@/lib/utils"
 import { mapTopInset, rangeChipBottom, safeAreaInsets } from "./phone-map-actions"
 import { isPhoneSideViewport, usePhoneMapSide } from "@/hooks/use-phone-map"
 import { MapPanelContext } from "./SideDrawer"
-import { PHONE_PANEL_MAX_WIDTH, PHONE_PANEL_WIDTH_SHARE, PHONE_RAIL_EDGE, panToBox, sideVisibleBox } from "@/lib/phone-map-geometry"
+import {
+  PHONE_PANEL_MAX_WIDTH,
+  PHONE_PANEL_WIDTH_SHARE,
+  PHONE_RAIL_EDGE,
+  panToBox,
+  sideVisibleBox,
+} from "@/lib/phone-map-geometry"
 
 /** Room kept between the point and the panel or the map's sides. */
 const VIEW_MARGIN = 24
@@ -49,7 +65,10 @@ const OPEN_LAYER = [
  * panel opens, grows, or the map resizes. A user's gesture ends the
  * corrections for this point, so a pan the user makes stays put.
  */
-function useKeepPointInView(point: readonly [number, number] | undefined, panelRef: RefObject<HTMLElement | null>) {
+function useKeepPointInView(
+  point: readonly [number, number] | undefined,
+  panelRef: RefObject<HTMLElement | null>,
+) {
   const { default: mapRef } = useMap()
   const longitude = point?.[0]
   const latitude = point?.[1]
@@ -132,7 +151,8 @@ function useKeepPointInView(point: readonly [number, number] | undefined, panelR
     }
 
     const canvas = map.getCanvasContainer()
-    for (const gesture of USER_GESTURES) canvas.addEventListener(gesture, onGesture, { passive: true })
+    for (const gesture of USER_GESTURES)
+      canvas.addEventListener(gesture, onGesture, { passive: true })
     map.on("resize", recheck)
     container.addEventListener(FOCUS_SETTLED, recheck)
     const observer = new ResizeObserver(recheck)
@@ -198,7 +218,8 @@ export function MapDetailPanel({
     if (event.key !== "Escape" || document.querySelector(OPEN_LAYER)) return
     // An inline card shares its page with filters and tables, which keep their own Escape.
     const active = document.activeElement
-    if (inline && !panelRef.current?.contains(active) && !mapRef?.getContainer().contains(active)) return
+    if (inline && !panelRef.current?.contains(active) && !mapRef?.getContainer().contains(active))
+      return
     onClose()
   })
   useEffect(() => {
@@ -227,7 +248,8 @@ export function MapDetailPanel({
     claim()
     return () => {
       cancelAnimationFrame(frame)
-      if (panel?.contains(document.activeElement)) mapRef?.getCanvas().focus({ preventScroll: true })
+      if (panel?.contains(document.activeElement))
+        mapRef?.getCanvas().focus({ preventScroll: true })
     }
   }, [mapRef])
 
@@ -265,25 +287,52 @@ export function MapDetailPanel({
           {leading}
           {icon && <span className="flex shrink-0 items-center">{icon}</span>}
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="truncate text-lg font-semibold leading-tight">{title}</h2>
+            <h2 id={titleId} className="truncate text-lg font-semibold leading-tight">
+              {title}
+            </h2>
             {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
           </div>
           {aside}
-          <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-full text-muted-foreground" onClick={onClose} aria-label={closeLabel}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-11 shrink-0 rounded-full text-muted-foreground"
+            onClick={onClose}
+            aria-label={closeLabel}
+          >
             <XIcon className="size-5" />
           </Button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 text-sm">{children}</div>
-        {footer && <div className="flex shrink-0 gap-2 border-t border-border/60 p-3">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 text-sm">
+          {children}
+        </div>
+        {footer && (
+          <div className="flex shrink-0 gap-2 border-t border-border/60 p-3">{footer}</div>
+        )}
       </section>
     </MapPanelContext.Provider>
   )
 }
 
 /** A back button for MapDetailPanel's `leading` slot. */
-export function PanelBackButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+export function PanelBackButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
   return (
-    <Button data-slot="panel-back" variant="ghost" size="icon" className="size-11 shrink-0 rounded-full" onClick={onClick} aria-label={label}>
+    <Button
+      data-slot="panel-back"
+      variant="ghost"
+      size="icon"
+      className="size-11 shrink-0 rounded-full"
+      onClick={onClick}
+      aria-label={label}
+    >
       {children}
     </Button>
   )
@@ -295,7 +344,13 @@ export function PanelBackButton({ label, onClick, children }: { label: string; o
 export function PanelStats({
   items,
 }: {
-  items: { label: string; value: ReactNode; narrowValue?: ReactNode; accent?: boolean; wide?: boolean }[]
+  items: {
+    label: string
+    value: ReactNode
+    narrowValue?: ReactNode
+    accent?: boolean
+    wide?: boolean
+  }[]
 }) {
   const columns = items.filter((item) => !item.wide).length
   return (
@@ -314,12 +369,19 @@ export function PanelStats({
             "min-w-0 border-border px-3 py-2",
             item.wide ? "col-span-full border-t" : index < columns - 1 && "border-r",
             columns === 3 && index === 1 && "@max-[20rem]/panel:border-r-0",
-            columns === 3 && index === 2 && "@max-[20rem]/panel:border-t @max-[20rem]/panel:border-r",
+            columns === 3 &&
+              index === 2 &&
+              "@max-[20rem]/panel:border-t @max-[20rem]/panel:border-r",
             columns === 3 && item.wide && "@max-[20rem]/panel:col-span-1",
           )}
         >
           <dt className="text-xs text-muted-foreground">{item.label}</dt>
-          <dd className={cn("mt-0.5 font-semibold tabular-nums leading-tight", item.accent ? "text-xl text-primary" : "text-base")}>
+          <dd
+            className={cn(
+              "mt-0.5 font-semibold tabular-nums leading-tight",
+              item.accent ? "text-xl text-primary" : "text-base",
+            )}
+          >
             {item.narrowValue === undefined ? (
               item.value
             ) : (
@@ -336,7 +398,15 @@ export function PanelStats({
 }
 
 /** A section heading inside the panel body. */
-export function PanelSection({ icon, title, children }: { icon?: ReactNode; title: ReactNode; children: ReactNode }) {
+export function PanelSection({
+  icon,
+  title,
+  children,
+}: {
+  icon?: ReactNode
+  title: ReactNode
+  children: ReactNode
+}) {
   return (
     <section className="mt-4">
       <h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground [&_svg]:size-3.5">
@@ -349,7 +419,15 @@ export function PanelSection({ icon, title, children }: { icon?: ReactNode; titl
 }
 
 /** The panel's IP in large monospace type, with its copy button before it and its badges after it. */
-export function PanelIp({ ip, copyButton, children }: { ip: string; copyButton?: ReactNode; children?: ReactNode }) {
+export function PanelIp({
+  ip,
+  copyButton,
+  children,
+}: {
+  ip: string
+  copyButton?: ReactNode
+  children?: ReactNode
+}) {
   return (
     <div className="mb-1 flex items-center gap-1 border-b border-border/60 pb-3">
       {copyButton}
@@ -362,10 +440,21 @@ export function PanelIp({ ip, copyButton, children }: { ip: string; copyButton?:
 }
 
 /** Opens the IP inspector, labelled, for a panel footer. */
-export function PanelInspectButton({ ip, fromLocationId }: { ip: string; fromLocationId?: number }) {
+export function PanelInspectButton({
+  ip,
+  fromLocationId,
+}: {
+  ip: string
+  fromLocationId?: number
+}) {
   const { open } = useIpInspectorActions()
   return (
-    <Button variant="outline" className="h-11 flex-1" aria-label={`Inspect ${ip}`} onClick={() => open(ip, fromLocationId)}>
+    <Button
+      variant="outline"
+      className="h-11 flex-1"
+      aria-label={`Inspect ${ip}`}
+      onClick={() => open(ip, fromLocationId)}
+    >
       <ScanSearch className="size-5" />
       Inspect
     </Button>

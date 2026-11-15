@@ -6,12 +6,15 @@ async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 const settingsNav = (page: Page) => page.getByRole("navigation", { name: "Settings" })
 const chipRow = (page: Page) => settingsNav(page).locator("ul")
-const chip = (page: Page, name: string) => settingsNav(page).getByRole("link", { name, exact: true })
+const chip = (page: Page, name: string) =>
+  settingsNav(page).getByRole("link", { name, exact: true })
 const backLink = (page: Page) => page.locator("header").getByRole("link", { name: "Settings" })
 // The shell nests the scrolling <main> inside the sidebar inset's <main>.
 const pageScroller = (page: Page) => page.locator('main:not([data-slot="sidebar-inset"])')
@@ -98,7 +101,9 @@ test.describe("small phone held sideways", () => {
     await login(page)
     await page.goto("/settings/environment")
     await expect(settingsNav(page)).toBeVisible()
-    await expect.poll(() => pageScroller(page).evaluate((main) => main.scrollHeight - main.clientHeight)).toBeGreaterThan(400)
+    await expect
+      .poll(() => pageScroller(page).evaluate((main) => main.scrollHeight - main.clientHeight))
+      .toBeGreaterThan(400)
 
     await chipRow(page).evaluate((row) => row.scrollTo({ left: row.scrollWidth }))
     await expect.poll(() => isClearOfFades(page, chip(page, "Environment"))).toBe(false)
@@ -127,7 +132,9 @@ test.describe("large phone held sideways", () => {
     expect((await chipRow(page).boundingBox())!.height).toBe(56)
 
     const header = page.locator("header")
-    await expect(header.getByText("Settings", { exact: true }).filter({ visible: true })).toHaveCount(1)
+    await expect(
+      header.getByText("Settings", { exact: true }).filter({ visible: true }),
+    ).toHaveCount(1)
     await expect(header.getByText("Status", { exact: true })).toBeVisible()
     await expect(backLink(page)).toHaveCount(0)
   })

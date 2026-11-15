@@ -7,5 +7,11 @@ import { POPUP_ROW_ICON_STYLE, PopupRow } from "./PopupCard"
 export function AbuseIpdbBlacklistPopupRow({ ip }: { ip: string }) {
   const blacklisted = useAbuseIpdbBlacklisted(ip)
   if (!blacklisted) return null
-  return <PopupRow label="Listed on" icon={<ShieldAlert style={POPUP_ROW_ICON_STYLE} />} value={<AbuseIpdbBlacklistBadge />} />
+  return (
+    <PopupRow
+      label="Listed on"
+      icon={<ShieldAlert style={POPUP_ROW_ICON_STYLE} />}
+      value={<AbuseIpdbBlacklistBadge />}
+    />
+  )
 }

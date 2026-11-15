@@ -28,8 +28,12 @@ function fakeStorage(initial: Record<string, string> = {}) {
 }
 
 const throwingStorage = {
-  getItem: () => { throw new Error("blocked") },
-  setItem: () => { throw new Error("blocked") },
+  getItem: () => {
+    throw new Error("blocked")
+  },
+  setItem: () => {
+    throw new Error("blocked")
+  },
 }
 
 describe("parseChartOptions", () => {
@@ -39,22 +43,37 @@ describe("parseChartOptions", () => {
   })
 
   it("replaces an unknown view and an unknown scale", () => {
-    expect(parseChartOptions(spec, { view: "pie", scale: "cubic" })).toEqual({ view: "stacked", scale: "clip" })
+    expect(parseChartOptions(spec, { view: "pie", scale: "cubic" })).toEqual({
+      view: "stacked",
+      scale: "clip",
+    })
   })
 
   it("keeps a known scale even when the view does not allow it", () => {
-    expect(parseChartOptions(spec, { view: "share", scale: "log" })).toEqual({ view: "share", scale: "log" })
+    expect(parseChartOptions(spec, { view: "share", scale: "log" })).toEqual({
+      view: "share",
+      scale: "log",
+    })
   })
 })
 
 describe("resolveChartOptions", () => {
   it("maps a scale the view does not allow to the view's default", () => {
-    expect(resolveChartOptions(spec, { view: "share", scale: "log" })).toEqual({ view: "share", scale: "full" })
-    expect(resolveChartOptions(spec, { view: "error-rate", scale: "log" })).toEqual({ view: "error-rate", scale: "clip" })
+    expect(resolveChartOptions(spec, { view: "share", scale: "log" })).toEqual({
+      view: "share",
+      scale: "full",
+    })
+    expect(resolveChartOptions(spec, { view: "error-rate", scale: "log" })).toEqual({
+      view: "error-rate",
+      scale: "clip",
+    })
   })
 
   it("restores the stored scale when the view allows it again", () => {
-    expect(resolveChartOptions(spec, { view: "stacked", scale: "log" })).toEqual({ view: "stacked", scale: "log" })
+    expect(resolveChartOptions(spec, { view: "stacked", scale: "log" })).toEqual({
+      view: "stacked",
+      scale: "log",
+    })
   })
 })
 
@@ -62,7 +81,9 @@ describe("loadChartOptions / saveChartOptions", () => {
   it("round-trips through storage under the chart key", () => {
     const storage = fakeStorage()
     saveChartOptions("t-roundtrip", { view: "share", scale: "log" }, storage)
-    expect(storage.data.get(chartOptionsStorageKey("t-roundtrip"))).toBe('{"view":"share","scale":"log"}')
+    expect(storage.data.get(chartOptionsStorageKey("t-roundtrip"))).toBe(
+      '{"view":"share","scale":"log"}',
+    )
     expect(loadChartOptions("t-roundtrip", storage)).toEqual({ view: "share", scale: "log" })
   })
 
@@ -72,7 +93,9 @@ describe("loadChartOptions / saveChartOptions", () => {
   })
 
   it("keeps a successful read for when storage starts throwing", () => {
-    const storage = fakeStorage({ [chartOptionsStorageKey("t-read")]: '{"view":"share","scale":"full"}' })
+    const storage = fakeStorage({
+      [chartOptionsStorageKey("t-read")]: '{"view":"share","scale":"full"}',
+    })
     expect(loadChartOptions("t-read", storage)).toEqual({ view: "share", scale: "full" })
     expect(loadChartOptions("t-read", throwingStorage)).toEqual({ view: "share", scale: "full" })
   })
@@ -81,7 +104,9 @@ describe("loadChartOptions / saveChartOptions", () => {
     const data = new Map([[chartOptionsStorageKey("t-quota"), '{"view":"stacked","scale":"clip"}']])
     const quotaFull = {
       getItem: (key: string) => data.get(key) ?? null,
-      setItem: () => { throw new Error("quota exceeded") },
+      setItem: () => {
+        throw new Error("quota exceeded")
+      },
     }
     saveChartOptions("t-quota", { view: "share", scale: "full" }, quotaFull)
     expect(loadChartOptions("t-quota", quotaFull)).toEqual({ view: "share", scale: "full" })
@@ -94,7 +119,10 @@ describe("loadChartOptions / saveChartOptions", () => {
 
   it("falls back to the in-memory copy when storage throws", () => {
     saveChartOptions("t-blocked", { view: "error-rate", scale: "full" }, throwingStorage)
-    expect(loadChartOptions("t-blocked", throwingStorage)).toEqual({ view: "error-rate", scale: "full" })
+    expect(loadChartOptions("t-blocked", throwingStorage)).toEqual({
+      view: "error-rate",
+      scale: "full",
+    })
   })
 })
 
@@ -102,16 +130,30 @@ describe("chips and label", () => {
   const view = (id: string) => spec.views.find((v) => v.id === id)!
 
   it("shows nothing at defaults", () => {
-    const chips = chartOptionChips({ view: view("stacked"), scale: "clip", isDefault: { view: true, scale: true } })
+    const chips = chartOptionChips({
+      view: view("stacked"),
+      scale: "clip",
+      isDefault: { view: true, scale: true },
+    })
     expect(chips).toEqual([])
     expect(chartOptionsLabel("Status classes", chips)).toBe("Chart options: Status classes")
   })
 
   it("names the view chip and the scale chip", () => {
-    const chips = chartOptionChips({ view: view("share"), scale: "full", isDefault: { view: false, scale: true } })
+    const chips = chartOptionChips({
+      view: view("share"),
+      scale: "full",
+      isDefault: { view: false, scale: true },
+    })
     expect(chips).toEqual(["Share"])
-    const both = chartOptionChips({ view: view("stacked"), scale: "log", isDefault: { view: true, scale: false } })
+    const both = chartOptionChips({
+      view: view("stacked"),
+      scale: "log",
+      isDefault: { view: true, scale: false },
+    })
     expect(both).toEqual(["Log"])
-    expect(chartOptionsLabel("Status classes", ["Share", "Log"])).toBe("Chart options: Status classes, Share, Log")
+    expect(chartOptionsLabel("Status classes", ["Share", "Log"])).toBe(
+      "Chart options: Status classes, Share, Log",
+    )
   })
 })

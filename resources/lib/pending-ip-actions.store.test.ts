@@ -4,18 +4,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 const banIp = vi.fn(async () => {})
 const unbanIp = vi.fn(async () => ({ deleted: 1 }))
-vi.mock("@/lib/api", () => ({ banIp: (...args: unknown[]) => banIp(...(args as [])), unbanIp: (...args: unknown[]) => unbanIp(...(args as [])) }))
+vi.mock("@/lib/api", () => ({
+  banIp: (...args: unknown[]) => banIp(...(args as [])),
+  unbanIp: (...args: unknown[]) => unbanIp(...(args as [])),
+}))
 vi.mock("sonner", () => {
-  const toast = Object.assign(vi.fn(), { custom: vi.fn(), dismiss: vi.fn(), success: vi.fn(), error: vi.fn() })
+  const toast = Object.assign(vi.fn(), {
+    custom: vi.fn(),
+    dismiss: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+  })
   return { toast }
 })
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: async () => {}, isFetching: () => 0, getQueryCache: () => ({ findAll: () => [] }) }) }))
-vi.mock("react", async (original) => ({ ...(await original<typeof import("react")>()), useCallback: <T,>(fn: T) => fn }))
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({
+    invalidateQueries: async () => {},
+    isFetching: () => 0,
+    getQueryCache: () => ({ findAll: () => [] }),
+  }),
+}))
+vi.mock("react", async (original) => ({
+  ...(await original<typeof import("react")>()),
+  useCallback: <T>(fn: T) => fn,
+}))
 
 const { toast } = await import("sonner")
-const { useIpActions, undoIpAction, flushIpActions, UNDO_WINDOW_MS } = await import("./pending-ip-actions")
+const { useIpActions, undoIpAction, flushIpActions, UNDO_WINDOW_MS } =
+  await import("./pending-ip-actions")
 
-type CustomToast = [render: (id: string | number) => ReactElement, options: { id: string; duration: number; dismissible: boolean }]
+type CustomToast = [
+  render: (id: string | number) => ReactElement,
+  options: { id: string; duration: number; dismissible: boolean },
+]
 
 function lastCustomToast(): CustomToast {
   return vi.mocked(toast.custom).mock.lastCall as unknown as CustomToast
@@ -23,7 +44,13 @@ function lastCustomToast(): CustomToast {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  vi.stubGlobal("window", { setTimeout, clearTimeout, addEventListener: () => {}, matchMedia: () => ({ matches: false }), location: { pathname: "/" } })
+  vi.stubGlobal("window", {
+    setTimeout,
+    clearTimeout,
+    addEventListener: () => {},
+    matchMedia: () => ({ matches: false }),
+    location: { pathname: "/" },
+  })
   vi.stubGlobal("document", { addEventListener: () => {}, visibilityState: "visible" })
   banIp.mockClear()
   unbanIp.mockClear()

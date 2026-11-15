@@ -7,7 +7,16 @@ import { releaseCheckPollMs, showsReleaseDot } from "@/lib/release-check"
 import { useSeenRelease } from "@/lib/release-seen"
 import { useReloadNotice } from "@/lib/reload-notice"
 import type { LatestReleaseView } from "@/generated/api/types.gen"
-import { keepPreviousData, type InfiniteData, type Query, type QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  keepPreviousData,
+  type InfiniteData,
+  type Query,
+  type QueryClient,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import {
   fetchSummary,
   fetchLiveSummary,
@@ -117,13 +126,18 @@ import {
 } from "./sparklines"
 import { canonicalIp } from "./abuseipdb"
 import { securityNavStatus } from "./security-tabs"
-import { buildDropIndex, matchDropNetwork, type DropIndex, type DropNetworkMatch } from "./drop-lists"
-import type { AbuseIpdbBlacklistResponse, DropListsResponse, ReportedIpDto } from "@/generated/api/types.gen"
 import {
-  applyBannedIpsDelta,
-  applyStatusFrame,
-  parseCrowdsecFrame,
-} from "./crowdsec-live"
+  buildDropIndex,
+  matchDropNetwork,
+  type DropIndex,
+  type DropNetworkMatch,
+} from "./drop-lists"
+import type {
+  AbuseIpdbBlacklistResponse,
+  DropListsResponse,
+  ReportedIpDto,
+} from "@/generated/api/types.gen"
+import { applyBannedIpsDelta, applyStatusFrame, parseCrowdsecFrame } from "./crowdsec-live"
 import {
   apiV1LogsFilesListFiles,
   apiV1LogsTailTail,
@@ -170,20 +184,20 @@ export const queryKeys = {
     status: ["crowdsec", "status"] as const,
     bannedIps: ["crowdsec", "banned-ips"] as const,
     bannedRanges: ["crowdsec", "banned-ranges"] as const,
-    dropNetworks: (params: Record<string, unknown>) => ["crowdsec", "drop-networks", params] as const,
+    dropNetworks: (params: Record<string, unknown>) =>
+      ["crowdsec", "drop-networks", params] as const,
     stats: ["crowdsec", "stats"] as const,
     bannedLocations: (params: Record<string, unknown>, refreshKey?: number) =>
       ["crowdsec", "banned-locations", params, refreshKey] as const,
-    decisions: (params: Record<string, unknown>) =>
-      ["crowdsec", "decisions", params] as const,
-    alerts: (params: Record<string, unknown>) =>
-      ["crowdsec", "alerts", params] as const,
+    decisions: (params: Record<string, unknown>) => ["crowdsec", "decisions", params] as const,
+    alerts: (params: Record<string, unknown>) => ["crowdsec", "alerts", params] as const,
     alertScenarios: (params: Record<string, unknown>) =>
       ["crowdsec", "alert-scenarios", params] as const,
     alert: (id: number) => ["crowdsec", "alert", id] as const,
     decisionAlert: (decisionId: number) => ["crowdsec", "decision-alert", decisionId] as const,
     lookup: (ip: string, refreshKey?: number) => ["crowdsec", "lookup", ip, refreshKey] as const,
-    latestAlert: (ip: string, refreshKey?: number) => ["crowdsec", "latest-alert", ip, refreshKey] as const,
+    latestAlert: (ip: string, refreshKey?: number) =>
+      ["crowdsec", "latest-alert", ip, refreshKey] as const,
   },
   analytics: {
     all: ["analytics"] as const,
@@ -369,7 +383,9 @@ export function dropListsQueryOptions(updatedAt: string | null, enabled: boolean
 export function useDropLists(): { data?: DropIndex; loaded: boolean } {
   const { data: about } = useAbout()
   const active = about?.dropLists?.enabled === true && about.dropLists.loaded
-  const { data: dropIndex } = useQuery(dropListsQueryOptions(about?.dropLists?.updatedAt ?? null, active))
+  const { data: dropIndex } = useQuery(
+    dropListsQueryOptions(about?.dropLists?.updatedAt ?? null, active),
+  )
   if (!active || !dropIndex) return { loaded: false }
   return { data: dropIndex, loaded: true }
 }
@@ -440,7 +456,11 @@ export function useUnseenRelease(): LatestReleaseView | null {
   const seenRelease = useSeenRelease()
   const { pending: reloadPending } = useReloadNotice()
   const latest = releaseCheck?.latest ?? null
-  const shown = showsReleaseDot({ reloadPending, latestVersion: latest?.version ?? null, seenVersion: seenRelease })
+  const shown = showsReleaseDot({
+    reloadPending,
+    latestVersion: latest?.version ?? null,
+    seenVersion: seenRelease,
+  })
   return shown ? latest : null
 }
 
@@ -605,7 +625,10 @@ export const DROP_NETWORKS_REFETCH_MS = 5 * 60_000
 /** Per-network DROP traffic for the Security card. It sits in the crowdsec group, so a
  *  ban anywhere refreshes the statuses at once. Each answer aggregates the whole
  *  window, so the poll is slow. With `active` false it never asks. */
-export function useDropNetworks(params: { days: 7 | 30 | 90; page: number; pageSize: number }, active = true) {
+export function useDropNetworks(
+  params: { days: 7 | 30 | 90; page: number; pageSize: number },
+  active = true,
+) {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
     queryKey: queryKeys.crowdsec.dropNetworks(params),
@@ -632,9 +655,14 @@ export function useBanDropNetworks() {
 }
 
 /** GeoJSON for the Banned IPs layer, under every map filter. */
-export function useBannedLocations(active: boolean, filters: {
-  countryCodes?: string[]; cities?: string[]; servers?: string[]
-} = {}) {
+export function useBannedLocations(
+  active: boolean,
+  filters: {
+    countryCodes?: string[]
+    cities?: string[]
+    servers?: string[]
+  } = {},
+) {
   const { data: status } = useCrowdsecStatus()
   const { range, customRange, lastRefresh } = useTimeRange()
   return useQuery({
@@ -683,11 +711,17 @@ export function useCrowdsecDecisions(params: {
 
 /** Alert history, one page of ALERT_PAGE_SIZE at a time; fetchNextPage
  *  loads older alerts. Only fetched when machine credentials are set. */
-export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenarios?: string[] }) {
+export function useCrowdsecAlerts(params: {
+  since: string
+  kind?: string
+  ip?: string
+  scenarios?: string[]
+}) {
   const { data: status } = useCrowdsecStatus()
   return useInfiniteQuery({
     queryKey: queryKeys.crowdsec.alerts(params),
-    queryFn: ({ pageParam }) => fetchCrowdsecAlerts({ ...params, limit: ALERT_PAGE_SIZE, before: pageParam }),
+    queryFn: ({ pageParam }) =>
+      fetchCrowdsecAlerts({ ...params, limit: ALERT_PAGE_SIZE, before: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.nextCursor ?? undefined,
     enabled: status?.writeEnabled === true,
@@ -703,19 +737,28 @@ export function useCrowdsecAlerts(params: { since: string; kind?: string; ip?: s
 
 /** Drops every page but the newest from the alert history and refetches it,
  *  which brings back the 60 s refresh a deep view turns off. */
-export function useTrimCrowdsecAlerts(params: { since: string; kind?: string; ip?: string; scenarios?: string[] }) {
+export function useTrimCrowdsecAlerts(params: {
+  since: string
+  kind?: string
+  ip?: string
+  scenarios?: string[]
+}) {
   const queryClient = useQueryClient()
   return () => {
     const queryKey = queryKeys.crowdsec.alerts(params)
-    queryClient.setQueryData<InfiniteData<AlertPageView, string | undefined>>(queryKey, (data) =>
-      data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
+    queryClient.setQueryData<InfiniteData<AlertPageView, string | undefined>>(
+      queryKey,
+      (data) => data && { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) },
     )
     return queryClient.refetchQueries({ queryKey, exact: true })
   }
 }
 
 /** Scenario counts for the alert history's scenario picker. */
-export function useCrowdsecAlertScenarios(params: { since: string; kind?: string }, enabled: boolean) {
+export function useCrowdsecAlertScenarios(
+  params: { since: string; kind?: string },
+  enabled: boolean,
+) {
   const { data: status } = useCrowdsecStatus()
   return useQuery({
     queryKey: queryKeys.crowdsec.alertScenarios(params),
@@ -797,9 +840,8 @@ export function useCrowdsecLiveUpdates(active = true) {
           const previous = queryClient.getQueryData<CrowdSecStatusResponse>(
             queryKeys.crowdsec.status,
           )
-          queryClient.setQueryData<CrowdSecStatusResponse>(
-            queryKeys.crowdsec.status,
-            (status) => applyStatusFrame(status, frame),
+          queryClient.setQueryData<CrowdSecStatusResponse>(queryKeys.crowdsec.status, (status) =>
+            applyStatusFrame(status, frame),
           )
           // Recovery: refetch decisions/alerts/stats immediately so the page
           // leaves its stale state without waiting for the 60s intervals.
@@ -810,9 +852,8 @@ export function useCrowdsecLiveUpdates(active = true) {
         }
         // Keepalives are empty decision frames; they carry no news.
         if (frame.added.length === 0 && frame.deleted.length === 0) return
-        queryClient.setQueryData<BannedIp[]>(
-          queryKeys.crowdsec.bannedIps,
-          (ips) => applyBannedIpsDelta(ips, frame),
+        queryClient.setQueryData<BannedIp[]>(queryKeys.crowdsec.bannedIps, (ips) =>
+          applyBannedIpsDelta(ips, frame),
         )
         // The delta cannot tell whether another decision survives a deleted
         // one. Refetch the authoritative badge, map and selected-IP queries
@@ -910,7 +951,6 @@ export interface UseTimeSeriesOptions {
   enabled?: boolean
 }
 
-
 export interface UseGeoJSONOptions {
   /** Enable/disable the query */
   enabled?: boolean
@@ -995,12 +1035,19 @@ export interface UseLocationTopIPsOptions {
  * Fetch top IPs for a specific location.
  * Uses TimeRangeContext for time filtering.
  */
-export function useLocationTopIPs(locationId: number | null, options: UseLocationTopIPsOptions = {}) {
+export function useLocationTopIPs(
+  locationId: number | null,
+  options: UseLocationTopIPsOptions = {},
+) {
   const { enabled = true, limit = 5 } = options
   const { range, customRange, lastRefresh } = useTimeRange()
 
   return useQuery<LocationTopIPsResponse>({
-    queryKey: queryKeys.geo.locationTopIPs(locationId ?? 0, { range, customRange, limit }, lastRefresh),
+    queryKey: queryKeys.geo.locationTopIPs(
+      locationId ?? 0,
+      { range, customRange, limit },
+      lastRefresh,
+    ),
     queryFn: () => {
       if (locationId === null) {
         throw new Error("locationId is required")
@@ -1104,7 +1151,10 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
-    queryKey: queryKeys.analytics.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.timeSeries(
+      { range, customRange, granularity: resolved, filters },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTimeSeries({
@@ -1130,7 +1180,10 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
-    queryKey: queryKeys.analytics.geoTimeSeries({ range, customRange, granularity: resolved }, lastRefresh),
+    queryKey: queryKeys.analytics.geoTimeSeries(
+      { range, customRange, granularity: resolved },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoTimeSeries({ startDate, endDate, granularity: resolved })
@@ -1152,7 +1205,11 @@ function useCardSparklines<Data, Lines>(
   enabled: boolean,
   queryKey: (params: Record<string, unknown>, refreshKey?: number) => readonly unknown[],
   scope: Record<string, unknown>,
-  fetchData: (window: { startDate: string; endDate: string; granularity: "hourly" | "daily" }) => Promise<Data>,
+  fetchData: (window: {
+    startDate: string
+    endDate: string
+    granularity: "hourly" | "daily"
+  }) => Promise<Data>,
   toLines: (data: Data) => Lines,
 ): CardSparklines<Lines> {
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
@@ -1196,7 +1253,9 @@ function useCardSparklines<Data, Lines>(
 const sameLines = <Lines>(lines: Lines) => lines
 
 /** The Overview cards' charts. They ignore the Analytics page's filters, since the cards do too. */
-export function useOverviewSparklines({ enabled = true }: { enabled?: boolean } = {}): CardSparklines<OverviewSparklines> {
+export function useOverviewSparklines({
+  enabled = true,
+}: { enabled?: boolean } = {}): CardSparklines<OverviewSparklines> {
   return useCardSparklines(
     enabled,
     queryKeys.analytics.overviewSparklines,
@@ -1221,14 +1280,21 @@ function useCardChartGranularity(): "hourly" | "daily" {
 }
 
 /** The Geo Logs cards' charts, under the page's filters like the cards. */
-export function useGeoLogSparklines({ enabled = true }: { enabled?: boolean } = {}): CardSparklines<GeoLogSparklines> {
+export function useGeoLogSparklines({
+  enabled = true,
+}: { enabled?: boolean } = {}): CardSparklines<GeoLogSparklines> {
   const { filters } = useGeoLogFilters()
   return useCardSparklines(
     enabled,
     queryKeys.geoLogs.timeSeries,
     { filters },
     ({ startDate, endDate, granularity }) =>
-      fetchGeoLogTimeSeries({ fromTimestamp: startDate, toTimestamp: endDate, granularity, ...filters }),
+      fetchGeoLogTimeSeries({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        granularity,
+        ...filters,
+      }),
     geoLogSparklinesFromSeries,
   )
 }
@@ -1269,7 +1335,10 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topUserAgents({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.topUserAgents(
+      { range, customRange, limit, filters },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopUserAgents({
@@ -1347,7 +1416,10 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
   const { filters } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topCountryStats({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.topCountryStats(
+      { range, customRange, limit, filters },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopCountryStats({
@@ -1445,7 +1517,28 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
 
   return useQuery<AccessLogsPage>({
     queryKey: queryKeys.accessLogs.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, ipAddressNotIn, methodIn, hostIn, hostNotIn, serverIn, serverNotIn, logFormatIn, asnIn, asnNotIn, cityIn, countryCodeIn, statusIn, sortField, sortOrder },
+      {
+        range,
+        customRange,
+        currentPage,
+        pageSize,
+        searchString,
+        ipAddressIn,
+        ipAddressNotIn,
+        methodIn,
+        hostIn,
+        hostNotIn,
+        serverIn,
+        serverNotIn,
+        logFormatIn,
+        asnIn,
+        asnNotIn,
+        cityIn,
+        countryCodeIn,
+        statusIn,
+        sortField,
+        sortOrder,
+      },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1532,7 +1625,19 @@ export function useAccessLogDebug(options: UseAccessLogDebugOptions = {}) {
 
   return useQuery<AccessLogDebugPage>({
     queryKey: queryKeys.accessLogDebug.list(
-      { range, customRange, currentPage, pageSize, searchString, ipAddressIn, countryCodeIn, cityIn, malformed, sortField, sortOrder },
+      {
+        range,
+        customRange,
+        currentPage,
+        pageSize,
+        searchString,
+        ipAddressIn,
+        countryCodeIn,
+        cityIn,
+        malformed,
+        sortField,
+        sortOrder,
+      },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1591,7 +1696,13 @@ export interface UseGeoLogsOptions {
  * Server-side pagination; keeps the previous page visible while the next loads.
  */
 export function useGeoLogs(options: UseGeoLogsOptions = {}) {
-  const { currentPage = 1, pageSize = 50, sortField = "eventCount", sortOrder = "desc", enabled = true } = options
+  const {
+    currentPage = 1,
+    pageSize = 50,
+    sortField = "eventCount",
+    sortOrder = "desc",
+    enabled = true,
+  } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
   const { filters } = useGeoLogFilters()
 
@@ -1626,7 +1737,10 @@ export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?:
   const { filters } = useGeoLogFilters()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.summary({ range, customRange, comparePrevious, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.summary(
+      { range, customRange, comparePrevious, filters },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogSummary({
@@ -1650,7 +1764,10 @@ export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const resolved = useCardChartGranularity()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.timeSeries({ range, customRange, granularity: resolved, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.timeSeries(
+      { range, customRange, granularity: resolved, filters },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogTimeSeries({
@@ -1676,7 +1793,12 @@ export function useGeoLogTopIps(options: UseTopListOptions = {}) {
     queryKey: queryKeys.geoLogs.topIps({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchGeoLogTopIps({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+      return fetchGeoLogTopIps({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+        ...filters,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -1694,7 +1816,12 @@ export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
     queryKey: queryKeys.geoLogs.topCountries({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchGeoLogTopCountries({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+      return fetchGeoLogTopCountries({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+        ...filters,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -1712,7 +1839,12 @@ export function useGeoLogTopCities(options: UseTopListOptions = {}) {
     queryKey: queryKeys.geoLogs.topCities({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchGeoLogTopCities({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+      return fetchGeoLogTopCities({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+        ...filters,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -1730,7 +1862,12 @@ export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
     queryKey: queryKeys.geoLogs.topAsns({ range, customRange, limit, filters }, lastRefresh),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-      return fetchGeoLogTopAsns({ fromTimestamp: startDate, toTimestamp: endDate, limit, ...filters })
+      return fetchGeoLogTopAsns({
+        fromTimestamp: startDate,
+        toTimestamp: endDate,
+        limit,
+        ...filters,
+      })
     },
     enabled,
     staleTime: 60 * 1000,
@@ -1967,7 +2104,10 @@ function abuseReportQueryOptions(
   const { range, customRange } = selection
   const { maxIps, linesPerIp, enabled } = options
   return {
-    queryKey: queryKeys.reports.abuse({ range, customRange, target, maxIps, linesPerIp }, refreshKey),
+    queryKey: queryKeys.reports.abuse(
+      { range, customRange, target, maxIps, linesPerIp },
+      refreshKey,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchAbuseReport({ startDate, endDate, target, maxIps, linesPerIp })
@@ -2027,7 +2167,8 @@ export function abuseIpdbBlacklistQueryOptions(enabled: boolean) {
     queryFn: fetchAbuseIpdbBlacklist,
     enabled,
     // An empty answer means no download yet or an expired list, so it goes stale fast.
-    staleTime: (query: Query<AbuseIpdbBlacklistResponse>) => (query.state.data?.refreshedAt ? 60 * 60_000 : 60_000),
+    staleTime: (query: Query<AbuseIpdbBlacklistResponse>) =>
+      query.state.data?.refreshedAt ? 60 * 60_000 : 60_000,
     // A map popup can be the only observer. With the default five minutes, reopening one downloads the list again.
     gcTime: 60 * 60_000,
     select: selectBlacklist,
@@ -2087,7 +2228,9 @@ export function useReportedIps(active = true) {
   })
 }
 
-export function useAbuseIpdbReportHistory(params: Parameters<typeof fetchAbuseIpdbReportHistory>[0]) {
+export function useAbuseIpdbReportHistory(
+  params: Parameters<typeof fetchAbuseIpdbReportHistory>[0],
+) {
   return useQuery({
     queryKey: queryKeys.abuseipdb.reportHistory(params),
     queryFn: () => fetchAbuseIpdbReportHistory(params),
@@ -2100,7 +2243,12 @@ export function useAbuseIpdbReportHistory(params: Parameters<typeof fetchAbuseIp
 export function useSecurityNavStatus() {
   const crowdsec = useCrowdsecStatus()
   const abuseIpdb = useAbuseIpdbStatus()
-  return securityNavStatus(crowdsec.data?.enabled, crowdsec.isError, abuseIpdb.data?.reportingEnabled, abuseIpdb.isError)
+  return securityNavStatus(
+    crowdsec.data?.enabled,
+    crowdsec.isError,
+    abuseIpdb.data?.reportingEnabled,
+    abuseIpdb.isError,
+  )
 }
 
 export function useAbuseIpdbReports(ip: string, enabled: boolean) {
@@ -2141,8 +2289,12 @@ export function useAbuseReportForRange(
     // The polling hold pauses retries here too, as in useAbuseIpdbReports.
     retry: false,
     placeholderData: (previous, previousQuery) => {
-      const previousParams = previousQuery?.queryKey[2] as { target?: AbuseReportTarget } | undefined
-      return JSON.stringify(previousParams?.target) === JSON.stringify(target) ? previous : undefined
+      const previousParams = previousQuery?.queryKey[2] as
+        | { target?: AbuseReportTarget }
+        | undefined
+      return JSON.stringify(previousParams?.target) === JSON.stringify(target)
+        ? previous
+        : undefined
     },
   })
 }

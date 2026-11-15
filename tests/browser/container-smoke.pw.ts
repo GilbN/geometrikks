@@ -2,7 +2,13 @@ import { mkdir } from "node:fs/promises"
 import path from "node:path"
 
 import { expect, test } from "@playwright/test"
-import { COLOR_THEMES, THEME_CATALOG, THEME_STORAGE_KEYS, themeColor, type ColorTheme } from "../../resources/lib/theme"
+import {
+  COLOR_THEMES,
+  THEME_CATALOG,
+  THEME_STORAGE_KEYS,
+  themeColor,
+  type ColorTheme,
+} from "../../resources/lib/theme"
 
 const startupCases: Array<{ name: string; saved: Record<string, string>; theme: ColorTheme }> = [
   ...COLOR_THEMES.map((theme) => ({
@@ -10,15 +16,22 @@ const startupCases: Array<{ name: string; saved: Record<string, string>; theme: 
     saved: { [THEME_STORAGE_KEYS.lightTheme]: theme, [THEME_STORAGE_KEYS.darkTheme]: theme },
     theme,
   })),
-  { name: "a legacy copper accent", saved: { [THEME_STORAGE_KEYS.legacyAccent]: "copper" }, theme: "forge" },
+  {
+    name: "a legacy copper accent",
+    saved: { [THEME_STORAGE_KEYS.legacyAccent]: "copper" },
+    theme: "forge",
+  },
 ]
 
 for (const { name, saved, theme } of startupCases) {
   test(`production starts ${name} before the application JavaScript loads`, async ({ page }) => {
-    await page.addInitScript(({ modeKey, saved }) => {
-      localStorage.setItem(modeKey, "dark")
-      for (const [key, value] of Object.entries(saved)) localStorage.setItem(key, value)
-    }, { modeKey: THEME_STORAGE_KEYS.mode, saved })
+    await page.addInitScript(
+      ({ modeKey, saved }) => {
+        localStorage.setItem(modeKey, "dark")
+        for (const [key, value] of Object.entries(saved)) localStorage.setItem(key, value)
+      },
+      { modeKey: THEME_STORAGE_KEYS.mode, saved },
+    )
     // Leave the inline bootstrap and stylesheet intact while blocking the app.
     await page.route("**/static/assets/*.js", (route) => route.abort())
     const response = await page.goto("/")
@@ -28,7 +41,10 @@ for (const { name, saved, theme } of startupCases) {
     expect(html).toMatch(/<script[^>]+src="\/static\/assets\//)
     await expect(page.locator("html")).toHaveClass("dark")
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme)
-    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", themeColor("dark", theme))
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+      "content",
+      themeColor("dark", theme),
+    )
     await expect(page.locator("#app")).toBeEmpty()
   })
 }
@@ -46,7 +62,9 @@ function isApiCall(url: string): boolean {
   }
 }
 
-test("production theme menu marks the saved mode and keeps Settings selection consistent", async ({ page }) => {
+test("production theme menu marks the saved mode and keeps Settings selection consistent", async ({
+  page,
+}) => {
   const password = process.env.SMOKE_ADMIN_PASSWORD
   if (!password) throw new Error("SMOKE_ADMIN_PASSWORD is required")
   const login = await page.request.post("/api/v1/auth/login", {
@@ -59,7 +77,10 @@ test("production theme menu marks the saved mode and keeps Settings selection co
     await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
     await page.getByRole("menuitemradio", { name: mode, exact: true }).click()
     await page.getByRole("button", { name: "Toggle theme", exact: true }).click()
-    await expect(page.getByRole("menuitemradio", { name: mode, exact: true })).toHaveAttribute("aria-checked", "true")
+    await expect(page.getByRole("menuitemradio", { name: mode, exact: true })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    )
     await page.keyboard.press("Escape")
   }
   const layouts: Array<{ padding: string; height: string; radius: string; background: string }> = []
@@ -72,12 +93,21 @@ test("production theme menu marks the saved mode and keeps Settings selection co
     await expect(selected).toHaveAttribute("aria-current", "page")
     await expect(selected).toHaveCSS("border-left-width", "2px")
     await expect(selected).toHaveCSS("font-weight", "500")
-    layouts.push(await selected.evaluate((el) => {
-      const style = getComputedStyle(el)
-      return { padding: style.paddingLeft, height: style.height, radius: style.borderRadius, background: style.backgroundColor }
-    }))
+    layouts.push(
+      await selected.evaluate((el) => {
+        const style = getComputedStyle(el)
+        return {
+          padding: style.paddingLeft,
+          height: style.height,
+          radius: style.borderRadius,
+          background: style.backgroundColor,
+        }
+      }),
+    )
   }
-  expect(layouts.every((layout) => JSON.stringify(layout) === JSON.stringify(layouts[0]))).toBe(true)
+  expect(layouts.every((layout) => JSON.stringify(layout) === JSON.stringify(layouts[0]))).toBe(
+    true,
+  )
 })
 
 test("production image serves the authenticated dashboard without browser errors", async ({
@@ -95,8 +125,7 @@ test("production image serves the authenticated dashboard without browser errors
   const badResponses: string[] = []
 
   let authenticated = false
-  const isExpectedUnauthenticated401 = (url: string) =>
-    !authenticated && isApiCall(url)
+  const isExpectedUnauthenticated401 = (url: string) => !authenticated && isApiCall(url)
 
   page.on("console", (message) => {
     if (message.type() !== "error") {
@@ -167,9 +196,8 @@ test("production image serves the authenticated dashboard without browser errors
   expect(health.status).toBe("healthy")
   expect(health.database).toMatchObject({ reachable: true, servicesActive: true })
   expect(health.ingestion).toMatchObject({ running: true, status: "running" })
-  const expectedSidebarStatus = (health.advisories?.length ?? 0) > 0
-    ? "Attention"
-    : "Live ingestion"
+  const expectedSidebarStatus =
+    (health.advisories?.length ?? 0) > 0 ? "Attention" : "Live ingestion"
   const serviceStatus = page.getByRole("link", { name: "Service status" })
   await expect(serviceStatus).toContainText(expectedSidebarStatus)
   // Reload to prove the session cookie survives a fresh page load. The

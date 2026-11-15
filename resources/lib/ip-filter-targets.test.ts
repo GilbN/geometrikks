@@ -74,7 +74,13 @@ describe("listFilterTarget", () => {
 describe("singleFilterTarget", () => {
   it("sets and clears the single value", () => {
     let current: string | undefined
-    const make = () => singleFilterTarget({ noun: "IP", value: "1.2.3.4", current, setValue: (next) => (current = next) })
+    const make = () =>
+      singleFilterTarget({
+        noun: "IP",
+        value: "1.2.3.4",
+        current,
+        setValue: (next) => (current = next),
+      })
     expect(make().state).toBeNull()
     expect(make().exclude).toBeUndefined()
     make().include?.()
@@ -90,7 +96,13 @@ describe("page filter targets", () => {
     let filters = { ...EMPTY_ACCESS_LOG_FILTERS, countryCodes: ["BE"] }
     const targets = accessLogFilterTargets(filters, (updater) => {
       filters = updater(filters)
-    })({ ip: "1.2.3.4", host: "example.com", server: null, countryCode: "BE", countryName: "Belgium" })
+    })({
+      ip: "1.2.3.4",
+      host: "example.com",
+      server: null,
+      countryCode: "BE",
+      countryName: "Belgium",
+    })
     expect(targets.map((target) => [target.noun, target.value, target.state])).toEqual([
       ["IP", "1.2.3.4", null],
       ["host", "example.com", null],

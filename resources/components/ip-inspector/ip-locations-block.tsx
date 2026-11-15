@@ -19,7 +19,9 @@ export function IpLocationsBlock({ ip }: { ip: string }) {
   if (!isLoading && !isError && rows.length === 0) return null
   return (
     <section className="space-y-1">
-      <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Also seen from</h3>
+      <h3 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Also seen from
+      </h3>
       {isLoading && <Skeleton className="h-10 w-full" />}
       {isError && <p className="text-xs text-destructive">Could not load other locations.</p>}
       {!isError && (
@@ -27,7 +29,11 @@ export function IpLocationsBlock({ ip }: { ip: string }) {
           {rows.map((r) => (
             <li key={r.locationId} className="flex items-center justify-between gap-2 text-xs">
               <span className="min-w-0 truncate">
-                <CountryFlag code={r.countryCode} name={r.countryName} className="mr-1.5 inline-block align-[-1px]" />
+                <CountryFlag
+                  code={r.countryCode}
+                  name={r.countryName}
+                  className="mr-1.5 inline-block align-[-1px]"
+                />
                 {r.city ?? r.countryName}, {r.countryCode}
               </span>
               <span className="flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground">

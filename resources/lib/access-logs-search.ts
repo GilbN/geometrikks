@@ -25,15 +25,19 @@ export const accessLogsSearchSchema = z.object({
   page: z.number().int().min(1).optional().catch(undefined),
   pageSize: z
     .number()
-    .refine((v) =>
-      ACCESS_LOGS_PAGE_SIZES.includes(v as (typeof ACCESS_LOGS_PAGE_SIZES)[number]),
-    )
+    .refine((v) => ACCESS_LOGS_PAGE_SIZES.includes(v as (typeof ACCESS_LOGS_PAGE_SIZES)[number]))
     .optional()
     .catch(undefined),
   sort: z
     .enum([
-      "timestamp", "statusCode", "bytesSent", "requestTime",
-      "method", "ipAddress", "host", "url",
+      "timestamp",
+      "statusCode",
+      "bytesSent",
+      "requestTime",
+      "method",
+      "ipAddress",
+      "host",
+      "url",
     ])
     .optional()
     .catch(undefined),

@@ -30,7 +30,6 @@ export function clampedYMax(values: ReadonlyArray<number | null | undefined>): n
   return clamped < max ? clamped : null
 }
 
-
 /** Y-axis props a chart spreads onto `<YAxis>`; empty means Recharts defaults. */
 export type YAxisScaleProps = {
   scale?: "log"
@@ -63,7 +62,9 @@ export function logAxis(
   values: ReadonlyArray<number | null | undefined>,
   { base = 10, integer = false }: { base?: 10 | 1024; integer?: boolean } = {},
 ): LogAxis {
-  const positive = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0)
+  const positive = values.filter(
+    (v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0,
+  )
   let low = 0
   let high = 1
   if (positive.length > 0) {
@@ -136,7 +137,9 @@ export function scaleSeries<T extends object, K extends keyof T & string>(
     clipValues?: ReadonlyArray<number | null | undefined>
   } = {},
 ): ScaledSeries<T, K> {
-  const values = rows.flatMap((row) => keys.map((key) => row[key] as unknown as number | null | undefined))
+  const values = rows.flatMap((row) =>
+    keys.map((key) => row[key] as unknown as number | null | undefined),
+  )
   if (scale === "log") {
     const axis = logAxis(values, options)
     const floored = floorForLog(rows, keys, axis.domain[0])

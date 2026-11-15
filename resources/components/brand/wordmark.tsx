@@ -12,7 +12,10 @@ function HagallLigature({ className }: { className?: string }) {
       strokeWidth="1.5"
       // The parent's tracking lands after the I but not after this SVG, so the
       // right margin carries the 0.13em the S would otherwise lose.
-      className={cn("inline-block h-[0.78em] w-auto ml-[0.06em] mr-[0.19em] align-baseline", className)}
+      className={cn(
+        "inline-block h-[0.78em] w-auto ml-[0.06em] mr-[0.19em] align-baseline",
+        className,
+      )}
       aria-hidden
     >
       <line x1="5" y1="0.75" x2="5" y2="13.25" />
@@ -27,13 +30,7 @@ function HagallLigature({ className }: { className?: string }) {
  * the X sound) + S, in runr. Size via className font-size; defaults suit
  * the sidebar. `sub` renders the ANALYTICS line beneath.
  */
-export function Wordmark({
-  className,
-  sub = false,
-}: {
-  className?: string
-  sub?: boolean
-}) {
+export function Wordmark({ className, sub = false }: { className?: string; sub?: boolean }) {
   return (
     <span className={cn("flex flex-col", className)}>
       <span

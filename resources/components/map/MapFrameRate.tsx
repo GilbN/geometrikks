@@ -13,7 +13,9 @@ export function MapFrameRate() {
   const side = usePhoneMapSide()
   // Held sideways the badge joins the credit in MapLibre's corner, so it
   // stays beside the credit however wide that is.
-  const corner = side ? map?.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-bottom-left") : null
+  const corner = side
+    ? map?.getContainer().querySelector<HTMLElement>(".maplibregl-ctrl-bottom-left")
+    : null
 
   useEffect(() => {
     const instance = map?.getMap()
@@ -57,7 +59,11 @@ export function MapFrameRate() {
       title="Map renders per second. Zero is normal when idle. This counter does not measure CPU usage."
       style={
         !corner && isMobile
-          ? { left: "var(--tab-bar-side)", bottom: "calc(var(--tab-bar-top) + 28px)", translate: "none" }
+          ? {
+              left: "var(--tab-bar-side)",
+              bottom: "calc(var(--tab-bar-top) + 28px)",
+              translate: "none",
+            }
           : undefined
       }
       className={cn(

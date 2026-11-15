@@ -37,13 +37,15 @@ export function timeAgo(elapsedMs: number): string {
 }
 
 export function usageTone(apiKey: ApiKeyView, now: number): UsageTone {
-  if (apiKey.lastUsedAt) return now - Date.parse(apiKey.lastUsedAt) < LIVE_WITHIN_MS ? "live" : "idle"
+  if (apiKey.lastUsedAt)
+    return now - Date.parse(apiKey.lastUsedAt) < LIVE_WITHIN_MS ? "live" : "idle"
   return now - Date.parse(apiKey.createdAt) > STALE_AFTER_MS ? "stale" : "idle"
 }
 
 export function lastUsedLabel(apiKey: ApiKeyView, now: number): string {
   if (apiKey.lastUsedAt) return `Used ${timeAgo(now - Date.parse(apiKey.lastUsedAt))}`
-  if (usageTone(apiKey, now) === "stale") return `Never used, created ${timeAgo(now - Date.parse(apiKey.createdAt))}`
+  if (usageTone(apiKey, now) === "stale")
+    return `Never used, created ${timeAgo(now - Date.parse(apiKey.createdAt))}`
   return "Never used"
 }
 
@@ -59,7 +61,11 @@ export function lastUsedShort(apiKey: ApiKeyView, now: number): string {
 }
 
 export function formatKeyDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
 }
 
 export function expiryLabel(apiKey: ApiKeyView): string {
@@ -72,7 +78,11 @@ export function expiryShort(apiKey: ApiKeyView): string {
 }
 
 /** The instant to send as `expiresAt`. A picked date lasts to the end of that day in the browser's timezone. */
-export function expiresAtFor(choice: ExpiryChoice, picked: Date | undefined, now: Date): string | null {
+export function expiresAtFor(
+  choice: ExpiryChoice,
+  picked: Date | undefined,
+  now: Date,
+): string | null {
   switch (choice) {
     case "never":
       return null
@@ -87,7 +97,15 @@ export function expiresAtFor(choice: ExpiryChoice, picked: Date | undefined, now
     }
     case "date": {
       if (!picked) throw new Error("A picked expiry needs a date.")
-      return new Date(picked.getFullYear(), picked.getMonth(), picked.getDate(), 23, 59, 59, 999).toISOString()
+      return new Date(
+        picked.getFullYear(),
+        picked.getMonth(),
+        picked.getDate(),
+        23,
+        59,
+        59,
+        999,
+      ).toISOString()
     }
   }
 }
@@ -115,7 +133,8 @@ const lowerFirst = (text: string) => `${text.charAt(0).toLowerCase()}${text.slic
 /** A phone row's second line: "Used 2 min ago · never expires". */
 export function apiKeyRowLine(apiKey: ApiKeyView, now: number): string {
   if (apiKey.expired) return expiryLabel(apiKey)
-  if (usageTone(apiKey, now) === "stale") return `Never used · created ${timeAgo(now - Date.parse(apiKey.createdAt))}`
+  if (usageTone(apiKey, now) === "stale")
+    return `Never used · created ${timeAgo(now - Date.parse(apiKey.createdAt))}`
   return `${lastUsedLabel(apiKey, now)} · ${lowerFirst(expiryLabel(apiKey))}`
 }
 
@@ -133,8 +152,10 @@ export function lastUsedValue(apiKey: ApiKeyView, now: number): string {
 
 /** What the key can do, under its name in the phone drawer. */
 export function apiKeyAccessLine(apiKey: ApiKeyView): string {
-  if (apiKey.expired) return `It stopped working on ${formatKeyDate(apiKey.expiresAt ?? apiKey.createdAt)}.`
-  if (apiKey.scope === "read_write") return "Can ban and unban IPs, run scheduler jobs and delete data."
+  if (apiKey.expired)
+    return `It stopped working on ${formatKeyDate(apiKey.expiresAt ?? apiKey.createdAt)}.`
+  if (apiKey.scope === "read_write")
+    return "Can ban and unban IPs, run scheduler jobs and delete data."
   return "Can view data and live feeds, and change nothing."
 }
 
@@ -146,19 +167,23 @@ export function createdKeyLine(apiKey: ApiKeyView): string {
 export function apiKeyNameError(name: string): string | null {
   const trimmed = name.trim()
   if (trimmed.length === 0) return "Give the key a name."
-  if (trimmed.length > API_KEY_NAME_MAX_LENGTH) return `Use ${API_KEY_NAME_MAX_LENGTH} characters or fewer.`
+  if (trimmed.length > API_KEY_NAME_MAX_LENGTH)
+    return `Use ${API_KEY_NAME_MAX_LENGTH} characters or fewer.`
   return null
 }
 
 /** The API error envelope's detail, else the fallback. */
 export function apiErrorMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === "object" && "detail" in error && typeof error.detail === "string") return error.detail
+  if (error && typeof error === "object" && "detail" in error && typeof error.detail === "string")
+    return error.detail
   return fallback
 }
 
 /** A revoke that 404s means the key is already gone, which is what the user wanted. */
 export function isNotFoundError(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && "status_code" in error && error.status_code === 404)
+  return Boolean(
+    error && typeof error === "object" && "status_code" in error && error.status_code === 404,
+  )
 }
 
 export function revokeVerb(apiKey: ApiKeyView): "Revoke" | "Remove" {

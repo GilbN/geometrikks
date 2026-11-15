@@ -1,29 +1,63 @@
 import { expect, test, type Page, type Route } from "@playwright/test"
 import type { GeoLogEntry, TopGeoIp } from "../../resources/generated/api/types.gen"
 
-test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
+test.use({
+  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+  serviceWorkers: "block",
+})
 
 const LOGGED_IP = "198.51.100.7"
 const TOP_IP = "203.0.113.9"
 
 const entry: GeoLogEntry = {
-  asOrganization: null, asn: null, city: "Oslo", countryCode: "NO", countryName: "Norway", eventCount: 3,
-  ipAddress: LOGGED_IP, lastSeen: new Date().toISOString(), latitude: 59.9, locationId: 130, longitude: 10.7,
-  postalCode: null, servers: ["a.test"], state: null, stateCode: null,
+  asOrganization: null,
+  asn: null,
+  city: "Oslo",
+  countryCode: "NO",
+  countryName: "Norway",
+  eventCount: 3,
+  ipAddress: LOGGED_IP,
+  lastSeen: new Date().toISOString(),
+  latitude: 59.9,
+  locationId: 130,
+  longitude: 10.7,
+  postalCode: null,
+  servers: ["a.test"],
+  state: null,
+  stateCode: null,
 }
-const topIp: TopGeoIp = { asOrganization: null, asn: null, city: "Oslo", countryCode: "NO", eventCount: 5, ipAddress: TOP_IP }
+const topIp: TopGeoIp = {
+  asOrganization: null,
+  asn: null,
+  city: "Oslo",
+  countryCode: "NO",
+  eventCount: 5,
+  ipAddress: TOP_IP,
+}
 const logsPage = { items: [entry], total: 1, limit: 50, offset: 0 }
-const locations = { type: "FeatureCollection", features: [{
-  type: "Feature", geometry: { type: "Point", coordinates: [10.7, 59.9] },
-  properties: { id: 130, eventCount: 3, city: "Oslo", countryCode: "NO", countryName: "Norway" },
-}] }
+const locations = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [10.7, 59.9] },
+      properties: {
+        id: 130,
+        eventCount: 3,
+        city: "Oslo",
+        countryCode: "NO",
+        countryName: "Norway",
+      },
+    },
+  ],
+}
 
 function holder() {
   const held: Route[] = []
   let holding = true
   return {
     held,
-    hold: (route: Route) => holding ? void held.push(route) : route.continue(),
+    hold: (route: Route) => (holding ? void held.push(route) : route.continue()),
     release: async (settle: (route: Route) => Promise<void>) => {
       holding = false
       await Promise.all(held.splice(0).map(settle))
@@ -34,15 +68,25 @@ function holder() {
 async function setup(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
-  expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok(),
+  ).toBe(true)
   await page.addInitScript(() => {
     localStorage.setItem("geometrikks-map-layer", "markers")
     localStorage.setItem("geometrikks-map-live", "false")
     localStorage.setItem("geometrikks-server-markers-enabled", "false")
   })
-  await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
-    version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
-  } }))
+  await page.route("**/gl/*/style.json*", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          { id: "background", type: "background", paint: { "background-color": "#111827" } },
+        ],
+      },
+    }),
+  )
   const lookup = holder()
   const geojson = holder()
   // The router keeps rendering the map until the next page's code-split
@@ -52,7 +96,9 @@ async function setup(page: Page) {
     if (new URL(route.request().url()).searchParams.has("ipAddressIn")) return lookup.hold(route)
     return route.fulfill({ json: logsPage })
   })
-  await page.route("**/api/v1/geo-events/top-ips?*", (route) => route.fulfill({ json: { items: [topIp] } }))
+  await page.route("**/api/v1/geo-events/top-ips?*", (route) =>
+    route.fulfill({ json: { items: [topIp] } }),
+  )
   await page.route("**/api/v1/geo-locations/geojson*", (route) => geojson.hold(route))
   await page.route("**/assets/analytics-*.js", (route) => analyticsChunk.hold(route))
   return { lookup, geojson, analyticsChunk }
@@ -60,12 +106,19 @@ async function setup(page: Page) {
 
 async function flyTo(page: Page, ip: string) {
   await page.goto("/geo-logs")
-  await page.getByRole("button", { name: `Actions for ${ip}`, exact: true }).first().click()
+  await page
+    .getByRole("button", { name: `Actions for ${ip}`, exact: true })
+    .first()
+    .click()
   await page.getByRole("menuitem", { name: "Fly to on the map" }).click()
   await expect(page).toHaveURL(/\/map\?/)
 }
 
-async function leaveForAnalytics(page: Page, analyticsChunk: ReturnType<typeof holder>, releaseData: () => Promise<void>) {
+async function leaveForAnalytics(
+  page: Page,
+  analyticsChunk: ReturnType<typeof holder>,
+  releaseData: () => Promise<void>,
+) {
   await page.getByRole("link", { name: "Analytics", exact: true }).click()
   await expect(page).toHaveURL(/\/analytics$/)
   await expect.poll(() => analyticsChunk.held.length).toBeGreaterThan(0)
@@ -84,7 +137,9 @@ test("leaving the map before the IP lookup returns keeps the next page", async (
   await flyTo(page, TOP_IP)
   await expect(page).toHaveURL(/focusIp=203\.0\.113\.9/)
   await expect.poll(() => lookup.held.length).toBeGreaterThan(0)
-  await leaveForAnalytics(page, analyticsChunk, () => lookup.release((route) => route.fulfill({ json: logsPage })))
+  await leaveForAnalytics(page, analyticsChunk, () =>
+    lookup.release((route) => route.fulfill({ json: logsPage })),
+  )
 })
 
 test("leaving the map before its data returns keeps the next page", async ({ page }) => {
@@ -93,7 +148,9 @@ test("leaving the map before its data returns keeps the next page", async ({ pag
   await expect(page).toHaveURL(/focus=130/)
   await expect.poll(() => geojson.held.length).toBeGreaterThan(0)
   await expect(page.locator(".maplibregl-canvas")).toBeVisible()
-  await leaveForAnalytics(page, analyticsChunk, () => geojson.release((route) => route.fulfill({ json: locations })))
+  await leaveForAnalytics(page, analyticsChunk, () =>
+    geojson.release((route) => route.fulfill({ json: locations })),
+  )
 })
 
 test("going back before the IP lookup returns keeps the previous page", async ({ page }) => {

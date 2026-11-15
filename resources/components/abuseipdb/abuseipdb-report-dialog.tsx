@@ -37,7 +37,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Toggle } from "@/components/ui/toggle"
 import { SideDrawerClose } from "@/components/map/SideDrawer"
@@ -62,7 +68,12 @@ import {
   shortAgoText,
   type AbuseScoreTone,
 } from "@/lib/abuseipdb"
-import { TIME_RANGE_PRESETS, formatNumber, type CustomTimeRange, type TimeRangeValue } from "@/lib/api"
+import {
+  TIME_RANGE_PRESETS,
+  formatNumber,
+  type CustomTimeRange,
+  type TimeRangeValue,
+} from "@/lib/api"
 import { formatTs } from "@/lib/datetime"
 import {
   useAbuseIpdbCheck,
@@ -114,7 +125,10 @@ function dateValueOf(date: Date): string {
 }
 
 /** Null for an empty or incomplete value, which only disables Send. */
-function parseAttackTime(localValue: string, prefilledIso: string | null): { iso: string } | { error: string } | null {
+function parseAttackTime(
+  localValue: string,
+  prefilledIso: string | null,
+): { iso: string } | { error: string } | null {
   if (!localValue) return null
   // In the hour a DST change repeats, one wall-clock time names two instants,
   // so an untouched prefill sends the evidence's own instant.
@@ -159,7 +173,10 @@ function prefillFrom(ipEvidence: ReportIpDto | undefined): Prefill {
 
 function networkLine(ipEvidence: ReportIpDto | undefined): string {
   if (!ipEvidence) return ""
-  const network = ipEvidence.asn != null ? `AS${ipEvidence.asn}${ipEvidence.asnOrganization ? ` ${ipEvidence.asnOrganization}` : ""}` : null
+  const network =
+    ipEvidence.asn != null
+      ? `AS${ipEvidence.asn}${ipEvidence.asnOrganization ? ` ${ipEvidence.asnOrganization}` : ""}`
+      : null
   return [network, ipEvidence.countryName ?? ipEvidence.countryCode].filter(Boolean).join(" · ")
 }
 
@@ -243,10 +260,18 @@ function CheckResult({ ip }: { ip: string }) {
         <>
           <div className="grid grid-cols-4 gap-1.5">
             <ScoreFact score={result.abuseConfidenceScore} />
-            <Fact value={formatNumber(result.totalReports)} label={result.totalReports === 1 ? "report" : "reports"} />
-            <Fact value={formatNumber(result.numDistinctUsers)} label={result.numDistinctUsers === 1 ? "reporter" : "reporters"} />
             <Fact
-              value={result.lastReportedAt ? shortAgoText(result.lastReportedAt, Date.now()) : "never"}
+              value={formatNumber(result.totalReports)}
+              label={result.totalReports === 1 ? "report" : "reports"}
+            />
+            <Fact
+              value={formatNumber(result.numDistinctUsers)}
+              label={result.numDistinctUsers === 1 ? "reporter" : "reporters"}
+            />
+            <Fact
+              value={
+                result.lastReportedAt ? shortAgoText(result.lastReportedAt, Date.now()) : "never"
+              }
               label="last report"
               title={result.lastReportedAt ? formatTs(result.lastReportedAt, "hourly") : undefined}
             />
@@ -264,9 +289,13 @@ function CheckResult({ ip }: { ip: string }) {
           )}
         </>
       ) : check.isError ? (
-        <p className="text-sm text-red-500">{errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}</p>
+        <p className="text-sm text-red-500">
+          {errorDetail(check.error, "The check failed; AbuseIPDB may be unreachable.")}
+        </p>
       ) : (
-        <p className="text-[11px] text-muted-foreground">Nothing goes to AbuseIPDB until you press Check.</p>
+        <p className="text-[11px] text-muted-foreground">
+          Nothing goes to AbuseIPDB until you press Check.
+        </p>
       )}
     </Section>
   )
@@ -292,7 +321,9 @@ function EarlierReports({
           ))}
         </ul>
       ) : error ? (
-        <p className="text-sm text-red-500">{errorDetail(error, "Could not load your earlier reports.")}</p>
+        <p className="text-sm text-red-500">
+          {errorDetail(error, "Could not load your earlier reports.")}
+        </p>
       ) : (
         <p className="text-[11px] text-muted-foreground">None from GeoMetrikks yet.</p>
       )}
@@ -375,7 +406,11 @@ function ReportForm({
     onEdit()
   }
   const toggleCategory = (id: number, pressed: boolean) => {
-    setCategories((current) => (pressed ? [...current, id].sort((first, second) => first - second) : current.filter((picked) => picked !== id)))
+    setCategories((current) =>
+      pressed
+        ? [...current, id].sort((first, second) => first - second)
+        : current.filter((picked) => picked !== id),
+    )
     edit()
   }
   const applySelection = (next: WindowSelection) => {
@@ -390,7 +425,10 @@ function ReportForm({
     else applySelection(next)
   }
 
-  const windowOptions = TIME_RANGE_PRESETS.map((preset) => ({ value: preset.value, label: rangeSubtitle(preset.value) }))
+  const windowOptions = TIME_RANGE_PRESETS.map((preset) => ({
+    value: preset.value,
+    label: rangeSubtitle(preset.value),
+  }))
   if (page.range === "custom" && page.customRange) {
     windowOptions.push({
       value: "custom",
@@ -399,7 +437,8 @@ function ReportForm({
   }
 
   const totalRequests = ipEvidence?.totalRequests ?? 0
-  const share4xx = totalRequests > 0 ? Math.round(((ipEvidence?.status4xx ?? 0) / totalRequests) * 100) : 0
+  const share4xx =
+    totalRequests > 0 ? Math.round(((ipEvidence?.status4xx ?? 0) / totalRequests) * 100) : 0
   const firstSeen = ipEvidence?.firstSeen ?? null
   const alertCount = ipEvidence?.alerts.length ?? 0
 
@@ -407,10 +446,13 @@ function ReportForm({
   const attackTime = attackDate && attackClock ? `${attackDate}T${attackClock}` : ""
   const pickedDay = localDay(attackDate)
   const parsedAttackTime = parseAttackTime(attackTime, prefill?.attackTimeIso ?? null)
-  const attackTimeError = parsedAttackTime && "error" in parsedAttackTime ? parsedAttackTime.error : null
+  const attackTimeError =
+    parsedAttackTime && "error" in parsedAttackTime ? parsedAttackTime.error : null
   const attackTimeIso = parsedAttackTime && "iso" in parsedAttackTime ? parsedAttackTime.iso : null
   const latestReport = earlierReports.data?.[0]
-  const windowOpen = latestReport !== undefined && Date.now() - Date.parse(latestReport.reportedAt) < REPORT_INTERVAL_MS
+  const windowOpen =
+    latestReport !== undefined &&
+    Date.now() - Date.parse(latestReport.reportedAt) < REPORT_INTERVAL_MS
   const canSend =
     ready &&
     prefill !== null &&
@@ -438,10 +480,13 @@ function ReportForm({
       const score = response.results[0]?.abuseConfidenceScore
       if (stillOpen()) onDone()
       toast.success(
-        score == null ? `Reported ${ip} to AbuseIPDB.` : `Reported ${ip} to AbuseIPDB. Confidence score ${score}%.`,
+        score == null
+          ? `Reported ${ip} to AbuseIPDB.`
+          : `Reported ${ip} to AbuseIPDB. Confidence score ${score}%.`,
       )
     } catch (err) {
-      if (stillOpen()) setError(errorDetail(err, "The report failed; AbuseIPDB may be unreachable."))
+      if (stillOpen())
+        setError(errorDetail(err, "The report failed; AbuseIPDB may be unreachable."))
     } finally {
       submitting.current = false
     }
@@ -452,7 +497,8 @@ function ReportForm({
       Report <span className="font-mono [overflow-wrap:anywhere]">{ip}</span> to AbuseIPDB
     </>
   )
-  const description = networkLine(ipEvidence) || (evidence.isLoading ? "Loading the evidence…" : "No network known")
+  const description =
+    networkLine(ipEvidence) || (evidence.isLoading ? "Loading the evidence…" : "No network known")
   const header = inDrawer ? (
     side ? (
       <DrawerHeader className="flex-row items-start gap-2">
@@ -484,14 +530,20 @@ function ReportForm({
     ? `${prefill.categories.length} picked from CrowdSec`
     : `${FALLBACK_CATEGORY_IDS.length} picked by default`
 
-  const remaining = status?.reports ? `${formatNumber(status.reports.remaining)} reports left today` : null
+  const remaining = status?.reports
+    ? `${formatNumber(status.reports.remaining)} reports left today`
+    : null
   const cancelButton = (
     <Button variant="outline" className={inDrawer ? "h-11" : undefined} onClick={onDone}>
       Cancel
     </Button>
   )
   const sendButton = (
-    <Button className={inDrawer ? "h-11" : undefined} disabled={!canSend} onClick={() => void send()}>
+    <Button
+      className={inDrawer ? "h-11" : undefined}
+      disabled={!canSend}
+      onClick={() => void send()}
+    >
       {submitReport.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
       Send report
     </Button>
@@ -526,7 +578,11 @@ function ReportForm({
               </NativeSelect>
             ) : (
               <Select value={selection.range} onValueChange={changeWindow}>
-                <SelectTrigger size="sm" aria-label="Evidence window" className="data-[size=sm]:h-7 text-xs font-normal normal-case tracking-normal">
+                <SelectTrigger
+                  size="sm"
+                  aria-label="Evidence window"
+                  className="data-[size=sm]:h-7 text-xs font-normal normal-case tracking-normal"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -548,12 +604,21 @@ function ReportForm({
               label="first seen"
               title={firstSeen ? localInputValue(firstSeen).replace("T", " ") : undefined}
             />
-            <Fact value={`${alertCount}${ipEvidence?.alertsTruncated ? "+" : ""}`} label="CrowdSec alerts" />
+            <Fact
+              value={`${alertCount}${ipEvidence?.alertsTruncated ? "+" : ""}`}
+              label="CrowdSec alerts"
+            />
           </div>
           {evidence.isError ? (
-            <p className="text-sm text-red-500">{errorDetail(evidence.error, "Could not load the evidence for this window.")}</p>
+            <p className="text-sm text-red-500">
+              {errorDetail(evidence.error, "Could not load the evidence for this window.")}
+            </p>
           ) : (
-            !ready && <p className="text-[11px] text-muted-foreground">Loading the evidence for this window…</p>
+            !ready && (
+              <p className="text-[11px] text-muted-foreground">
+                Loading the evidence for this window…
+              </p>
+            )
           )}
         </Section>
 
@@ -585,7 +650,11 @@ function ReportForm({
           </div>
         </Section>
 
-        <Section label="Comment" labelFor="abuseipdb-comment" aside={<span>public on AbuseIPDB</span>}>
+        <Section
+          label="Comment"
+          labelFor="abuseipdb-comment"
+          aside={<span>public on AbuseIPDB</span>}
+        >
           <Textarea
             id="abuseipdb-comment"
             value={comment}
@@ -599,7 +668,9 @@ function ReportForm({
           />
           <div className="flex flex-wrap justify-between gap-2 text-[11px] text-muted-foreground">
             <span>
-              {report && report.redactions > 0 && `Your hosts and addresses scrubbed: ${report.redactions} values`}
+              {report &&
+                report.redactions > 0 &&
+                `Your hosts and addresses scrubbed: ${report.redactions} values`}
             </span>
             <span className={cn(length > MAX_COMMENT_LENGTH && "text-red-500")}>
               {length} / {MAX_COMMENT_LENGTH}
@@ -626,7 +697,11 @@ function ReportForm({
                     <CalendarDays />
                     <span className="sr-only">Attack date </span>
                     {pickedDay
-                      ? pickedDay.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+                      ? pickedDay.toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
                       : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -668,18 +743,28 @@ function ReportForm({
                 )}
               />
             </div>
-            {prefill && <span className="text-[11px] text-muted-foreground">{prefill.attackTimeSource}</span>}
+            {prefill && (
+              <span className="text-[11px] text-muted-foreground">{prefill.attackTimeSource}</span>
+            )}
           </div>
           {attackTimeError ? (
             <p className="text-xs text-red-500">{attackTimeError}</p>
           ) : (
-            attackTimeIso && <p className="text-[11px] text-muted-foreground">sent as {utcMinutes(attackTimeIso)} UTC</p>
+            attackTimeIso && (
+              <p className="text-[11px] text-muted-foreground">
+                sent as {utcMinutes(attackTimeIso)} UTC
+              </p>
+            )
           )}
         </Section>
 
         {status?.enabled && <CheckResult ip={ip} />}
 
-        <EarlierReports reports={earlierReports.data} loading={earlierReports.isLoading} error={earlierReports.error} />
+        <EarlierReports
+          reports={earlierReports.data}
+          loading={earlierReports.isLoading}
+          error={earlierReports.error}
+        />
 
         {windowOpen && (
           <p className="text-xs text-muted-foreground">
@@ -691,7 +776,9 @@ function ReportForm({
 
       {inDrawer ? (
         <DrawerFooter>
-          {remaining && <span className="text-center text-[11px] text-muted-foreground">{remaining}</span>}
+          {remaining && (
+            <span className="text-center text-[11px] text-muted-foreground">{remaining}</span>
+          )}
           {sendButton}
           {cancelButton}
         </DrawerFooter>
@@ -705,7 +792,10 @@ function ReportForm({
         </DialogFooter>
       )}
 
-      <AlertDialog open={pendingSelection !== null} onOpenChange={(next) => !next && setPendingSelection(null)}>
+      <AlertDialog
+        open={pendingSelection !== null}
+        onOpenChange={(next) => !next && setPendingSelection(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Discard your changes?</AlertDialogTitle>
@@ -754,7 +844,9 @@ export function AbuseIpdbReportDialog({
     setWasOpen(open)
     if (open) setSession((current) => current + 1)
   }
-  const drawer = usePhoneDrawer("abuseipdb-report", open, () => onOpenChange(false), { keepWhileOpen: edited })
+  const drawer = usePhoneDrawer("abuseipdb-report", open, () => onOpenChange(false), {
+    keepWhileOpen: edited,
+  })
   const restoreFocus = (event: Event) => {
     if (!returnFocusTo?.current) return
     event.preventDefault()
@@ -795,7 +887,10 @@ export function AbuseIpdbReportDialog({
 
   return (
     <Dialog open={drawer.open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-xl" onCloseAutoFocus={restoreFocus}>
+      <DialogContent
+        className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-xl"
+        onCloseAutoFocus={restoreFocus}
+      >
         {form}
       </DialogContent>
     </Dialog>

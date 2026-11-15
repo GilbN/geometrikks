@@ -62,7 +62,12 @@ describe("activeTab", () => {
 })
 
 describe("moreBadge", () => {
-  const quiet = { variant: "running" as const, changelogUnseen: false, releaseUnseen: false, reloadPending: false }
+  const quiet = {
+    variant: "running" as const,
+    changelogUnseen: false,
+    releaseUnseen: false,
+    reloadPending: false,
+  }
   it("prefers amber over accent", () => {
     expect(moreBadge({ ...quiet, variant: "degraded", changelogUnseen: true })).toBe("amber")
     expect(moreBadge({ ...quiet, variant: "offline" })).toBe("amber")

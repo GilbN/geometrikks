@@ -21,7 +21,10 @@ export function dropAsnFreshness(
   now: number = Date.now(),
 ): { updatedAt: string | null; stale: boolean } {
   const updatedAt = dropLists?.feeds.find((feedView) => feedView.feed === "asn")?.fetchedAt ?? null
-  return { updatedAt, stale: updatedAt !== null && now - Date.parse(updatedAt) > DROP_STALE_AFTER_MS }
+  return {
+    updatedAt,
+    stale: updatedAt !== null && now - Date.parse(updatedAt) > DROP_STALE_AFTER_MS,
+  }
 }
 
 /** The credit line, with the last successful download in the reader's local time. */
@@ -41,17 +44,25 @@ export function dropTrafficSubtitle(
   coverage: number,
 ): string {
   const source =
-    dropAsnCount === null ? "listed ASNs" : `${formatNumber(dropAsnCount)} listed ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
+    dropAsnCount === null
+      ? "listed ASNs"
+      : `${formatNumber(dropAsnCount)} listed ${dropAsnCount === 1 ? "ASN" : "ASNs"}`
   if (coverage < 99.5) {
     return `${formatNumber(dropHits)} of ${formatNumber(classified)} classified requests (${coverage.toFixed(0)}% of range), from ${source}`
   }
   return `${formatNumber(dropHits)} requests from ${source}`
 }
 
-const FEED_RECORD_LABELS: Record<string, string> = { v4: "IPv4 networks", v6: "IPv6 networks", asn: "ASNs" }
+const FEED_RECORD_LABELS: Record<string, string> = {
+  v4: "IPv4 networks",
+  v6: "IPv6 networks",
+  asn: "ASNs",
+}
 
 /** One labelled record count per downloaded feed, skipping feeds that never downloaded. */
-export function dropFeedRecords(feeds: readonly DropFeedView[]): { label: string; count: string }[] {
+export function dropFeedRecords(
+  feeds: readonly DropFeedView[],
+): { label: string; count: string }[] {
   return feeds
     .filter((feedView) => feedView.recordCount !== null)
     .map((feedView) => ({
@@ -74,19 +85,30 @@ export function dropListsErrorLines(feeds: readonly DropFeedView[]): string[] {
     feedLabels.push(FEED_LABELS[feedView.feed] ?? feedView.feed)
     feedLabelsByError.set(feedView.lastError, feedLabels)
   }
-  return [...feedLabelsByError].map(([lastError, feedLabels]) => `Last error (${feedLabels.join(", ")}): ${lastError}`)
+  return [...feedLabelsByError].map(
+    ([lastError, feedLabels]) => `Last error (${feedLabels.join(", ")}): ${lastError}`,
+  )
 }
 
 /** True once the ASN list has downloaded, which is what the DROP ASN badge reads. */
-export function dropAsnsLoaded(dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined): boolean {
-  return dropLists?.feeds.some((feedView) => feedView.feed === "asn" && feedView.fetchedAt !== null) ?? false
+export function dropAsnsLoaded(
+  dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined,
+): boolean {
+  return (
+    dropLists?.feeds.some((feedView) => feedView.feed === "asn" && feedView.fetchedAt !== null) ??
+    false
+  )
 }
 
 /** True once a network list (v4 or v6) has downloaded. An ASN list alone has no networks to show traffic for. */
-export function dropNetworksLoaded(dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined): boolean {
+export function dropNetworksLoaded(
+  dropLists: Pick<DropListsAboutView, "feeds"> | null | undefined,
+): boolean {
   return (
-    dropLists?.feeds.some((feedView) => (feedView.feed === "v4" || feedView.feed === "v6") && feedView.fetchedAt !== null) ??
-    false
+    dropLists?.feeds.some(
+      (feedView) =>
+        (feedView.feed === "v4" || feedView.feed === "v6") && feedView.fetchedAt !== null,
+    ) ?? false
   )
 }
 
@@ -99,7 +121,9 @@ export function dropFeedFailing(feedView: DropFeedView): boolean {
 
 export type DropListsState = "current" | "failing" | "stale" | "not-downloaded"
 
-export function dropListsState(dropLists: Pick<DropListsAboutView, "loaded" | "stale" | "feeds">): DropListsState {
+export function dropListsState(
+  dropLists: Pick<DropListsAboutView, "loaded" | "stale" | "feeds">,
+): DropListsState {
   if (!dropLists.loaded) return "not-downloaded"
   if (dropLists.stale) return "stale"
   return dropLists.feeds.some(dropFeedFailing) ? "failing" : "current"
@@ -209,12 +233,27 @@ function parseIpv6(text: string): bigint | null {
   return groups === null ? null : ipv6Value(groups)
 }
 
-type RangeEntry<Address extends number | bigint> = { start: Address; end: Address; dropNetwork: DropNetworkMatch }
+type RangeEntry<Address extends number | bigint> = {
+  start: Address
+  end: Address
+  dropNetwork: DropNetworkMatch
+}
 
-function buildRanges<Address extends number | bigint>(entries: RangeEntry<Address>[], below: Address): DropRanges<Address> {
+function buildRanges<Address extends number | bigint>(
+  entries: RangeEntry<Address>[],
+  below: Address,
+): DropRanges<Address> {
   // Wider networks first on a shared start, so the rightmost candidate is the narrowest.
   entries.sort((left, right) =>
-    left.start < right.start ? -1 : left.start > right.start ? 1 : left.end > right.end ? -1 : left.end < right.end ? 1 : 0,
+    left.start < right.start
+      ? -1
+      : left.start > right.start
+        ? 1
+        : left.end > right.end
+          ? -1
+          : left.end < right.end
+            ? 1
+            : 0,
   )
   const reachEnds: Address[] = []
   let reach = below
@@ -257,7 +296,10 @@ export function buildDropIndex(dropNetworks: readonly DropNetworkMatch[]): DropI
   return { v4: buildRanges(v4Entries, -1), v6: buildRanges(v6Entries, -1n) }
 }
 
-function findRange<Address extends number | bigint>(ranges: DropRanges<Address>, value: Address): DropNetworkMatch | null {
+function findRange<Address extends number | bigint>(
+  ranges: DropRanges<Address>,
+  value: Address,
+): DropNetworkMatch | null {
   let low = 0
   let high = ranges.starts.length - 1
   let candidate = -1
@@ -289,7 +331,14 @@ export function matchDropNetwork(dropIndex: DropIndex, ip: string): DropNetworkM
   const zoneStart = ip.indexOf("%")
   const groups = parseIpv6Groups(zoneStart === -1 ? ip : ip.slice(0, zoneStart))
   if (groups === null) return null
-  if (groups[5] === 0xffff && groups[0] === 0 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0 && groups[4] === 0) {
+  if (
+    groups[5] === 0xffff &&
+    groups[0] === 0 &&
+    groups[1] === 0 &&
+    groups[2] === 0 &&
+    groups[3] === 0 &&
+    groups[4] === 0
+  ) {
     return findRange(dropIndex.v4, groups[6] * 0x10000 + groups[7])
   }
   return findRange(dropIndex.v6, ipv6Value(groups))

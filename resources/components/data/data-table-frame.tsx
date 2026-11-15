@@ -60,7 +60,8 @@ export function DataTableFrame({
   useLayoutEffect(() => {
     const main = stickyHeader ? header?.closest("main") : null
     if (!header || !main) return
-    const publish = () => main.style.setProperty("--table-header-height", `${header.getBoundingClientRect().height}px`)
+    const publish = () =>
+      main.style.setProperty("--table-header-height", `${header.getBoundingClientRect().height}px`)
     publish()
     const observer = new ResizeObserver(publish)
     observer.observe(header)
@@ -75,7 +76,8 @@ export function DataTableFrame({
   // <main> would also cover the sticky bars, and tapping one would scroll.
   const surface = cn(
     FRAME_SURFACE,
-    stickyHeader && "overflow-clip [&_tbody_*]:scroll-mt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]",
+    stickyHeader &&
+      "overflow-clip [&_tbody_*]:scroll-mt-[calc(var(--sticky-top,0px)+var(--table-header-height,0px))]",
     className,
   )
   return (
@@ -102,17 +104,27 @@ export function DataTableFrame({
               {title}
             </h2>
             {count !== undefined && (
-              <span className="text-xs tabular-nums text-muted-foreground">{count.toLocaleString()}</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {count.toLocaleString()}
+              </span>
             )}
           </div>
           {description && (
-            <p className={stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground max-md:sr-only"}>
+            <p
+              className={
+                stickyHeader ? "sr-only" : "mt-0.5 text-[13px] text-muted-foreground max-md:sr-only"
+              }
+            >
               {description}
             </p>
           )}
         </div>
         {tools && (
-          <div className={cn("flex min-w-0 flex-wrap items-center gap-2", stickyHeader && "shrink-0")}>{tools}</div>
+          <div
+            className={cn("flex min-w-0 flex-wrap items-center gap-2", stickyHeader && "shrink-0")}
+          >
+            {tools}
+          </div>
         )}
       </header>
 

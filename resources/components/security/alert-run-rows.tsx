@@ -12,7 +12,12 @@ import { TableCell, TableRow } from "@/components/ui/table"
 import { rowActivation } from "@/components/data/row-activation"
 import { ScenarioLabel } from "@/components/crowdsec/scenario-label"
 import { AlertKindBadge } from "@/components/security/alert-kind-badge"
-import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell } from "@/components/security/two-line-cell"
+import {
+  ExpandChevron,
+  ROW_TARGET_VALUE_CLASS,
+  RowTarget,
+  TwoLineCell,
+} from "@/components/security/two-line-cell"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import type { AlertView } from "@/lib/api"
@@ -74,25 +79,26 @@ function AlertRow({
   ) : (
     <ScenarioLabel scenario={alert.scenario} />
   )
-  const source = alert.scope === "Ip" ? (
-    <>
-      <IpLabel
-        ip={alert.value}
-        className={narrow ? cn("ml-0", ROW_TARGET_VALUE_CLASS) : undefined}
-        title={(decisionType) =>
-          `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
-        }
-      />
-      <IpActionsMenu
-        ip={alert.value}
-        countryCode={alert.countryCode}
-        countryName={alert.countryName}
-        asOrganization={alert.asName}
-      />
-    </>
-  ) : (
-    <span className={narrow ? ROW_TARGET_VALUE_CLASS : undefined}>{alert.value}</span>
-  )
+  const source =
+    alert.scope === "Ip" ? (
+      <>
+        <IpLabel
+          ip={alert.value}
+          className={narrow ? cn("ml-0", ROW_TARGET_VALUE_CLASS) : undefined}
+          title={(decisionType) =>
+            `This IP has an active ${decisionType} decision right now. It may come from a different alert.`
+          }
+        />
+        <IpActionsMenu
+          ip={alert.value}
+          countryCode={alert.countryCode}
+          countryName={alert.countryName}
+          asOrganization={alert.asName}
+        />
+      </>
+    ) : (
+      <span className={narrow ? ROW_TARGET_VALUE_CLASS : undefined}>{alert.value}</span>
+    )
 
   if (narrow) {
     const time = (
@@ -101,7 +107,12 @@ function AlertRow({
       </span>
     )
     const outcomeText = (
-      <span className={cn("whitespace-normal text-right text-xs [overflow-wrap:anywhere]", outcome.muted && "text-muted-foreground")}>
+      <span
+        className={cn(
+          "whitespace-normal text-right text-xs [overflow-wrap:anywhere]",
+          outcome.muted && "text-muted-foreground",
+        )}
+      >
         {outcome.text}
       </span>
     )
@@ -121,7 +132,9 @@ function AlertRow({
             top={
               <>
                 <span className="flex min-w-0 items-center gap-1.5">{scenarioLine}</span>
-                <span className="ml-auto flex max-w-[60%] shrink-0 justify-end pl-1">{outcomeText}</span>
+                <span className="ml-auto flex max-w-[60%] shrink-0 justify-end pl-1">
+                  {outcomeText}
+                </span>
               </>
             }
             bottom={<span className="truncate text-muted-foreground">{alert.machineId}</span>}
@@ -147,15 +160,15 @@ function AlertRow({
   }
 
   return (
-    <TableRow
-      {...activation}
-      className={cn(activation?.className, className)}
-    >
+    <TableRow {...activation} className={cn(activation?.className, className)}>
       <TableCell className={cn("whitespace-nowrap text-muted-foreground", timeClassName)}>
         {timeLead}
         {new Date(alert.createdAt).toLocaleString()}
       </TableCell>
-      <TableCell className="max-w-[280px]" title={scenarioLabel ? undefined : alertSummary(alert.message)}>
+      <TableCell
+        className="max-w-[280px]"
+        title={scenarioLabel ? undefined : alertSummary(alert.message)}
+      >
         <span className="flex items-center gap-1.5">
           {scenario}
           <AlertKindBadge kind={alert.kind} scenario={alert.scenario} className="shrink-0" />
@@ -166,25 +179,27 @@ function AlertRow({
       <TableCell>
         {alert.countryCode || alert.countryName ? (
           <CountryLabel code={alert.countryCode} name={alert.countryName} />
-        ) : "-"}
+        ) : (
+          "-"
+        )}
       </TableCell>
       <TableCell className="max-w-[160px] truncate" title={alert.asName ?? undefined}>
         {alert.asName ?? "-"}
       </TableCell>
-      <TableCell className="text-muted-foreground">
-        {alert.machineId ?? "-"}
-      </TableCell>
-      <TableCell className="text-right tabular-nums">
-        {alert.eventsCount}
-      </TableCell>
-      <TableCell className={cn(outcome.muted && "text-muted-foreground")}>
-        {outcome.text}
-      </TableCell>
+      <TableCell className="text-muted-foreground">{alert.machineId ?? "-"}</TableCell>
+      <TableCell className="text-right tabular-nums">{alert.eventsCount}</TableCell>
+      <TableCell className={cn(outcome.muted && "text-muted-foreground")}>{outcome.text}</TableCell>
     </TableRow>
   )
 }
 
-export function AlertRunRows({ run: alertRun, open, narrow = false, onToggle, onOpenAlert }: Props) {
+export function AlertRunRows({
+  run: alertRun,
+  open,
+  narrow = false,
+  onToggle,
+  onOpenAlert,
+}: Props) {
   const [newest] = alertRun.alerts
   const runSize = alertRun.alerts.length
   if (runSize === 1) {
@@ -201,7 +216,9 @@ export function AlertRunRows({ run: alertRun, open, narrow = false, onToggle, on
         scenarioLabel={runScenarioLabel(alertRun)}
         timeLead={<ExpandChevron open={open} />}
         scenarioTrail={
-          <Badge variant="secondary" className="shrink-0 tabular-nums">×{runSize}</Badge>
+          <Badge variant="secondary" className="shrink-0 tabular-nums">
+            ×{runSize}
+          </Badge>
         }
       />
       {open &&

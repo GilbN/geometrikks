@@ -21,7 +21,18 @@ import { InspectIpButton } from "@/components/ip-inspector/inspect-ip-button"
 import { AbuseIpdbBlacklistPopupRow } from "./AbuseIpdbBlacklistPopupRow"
 import { DropPopupRow } from "./DropPopupRow"
 import { POPUP_OFFSET, POPUP_ROW_ICON_STYLE, PopupCard, PopupRow as Row } from "./PopupCard"
-import { ArrowDownToLine, Building2, Globe, Link2, MapPin, MapPinOff, MonitorSmartphone, Network, Server, Timer } from "lucide-react"
+import {
+  ArrowDownToLine,
+  Building2,
+  Globe,
+  Link2,
+  MapPin,
+  MapPinOff,
+  MonitorSmartphone,
+  Network,
+  Server,
+  Timer,
+} from "lucide-react"
 import { MapDetailPanel, PanelInspectButton } from "./MapDetailPanel"
 import { IpStatusDetails } from "./IpStatusDetails"
 import { IpLabel } from "@/components/ip-actions/ip-label"
@@ -109,25 +120,60 @@ function LiveRequestDetail({
       />
       <DropPopupRow ip={request.ip} />
       <AbuseIpdbBlacklistPopupRow ip={request.ip} />
-      {request.server && <Row label="Server" icon={<Server style={POPUP_ROW_ICON_STYLE} />} value={request.server} />}
+      {request.server && (
+        <Row label="Server" icon={<Server style={POPUP_ROW_ICON_STYLE} />} value={request.server} />
+      )}
       <Row
         label="Location"
         icon={<MapPin style={POPUP_ROW_ICON_STYLE} />}
         value={
           <CountryLabel code={request.countryCode}>
-            {[request.city, request.countryCode && countryLabel(request.countryCode)].filter(Boolean).join(", ") || "Unknown"}
+            {[request.city, request.countryCode && countryLabel(request.countryCode)]
+              .filter(Boolean)
+              .join(", ") || "Unknown"}
           </CountryLabel>
         }
       />
-      {asnText(log) && <Row label="ASN" icon={<Building2 style={POPUP_ROW_ICON_STYLE} />} value={asnText(log)} />}
-      {!request.coordinates && <Row label="Geo" icon={<MapPinOff style={POPUP_ROW_ICON_STYLE} />} value="No GeoIP match" />}
-      {log && <Row label="Host" icon={<Globe style={POPUP_ROW_ICON_STYLE} />} value={log.host ?? "-"} />}
-      {log && <Row label="Bytes" icon={<ArrowDownToLine style={POPUP_ROW_ICON_STYLE} />} value={formatBytes(log.bytes_sent)} />}
-      {log && <Row label="Time" icon={<Timer style={POPUP_ROW_ICON_STYLE} />} value={formatDurationOrNa(log.request_time)} />}
-      {log?.referrer && <Row label="Referrer" icon={<Link2 style={POPUP_ROW_ICON_STYLE} />} value={log.referrer} />}
-      {log?.user_agent && <Row label="Agent" icon={<MonitorSmartphone style={POPUP_ROW_ICON_STYLE} />} value={log.user_agent} />}
+      {asnText(log) && (
+        <Row label="ASN" icon={<Building2 style={POPUP_ROW_ICON_STYLE} />} value={asnText(log)} />
+      )}
+      {!request.coordinates && (
+        <Row label="Geo" icon={<MapPinOff style={POPUP_ROW_ICON_STYLE} />} value="No GeoIP match" />
+      )}
+      {log && (
+        <Row label="Host" icon={<Globe style={POPUP_ROW_ICON_STYLE} />} value={log.host ?? "-"} />
+      )}
+      {log && (
+        <Row
+          label="Bytes"
+          icon={<ArrowDownToLine style={POPUP_ROW_ICON_STYLE} />}
+          value={formatBytes(log.bytes_sent)}
+        />
+      )}
+      {log && (
+        <Row
+          label="Time"
+          icon={<Timer style={POPUP_ROW_ICON_STYLE} />}
+          value={formatDurationOrNa(log.request_time)}
+        />
+      )}
+      {log?.referrer && (
+        <Row label="Referrer" icon={<Link2 style={POPUP_ROW_ICON_STYLE} />} value={log.referrer} />
+      )}
+      {log?.user_agent && (
+        <Row
+          label="Agent"
+          icon={<MonitorSmartphone style={POPUP_ROW_ICON_STYLE} />}
+          value={log.user_agent}
+        />
+      )}
 
-      <IpBanControls ip={request.ip} initialDecision={request.decisionType} variant="footer" showBadge={false} />
+      <IpBanControls
+        ip={request.ip}
+        initialDecision={request.decisionType}
+        variant="footer"
+        showBadge={false}
+      />
     </PopupCard>
   )
 }
@@ -161,7 +207,12 @@ export function LiveRequestPopup({
       maxWidth="300px"
       style={{ background: "transparent" }}
     >
-      <LiveRequestDetail request={request} onClose={onClose} onOpenAlert={onOpenAlert} popupRef={popupRef} />
+      <LiveRequestDetail
+        request={request}
+        onClose={onClose}
+        onOpenAlert={onOpenAlert}
+        popupRef={popupRef}
+      />
     </Popup>
   )
 }
@@ -191,7 +242,11 @@ export function LiveRequestCard({
 
 /** One live request on a phone, in a MapDetailPanel. A request with no GeoIP
  *  match has no point, so the map stays where it is. */
-export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
+export function LiveRequestPanel({
+  request,
+  onClose,
+  onOpenAlert,
+}: {
   request: LiveRequest
   onClose: () => void
   onOpenAlert: (decision: DecisionRef) => void
@@ -209,7 +264,11 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
       onClose={onClose}
       icon={<StatusChip request={request} />}
       title={log?.method ?? "-"}
-      aside={<span className="shrink-0 text-sm tabular-nums text-muted-foreground">{new Date(request.timestamp).toLocaleTimeString()}</span>}
+      aside={
+        <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+          {new Date(request.timestamp).toLocaleTimeString()}
+        </span>
+      }
       footer={
         <>
           <PanelInspectButton ip={request.ip} />
@@ -221,10 +280,20 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
         {log?.url ?? "No access log url data for this event"}
       </p>
       <div className="mb-1 flex items-center gap-1 border-b border-border/60 pb-3">
-        <CopyIpButton ip={request.ip} className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5" />
+        <CopyIpButton
+          ip={request.ip}
+          className="-ml-3 size-11 shrink-0 [&_svg:not([class*='size-'])]:size-5"
+        />
         <IpStatusDetails
           ip={request.ip}
-          context={[[request.city, request.countryCode && countryLabel(request.countryCode)].filter(Boolean).join(", "), asn].filter(Boolean).join(" · ")}
+          context={[
+            [request.city, request.countryCode && countryLabel(request.countryCode)]
+              .filter(Boolean)
+              .join(", "),
+            asn,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
           initialDecision={request.decisionType}
           onOpenAlert={onOpenAlert}
         >
@@ -242,7 +311,9 @@ export function LiveRequestPanel({ request, onClose, onOpenAlert }: {
           label="Location"
           value={
             <CountryLabel code={request.countryCode}>
-              {[request.city, request.countryCode && countryLabel(request.countryCode)].filter(Boolean).join(", ") || "Unknown"}
+              {[request.city, request.countryCode && countryLabel(request.countryCode)]
+                .filter(Boolean)
+                .join(", ") || "Unknown"}
             </CountryLabel>
           }
         />

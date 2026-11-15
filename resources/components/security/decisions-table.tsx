@@ -37,7 +37,12 @@ const PAGE_SIZES = [10, 25, 50, 100] as const
 const ORIGIN_SCOPES = [
   // undefined origins -> the server's local-origins default
   { key: "local", label: "Local", shortLabel: "Local", origins: undefined },
-  { key: "all", label: "All origins", shortLabel: "All", origins: "crowdsec,cscli,geometrikks,CAPI,lists" },
+  {
+    key: "all",
+    label: "All origins",
+    shortLabel: "All",
+    origins: "crowdsec,cscli,geometrikks,CAPI,lists",
+  },
   { key: "capi", label: "Crowd (CAPI)", shortLabel: "Crowd", origins: "CAPI,lists" },
 ] as const
 
@@ -76,12 +81,15 @@ export function DecisionsTable() {
   const singleMatch = searchesEveryOrigin && total === 1 && !isPlaceholderData
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const colCount = narrow ? 1 : status?.writeEnabled ? 9 : 8
-  const searchHint = q === "" ? "" : decisionSearchHint(searchesEveryOrigin, data, isPlaceholderData)
+  const searchHint =
+    q === "" ? "" : decisionSearchHint(searchesEveryOrigin, data, isPlaceholderData)
 
   return (
     <Card ref={layoutRef} className="py-4 max-md:gap-0 max-md:pt-3">
       <CardHeader className="flex flex-row flex-wrap items-center gap-2 pb-2 max-md:pb-2.5">
-        <CardTitle className="mr-auto max-md:basis-full text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Active decisions</CardTitle>
+        <CardTitle className="mr-auto max-md:basis-full text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Active decisions
+        </CardTitle>
         {/* One element on every width, so rotating a phone keeps an open Ban IP
             dialog. Phones give the title its own line and put the button at the
             end of the tabs' row. */}
@@ -157,7 +165,9 @@ export function DecisionsTable() {
               : "sr-only max-md:order-3"
           }
         >
-          {searchesEveryOrigin && searchHint && <Info aria-hidden className="mt-px size-3.5 shrink-0" />}
+          {searchesEveryOrigin && searchHint && (
+            <Info aria-hidden className="mt-px size-3.5 shrink-0" />
+          )}
           {searchHint}
         </p>
       </CardHeader>
@@ -211,21 +221,17 @@ export function DecisionsTable() {
                   ))}
               {!isLoading && isError && !data && (
                 <TableRow>
-                  <TableCell
-                    colSpan={colCount}
-                    className="h-24 text-center text-destructive"
-                  >
+                  <TableCell colSpan={colCount} className="h-24 text-center text-destructive">
                     Failed to load decisions; the CrowdSec LAPI may be unreachable.
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && !isError && !isPlaceholderData && total === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={colCount}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    {q ? `No active decisions match "${q}".` : "No active decisions for this origin scope."}
+                  <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
+                    {q
+                      ? `No active decisions match "${q}".`
+                      : "No active decisions for this origin scope."}
                   </TableCell>
                 </TableRow>
               )}
@@ -270,7 +276,10 @@ function decisionSearchHint(
       data.items.length === data.total
         ? data.items.reduce((sum, group) => sum + group.decisionCount, 0)
         : undefined
-    const counts = decisions === undefined ? plural(data.total, "target") : `${plural(data.total, "target")}, ${plural(decisions, "decision")}`
+    const counts =
+      decisions === undefined
+        ? plural(data.total, "target")
+        : `${plural(data.total, "target")}, ${plural(decisions, "decision")}`
     return `${lead} ${counts}.`
   }
   const rule = "Matches scenario names and the start of an IP or range."

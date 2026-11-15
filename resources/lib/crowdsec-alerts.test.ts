@@ -54,7 +54,12 @@ const HTTP_META = {
 
 describe("hasHttpEvents", () => {
   it("is true when any event carries an http_path", () => {
-    expect(hasHttpEvents([{ timestamp: "", meta: { log_type: "ssh" } }, { timestamp: "", meta: HTTP_META }])).toBe(true)
+    expect(
+      hasHttpEvents([
+        { timestamp: "", meta: { log_type: "ssh" } },
+        { timestamp: "", meta: HTTP_META },
+      ]),
+    ).toBe(true)
   })
 
   it("is false for non-HTTP scenarios such as ssh-bf", () => {
@@ -108,11 +113,14 @@ describe("alertSummary", () => {
   it("rewrites CrowdSec's overflow message without the nanoseconds and the Go timestamp", () => {
     const message =
       "Ip 3.82.141.143 performed 'crowdsecurity/http-probing' (11 events over 9.693947574s) at 2026-09-19 23:43:21.350888026 +0000 UTC"
-    expect(alertSummary(message)).toBe("IP 3.82.141.143 triggered this scenario with 11 events over 9.7 s.")
+    expect(alertSummary(message)).toBe(
+      "IP 3.82.141.143 triggered this scenario with 11 events over 9.7 s.",
+    )
   })
 
   it("uses the singular for one event", () => {
-    const message = "Ip 1.2.3.4 performed 'crowdsecurity/CVE-2017-9841' (1 events over 0s) at 2026-09-19 23:43:21 +0000 UTC"
+    const message =
+      "Ip 1.2.3.4 performed 'crowdsecurity/CVE-2017-9841' (1 events over 0s) at 2026-09-19 23:43:21 +0000 UTC"
     expect(alertSummary(message)).toBe("IP 1.2.3.4 triggered this scenario with 1 event.")
   })
 
@@ -192,12 +200,18 @@ describe("kindLabel", () => {
 
 describe("alertBadge", () => {
   it("marks a bot-detection alert as a rejection", () => {
-    expect(alertBadge("bot-detection", "crowdsecurity/rejected-browser-submission")?.label).toBe("Bot rejected")
+    expect(alertBadge("bot-detection", "crowdsecurity/rejected-browser-submission")?.label).toBe(
+      "Bot rejected",
+    )
   })
 
   it("marks a ban from any bot challenge scenario as a bot ban", () => {
-    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-too-many-requests")?.label).toBe("Bot ban")
-    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-something-new")?.label).toBe("Bot ban")
+    expect(
+      alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-too-many-requests")?.label,
+    ).toBe("Bot ban")
+    expect(alertBadge("crowdsec", "crowdsecurity/appsec-bot-challenge-something-new")?.label).toBe(
+      "Bot ban",
+    )
   })
 
   it("falls back to the kind badge", () => {
@@ -251,13 +265,17 @@ describe("alertSummary for bot-detection messages", () => {
   it("rewrites a failed submission with its reason", () => {
     const message =
       "WAF bot-detection: 1.2.3.4 failed by crowdsecurity/rejected-browser-submission (invalid HMAC in challenge response)"
-    expect(alertSummary(message)).toBe("Browser challenge failed: invalid HMAC in challenge response.")
+    expect(alertSummary(message)).toBe(
+      "Browser challenge failed: invalid HMAC in challenge response.",
+    )
   })
 
   it("copes with a message without a detail", () => {
-    expect(alertSummary("WAF bot-detection: 1.2.3.4 rejected by crowdsecurity/rejected-browser-submission")).toBe(
-      "Browser challenge rejected.",
-    )
+    expect(
+      alertSummary(
+        "WAF bot-detection: 1.2.3.4 rejected by crowdsecurity/rejected-browser-submission",
+      ),
+    ).toBe("Browser challenge rejected.")
   })
 })
 
@@ -340,8 +358,12 @@ describe("shortFingerprint", () => {
 
 describe("alertDescription", () => {
   it("uses the singular for one event", () => {
-    expect(alertDescription({ id: 13087, createdAt: "2026-09-26T12:33:42Z", eventsCount: 1 })).toMatch(/· 1 event$/)
-    expect(alertDescription({ id: 7, createdAt: "2026-09-26T12:33:42Z", eventsCount: 6 })).toMatch(/· 6 events$/)
+    expect(
+      alertDescription({ id: 13087, createdAt: "2026-09-26T12:33:42Z", eventsCount: 1 }),
+    ).toMatch(/· 1 event$/)
+    expect(alertDescription({ id: 7, createdAt: "2026-09-26T12:33:42Z", eventsCount: 6 })).toMatch(
+      /· 6 events$/,
+    )
   })
 })
 
@@ -388,7 +410,9 @@ describe("alertHistoryFooter", () => {
   })
 
   it("keeps the pause and Back to newest after paging to the end", () => {
-    expect(alertHistoryFooter({ ...base, rowCount: 120, pageCount: 3, hasNextPage: false })).toEqual({
+    expect(
+      alertHistoryFooter({ ...base, rowCount: 120, pageCount: 3, hasNextPage: false }),
+    ).toEqual({
       text: `Showing 120 alerts. No older alerts in this window. ${pause}`,
       showLoadOlder: false,
       showBackToNewest: true,
@@ -405,20 +429,32 @@ describe("alertHistoryFooter", () => {
   })
 
   it("points only at the IP filter at the cap on the Bot tab", () => {
-    expect(alertHistoryFooter({ ...base, kind: "bot", rowCount: capRows, pageCount: ALERT_MAX_PAGES }).text).toBe(
-      `Showing ${capRows.toLocaleString()} alerts. Filter by IP to go further back. ${pause}`,
-    )
+    expect(
+      alertHistoryFooter({ ...base, kind: "bot", rowCount: capRows, pageCount: ALERT_MAX_PAGES })
+        .text,
+    ).toBe(`Showing ${capRows.toLocaleString()} alerts. Filter by IP to go further back. ${pause}`)
   })
 
   it("reports the end, not the cap, when the last page lands on the cap", () => {
     expect(
-      alertHistoryFooter({ ...base, rowCount: capRows, pageCount: ALERT_MAX_PAGES, hasNextPage: false }).text,
+      alertHistoryFooter({
+        ...base,
+        rowCount: capRows,
+        pageCount: ALERT_MAX_PAGES,
+        hasNextPage: false,
+      }).text,
     ).toBe(`Showing ${capRows.toLocaleString()} alerts. No older alerts in this window. ${pause}`)
   })
 
   it("claims neither an end, a cap nor a pause while placeholder rows stand in", () => {
     expect(
-      alertHistoryFooter({ ...base, rowCount: 100, pageCount: 2, hasNextPage: false, isPlaceholderData: true }),
+      alertHistoryFooter({
+        ...base,
+        rowCount: 100,
+        pageCount: 2,
+        hasNextPage: false,
+        isPlaceholderData: true,
+      }),
     ).toEqual({
       text: "Showing 100 alerts",
       showLoadOlder: false,
@@ -431,14 +467,21 @@ describe("alertsEmptyMessage", () => {
   it("names what each kind needs when its view is empty", () => {
     expect(alertsEmptyMessage("all")).toBe("No alerts in this window.")
     expect(alertsEmptyMessage("crowdsec")).toBe("No alerts of this kind in this window.")
-    expect(alertsEmptyMessage("waf")).toBe("No WAF alerts in this window. WAF alerts need AppSec enabled on a bouncer.")
+    expect(alertsEmptyMessage("waf")).toBe(
+      "No WAF alerts in this window. WAF alerts need AppSec enabled on a bouncer.",
+    )
     expect(alertsEmptyMessage("bot")).toBe(
       "No bot challenge alerts in this window. The bot challenge needs CrowdSec 1.8 and a bouncer that supports it.",
     )
   })
 
   it("labels the kind options", () => {
-    expect(ALERT_KIND_OPTIONS.map((option) => option.label)).toEqual(["All kinds", "Log scenarios", "WAF", "Bot detection"])
+    expect(ALERT_KIND_OPTIONS.map((option) => option.label)).toEqual([
+      "All kinds",
+      "Log scenarios",
+      "WAF",
+      "Bot detection",
+    ])
   })
 })
 
@@ -451,24 +494,30 @@ describe("alertOutcome", () => {
   })
 
   it("names a single decision's type and whether it still applies", () => {
-    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 1 })).toEqual({
+    expect(
+      alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 1 }),
+    ).toEqual({
       text: "Ban, active",
       muted: false,
     })
-    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 0 })).toEqual({
+    expect(
+      alertOutcome({ decisionTypes: ["ban"], decisionCount: 1, activeDecisionCount: 0 }),
+    ).toEqual({
       text: "Ban, expired",
       muted: true,
     })
-    expect(alertOutcome({ decisionTypes: ["captcha"], decisionCount: 1, activeDecisionCount: 1 }).text).toBe(
-      "Captcha, active",
-    )
+    expect(
+      alertOutcome({ decisionTypes: ["captcha"], decisionCount: 1, activeDecisionCount: 1 }).text,
+    ).toBe("Captcha, active")
   })
 
   it("counts decisions once there is more than one", () => {
     expect(
       alertOutcome({ decisionTypes: ["ban", "captcha"], decisionCount: 2, activeDecisionCount: 1 }),
     ).toEqual({ text: "2 decisions, 1 active", muted: false })
-    expect(alertOutcome({ decisionTypes: ["ban"], decisionCount: 3, activeDecisionCount: 0 })).toEqual({
+    expect(
+      alertOutcome({ decisionTypes: ["ban"], decisionCount: 3, activeDecisionCount: 0 }),
+    ).toEqual({
       text: "3 decisions, 0 active",
       muted: true,
     })
@@ -484,7 +533,11 @@ describe("alertOutcome", () => {
 
 let nextAlertId = 1
 
-function makeAlert(value: string, kind: string | null, scenario = "crowdsecurity/http-probing"): AlertView {
+function makeAlert(
+  value: string,
+  kind: string | null,
+  scenario = "crowdsecurity/http-probing",
+): AlertView {
   const id = nextAlertId++
   return {
     id,
@@ -505,7 +558,8 @@ function makeAlert(value: string, kind: string | null, scenario = "crowdsecurity
   }
 }
 
-const runSizes = (alerts: AlertView[]) => groupConsecutiveAlerts(alerts).map((alertRun) => alertRun.alerts.length)
+const runSizes = (alerts: AlertView[]) =>
+  groupConsecutiveAlerts(alerts).map((alertRun) => alertRun.alerts.length)
 
 describe("groupConsecutiveAlerts", () => {
   it("merges adjacent alerts with the same source and kind across scenarios", () => {
@@ -534,13 +588,19 @@ describe("groupConsecutiveAlerts", () => {
   })
 
   it("keeps an interrupted run apart", () => {
-    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("2.2.2.2", "waf"), makeAlert("1.1.1.1", "waf")])).toEqual([
-      1, 1, 1,
-    ])
+    expect(
+      runSizes([
+        makeAlert("1.1.1.1", "waf"),
+        makeAlert("2.2.2.2", "waf"),
+        makeAlert("1.1.1.1", "waf"),
+      ]),
+    ).toEqual([1, 1, 1])
   })
 
   it("keeps different kinds apart", () => {
-    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "crowdsec")])).toEqual([1, 1])
+    expect(runSizes([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "crowdsec")])).toEqual([
+      1, 1,
+    ])
   })
 
   it("treats a missing kind as its own kind", () => {
@@ -572,7 +632,10 @@ describe("runScenarioLabel", () => {
 
 describe("isRunOpen", () => {
   it("is closed until toggled, then open", () => {
-    const [alertRun] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")])
+    const [alertRun] = groupConsecutiveAlerts([
+      makeAlert("1.1.1.1", "waf"),
+      makeAlert("1.1.1.1", "waf"),
+    ])
     expect(isRunOpen(alertRun, new Set())).toBe(false)
     expect(isRunOpen(alertRun, toggleRun(new Set(), alertRun))).toBe(true)
   })
@@ -585,7 +648,11 @@ describe("isRunOpen", () => {
   })
 
   it("stays open when its oldest alert drops off the bottom", () => {
-    const alerts = [makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf"), makeAlert("1.1.1.1", "waf")]
+    const alerts = [
+      makeAlert("1.1.1.1", "waf"),
+      makeAlert("1.1.1.1", "waf"),
+      makeAlert("1.1.1.1", "waf"),
+    ]
     const expanded = toggleRun(new Set(), groupConsecutiveAlerts(alerts)[0])
     const [refreshed] = groupConsecutiveAlerts(alerts.slice(0, 2))
     expect(isRunOpen(refreshed, expanded)).toBe(true)
@@ -601,7 +668,10 @@ describe("isRunOpen", () => {
   })
 
   it("leaves other runs as they were", () => {
-    const [first, second] = groupConsecutiveAlerts([makeAlert("1.1.1.1", "waf"), makeAlert("2.2.2.2", "waf")])
+    const [first, second] = groupConsecutiveAlerts([
+      makeAlert("1.1.1.1", "waf"),
+      makeAlert("2.2.2.2", "waf"),
+    ])
     const expanded = toggleRun(new Set(), first)
     expect(isRunOpen(second, expanded)).toBe(false)
   })
@@ -623,7 +693,10 @@ describe("scenarioOptions", () => {
   ]
 
   it("lists the counted scenarios in their order", () => {
-    expect(scenarioOptions(counts, [])).toEqual(["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"])
+    expect(scenarioOptions(counts, [])).toEqual([
+      "crowdsecurity/http-probing",
+      "crowdsecurity/ssh-bf",
+    ])
   })
 
   it("keeps picked scenarios the count missed", () => {
@@ -654,7 +727,10 @@ describe("scenarioOptionLabel", () => {
 })
 
 describe("pickScenarios", () => {
-  const five = Array.from({ length: MAX_ALERT_SCENARIOS }, (_, index) => `crowdsecurity/scenario-${index}`)
+  const five = Array.from(
+    { length: MAX_ALERT_SCENARIOS },
+    (_, index) => `crowdsecurity/scenario-${index}`,
+  )
 
   it("takes picks up to the cap", () => {
     expect(pickScenarios(five.slice(0, 4), five)).toEqual(five)
@@ -691,24 +767,34 @@ describe("activeAlertFilters", () => {
   })
 
   it("labels the kind with its tab label", () => {
-    expect(activeAlertFilters({ kind: "waf", scenarios: [], ip: undefined })).toEqual([{ group: "kind", label: "WAF" }])
+    expect(activeAlertFilters({ kind: "waf", scenarios: [], ip: undefined })).toEqual([
+      { group: "kind", label: "WAF" },
+    ])
     expect(activeAlertFilters({ kind: "bot", scenarios: [], ip: undefined })).toEqual([
       { group: "kind", label: "Bot detection" },
     ])
   })
 
   it("names a single scenario by its short name and counts several", () => {
-    expect(activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing"], ip: undefined })).toEqual([
-      { group: "scenario", label: "Scenario: http-probing" },
-    ])
     expect(
-      activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"], ip: undefined }),
+      activeAlertFilters({ kind: "all", scenarios: ["crowdsecurity/http-probing"], ip: undefined }),
+    ).toEqual([{ group: "scenario", label: "Scenario: http-probing" }])
+    expect(
+      activeAlertFilters({
+        kind: "all",
+        scenarios: ["crowdsecurity/http-probing", "crowdsecurity/ssh-bf"],
+        ip: undefined,
+      }),
     ).toEqual([{ group: "scenario", label: "2 scenarios" }])
   })
 
   it("keeps the kind, scenario, IP order and one entry per group", () => {
     expect(
-      activeAlertFilters({ kind: "crowdsec", scenarios: ["crowdsecurity/ssh-bf"], ip: "203.0.113.7" }),
+      activeAlertFilters({
+        kind: "crowdsec",
+        scenarios: ["crowdsecurity/ssh-bf"],
+        ip: "203.0.113.7",
+      }),
     ).toEqual([
       { group: "kind", label: "Log scenarios" },
       { group: "scenario", label: "Scenario: ssh-bf" },

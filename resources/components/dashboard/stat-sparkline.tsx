@@ -28,11 +28,7 @@ export function StatSparkline({
   const rows = values.map((value, index) => ({ index, value }))
 
   return (
-    <ChartContainer
-      config={{}}
-      className={cn("aspect-auto text-primary", className)}
-      aria-hidden
-    >
+    <ChartContainer config={{}} className={cn("aspect-auto text-primary", className)} aria-hidden>
       <AreaChart data={rows} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -59,5 +55,8 @@ export function StatSparkline({
 }
 
 function prefersReducedMotion(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  )
 }

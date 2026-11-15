@@ -6,7 +6,8 @@
 
 import type { LayerSpecification, StyleSpecification } from "maplibre-gl"
 
-export const CARTO_DARK_STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+export const CARTO_DARK_STYLE_URL =
+  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
 
 const ESRI_IMAGERY_TILES =
   "https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -49,8 +50,15 @@ function restyleForImagery(layer: LayerSpecification): LayerSpecification {
   return layer
 }
 
-export function buildSatelliteStyle(cartoDark: StyleSpecification, esriApiKey: string): StyleSpecification {
-  const imagery: LayerSpecification = { id: SATELLITE_SOURCE_ID, type: "raster", source: SATELLITE_SOURCE_ID }
+export function buildSatelliteStyle(
+  cartoDark: StyleSpecification,
+  esriApiKey: string,
+): StyleSpecification {
+  const imagery: LayerSpecification = {
+    id: SATELLITE_SOURCE_ID,
+    type: "raster",
+    source: SATELLITE_SOURCE_ID,
+  }
   const layers: LayerSpecification[] = []
   for (const layer of cartoDark.layers) {
     if (layer.type === "background") {

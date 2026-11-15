@@ -1,5 +1,10 @@
 /** Shaping helpers for the CrowdSec alert history and detail sheet. */
-import type { AlertContextView, AlertEventView, AlertView, ScenarioCount } from "@/generated/api/types.gen"
+import type {
+  AlertContextView,
+  AlertEventView,
+  AlertView,
+  ScenarioCount,
+} from "@/generated/api/types.gen"
 import { scenarioName } from "@/lib/scenario-name"
 
 /** Alerts per page of the alert history; "Load older" fetches another page this size. */
@@ -13,7 +18,11 @@ export type AlertKindFilter = "all" | "crowdsec" | "waf" | "bot"
 
 // The kinds an engine produces on its own. Blocklist pulls are left out of
 // the history already, and Console orders are rare enough to live under All.
-export const ALERT_KIND_OPTIONS: readonly { key: AlertKindFilter; label: string; description: string | null }[] = [
+export const ALERT_KIND_OPTIONS: readonly {
+  key: AlertKindFilter
+  label: string
+  description: string | null
+}[] = [
   { key: "all", label: "All kinds", description: null },
   {
     key: "crowdsec",
@@ -21,7 +30,11 @@ export const ALERT_KIND_OPTIONS: readonly { key: AlertKindFilter; label: string;
     description: "A scenario overflowed on your logs. Most bans come from here.",
   },
   { key: "waf", label: "WAF", description: "An AppSec rule matched a request. Many never ban." },
-  { key: "bot", label: "Bot detection", description: "Bot challenge rejections and the bans they lead to." },
+  {
+    key: "bot",
+    label: "Bot detection",
+    description: "Bot challenge rejections and the bans they lead to.",
+  },
 ]
 
 export const KIND_FILTER_NEEDS_NOTE = "Filtering by kind needs CrowdSec 1.7 or newer."
@@ -45,7 +58,10 @@ export const MAX_ALERT_SCENARIOS = 5
 
 /** The scenario picker's options: the counted scenarios, then any picked
  *  one the count missed. */
-export function scenarioOptions(counts: readonly ScenarioCount[] | undefined, selected: readonly string[]): string[] {
+export function scenarioOptions(
+  counts: readonly ScenarioCount[] | undefined,
+  selected: readonly string[],
+): string[] {
   const counted = (counts ?? []).map((scenarioCount) => scenarioCount.scenario)
   const countedNames = new Set(counted)
   return [...counted, ...selected.filter((scenario) => !countedNames.has(scenario))]
@@ -75,7 +91,10 @@ export function activeAlertFilters({
 }): { group: AlertFilterGroup; label: string }[] {
   const active: { group: AlertFilterGroup; label: string }[] = []
   if (kind !== "all") {
-    active.push({ group: "kind", label: ALERT_KIND_OPTIONS.find((option) => option.key === kind)?.label ?? kind })
+    active.push({
+      group: "kind",
+      label: ALERT_KIND_OPTIONS.find((option) => option.key === kind)?.label ?? kind,
+    })
   }
   if (scenarios.length === 1) {
     active.push({ group: "scenario", label: `Scenario: ${scenarioShortName(scenarios[0])}` })
@@ -125,7 +144,11 @@ export function alertHistoryFooter({
   const notes: string[] = []
   if (!hasNextPage) notes.push("No older alerts in this window.")
   else if (pageCount >= ALERT_MAX_PAGES) {
-    notes.push(scenarioFilterAllowed(kind) ? "Filter by IP or scenario to go further back." : "Filter by IP to go further back.")
+    notes.push(
+      scenarioFilterAllowed(kind)
+        ? "Filter by IP or scenario to go further back."
+        : "Filter by IP to go further back.",
+    )
   }
   const pagedBack = pageCount > 1
   if (pagedBack) notes.push("Updates pause while older alerts are loaded.")
@@ -137,7 +160,13 @@ export function alertHistoryFooter({
 }
 
 /** Event meta keys the events table shows as their own columns. */
-export const HTTP_EVENT_KEYS = ["http_verb", "http_path", "http_status", "http_user_agent", "target_fqdn"] as const
+export const HTTP_EVENT_KEYS = [
+  "http_verb",
+  "http_path",
+  "http_status",
+  "http_user_agent",
+  "target_fqdn",
+] as const
 
 /** Meta keys a bot-detection challenge event row shows on its own. */
 export const CHALLENGE_EVENT_KEYS = [
@@ -207,7 +236,10 @@ const BOT_BAN_BADGE = {
 }
 
 /** The badge an alert row shows, or null for a plain log-scenario alert. */
-export function alertBadge(kind: string | null, scenario: string): { label: string; className: string } | null {
+export function alertBadge(
+  kind: string | null,
+  scenario: string,
+): { label: string; className: string } | null {
   if (scenario.startsWith(BOT_BAN_SCENARIO_PREFIX)) return BOT_BAN_BADGE
   const label = kindLabel(kind)
   if (label === null) return null
@@ -224,7 +256,10 @@ export function isChallengeEvent(meta: Record<string, string>): boolean {
 }
 
 /** Meta entries left over once the row's own columns have taken theirs. */
-export function eventExtras(meta: Record<string, string>, shownKeys: readonly string[]): [string, string][] {
+export function eventExtras(
+  meta: Record<string, string>,
+  shownKeys: readonly string[],
+): [string, string][] {
   const shown = new Set<string>(shownKeys)
   return Object.entries(meta)
     .filter(([key]) => !shown.has(key) && !REDUNDANT_EVENT_KEYS.has(key))
@@ -266,7 +301,8 @@ const SIGNAL_NOTES: Record<string, string> = {
   mismatch_platform_iframe: "The page and an iframe report different platforms.",
   mismatch_platform_worker: "The page and a worker report different platforms.",
   platform_mismatch: "The user agent and the browser disagree about the operating system.",
-  gpu_mismatch: "The graphics hardware does not match the reported platform, as in a VM or remote desktop.",
+  gpu_mismatch:
+    "The graphics hardware does not match the reported platform, as in a VM or remote desktop.",
   high_cpu_count: "More CPU cores than a desktop usually has, as in a server or container.",
   utc_timezone: "The browser runs in UTC, which is rare on a personal device.",
   ua_mobile: "A mobile user agent on a device that does not look mobile.",
@@ -310,7 +346,8 @@ export function challengeContext(context: AlertContextView[]): {
   challenge: ChallengeContext | null
   rest: AlertContextView[]
 } {
-  if (!context.some((entry) => CHALLENGE_ONLY_KEYS.has(entry.key))) return { challenge: null, rest: context }
+  if (!context.some((entry) => CHALLENGE_ONLY_KEYS.has(entry.key)))
+    return { challenge: null, rest: context }
   const rest = context.filter((entry) => !CHALLENGE_CONTEXT_KEYS.has(entry.key))
   const first = (key: string): string | null =>
     context.find((entry) => entry.key === key)?.values[0] ?? null
@@ -337,7 +374,9 @@ export function shortFingerprint(id: string): string {
   return id.length > 20 ? `${id.slice(0, 8)}…${id.slice(-7)}` : id
 }
 
-export function alertDescription(alert: Pick<AlertView, "id" | "createdAt" | "eventsCount">): string {
+export function alertDescription(
+  alert: Pick<AlertView, "id" | "createdAt" | "eventsCount">,
+): string {
   const events = `${alert.eventsCount} ${alert.eventsCount === 1 ? "event" : "events"}`
   return `Alert #${alert.id} · ${new Date(alert.createdAt).toLocaleString()} · ${events}`
 }
@@ -348,7 +387,8 @@ export function alertOutcome(
 ): { text: string; muted: boolean } {
   const muted = alert.activeDecisionCount === 0
   const [decisionType] = alert.decisionTypes
-  if (alert.decisionCount === 0 || decisionType === undefined) return { text: "Alert only", muted: true }
+  if (alert.decisionCount === 0 || decisionType === undefined)
+    return { text: "Alert only", muted: true }
   if (alert.decisionCount === 1) {
     const label = decisionType.charAt(0).toUpperCase() + decisionType.slice(1)
     return { text: `${label}, ${muted ? "expired" : "active"}`, muted }
@@ -408,7 +448,15 @@ export function contextLabel(key: string): string {
   return CONTEXT_LABELS[key] ?? key
 }
 
-const GO_UNIT_MS: Record<string, number> = { h: 3_600_000, m: 60_000, s: 1000, ms: 1, "µs": 0.001, us: 0.001, ns: 0.000001 }
+const GO_UNIT_MS: Record<string, number> = {
+  h: 3_600_000,
+  m: 60_000,
+  s: 1000,
+  ms: 1,
+  µs: 0.001,
+  us: 0.001,
+  ns: 0.000001,
+}
 
 /** A Go duration string in milliseconds, or null when it is not one. */
 export function goDurationMs(value: string): number | null {
@@ -487,7 +535,10 @@ export function isBlocklistOrigin(origin: string): boolean {
 
 /** Whether the decision has an alert of its own to open. Blocklist
  *  decisions share one alert per pull, and the lookup goes by IP. */
-export function decisionHasAlert(scope: string, decision: { id: number | null; origin: string }): boolean {
+export function decisionHasAlert(
+  scope: string,
+  decision: { id: number | null; origin: string },
+): boolean {
   return scope === "Ip" && decision.id !== null && !isBlocklistOrigin(decision.origin)
 }
 

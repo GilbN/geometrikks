@@ -4,8 +4,17 @@
  * can run the decisions directly.
  */
 import { createReloadGuard, type IdleReloader, type ReloadGuard } from "@/lib/auto-reload"
-import { getReloadNoticeState, markUpdatePending, nameUpdateVersion, subscribeReloadNotice } from "@/lib/reload-notice"
-import { createUpdateDetector, type BuildIdentity, type UpdateDetector } from "@/lib/update-detector"
+import {
+  getReloadNoticeState,
+  markUpdatePending,
+  nameUpdateVersion,
+  subscribeReloadNotice,
+} from "@/lib/reload-notice"
+import {
+  createUpdateDetector,
+  type BuildIdentity,
+  type UpdateDetector,
+} from "@/lib/update-detector"
 
 export interface UpdateWiringDeps {
   readServerBuild: () => Promise<BuildIdentity>

@@ -13,16 +13,16 @@ export function AlertKindHelp() {
       </PopoverTrigger>
       <PopoverContent aria-label="What the alert kinds mean" className="w-80 text-sm">
         <p>
-          <strong>Log scenarios.</strong> A scenario overflowed on events from your logs. This includes the bot
-          challenge&apos;s ban scenarios. Most bans come from here.
+          <strong>Log scenarios.</strong> A scenario overflowed on events from your logs. This
+          includes the bot challenge&apos;s ban scenarios. Most bans come from here.
         </p>
         <p>
-          <strong>WAF.</strong> The AppSec engine matched a request against a rule, such as a virtual patch. Every
-          match is its own alert, and many never ban.
+          <strong>WAF.</strong> The AppSec engine matched a request against a rule, such as a
+          virtual patch. Every match is its own alert, and many never ban.
         </p>
         <p>
-          <strong>Bot detection.</strong> The AppSec bot challenge. CrowdSec logs each rejected browser submission as
-          an alert that never bans. Repeated failures raise a bot ban.
+          <strong>Bot detection.</strong> The AppSec bot challenge. CrowdSec logs each rejected
+          browser submission as an alert that never bans. Repeated failures raise a bot ban.
         </p>
         <p className="text-muted-foreground">{KIND_FILTER_NEEDS_NOTE}</p>
       </PopoverContent>

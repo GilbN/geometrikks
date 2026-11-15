@@ -52,19 +52,46 @@ export function AnalyticsFilterBar() {
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== asn) }))
 
   const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, label: v, exclude: false, remove: () => removeIp("ips", v) })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, label: v, exclude: true, remove: () => removeIp("ipsExclude", v) })),
-    ...filters.asns.map((v) => ({ key: "asns" as const, label: asnLabel(v), exclude: false, remove: () => removeAsn("asns", v) })),
-    ...filters.asnsExclude.map((v) => ({ key: "asnsExclude" as const, label: asnLabel(v), exclude: true, remove: () => removeAsn("asnsExclude", v) })),
+    ...filters.ips.map((v) => ({
+      key: "ips" as const,
+      label: v,
+      exclude: false,
+      remove: () => removeIp("ips", v),
+    })),
+    ...filters.ipsExclude.map((v) => ({
+      key: "ipsExclude" as const,
+      label: v,
+      exclude: true,
+      remove: () => removeIp("ipsExclude", v),
+    })),
+    ...filters.asns.map((v) => ({
+      key: "asns" as const,
+      label: asnLabel(v),
+      exclude: false,
+      remove: () => removeAsn("asns", v),
+    })),
+    ...filters.asnsExclude.map((v) => ({
+      key: "asnsExclude" as const,
+      label: asnLabel(v),
+      exclude: true,
+      remove: () => removeAsn("asnsExclude", v),
+    })),
   ]
   const chipRow = (keys: (IpKey | AsnKey)[]) => {
     const shown = chips.filter((c) => keys.includes(c.key))
-    return shown.length > 0 && (
-      <FilterRow>
-        {shown.map((c) => (
-          <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
-        ))}
-      </FilterRow>
+    return (
+      shown.length > 0 && (
+        <FilterRow>
+          {shown.map((c) => (
+            <FilterChip
+              key={`${c.key}:${c.label}`}
+              value={c.label}
+              exclude={c.exclude}
+              onRemove={c.remove}
+            />
+          ))}
+        </FilterRow>
+      )
     )
   }
 
@@ -202,9 +229,15 @@ export function AnalyticsFilterBar() {
             />
           </FilterSection>
           <FilterSection label="Exclude">
-            <FilterExcludedIpRows values={filters.ipsExclude} onAdd={addIp("ipsExclude")} onRemove={(ip) => removeIp("ipsExclude", ip)} validate={isValidIp} />
+            <FilterExcludedIpRows
+              values={filters.ipsExclude}
+              onAdd={addIp("ipsExclude")}
+              onRemove={(ip) => removeIp("ipsExclude", ip)}
+              validate={isValidIp}
+            />
             <FilterListRow<number>
-              label="ASN" exclude
+              label="ASN"
+              exclude
               search
               options={facets?.asns.map((a) => a.asn) ?? []}
               selected={filters.asnsExclude}

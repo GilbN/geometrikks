@@ -15,7 +15,9 @@ export interface BuildIdentity {
  * rebuilds apart. Every other build is identified by its version.
  */
 export function buildKey(buildIdentity: BuildIdentity): string {
-  return isLocalBuild(buildIdentity.version) ? (buildIdentity.changelogDigest ?? buildIdentity.version) : buildIdentity.version
+  return isLocalBuild(buildIdentity.version)
+    ? (buildIdentity.changelogDigest ?? buildIdentity.version)
+    : buildIdentity.version
 }
 
 export interface UpdateDetectorDeps {

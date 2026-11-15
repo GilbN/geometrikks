@@ -55,7 +55,9 @@ export function SignalPanel({
           <h2 id={titleId} className={FRAME_LABEL}>
             {title}
           </h2>
-          {description && <p className="mt-0.5 text-[13px] text-muted-foreground max-md:sr-only">{description}</p>}
+          {description && (
+            <p className="mt-0.5 text-[13px] text-muted-foreground max-md:sr-only">{description}</p>
+          )}
         </div>
         {actions && (
           <div className="flex shrink-0 flex-wrap items-center gap-2 text-xs text-muted-foreground max-md:contents">
@@ -85,7 +87,9 @@ export function SignalPanel({
       </div>
 
       {legend && (
-        <footer className="border-t border-border/50 px-4 py-2.5 text-xs text-muted-foreground">{legend}</footer>
+        <footer className="border-t border-border/50 px-4 py-2.5 text-xs text-muted-foreground">
+          {legend}
+        </footer>
       )}
     </section>
   )

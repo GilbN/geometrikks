@@ -13,7 +13,12 @@ import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/dat
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { Input } from "@/components/ui/input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterExcludedIpRows, FilterListRow, FilterMyIpRow, FilterSection } from "@/components/ui/filter-rows"
+import {
+  FilterExcludedIpRows,
+  FilterListRow,
+  FilterMyIpRow,
+  FilterSection,
+} from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAccessLogFacets } from "@/lib/queries"
 import { useAsnLabel } from "@/hooks/use-asn-label"
@@ -29,11 +34,10 @@ import {
 } from "@/lib/access-log-filters-context"
 
 const STATUS_CODES = [
-  100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
-  300, 301, 302, 303, 304, 305, 306, 307, 308,
-  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 421, 422, 423, 424, 425, 426,
-  428, 429, 431, 444, 451, 499,
-  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511,
+  100, 101, 102, 103, 200, 201, 202, 203, 204, 205, 206, 207, 208, 226, 300, 301, 302, 303, 304,
+  305, 306, 307, 308, 400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414,
+  415, 416, 417, 418, 421, 422, 423, 424, 425, 426, 428, 429, 431, 444, 451, 499, 500, 501, 502,
+  503, 504, 505, 506, 507, 508, 510, 511,
 ] as const
 
 type ListKey = "ips" | "ipsExclude" | "hostsExclude" | "serversExclude"
@@ -85,21 +89,31 @@ export function AccessLogsFilterBar() {
   const add = (key: ListKey) => (value: string) => {
     if (filters[key].includes(value)) return
     // A tap on Exclude your IP lands after a lookup, so the closure can be stale.
-    setFilters((prev) => (prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] }))
+    setFilters((prev) =>
+      prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] },
+    )
   }
   const remove = (key: ListKey, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== value) }))
-  const myIp = useMyIpExclusion(filters.ipsExclude, add("ipsExclude"), (ip) => remove("ipsExclude", ip))
+  const myIp = useMyIpExclusion(filters.ipsExclude, add("ipsExclude"), (ip) =>
+    remove("ipsExclude", ip),
+  )
   const setAsns = (key: AsnKey) => (values: number[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
   const removeAsn = (key: AsnKey, asn: number) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== asn) }))
 
   const textChip = (key: ListKey, exclude: boolean) => (v: string) => ({
-    key, label: v, exclude, remove: () => remove(key, v),
+    key,
+    label: v,
+    exclude,
+    remove: () => remove(key, v),
   })
   const asnChip = (key: AsnKey, exclude: boolean) => (v: number) => ({
-    key, label: asnLabel(v), exclude, remove: () => removeAsn(key, v),
+    key,
+    label: asnLabel(v),
+    exclude,
+    remove: () => removeAsn(key, v),
   })
   const chips = [
     ...filters.ips.map(textChip("ips", false)),
@@ -111,12 +125,19 @@ export function AccessLogsFilterBar() {
   ]
   const chipRow = (keys: (ListKey | AsnKey)[]) => {
     const shown = chips.filter((c) => keys.includes(c.key))
-    return shown.length > 0 && (
-      <FilterRow>
-        {shown.map((c) => (
-          <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
-        ))}
-      </FilterRow>
+    return (
+      shown.length > 0 && (
+        <FilterRow>
+          {shown.map((c) => (
+            <FilterChip
+              key={`${c.key}:${c.label}`}
+              value={c.label}
+              exclude={c.exclude}
+              onRemove={c.remove}
+            />
+          ))}
+        </FilterRow>
+      )
     )
   }
 
@@ -172,12 +193,7 @@ export function AccessLogsFilterBar() {
         />
       }
       exclude={
-        <TagInput
-          exclude
-          onAdd={add("hostsExclude")}
-          placeholder="Exclude"
-          className="w-36"
-        />
+        <TagInput exclude onAdd={add("hostsExclude")} placeholder="Exclude" className="w-36" />
       }
     />
   )
@@ -197,12 +213,7 @@ export function AccessLogsFilterBar() {
         />
       }
       exclude={
-        <TagInput
-          exclude
-          onAdd={add("serversExclude")}
-          placeholder="Exclude"
-          className="w-36"
-        />
+        <TagInput exclude onAdd={add("serversExclude")} placeholder="Exclude" className="w-36" />
       }
     />
   )
@@ -396,9 +407,15 @@ export function AccessLogsFilterBar() {
           </FilterSection>
           <FilterSection label="Exclude">
             <FilterMyIpRow exclusion={myIp} />
-            <FilterExcludedIpRows values={filters.ipsExclude} onAdd={add("ipsExclude")} onRemove={(ip) => remove("ipsExclude", ip)} validate={isValidIp} />
+            <FilterExcludedIpRows
+              values={filters.ipsExclude}
+              onAdd={add("ipsExclude")}
+              onRemove={(ip) => remove("ipsExclude", ip)}
+              validate={isValidIp}
+            />
             <FilterListRow
-              label="Host" exclude
+              label="Host"
+              exclude
               search
               options={facets?.hosts ?? []}
               selected={filters.hostsExclude}
@@ -406,14 +423,16 @@ export function AccessLogsFilterBar() {
               loading={!facets}
             />
             <FilterListRow
-              label="Server" exclude
+              label="Server"
+              exclude
               options={facets?.servers ?? []}
               selected={filters.serversExclude}
               onChange={(values) => setFilters((prev) => ({ ...prev, serversExclude: values }))}
               loading={!facets}
             />
             <FilterListRow<number>
-              label="ASN" exclude
+              label="ASN"
+              exclude
               search
               options={facets?.asns.map((a) => a.asn) ?? []}
               selected={filters.asnsExclude}

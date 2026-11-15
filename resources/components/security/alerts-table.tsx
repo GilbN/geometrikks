@@ -61,19 +61,23 @@ const SINCE_OPTIONS = [
 
 type SinceKey = (typeof SINCE_OPTIONS)[number]["key"]
 
-const MACHINE_CREDENTIAL_CODE_CLASS = "rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
+const MACHINE_CREDENTIAL_CODE_CLASS =
+  "rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
 
 export function AlertHistoryUnavailable() {
   return (
     <Card className="py-4">
       <CardHeader className="pb-2">
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Alert history
+        </CardTitle>
       </CardHeader>
       <CardContent className="px-6 py-8 text-center text-sm leading-relaxed text-muted-foreground">
         <p>Alert history needs CrowdSec machine credentials.</p>
         <p>
           Set <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_ID</code> and{" "}
-          <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_PASSWORD</code>, then run docker compose up -d.
+          <code className={MACHINE_CREDENTIAL_CODE_CLASS}>CROWDSEC_MACHINE_PASSWORD</code>, then run
+          docker compose up -d.
         </p>
       </CardContent>
     </Card>
@@ -124,7 +128,10 @@ export function AlertsTable() {
     scenarioPickerOpened && scenarioPickerEnabled,
   )
   const countByScenario = useMemo(
-    () => new Map(scenarioCounts?.map((scenarioCount) => [scenarioCount.scenario, scenarioCount.count])),
+    () =>
+      new Map(
+        scenarioCounts?.map((scenarioCount) => [scenarioCount.scenario, scenarioCount.count]),
+      ),
     [scenarioCounts],
   )
 
@@ -197,7 +204,11 @@ export function AlertsTable() {
     <Tabs value={since} onValueChange={(value) => setSince(value as SinceKey)}>
       <TabsList aria-label="Time range">
         {SINCE_OPTIONS.map((option) => (
-          <TabsTrigger key={option.key} value={option.key} aria-label={phone ? option.label : undefined}>
+          <TabsTrigger
+            key={option.key}
+            value={option.key}
+            aria-label={phone ? option.label : undefined}
+          >
             {phone ? option.shortLabel : option.label}
           </TabsTrigger>
         ))}
@@ -208,7 +219,9 @@ export function AlertsTable() {
   return (
     <Card ref={layoutRef} className="py-4 phone:gap-0 phone:pt-3">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2 phone:pb-2.5">
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Alert history</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Alert history
+        </CardTitle>
         {!phone && sinceTabs}
       </CardHeader>
       {phone ? (
@@ -288,7 +301,9 @@ export function AlertsTable() {
                           run={alertRun}
                           open={isRunOpen(alertRun, expandedAlertKeys)}
                           narrow={narrow}
-                          onToggle={() => setExpandedAlertKeys((current) => toggleRun(current, alertRun))}
+                          onToggle={() =>
+                            setExpandedAlertKeys((current) => toggleRun(current, alertRun))
+                          }
                           onOpenAlert={setSelected}
                         />
                       ))}
@@ -297,13 +312,19 @@ export function AlertsTable() {
               {!isLoading && isError && !alerts && (
                 <TableRow>
                   <TableCell colSpan={narrow ? 1 : 8} className="h-24 text-center text-destructive">
-                    {crowdsecErrorMessage(error, "Failed to load alerts; the CrowdSec LAPI may be unreachable.")}
+                    {crowdsecErrorMessage(
+                      error,
+                      "Failed to load alerts; the CrowdSec LAPI may be unreachable.",
+                    )}
                   </TableCell>
                 </TableRow>
               )}
               {!isLoading && !isError && alerts?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={narrow ? 1 : 8} className="h-24 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={narrow ? 1 : 8}
+                    className="h-24 text-center text-muted-foreground"
+                  >
                     {alertsEmptyMessage(kind)}
                   </TableCell>
                 </TableRow>
@@ -321,17 +342,26 @@ export function AlertsTable() {
                 disabled={isFetchingNextPage}
                 onClick={() => void fetchNextPage()}
               >
-                {isFetchingNextPage && <Loader2 data-icon="inline-start" className="animate-spin" />}
+                {isFetchingNextPage && (
+                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                )}
                 Load older
               </Button>
             )}
             {footer.showBackToNewest && (
-              <Button variant="outline" size="sm" disabled={isFetchingNextPage} onClick={() => void backToNewest()}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isFetchingNextPage}
+                onClick={() => void backToNewest()}
+              >
                 Back to newest
               </Button>
             )}
             {isFetchNextPageError && (
-              <span className="text-destructive">{crowdsecErrorMessage(error, "Failed to load older alerts.")}</span>
+              <span className="text-destructive">
+                {crowdsecErrorMessage(error, "Failed to load older alerts.")}
+              </span>
             )}
           </div>
         )}

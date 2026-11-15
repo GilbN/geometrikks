@@ -4,7 +4,15 @@
  * so a pop off that entry closes it. The IP inspector already has an entry of
  * its own (`?inspect=`), which the manager adopts instead of pushing another.
  */
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import { useRouter, type RouterHistory } from "@tanstack/react-router"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 
@@ -22,12 +30,19 @@ export type OverlayStep = { type: "back" } | { type: "replace" | "push"; overlay
 
 /** The history steps for one commit's worth of in-app opens and closes, given
  *  the overlay that owns the current entry. */
-export function planOverlaySteps(top: string | undefined, closed: string[], opened: string[]): OverlayStep[] {
+export function planOverlaySteps(
+  top: string | undefined,
+  closed: string[],
+  opened: string[],
+): OverlayStep[] {
   const closingTop = closed.some((id) => overlayCloseAction(top, id) === "back")
   if (!closingTop) return opened.map((overlay) => ({ type: "push", overlay }))
   if (opened.length === 0) return [{ type: "back" }]
   const [first, ...rest] = opened
-  return [{ type: "replace", overlay: first }, ...rest.map((overlay) => ({ type: "push" as const, overlay }))]
+  return [
+    { type: "replace", overlay: first },
+    ...rest.map((overlay) => ({ type: "push" as const, overlay })),
+  ]
 }
 
 /** The open overlays a pop onto `entry`'s entry closes: those opened after it,
@@ -63,7 +78,8 @@ export function createOverlayHistory(history: RouterHistory) {
   const restampedKeys = new Set<string>()
   let last = history.location
 
-  const isStale = (id: string) => !registered.get(id)?.adopt && !stack.some((open) => open.id === id)
+  const isStale = (id: string) =>
+    !registered.get(id)?.adopt && !stack.some((open) => open.id === id)
 
   function back() {
     const key = history.location.state.__TSR_key
@@ -74,7 +90,11 @@ export function createOverlayHistory(history: RouterHistory) {
 
   function flush() {
     flushQueued = false
-    const steps = planOverlaySteps(history.location.state.overlay, [...pendingClose], [...pendingOpen])
+    const steps = planOverlaySteps(
+      history.location.state.overlay,
+      [...pendingClose],
+      [...pendingOpen],
+    )
     pendingClose.clear()
     pendingOpen.clear()
     for (const step of steps) {
@@ -138,7 +158,10 @@ export function createOverlayHistory(history: RouterHistory) {
     }
 
     const entry = location.state.overlay
-    const closing = overlaysAbove(stack.map((open) => open.id), entry)
+    const closing = overlaysAbove(
+      stack.map((open) => open.id),
+      entry,
+    )
     const toClose = stack.filter((open) => closing.includes(open.id) && !open.adopt)
     stack = stack.filter((open) => !closing.includes(open.id))
     for (const open of toClose) registered.get(open.id)?.close()
@@ -206,7 +229,8 @@ export function createOverlayHistory(history: RouterHistory) {
     },
     start() {
       const entry = history.location.state.overlay
-      if (entry && isStale(entry)) history.replace(history.location.href, plainState(history.location.state))
+      if (entry && isStale(entry))
+        history.replace(history.location.href, plainState(history.location.state))
       last = history.location
       return history.subscribe(({ location, action }) => {
         const previous = last
@@ -219,7 +243,11 @@ export function createOverlayHistory(history: RouterHistory) {
           carriedHref = undefined
           return
         }
-        onPop(previous, location, action.type === "BACK" || (action.type === "GO" && action.index < 0))
+        onPop(
+          previous,
+          location,
+          action.type === "BACK" || (action.type === "GO" && action.index < 0),
+        )
       })
     },
   }
@@ -236,7 +264,9 @@ export function OverlayHistoryProvider({ children }: { children: ReactNode }) {
   // A layout effect, so it is set before the children's open effects run.
   useLayoutEffect(() => overlays.setActive(phone), [overlays, phone])
   useEffect(() => overlays.start(), [overlays])
-  return <OverlayHistoryContext.Provider value={overlays}>{children}</OverlayHistoryContext.Provider>
+  return (
+    <OverlayHistoryContext.Provider value={overlays}>{children}</OverlayHistoryContext.Provider>
+  )
 }
 
 export function useOverlayHistory(): OverlayHistory {
@@ -247,7 +277,12 @@ export function useOverlayHistory(): OverlayHistory {
 
 /** Gives an overlay its own history entry on a phone, so Back closes it.
  *  `adopt` is for an overlay that pushes its own entry. */
-export function useOverlayEntry(id: string, open: boolean, close: () => void, opts?: { adopt?: boolean }): void {
+export function useOverlayEntry(
+  id: string,
+  open: boolean,
+  close: () => void,
+  opts?: { adopt?: boolean },
+): void {
   const overlays = useOverlayHistory()
   const adopt = opts?.adopt ?? false
   const closeRef = useRef(close)

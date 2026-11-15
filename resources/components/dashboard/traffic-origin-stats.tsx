@@ -29,16 +29,16 @@ function DropTrafficHelp({ securityLink }: { securityLink: boolean }) {
   return (
     <>
       <p>
-        Requests from networks on Spamhaus's ASN-DROP list. DROP stands for
-        Don't Route Or Peer. It names networks run by spam and cybercrime
-        operations, so traffic from them is almost never legitimate.
+        Requests from networks on Spamhaus's ASN-DROP list. DROP stands for Don't Route Or Peer. It
+        names networks run by spam and cybercrime operations, so traffic from them is almost never
+        legitimate.
       </p>
       <p>
-        The name is the list's. GeoMetrikks has not dropped or blocked these
-        requests.
+        The name is the list's. GeoMetrikks has not dropped or blocked these requests.
         {securityLink && (
           <>
-            {" "}You can ban the networks under{" "}
+            {" "}
+            You can ban the networks under{" "}
             <Link to="/security" hash="drop-networks" className={HELP_LINK_CLASS}>
               Security &gt; DROP networks
             </Link>
@@ -54,10 +54,9 @@ function HostingTrafficHelp({ dropShown }: { dropShown: boolean }) {
   return (
     <>
       <p>
-        Requests from networks on a bundled community list of hosting, VPN and
-        datacenter operators. Traffic from these is mostly bots, scanners and
-        VPN users rather than people browsing from home. Browse the list under
-        Settings &gt; About.
+        Requests from networks on a bundled community list of hosting, VPN and datacenter operators.
+        Traffic from these is mostly bots, scanners and VPN users rather than people browsing from
+        home. Browse the list under Settings &gt; About.
       </p>
       {dropShown && <p>Networks on Spamhaus DROP count on the Spamhaus DROP card instead.</p>}
     </>

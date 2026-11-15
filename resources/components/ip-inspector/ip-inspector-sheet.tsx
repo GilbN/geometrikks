@@ -1,6 +1,14 @@
 import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { BarChart3, Bug, ChevronDown, FileText, RotateCcw, RotateCw, type LucideIcon } from "lucide-react"
+import {
+  BarChart3,
+  Bug,
+  ChevronDown,
+  FileText,
+  RotateCcw,
+  RotateCw,
+  type LucideIcon,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AbuseReportButton } from "@/components/abuse-report/abuse-report-dialog"
@@ -21,7 +29,16 @@ import { useInspectOnNavigate, useIpInspector } from "@/lib/ip-inspector"
 import { abuseipdbCheckUrl, isPublicIp } from "@/lib/abuseipdb"
 import { useCoverBar } from "@/lib/phone-chrome"
 import { usePhoneMapSide } from "@/hooks/use-phone-map"
-import { useAbuseIpdbBlacklisted, useAbuseIpdbStatus, useCrowdsecStatus, useDropNetwork, useIpDecisions, useIpLatestAlert, useIpLocations, useIpProfile } from "@/lib/queries"
+import {
+  useAbuseIpdbBlacklisted,
+  useAbuseIpdbStatus,
+  useCrowdsecStatus,
+  useDropNetwork,
+  useIpDecisions,
+  useIpLatestAlert,
+  useIpLocations,
+  useIpProfile,
+} from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { IpLatestRequests } from "./ip-latest-requests"
@@ -50,7 +67,8 @@ export function IpInspectorSheet() {
   }
   const restore = () => {
     if (!beforeZoom) return
-    if (beforeZoom.range === "custom" && beforeZoom.customRange) setCustomRange(beforeZoom.customRange)
+    if (beforeZoom.range === "custom" && beforeZoom.customRange)
+      setCustomRange(beforeZoom.customRange)
     else setRange(beforeZoom.range)
     setBeforeZoom(null)
   }
@@ -74,7 +92,11 @@ export function IpInspectorSheet() {
       footer={valid ? <IpInspectorFooter ip={ip} /> : undefined}
       className="sm:w-[min(36rem,100vw)] sm:max-w-xl"
     >
-      {valid ? <IpInspectorBody ip={ip} onZoom={zoomTo} /> : <p className="text-sm text-muted-foreground">Not a valid IP address.</p>}
+      {valid ? (
+        <IpInspectorBody ip={ip} onZoom={zoomTo} />
+      ) : (
+        <p className="text-sm text-muted-foreground">Not a valid IP address.</p>
+      )}
     </DetailSheet>
   )
 }
@@ -89,7 +111,13 @@ function sheetSubtitle(range: TimeRangeValue, customRange: CustomTimeRange | nul
 type RangeSelection = { range: TimeRangeValue; customRange: CustomTimeRange | null }
 
 /** The sheet subtitle doubles as the range picker; "Back" appears only after a bar zoom. */
-function SheetRangeControls({ beforeZoom, onRestore }: { beforeZoom: RangeSelection | null; onRestore: () => void }) {
+function SheetRangeControls({
+  beforeZoom,
+  onRestore,
+}: {
+  beforeZoom: RangeSelection | null
+  onRestore: () => void
+}) {
   const { range, customRange } = useTimeRange()
   return (
     <span className="inline-flex flex-wrap items-center gap-3">
@@ -121,7 +149,13 @@ function HeaderBanAction({ ip }: { ip: string }) {
   return <IpBanAction ip={ip} decision={winningDecision(decisions.data)?.type ?? null} />
 }
 
-function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to: string) => void }) {
+function IpInspectorBody({
+  ip,
+  onZoom,
+}: {
+  ip: string
+  onZoom: (from: string, to: string) => void
+}) {
   const profileQuery = useIpProfile(ip)
   const crowdsecEnabled = useCrowdsecStatus().data?.enabled ?? false
   const decisions = useIpDecisions(ip)
@@ -143,7 +177,13 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
     <div className="space-y-4">
       <header className="space-y-2">
         <p className="text-xs text-muted-foreground">
-          {primary && <CountryFlag code={primary.countryCode} name={primary.countryName} className="mr-1.5 inline-block align-[-1px]" />}
+          {primary && (
+            <CountryFlag
+              code={primary.countryCode}
+              name={primary.countryName}
+              className="mr-1.5 inline-block align-[-1px]"
+            />
+          )}
           {primary && `${primary.city ?? primary.countryName}, ${primary.countryCode}`}
           {primary && profile?.asn != null && " · "}
           {profile?.asn != null && asUrl && (
@@ -169,10 +209,19 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
                 className="h-auto max-w-full cursor-help whitespace-normal break-words text-left"
                 title={`Origin: ${decision.origin}`}
               >
-                {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} · {timeLeftText(decision.duration)}
+                {decisionLabel(decision.type)} · {scenarioText(decision.scenario)} ·{" "}
+                {timeLeftText(decision.duration)}
               </DecisionBadge>
             )}
-            {dropNetwork && <DropBadge variant="long" sblId={dropNetwork.sblId} linked hover="tooltip" className="cursor-help" />}
+            {dropNetwork && (
+              <DropBadge
+                variant="long"
+                sblId={dropNetwork.sblId}
+                linked
+                hover="tooltip"
+                className="cursor-help"
+              />
+            )}
             {blacklisted && <AbuseIpdbBlacklistBadge hover="tooltip" className="cursor-help" />}
             {abuseChecksOn && <AbuseIpdbBadge key={ip} ip={ip} />}
           </div>
@@ -201,7 +250,9 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
         {profile && (
           <IpStatsBlock
             profile={profile}
-            banCreatedAt={banned && banCreatedAt ? bucketFloor(banCreatedAt, profile.granularity) : null}
+            banCreatedAt={
+              banned && banCreatedAt ? bucketFloor(banCreatedAt, profile.granularity) : null
+            }
             onZoom={onZoom}
           />
         )}
@@ -211,14 +262,30 @@ function IpInspectorBody({ ip, onZoom }: { ip: string; onZoom: (from: string, to
         <IpTopList
           title="Targets"
           bars
-          rows={profile.hosts.map((h) => ({ label: h.host ?? "(no host)", hits: h.hits, errorHits: h.errorHits }))}
+          rows={profile.hosts.map((h) => ({
+            label: h.host ?? "(no host)",
+            hits: h.hits,
+            errorHits: h.errorHits,
+          }))}
         />
       )}
       {profile && (
-        <IpTopList title="Paths" rows={profile.paths.map((p) => ({ prefix: p.host ?? "(no host)", label: p.url, hits: p.hits, errorHits: p.errorHits, mono: true }))} />
+        <IpTopList
+          title="Paths"
+          rows={profile.paths.map((p) => ({
+            prefix: p.host ?? "(no host)",
+            label: p.url,
+            hits: p.hits,
+            errorHits: p.errorHits,
+            mono: true,
+          }))}
+        />
       )}
       {profile && (
-        <IpTopList title="User agents" rows={profile.userAgents.map((u) => ({ label: u.userAgent, hits: u.hits }))} />
+        <IpTopList
+          title="User agents"
+          rows={profile.userAgents.map((u) => ({ label: u.userAgent, hits: u.hits }))}
+        />
       )}
 
       <IpLocationsBlock ip={ip} />
@@ -245,7 +312,9 @@ function IpInspectorFooter({ ip }: { ip: string }) {
           <Link to="/debug-logs" search={{ ip, malformed: "malformed", inspect }} />
         </FooterLink>
       )}
-      <AbuseReportButton subject={{ kind: "ip", ip, asn: profile?.asn, organization: profile?.asnOrganization }} />
+      <AbuseReportButton
+        subject={{ kind: "ip", ip, asn: profile?.asn, organization: profile?.asnOrganization }}
+      />
     </footer>
   )
 }
@@ -263,12 +332,14 @@ function FooterLink({
 }) {
   return (
     <Button asChild variant="outline" size="lg" className="min-w-32 flex-1" title={label}>
-      {cloneElement(children, undefined, (
+      {cloneElement(
+        children,
+        undefined,
         <>
           <Icon data-icon="inline-start" />
           <span className="truncate">{label}</span>
-        </>
-      ))}
+        </>,
+      )}
     </Button>
   )
 }

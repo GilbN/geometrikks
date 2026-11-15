@@ -18,10 +18,15 @@ function ApiKeysRoute() {
       title="API keys"
       subtitle="For scripts, monitors and dashboards. Browser logins don't use them."
       subtitleOnPhone
-      actions={data?.available ? <CreateApiKey narrow={narrow} triggerRef={createButtonRef} /> : undefined}
+      actions={
+        data?.available ? <CreateApiKey narrow={narrow} triggerRef={createButtonRef} /> : undefined
+      }
     >
       <div ref={layoutRef}>
-        <ApiKeysOverview narrow={narrow} focusOutsideList={() => createButtonRef.current?.focus()} />
+        <ApiKeysOverview
+          narrow={narrow}
+          focusOutsideList={() => createButtonRef.current?.focus()}
+        />
       </div>
     </SettingsPage>
   )

@@ -38,7 +38,12 @@ import { useCoverBar, usePhoneChrome } from "@/lib/phone-chrome"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
-import { FilterPageBack, FilterPageHost, FilterPagesProvider, useFilterPageState } from "@/components/ui/filters-drawer"
+import {
+  FilterPageBack,
+  FilterPageHost,
+  FilterPagesProvider,
+  useFilterPageState,
+} from "@/components/ui/filters-drawer"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -66,7 +71,6 @@ import { GeoJSONFeatureStats, TopIPDTO, formatNumber } from "@/lib/api"
 import type { BannedMapStats } from "@/generated/api/types.gen"
 import type { DemoTrafficMode } from "@/lib/demo-traffic"
 import type { LiveOverlayPreferences } from "@/lib/live-overlays"
-
 
 /** State of the Banned IPs layer, rendered in the summary section. */
 export interface BannedSummary {
@@ -166,7 +170,9 @@ function SwitchRow({
     >
       <Icon className={cn("h-4 w-4 shrink-0", iconClassName)} />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      {meta && <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{meta}</span>}
+      {meta && (
+        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{meta}</span>
+      )}
       <Switch
         size="sm"
         checked={checked}
@@ -215,7 +221,9 @@ function BannedSummaryRows({ banned }: { banned: BannedSummary }) {
           </Button>
         </div>
       ) : unreachable ? (
-        <span role="alert" className="text-destructive">CrowdSec is unreachable.{lastResult}</span>
+        <span role="alert" className="text-destructive">
+          CrowdSec is unreachable.{lastResult}
+        </span>
       ) : null}
     </div>
   )
@@ -277,14 +285,19 @@ export function MapControls({
   const hasMapData = activeLayer === "banned" ? (banned.stats?.ips ?? 0) > 0 : events > 0
   const [isExpanded, setIsExpanded] = useState(true)
   const activeFilterCount =
-    (selectedCountries.length ? 1 : 0) + (selectedCities.length ? 1 : 0) + (selectedServers.length ? 1 : 0)
+    (selectedCountries.length ? 1 : 0) +
+    (selectedCities.length ? 1 : 0) +
+    (selectedServers.length ? 1 : 0)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const filterPages = useFilterPageState()
   const { reset: resetFilterPage } = filterPages
-  const changeDrawerOpen = useCallback((open: boolean) => {
-    setDrawerOpen(open)
-    if (!open) resetFilterPage()
-  }, [resetFilterPage])
+  const changeDrawerOpen = useCallback(
+    (open: boolean) => {
+      setDrawerOpen(open)
+      if (!open) resetFilterPage()
+    },
+    [resetFilterPage],
+  )
   const isMobile = usePhoneLayout()
   const drawer = useSideDrawer()
   // vaul cannot turn an open drawer around, so a rotation closes it. The
@@ -339,10 +352,7 @@ export function MapControls({
           </DropdownMenuItem>
         )}
         {(actionsInMenu || (!isMobile && canGoToServer)) && <DropdownMenuSeparator />}
-        <DropdownMenuCheckboxItem
-          checked={frameRateEnabled}
-          onCheckedChange={onFrameRateChange}
-        >
+        <DropdownMenuCheckboxItem checked={frameRateEnabled} onCheckedChange={onFrameRateChange}>
           Show frame rate
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>
@@ -395,7 +405,13 @@ export function MapControls({
           labelFor={(code) => countryLabels?.[code] ?? code}
           valueFor={(code) => countryNames?.[code] ?? code}
         />
-        <FilterListRow label="City" search options={cityOptions} selected={selectedCities} onChange={onCitiesChange} />
+        <FilterListRow
+          label="City"
+          search
+          options={cityOptions}
+          selected={selectedCities}
+          onChange={onCitiesChange}
+        />
         {showServers && (
           <FilterListRow
             label="Server"
@@ -448,17 +464,37 @@ export function MapControls({
     <>
       <Section label="Visualization">
         <Tabs value={activeLayer} onValueChange={(value) => onLayerChange(value as LayerType)}>
-          <TabsList className={cn("grid h-8 w-full", bannedAvailable ? "grid-cols-3" : "grid-cols-2")}>
-            <TabsTrigger value="heatmap" className={cn(LAYER_TAB, "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30")}>
+          <TabsList
+            className={cn("grid h-8 w-full", bannedAvailable ? "grid-cols-3" : "grid-cols-2")}
+          >
+            <TabsTrigger
+              value="heatmap"
+              className={cn(
+                LAYER_TAB,
+                "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30",
+              )}
+            >
               <Flame className="h-3.5 w-3.5" />
               Heatmap
             </TabsTrigger>
-            <TabsTrigger value="markers" className={cn(LAYER_TAB, "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30")}>
+            <TabsTrigger
+              value="markers"
+              className={cn(
+                LAYER_TAB,
+                "data-active:bg-primary/15 data-active:text-primary data-active:border-primary/30 dark:data-active:bg-primary/15 dark:data-active:text-primary dark:data-active:border-primary/30",
+              )}
+            >
               <MapPin className="h-3.5 w-3.5" />
               Markers
             </TabsTrigger>
             {bannedAvailable && (
-              <TabsTrigger value="banned" className={cn(LAYER_TAB, "data-active:bg-red-500/15 data-active:text-red-400 data-active:border-red-500/30 dark:data-active:bg-red-500/15 dark:data-active:text-red-400 dark:data-active:border-red-500/30")}>
+              <TabsTrigger
+                value="banned"
+                className={cn(
+                  LAYER_TAB,
+                  "data-active:bg-red-500/15 data-active:text-red-400 data-active:border-red-500/30 dark:data-active:bg-red-500/15 dark:data-active:text-red-400 dark:data-active:border-red-500/30",
+                )}
+              >
                 <ShieldBan className="h-3.5 w-3.5" />
                 Banned
               </TabsTrigger>
@@ -475,7 +511,11 @@ export function MapControls({
           label="Globe"
           checked={projection === "globe"}
           onCheckedChange={(on) => onProjectionChange(on ? "globe" : "mercator")}
-          title={projection === "globe" ? "Switch to a flat Mercator map" : "Switch to an interactive globe"}
+          title={
+            projection === "globe"
+              ? "Switch to a flat Mercator map"
+              : "Switch to an interactive globe"
+          }
         />
         <SwitchRow
           icon={Satellite}
@@ -511,7 +551,11 @@ export function MapControls({
           checked={routeEffectsEnabled && serverLocationAvailable}
           disabled={!serverLocationAvailable}
           onCheckedChange={onRouteEffectsChange}
-          title={serverLocationAvailable ? "Show or hide animated network routes" : "No server location could be resolved"}
+          title={
+            serverLocationAvailable
+              ? "Show or hide animated network routes"
+              : "No server location could be resolved"
+          }
         />
         {serverLocationAvailable && (
           <SwitchRow
@@ -578,17 +622,32 @@ export function MapControls({
                   disabled={!ip.location}
                   className="flex min-w-0 flex-1 items-center justify-between text-[10px] hover:bg-foreground/[0.07] rounded px-1 py-0.5 cursor-pointer disabled:cursor-default disabled:opacity-50 text-left"
                 >
-                  <div className="font-mono truncate"><Badge variant="secondary" className="text-[10px] h-5 min-w-5 py-0 font-mono tabular-nums">{formatNumber(ip.eventCount)}</Badge> {ip.ipAddress}</div>
+                  <div className="font-mono truncate">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] h-5 min-w-5 py-0 font-mono tabular-nums"
+                    >
+                      {formatNumber(ip.eventCount)}
+                    </Badge>{" "}
+                    {ip.ipAddress}
+                  </div>
                   <CountryFlag
                     code={ip.location?.countryCode}
-                    name={[ip.location?.city, ip.location?.countryName].filter(Boolean).join(", ") || null}
+                    name={
+                      [ip.location?.city, ip.location?.countryName].filter(Boolean).join(", ") ||
+                      null
+                    }
                     standalone
                     className="ml-2"
                   />
                 </button>
                 {/* Selects before the button opens the inspector, so it lands like a row click. */}
                 <span onClickCapture={() => onSelectIp?.(ip)}>
-                  <InspectIpButton ip={ip.ipAddress} fromLocationId={ip.location?.id} onOpen={() => changeDrawerOpen(false)} />
+                  <InspectIpButton
+                    ip={ip.ipAddress}
+                    fromLocationId={ip.location?.id}
+                    onOpen={() => changeDrawerOpen(false)}
+                  />
                 </span>
               </div>
             ))}
@@ -635,7 +694,12 @@ export function MapControls({
             </DrawerDescription>
           </DrawerHeader>
           <FilterPagesProvider value={filterPages.pages}>
-            <div className={cn("flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6", filterPages.page && "hidden")}>
+            <div
+              className={cn(
+                "flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6",
+                filterPages.page && "hidden",
+              )}
+            >
               {sections}
             </div>
           </FilterPagesProvider>
@@ -664,7 +728,10 @@ export function MapControls({
         >
           <SlidersHorizontal className="h-4 w-4" />
           {activeFilterCount > 0 && (
-            <span aria-hidden className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-background" />
+            <span
+              aria-hidden
+              className="absolute -top-1 -right-1 size-2.5 rounded-full bg-primary ring-2 ring-background"
+            />
           )}
         </Button>
       </div>

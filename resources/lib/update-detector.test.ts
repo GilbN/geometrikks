@@ -61,7 +61,10 @@ describe("createUpdateDetector", () => {
   })
 
   it("a new startedAt with a different key reports a new build", async () => {
-    const readServerBuild = vi.fn().mockResolvedValueOnce(build("0.22.0")).mockResolvedValue(build("0.23.0"))
+    const readServerBuild = vi
+      .fn()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockResolvedValue(build("0.23.0"))
     const { detector, onServerBuild } = setup(readServerBuild)
     await detector.start()
     await detector.observeStartedAt("t1")
@@ -129,7 +132,10 @@ describe("createUpdateDetector", () => {
 
   it("a recheck during an observe's read shares that read", async () => {
     const pendingRead = deferred<BuildIdentity>()
-    const readServerBuild = vi.fn().mockResolvedValueOnce(build("0.22.0")).mockReturnValueOnce(pendingRead.promise)
+    const readServerBuild = vi
+      .fn()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockReturnValueOnce(pendingRead.promise)
     const { detector, onServerBuild } = setup(readServerBuild)
     await detector.start()
     await detector.observeStartedAt("t1")
@@ -144,7 +150,10 @@ describe("createUpdateDetector", () => {
 
   it("an observe during a recheck's read shares that read", async () => {
     const pendingRead = deferred<BuildIdentity>()
-    const readServerBuild = vi.fn().mockResolvedValueOnce(build("0.22.0")).mockReturnValueOnce(pendingRead.promise)
+    const readServerBuild = vi
+      .fn()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockReturnValueOnce(pendingRead.promise)
     const { detector, onServerBuild } = setup(readServerBuild)
     await detector.start()
     await detector.observeStartedAt("t1")
@@ -159,7 +168,10 @@ describe("createUpdateDetector", () => {
 
   it("keeps a startedAt change seen while the first build read is pending", async () => {
     const pendingStart = deferred<BuildIdentity>()
-    const readServerBuild = vi.fn().mockReturnValueOnce(pendingStart.promise).mockResolvedValue(build("0.23.0"))
+    const readServerBuild = vi
+      .fn()
+      .mockReturnValueOnce(pendingStart.promise)
+      .mockResolvedValue(build("0.23.0"))
     const { detector, onServerBuild } = setup(readServerBuild)
     const started = detector.start()
     const firstPoll = detector.observeStartedAt("t1")
@@ -173,7 +185,10 @@ describe("createUpdateDetector", () => {
   })
 
   it("a throwing onServerBuild does not make the read count as failed", async () => {
-    const readServerBuild = vi.fn().mockResolvedValueOnce(build("0.22.0")).mockResolvedValue(build("0.23.0"))
+    const readServerBuild = vi
+      .fn()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockResolvedValue(build("0.23.0"))
     const { detector, onServerBuild } = setup(readServerBuild)
     onServerBuild.mockImplementationOnce(() => {
       throw new Error("listener failed")
@@ -186,7 +201,10 @@ describe("createUpdateDetector", () => {
   })
 
   it("keeps reporting a new build on later polls without moving the page build", async () => {
-    const readServerBuild = vi.fn().mockResolvedValueOnce(build("0.22.0")).mockResolvedValue(build("0.23.0"))
+    const readServerBuild = vi
+      .fn()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockResolvedValue(build("0.23.0"))
     const { detector, onServerBuild } = setup(readServerBuild)
     await detector.start()
     await detector.observeStartedAt("t1")
@@ -199,7 +217,10 @@ describe("createUpdateDetector", () => {
   })
 
   it("a failed start is retried on the next poll and is never an update", async () => {
-    const readServerBuild = vi.fn().mockRejectedValueOnce(new Error("down")).mockResolvedValue(build("0.23.0"))
+    const readServerBuild = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("down"))
+      .mockResolvedValue(build("0.23.0"))
     const { detector, onServerBuild } = setup(readServerBuild)
     await expect(detector.start()).rejects.toThrow("down")
     expect(detector.pageBuildKey()).toBeNull()
@@ -209,7 +230,10 @@ describe("createUpdateDetector", () => {
   })
 
   it("recheck reads the server build without a startedAt change", async () => {
-    const readServerBuild = vi.fn().mockResolvedValueOnce(build("0.22.0")).mockResolvedValue(build("0.23.0"))
+    const readServerBuild = vi
+      .fn()
+      .mockResolvedValueOnce(build("0.22.0"))
+      .mockResolvedValue(build("0.23.0"))
     const { detector, onServerBuild } = setup(readServerBuild)
     await detector.start()
     await detector.recheck()
@@ -254,7 +278,9 @@ describe("createUpdateDetector", () => {
     readServerBuild.mockResolvedValueOnce(build("0.23.0"))
     await detector.observeStartedAt("t2")
     expect(onStartedAtChange).toHaveBeenCalledTimes(1)
-    expect(onStartedAtChange.mock.invocationCallOrder[0]).toBeLessThan(onServerBuild.mock.invocationCallOrder[0])
+    expect(onStartedAtChange.mock.invocationCallOrder[0]).toBeLessThan(
+      onServerBuild.mock.invocationCallOrder[0],
+    )
 
     await detector.observeStartedAt("t2")
     await detector.recheck()

@@ -60,7 +60,9 @@ export function RequestsChart() {
               tickLine={false}
               axisLine={false}
               width={48}
-              tickFormatter={(v: number) => (options.scale === "log" ? formatLogCount(v) : formatNumber(v))}
+              tickFormatter={(v: number) =>
+                options.scale === "log" ? formatLogCount(v) : formatNumber(v)
+              }
               {...series.axis}
             />
             <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />

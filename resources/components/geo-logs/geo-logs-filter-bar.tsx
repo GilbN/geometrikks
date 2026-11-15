@@ -12,7 +12,12 @@ import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-m
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterExcludedIpRows, FilterListRow, FilterMyIpRow, FilterSection } from "@/components/ui/filter-rows"
+import {
+  FilterExcludedIpRows,
+  FilterListRow,
+  FilterMyIpRow,
+  FilterSection,
+} from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
@@ -38,11 +43,15 @@ export function GeoLogsFilterBar() {
   const addIp = (key: IpKey) => (value: string) => {
     if (filters[key].includes(value)) return
     // A tap on Exclude your IP lands after a lookup, so the closure can be stale.
-    setFilters((prev) => (prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] }))
+    setFilters((prev) =>
+      prev[key].includes(value) ? prev : { ...prev, [key]: [...prev[key], value] },
+    )
   }
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
-  const myIp = useMyIpExclusion(filters.ipsExclude, addIp("ipsExclude"), (ip) => removeIp("ipsExclude", ip))
+  const myIp = useMyIpExclusion(filters.ipsExclude, addIp("ipsExclude"), (ip) =>
+    removeIp("ipsExclude", ip),
+  )
 
   const asnLabel = useAsnLabel(facets?.asns)
   const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
@@ -57,19 +66,46 @@ export function GeoLogsFilterBar() {
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== asn) }))
 
   const chips = [
-    ...filters.ips.map((v) => ({ key: "ips" as const, label: v, exclude: false, remove: () => removeIp("ips", v) })),
-    ...filters.ipsExclude.map((v) => ({ key: "ipsExclude" as const, label: v, exclude: true, remove: () => removeIp("ipsExclude", v) })),
-    ...filters.asns.map((v) => ({ key: "asns" as const, label: asnLabel(v), exclude: false, remove: () => removeAsn("asns", v) })),
-    ...filters.asnsExclude.map((v) => ({ key: "asnsExclude" as const, label: asnLabel(v), exclude: true, remove: () => removeAsn("asnsExclude", v) })),
+    ...filters.ips.map((v) => ({
+      key: "ips" as const,
+      label: v,
+      exclude: false,
+      remove: () => removeIp("ips", v),
+    })),
+    ...filters.ipsExclude.map((v) => ({
+      key: "ipsExclude" as const,
+      label: v,
+      exclude: true,
+      remove: () => removeIp("ipsExclude", v),
+    })),
+    ...filters.asns.map((v) => ({
+      key: "asns" as const,
+      label: asnLabel(v),
+      exclude: false,
+      remove: () => removeAsn("asns", v),
+    })),
+    ...filters.asnsExclude.map((v) => ({
+      key: "asnsExclude" as const,
+      label: asnLabel(v),
+      exclude: true,
+      remove: () => removeAsn("asnsExclude", v),
+    })),
   ]
   const chipRow = (keys: (IpKey | AsnKey)[]) => {
     const shown = chips.filter((c) => keys.includes(c.key))
-    return shown.length > 0 && (
-      <FilterRow>
-        {shown.map((c) => (
-          <FilterChip key={`${c.key}:${c.label}`} value={c.label} exclude={c.exclude} onRemove={c.remove} />
-        ))}
-      </FilterRow>
+    return (
+      shown.length > 0 && (
+        <FilterRow>
+          {shown.map((c) => (
+            <FilterChip
+              key={`${c.key}:${c.label}`}
+              value={c.label}
+              exclude={c.exclude}
+              onRemove={c.remove}
+            />
+          ))}
+        </FilterRow>
+      )
     )
   }
 
@@ -230,9 +266,15 @@ export function GeoLogsFilterBar() {
           </FilterSection>
           <FilterSection label="Exclude">
             <FilterMyIpRow exclusion={myIp} />
-            <FilterExcludedIpRows values={filters.ipsExclude} onAdd={addIp("ipsExclude")} onRemove={(ip) => removeIp("ipsExclude", ip)} validate={isValidIp} />
+            <FilterExcludedIpRows
+              values={filters.ipsExclude}
+              onAdd={addIp("ipsExclude")}
+              onRemove={(ip) => removeIp("ipsExclude", ip)}
+              validate={isValidIp}
+            />
             <FilterListRow<number>
-              label="ASN" exclude
+              label="ASN"
+              exclude
               search
               options={facets?.asns.map((a) => a.asn) ?? []}
               selected={filters.asnsExclude}

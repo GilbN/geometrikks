@@ -14,14 +14,26 @@ import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { Input } from "@/components/ui/input"
 import { PaginationFooter } from "@/components/ui/pagination-footer"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { rowActivation } from "@/components/data/row-activation"
 import { IpActionsMenu } from "@/components/ip-actions/ip-actions-menu"
 import type { StoredReportDto } from "@/generated/api/types.gen"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
-import { ABUSEIPDB_CATEGORIES, CATEGORY_NAMES, reportCategoryNames, reporterLabel } from "@/lib/abuseipdb"
+import {
+  ABUSEIPDB_CATEGORIES,
+  CATEGORY_NAMES,
+  reportCategoryNames,
+  reporterLabel,
+} from "@/lib/abuseipdb"
 import { useAbuseIpdbReportHistory } from "@/lib/queries"
 import { formatRowTime } from "@/lib/row-time"
 import { cn } from "@/lib/utils"
@@ -29,7 +41,9 @@ import { ROW_TARGET_VALUE_CLASS, ExpandChevron, RowTarget, TwoLineCell } from ".
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 const COLUMN_COUNT = 5
-const CATEGORY_IDS = [...ABUSEIPDB_CATEGORIES].sort((a, b) => a.name.localeCompare(b.name)).map((category) => category.id)
+const CATEGORY_IDS = [...ABUSEIPDB_CATEGORIES]
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map((category) => category.id)
 
 type ReportStatus = StoredReportDto["status"]
 const STATUSES: ReportStatus[] = ["sent", "unconfirmed"]
@@ -179,7 +193,13 @@ export function AbuseIpdbReportsTable() {
                     </TableRow>
                   ))
                 : data?.items?.map((report) => (
-                    <ReportRows key={report.id} report={report} narrow={narrow} dimmed={isPlaceholderData} colCount={colCount} />
+                    <ReportRows
+                      key={report.id}
+                      report={report}
+                      narrow={narrow}
+                      dimmed={isPlaceholderData}
+                      colCount={colCount}
+                    />
                   ))}
               {!isLoading && isError && !data && (
                 <TableRow>
@@ -191,7 +211,9 @@ export function AbuseIpdbReportsTable() {
               {!isLoading && !isError && !isPlaceholderData && total === 0 && (
                 <TableRow>
                   <TableCell colSpan={colCount} className="h-24 text-center text-muted-foreground">
-                    {filtered ? "No reports match these filters." : "GeoMetrikks hasn't sent any reports yet."}
+                    {filtered
+                      ? "No reports match these filters."
+                      : "GeoMetrikks hasn't sent any reports yet."}
                   </TableCell>
                 </TableRow>
               )}
@@ -261,11 +283,17 @@ function ReportRows({
                 countryName={null}
                 value={<span className={ROW_TARGET_VALUE_CLASS}>{report.ipAddress}</span>}
                 actions={<IpActionsMenu ip={report.ipAddress} />}
-                status={unconfirmed ? <UnconfirmedBadge /> : <span className="tabular-nums">{score}</span>}
+                status={
+                  unconfirmed ? <UnconfirmedBadge /> : <span className="tabular-nums">{score}</span>
+                }
               />
             }
             bottom={<span className="truncate text-muted-foreground">{categories}</span>}
-            bottomEnd={<span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">{reportedAt}</span>}
+            bottomEnd={
+              <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
+                {reportedAt}
+              </span>
+            }
           />
         ) : (
           <>

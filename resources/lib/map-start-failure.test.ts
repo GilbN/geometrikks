@@ -20,7 +20,8 @@ describe("mapStartFailure", () => {
   })
 
   it("passes on what the browser said about the context", () => {
-    const status = "WebGL creation failed: * AllowWebgl2:false restricts context creation on this system"
+    const status =
+      "WebGL creation failed: * AllowWebgl2:false restricts context creation on this system"
     const failure = mapStartFailure({ error: gpuError(status), target: null })
     expect(failure?.detail).toBe(
       `The map needs WebGL2 to draw. Try another browser or device, or check that graphics acceleration is available. Browser message: ${status}`,

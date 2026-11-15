@@ -33,10 +33,13 @@ export function TrafficOriginCard() {
   // See asn-coverage.ts for why the share and the coverage use different
   // denominators.
   const dropFreshness = dropAsnFreshness(about?.dropLists)
-  const { classified, unenriched, hostingShare: share, dropShare, coverage } = asnCoverage(
-    data?.categories,
-    totalRequests,
-  )
+  const {
+    classified,
+    unenriched,
+    hostingShare: share,
+    dropShare,
+    coverage,
+  } = asnCoverage(data?.categories, totalRequests)
   const headline = headlineAsnCategory(data?.categories)
 
   return (
@@ -56,16 +59,17 @@ export function TrafficOriginCard() {
           <Skeleton className="h-32 w-full" />
         ) : classified === 0 || !headline ? (
           <p className="text-sm text-muted-foreground">
-            None of the {formatNumber(totalRequests)} requests in this range
-            have ASN data; requests are enriched from the time the ASN
-            database is first loaded. Run{" "}
-            <code className="font-mono">litestar backfill-asn --table access-logs</code>{" "}
-            to fill in history.
+            None of the {formatNumber(totalRequests)} requests in this range have ASN data; requests
+            are enriched from the time the ASN database is first loaded. Run{" "}
+            <code className="font-mono">litestar backfill-asn --table access-logs</code> to fill in
+            history.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-3xl font-semibold tabular-nums">{((headline.hits / classified) * 100).toFixed(1)}%</span>
+              <span className="text-3xl font-semibold tabular-nums">
+                {((headline.hits / classified) * 100).toFixed(1)}%
+              </span>
               <span className="text-muted-foreground">
                 of {formatNumber(classified)} requests with ASN data came from{" "}
                 {ORIGIN_PHRASE[headline.category]}
@@ -73,9 +77,8 @@ export function TrafficOriginCard() {
             </div>
             {unenriched > 0 && (
               <p className="text-xs text-muted-foreground">
-                Covers {coverage.toFixed(1)}% of this range;{" "}
-                {formatNumber(unenriched)} of {formatNumber(totalRequests)} requests
-                have no ASN data and are excluded above.
+                Covers {coverage.toFixed(1)}% of this range; {formatNumber(unenriched)} of{" "}
+                {formatNumber(totalRequests)} requests have no ASN data and are excluded above.
               </p>
             )}
             <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
@@ -108,8 +111,12 @@ export function TrafficOriginCard() {
                             )}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(cat.hits)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatBytes(cat.totalBytes)}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(cat.hits)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatBytes(cat.totalBytes)}
+                        </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {classified > 0 ? ((cat.hits / classified) * 100).toFixed(1) : "0.0"}%
                         </TableCell>
@@ -119,7 +126,9 @@ export function TrafficOriginCard() {
                 {unenriched > 0 && (
                   <TableRow className="text-muted-foreground">
                     <TableCell>No ASN data</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(unenriched)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatNumber(unenriched)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">-</TableCell>
                     <TableCell className="text-right tabular-nums">-</TableCell>
                   </TableRow>

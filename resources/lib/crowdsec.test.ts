@@ -40,7 +40,10 @@ describe("crowdsecErrorMessage", () => {
 
 describe("isClientError", () => {
   const withStatus = (status: number) =>
-    new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, { data: {}, status } as never)
+    new AxiosError("Request failed", "ERR_BAD_REQUEST", undefined, undefined, {
+      data: {},
+      status,
+    } as never)
 
   it("is true for a 4xx answer", () => {
     expect(isClientError(withStatus(400))).toBe(true)
@@ -115,13 +118,40 @@ describe("decisionLabel and decisionPopupColor", () => {
 
 describe("isValidBanTarget", () => {
   it("accepts IPs and ranges", () => {
-    for (const value of ["203.0.113.7", "2001:db8::1", "203.0.113.0/24", "203.0.113.9/24", "2001:db8::/48", "10.0.0.1/32", "::ffff:203.0.113.7", "::ffff:203.0.113.0/120", "2001:db8::/96"]) {
+    for (const value of [
+      "203.0.113.7",
+      "2001:db8::1",
+      "203.0.113.0/24",
+      "203.0.113.9/24",
+      "2001:db8::/48",
+      "10.0.0.1/32",
+      "::ffff:203.0.113.7",
+      "::ffff:203.0.113.0/120",
+      "2001:db8::/96",
+    ]) {
       expect(isValidBanTarget(value), value).toBe(true)
     }
   })
 
   it("rejects partial values, bad prefixes and /0", () => {
-    for (const value of ["203.0.113", "203.0.113.0/", "203.0.113.0/33", "2001:db8::/129", "0.0.0.0/0", "::/0", "10.0.0.0/08", "10.0.0.0/2a", "::1]#", "::1]?x", "2001:db8::1]/a[", "::\t1", "fe80::1%eth0", "::ffff:0:0/96", "::ffff:203.0.113.9/96", "0:0:0:0:0:ffff:0.0.0.0/90"]) {
+    for (const value of [
+      "203.0.113",
+      "203.0.113.0/",
+      "203.0.113.0/33",
+      "2001:db8::/129",
+      "0.0.0.0/0",
+      "::/0",
+      "10.0.0.0/08",
+      "10.0.0.0/2a",
+      "::1]#",
+      "::1]?x",
+      "2001:db8::1]/a[",
+      "::\t1",
+      "fe80::1%eth0",
+      "::ffff:0:0/96",
+      "::ffff:203.0.113.9/96",
+      "0:0:0:0:0:ffff:0.0.0.0/90",
+    ]) {
       expect(isValidBanTarget(value), value).toBe(false)
     }
   })
@@ -175,7 +205,13 @@ describe("external links", () => {
   })
 
   it("has no hub link for our own, list or free-text scenarios", () => {
-    for (const scenario of ["geometrikks/manual-ban", "geometrikks/manual-ban: scanner", "lists:firehol_cruzit", "update : +15000/-0 IPs", "manual ban"]) {
+    for (const scenario of [
+      "geometrikks/manual-ban",
+      "geometrikks/manual-ban: scanner",
+      "lists:firehol_cruzit",
+      "update : +15000/-0 IPs",
+      "manual ban",
+    ]) {
       expect(crowdsecHubUrl(scenario), scenario).toBeNull()
     }
   })

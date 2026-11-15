@@ -11,11 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useTimeRange } from "@/lib/time-range-context"
 import { useRouteHeader } from "@/lib/route-header"
 import { CHART_GRANULARITY_OPTIONS, POLL_INTERVAL_OPTIONS, type ChartGranularity } from "@/lib/api"
@@ -65,12 +61,7 @@ export function TimeRangeToolbar() {
               disabled={isFetching > 0}
               className="shrink-0"
             >
-              <RotateCw
-                className={cn(
-                  "h-3.5 w-3.5",
-                  isFetching > 0 && "animate-spin"
-                )}
-              />
+              <RotateCw className={cn("h-3.5 w-3.5", isFetching > 0 && "animate-spin")} />
               <span className="sr-only">Refresh data</span>
             </Button>
           </TooltipTrigger>
@@ -141,7 +132,10 @@ export function PhoneTimeRangeControls({ chip = false }: { chip?: boolean }) {
     <>
       <RefreshButton className={chip ? CHIP_REFRESH : undefined} />
       <TimeRangePicker
-        refreshControls={{ chartBuckets: routeHeader.chartBuckets, cardCharts: routeHeader.cardCharts }}
+        refreshControls={{
+          chartBuckets: routeHeader.chartBuckets,
+          cardCharts: routeHeader.cardCharts,
+        }}
         trigger={
           <Button
             size="sm"

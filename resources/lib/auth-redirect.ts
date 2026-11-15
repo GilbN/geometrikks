@@ -35,9 +35,7 @@ export function planLoginRoute(result: MeResult): AuthRoutePlan {
   // 401 is the ordinary "auth is on and nobody is logged in yet" case.
   // Anything else means the API is broken, and a form that will fail on
   // submit with "Invalid username or password" would be a lie.
-  return result.status === 401
-    ? { action: "render" }
-    : { action: "rethrow", error: result.error }
+  return result.status === 401 ? { action: "render" } : { action: "rethrow", error: result.error }
 }
 
 const CHROMELESS_ROUTES = new Set(["/login", "/signed-out"])
@@ -66,7 +64,8 @@ export function planLogoutRoute(result: MeResult): AuthRoutePlan {
  *  interpolated. */
 export const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   oidc_denied: "Sign-in was cancelled or refused by the identity provider.",
-  oidc_forbidden: "Your account is not allowed to use this app. Check the allowed users and groups.",
+  oidc_forbidden:
+    "Your account is not allowed to use this app. Check the allowed users and groups.",
   oidc_failed: "Sign-in could not be completed. Try again.",
   oidc_unavailable: "The identity provider could not be reached. Try again in a moment.",
 }
@@ -88,7 +87,9 @@ export function planLoginForm(options: AuthOptions, errorCode: string | null): L
         ? `Sign in with your ${oidc.providerName} account.`
         : "Enter the administrator credentials configured for this installation."
   const message =
-    errorCode && Object.hasOwn(LOGIN_ERROR_MESSAGES, errorCode) ? LOGIN_ERROR_MESSAGES[errorCode] : null
+    errorCode && Object.hasOwn(LOGIN_ERROR_MESSAGES, errorCode)
+      ? LOGIN_ERROR_MESSAGES[errorCode]
+      : null
   return { oidc, password, message, description }
 }
 

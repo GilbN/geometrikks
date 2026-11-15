@@ -6,19 +6,28 @@ async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 async function openFilters(page: Page, search = "") {
   await login(page)
-  await page.route("**/api/v1/access-logs/facets*", (route) => route.fulfill({ json: {
-    hosts: ["cloud.example.com", "git.example.com"],
-    servers: ["edge-1"],
-    logFormats: ["traefik-json"],
-    countries: [{ code: "NO", name: "Norway" }],
-    cities: ["Oslo"],
-    asns: [{ asn: 15169, organization: "Google LLC" }, { asn: 13335, organization: "Cloudflare, Inc." }],
-  } }))
+  await page.route("**/api/v1/access-logs/facets*", (route) =>
+    route.fulfill({
+      json: {
+        hosts: ["cloud.example.com", "git.example.com"],
+        servers: ["edge-1"],
+        logFormats: ["traefik-json"],
+        countries: [{ code: "NO", name: "Norway" }],
+        cities: ["Oslo"],
+        asns: [
+          { asn: 15169, organization: "Google LLC" },
+          { asn: 13335, organization: "Cloudflare, Inc." },
+        ],
+      },
+    }),
+  )
   await page.goto(`/access-logs${search}`)
   await page.getByRole("button", { name: /^Filters/ }).click()
   const drawer = page.locator('[data-slot="drawer-content"]')
@@ -29,7 +38,9 @@ async function openFilters(page: Page, search = "") {
 test.describe("touch screen", () => {
   test.use({ hasTouch: true, isMobile: true })
 
-  test("device emulation gets the search page, since its multi-select is still an inline list box", async ({ page }) => {
+  test("device emulation gets the search page, since its multi-select is still an inline list box", async ({
+    page,
+  }) => {
     const drawer = await openFilters(page)
     await expect(drawer.getByRole("listbox")).toHaveCount(0)
     await drawer.getByRole("button", { name: /^Host: Any/ }).click()
@@ -39,7 +50,9 @@ test.describe("touch screen", () => {
 
   test.describe("a phone's browser, which draws a multi-select as one line", () => {
     test.beforeEach(async ({ page }) => {
-      await page.addInitScript(() => Object.defineProperty(HTMLSelectElement.prototype, "offsetHeight", { get: () => 44 }))
+      await page.addInitScript(() =>
+        Object.defineProperty(HTMLSelectElement.prototype, "offsetHeight", { get: () => 44 }),
+      )
     })
 
     test("a short list is a native multi-select and the row shows the picks", async ({ page }) => {
@@ -48,12 +61,18 @@ test.describe("touch screen", () => {
       await expect(methods).toBeEnabled()
       await methods.selectOption(["GET", "POST"])
 
-      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Method", exact: true }) })).toContainText("GET +1")
+      await expect(
+        page
+          .locator("label")
+          .filter({ has: page.getByRole("listbox", { name: "Method", exact: true }) }),
+      ).toContainText("GET +1")
       await expect(page).toHaveURL(/method=/)
     })
 
     for (const exclude of [false, true]) {
-      test(`${exclude ? "Exclude Host" : "Host"} can remove a selection missing from the host options`, async ({ page }) => {
+      test(`${exclude ? "Exclude Host" : "Host"} can remove a selection missing from the host options`, async ({
+        page,
+      }) => {
         const name = exclude ? "Exclude Host" : "Host"
         const parameter = exclude ? "hostx" : "host"
         const value = "staging.example.com"
@@ -67,20 +86,28 @@ test.describe("touch screen", () => {
         await expect.poll(() => new URL(page.url()).searchParams.has(parameter)).toBe(false)
       })
 
-      test(`${exclude ? "Exclude Host" : "Host"} opens a searchable list instead of the native picker`, async ({ page }) => {
+      test(`${exclude ? "Exclude Host" : "Host"} opens a searchable list instead of the native picker`, async ({
+        page,
+      }) => {
         const drawer = await openFilters(page)
         const name = exclude ? "Exclude Host" : "Host"
         const parameter = exclude ? "hostx" : "host"
         await expect(drawer.getByRole("listbox", { name, exact: true })).toHaveCount(0)
-        await drawer.getByRole("button", { name: `${name}: ${exclude ? "None" : "Any"}`, exact: true }).click()
+        await drawer
+          .getByRole("button", { name: `${name}: ${exclude ? "None" : "Any"}`, exact: true })
+          .click()
         await expect(drawer.getByRole("heading", { name, exact: true })).toBeVisible()
         const search = drawer.getByRole("textbox", { name: "Search host", exact: true })
         await search.fill("git")
-        await expect(drawer.getByRole("button", { name: "cloud.example.com", exact: true })).toHaveCount(0)
+        await expect(
+          drawer.getByRole("button", { name: "cloud.example.com", exact: true }),
+        ).toHaveCount(0)
         const host = drawer.getByRole("button", { name: "git.example.com", exact: true })
         await host.click()
         await expect(host).toHaveAttribute("aria-pressed", "true")
-        await expect.poll(() => JSON.parse(new URL(page.url()).searchParams.get(parameter) ?? "[]")).toEqual(["git.example.com"])
+        await expect
+          .poll(() => JSON.parse(new URL(page.url()).searchParams.get(parameter) ?? "[]"))
+          .toEqual(["git.example.com"])
 
         await drawer.getByRole("button", { name: "Filters", exact: true }).click()
         const row = drawer.getByRole("button", { name: `${name}: git.example.com`, exact: true })
@@ -97,7 +124,11 @@ test.describe("touch screen", () => {
       await expect(excluded).toBeEnabled()
       await excluded.selectOption("edge-1")
 
-      await expect(page.locator("label").filter({ has: page.getByRole("listbox", { name: "Exclude Server", exact: true }) })).toContainText("edge-1")
+      await expect(
+        page
+          .locator("label")
+          .filter({ has: page.getByRole("listbox", { name: "Exclude Server", exact: true }) }),
+      ).toContainText("edge-1")
       await expect(page).toHaveURL(/serverx=/)
     })
   })
@@ -120,11 +151,15 @@ test.describe("touch screen", () => {
     await expect(picked).toBeFocused()
   })
 
-  test("changing a filter leaves the page where iOS scrolled it for the keyboard", async ({ page }) => {
+  test("changing a filter leaves the page where iOS scrolled it for the keyboard", async ({
+    page,
+  }) => {
     const drawer = await openFilters(page)
     // On a slow CI runner the drawer is still sliding in here, and a scroll
     // set during the slide moves (300 came back as 172).
-    await drawer.evaluate((element) => Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)))
+    await drawer.evaluate((element) =>
+      Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+    )
     await page.evaluate(() => {
       document.documentElement.style.height = "2000px"
       window.scrollTo(0, 300)
@@ -156,20 +191,29 @@ test.describe("touch screen", () => {
 test("Debug logs' Lines is a native single-choice row", async ({ page }) => {
   await login(page)
   const requests: URL[] = []
-  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-log-debug", (route) => {
-    requests.push(new URL(route.request().url()))
-    return route.fulfill({ json: { items: [], total: 0, limit: 25, offset: 0 } })
-  })
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-log-debug",
+    (route) => {
+      requests.push(new URL(route.request().url()))
+      return route.fulfill({ json: { items: [], total: 0, limit: 25, offset: 0 } })
+    },
+  )
   await page.goto("/debug-logs")
   await page.getByRole("button", { name: /^Filters/ }).click()
   const drawer = page.locator('[data-slot="drawer-content"]')
   const lines = drawer.getByRole("combobox", { name: "Lines", exact: true })
   await lines.selectOption("malformed")
-  await expect(page.locator("label").filter({ has: page.getByRole("combobox", { name: "Lines", exact: true }) })).toContainText("Malformed only")
+  await expect(
+    page
+      .locator("label")
+      .filter({ has: page.getByRole("combobox", { name: "Lines", exact: true }) }),
+  ).toContainText("Malformed only")
   await expect.poll(() => requests.at(-1)?.searchParams.get("malformed")).toBe("true")
 })
 
-test("a mouse gets the search page, since a multi-select would be an inline list box", async ({ page }) => {
+test("a mouse gets the search page, since a multi-select would be an inline list box", async ({
+  page,
+}) => {
   const drawer = await openFilters(page)
   await expect(drawer.getByRole("listbox")).toHaveCount(0)
   await drawer.getByRole("button", { name: /^Host: / }).click()

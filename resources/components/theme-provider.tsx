@@ -63,10 +63,16 @@ export function ThemeProvider({
     parseTheme(readStorage(storageKey), defaultTheme),
   )
   const [lightTheme, setLightThemeState] = useState<ColorTheme>(() =>
-    parseColorTheme(readStorage(THEME_STORAGE_KEYS.lightTheme), readStorage(THEME_STORAGE_KEYS.legacyAccent)),
+    parseColorTheme(
+      readStorage(THEME_STORAGE_KEYS.lightTheme),
+      readStorage(THEME_STORAGE_KEYS.legacyAccent),
+    ),
   )
   const [darkTheme, setDarkThemeState] = useState<ColorTheme>(() =>
-    parseColorTheme(readStorage(THEME_STORAGE_KEYS.darkTheme), readStorage(THEME_STORAGE_KEYS.legacyAccent)),
+    parseColorTheme(
+      readStorage(THEME_STORAGE_KEYS.darkTheme),
+      readStorage(THEME_STORAGE_KEYS.legacyAccent),
+    ),
   )
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
     resolveTheme(theme, prefersDark()),
@@ -90,10 +96,9 @@ export function ThemeProvider({
     root.classList.add(resolvedTheme)
     root.setAttribute("data-theme", colorTheme)
     root.style.colorScheme = resolvedTheme
-    document.querySelector('meta[name="theme-color"]')?.setAttribute(
-      "content",
-      themeColor(resolvedTheme, colorTheme),
-    )
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", themeColor(resolvedTheme, colorTheme))
   }, [resolvedTheme, colorTheme])
 
   const value = useMemo<ThemeProviderState>(() => {

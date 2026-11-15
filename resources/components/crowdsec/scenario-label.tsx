@@ -22,11 +22,18 @@ export function ScenarioLabel({
     <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)} title={scenario}>
       <span className="min-w-12 truncate font-mono text-xs">{name}</span>
       {showAuthor && (
-        <Badge variant="outline" className="min-w-0 max-w-28 shrink px-1.5 text-[10px] font-normal text-muted-foreground">
+        <Badge
+          variant="outline"
+          className="min-w-0 max-w-28 shrink px-1.5 text-[10px] font-normal text-muted-foreground"
+        >
           <span className="truncate">{author}</span>
         </Badge>
       )}
-      {reason && <span className="min-w-0 flex-1 basis-0 truncate text-xs text-muted-foreground">{reason}</span>}
+      {reason && (
+        <span className="min-w-0 flex-1 basis-0 truncate text-xs text-muted-foreground">
+          {reason}
+        </span>
+      )}
     </span>
   )
 }

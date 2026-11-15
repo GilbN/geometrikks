@@ -21,7 +21,14 @@ import { useBanDropNetworks } from "./queries"
 
 const request: BanNetworksRequest = { allUnbannedDays: 30, duration: "4h" }
 const response: BanNetworksResponse = {
-  results: [{ network: "45.148.10.0/24", ok: false, error: "CrowdSec LAPI is unreachable", alreadyBanned: false }],
+  results: [
+    {
+      network: "45.148.10.0/24",
+      ok: false,
+      error: "CrowdSec LAPI is unreachable",
+      alreadyBanned: false,
+    },
+  ],
   leftOut: 0,
 }
 
@@ -37,7 +44,9 @@ beforeEach(() => {
   queryClient = new QueryClient()
   mocks.queryClient = queryClient
   // A refetch that never answers, like one stuck on a down LAPI.
-  invalidate = vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(new Promise<void>(() => {}))
+  invalidate = vi
+    .spyOn(queryClient, "invalidateQueries")
+    .mockReturnValue(new Promise<void>(() => {}))
   mocks.post.mockReset()
   vi.spyOn(api, "post").mockImplementation(mocks.post)
 })

@@ -53,11 +53,7 @@ export function DebugLogsStats() {
         title="Top Parse Error"
         value={data.topParseError?.error ?? "None"}
         valueClassName="truncate text-lg"
-        subtitle={
-          data.topParseError
-            ? `${formatNumber(data.topParseError.count)} lines`
-            : subtitle
-        }
+        subtitle={data.topParseError ? `${formatNumber(data.topParseError.count)} lines` : subtitle}
         icon={Bug}
       />
     </StatGrid>

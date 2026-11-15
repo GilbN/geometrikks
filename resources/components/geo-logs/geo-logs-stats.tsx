@@ -4,7 +4,12 @@
  * chart of each figure across the range.
  */
 import { Activity, Building2, Globe2, Users } from "lucide-react"
-import { StatCard, StatCardSkeleton, StatGrid, sparklineProps } from "@/components/dashboard/statcard"
+import {
+  StatCard,
+  StatCardSkeleton,
+  StatGrid,
+  sparklineProps,
+} from "@/components/dashboard/statcard"
 import { ErrorBanner } from "@/components/error-banner"
 import { formatNumber } from "@/lib/api"
 import { useCardCharts } from "@/lib/card-charts"
@@ -27,7 +32,9 @@ export function GeoLogsStats() {
   if (isLoading || !summary) {
     return (
       <StatGrid className="lg:grid-cols-4">
-        {Array.from({ length: 4 }, (_, i) => <StatCardSkeleton key={i} sparkline={sparklines.shown} />)}
+        {Array.from({ length: 4 }, (_, i) => (
+          <StatCardSkeleton key={i} sparkline={sparklines.shown} />
+        ))}
       </StatGrid>
     )
   }

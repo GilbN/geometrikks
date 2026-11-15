@@ -25,7 +25,14 @@ export function phoneFitPadding(
     barTop,
     pillWidth,
     pillEdge,
-  }: { side: boolean; insets: Insets; topClearance: number; barTop: number; pillWidth: number; pillEdge: number },
+  }: {
+    side: boolean
+    insets: Insets
+    topClearance: number
+    barTop: number
+    pillWidth: number
+    pillEdge: number
+  },
 ) {
   return {
     top: Math.max(base, topClearance),

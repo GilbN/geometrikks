@@ -88,12 +88,17 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
         feedStatus === "unavailable" ? (
           <div className="flex flex-col items-center gap-1">
             <span className="text-sm font-medium text-foreground">Live feed paused</span>
-            <span className="text-xs">The server can't reach its database. This page retries every 30 seconds.</span>
+            <span className="text-xs">
+              The server can't reach its database. This page retries every 30 seconds.
+            </span>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1">
             <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <span aria-hidden className="size-2 rounded-full bg-primary motion-safe:animate-pulse" />
+              <span
+                aria-hidden
+                className="size-2 rounded-full bg-primary motion-safe:animate-pulse"
+              />
               Waiting for requests
             </span>
             <span className="text-xs">New requests appear here as your proxy logs them.</span>
@@ -109,7 +114,12 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
               {dropped > 0 && `, ${dropped} dropped`}
             </span>
           )}
-          <Button variant="outline" size="sm" className="h-8" onClick={() => setManuallyPaused((p) => !p)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={() => setManuallyPaused((p) => !p)}
+          >
             {manuallyPaused ? (
               <>
                 <Play className="h-3.5 w-3.5" /> Resume
@@ -133,7 +143,12 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
         onMouseEnter={() => canHover && setHoverPaused(true)}
         onMouseLeave={() => setHoverPaused(false)}
       >
-        <div className={cn(COLS, "sticky top-0 z-10 h-10 border-b bg-card font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground")}>
+        <div
+          className={cn(
+            COLS,
+            "sticky top-0 z-10 h-10 border-b bg-card font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground",
+          )}
+        >
           <span className="w-20 shrink-0">Time</span>
           <span className="w-14 shrink-0">Status</span>
           <span className="w-14 shrink-0">Method</span>
@@ -149,13 +164,18 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
           <span className="w-16 shrink-0">City</span>
         </div>
         <div style={{ height: virtualizer.getTotalSize() }} className="min-w-max">
-          <div style={{ transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)` }}>
+          <div
+            style={{ transform: `translateY(${virtualizer.getVirtualItems()[0]?.start ?? 0}px)` }}
+          >
             {virtualizer.getVirtualItems().map((item) => {
               const row = rows[item.index]
               return (
                 <div
                   key={item.key}
-                  className={cn(COLS, "border-b transition-colors last:border-b-0 hover:bg-muted/50")}
+                  className={cn(
+                    COLS,
+                    "border-b transition-colors last:border-b-0 hover:bg-muted/50",
+                  )}
                   style={{ height: item.size }}
                 >
                   <span className="w-20 shrink-0 text-muted-foreground">
@@ -163,7 +183,10 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   </span>
                   <span className="w-14 shrink-0">
                     <Badge
-                      className={cn("w-10 justify-center tabular-nums border-transparent", statusBadgeClass(row.status_code))}
+                      className={cn(
+                        "w-10 justify-center tabular-nums border-transparent",
+                        statusBadgeClass(row.status_code),
+                      )}
                     >
                       {row.status_code}
                     </Badge>
@@ -172,20 +195,37 @@ export function LiveTail({ enabled }: { enabled: boolean }) {
                   <span className="w-[220px] shrink-0 truncate" title={row.url ?? undefined}>
                     {row.url ?? "-"}
                   </span>
-                  <span className="hidden w-[320px] shrink-0 truncate md:block" title={row.referrer ?? undefined}>
+                  <span
+                    className="hidden w-[320px] shrink-0 truncate md:block"
+                    title={row.referrer ?? undefined}
+                  >
                     {row.referrer ?? "-"}
                   </span>
                   <span className="w-40 shrink-0 truncate" title={row.host ?? undefined}>
                     {row.host ?? "-"}
                   </span>
-                  <span className="w-40 shrink-0 truncate text-muted-foreground" title={row.ip_address}>
+                  <span
+                    className="w-40 shrink-0 truncate text-muted-foreground"
+                    title={row.ip_address}
+                  >
                     {row.ip_address}
                   </span>
-                  <span className="hidden w-16 shrink-0 truncate text-muted-foreground md:block">{row.remote_user ?? "-"}</span>
-                  <span className="w-16 shrink-0 text-right tabular-nums">{formatBytes(row.bytes_sent)}</span>
-                  <span className="w-16 shrink-0 text-right tabular-nums">{formatDurationOrNa(row.request_time)}</span>
-                  <span className="hidden w-16 shrink-0 text-muted-foreground md:block">{row.http_version ?? "-"}</span>
-                  <span className="flex w-16 shrink-0 items-center gap-1" title={row.country_code ?? undefined}>
+                  <span className="hidden w-16 shrink-0 truncate text-muted-foreground md:block">
+                    {row.remote_user ?? "-"}
+                  </span>
+                  <span className="w-16 shrink-0 text-right tabular-nums">
+                    {formatBytes(row.bytes_sent)}
+                  </span>
+                  <span className="w-16 shrink-0 text-right tabular-nums">
+                    {formatDurationOrNa(row.request_time)}
+                  </span>
+                  <span className="hidden w-16 shrink-0 text-muted-foreground md:block">
+                    {row.http_version ?? "-"}
+                  </span>
+                  <span
+                    className="flex w-16 shrink-0 items-center gap-1"
+                    title={row.country_code ?? undefined}
+                  >
                     <CountryFlag code={row.country_code} name={row.country_name} />
                     <span className="truncate">{row.country_name ?? row.country_code ?? "-"}</span>
                   </span>

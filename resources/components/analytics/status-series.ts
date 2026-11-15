@@ -23,7 +23,8 @@ export function shareRows(points: readonly TimeSeriesDataPoint[]): ShareRow[] {
   return points.map((point) =>
     statusTotal(point) > 0
       ? point
-      : { ...point, status2xx: null, status3xx: null, status4xx: null, status5xx: null })
+      : { ...point, status2xx: null, status3xx: null, status4xx: null, status5xx: null },
+  )
 }
 
 /** Tooltip text for the Share view: "1,234 (82.3%)". */
@@ -37,7 +38,10 @@ export function shareLabel(value: unknown, row: unknown): string {
  * A value whose neighbours are both missing. A line through it has a single
  * point, which Recharts draws as nothing, so the chart marks it with a dot.
  */
-export function isIsolated(values: ReadonlyArray<number | null | undefined>, index: number): boolean {
+export function isIsolated(
+  values: ReadonlyArray<number | null | undefined>,
+  index: number,
+): boolean {
   return values[index] != null && values[index - 1] == null && values[index + 1] == null
 }
 
@@ -48,7 +52,10 @@ export function errorRateSeries(
   scale: ChartScale,
 ): { rows: ErrorRateRow[]; axis: YAxisScaleProps; clipMax: number | null } {
   // The API reports 0 for empty buckets; that is "no data", not "no errors".
-  const rows = points.map((point) => ({ ...point, errorRate: point.totalRequests > 0 ? point.errorRate : null }))
+  const rows = points.map((point) => ({
+    ...point,
+    errorRate: point.totalRequests > 0 ? point.errorRate : null,
+  }))
   const rates = rows.map((row) => row.errorRate)
   const clip = scale === "clip" ? clampedYMax(rates) : null
   if (clip != null && clip < 1) {

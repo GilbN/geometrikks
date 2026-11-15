@@ -173,8 +173,8 @@ function RemoveInstanceButton({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {instanceName} from the list?</AlertDialogTitle>
             <AlertDialogDescription>
-              This deletes its heartbeat row. If {instanceName} is still running somewhere, it writes
-              the row again within 30 seconds and comes back here.
+              This deletes its heartbeat row. If {instanceName} is still running somewhere, it
+              writes the row again within 30 seconds and comes back here.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -217,7 +217,9 @@ function FiveMinuteCell({ instance }: { instance: InstanceView }) {
   return (
     <span className="tabular-nums">
       {lines.toLocaleString()}
-      {(failed ?? 0) > 0 && <span className="text-red-500">, {failed?.toLocaleString()} failed</span>}
+      {(failed ?? 0) > 0 && (
+        <span className="text-red-500">, {failed?.toLocaleString()} failed</span>
+      )}
     </span>
   )
 }
@@ -292,7 +294,12 @@ function InstanceRows({
           <TableCell className="hidden md:table-cell">
             <FiveMinuteCell instance={instance} />
           </TableCell>
-          <TableCell className={cn("tabular-nums", instance.checkingIn ? "text-muted-foreground" : "text-red-500")}>
+          <TableCell
+            className={cn(
+              "tabular-nums",
+              instance.checkingIn ? "text-muted-foreground" : "text-red-500",
+            )}
+          >
             <span title={instance.checkingIn ? undefined : "Not checking in"}>
               {relativeTime(instance.lastSeen, checkedAt)}
             </span>
@@ -347,7 +354,8 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
     [layoutRef],
   )
   const setDrawerOpen = useCallback(
-    (open: boolean) => setDrawer((previous) => (previous.open === open ? previous : { ...previous, open })),
+    (open: boolean) =>
+      setDrawer((previous) => (previous.open === open ? previous : { ...previous, open })),
     [],
   )
 
@@ -357,7 +365,9 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
   if (expandedFor !== focusInstance) {
     setExpandedFor(focusInstance)
     if (focusInstance) {
-      setExpanded((previous) => (previous.has(focusInstance) ? previous : new Set(previous).add(focusInstance)))
+      setExpanded((previous) =>
+        previous.has(focusInstance) ? previous : new Set(previous).add(focusInstance),
+      )
     }
   }
 
@@ -445,7 +455,8 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
       else next.delete(instanceName)
       return next
     })
-  const drawerInstance = data.instances.find((instance) => instance.instanceName === drawer.instanceName) ?? null
+  const drawerInstance =
+    data.instances.find((instance) => instance.instanceName === drawer.instanceName) ?? null
 
   return (
     <div className="space-y-4">
@@ -463,13 +474,22 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
               </CardTitle>
               {narrow ? (
                 <CardDescription className="text-xs">
-                  Head <MonoChip className="whitespace-nowrap">{shortVersion(data.head.appVersion)}</MonoChip> ·
-                  checked{" "}
-                  {new Date(data.checkedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                  Head{" "}
+                  <MonoChip className="whitespace-nowrap">
+                    {shortVersion(data.head.appVersion)}
+                  </MonoChip>{" "}
+                  · checked{" "}
+                  {new Date(data.checkedAt).toLocaleTimeString(undefined, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </CardDescription>
               ) : (
                 <CardDescription>
-                  The head runs <MonoChip className="whitespace-nowrap">{displayVersion(data.head.appVersion)}</MonoChip>{" "}
+                  The head runs{" "}
+                  <MonoChip className="whitespace-nowrap">
+                    {displayVersion(data.head.appVersion)}
+                  </MonoChip>{" "}
                   on migration <MonoChip>{data.head.schemaRevision}</MonoChip>. Checked{" "}
                   {new Date(data.checkedAt).toLocaleTimeString()}, refreshed every 30 seconds.
                 </CardDescription>
@@ -543,7 +563,9 @@ export function AgentsOverview({ focusInstance }: { focusInstance?: string }) {
             const row = layoutElementRef.current?.querySelector<HTMLElement>(
               `[data-instance-row="${CSS.escape(drawer.instanceName ?? "")}"]`,
             )
-            const target = openerRef.current?.isConnected ? openerRef.current : (row ?? headingRef.current)
+            const target = openerRef.current?.isConnected
+              ? openerRef.current
+              : (row ?? headingRef.current)
             target?.focus()
           }}
         />

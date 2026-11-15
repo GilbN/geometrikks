@@ -93,7 +93,12 @@ describe("SignalPanel", () => {
 describe("FilterRail", () => {
   it("is a named region whose Clear button carries the active count", () => {
     const html = renderToStaticMarkup(
-      createElement(FilterRail, { label: "Request filters", activeCount: 3, onClear: () => {}, children: null }),
+      createElement(FilterRail, {
+        label: "Request filters",
+        activeCount: 3,
+        onClear: () => {},
+        children: null,
+      }),
     )
     expect(html).toContain('role="region"')
     expect(html).toContain('aria-label="Request filters"')
@@ -133,7 +138,9 @@ describe("FilterField and FilterPair", () => {
 
 describe("TagInput and FilterChip", () => {
   it("marks the exclude variants", () => {
-    expect(renderToStaticMarkup(createElement(TagInput, { onAdd: () => {}, exclude: true }))).toContain("pl-7")
+    expect(
+      renderToStaticMarkup(createElement(TagInput, { onAdd: () => {}, exclude: true })),
+    ).toContain("pl-7")
     const chip = renderToStaticMarkup(
       createElement(FilterChip, { value: "10.0.0.1", exclude: true, onRemove: () => {} }),
     )

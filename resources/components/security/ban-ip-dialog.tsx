@@ -146,7 +146,11 @@ function BanIpForm({
 
   return (
     <>
-      <div className={inDrawer ? "space-y-3 overflow-y-auto overscroll-contain px-4 py-1" : "space-y-3"}>
+      <div
+        className={
+          inDrawer ? "space-y-3 overflow-y-auto overscroll-contain px-4 py-1" : "space-y-3"
+        }
+      >
         <div className="space-y-1.5">
           <Label htmlFor="ban-ip">IP address or range</Label>
           <Input
@@ -274,14 +278,17 @@ export function BanIpDialog({
   const [edited, setEdited] = useState(false)
   if (!open && edited) setEdited(false)
   const markEdited = () => setEdited(true)
-  const drawer = usePhoneDrawer("ban-ip", open, () => onOpenChange(false), { keepWhileOpen: edited })
+  const drawer = usePhoneDrawer("ban-ip", open, () => onOpenChange(false), {
+    keepWhileOpen: edited,
+  })
   const restoreFocus = (event: Event) => {
     if (!returnFocusTo?.current) return
     event.preventDefault()
     returnFocusTo.current.focus({ preventScroll: true })
   }
   const title = "Ban an IP or range"
-  const description = "Creates a manual CrowdSec decision with origin geometrikks. Your bouncer enforces it."
+  const description =
+    "Creates a manual CrowdSec decision with origin geometrikks. Your bouncer enforces it."
 
   if (drawer.phone) {
     const heading = (
@@ -293,8 +300,19 @@ export function BanIpDialog({
       </>
     )
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={onOpenChange} onClosed={drawer.onClosed} autoFocus>
-        <DrawerContent className={drawer.contentClassName} onOpenAutoFocus={focusDrawerTitle} onCloseAutoFocus={restoreFocus}>
+      <Drawer
+        key={drawer.key}
+        direction={drawer.direction}
+        open={drawer.open}
+        onOpenChange={onOpenChange}
+        onClosed={drawer.onClosed}
+        autoFocus
+      >
+        <DrawerContent
+          className={drawer.contentClassName}
+          onOpenAutoFocus={focusDrawerTitle}
+          onCloseAutoFocus={restoreFocus}
+        >
           {drawer.side ? (
             <DrawerHeader className="flex-row items-start gap-2">
               <div className="min-w-0 flex-1 space-y-1">{heading}</div>
@@ -318,10 +336,7 @@ export function BanIpDialog({
 
   return (
     <Dialog open={drawer.open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="sm:max-w-sm"
-        onCloseAutoFocus={restoreFocus}
-      >
+      <DialogContent className="sm:max-w-sm" onCloseAutoFocus={restoreFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

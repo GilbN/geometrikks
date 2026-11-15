@@ -4,7 +4,12 @@
  * React or map imports so it stays unit-testable without a DOM.
  */
 
-import { buildServerLocationResolver, serverBeacons, type Coordinate, type ServerLocationsData } from "@/lib/server-locations"
+import {
+  buildServerLocationResolver,
+  serverBeacons,
+  type Coordinate,
+  type ServerLocationsData,
+} from "@/lib/server-locations"
 
 export interface MapView {
   longitude: number
@@ -79,7 +84,8 @@ function fit(
   const [west, east] = longitudeSpan(coordinates.map(([longitude]) => longitude))
   const minX = mercatorX(west)
   const maxX = mercatorX(east)
-  let minY = Infinity, maxY = -Infinity
+  let minY = Infinity,
+    maxY = -Infinity
   for (const [, latitude] of coordinates) {
     const y = mercatorY(latitude)
     if (y < minY) minY = y
@@ -157,7 +163,12 @@ export interface TrafficWindow {
 export function trafficWindow(
   points: readonly WeightedCoordinate[],
   size: { width: number; height: number },
-  padding: Padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
+  padding: Padding = {
+    top: FIT_PADDING,
+    right: FIT_PADDING,
+    bottom: FIT_PADDING,
+    left: FIT_PADDING,
+  },
 ): TrafficWindow | null {
   if (points.length === 0) return null
   const sorted = points
@@ -165,7 +176,10 @@ export function trafficWindow(
     .sort((a, b) => a.longitude - b.longitude)
   const count = sorted.length
   // Each point again one turn east, so a window can run across the antimeridian.
-  const ring = [...sorted, ...sorted.map((point) => ({ ...point, longitude: point.longitude + 360 }))]
+  const ring = [
+    ...sorted,
+    ...sorted.map((point) => ({ ...point, longitude: point.longitude + 360 })),
+  ]
   const span = visibleLongitudeSpan(size, padding)
 
   let bestWeight = -1
@@ -197,7 +211,12 @@ export function trafficWindow(
 export function trafficView(
   points: readonly WeightedCoordinate[],
   size: { width: number; height: number },
-  padding: Padding = { top: FIT_PADDING, right: FIT_PADDING, bottom: FIT_PADDING, left: FIT_PADDING },
+  padding: Padding = {
+    top: FIT_PADDING,
+    right: FIT_PADDING,
+    bottom: FIT_PADDING,
+    left: FIT_PADDING,
+  },
   maxZoom = FIT_MAX_ZOOM,
 ): MapView | null {
   const window = trafficWindow(points, size, padding)
@@ -210,7 +229,8 @@ function visibleLongitudeSpan(size: { width: number; height: number }, padding: 
   const minZoom = Math.max(Math.log2(size.height / TILE_SIZE), 0)
   // Same rule as fit(): a container with no room inside the padding hasn't
   // been laid out, so its padding is ignored rather than leaving a 1px span.
-  const roomy = size.width > padding.left + padding.right && size.height > padding.top + padding.bottom
+  const roomy =
+    size.width > padding.left + padding.right && size.height > padding.top + padding.bottom
   const width = Math.max(roomy ? size.width - padding.left - padding.right : size.width, 1)
   return Math.min((360 * width) / (TILE_SIZE * 2 ** minZoom), 360)
 }

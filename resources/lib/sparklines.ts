@@ -38,7 +38,8 @@ export function fillGaps(
   if (points.length === 0) return zeros(Math.ceil((endMs - startMs) / stepMs))
 
   // A local day can run 23 or 25 hours, so the edges allow a little slack.
-  const bucketsBetween = (fromMs: number, toMs: number) => Math.ceil((toMs - fromMs) / stepMs - 0.05)
+  const bucketsBetween = (fromMs: number, toMs: number) =>
+    Math.ceil((toMs - fromMs) / stepMs - 0.05)
   const times = points.map((point) => Date.parse(point.timestamp))
   const filled = zeros(bucketsBetween(startMs, times[0]))
   points.forEach((point, index) => {
@@ -54,7 +55,12 @@ export function fillGaps(
  * expired. An hourly line there starts at its first row, or the expired part
  * would read as no traffic under a total that counts it.
  */
-function lineStartMs(rows: readonly { timestamp: string }[], step: number, startMs: number, endMs: number): number {
+function lineStartMs(
+  rows: readonly { timestamp: string }[],
+  step: number,
+  startMs: number,
+  endMs: number,
+): number {
   if (step !== HOUR_MS || endMs - startMs <= 30 * DAY_MS) return startMs
   return rows.length > 0 ? Date.parse(rows[0].timestamp) : endMs
 }
@@ -124,10 +130,14 @@ export function buildOverviewSparklines(
     status4xx: counts(access, (row) => row.status4xx),
     status5xx: counts(access, (row) => row.status5xx),
     bytesSent: counts(access, (row) => row.totalBytesSent),
-    successRate: present((row) => (row.totalRequests > 0 ? row.status2xx / row.totalRequests : null)),
+    successRate: present((row) =>
+      row.totalRequests > 0 ? row.status2xx / row.totalRequests : null,
+    ),
     avgRequestTime: present((row) => row.avgRequestTime),
     maxRequestTime: present((row) => row.maxRequestTime),
-    avgRequestSize: present((row) => (row.totalRequests > 0 ? row.totalBytesSent / row.totalRequests : null)),
+    avgRequestSize: present((row) =>
+      row.totalRequests > 0 ? row.totalBytesSent / row.totalRequests : null,
+    ),
   }
 }
 
@@ -146,7 +156,12 @@ export function buildGeoLogSparklines(
   const step = series?.granularity === "daily" ? DAY_MS : HOUR_MS
   const rows = series?.data ?? []
   const counts = (pick: (row: (typeof rows)[number]) => number) =>
-    fillGaps(rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })), lineStartMs(rows, step, startMs, endMs), endMs, step)
+    fillGaps(
+      rows.map((row) => ({ timestamp: row.timestamp, value: pick(row) })),
+      lineStartMs(rows, step, startMs, endMs),
+      endMs,
+      step,
+    )
   return {
     events: counts((row) => row.totalEvents),
     uniqueIps: counts((row) => row.uniqueIps),

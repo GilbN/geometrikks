@@ -50,7 +50,9 @@ export function MapAttribution({
   useControl(
     () => new AttributionControl({ compact }),
     ({ map }) => {
-      const container = map.getContainer().querySelector<HTMLDetailsElement>(".maplibregl-ctrl-attrib")
+      const container = map
+        .getContainer()
+        .querySelector<HTMLDetailsElement>(".maplibregl-ctrl-attrib")
       const button = container?.querySelector<HTMLElement>(".maplibregl-ctrl-attrib-button")
       if (!container || !button) return
       setContainer(container)
@@ -103,7 +105,14 @@ export function MapAttribution({
         aria-label={open ? "Hide the Esri credit" : "Show the Esri credit"}
         onClick={() => setEsriOpen(!open)}
       >
-        {open ? "Hide" : <>Esri<Info aria-hidden /></>}
+        {open ? (
+          "Hide"
+        ) : (
+          <>
+            Esri
+            <Info aria-hidden />
+          </>
+        )}
       </button>
     </>,
     container,

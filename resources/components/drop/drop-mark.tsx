@@ -9,7 +9,8 @@ import { dropMarkSrText, dropMarkTitle } from "@/lib/drop-lists"
 import { useDropNetwork } from "@/lib/queries"
 import { SrOnlySuffix } from "@/components/sr-only-suffix"
 
-export const DROP_OUTLINE_CLASS = "outline-[1.5px] outline-dashed outline-destructive -outline-offset-[1.5px]"
+export const DROP_OUTLINE_CLASS =
+  "outline-[1.5px] outline-dashed outline-destructive -outline-offset-[1.5px]"
 
 /** The popup's IP chip already has a box, so its own edge carries the dashed line instead of a second box inside it. */
 const DROP_CHIP_STYLE: CSSProperties = {
@@ -22,7 +23,15 @@ export function DropMarkSrText({ sblId }: { sblId: string }) {
 }
 
 /** An IP chip in a map popup's IP list, with a dashed red edge when the IP is on DROP. */
-export function DropPopupCode({ ip, style, children }: { ip: string; style: CSSProperties; children?: ReactNode }) {
+export function DropPopupCode({
+  ip,
+  style,
+  children,
+}: {
+  ip: string
+  style: CSSProperties
+  children?: ReactNode
+}) {
   const dropNetwork = useDropNetwork(ip)
   if (dropNetwork === null) return <code style={style}>{children ?? ip}</code>
   return (

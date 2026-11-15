@@ -11,7 +11,13 @@ export function UsageDot({ tone }: { tone: UsageTone }) {
   return <span className="inline-flex size-2 shrink-0 rounded-full bg-muted-foreground/60" />
 }
 
-export function ApiKeyScopeBadge({ apiKey, className }: { apiKey: ApiKeyView; className?: string }) {
+export function ApiKeyScopeBadge({
+  apiKey,
+  className,
+}: {
+  apiKey: ApiKeyView
+  className?: string
+}) {
   if (apiKey.expired) {
     return (
       <Badge variant="outline" className={cn("border-destructive/40 text-destructive", className)}>
@@ -23,7 +29,10 @@ export function ApiKeyScopeBadge({ apiKey, className }: { apiKey: ApiKeyView; cl
     return (
       <Badge
         variant="outline"
-        className={cn("border-amber-500/40 bg-amber-500/[0.08] text-amber-600 dark:text-amber-400", className)}
+        className={cn(
+          "border-amber-500/40 bg-amber-500/[0.08] text-amber-600 dark:text-amber-400",
+          className,
+        )}
       >
         {scopeLabel(apiKey.scope)}
       </Badge>

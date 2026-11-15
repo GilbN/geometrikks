@@ -19,7 +19,12 @@ import { RawLineFieldsView } from "./raw-line-fields"
 /** The linked access log's IP, or null for a line that never parsed. */
 function ipValues(entry: AccessLogDebugEntry | null): IpRowValues | null {
   if (!entry?.ipAddress) return null
-  return { ip: entry.ipAddress, countryCode: entry.countryCode, countryName: entry.countryName, city: entry.city }
+  return {
+    ip: entry.ipAddress,
+    countryCode: entry.countryCode,
+    countryName: entry.countryName,
+    city: entry.city,
+  }
 }
 
 /** Keyed by entry, so every entry opens on Fields with a fresh copy state. */
@@ -64,7 +69,10 @@ function RawLineBlock({
       </h3>
       <div className="flex items-center gap-1">
         {entry.rawFields && (
-          <TabsList aria-label="Raw line view" className="pointer-fine:group-data-horizontal/tabs:h-7">
+          <TabsList
+            aria-label="Raw line view"
+            className="pointer-fine:group-data-horizontal/tabs:h-7"
+          >
             <TabsTrigger value="fields" className="px-2 text-xs">
               Fields
             </TabsTrigger>
@@ -73,7 +81,12 @@ function RawLineBlock({
             </TabsTrigger>
           </TabsList>
         )}
-        <Button variant="ghost" size="sm" className="h-7 px-2 pointer-coarse:h-11" onClick={copyRawLine}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 pointer-coarse:h-11"
+          onClick={copyRawLine}
+        >
           {copyState === "copied" ? (
             <Check className="h-3.5 w-3.5" />
           ) : copyState === "failed" ? (
@@ -90,8 +103,8 @@ function RawLineBlock({
   )
   const copyFailedHint = copyState === "failed" && (
     <p role="status" className="text-xs text-amber-600 dark:text-amber-400">
-      Clipboard access was blocked, usually because this page is served over plain HTTP.
-      Select the line below to copy it manually.
+      Clipboard access was blocked, usually because this page is served over plain HTTP. Select the
+      line below to copy it manually.
     </p>
   )
 
@@ -170,7 +183,10 @@ export function DebugLogDetailSheet({
                 Linked access log #{entry.accessLogId}
               </h3>
               <dl>
-                <DetailField label="Time" value={entry.timestamp ? new Date(entry.timestamp).toLocaleString() : null} />
+                <DetailField
+                  label="Time"
+                  value={entry.timestamp ? new Date(entry.timestamp).toLocaleString() : null}
+                />
                 <DetailField label="Method" value={entry.method} mono />
                 <DetailField label="URL" value={entry.url} mono />
                 <DetailField label="Host" value={entry.host} mono />

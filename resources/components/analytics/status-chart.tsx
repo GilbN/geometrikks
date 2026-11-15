@@ -20,7 +20,15 @@ import {
   statusErrorRateChartConfig,
 } from "./chart-utils"
 import { GranularityBadge } from "./granularity-badge"
-import { errorRateSeries, isIsolated, SHARE_TICKS, shareLabel, shareRows, STATUS_KEYS, statusTotal } from "./status-series"
+import {
+  errorRateSeries,
+  isIsolated,
+  SHARE_TICKS,
+  shareLabel,
+  shareRows,
+  STATUS_KEYS,
+  statusTotal,
+} from "./status-series"
 import { TimeSeriesTooltip } from "./time-series-tooltip"
 
 const DESCRIPTIONS: Record<string, string> = {
@@ -38,7 +46,11 @@ export function StatusChart() {
   // bucket between two empty ones would be a zero-width, invisible area.
   const areas = view === "stacked" && buckets.length > DENSE_BUCKETS
   const stacked = useMemo(
-    () => scaleSeries(buckets, STATUS_KEYS, options.scale, { integer: true, clipValues: buckets.map(statusTotal) }),
+    () =>
+      scaleSeries(buckets, STATUS_KEYS, options.scale, {
+        integer: true,
+        clipValues: buckets.map(statusTotal),
+      }),
     [buckets, options.scale],
   )
   const share = useMemo(() => shareRows(buckets), [buckets])
@@ -48,13 +60,18 @@ export function StatusChart() {
   const config: ChartConfig = view === "error-rate" ? statusErrorRateChartConfig : statusChartConfig
   const rows = view === "share" ? share : view === "error-rate" ? rate.rows : stacked.rows
   const clipMax = view === "stacked" ? stacked.clipMax : view === "error-rate" ? rate.clipMax : null
-  const clipLabel = clipMax == null ? null : view === "error-rate" ? formatRate(clipMax) : formatNumber(clipMax)
+  const clipLabel =
+    clipMax == null ? null : view === "error-rate" ? formatRate(clipMax) : formatNumber(clipMax)
   const yAxis =
     view === "share"
       ? { domain: [0, 1] as [number, number], ticks: SHARE_TICKS, tickFormatter: formatRate }
       : view === "error-rate"
         ? { ...rate.axis, tickFormatter: formatRate }
-        : { ...stacked.axis, tickFormatter: options.scale === "log" ? formatLogCount : (v: number) => formatNumber(v) }
+        : {
+            ...stacked.axis,
+            tickFormatter:
+              options.scale === "log" ? formatLogCount : (v: number) => formatNumber(v),
+          }
 
   const rates = rate.rows.map((row) => row.errorRate)
   const stackMarks = STATUS_KEYS.map((key, i) =>
@@ -103,7 +120,13 @@ export function StatusChart() {
         // draws nothing; mark it so a lone bad hour still shows.
         dot={(props: { key?: string; index: number; cx?: number; cy?: number }) =>
           isIsolated(rates, props.index) ? (
-            <circle key={props.key} cx={props.cx} cy={props.cy} r={2.5} fill="var(--color-errorRate)" />
+            <circle
+              key={props.key}
+              cx={props.cx}
+              cy={props.cy}
+              r={2.5}
+              fill="var(--color-errorRate)"
+            />
           ) : (
             <g key={props.key} />
           )
@@ -161,7 +184,9 @@ export function StatusChart() {
                         <span className="font-mono tabular-nums">
                           {view === "share"
                             ? shareLabel(value, item.payload)
-                            : typeof value === "number" ? formatRate(value) : "n/a"}
+                            : typeof value === "number"
+                              ? formatRate(value)
+                              : "n/a"}
                         </span>
                       </span>
                     )}

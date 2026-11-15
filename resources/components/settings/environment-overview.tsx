@@ -1,13 +1,7 @@
 import { useState } from "react"
 import { Search, Settings2, SlidersHorizontal } from "lucide-react"
 import { useSystemSettings } from "@/lib/queries"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -68,9 +62,7 @@ function SectionCard({
             </div>
             <div>
               <CardTitle className="text-base">{section.title}</CardTitle>
-              {section.description && (
-                <CardDescription>{section.description}</CardDescription>
-              )}
+              {section.description && <CardDescription>{section.description}</CardDescription>}
             </div>
           </div>
           {overriddenCount > 0 && (
@@ -157,8 +149,7 @@ export function EnvironmentOverview() {
           </Button>
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <StatusLed tone="accent" />
-            {totalOverridden} of {envSettingCount(data.sections)} settings
-            overridden by env
+            {totalOverridden} of {envSettingCount(data.sections)} settings overridden by env
           </span>
         </div>
 

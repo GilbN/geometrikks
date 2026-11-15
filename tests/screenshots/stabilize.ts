@@ -22,13 +22,19 @@ type Traffic = { open: Set<Request>; lastActivity: number }
 const traffic = new WeakMap<BrowserContext, Traffic>()
 
 /** Theme, palette and time range before any page script runs, plus a count of open requests for `settle`. */
-export async function prepareContext(context: BrowserContext, theme: "dark" | "light"): Promise<void> {
+export async function prepareContext(
+  context: BrowserContext,
+  theme: "dark" | "light",
+): Promise<void> {
   await context.addInitScript(
     ({ keys, mode, palette }) => {
       localStorage.setItem(keys.mode, mode)
       localStorage.setItem(keys.lightTheme, palette)
       localStorage.setItem(keys.darkTheme, palette)
-      localStorage.setItem("geometrikks-time-range", JSON.stringify({ range: "7d", pollInterval: 0 }))
+      localStorage.setItem(
+        "geometrikks-time-range",
+        JSON.stringify({ range: "7d", pollInterval: 0 }),
+      )
     },
     { keys: THEME_STORAGE_KEYS, mode: theme, palette: DEFAULT_COLOR_THEME },
   )
@@ -50,19 +56,37 @@ export async function prepareContext(context: BrowserContext, theme: "dark" | "l
 export async function findMap(page: Page): Promise<void> {
   await page.evaluate(() => {
     type Camera = { getCenter(): unknown }
-    const isCamera = (value: unknown): value is Camera => typeof (value as Camera | null)?.getCenter === "function"
-    const element = document.querySelector(".maplibregl-map") as (Element & Record<string, unknown>) | null
+    const isCamera = (value: unknown): value is Camera =>
+      typeof (value as Camera | null)?.getCenter === "function"
+    const element = document.querySelector(".maplibregl-map") as
+      | (Element & Record<string, unknown>)
+      | null
     if (!element) throw new Error("No map")
     const key = Object.keys(element).find((name) => name.startsWith("__reactFiber$"))
     type Fiber = { return: Fiber | null; memoizedState: unknown }
     type Hook = { memoizedState: unknown; next: Hook | null }
     for (let fiber = element[key!] as Fiber | null; fiber; fiber = fiber.return) {
-      for (let hook = fiber.memoizedState as Hook | null; hook && typeof hook === "object" && "next" in hook; hook = hook.next) {
-        const value = hook.memoizedState as { current?: unknown; map?: unknown; getMap?: () => unknown } | null
-        for (const candidate of [value, value?.current, value?.map, typeof value?.getMap === "function" ? value.getMap() : undefined]) {
+      for (
+        let hook = fiber.memoizedState as Hook | null;
+        hook && typeof hook === "object" && "next" in hook;
+        hook = hook.next
+      ) {
+        const value = hook.memoizedState as {
+          current?: unknown
+          map?: unknown
+          getMap?: () => unknown
+        } | null
+        for (const candidate of [
+          value,
+          value?.current,
+          value?.map,
+          typeof value?.getMap === "function" ? value.getMap() : undefined,
+        ]) {
           if (isCamera(candidate)) {
             const found = candidate as Camera & { getMap?: () => unknown }
-            window.__shotsMap = (typeof found.getMap === "function" ? found.getMap() : found) as ShotsMap
+            window.__shotsMap = (
+              typeof found.getMap === "function" ? found.getMap() : found
+            ) as ShotsMap
             return
           }
         }
@@ -82,9 +106,13 @@ async function networkQuiet(page: Page, strict: boolean): Promise<void> {
   while (state.open.size > 0 || Date.now() - state.lastActivity < QUIET_MS) {
     if (Date.now() > deadline) {
       if (!strict) return
-      throw new Error(`requests still open after 30 s: ${[...state.open].map((request) => request.url()).join(", ")}`)
+      throw new Error(
+        `requests still open after 30 s: ${[...state.open].map((request) => request.url()).join(", ")}`,
+      )
     }
-    await page.waitForTimeout(state.open.size > 0 ? 100 : Math.max(10, QUIET_MS - (Date.now() - state.lastActivity)))
+    await page.waitForTimeout(
+      state.open.size > 0 ? 100 : Math.max(10, QUIET_MS - (Date.now() - state.lastActivity)),
+    )
   }
 }
 
@@ -93,7 +121,9 @@ async function chartsStill(page: Page): Promise<void> {
   let previous = ""
   for (let reads = 0; reads < 40; reads++) {
     const current = await page.evaluate(() =>
-      [...document.querySelectorAll(".recharts-surface")].map((surface) => surface.innerHTML).join("|"),
+      [...document.querySelectorAll(".recharts-surface")]
+        .map((surface) => surface.innerHTML)
+        .join("|"),
     )
     if (current === previous) return
     previous = current
@@ -122,7 +152,9 @@ export async function settle(page: Page, opts: { map: boolean; live?: boolean })
       { timeout: 60_000 },
     )
     if (opts.live) {
-      await page.waitForFunction(() => !window.__shotsMap!.isMoving(), undefined, { timeout: 60_000 })
+      await page.waitForFunction(() => !window.__shotsMap!.isMoving(), undefined, {
+        timeout: 60_000,
+      })
     }
     // A live map redraws every frame for its pulses, so it never goes idle; one drawn frame is its settled state.
     await page.evaluate(async (live) => {

@@ -38,7 +38,12 @@ export function TableSortDrawer<F extends string>({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8" aria-label={`Sort by ${current.label}, ${orderLabel.toLowerCase()}`}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          aria-label={`Sort by ${current.label}, ${orderLabel.toLowerCase()}`}
+        >
           {sortOrder === "asc" ? <ArrowUp /> : <ArrowDown />}
           {current.label}
         </Button>
@@ -46,7 +51,9 @@ export function TableSortDrawer<F extends string>({
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Sort</DrawerTitle>
-          <DrawerDescription className="sr-only">Choose the field and order the rows are sorted by.</DrawerDescription>
+          <DrawerDescription className="sr-only">
+            Choose the field and order the rows are sorted by.
+          </DrawerDescription>
         </DrawerHeader>
         <div className="flex flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-6">
           <FilterField label="Order" group>
@@ -54,7 +61,9 @@ export function TableSortDrawer<F extends string>({
               type="single"
               variant="outline"
               value={sortOrder}
-              onValueChange={(value) => value && onSortChange(current.field, value as "asc" | "desc")}
+              onValueChange={(value) =>
+                value && onSortChange(current.field, value as "asc" | "desc")
+              }
               className="w-full"
             >
               <ToggleGroupItem value="desc" className="flex-1">

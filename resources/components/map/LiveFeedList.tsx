@@ -79,7 +79,12 @@ export function LiveFeedList({
   return (
     <div ref={listRef} className={cn("overflow-y-auto overscroll-contain", className)}>
       {rows.length === 0 ? (
-        <p className={cn("px-1 py-6 text-center text-muted-foreground", touch ? "text-sm" : "text-[11px]")}>
+        <p
+          className={cn(
+            "px-1 py-6 text-center text-muted-foreground",
+            touch ? "text-sm" : "text-[11px]",
+          )}
+        >
           {lane === "threats" ? "No threats yet." : "Waiting for traffic."}
         </p>
       ) : (
@@ -113,7 +118,9 @@ export function LiveFeedList({
                   >
                     {request.log?.status_code ?? "?"}
                   </span>
-                  <span className={cn("flex-1 truncate font-mono", touch ? "text-xs" : "text-[10px]")}>
+                  <span
+                    className={cn("flex-1 truncate font-mono", touch ? "text-xs" : "text-[10px]")}
+                  >
                     {request.log?.url ?? request.ip}
                   </span>
                 </span>
@@ -123,7 +130,10 @@ export function LiveFeedList({
                     touch ? "text-[10px]" : "text-[9px]",
                   )}
                 >
-                  <CountryFlag code={request.countryCode} className="mr-1 inline-block h-[9px] w-3 align-[-1px]" />
+                  <CountryFlag
+                    code={request.countryCode}
+                    className="mr-1 inline-block h-[9px] w-3 align-[-1px]"
+                  />
                   {[request.city, request.countryCode].filter(Boolean).join(", ") || request.ip}
                   {request.server ? ` · ${request.server}` : ""}
                 </span>

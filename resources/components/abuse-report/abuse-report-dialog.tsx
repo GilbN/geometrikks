@@ -4,7 +4,19 @@
  * from an RDAP lookup that runs only when asked for.
  */
 import { useMemo, useRef, useState, type RefObject } from "react"
-import { Check, Copy, Download, Loader2, MailWarning, Maximize2, Minimize2, OctagonX, RotateCw, Search, ShieldAlert } from "lucide-react"
+import {
+  Check,
+  Copy,
+  Download,
+  Loader2,
+  MailWarning,
+  Maximize2,
+  Minimize2,
+  OctagonX,
+  RotateCw,
+  Search,
+  ShieldAlert,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +28,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { AbuseIpdbBlacklistBadge } from "@/components/abuseipdb/abuseipdb-blacklist-badge"
@@ -41,7 +59,13 @@ import type { AbuseReportTarget } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
 import { dropBanReason, dropNetworkBanOffered, sblRecordUrl } from "@/lib/drop-lists"
 import { focusTarget } from "@/lib/drop-networks"
-import { useAbuseContact, useAbuseIpdbBlacklistSet, useAbuseReport, useBannedRanges, useCrowdsecStatus } from "@/lib/queries"
+import {
+  useAbuseContact,
+  useAbuseIpdbBlacklistSet,
+  useAbuseReport,
+  useBannedRanges,
+  useCrowdsecStatus,
+} from "@/lib/queries"
 import { useTimeRange } from "@/lib/time-range-context"
 import { rangeSubtitle } from "@/lib/time-range-labels"
 import { formatTs } from "@/lib/datetime"
@@ -58,7 +82,8 @@ const MAX_IPS = [10, 25, 50, 100] as const
 const DEFAULT_LINES = { ip: 50, asn: 20 } as const
 const DEFAULT_MAX_IPS = 25
 
-const asLabel = (asn: number, organization?: string | null) => `AS${asn}${organization ? ` ${organization}` : ""}`
+const asLabel = (asn: number, organization?: string | null) =>
+  `AS${asn}${organization ? ` ${organization}` : ""}`
 
 export function AbuseReportDialog({
   subject,
@@ -79,7 +104,9 @@ export function AbuseReportDialog({
       <DialogContent
         className={cn(
           "flex flex-col gap-0 p-0",
-          expanded ? "h-(--app-height) max-h-none w-screen max-w-none rounded-none pt-[env(safe-area-inset-top,0px)] sm:max-w-none [&>button]:top-[calc(1rem+env(safe-area-inset-top,0px))]" : "max-h-[90vh] sm:max-w-3xl",
+          expanded
+            ? "h-(--app-height) max-h-none w-screen max-w-none rounded-none pt-[env(safe-area-inset-top,0px)] sm:max-w-none [&>button]:top-[calc(1rem+env(safe-area-inset-top,0px))]"
+            : "max-h-[90vh] sm:max-w-3xl",
         )}
         onEscapeKeyDown={(event) => {
           // The first Escape leaves full screen, the next closes the dialog.
@@ -90,7 +117,12 @@ export function AbuseReportDialog({
         }}
       >
         {subject && (
-          <AbuseReportBody key={subjectKey(subject)} subject={subject} expanded={expanded} onExpandedChange={setExpanded} />
+          <AbuseReportBody
+            key={subjectKey(subject)}
+            subject={subject}
+            expanded={expanded}
+            onExpandedChange={setExpanded}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -121,7 +153,9 @@ function AbuseReportBody({
 
   const asn = subject.asn ?? null
   const target: AbuseReportTarget =
-    scope === "asn" && asn != null ? { kind: "asn", asn } : { kind: "ip", ip: subject.kind === "ip" ? subject.ip : "" }
+    scope === "asn" && asn != null
+      ? { kind: "asn", asn }
+      : { kind: "ip", ip: subject.kind === "ip" ? subject.ip : "" }
   const targetKey = target.kind === "ip" ? `ip:${target.ip}` : `asn:${target.asn}`
 
   const report = useAbuseReport(target, { maxIps, linesPerIp, enabled: true })
@@ -131,7 +165,9 @@ function AbuseReportBody({
   const data = report.data
   const text = useMemo(() => {
     if (!data) return ""
-    return format === "text" ? formatAbuseReportText(data, contact.data) : formatAbuseReportCsv(data)
+    return format === "text"
+      ? formatAbuseReportText(data, contact.data)
+      : formatAbuseReportCsv(data)
   }, [data, contact.data, format])
 
   const period =
@@ -157,7 +193,9 @@ function AbuseReportBody({
 
   function download() {
     if (!data) return
-    const blob = new Blob([text], { type: format === "text" ? "text/plain;charset=utf-8" : "text/csv;charset=utf-8" })
+    const blob = new Blob([text], {
+      type: format === "text" ? "text/plain;charset=utf-8" : "text/csv;charset=utf-8",
+    })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
@@ -168,10 +206,12 @@ function AbuseReportBody({
 
   const title = target.kind === "asn" ? asLabel(target.asn, subject.organization) : target.ip
   const loading = report.isLoading || (report.isPlaceholderData && report.isFetching)
-  const targetReport = data && (!report.isPlaceholderData || reportIsFor(data, target)) ? data : null
+  const targetReport =
+    data && (!report.isPlaceholderData || reportIsFor(data, target)) ? data : null
   const dropListings = targetReport ? reportDropListings(targetReport) : null
   const titleDropBadge = dropListings ? titleDropBadgeKind(dropListings) : null
-  const blacklistedCount = targetReport && blacklist ? blacklistedAddressCount(targetReport.ips, blacklist) : 0
+  const blacklistedCount =
+    targetReport && blacklist ? blacklistedAddressCount(targetReport.ips, blacklist) : 0
   const blacklistHeadline = targetReport
     ? blacklistNoticeHeadline(target.kind, blacklistedCount, targetReport.ips.length)
     : null
@@ -195,7 +235,9 @@ function AbuseReportBody({
             <AbuseIpdbBlacklistBadge variant="short" className="ml-2 align-[2px]" />
           )}
         </DialogTitle>
-        <DialogDescription className="text-xs sm:text-sm">{period}, times in UTC.</DialogDescription>
+        <DialogDescription className="text-xs sm:text-sm">
+          {period}, times in UTC.
+        </DialogDescription>
       </DialogHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 sm:px-6">
@@ -234,7 +276,10 @@ function AbuseReportBody({
           )}
           <div className="space-y-1.5">
             <Label htmlFor="abuse-lines">Log lines per IP</Label>
-            <Select value={String(linesPerIp)} onValueChange={(value) => setLinesPerIp(Number(value))}>
+            <Select
+              value={String(linesPerIp)}
+              onValueChange={(value) => setLinesPerIp(Number(value))}
+            >
               <SelectTrigger id="abuse-lines" size="sm" className="w-28">
                 <SelectValue />
               </SelectTrigger>
@@ -267,14 +312,18 @@ function AbuseReportBody({
         {!expanded && blacklistHeadline && <BlacklistNotice headline={blacklistHeadline} />}
 
         {!expanded && (
-        <ContactPanel
-          target={target}
-          contact={contact.data}
-          requested={lookups.has(targetKey)}
-          loading={contact.isFetching}
-          error={contact.isError ? errorDetail(contact.error, "The RDAP lookup failed.") : null}
-          onLookup={() => (lookups.has(targetKey) ? void contact.refetch() : setLookups(new Set(lookups).add(targetKey)))}
-        />
+          <ContactPanel
+            target={target}
+            contact={contact.data}
+            requested={lookups.has(targetKey)}
+            loading={contact.isFetching}
+            error={contact.isError ? errorDetail(contact.error, "The RDAP lookup failed.") : null}
+            onLookup={() =>
+              lookups.has(targetKey)
+                ? void contact.refetch()
+                : setLookups(new Set(lookups).add(targetKey))
+            }
+          />
         )}
 
         {!expanded && data && !report.isPlaceholderData && <ReportNotes report={data} />}
@@ -282,10 +331,10 @@ function AbuseReportBody({
         <p className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-muted-foreground">
           <ShieldAlert className="mt-px size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
           <span>
-            The report leaves out your server names, Host headers, referrers and manual ban reasons. In paths and user
-            agents it tries to strip the hostnames you serve, your public address and any server name with a dot. It
-            also tries to strip credentials such as API keys from paths. It can miss some, so read it before you send
-            it.
+            The report leaves out your server names, Host headers, referrers and manual ban reasons.
+            In paths and user agents it tries to strip the hostnames you serve, your public address
+            and any server name with a dot. It also tries to strip credentials such as API keys from
+            paths. It can miss some, so read it before you send it.
           </span>
         </p>
 
@@ -294,14 +343,23 @@ function AbuseReportBody({
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground">Preview</span>
               <span className="flex items-center gap-1">
-                {loading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" aria-label="Updating" />}
+                {loading && (
+                  <Loader2
+                    className="size-3.5 animate-spin text-muted-foreground"
+                    aria-label="Updating"
+                  />
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-xs"
                   onClick={() => onExpandedChange(!expanded)}
                 >
-                  {expanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                  {expanded ? (
+                    <Minimize2 className="size-3.5" />
+                  ) : (
+                    <Maximize2 className="size-3.5" />
+                  )}
                   {expanded ? "Exit full screen" : "Full screen"}
                 </Button>
               </span>
@@ -310,7 +368,12 @@ function AbuseReportBody({
           {report.isError && !data ? (
             <div className="flex items-center gap-3 text-sm text-destructive">
               {errorDetail(report.error, "Could not build the report.")}
-              <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs" onClick={() => void report.refetch()}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => void report.refetch()}
+              >
                 <RotateCw className="size-3" />
                 Retry
               </Button>
@@ -318,7 +381,10 @@ function AbuseReportBody({
           ) : !data ? (
             <div className="relative">
               <Skeleton className="h-72 w-full" />
-              <div role="status" className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div
+                role="status"
+                className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground"
+              >
                 <Loader2 className="size-4 animate-spin" />
                 Building the report…
               </div>
@@ -336,7 +402,6 @@ function AbuseReportBody({
             </pre>
           )}
         </div>
-
       </div>
 
       <DialogFooter className="shrink-0 flex-row justify-end border-t px-4 py-3 *:flex-1 sm:px-6 sm:py-4 sm:*:flex-none">
@@ -391,9 +456,9 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
       <div className="@container/drop-notice min-w-0 flex-1 space-y-1">
         <p className="font-semibold text-destructive">{headline}</p>
         <p>
-          {lists} networks that are hijacked or run by spam and cybercrime operations. The abuse contact below may belong to the same people, so a report
-          there may go nowhere. If the address block is leased, the contact may be the leasing company, which can act
-          on it.
+          {lists} networks that are hijacked or run by spam and cybercrime operations. The abuse
+          contact below may belong to the same people, so a report there may go nowhere. If the
+          address block is leased, the contact may be the leasing company, which can act on it.
         </p>
         {addressNetworks.length > 0 && (
           <p className="flex flex-wrap items-center gap-x-3">
@@ -405,7 +470,9 @@ function DropNotice({ listings }: { listings: ReportDropListings }) {
                 <span className="font-mono text-muted-foreground">{network.cidr}</span>
               </span>
             ))}
-            {moreNetworks > 0 && <span className="text-muted-foreground">and {moreNetworks} more in the report</span>}
+            {moreNetworks > 0 && (
+              <span className="text-muted-foreground">and {moreNetworks} more in the report</span>
+            )}
           </p>
         )}
         {dropNetwork && (
@@ -476,7 +543,13 @@ function ContactPanel({
   if (!contact) {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-        <Button size="sm" variant="outline" className="h-7 gap-1.5 px-2 text-xs" disabled={loading} onClick={onLookup}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1.5 px-2 text-xs"
+          disabled={loading}
+          onClick={onLookup}
+        >
           {loading ? <Loader2 className="size-3 animate-spin" /> : <Search className="size-3" />}
           {requested && error ? "Try again" : "Find abuse contact"}
         </Button>
@@ -495,7 +568,9 @@ function ContactPanel({
       {contact.abuseEmails.length ? (
         contact.abuseEmails.map((email) => <EmailChip key={email} email={email} />)
       ) : (
-        <span className="text-amber-600 dark:text-amber-400">The registry record lists no abuse email.</span>
+        <span className="text-amber-600 dark:text-amber-400">
+          The registry record lists no abuse email.
+        </span>
       )}
       {holder && <span className="text-muted-foreground">{holder}</span>}
       <ExternalLink href={contact.rdapUrl}>RDAP record ({contact.registry})</ExternalLink>
@@ -514,7 +589,13 @@ function EmailChip({ email }: { email: string }) {
   return (
     <span ref={anchor} className="inline-flex items-center gap-1 font-mono">
       {email}
-      <Button variant="ghost" size="icon" className="size-6" onClick={() => void copy()} aria-label={`Copy ${email}`}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-6"
+        onClick={() => void copy()}
+        aria-label={`Copy ${email}`}
+      >
         {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
       </Button>
     </span>
@@ -536,7 +617,10 @@ function ReportNotes({ report }: { report: AbuseReportResponse }) {
       `The report redacts hostnames, addresses or credentials in ${report.redactions.toLocaleString()} ${report.redactions === 1 ? "place" : "places"}.`,
     )
   }
-  const warning = report.crowdsec.status !== "ok" && report.crowdsec.status !== "disabled" ? report.crowdsec.message : null
+  const warning =
+    report.crowdsec.status !== "ok" && report.crowdsec.status !== "disabled"
+      ? report.crowdsec.message
+      : null
   if (!notes.length && !warning) return null
   return (
     <div className="space-y-0.5 text-xs text-muted-foreground">
@@ -551,7 +635,13 @@ export function AbuseReportButton({ subject }: { subject: AbuseReportSubject }) 
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button size="icon-lg" variant="outline" onClick={() => setOpen(true)} aria-label="Abuse report" title="Abuse report">
+      <Button
+        size="icon-lg"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        aria-label="Abuse report"
+        title="Abuse report"
+      >
         <MailWarning />
       </Button>
       <AbuseReportDialog subject={subject} open={open} onOpenChange={setOpen} />
@@ -573,7 +663,15 @@ export function useAbuseReportDialog() {
 }
 
 /** The row button that opens a shared dialog for an ASN. */
-export function AsnReportButton({ asn, organization, onOpen }: { asn: number; organization?: string | null; onOpen: (subject: AbuseReportSubject) => void }) {
+export function AsnReportButton({
+  asn,
+  organization,
+  onOpen,
+}: {
+  asn: number
+  organization?: string | null
+  onOpen: (subject: AbuseReportSubject) => void
+}) {
   const label = `Abuse report for AS${asn}`
   return (
     <Button

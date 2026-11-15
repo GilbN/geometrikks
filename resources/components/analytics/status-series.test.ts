@@ -5,17 +5,37 @@ import { errorRateSeries, isIsolated, shareLabel, shareRows, statusTotal } from 
 
 function point(overrides: Partial<TimeSeriesDataPoint>): TimeSeriesDataPoint {
   return {
-    timestamp: "2026-08-14T00:00:00Z", totalRequests: 0, totalBytesSent: 0, totalGeoEvents: 0,
-    status2xx: 0, status3xx: 0, status4xx: 0, status5xx: 0, errorRate: 0, timedRequests: 0,
-    avgRequestTime: null, maxRequestTime: null, p50RequestTime: null, p95RequestTime: null, p99RequestTime: null,
+    timestamp: "2026-08-14T00:00:00Z",
+    totalRequests: 0,
+    totalBytesSent: 0,
+    totalGeoEvents: 0,
+    status2xx: 0,
+    status3xx: 0,
+    status4xx: 0,
+    status5xx: 0,
+    errorRate: 0,
+    timedRequests: 0,
+    avgRequestTime: null,
+    maxRequestTime: null,
+    p50RequestTime: null,
+    p95RequestTime: null,
+    p99RequestTime: null,
     ...overrides,
   }
 }
 
 describe("shareRows", () => {
   it("nulls every class for a zero-sum bucket so areas break", () => {
-    const [empty, busy] = shareRows([point({}), point({ status2xx: 9, status4xx: 1, totalRequests: 10 })])
-    expect([empty.status2xx, empty.status3xx, empty.status4xx, empty.status5xx]).toEqual([null, null, null, null])
+    const [empty, busy] = shareRows([
+      point({}),
+      point({ status2xx: 9, status4xx: 1, totalRequests: 10 }),
+    ])
+    expect([empty.status2xx, empty.status3xx, empty.status4xx, empty.status5xx]).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ])
     expect(busy.status2xx).toBe(9)
   })
 })
@@ -28,27 +48,43 @@ describe("shareLabel", () => {
   })
 
   it("returns n/a for null values and empty buckets", () => {
-    expect(shareLabel(null, { status2xx: null, status3xx: null, status4xx: null, status5xx: null })).toBe("n/a")
+    expect(
+      shareLabel(null, { status2xx: null, status3xx: null, status4xx: null, status5xx: null }),
+    ).toBe("n/a")
   })
 })
 
 describe("isIsolated", () => {
   it("flags a value with no neighbours, which a line cannot draw", () => {
     const values = [null, 0.5, null, 0.1, 0.2, null, 1]
-    expect(values.map((_, i) => isIsolated(values, i))).toEqual([false, true, false, false, false, false, true])
+    expect(values.map((_, i) => isIsolated(values, i))).toEqual([
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+    ])
   })
 })
 
 describe("errorRateSeries", () => {
   it("plots a gap, not 0%, for buckets without requests", () => {
-    const { rows } = errorRateSeries([point({}), point({ totalRequests: 10, errorRate: 0.1 })], "full")
+    const { rows } = errorRateSeries(
+      [point({}), point({ totalRequests: 10, errorRate: 0.1 })],
+      "full",
+    )
     expect(rows.map((r) => r.errorRate)).toEqual([null, 0.1])
   })
 
   it("uses a 0 to 100% axis when every rate is 0", () => {
     const points = Array.from({ length: 10 }, () => point({ totalRequests: 5 }))
     expect(errorRateSeries(points, "full").axis).toEqual({ domain: [0, 1] })
-    expect(errorRateSeries(points, "clip")).toMatchObject({ axis: { domain: [0, 1] }, clipMax: null })
+    expect(errorRateSeries(points, "clip")).toMatchObject({
+      axis: { domain: [0, 1] },
+      clipMax: null,
+    })
   })
 
   it("lets Recharts pick the top when some rate is above 0", () => {
