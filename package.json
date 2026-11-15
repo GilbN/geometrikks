@@ -14,7 +14,8 @@
     "test:smoke": "playwright test --config=playwright.config.ts --project=smoke",
     "typecheck": "tsc -b --noEmit",
     "lint": "vp lint",
-    "fmt": "vp fmt"
+    "fmt": "vp fmt",
+    "check": "vp check"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

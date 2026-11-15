@@ -89,11 +89,11 @@ CI runs the same command with `VITE_DEV_MODE=false` and fails when `resources/ge
 ```bash
 uv run ruff check
 uv run ty check geometrikks tests
-bun run lint
+bun run check
 bun run typecheck
 ```
 
-CI runs all four, and `bun run typecheck` runs against the regenerated types. `bun run lint` runs Oxlint with type-aware rules.
+CI runs all four, and `bun run typecheck` runs against the regenerated types. `bun run check` runs Oxfmt and Oxlint and fails on unformatted files. `bun run fmt` formats them.
 
 ## Tests
 
