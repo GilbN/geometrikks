@@ -4,6 +4,13 @@ import { useLayoutEffect, useRef, useState } from "react"
  *  50rem the scheduler's task list uses. */
 export const NARROW_TABLE_WIDTH = 800
 
+/** Narrow below `breakpoint`. A zero width means the element is hidden, as in
+ *  an inactive tab, so it keeps its layout rather than flashing the narrow one
+ *  when it shows again. */
+export function narrowAt(width: number, breakpoint: number, current: boolean): boolean {
+  return width === 0 ? current : width < breakpoint
+}
+
 /**
  * Tracks whether an element is narrower than `breakpoint`. Measured in a
  * layout effect, so the first paint already uses the right layout.
@@ -15,7 +22,7 @@ export function useNarrowLayout<T extends HTMLElement>(
   const [narrow, setNarrow] = useState(false)
   useLayoutEffect(() => {
     if (!element) return
-    const update = () => setNarrow(element.clientWidth < breakpoint)
+    const update = () => setNarrow((current) => narrowAt(element.clientWidth, breakpoint, current))
     update()
     const observer = new ResizeObserver(update)
     observer.observe(element)
