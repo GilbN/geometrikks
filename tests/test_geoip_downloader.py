@@ -513,7 +513,7 @@ class TestScheduledRetry:
         """The GeoIPDownloadError _fetch_tarball raises for an httpx2 error."""
         from geometrikks.services.geoip import downloader
 
-        return downloader.download_error(downloader.CITY_EDITION, exc)
+        return downloader._download_error(downloader.CITY_EDITION, exc)
 
     async def test_connect_error_then_success_downloads_after_one_wait(self, tmp_path, monkeypatch, waits):
         import httpx2

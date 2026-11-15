@@ -47,7 +47,7 @@ class GeoIPDownloadError(Exception):
         self.retryable = retryable
 
 
-def download_error(edition: str, exc: httpx2.HTTPError) -> GeoIPDownloadError:
+def _download_error(edition: str, exc: httpx2.HTTPError) -> GeoIPDownloadError:
     return GeoIPDownloadError(
         f"MaxMind download failed ({edition}): {exc}",
         retryable=isinstance(exc, _RETRYABLE),
@@ -117,7 +117,7 @@ async def _fetch_tarball(settings: GeoIPSettings, edition: str) -> bytes:
             response.raise_for_status()
             return response.content
     except httpx2.HTTPError as exc:
-        raise download_error(edition, exc) from exc
+        raise _download_error(edition, exc) from exc
 
 
 async def _fetch_with_retries(settings: GeoIPSettings, edition: str, attempts: int) -> bytes:

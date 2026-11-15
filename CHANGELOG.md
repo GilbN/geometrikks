@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- The scheduled GeoLite2 refresh tries again when it can't reach MaxMind, for example during a short DNS outage. It waits 30 seconds, then 2 minutes, before it reports the job as failed. The download at startup still makes one attempt.
+- When the scheduled GeoLite2 refresh can't reach MaxMind, for example during a short DNS outage, it tries again after 30 seconds and again after 2 minutes before it reports the job as failed. The download at startup still makes one attempt.
 
 ### Fixed
 
