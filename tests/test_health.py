@@ -1062,3 +1062,38 @@ def test_listener_advisory_is_suppressed_while_database_is_unavailable(monkeypat
         "degraded",
         db_available=False,
     ) == []
+
+
+def test_health_lists_a_failed_daily_job_until_it_succeeds(monkeypatch):
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    from geometrikks.server import timescale
+    from geometrikks.server.scheduler_tracking import JobRunTracker
+
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+
+    async def noop() -> None:
+        return None
+
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+    monkeypatch.setattr(timescale, "_server_name_pollution", None)
+    app = make_app()
+    scheduler = AsyncIOScheduler(timezone=UTC)
+    scheduler.add_job(noop, IntervalTrigger(days=1), id="geoip-refresh", name="Refresh GeoLite2 databases from MaxMind")
+    tracker = JobRunTracker()
+    app.state.scheduler = scheduler
+    app.state.scheduler_tracker = tracker
+    tracker._on_executed(
+        cast("Any", SimpleNamespace(job_id="geoip-refresh", exception=RuntimeError("[Errno -3] internal.lan")))
+    )
+
+    with TestClient(app=app) as client:
+        failing = client.get("/health").json()["advisories"]
+        tracker._on_executed(cast("Any", SimpleNamespace(job_id="geoip-refresh", exception=None)))
+        recovered = client.get("/health").json()["advisories"]
+
+    assert [advisory["id"] for advisory in failing] == ["scheduled-jobs-failing"]
+    assert "internal.lan" not in msgspec.json.encode(failing).decode()
+    assert recovered == []

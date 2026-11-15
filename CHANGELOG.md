@@ -9,10 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A scheduled job that fails now raises an advisory, so the sidebar status turns to attention until a run of that job succeeds. A failed job on an agent shows under that agent's Problems on Settings > Agents. Jobs that run more often than every 10 minutes raise it only after 10 minutes of failed runs.
 - Settings > Agents shows whether each instance's database connection is encrypted and whether the instance verified the server, with a lock in the list and a Connection row in its details. [Multiple sources](https://geometrikks.dev/docs/sources/multiple-sources#encrypt-the-database-link) explains how to encrypt the link between an agent and the database with the standard `PGSSL*` variables. At startup, the log names a `PGSSL*` file the app can't read.
+
+### Changed
+
+- The scheduled GeoLite2 refresh tries again when it can't reach MaxMind, for example during a short DNS outage. It waits 30 seconds, then 2 minutes, before it reports the job as failed. The download at startup still makes one attempt.
 
 ### Fixed
 
+- A missed run of a scheduled job no longer hides the error from the run before it on Settings > Scheduler.
 - On the Security page, switching tabs no longer clears the other tabs' search, filters and page.
 - A link to the Security page's DROP section opens on DROP instead of showing Decisions first.
 - Searching AbuseIPDB reports for a whole IP finds only that address, not longer ones that start with it.

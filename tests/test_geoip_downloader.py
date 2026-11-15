@@ -6,11 +6,17 @@ import tarfile
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
 import pytest
 
 from geometrikks.config.settings import GeoIPSettings
+
+if TYPE_CHECKING:
+    import httpx2
+
+    from geometrikks.services.geoip.downloader import GeoIPDownloadError
 
 pytestmark = pytest.mark.anyio
 
@@ -316,11 +322,11 @@ class TestRefreshBothEditions:
 
         calls: list[str] = []
 
-        async def fake_city(settings, *, force=False, errors=None):
+        async def fake_city(settings, *, force=False, errors=None, attempts=1):
             calls.append("city")
             return True
 
-        async def fake_asn(settings, *, force=False, errors=None):
+        async def fake_asn(settings, *, force=False, errors=None, attempts=1):
             calls.append("asn")
             return True
 
@@ -334,11 +340,11 @@ class TestRefreshBothEditions:
 
         calls: list[str] = []
 
-        async def fake_city(settings, *, force=False, errors=None):
+        async def fake_city(settings, *, force=False, errors=None, attempts=1):
             calls.append("city")
             return True
 
-        async def fake_asn(settings, *, force=False, errors=None):
+        async def fake_asn(settings, *, force=False, errors=None, attempts=1):
             calls.append("asn")
             return True
 
@@ -354,11 +360,11 @@ class TestRefreshBothEditions:
 
         forces: dict[str, bool] = {}
 
-        async def fake_city(settings, *, force=False, errors=None):
+        async def fake_city(settings, *, force=False, errors=None, attempts=1):
             forces["city"] = force
             return True
 
-        async def fake_asn(settings, *, force=False, errors=None):
+        async def fake_asn(settings, *, force=False, errors=None, attempts=1):
             forces["asn"] = force
             return True
 
@@ -371,7 +377,7 @@ class TestRefreshBothEditions:
         from geometrikks.services.geoip import downloader
         from geometrikks.services.geoip.downloader import GeoIPDownloadError
 
-        async def failing_download(settings, *, edition, db_path):
+        async def failing_download(settings, *, edition, db_path, attempts=1):
             raise GeoIPDownloadError(f"{edition} 503")
 
         monkeypatch.setattr(downloader, "download_database", failing_download)
@@ -405,8 +411,8 @@ class TestRefreshBothEditions:
         assert result.city_error is None
         assert result.asn_error is None
         assert result.errors == []
-        city.assert_awaited_once_with(settings, force=False, errors=[])
-        asn.assert_awaited_once_with(settings, force=False, errors=[])
+        city.assert_awaited_once_with(settings, force=False, errors=[], attempts=downloader.SCHEDULED_ATTEMPTS)
+        asn.assert_awaited_once_with(settings, force=False, errors=[], attempts=downloader.SCHEDULED_ATTEMPTS)
 
 
 class TestForcedRefresh:
@@ -418,7 +424,7 @@ class TestForcedRefresh:
 
         downloads: list[str] = []
 
-        async def fake_download(settings, *, edition, db_path):
+        async def fake_download(settings, *, edition, db_path, attempts=1):
             downloads.append(edition)
             return db_path
 
@@ -468,3 +474,178 @@ class TestForcedRefresh:
 
         assert await downloader.ensure_asn_database(settings, force=True) is True
         assert downloads == [downloader.ASN_EDITION]
+
+
+class TestScheduledRetry:
+    """The scheduled refresh retries a request that never reached MaxMind;
+    startup makes one attempt so a network outage cannot hold up boot."""
+
+    @pytest.fixture()
+    def waits(self, monkeypatch) -> list[float]:
+        from geometrikks.services.geoip import downloader
+
+        recorded: list[float] = []
+
+        async def record_wait(seconds: float) -> None:
+            recorded.append(seconds)
+
+        monkeypatch.setattr(downloader, "_sleep", record_wait)
+        return recorded
+
+    @staticmethod
+    def _fetch_sequence(monkeypatch, outcomes: list[BaseException | bytes]) -> list[str]:
+        from geometrikks.services.geoip import downloader
+
+        requests: list[str] = []
+
+        async def fake_fetch(settings, edition):
+            requests.append(edition)
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+
+        monkeypatch.setattr(downloader, "_fetch_tarball", fake_fetch)
+        return requests
+
+    @staticmethod
+    def _http_error(exc: httpx2.HTTPError) -> GeoIPDownloadError:
+        """The GeoIPDownloadError _fetch_tarball raises for an httpx2 error."""
+        from geometrikks.services.geoip import downloader
+
+        return downloader.download_error(downloader.CITY_EDITION, exc)
+
+    async def test_connect_error_then_success_downloads_after_one_wait(self, tmp_path, monkeypatch, waits):
+        import httpx2
+        from structlog.testing import capture_logs
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        dns_failure = self._http_error(httpx2.ConnectError("[Errno -3] Temporary failure in name resolution"))
+        requests = self._fetch_sequence(monkeypatch, [dns_failure, make_tarball(b"MMDB")])
+
+        with capture_logs() as logs:
+            ok = await downloader.ensure_geoip_database(settings, force=True, attempts=3)
+
+        assert ok is True
+        assert settings.db_path.read_bytes() == b"MMDB"
+        assert len(requests) == 2
+        assert waits == [30.0]
+        assert [log["event"] for log in logs].count("geoip_download_retrying") == 1
+
+    async def test_three_connect_errors_give_up_after_30_and_120_seconds(self, tmp_path, monkeypatch, waits):
+        import httpx2
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        requests = self._fetch_sequence(
+            monkeypatch, [self._http_error(httpx2.ConnectError("dns")) for _ in range(3)]
+        )
+        errors: list[str] = []
+
+        await downloader.ensure_geoip_database(settings, force=True, errors=errors, attempts=3)
+
+        assert len(requests) == 3
+        assert waits == [30.0, 120.0]
+        assert len(errors) == 1 and errors[0].startswith("City: MaxMind download failed")
+
+    async def test_connect_timeout_is_retried(self, tmp_path, monkeypatch, waits):
+        import httpx2
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        requests = self._fetch_sequence(
+            monkeypatch, [self._http_error(httpx2.ConnectTimeout("slow")), make_tarball(b"MMDB")]
+        )
+
+        assert await downloader.ensure_geoip_database(settings, force=True, attempts=3) is True
+        assert len(requests) == 2
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            pytest.param(
+                lambda httpx2: httpx2.HTTPStatusError(
+                    "401",
+                    request=httpx2.Request("GET", "https://download.maxmind.com"),
+                    response=httpx2.Response(401),
+                ),
+                id="401",
+            ),
+            pytest.param(lambda httpx2: httpx2.ReadTimeout("stalled"), id="read-timeout"),
+        ],
+    )
+    async def test_other_errors_fail_at_once(self, tmp_path, monkeypatch, waits, error):
+        import httpx2
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        requests = self._fetch_sequence(monkeypatch, [self._http_error(error(httpx2))])
+
+        await downloader.ensure_geoip_database(settings, force=True, attempts=3)
+
+        assert len(requests) == 1
+        assert waits == []
+
+    async def test_startup_makes_one_attempt(self, tmp_path, monkeypatch, waits):
+        import httpx2
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        requests = self._fetch_sequence(monkeypatch, [self._http_error(httpx2.ConnectError("dns"))])
+
+        assert await downloader.ensure_geoip_database(settings) is False
+        assert len(requests) == 1
+        assert waits == []
+
+    async def test_scheduled_refresh_gives_both_editions_three_attempts(self, tmp_path, monkeypatch):
+        from geometrikks.services.geoip import downloader
+
+        attempts_by_edition: dict[str, int] = {}
+
+        async def fake_download(settings, *, edition, db_path, attempts=1):
+            attempts_by_edition[edition] = attempts
+            return db_path
+
+        monkeypatch.setattr(downloader, "download_database", fake_download)
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+
+        result = await downloader.refresh_geoip_databases(settings, force=True)
+
+        assert result.errors == []
+        assert attempts_by_edition == {downloader.CITY_EDITION: 3, downloader.ASN_EDITION: 3}
+
+    async def test_cancel_during_the_wait_propagates_without_an_error(self, tmp_path, monkeypatch):
+        import asyncio
+
+        import httpx2
+
+        from geometrikks.services.geoip import downloader
+
+        settings = make_settings(tmp_path, account_id="1", license_key="k")
+        requests = self._fetch_sequence(
+            monkeypatch, [self._http_error(httpx2.ConnectError("dns")), make_tarball(b"MMDB")]
+        )
+        waiting = asyncio.Event()
+
+        async def wait_forever(seconds: float) -> None:
+            waiting.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(downloader, "_sleep", wait_forever)
+        errors: list[str] = []
+        task = asyncio.create_task(
+            downloader.ensure_geoip_database(settings, force=True, errors=errors, attempts=3)
+        )
+        await waiting.wait()
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert errors == []
+        assert len(requests) == 1

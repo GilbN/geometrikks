@@ -99,7 +99,7 @@ Keys for scripts, monitors and dashboards. A key is Read or Read/write, and a Re
 
 ### Scheduler
 
-The background jobs, such as the GeoLite2 refresh, the server location refresh, the DROP lists refresh and the AbuseIPDB blacklist refresh, with their recent runs and next run. Run now starts a job straight away.
+The background jobs, such as the GeoLite2 refresh, the server location refresh, the DROP lists refresh and the AbuseIPDB blacklist refresh, with their recent runs and next run. Run now starts a job straight away. When a job fails, an advisory names it until a run of that job succeeds. A job that runs more often than every 10 minutes raises it only after 10 minutes of failed runs.
 
 ### Logs
 
