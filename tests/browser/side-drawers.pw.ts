@@ -7,6 +7,7 @@ test.use({
 })
 
 const IP = "203.0.113.7"
+const OSLO: [number, number] = [10.75, 59.91]
 const ASN = 64500
 
 async function login(page: Page) {
@@ -136,7 +137,7 @@ async function routeGeoLogsPoint(page: Page) {
         features: [
           {
             type: "Feature",
-            geometry: { type: "Point", coordinates: [10.75, 59.91] },
+            geometry: { type: "Point", coordinates: OSLO },
             properties: {
               id: 131,
               geohash: "u4xs",
@@ -198,16 +199,71 @@ async function routeGeoLogsPoint(page: Page) {
   )
 }
 
-/** Taps the Geo Logs map until the point's card opens. The map frames the one point in its middle. */
+/** Where the map draws `lngLat` on its canvas, or null while the camera moves. Read from the
+ *  MapLibre instance through React's fiber tree. */
+function pointOnCanvas(page: Page, lngLat: [number, number]) {
+  return page.evaluate((target) => {
+    type MapLike = {
+      isMoving(): boolean
+      loaded(): boolean
+      project(lngLat: [number, number]): { x: number; y: number }
+    }
+    const isMap = (value: unknown): value is MapLike =>
+      typeof (value as MapLike | null)?.project === "function" &&
+      typeof (value as MapLike | null)?.isMoving === "function"
+    const element = document.querySelector(".maplibregl-map") as
+      | (Element & Record<string, unknown>)
+      | null
+    if (!element) throw new Error("No map")
+    const key = Object.keys(element).find((name) => name.startsWith("__reactFiber$"))
+    type Fiber = { return: Fiber | null; memoizedState: unknown }
+    type Hook = { memoizedState: unknown; next: Hook | null }
+    for (let fiber = element[key!] as Fiber | null; fiber; fiber = fiber.return) {
+      for (
+        let hook = fiber.memoizedState as Hook | null;
+        hook && typeof hook === "object" && "next" in hook;
+        hook = hook.next
+      ) {
+        const value = hook.memoizedState as {
+          current?: unknown
+          map?: unknown
+          getMap?: () => unknown
+        } | null
+        for (const candidate of [
+          value,
+          value?.current,
+          value?.map,
+          typeof value?.getMap === "function" ? value.getMap() : undefined,
+        ]) {
+          if (isMap(candidate)) {
+            if (candidate.isMoving() || !candidate.loaded()) return null
+            const { x, y } = candidate.project(target)
+            return { x, y }
+          }
+        }
+      }
+    }
+    throw new Error("No map instance")
+  }, lngLat)
+}
+
+/** Taps the Oslo point where the map draws it, once the camera is still. The phone fit pads for
+ *  the tab bar and range chip where they stand when it runs, so the point can settle well away
+ *  from the canvas centre (76px above it in a failed CI run). */
 async function openGeoLogsCard(page: Page) {
   const card = page.getByRole("dialog", { name: "Oslo" })
   const canvas = page.locator(".maplibregl-canvas")
   await expect(canvas).toBeVisible()
   await expect(async () => {
     if (!(await card.isVisible())) {
+      const point = await pointOnCanvas(page, OSLO)
+      if (!point) throw new Error("The map is still moving")
       const box = await canvas.boundingBox()
       if (!box) throw new Error("Map has no bounds")
-      await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } })
+      if (point.x < 0 || point.y < 0 || point.x > box.width || point.y > box.height) {
+        throw new Error("Oslo is off the map")
+      }
+      await canvas.click({ position: point })
     }
     await expect(card).toBeVisible({ timeout: 500 })
   }).toPass({ timeout: 15_000 })
