@@ -12,6 +12,7 @@ import {
   agentSummary,
   agentsNeedingAttention,
   canRemove,
+  databaseLinkState,
   deepLinkScrollDelta,
   deepLinkedInstance,
   errorHeadline,
@@ -592,6 +593,35 @@ describe("instanceHeaderLine", () => {
     ])
     expect(groups[0][0].tone).toBe("red")
   })
+  it("ends with the database connection when the instance reports it", () => {
+    const verified = makeInstance({
+      appVersion: "0.23.0.dev5",
+      lastSeen: "2026-10-17T10:00:18+00:00",
+      payload: { databaseLink: { encrypted: true, serverVerified: true } },
+    })
+    const groups = instanceHeaderLine(verified, head, CHECKED_AT)
+    expect(
+      groups
+        .at(-1)
+        ?.map((part) => part.text)
+        .join(""),
+    ).toBe("database\u00a0connection\u00a0encrypted, server verified")
+  })
+  it("puts the database connection before the last-heartbeat note for a stale agent", () => {
+    const stale = makeInstance({
+      appVersion: "0.23.0.dev5",
+      checkingIn: false,
+      lastSeen: "2026-10-14T10:00:30+00:00",
+      payload: { databaseLink: { encrypted: false, serverVerified: false } },
+    })
+    const groups = instanceHeaderLine(stale, head, CHECKED_AT)
+    expect(groups.map((group) => group.map((part) => part.text).join(""))).toEqual([
+      "Last seen 3d ago",
+      "v0.23.0-dev.5",
+      "database\u00a0connection\u00a0not encrypted",
+      "details from its last heartbeat",
+    ])
+  })
 })
 
 describe("shortVersion", () => {
@@ -794,5 +824,40 @@ describe("removeFailureMessage", () => {
     expect(removeFailureMessage(new TypeError("Failed to fetch"), "nas")).toBe(
       "Could not remove nas. Try again.",
     )
+  })
+})
+
+describe("databaseLinkState", () => {
+  it("is null without a report", () => {
+    expect(databaseLinkState(null)).toBeNull()
+    expect(databaseLinkState(undefined)).toBeNull()
+  })
+  it("reads a verified link", () => {
+    expect(databaseLinkState({ encrypted: true, serverVerified: true })).toEqual({
+      text: "encrypted, server verified",
+      hint: "Database connection encrypted, server verified",
+      lock: "verified",
+    })
+  })
+  it("reads an encrypted link the instance did not verify", () => {
+    expect(databaseLinkState({ encrypted: true, serverVerified: false })).toEqual({
+      text: "encrypted",
+      hint: "Database connection encrypted",
+      lock: "encrypted",
+    })
+  })
+  it("reads a plain link", () => {
+    expect(databaseLinkState({ encrypted: false, serverVerified: false })).toEqual({
+      text: "not encrypted",
+      hint: "Database connection not encrypted",
+      lock: "open",
+    })
+  })
+  it("counts a missing flag as false", () => {
+    expect(databaseLinkState({})?.lock).toBe("open")
+    expect(databaseLinkState({ encrypted: true })?.lock).toBe("encrypted")
+  })
+  it("never calls a plain link verified", () => {
+    expect(databaseLinkState({ encrypted: false, serverVerified: true })?.lock).toBe("open")
   })
 })

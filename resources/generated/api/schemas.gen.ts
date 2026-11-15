@@ -2419,6 +2419,26 @@ export const DatabaseInfoResponseSchema = {
   type: "object",
 } as const;
 
+export const DatabaseLinkReportSchema = {
+  description: "The TLS state of the instance's database connection.",
+  properties: {
+    encrypted: {
+      default: false,
+      description: "The session that wrote this heartbeat uses TLS.",
+      type: "boolean",
+    },
+    serverVerified: {
+      default: false,
+      description:
+        "The instance checked the server's certificate chain and its name.",
+      type: "boolean",
+    },
+  },
+  required: [],
+  title: "DatabaseLinkReport",
+  type: "object",
+} as const;
+
 export const DatabaseVersionsViewSchema = {
   description:
     "The database server, its extensions and the schema version.\n\nEverything except `migrationHead` is null when the database is unreachable.",
@@ -4131,6 +4151,18 @@ export const HeartbeatPayloadSchema = {
   description:
     "The details an instance sends with each heartbeat.\n\nThe 5-minute counts are null until the instance has run for 5 minutes.",
   properties: {
+    databaseLink: {
+      description:
+        "The TLS state of the instance's database connection. Null from an older release or when the state could not be read.",
+      oneOf: [
+        {
+          $ref: "#/components/schemas/DatabaseLinkReport",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     failed5M: {
       description: "Records that failed to write in the last 5 minutes.",
       oneOf: [
