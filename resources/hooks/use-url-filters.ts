@@ -15,10 +15,16 @@
 import { useCallback, useMemo } from "react"
 import { applyFilterUpdate, type FilterCodec } from "@/lib/url-filters"
 
-interface UseUrlFiltersOptions<TSearch extends object, TFilters>
-  extends FilterCodec<TSearch, TFilters> {
+interface UseUrlFiltersOptions<TSearch extends object, TFilters> extends FilterCodec<
+  TSearch,
+  TFilters
+> {
   search: TSearch
-  navigate: (opts: { search: (prev: TSearch) => TSearch; replace: boolean; resetScroll?: boolean }) => void
+  navigate: (opts: {
+    search: (prev: TSearch) => TSearch
+    replace: boolean
+    resetScroll?: boolean
+  }) => void
 }
 
 export function useUrlFilters<TSearch extends object, TFilters>({

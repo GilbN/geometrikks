@@ -19,7 +19,8 @@ export function tokenizeInline(text: string): InlineToken[] {
     const [, code, bold, linkText, href] = match
     if (code !== undefined) tokens.push({ type: "code", value: code })
     else if (bold !== undefined) tokens.push({ type: "bold", value: bold })
-    else if (linkText !== undefined && href !== undefined) tokens.push({ type: "link", value: linkText, href })
+    else if (linkText !== undefined && href !== undefined)
+      tokens.push({ type: "link", value: linkText, href })
     last = index + match[0].length
   }
   if (last < text.length) tokens.push({ type: "text", value: text.slice(last) })

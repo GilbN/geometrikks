@@ -1,5 +1,8 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
-import type { GeoLogTimeSeriesPoint, TimeSeriesDataPoint } from "../../resources/generated/api/types.gen"
+import type {
+  GeoLogTimeSeriesPoint,
+  TimeSeriesDataPoint,
+} from "../../resources/generated/api/types.gen"
 
 const HOUR = 3_600_000
 const START = Date.parse("2026-08-14T00:00:00Z")
@@ -41,11 +44,18 @@ function timeSeriesPoint(index: number, total = requestsAt(index)): TimeSeriesDa
 }
 
 async function mockTimeSeries(page: Page, points: TimeSeriesDataPoint[]) {
-  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/analytics/time-series",
-    (route) => route.fulfill({ json: {
-      data: points, granularity: "hourly",
-      startDate: points[0].timestamp, endDate: points.at(-1)!.timestamp,
-    } }))
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/analytics/time-series",
+    (route) =>
+      route.fulfill({
+        json: {
+          data: points,
+          granularity: "hourly",
+          startDate: points[0].timestamp,
+          endDate: points.at(-1)!.timestamp,
+        },
+      }),
+  )
 }
 
 function panel(page: Page, title: string): Locator {
@@ -62,7 +72,12 @@ async function choose(page: Page, card: Locator, title: string, item: string) {
 }
 
 /** Hovers bucket `index` and returns the tooltip. */
-async function hoverBucket(page: Page, card: Locator, index: number, count: number): Promise<Locator> {
+async function hoverBucket(
+  page: Page,
+  card: Locator,
+  index: number,
+  count: number,
+): Promise<Locator> {
   // mouse.move to coordinates below the viewport hovers nothing.
   await card.scrollIntoViewIfNeeded()
   const grid = await card.locator(".recharts-cartesian-grid").boundingBox()
@@ -87,40 +102,60 @@ test.beforeEach(async ({ page }) => {
     data: { username: process.env.SMOKE_ADMIN_USER ?? "admin", password },
   })
   expect(login.ok()).toBe(true)
-  await page.addInitScript(([from, to]) => {
-    localStorage.setItem("geometrikks-time-range", JSON.stringify({
-      range: "custom", pollInterval: 0, granularity: "auto", customRange: { from, to },
-    }))
-  }, [new Date(START).toISOString(), new Date(START + BUCKETS * HOUR).toISOString()])
+  await page.addInitScript(
+    ([from, to]) => {
+      localStorage.setItem(
+        "geometrikks-time-range",
+        JSON.stringify({
+          range: "custom",
+          pollInterval: 0,
+          granularity: "auto",
+          customRange: { from, to },
+        }),
+      )
+    },
+    [new Date(START).toISOString(), new Date(START + BUCKETS * HOUR).toISOString()],
+  )
 })
 
 test.describe("requests chart", () => {
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
 
-  test("opens in log, keeps zero buckets on one unbroken path, and a linear pick survives a reload", async ({ page }) => {
+  test("opens in log, keeps zero buckets on one unbroken path, and a linear pick survives a reload", async ({
+    page,
+  }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
 
     // Log is the default, so no chip.
-    await expect(card.getByRole("button", { name: "Chart options: Requests", exact: true })).toBeVisible()
+    await expect(
+      card.getByRole("button", { name: "Chart options: Requests", exact: true }),
+    ).toBeVisible()
     await expect(card.getByText("zeros drawn at the bottom edge")).toBeVisible()
     // Smallest value 1 is exactly a power: domain [0.1, 100000], thinned to
     // every other power, and integer series drop the 0.1 tick. Log count
     // ticks use compact labels so they fit the 48px axis.
-    await expect(card.locator(".recharts-yAxis .recharts-cartesian-axis-tick-value"))
-      .toHaveText(["10", "1K", "100K"])
+    await expect(card.locator(".recharts-yAxis .recharts-cartesian-axis-tick-value")).toHaveText([
+      "10",
+      "1K",
+      "100K",
+    ])
     expect(await moveCount(card.locator(".recharts-area-curve").first())).toBe(1)
     const tooltip = await hoverBucket(page, card, 10, BUCKETS)
     await expect(tooltip.getByText("0", { exact: true })).toBeVisible()
 
     await choose(page, card, "Requests", "Linear, clip spikes")
-    await expect(card.getByRole("button", { name: "Chart options: Requests, Clip spikes" })).toBeVisible()
+    await expect(
+      card.getByRole("button", { name: "Chart options: Requests, Clip spikes" }),
+    ).toBeVisible()
     await expect(card.getByText(/^y-axis clipped at/)).toBeVisible()
 
     await choose(page, card, "Requests", "Linear, full range")
     await page.reload()
-    await expect(panel(page, "Requests").getByRole("button", { name: "Chart options: Requests, Full range" })).toBeVisible()
+    await expect(
+      panel(page, "Requests").getByRole("button", { name: "Chart options: Requests, Full range" }),
+    ).toBeVisible()
   })
 
   test("bars in log draw every positive bucket, including 1 and 101", async ({ page }) => {
@@ -134,7 +169,8 @@ test.describe("requests chart", () => {
 
   test("bars in log keep a smallest value of 101 visible", async ({ page }) => {
     const busy = Array.from({ length: BUCKETS }, (_, i) =>
-      timeSeriesPoint(i, i === 21 ? 101 : 2_000 + ((i * 37) % 900)))
+      timeSeriesPoint(i, i === 21 ? 101 : 2_000 + ((i * 37) % 900)),
+    )
     await mockTimeSeries(page, busy)
     await page.goto("/analytics")
     const card = panel(page, "Requests")
@@ -144,7 +180,11 @@ test.describe("requests chart", () => {
     // Recharts animates bar heights for 400 ms, so re-measure until it settles.
     await expect(async () => {
       const plot = (await card.locator(".recharts-cartesian-grid").boundingBox())!
-      const bar = (await card.locator(".recharts-bar-rectangle").nth(21).locator("path").boundingBox())!
+      const bar = (await card
+        .locator(".recharts-bar-rectangle")
+        .nth(21)
+        .locator("path")
+        .boundingBox())!
       expect(bar.height / plot.height).toBeGreaterThan(0.3)
       expect(bar.height / plot.height).toBeLessThan(0.37)
     }).toPass({ timeout: 5_000 })
@@ -176,33 +216,56 @@ test.describe("geo events chart", () => {
       uniqueCountries: 5,
       uniqueCities: 8,
     }))
-    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/time-series",
-      (route) => route.fulfill({ json: {
-        data: points, granularity: "hourly",
-        startDate: points[0].timestamp, endDate: points.at(-1)!.timestamp,
-      } }))
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === "/api/v1/geo-events/time-series",
+      (route) =>
+        route.fulfill({
+          json: {
+            data: points,
+            granularity: "hourly",
+            startDate: points[0].timestamp,
+            endDate: points.at(-1)!.timestamp,
+          },
+        }),
+    )
     await page.goto("/geo-logs")
     const card = panel(page, "Geo events over time")
     await choose(page, card, "Geo events over time", "Bars")
 
     // Bars mount with a 400 ms height animation; re-measure until it settles.
     await expect(async () => {
-      const events = await card.locator(".recharts-bar").nth(0).locator(".recharts-bar-rectangle path").nth(5).boundingBox()
-      const ips = await card.locator(".recharts-bar").nth(1).locator(".recharts-bar-rectangle path").nth(5).boundingBox()
+      const events = await card
+        .locator(".recharts-bar")
+        .nth(0)
+        .locator(".recharts-bar-rectangle path")
+        .nth(5)
+        .boundingBox()
+      const ips = await card
+        .locator(".recharts-bar")
+        .nth(1)
+        .locator(".recharts-bar-rectangle path")
+        .nth(5)
+        .boundingBox()
       expect(events && ips).toBeTruthy()
       expect(ips!.width).toBeLessThan(events!.width)
-      expect(Math.abs((ips!.x + ips!.width / 2) - (events!.x + events!.width / 2))).toBeLessThanOrEqual(1)
+      expect(
+        Math.abs(ips!.x + ips!.width / 2 - (events!.x + events!.width / 2)),
+      ).toBeLessThanOrEqual(1)
     }).toPass({ timeout: 5_000 })
   })
 })
 test.describe("status chart", () => {
   const points = Array.from({ length: BUCKETS }, (_, i) => timeSeriesPoint(i))
 
-  test("opens as log lines; share hides the scale; a stacked scale returns after a reload", async ({ page }) => {
+  test("opens as log lines; share hides the scale; a stacked scale returns after a reload", async ({
+    page,
+  }) => {
     await mockTimeSeries(page, points)
     await page.goto("/analytics")
     const card = panel(page, "Status classes")
-    await expect(card.getByRole("button", { name: "Chart options: Status classes", exact: true })).toBeVisible()
+    await expect(
+      card.getByRole("button", { name: "Chart options: Status classes", exact: true }),
+    ).toBeVisible()
     await expect(card.locator(".recharts-line")).toHaveCount(4)
 
     await choose(page, card, "Status classes", "Linear, full range")
@@ -216,9 +279,13 @@ test.describe("status chart", () => {
 
     await page.reload()
     const reloaded = panel(page, "Status classes")
-    await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Share" })).toBeVisible()
+    await expect(
+      reloaded.getByRole("button", { name: "Chart options: Status classes, Share" }),
+    ).toBeVisible()
     await choose(page, reloaded, "Status classes", "Stacked counts")
-    await expect(reloaded.getByRole("button", { name: "Chart options: Status classes, Full range" })).toBeVisible()
+    await expect(
+      reloaded.getByRole("button", { name: "Chart options: Status classes, Full range" }),
+    ).toBeVisible()
   })
 
   test("share leaves a gap for buckets without responses", async ({ page }) => {
@@ -255,7 +322,9 @@ test.describe("latency chart", () => {
     await page.goto("/analytics")
     const card = panel(page, "Request latency")
     // The band in log is the default, so no chip.
-    await expect(card.getByRole("button", { name: "Chart options: Request latency", exact: true })).toBeVisible()
+    await expect(
+      card.getByRole("button", { name: "Chart options: Request latency", exact: true }),
+    ).toBeVisible()
     // Buckets 10 to 12 have no latency data: one gap, two runs.
     // The band has stroke="none", so its fill path is the only one rendered.
     expect(await moveCount(card.locator(".recharts-area-area").first())).toBe(2)

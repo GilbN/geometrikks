@@ -3,7 +3,12 @@ import { MapPanelContext, SIDE_DRAWER_CONTENT, useSideDrawer } from "@/component
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { useCoverBar } from "@/lib/phone-chrome"
-import { drawerLayout, settleDrawerLayout, type DrawerLayout, type DrawerPhase } from "@/lib/phone-layout"
+import {
+  drawerLayout,
+  settleDrawerLayout,
+  type DrawerLayout,
+  type DrawerPhase,
+} from "@/lib/phone-layout"
 
 export interface PhoneDrawer {
   /** Render the phone version: a drawer instead of a dialog, menu or popover. */

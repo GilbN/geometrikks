@@ -20,7 +20,13 @@ import { decisionHasAlert, formatTimeLeft, timeLeftText } from "@/lib/crowdsec-a
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 import type { DecisionRef } from "./alert-detail-sheet"
-import { ExpandChevron, ROW_TARGET_VALUE_CLASS, RowTarget, TwoLineCell, WRAPPING_BADGE_CLASS } from "./two-line-cell"
+import {
+  ExpandChevron,
+  ROW_TARGET_VALUE_CLASS,
+  RowTarget,
+  TwoLineCell,
+  WRAPPING_BADGE_CLASS,
+} from "./two-line-cell"
 
 type Props = {
   group: DecisionGroupView
@@ -46,7 +52,13 @@ function alertActivationFor({ group, writeEnabled, onOpenAlert }: Props) {
   }
 }
 
-function ScenarioCell({ scenario, shownOrigins }: { scenario: string; shownOrigins: readonly string[] }) {
+function ScenarioCell({
+  scenario,
+  shownOrigins,
+}: {
+  scenario: string
+  shownOrigins: readonly string[]
+}) {
   return (
     <TableCell className="max-w-[260px]">
       <ScenarioLabel scenario={scenario} shownOrigins={shownOrigins} className="max-w-full" />
@@ -74,9 +86,10 @@ function UnbanButton({ group }: { group: DecisionGroupView }) {
       </Button>
     )
   }
-  const title = group.scope === "Range"
-    ? `Unban ${ip}. Removes every active decision on this range, from any origin.`
-    : `Unban ${ip}. Removes every active decision on this IP, from any origin. A range decision covering it stays.`
+  const title =
+    group.scope === "Range"
+      ? `Unban ${ip}. Removes every active decision on this range, from any origin.`
+      : `Unban ${ip}. Removes every active decision on this IP, from any origin. A range decision covering it stays.`
   return (
     <Button
       variant="ghost"
@@ -122,11 +135,12 @@ export function DecisionGroupRows(props: Props) {
     : alertActivation(group.decisions[0])
 
   const chevron = multiple && <ExpandChevron open={open} />
-  const scenarioSummary = scenarioCount > 1 ? (
-    <span className="text-xs text-muted-foreground">{scenarioCount} scenarios</span>
-  ) : (
-    <ScenarioLabel scenario={group.decisions[0].scenario} />
-  )
+  const scenarioSummary =
+    scenarioCount > 1 ? (
+      <span className="text-xs text-muted-foreground">{scenarioCount} scenarios</span>
+    ) : (
+      <ScenarioLabel scenario={group.decisions[0].scenario} />
+    )
 
   if (narrow) {
     return (
@@ -141,14 +155,25 @@ export function DecisionGroupRows(props: Props) {
                 value={<span className={ROW_TARGET_VALUE_CLASS}>{group.ip}</span>}
                 actions={
                   isIp ? (
-                    <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
+                    <IpActionsMenu
+                      ip={group.ip}
+                      countryCode={group.countryCode}
+                      countryName={group.countryName}
+                      city={group.city}
+                    />
                   ) : (
-                    <Badge variant="outline" className="shrink-0">{group.scope}</Badge>
+                    <Badge variant="outline" className="shrink-0">
+                      {group.scope}
+                    </Badge>
                   )
                 }
                 status={
                   <>
-                    {unbanning ? <UnbanningBadge /> : <DecisionBadge type={group.type} className={WRAPPING_BADGE_CLASS} />}
+                    {unbanning ? (
+                      <UnbanningBadge />
+                    ) : (
+                      <DecisionBadge type={group.type} className={WRAPPING_BADGE_CLASS} />
+                    )}
                     {/* Ranges have no IP actions menu, so they keep their own unban button. */}
                     {writeEnabled && group.scope === "Range" && (
                       <span {...stopRowActivation}>
@@ -163,7 +188,10 @@ export function DecisionGroupRows(props: Props) {
             bottomEnd={
               <>
                 {(group.requestCount24h ?? 0) > 0 && (
-                  <span className="shrink-0 font-semibold tabular-nums text-amber-500" title="Requests in this server's logs in the last 24 hours">
+                  <span
+                    className="shrink-0 font-semibold tabular-nums text-amber-500"
+                    title="Requests in this server's logs in the last 24 hours"
+                  >
                     {group.requestCount24h} seen
                   </span>
                 )}
@@ -184,19 +212,32 @@ export function DecisionGroupRows(props: Props) {
               <TableRow
                 key={decision.id ?? index}
                 {...activation}
-                className={cn("bg-muted/30 hover:bg-muted/40", activation?.className, dimmed && "opacity-60")}
+                className={cn(
+                  "bg-muted/30 hover:bg-muted/40",
+                  activation?.className,
+                  dimmed && "opacity-60",
+                )}
               >
                 <TwoLineCell
                   nested
                   top={
                     <>
-                      <DecisionBadge type={decision.type} className={cn(WRAPPING_BADGE_CLASS, "max-w-[60%]")} />
-                      <ScenarioLabel scenario={decision.scenario} shownOrigins={[decision.origin]} className="flex-1" />
+                      <DecisionBadge
+                        type={decision.type}
+                        className={cn(WRAPPING_BADGE_CLASS, "max-w-[60%]")}
+                      />
+                      <ScenarioLabel
+                        scenario={decision.scenario}
+                        shownOrigins={[decision.origin]}
+                        className="flex-1"
+                      />
                     </>
                   }
                   bottom={<span className="truncate text-muted-foreground">{decision.origin}</span>}
                   bottomEnd={
-                    <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">{timeLeftText(decision.duration)}</span>
+                    <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground">
+                      {timeLeftText(decision.duration)}
+                    </span>
                   }
                 />
               </TableRow>
@@ -213,9 +254,16 @@ export function DecisionGroupRows(props: Props) {
           {chevron}
           {group.ip}
           {isIp ? (
-            <IpActionsMenu ip={group.ip} countryCode={group.countryCode} countryName={group.countryName} city={group.city} />
+            <IpActionsMenu
+              ip={group.ip}
+              countryCode={group.countryCode}
+              countryName={group.countryName}
+              city={group.city}
+            />
           ) : (
-            <Badge variant="outline" className="ml-2 align-middle">{group.scope}</Badge>
+            <Badge variant="outline" className="ml-2 align-middle">
+              {group.scope}
+            </Badge>
           )}
         </TableCell>
         <TableCell>
@@ -228,7 +276,9 @@ export function DecisionGroupRows(props: Props) {
         <TableCell>
           <span className="inline-flex flex-wrap gap-1">
             {group.origins.map((origin) => (
-              <Badge key={origin} variant="secondary">{origin}</Badge>
+              <Badge key={origin} variant="secondary">
+                {origin}
+              </Badge>
             ))}
           </span>
         </TableCell>
@@ -244,11 +294,18 @@ export function DecisionGroupRows(props: Props) {
           {formatTimeLeft(group.duration)}
         </TableCell>
         <TableCell
-          className={cn("text-right tabular-nums", (group.requestCount24h ?? 0) > 0 && "font-semibold text-amber-500")}
+          className={cn(
+            "text-right tabular-nums",
+            (group.requestCount24h ?? 0) > 0 && "font-semibold text-amber-500",
+          )}
         >
           {group.requestCount24h ?? "-"}
         </TableCell>
-        {writeEnabled && <TableCell {...stopRowActivation}>{(isIp || group.scope === "Range") && <UnbanButton group={group} />}</TableCell>}
+        {writeEnabled && (
+          <TableCell {...stopRowActivation}>
+            {(isIp || group.scope === "Range") && <UnbanButton group={group} />}
+          </TableCell>
+        )}
       </TableRow>
       {open &&
         group.decisions.map((decision, index) => {
@@ -257,7 +314,11 @@ export function DecisionGroupRows(props: Props) {
             <TableRow
               key={decision.id ?? index}
               {...activation}
-              className={cn("bg-muted/30 hover:bg-muted/40", activation?.className, dimmed && "opacity-60")}
+              className={cn(
+                "bg-muted/30 hover:bg-muted/40",
+                activation?.className,
+                dimmed && "opacity-60",
+              )}
             >
               <TableCell />
               <TableCell>
@@ -268,7 +329,9 @@ export function DecisionGroupRows(props: Props) {
                 <Badge variant="secondary">{decision.origin}</Badge>
               </TableCell>
               <ScenarioCell scenario={decision.scenario} shownOrigins={[decision.origin]} />
-              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">{formatTimeLeft(decision.duration)}</TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                {formatTimeLeft(decision.duration)}
+              </TableCell>
               <TableCell colSpan={writeEnabled ? 2 : 1} />
             </TableRow>
           )

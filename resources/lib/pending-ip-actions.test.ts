@@ -12,7 +12,9 @@ describe("describeUnban", () => {
   it("counts the decisions and the ones from the crowd", () => {
     expect(describeUnban(origins("crowdsec"))).toBe("Removes 1 decision.")
     expect(describeUnban(origins("crowdsec", "cscli", "geometrikks"))).toBe("Removes 3 decisions.")
-    expect(describeUnban(origins("crowdsec", "CAPI", "crowdsec", "lists"))).toBe("Removes 4 decisions, 2 of them from the crowd.")
+    expect(describeUnban(origins("crowdsec", "CAPI", "crowdsec", "lists"))).toBe(
+      "Removes 4 decisions, 2 of them from the crowd.",
+    )
     expect(describeUnban(origins("CAPI"))).toBe("Removes 1 decision from the crowd.")
   })
 })

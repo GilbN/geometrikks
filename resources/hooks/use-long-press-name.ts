@@ -67,7 +67,10 @@ export function useLongPressName() {
       // A touch stays captured by the button it started on, so leaving it only shows in the coordinates.
       const rect = event.currentTarget.getBoundingClientRect()
       const inside =
-        event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
       if (!inside) cancelPress()
     },
     // A mouse has no implicit capture, so once it leaves no pointermove arrives

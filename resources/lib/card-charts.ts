@@ -51,6 +51,10 @@ export function setCardCharts(page: CardChartsPage, enabled: boolean): void {
 }
 
 export function useCardCharts(page: CardChartsPage): [boolean, (enabled: boolean) => void] {
-  const enabled = useSyncExternalStore(subscribe, () => readCurrent(page), () => true)
+  const enabled = useSyncExternalStore(
+    subscribe,
+    () => readCurrent(page),
+    () => true,
+  )
   return [enabled, (next: boolean) => setCardCharts(page, next)]
 }

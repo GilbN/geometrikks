@@ -34,7 +34,12 @@ export function useSideDrawer() {
 export function SideDrawerClose() {
   return (
     <DrawerClose asChild>
-      <Button variant="ghost" size="icon" className="size-11 shrink-0 rounded-full text-muted-foreground" aria-label="Close">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-11 shrink-0 rounded-full text-muted-foreground"
+        aria-label="Close"
+      >
         <XIcon className="size-5" />
       </Button>
     </DrawerClose>

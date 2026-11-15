@@ -93,18 +93,29 @@ export function IpBanAction({ ip, decision }: { ip: string; decision: string | n
               <>
                 <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
                 {BAN_DURATIONS.map((d) => (
-                  <DropdownMenuItem key={d.value} disabled={isPending} onClick={() => ban(ip, d.value, d.label)}>
+                  <DropdownMenuItem
+                    key={d.value}
+                    disabled={isPending}
+                    onClick={() => ban(ip, d.value, d.label)}
+                  >
                     {d.label}
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setDialogOpen(true)}>More options…</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDialogOpen(true)}>
+                  More options…
+                </DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} returnFocusTo={triggerRef} />
+      <BanIpDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initialIp={ip}
+        returnFocusTo={triggerRef}
+      />
     </>
   )
 }

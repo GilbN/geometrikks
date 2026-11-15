@@ -52,10 +52,35 @@ export const POPUP_LINK_BUTTON_STYLE: CSSProperties = {
 export const POPUP_ROW_ICON_STYLE: CSSProperties = { width: 12, height: 12 }
 
 /** Label on the left, value on the right; `icon` leads the label. */
-export function PopupRow({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) {
+export function PopupRow({
+  label,
+  value,
+  icon,
+}: {
+  label: string
+  value: ReactNode
+  icon?: ReactNode
+}) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", fontSize: "12px", marginBottom: "6px" }}>
-      <span style={{ color: "var(--popup-muted)", display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "12px",
+        fontSize: "12px",
+        marginBottom: "6px",
+      }}
+    >
+      <span
+        style={{
+          color: "var(--popup-muted)",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          flexShrink: 0,
+        }}
+      >
         {icon}
         {label}
       </span>
@@ -165,7 +190,8 @@ function useFitInMap(
     map.on("move", capHeight)
     map.on("resize", capHeight)
     const canvas = map.getCanvasContainer()
-    for (const gesture of USER_GESTURES) canvas.addEventListener(gesture, onGesture, { passive: true })
+    for (const gesture of USER_GESTURES)
+      canvas.addEventListener(gesture, onGesture, { passive: true })
     let lastSize = [card.offsetWidth, card.offsetHeight]
     let placeFrame = 0
     const observer = new ResizeObserver(() => {
@@ -269,7 +295,15 @@ export function PopupCard({
       </div>
       {/* A scroll box clips sideways too, so it reaches 6px into the card's
           padding for the IP pill's -ml-1.5 to stay visible. */}
-      <div style={{ minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", margin: "0 -6px", padding: "0 6px" }}>
+      <div
+        style={{
+          minHeight: 0,
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          margin: "0 -6px",
+          padding: "0 6px",
+        }}
+      >
         {children}
       </div>
     </div>

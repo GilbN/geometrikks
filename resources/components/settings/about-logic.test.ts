@@ -37,11 +37,29 @@ function makeAbout(overrides: Partial<AboutResponse> = {}): AboutResponse {
       migrationName: "add auth_sessions",
       migrationHead: "a41d7e6c2b95",
     },
-    geoip: { available: true, ageDays: 7, buildDate: "2026-10-23T00:00:00Z", dbPath: "/app/data/geoip/GeoLite2-City.mmdb" },
-    geoipAsn: { available: true, ageDays: 6, buildDate: "2026-10-24T00:00:00Z", dbPath: "/app/data/geoip/GeoLite2-ASN.mmdb" },
+    geoip: {
+      available: true,
+      ageDays: 7,
+      buildDate: "2026-10-23T00:00:00Z",
+      dbPath: "/app/data/geoip/GeoLite2-City.mmdb",
+    },
+    geoipAsn: {
+      available: true,
+      ageDays: 6,
+      buildDate: "2026-10-24T00:00:00Z",
+      dbPath: "/app/data/geoip/GeoLite2-ASN.mmdb",
+    },
     geoipAsnEnabled: true,
-    asnClassification: { dataset: "bad-asn-list", entries: 722, license: "MIT", sourceUrl: "https://example.test/list" },
-    links: { repository: "https://github.com/GilbN/geometrikks", issues: "https://github.com/GilbN/geometrikks/issues" },
+    asnClassification: {
+      dataset: "bad-asn-list",
+      entries: 722,
+      license: "MIT",
+      sourceUrl: "https://example.test/list",
+    },
+    links: {
+      repository: "https://github.com/GilbN/geometrikks",
+      issues: "https://github.com/GilbN/geometrikks/issues",
+    },
     ...overrides,
   }
 }
@@ -67,15 +85,24 @@ describe("splitPath", () => {
   })
 
   it("has no folder for a bare file name", () => {
-    expect(splitPath("GeoLite2-City.mmdb")).toEqual({ fileName: "GeoLite2-City.mmdb", folder: null })
+    expect(splitPath("GeoLite2-City.mmdb")).toEqual({
+      fileName: "GeoLite2-City.mmdb",
+      folder: null,
+    })
   })
 
   it("keeps the root folder", () => {
-    expect(splitPath("/GeoLite2-City.mmdb")).toEqual({ fileName: "GeoLite2-City.mmdb", folder: "/" })
+    expect(splitPath("/GeoLite2-City.mmdb")).toEqual({
+      fileName: "GeoLite2-City.mmdb",
+      folder: "/",
+    })
   })
 
   it("splits Windows paths", () => {
-    expect(splitPath("C:\\geoip\\GeoLite2-City.mmdb")).toEqual({ fileName: "GeoLite2-City.mmdb", folder: "C:\\geoip" })
+    expect(splitPath("C:\\geoip\\GeoLite2-City.mmdb")).toEqual({
+      fileName: "GeoLite2-City.mmdb",
+      folder: "C:\\geoip",
+    })
   })
 })
 
@@ -123,15 +150,23 @@ describe("migrationStatus", () => {
 
 describe("section summaries", () => {
   it("summarizes the runtime without a light", () => {
-    expect(runtimeSummary(makeAbout().runtime)).toEqual({ tone: null, text: "Python 3.13.16, Litestar 2.25.0" })
-    expect(runtimeSummary({ pythonVersion: "3.13.16", litestarVersion: null, apschedulerVersion: null })).toEqual({
+    expect(runtimeSummary(makeAbout().runtime)).toEqual({
+      tone: null,
+      text: "Python 3.13.16, Litestar 2.25.0",
+    })
+    expect(
+      runtimeSummary({ pythonVersion: "3.13.16", litestarVersion: null, apschedulerVersion: null }),
+    ).toEqual({
       tone: null,
       text: "Python 3.13.16",
     })
   })
 
   it("reports a connected database at head in green", () => {
-    expect(databaseSummary(database)).toEqual({ tone: "emerald", text: "Connected, migration at head" })
+    expect(databaseSummary(database)).toEqual({
+      tone: "emerald",
+      text: "Connected, migration at head",
+    })
   })
 
   it("reports a migration that differs from the build in amber", () => {
@@ -148,17 +183,25 @@ describe("section summaries", () => {
   })
 
   it("reports an unreachable database in red", () => {
-    expect(databaseSummary({ ...database, postgresVersion: null })).toEqual({ tone: "red", text: "Unreachable" })
+    expect(databaseSummary({ ...database, postgresVersion: null })).toEqual({
+      tone: "red",
+      text: "Unreachable",
+    })
   })
 
   it("gives both GeoIP ages", () => {
-    expect(geoipSummary(makeAbout())).toEqual({ tone: "emerald", text: "City 7 days old, ASN 6 days old" })
+    expect(geoipSummary(makeAbout())).toEqual({
+      tone: "emerald",
+      text: "City 7 days old, ASN 6 days old",
+    })
   })
 
   it("takes the worse light of City and ASN", () => {
     const about = makeAbout()
     expect(geoipSummary({ ...about, geoip: { ...about.geoip, ageDays: 41 } }).tone).toBe("red")
-    expect(geoipSummary({ ...about, geoipAsn: { ...about.geoipAsn!, ageDays: 20 } }).tone).toBe("amber")
+    expect(geoipSummary({ ...about, geoipAsn: { ...about.geoipAsn!, ageDays: 20 } }).tone).toBe(
+      "amber",
+    )
   })
 
   it("says when ASN is off or City is missing", () => {
@@ -171,7 +214,9 @@ describe("section summaries", () => {
 
   it("uses the singular for one day", () => {
     const about = makeAbout()
-    expect(geoipSummary({ ...about, geoip: { ...about.geoip, ageDays: 1 } }).text).toBe("City 1 day old, ASN 6 days old")
+    expect(geoipSummary({ ...about, geoip: { ...about.geoip, ageDays: 1 } }).text).toBe(
+      "City 1 day old, ASN 6 days old",
+    )
   })
 
   it("opens rows with a red or amber light", () => {
@@ -209,7 +254,16 @@ describe("dropListsStatus", () => {
     expect(dropListsStatus(notLoaded)).toEqual({ tone: "muted", label: "Not downloaded yet" })
     const failed = {
       ...notLoaded,
-      feeds: [{ feed: "v4", recordCount: null, upstreamTimestamp: null, fetchedAt: null, checkedAt: null, lastError: "HTTP 403" }],
+      feeds: [
+        {
+          feed: "v4",
+          recordCount: null,
+          upstreamTimestamp: null,
+          fetchedAt: null,
+          checkedAt: null,
+          lastError: "HTTP 403",
+        },
+      ],
     }
     expect(dropListsStatus(failed)).toEqual({ tone: "amber", label: "Not downloaded yet" })
   })
@@ -218,15 +272,36 @@ describe("dropListsStatus", () => {
     const failing = {
       ...dropLists,
       feeds: [
-        { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-11-01T06:14:00Z", checkedAt: "2026-11-01T06:14:00Z", lastError: null },
-        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-31T06:14:00Z", checkedAt: "2026-11-01T06:14:00Z", lastError: "HTTP 403" },
+        {
+          feed: "v4",
+          recordCount: 3,
+          upstreamTimestamp: null,
+          fetchedAt: "2026-11-01T06:14:00Z",
+          checkedAt: "2026-11-01T06:14:00Z",
+          lastError: null,
+        },
+        {
+          feed: "asn",
+          recordCount: 2,
+          upstreamTimestamp: null,
+          fetchedAt: "2026-10-31T06:14:00Z",
+          checkedAt: "2026-11-01T06:14:00Z",
+          lastError: "HTTP 403",
+        },
       ],
     }
     expect(dropListsStatus(failing)).toEqual({
       tone: "amber",
       label: `Updated ${formatTs("2026-11-01T06:14:00Z", "hourly")}`,
     })
-    const healthy = { ...failing, feeds: failing.feeds.map((feedView) => ({ ...feedView, checkedAt: feedView.fetchedAt, lastError: null })) }
+    const healthy = {
+      ...failing,
+      feeds: failing.feeds.map((feedView) => ({
+        ...feedView,
+        checkedAt: feedView.fetchedAt,
+        lastError: null,
+      })),
+    }
     expect(dropListsStatus(healthy).tone).toBe("emerald")
   })
 })
@@ -278,8 +353,13 @@ describe("aboutDetailsText", () => {
 
   it("names the build's revision when the migration differs", () => {
     const about = makeAbout()
-    const text = aboutDetailsText({ ...about, database: { ...about.database, migrationRevision: "9f1c2ab4d7e0" } })
-    expect(text.split("\n")[4]).toBe("Migration 9f1c2ab4d7e0 (differs from this build, build ships a41d7e6c2b95)")
+    const text = aboutDetailsText({
+      ...about,
+      database: { ...about.database, migrationRevision: "9f1c2ab4d7e0" },
+    })
+    expect(text.split("\n")[4]).toBe(
+      "Migration 9f1c2ab4d7e0 (differs from this build, build ships a41d7e6c2b95)",
+    )
   })
 })
 
@@ -292,12 +372,22 @@ describe("dropListsSummary", () => {
     copyright: null,
     termsUrl: "https://www.spamhaus.org/drop/terms/",
     feeds: [
-      { feed: "v4", recordCount: 3, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-10-30T06:00:00Z", lastError: null },
+      {
+        feed: "v4",
+        recordCount: 3,
+        upstreamTimestamp: null,
+        fetchedAt: "2026-10-30T06:00:00Z",
+        checkedAt: "2026-10-30T06:00:00Z",
+        lastError: null,
+      },
     ],
   }
 
   it("reads like the status when nothing failed", () => {
-    expect(dropListsSummary(dropLists)).toEqual({ tone: "emerald", text: dropListsStatus(dropLists).label })
+    expect(dropListsSummary(dropLists)).toEqual({
+      tone: "emerald",
+      text: dropListsStatus(dropLists).label,
+    })
     expect(dropListsSummary({ ...dropLists, stale: true }).text).toMatch(/^Out of date, updated /)
     expect(dropListsSummary({ ...dropLists, loaded: false, updatedAt: null, feeds: [] })).toEqual({
       tone: "muted",
@@ -310,7 +400,14 @@ describe("dropListsSummary", () => {
       ...dropLists,
       feeds: [
         ...dropLists.feeds,
-        { feed: "asn", recordCount: 2, upstreamTimestamp: null, fetchedAt: "2026-10-30T06:00:00Z", checkedAt: "2026-11-01T06:00:00Z", lastError: "HTTP 403" },
+        {
+          feed: "asn",
+          recordCount: 2,
+          upstreamTimestamp: null,
+          fetchedAt: "2026-10-30T06:00:00Z",
+          checkedAt: "2026-11-01T06:00:00Z",
+          lastError: "HTTP 403",
+        },
       ],
     }
     const summary = dropListsSummary(failing)

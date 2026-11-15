@@ -47,7 +47,10 @@ export function useChipReveal(rowRef: RefObject<HTMLElement | null>, activeKey: 
 }
 
 /** Which ends of a sideways scrolling row have more chips past them. */
-export function useChipRowFades(rowRef: RefObject<HTMLElement | null>): { start: boolean; end: boolean } {
+export function useChipRowFades(rowRef: RefObject<HTMLElement | null>): {
+  start: boolean
+  end: boolean
+} {
   const [fades, setFades] = useState({ start: false, end: false })
   useEffect(() => {
     const row = rowRef.current
@@ -55,7 +58,9 @@ export function useChipRowFades(rowRef: RefObject<HTMLElement | null>): { start:
     const update = () => {
       const start = row.scrollLeft > 1
       const end = row.scrollLeft + row.clientWidth < row.scrollWidth - 1
-      setFades((previous) => (previous.start === start && previous.end === end ? previous : { start, end }))
+      setFades((previous) =>
+        previous.start === start && previous.end === end ? previous : { start, end },
+      )
     }
     update()
     row.addEventListener("scroll", update, { passive: true })

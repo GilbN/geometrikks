@@ -43,21 +43,39 @@ describe("computeSignals", () => {
 
   it("flags 4xx share only above the request floor", () => {
     const low = profile({ totalRequests: 19, status4xx: 19 })
-    expect(keys(computeSignals({ profile: low, banned: false, banCreatedAt: null }))).not.toContain("errors")
+    expect(keys(computeSignals({ profile: low, banned: false, banCreatedAt: null }))).not.toContain(
+      "errors",
+    )
     const high = profile({ totalRequests: 20, status4xx: 12 })
-    const signal = computeSignals({ profile: high, banned: false, banCreatedAt: null }).find((s) => s.key === "errors")
+    const signal = computeSignals({ profile: high, banned: false, banCreatedAt: null }).find(
+      (s) => s.key === "errors",
+    )
     expect(signal).toMatchObject({ tone: "amber", label: "60% 4xx" })
     const red = profile({ totalRequests: 100, status4xx: 70 })
-    expect(computeSignals({ profile: red, banned: false, banCreatedAt: null })[0]).toMatchObject({ tone: "red" })
+    expect(computeSignals({ profile: red, banned: false, banCreatedAt: null })[0]).toMatchObject({
+      tone: "red",
+    })
   })
 
   it("flags hosting, path spread and malformed lines", () => {
-    const p = profile({ asnCategory: "hosting", distinctPaths: SIGNAL_THRESHOLDS.distinctPathsMin, malformedRequests: 2 })
-    expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: null }))).toEqual(["hosting", "paths", "malformed"])
+    const p = profile({
+      asnCategory: "hosting",
+      distinctPaths: SIGNAL_THRESHOLDS.distinctPathsMin,
+      malformedRequests: 2,
+    })
+    expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: null }))).toEqual([
+      "hosting",
+      "paths",
+      "malformed",
+    ])
   })
 
   it("flags a DROP ASN in red and not as hosting", () => {
-    const signals = computeSignals({ profile: profile({ asnCategory: "drop" }), banned: false, banCreatedAt: null })
+    const signals = computeSignals({
+      profile: profile({ asnCategory: "drop" }),
+      banned: false,
+      banCreatedAt: null,
+    })
     expect(signals).toEqual([{ key: "drop-asn", label: "DROP ASN", tone: "red" }])
   })
 
@@ -66,9 +84,16 @@ describe("computeSignals", () => {
       totalRequests: 100,
       peak: { timestamp: "2026-08-28T03:00:00Z", hits: 50, errorHits: 0 },
     })
-    expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: null }))).toContain("burst")
-    const small = profile({ totalRequests: 99, peak: { timestamp: "2026-08-28T03:00:00Z", hits: 99, errorHits: 0 } })
-    expect(keys(computeSignals({ profile: small, banned: false, banCreatedAt: null }))).not.toContain("burst")
+    expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: null }))).toContain(
+      "burst",
+    )
+    const small = profile({
+      totalRequests: 99,
+      peak: { timestamp: "2026-08-28T03:00:00Z", hits: 99, errorHits: 0 },
+    })
+    expect(
+      keys(computeSignals({ profile: small, banned: false, banCreatedAt: null })),
+    ).not.toContain("burst")
   })
 
   it("flags traffic after the ban only when banned with a known start", () => {
@@ -81,9 +106,16 @@ describe("computeSignals", () => {
       ],
     })
     const after = computeSignals({ profile: p, banned: true, banCreatedAt: "2026-08-28T14:02:00Z" })
-    expect(after.find((s) => s.key === "after-ban")).toMatchObject({ tone: "red", label: "Still seen 7h after ban (2 requests)" })
-    expect(keys(computeSignals({ profile: p, banned: false, banCreatedAt: "2026-08-28T14:02:00Z" }))).not.toContain("after-ban")
-    expect(keys(computeSignals({ profile: p, banned: true, banCreatedAt: null }))).not.toContain("after-ban")
+    expect(after.find((s) => s.key === "after-ban")).toMatchObject({
+      tone: "red",
+      label: "Still seen 7h after ban (2 requests)",
+    })
+    expect(
+      keys(computeSignals({ profile: p, banned: false, banCreatedAt: "2026-08-28T14:02:00Z" })),
+    ).not.toContain("after-ban")
+    expect(keys(computeSignals({ profile: p, banned: true, banCreatedAt: null }))).not.toContain(
+      "after-ban",
+    )
   })
 
   it("drops the request count when the ban lands inside the last bucket (daily)", () => {

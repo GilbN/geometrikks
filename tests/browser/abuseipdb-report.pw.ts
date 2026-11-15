@@ -6,7 +6,14 @@ import type {
   ReportedIpDto,
   StoredReportDto,
 } from "../../resources/generated/api/types.gen"
-import { FIRST_SEEN, IP, MINUTE_MS, evidence, ipEvidence, minutesAgo } from "./abuse-report-fixtures"
+import {
+  FIRST_SEEN,
+  IP,
+  MINUTE_MS,
+  evidence,
+  ipEvidence,
+  minutesAgo,
+} from "./abuse-report-fixtures"
 import { settledToastBox } from "./toasts"
 
 // Away from UTC, so the tests exercise the attack time's local-to-UTC conversion.
@@ -47,25 +54,57 @@ interface Recorded {
 /** `iso` as "2026-11-07T14:57" on TIMEZONE's wall clock. */
 function localInputValue(iso: string) {
   const format = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    timeZone: TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
   })
-  const parts = Object.fromEntries(format.formatToParts(new Date(iso)).map((part) => [part.type, part.value]))
+  const parts = Object.fromEntries(
+    format.formatToParts(new Date(iso)).map((part) => [part.type, part.value]),
+  )
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
 }
 
 const check: CheckResponse = {
-  ipAddress: IP, abuseConfidenceScore: 87, countryCode: "US", domain: "amazon.com",
-  isTor: false, isWhitelisted: false, isp: "Amazon.com, Inc.", lastReportedAt: minutesAgo(6),
-  numDistinctUsers: 311, totalReports: 1204, usageType: "Data Center/Web Hosting/Transit",
+  ipAddress: IP,
+  abuseConfidenceScore: 87,
+  countryCode: "US",
+  domain: "amazon.com",
+  isTor: false,
+  isWhitelisted: false,
+  isp: "Amazon.com, Inc.",
+  lastReportedAt: minutesAgo(6),
+  numDistinctUsers: 311,
+  totalReports: 1204,
+  usageType: "Data Center/Web Hosting/Transit",
 }
 
 function defaultFixture(): Fixture {
   return {
-    status: { enabled: true, reportingEnabled: true, blacklistEnabled: false, reports: { limit: 1000, remaining: 986, resetsAt: null }, checks: null },
+    status: {
+      enabled: true,
+      reportingEnabled: true,
+      blacklistEnabled: false,
+      reports: { limit: 1000, remaining: 986, resetsAt: null },
+      checks: null,
+    },
     reportedIps: [],
     storedReports: [],
     postStatus: 200,
-    postBody: { results: [{ ipAddress: IP, status: "reported", abuseConfidenceScore: 88, reportedAt: new Date().toISOString(), error: null }] },
+    postBody: {
+      results: [
+        {
+          ipAddress: IP,
+          status: "reported",
+          abuseConfidenceScore: 88,
+          reportedAt: new Date().toISOString(),
+          error: null,
+        },
+      ],
+    },
     evidenceFor: () => evidence(),
     checkFailures: 0,
     checkFailsFrom: null,
@@ -77,22 +116,34 @@ function defaultFixture(): Fixture {
 }
 
 function windowHours(url: URL) {
-  const span = Date.parse(url.searchParams.get("endDate")!) - Date.parse(url.searchParams.get("startDate")!)
+  const span =
+    Date.parse(url.searchParams.get("endDate")!) - Date.parse(url.searchParams.get("startDate")!)
   return Math.round(span / (60 * MINUTE_MS))
 }
 
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
-  expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok(),
+  ).toBe(true)
 }
 
 /** Every AbuseIPDB call stays in the browser. The server runs with reporting
  *  off, so a POST that slipped past these routes would get a 403. */
 async function setup(page: Page, changes: Partial<Fixture> = {}) {
   const fixture = { ...defaultFixture(), ...changes }
-  const recorded: Recorded = { checks: 0, checkedIps: [], evidenceRequests: [], posts: [], extraPosts: 0 }
-  const gates: { evidence: Promise<void> | null; post: Promise<void> | null } = { evidence: null, post: null }
+  const recorded: Recorded = {
+    checks: 0,
+    checkedIps: [],
+    evidenceRequests: [],
+    posts: [],
+    extraPosts: 0,
+  }
+  const gates: { evidence: Promise<void> | null; post: Promise<void> | null } = {
+    evidence: null,
+    post: null,
+  }
   /** Holds the requests that arrive from now on until the returned function releases them. */
   const hold = (name: keyof typeof gates) => {
     let release = () => {}
@@ -106,20 +157,44 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
   }
   await login(page)
   await page.route("**/api/v1/abuseipdb/status", (route) => route.fulfill({ json: fixture.status }))
-  await page.route("**/api/v1/abuseipdb/reported-ips", (route) => route.fulfill({ json: fixture.reportedIps }))
+  await page.route("**/api/v1/abuseipdb/reported-ips", (route) =>
+    route.fulfill({ json: fixture.reportedIps }),
+  )
   await page.route("**/api/v1/abuseipdb/check?*", (route) => {
     recorded.checks += 1
     const ipAddress = new URL(route.request().url()).searchParams.get("ipAddress") ?? ""
     recorded.checkedIps.push(ipAddress)
-    if (recorded.checks <= fixture.checkFailures || (fixture.checkFailsFrom !== null && recorded.checks >= fixture.checkFailsFrom)) {
-      return route.fulfill({ status: 502, json: { status_code: 502, detail: "AbuseIPDB did not answer.", code: "abuseipdb_unavailable" } })
+    if (
+      recorded.checks <= fixture.checkFailures ||
+      (fixture.checkFailsFrom !== null && recorded.checks >= fixture.checkFailsFrom)
+    ) {
+      return route.fulfill({
+        status: 502,
+        json: {
+          status_code: 502,
+          detail: "AbuseIPDB did not answer.",
+          code: "abuseipdb_unavailable",
+        },
+      })
     }
-    return route.fulfill({ json: ipAddress === IP ? check : { ...check, ipAddress, abuseConfidenceScore: 12, totalReports: 3 } })
+    return route.fulfill({
+      json:
+        ipAddress === IP
+          ? check
+          : { ...check, ipAddress, abuseConfidenceScore: 12, totalReports: 3 },
+    })
   })
   await page.route("**/api/v1/abuseipdb/reports*", async (route) => {
     if (route.request().method() !== "POST") {
       if (fixture.storedReportsFailure) {
-        return route.fulfill({ status: 503, json: { status_code: 503, detail: fixture.storedReportsFailure, code: "service_unavailable" } })
+        return route.fulfill({
+          status: 503,
+          json: {
+            status_code: 503,
+            detail: fixture.storedReportsFailure,
+            code: "service_unavailable",
+          },
+        })
       }
       return route.fulfill({ json: fixture.storedReports })
     }
@@ -136,35 +211,72 @@ async function setup(page: Page, changes: Partial<Fixture> = {}) {
     recorded.evidenceRequests.push(url)
     if (gates.evidence) await gates.evidence
     if (fixture.evidenceFailure) {
-      return route.fulfill({ status: 500, json: { status_code: 500, detail: fixture.evidenceFailure } })
+      return route.fulfill({
+        status: 500,
+        json: { status_code: 500, detail: fixture.evidenceFailure },
+      })
     }
     return route.fulfill({ json: fixture.evidenceFor(url) })
   })
-  await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
-    enabled: true, writeEnabled: false, lapiReachable: true, liveUpdates: false,
-  } }))
+  await page.route("**/api/v1/crowdsec/status", (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        writeEnabled: false,
+        lapiReachable: true,
+        liveUpdates: false,
+      },
+    }),
+  )
   await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [] }))
-  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
-    items: [fixture.rowIp, ...fixture.extraRowIps].map((ipAddress, index) => ({
-      id: index + 1, timestamp: minutesAgo(30), ipAddress, remoteUser: null,
-      method: "GET", url: "/.env", httpVersion: "HTTP/1.1", statusCode: 404, bytesSent: 100,
-      referrer: null, userAgent: "Mozilla/5.0 zgrab/0.x", requestTime: 10, upstreamResponseTime: null,
-      host: "example.test", server: null, logFormat: null, countryCode: "US",
-      countryName: "United States", city: null, autonomousSystemNumber: 16509, autonomousSystemOrganization: "Amazon.com, Inc.",
-    })),
-    total: 1, limit: 20, offset: 0,
-  } }))
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [fixture.rowIp, ...fixture.extraRowIps].map((ipAddress, index) => ({
+            id: index + 1,
+            timestamp: minutesAgo(30),
+            ipAddress,
+            remoteUser: null,
+            method: "GET",
+            url: "/.env",
+            httpVersion: "HTTP/1.1",
+            statusCode: 404,
+            bytesSent: 100,
+            referrer: null,
+            userAgent: "Mozilla/5.0 zgrab/0.x",
+            requestTime: 10,
+            upstreamResponseTime: null,
+            host: "example.test",
+            server: null,
+            logFormat: null,
+            countryCode: "US",
+            countryName: "United States",
+            city: null,
+            autonomousSystemNumber: 16509,
+            autonomousSystemOrganization: "Amazon.com, Inc.",
+          })),
+          total: 1,
+          limit: 20,
+          offset: 0,
+        },
+      }),
+  )
   return { fixture, recorded, hold }
 }
 
-const ipActions = (page: Page, ip = IP) => page.getByRole("button", { name: `Actions for ${ip}` }).first()
+const ipActions = (page: Page, ip = IP) =>
+  page.getByRole("button", { name: `Actions for ${ip}` }).first()
 const reportItem = (page: Page) => page.getByRole("menuitem", { name: /^Report to AbuseIPDB…/ })
-const reportButton = (drawer: Locator) => drawer.getByRole("button", { name: /^Report to AbuseIPDB…/ })
+const reportButton = (drawer: Locator) =>
+  drawer.getByRole("button", { name: /^Report to AbuseIPDB…/ })
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
 const openSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
 const SCORE_LABEL = "AbuseIPDB 87% · 1,204 reports"
 /** The tiles under "On AbuseIPDB now", after the evidence tiles. */
-const checkResult = (dialog: Locator) => dialog.locator("section").filter({ hasText: "On AbuseIPDB now" }).locator(".grid > div")
+const checkResult = (dialog: Locator) =>
+  dialog.locator("section").filter({ hasText: "On AbuseIPDB now" }).locator(".grid > div")
 const reportDialog = (page: Page) => page.getByRole("dialog", { name: REPORT_TITLE })
 
 async function openReportFromMenu(page: Page) {
@@ -183,7 +295,12 @@ const attackDateButton = (dialog: Locator) => dialog.getByRole("button", { name:
 const utcDay = (localValue: string) => new Date(`${localValue.slice(0, 10)}T00:00:00Z`)
 
 async function expectAttackTime(dialog: Locator, localValue: string) {
-  const day = utcDay(localValue).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+  const day = utcDay(localValue).toLocaleDateString("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  })
   await expect(attackDateButton(dialog)).toHaveAccessibleName(`Attack date ${day}`)
   await expect(dialog.getByLabel("Attack time")).toHaveValue(localValue.slice(11, 16))
 }
@@ -192,19 +309,30 @@ async function setAttackTime(page: Page, dialog: Locator, localValue: string) {
   await attackDateButton(dialog).click()
   const calendar = page.locator('[data-slot="calendar"]')
   const day = utcDay(localValue)
-  const caption = (date: Date) => date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
+  const caption = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
   const heading = calendar.locator(".rdp-caption_label")
   const target = caption(day)
-  const months = Array.from({ length: 12 }, (_, month) => caption(new Date(Date.UTC(2000, month))).split(" ")[0])
+  const months = Array.from(
+    { length: 12 },
+    (_, month) => caption(new Date(Date.UTC(2000, month))).split(" ")[0],
+  )
   for (let clicks = 0; clicks < 24 && (await heading.textContent()) !== target; clicks++) {
     const [shownName, shownYear] = (await heading.textContent())!.split(" ")
     const shownIndex = Number(shownYear) * 12 + months.indexOf(shownName)
-    const step = shownIndex > day.getUTCFullYear() * 12 + day.getUTCMonth() ? "Go to the Previous Month" : "Go to the Next Month"
+    const step =
+      shownIndex > day.getUTCFullYear() * 12 + day.getUTCMonth()
+        ? "Go to the Previous Month"
+        : "Go to the Next Month"
     await calendar.getByRole("button", { name: step }).click()
   }
   await expect(heading).toHaveText(target)
   const month = day.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })
-  await calendar.getByRole("button", { name: new RegExp(`${month} ${day.getUTCDate()}(st|nd|rd|th), ${day.getUTCFullYear()}`) }).click()
+  await calendar
+    .getByRole("button", {
+      name: new RegExp(`${month} ${day.getUTCDate()}(st|nd|rd|th), ${day.getUTCFullYear()}`),
+    })
+    .click()
   await expect(calendar).toHaveCount(0)
   await dialog.getByLabel("Attack time").fill(localValue.slice(11, 16))
 }
@@ -219,7 +347,9 @@ async function openRecordSheet(page: Page) {
 
 /** Two animation frames, so React has rendered what the last change caused. */
 async function nextFrames(page: Page) {
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  )
 }
 
 async function expectRightFullHeight(page: Page, drawer: Locator) {
@@ -228,7 +358,13 @@ async function expectRightFullHeight(page: Page, drawer: Locator) {
   await expect
     .poll(async () => {
       const box = await drawer.boundingBox()
-      return box && { top: Math.round(box.y), bottom: Math.round(box.y + box.height), right: Math.round(box.x + box.width) }
+      return (
+        box && {
+          top: Math.round(box.y),
+          bottom: Math.round(box.y + box.height),
+          right: Math.round(box.x + box.width),
+        }
+      )
     })
     .toEqual({ top: 0, bottom: height, right: width })
 }
@@ -246,13 +382,17 @@ test.describe("desktop", () => {
     await expect(menu.getByRole("menuitem", { name: /Ban IP/ })).toHaveCount(0)
     const lastSeparator = menu.locator('[data-slot="dropdown-menu-separator"]').last()
     // A separator right above the item means it heads its own section.
-    expect(await lastSeparator.evaluate((element) => element.nextElementSibling?.textContent)).toBe("Report to AbuseIPDB…")
+    expect(await lastSeparator.evaluate((element) => element.nextElementSibling?.textContent)).toBe(
+      "Report to AbuseIPDB…",
+    )
   })
 
   test("dialog prefills from the evidence and leaves CAPI out", async ({ page }) => {
     await setup(page)
     const dialog = await openReportFromMenu(page)
-    await expect(dialog.getByRole("button", { name: "21 Web App Attack", pressed: true })).toBeVisible()
+    await expect(
+      dialog.getByRole("button", { name: "21 Web App Attack", pressed: true }),
+    ).toBeVisible()
     await expect(dialog.getByRole("button", { pressed: true })).toHaveCount(1)
     await expect(dialog.getByText("1 picked from CrowdSec")).toBeVisible()
     const comment = dialog.getByLabel("Comment")
@@ -271,7 +411,9 @@ test.describe("desktop", () => {
     expect(await picker.evaluate((element) => element.tagName)).toBe("BUTTON")
   })
 
-  test("CrowdSec picks lead the categories, one outside the common eight included", async ({ page }) => {
+  test("CrowdSec picks lead the categories, one outside the common eight included", async ({
+    page,
+  }) => {
     const alert = { ...ipEvidence().alerts[0], scenario: "crowdsecurity/ssh-bf" }
     await setup(page, { evidenceFor: () => evidence(ipEvidence({ alerts: [alert] })) })
     const dialog = await openReportFromMenu(page)
@@ -288,7 +430,12 @@ test.describe("desktop", () => {
     await page.waitForTimeout(500)
     expect(recorded.checks).toBe(0)
     await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
-    await expect(checkResult(dialog)).toHaveText(["87%confidence", "1,204reports", "311reporters", /^\d+m agolast report$/])
+    await expect(checkResult(dialog)).toHaveText([
+      "87%confidence",
+      "1,204reports",
+      "311reporters",
+      /^\d+m agolast report$/,
+    ])
     await expect(dialog.getByText("Usage type: Data Center/Web Hosting/Transit")).toBeVisible()
     await page.waitForTimeout(300)
     expect(recorded.checks).toBe(1)
@@ -301,12 +448,16 @@ test.describe("desktop", () => {
     await setAttackTime(page, dialog, "2026-11-05T10:15")
     await expect(dialog.getByText("sent as 2026-11-05 09:15 UTC")).toBeVisible()
     await dialog.getByRole("button", { name: "Send report" }).click()
-    const toast = page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB. Confidence score 88%.` })
+    const toast = page
+      .locator("[data-sonner-toast]")
+      .filter({ hasText: `Reported ${IP} to AbuseIPDB. Confidence score 88%.` })
     await settledToastBox(toast)
     await expect(dialog).toHaveCount(0)
     expect(recorded.posts).toHaveLength(1)
     expect(recorded.extraPosts).toBe(0)
-    const body = recorded.posts[0] as { reports: { ipAddress: string; categories: number[]; comment: string; attackTime: string }[] }
+    const body = recorded.posts[0] as {
+      reports: { ipAddress: string; categories: number[]; comment: string; attackTime: string }[]
+    }
     expect(body.reports).toHaveLength(1)
     expect(body.reports[0].ipAddress).toBe(IP)
     expect(body.reports[0].categories).toEqual([21])
@@ -347,9 +498,17 @@ test.describe("desktop", () => {
   test("a new window's evidence replaces the form before Send unlocks", async ({ page }) => {
     const firstSeen24h = minutesAgo(50)
     const { hold } = await setup(page, {
-      evidenceFor: (url) => windowHours(url) === 24
-        ? evidence(ipEvidence({ firstSeen: firstSeen24h, totalRequests: 60, status4xx: 50, paths: [{ url: "/wp-login.php", hits: 50, errorHits: 50 }] }))
-        : evidence(),
+      evidenceFor: (url) =>
+        windowHours(url) === 24
+          ? evidence(
+              ipEvidence({
+                firstSeen: firstSeen24h,
+                totalRequests: 60,
+                status4xx: 50,
+                paths: [{ url: "/wp-login.php", hits: 50, errorHits: 50 }],
+              }),
+            )
+          : evidence(),
     })
     const dialog = await openReportFromMenu(page)
     const comment = dialog.getByLabel("Comment")
@@ -374,7 +533,9 @@ test.describe("desktop", () => {
     await expect(send).toBeEnabled()
   })
 
-  test("an untouched prefill in a repeated DST hour sends the evidence's own instant", async ({ page }) => {
+  test("an untouched prefill in a repeated DST hour sends the evidence's own instant", async ({
+    page,
+  }) => {
     // At 01:00 UTC on 2026-10-25 Oslo turns 03:00 back to 02:00, so 02:30 happens twice.
     const firstSeen = "2026-10-25T01:30:00Z"
     const { recorded } = await setup(page, {
@@ -394,7 +555,9 @@ test.describe("desktop", () => {
     const dialog = await openReportFromMenu(page)
     // Oslo jumps from 02:00 to 03:00 on 2026-03-29.
     await setAttackTime(page, dialog, "2026-03-29T02:30")
-    await expect(dialog.getByText("That time doesn't exist in your time zone, because the clocks skip it.")).toBeVisible()
+    await expect(
+      dialog.getByText("That time doesn't exist in your time zone, because the clocks skip it."),
+    ).toBeVisible()
     await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled()
     await dialog.getByLabel("Attack time").fill("03:30")
     await expect(dialog.getByText(/clocks skip it/)).toHaveCount(0)
@@ -418,7 +581,11 @@ test.describe("desktop", () => {
     await comment.fill("Edited after the first send.")
 
     release()
-    await settledToastBox(page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB. Confidence score 88%.` }))
+    await settledToastBox(
+      page
+        .locator("[data-sonner-toast]")
+        .filter({ hasText: `Reported ${IP} to AbuseIPDB. Confidence score 88%.` }),
+    )
     await expect(reopened).toBeVisible()
     await expect(comment).toHaveValue("Edited after the first send.")
     expect(recorded.posts).toHaveLength(1)
@@ -440,13 +607,17 @@ test.describe("desktop", () => {
     const { recorded } = await setup(page)
     const dialog = await openReportFromMenu(page)
     await dialog.getByRole("button", { name: "Send report" }).dblclick()
-    await settledToastBox(page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB.` }))
+    await settledToastBox(
+      page.locator("[data-sonner-toast]").filter({ hasText: `Reported ${IP} to AbuseIPDB.` }),
+    )
     expect(recorded.posts).toHaveLength(1)
     expect(recorded.extraPosts).toBe(0)
   })
 
   test("reported within 15 minutes is disabled with a countdown", async ({ page }) => {
-    await setup(page, { reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(6), status: "sent" }] })
+    await setup(page, {
+      reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(6), status: "sent" }],
+    })
     await page.goto("/access-logs")
     await ipActions(page).click()
     const item = reportItem(page)
@@ -455,7 +626,9 @@ test.describe("desktop", () => {
   })
 
   test("the countdown follows the clock while the menu stays open", async ({ page }) => {
-    await setup(page, { reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(14), status: "sent" }] })
+    await setup(page, {
+      reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(14), status: "sent" }],
+    })
     await page.clock.install()
     await page.goto("/access-logs")
     await ipActions(page).click()
@@ -469,7 +642,10 @@ test.describe("desktop", () => {
 
   test("another spelling of a reported IPv6 address finds its report", async ({ page }) => {
     const rowIp = "2600:1F18:0:0::1"
-    await setup(page, { rowIp, reportedIps: [{ ipAddress: "2600:1f18::1", reportedAt: minutesAgo(6), status: "sent" }] })
+    await setup(page, {
+      rowIp,
+      reportedIps: [{ ipAddress: "2600:1f18::1", reportedAt: minutesAgo(6), status: "sent" }],
+    })
     await page.goto("/access-logs")
     await ipActions(page, rowIp).click()
     await expect(reportItem(page)).toContainText("again in 9 min")
@@ -506,11 +682,20 @@ test.describe("desktop", () => {
     const reportedAt = minutesAgo(120)
     await setup(page, {
       reportedIps: [{ ipAddress: IP, reportedAt, status: "unconfirmed" }],
-      storedReports: [{
-        id: "r1", ipAddress: IP, reportedAt, attackTime: minutesAgo(180), categories: [21, 19],
-        comment: "412 HTTP requests.", status: "unconfirmed", abuseConfidenceScore: null,
-        reporterKind: "user", reporterName: "admin",
-      }],
+      storedReports: [
+        {
+          id: "r1",
+          ipAddress: IP,
+          reportedAt,
+          attackTime: minutesAgo(180),
+          categories: [21, 19],
+          comment: "412 HTTP requests.",
+          status: "unconfirmed",
+          abuseConfidenceScore: null,
+          reporterKind: "user",
+          reporterName: "admin",
+        },
+      ],
     })
     await page.goto("/access-logs")
     await ipActions(page).click()
@@ -523,7 +708,10 @@ test.describe("desktop", () => {
 
   test("upstream 429 keeps the dialog open with the message", async ({ page }) => {
     const detail = "AbuseIPDB allows one report per IP every 15 minutes."
-    const { recorded } = await setup(page, { postStatus: 429, postBody: { status_code: 429, detail, code: "abuseipdb_rate_limited" } })
+    const { recorded } = await setup(page, {
+      postStatus: 429,
+      postBody: { status_code: 429, detail, code: "abuseipdb_rate_limited" },
+    })
     const dialog = await openReportFromMenu(page)
     await dialog.getByRole("button", { name: "Send report" }).click()
     await expect(dialog.getByText(detail)).toBeVisible()
@@ -531,7 +719,9 @@ test.describe("desktop", () => {
     expect(recorded.posts).toHaveLength(1)
   })
 
-  test("a record sheet's menu reports from a dropdown, and Escape returns to its button", async ({ page }) => {
+  test("a record sheet's menu reports from a dropdown, and Escape returns to its button", async ({
+    page,
+  }) => {
     await setup(page)
     const sheet = await openRecordSheet(page)
     const footerActions = sheet.getByRole("button", { name: `Actions for ${IP}` })
@@ -588,7 +778,9 @@ test.describe("desktop", () => {
     await page.goto("/access-logs")
     await expect((await inspectFromMenu(page)).getByText(SCORE_LABEL)).toBeVisible()
     await closeSheet(page)
-    await expect((await inspectFromMenu(page, "8.8.8.8")).getByText("AbuseIPDB 12% · 3 reports")).toBeVisible()
+    await expect(
+      (await inspectFromMenu(page, "8.8.8.8")).getByText("AbuseIPDB 12% · 3 reports"),
+    ).toBeVisible()
     expect(recorded.checkedIps).toEqual([IP, "8.8.8.8"])
   })
 
@@ -621,7 +813,9 @@ test.describe("desktop", () => {
     expect(recorded.checks).toBe(2)
   })
 
-  test("a score from the report dialog shows in the inspector without another check", async ({ page }) => {
+  test("a score from the report dialog shows in the inspector without another check", async ({
+    page,
+  }) => {
     const { recorded } = await setup(page)
     const dialog = await openReportFromMenu(page)
     await dialog.getByRole("button", { name: "Check (uses 1 check)" }).click()
@@ -633,13 +827,17 @@ test.describe("desktop", () => {
     expect(recorded.checks).toBe(1)
   })
 
-  test("the inspector's score badge shows its details in a tooltip like the signal badges", async ({ page }) => {
+  test("the inspector's score badge shows its details in a tooltip like the signal badges", async ({
+    page,
+  }) => {
     await setup(page)
     await page.goto(`/access-logs?inspect=${IP}`)
     const badge = openSheet(page).getByText(SCORE_LABEL)
     await expect(badge).not.toHaveAttribute("title")
     await badge.hover()
-    await expect(page.getByRole("tooltip")).toHaveText(/^87% confidence from 311 reporters · last reported \d+ min ago · Data Center\/Web Hosting\/Transit$/)
+    await expect(page.getByRole("tooltip")).toHaveText(
+      /^87% confidence from 311 reporters · last reported \d+ min ago · Data Center\/Web Hosting\/Transit$/,
+    )
   })
 
   test("the inspector runs no check for a private address or without a key", async ({ page }) => {
@@ -648,7 +846,15 @@ test.describe("desktop", () => {
     await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
     await page.waitForTimeout(500)
     expect(privateAddress.checks).toBe(0)
-    const { recorded: noKey } = await setup(page, { status: { enabled: false, reportingEnabled: false, blacklistEnabled: false, reports: null, checks: null } })
+    const { recorded: noKey } = await setup(page, {
+      status: {
+        enabled: false,
+        reportingEnabled: false,
+        blacklistEnabled: false,
+        reports: null,
+        checks: null,
+      },
+    })
     await page.goto(`/access-logs?inspect=${IP}`)
     await expect(openSheet(page).getByRole("link", { name: "AbuseIPDB" })).toBeVisible()
     await page.waitForTimeout(500)
@@ -656,7 +862,15 @@ test.describe("desktop", () => {
   })
 
   test("inspector shows the AbuseIPDB link without a key", async ({ page }) => {
-    await setup(page, { status: { enabled: false, reportingEnabled: false, blacklistEnabled: false, reports: null, checks: null } })
+    await setup(page, {
+      status: {
+        enabled: false,
+        reportingEnabled: false,
+        blacklistEnabled: false,
+        reports: null,
+        checks: null,
+      },
+    })
     await page.goto(`/access-logs?inspect=${IP}`)
     const link = openSheet(page).getByRole("link", { name: "AbuseIPDB" })
     await expect(link).toHaveAttribute("href", `https://www.abuseipdb.com/check/${IP}`)
@@ -670,8 +884,12 @@ test.describe("desktop", () => {
 test.describe("portrait phone", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test("the phone menu ends with a full-width Report button that hands off to the report", async ({ page }) => {
-    await setup(page, { reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(125), status: "sent" }] })
+  test("the phone menu ends with a full-width Report button that hands off to the report", async ({
+    page,
+  }) => {
+    await setup(page, {
+      reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(125), status: "sent" }],
+    })
     await page.goto("/access-logs")
     await ipActions(page).click()
     const drawer = openDrawer(page)
@@ -695,11 +913,15 @@ test.describe("portrait phone", () => {
     await setup(page)
     await page.goto(`/access-logs?inspect=${IP}`)
     await page.getByText(SCORE_LABEL).tap()
-    await expect(page.locator('[data-slot="popover-content"]')).toContainText("87% confidence from 311 reporters")
+    await expect(page.locator('[data-slot="popover-content"]')).toContainText(
+      "87% confidence from 311 reporters",
+    )
   })
 
   test("the phone menu's Report is disabled with a countdown", async ({ page }) => {
-    await setup(page, { reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(6), status: "sent" }] })
+    await setup(page, {
+      reportedIps: [{ ipAddress: IP, reportedAt: minutesAgo(6), status: "sent" }],
+    })
     await page.goto("/access-logs")
     await ipActions(page).click()
     const report = reportButton(openDrawer(page))
@@ -716,7 +938,9 @@ test.describe("portrait phone", () => {
     await expect(report).toBeDisabled()
   })
 
-  test("phone width opens the record sheet's menu drawer, and Escape closes only the report", async ({ page }) => {
+  test("phone width opens the record sheet's menu drawer, and Escape closes only the report", async ({
+    page,
+  }) => {
     await setup(page)
     const sheet = await openRecordSheet(page)
     await sheet.getByRole("button", { name: `Actions for ${IP}` }).click()
@@ -827,7 +1051,9 @@ test.describe("phone held sideways", () => {
     await expect(page).toHaveURL(/\/access-logs$/)
   })
 
-  test("held sideways the report opens from the right and Back closes only it", async ({ page }) => {
+  test("held sideways the report opens from the right and Back closes only it", async ({
+    page,
+  }) => {
     await setup(page)
     await page.goto("/")
     const sheet = await openRecordSheet(page)
@@ -869,7 +1095,9 @@ test.describe("turning a phone with the report open", () => {
     await openReport()
     await drawer.getByLabel("Comment").fill("Probed /.env for credentials.")
     await page.setViewportSize({ width: 932, height: 430 })
-    await expect.poll(() => page.evaluate(() => matchMedia("(orientation: landscape)").matches)).toBe(true)
+    await expect
+      .poll(() => page.evaluate(() => matchMedia("(orientation: landscape)").matches))
+      .toBe(true)
     await nextFrames(page)
     await expect.poll(() => drawer.getAttribute("data-vaul-drawer-direction")).toBe("bottom")
     await expect(drawer.getByLabel("Comment")).toHaveValue("Probed /.env for credentials.")
@@ -890,7 +1118,9 @@ test.describe("narrow phone", () => {
   ] as const) {
     test(`${age} last report fits its tile`, async ({ page }) => {
       await setup(page)
-      await page.route("**/api/v1/abuseipdb/check?*", (route) => route.fulfill({ json: { ...check, lastReportedAt: minutesAgo(minutes) } }))
+      await page.route("**/api/v1/abuseipdb/check?*", (route) =>
+        route.fulfill({ json: { ...check, lastReportedAt: minutesAgo(minutes) } }),
+      )
       await page.goto("/access-logs")
       await ipActions(page).click()
       await reportButton(openDrawer(page)).click()
@@ -898,7 +1128,9 @@ test.describe("narrow phone", () => {
       await drawer.getByRole("button", { name: "Check (uses 1 check)" }).click()
       const value = checkResult(drawer).last().locator("b")
       await expect(value).toHaveText(shape)
-      expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+      expect(await value.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      )
     })
   }
 })

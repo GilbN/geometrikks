@@ -26,10 +26,10 @@ export function Sparkline({
   const series = smooth(values)
   const peak = Math.max(1, ...series)
   const step = SPARKLINE_WIDTH / (series.length - 1)
-  const points = series.map((value, index) => [
-    index * step,
-    SPARKLINE_HEIGHT - 1 - (value / peak) * (SPARKLINE_HEIGHT - 2),
-  ] as const)
+  const points = series.map(
+    (value, index) =>
+      [index * step, SPARKLINE_HEIGHT - 1 - (value / peak) * (SPARKLINE_HEIGHT - 2)] as const,
+  )
   const line = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
   // Close the shape along the baseline so the line can carry a soft area fill.
   const area = `${line} ${SPARKLINE_WIDTH},${SPARKLINE_HEIGHT} 0,${SPARKLINE_HEIGHT}`
@@ -123,7 +123,11 @@ function Rate({ dense }: { dense: boolean }) {
           )}
         />
         <span className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-          {disconnected ? (feedState === "paused" ? "Live feed paused" : "Reconnecting") : "Last 5 minutes"}
+          {disconnected
+            ? feedState === "paused"
+              ? "Live feed paused"
+              : "Reconnecting"
+            : "Last 5 minutes"}
         </span>
       </div>
 

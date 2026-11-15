@@ -70,7 +70,13 @@ export function PanelBanButton({
   const isPending = pending !== null
   const waiting = pending !== null && !pending.sending
   const sending = isPending && !waiting
-  const icon = sending ? <Loader2 className="animate-spin" /> : banned ? <ShieldOff /> : <ShieldBan />
+  const icon = sending ? (
+    <Loader2 className="animate-spin" />
+  ) : banned ? (
+    <ShieldOff />
+  ) : (
+    <ShieldBan />
+  )
 
   return (
     <>
@@ -195,7 +201,11 @@ export function BanDrawer({
             </DrawerTitle>
           )}
           <DrawerDescription>
-            {waiting ? "Waiting to send to CrowdSec" : banned ? "CrowdSec has a decision on this IP" : "Ban this IP in CrowdSec for"}
+            {waiting
+              ? "Waiting to send to CrowdSec"
+              : banned
+                ? "CrowdSec has a decision on this IP"
+                : "Ban this IP in CrowdSec for"}
           </DrawerDescription>
         </DrawerHeader>
         <div className="flex flex-col overflow-y-auto overscroll-contain px-4 pb-6">
@@ -212,7 +222,13 @@ export function BanDrawer({
  * waits to be sent, Unban for a banned IP, or the ban durations. Every choice
  * closes its container through `Close`, DrawerClose unless told otherwise.
  */
-export function BanChoices({ ip, banned, onMoreOptions, Close = DrawerClose, compact = false }: {
+export function BanChoices({
+  ip,
+  banned,
+  onMoreOptions,
+  Close = DrawerClose,
+  compact = false,
+}: {
   ip: string
   banned: boolean
   /** "More options…" closes the sheet; open the ban dialog after it has. */
@@ -238,7 +254,10 @@ export function BanChoices({ ip, banned, onMoreOptions, Close = DrawerClose, com
     <Close asChild>
       <Button
         variant="outline"
-        className={cn(height, "w-full border-destructive/40 text-destructive hover:text-destructive")}
+        className={cn(
+          height,
+          "w-full border-destructive/40 text-destructive hover:text-destructive",
+        )}
         disabled={isPending}
         onClick={() => unban(ip)}
       >
@@ -250,7 +269,12 @@ export function BanChoices({ ip, banned, onMoreOptions, Close = DrawerClose, com
     <div className="grid grid-cols-3 gap-2">
       {BAN_DURATIONS.map((duration) => (
         <Close key={duration.value} asChild>
-          <Button variant="outline" className={height} disabled={isPending} onClick={() => ban(ip, duration.value, duration.label)}>
+          <Button
+            variant="outline"
+            className={height}
+            disabled={isPending}
+            onClick={() => ban(ip, duration.value, duration.label)}
+          >
             {duration.label}
           </Button>
         </Close>

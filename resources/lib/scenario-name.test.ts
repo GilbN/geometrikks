@@ -20,9 +20,17 @@ describe("scenarioName", () => {
     expect(scenarioName("http:crawl")).toEqual({ name: "http:crawl", author: null, reason: null })
   })
   it("keeps free text whole", () => {
-    expect(scenarioName("note: see ticket 42")).toEqual({ name: "note: see ticket 42", author: null, reason: null })
-    expect(scenarioName("note: see https://example.com/ticket/42").name).toBe("note: see https://example.com/ticket/42")
-    expect(scenarioName("scanner on /admin/: repeat offender").name).toBe("scanner on /admin/: repeat offender")
+    expect(scenarioName("note: see ticket 42")).toEqual({
+      name: "note: see ticket 42",
+      author: null,
+      reason: null,
+    })
+    expect(scenarioName("note: see https://example.com/ticket/42").name).toBe(
+      "note: see https://example.com/ticket/42",
+    )
+    expect(scenarioName("scanner on /admin/: repeat offender").name).toBe(
+      "scanner on /admin/: repeat offender",
+    )
   })
   it("hides the default manual reason and keeps a custom one", () => {
     expect(scenarioName("geometrikks/manual-ban: manual ban from GeoMetrikks")).toEqual({
@@ -41,8 +49,12 @@ describe("scenarioName", () => {
 describe("scenarioText", () => {
   it("keeps the author and reason as plain text", () => {
     expect(scenarioText("crowdsecurity/http-probing")).toBe("http-probing")
-    expect(scenarioText("LePresidente/http-generic-403-bf")).toBe("http-generic-403-bf (LePresidente)")
+    expect(scenarioText("LePresidente/http-generic-403-bf")).toBe(
+      "http-generic-403-bf (LePresidente)",
+    )
     expect(scenarioText("geometrikks/manual-ban: spam")).toBe("manual-ban (geometrikks): spam")
-    expect(scenarioText("geometrikks/manual-ban: manual ban from GeoMetrikks")).toBe("manual-ban (geometrikks)")
+    expect(scenarioText("geometrikks/manual-ban: manual ban from GeoMetrikks")).toBe(
+      "manual-ban (geometrikks)",
+    )
   })
 })

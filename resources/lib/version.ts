@@ -11,7 +11,8 @@
 
 export const LOCAL_BUILD_LABEL = "local build"
 
-const VERSION_PATTERN = /^(\d+(?:\.\d+)*)(?:\.dev(\d+))?(?:\+([A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*))?$/
+const VERSION_PATTERN =
+  /^(\d+(?:\.\d+)*)(?:\.dev(\d+))?(?:\+([A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*))?$/
 
 /** True for an empty or "unknown" version and for an all-zero release. */
 export function isLocalBuild(version: string): boolean {

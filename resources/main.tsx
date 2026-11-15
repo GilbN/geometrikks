@@ -51,5 +51,5 @@ createRoot(document.getElementById("app")!).render(
       <RouterProvider router={router} />
       <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
     </QueryClientProvider>
-  </StrictMode>
+  </StrictMode>,
 )

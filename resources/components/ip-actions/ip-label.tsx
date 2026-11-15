@@ -41,7 +41,8 @@ export function IpLabel({
   const blacklisted = useAbuseIpdbBlacklisted(ip)
   const decision = bannedIps?.get(ip) ?? null
   const outlined = dropNetwork !== null || blacklisted
-  const decisionTitle = decision === null ? undefined : (title?.(decision) ?? `Active CrowdSec ${decision} decision`)
+  const decisionTitle =
+    decision === null ? undefined : (title?.(decision) ?? `Active CrowdSec ${decision} decision`)
   const dropTitle = dropNetwork ? dropMarkTitle(dropNetwork.sblId, decisionTitle) : decisionTitle
   const markTitle = blacklisted ? blacklistMarkTitle(dropTitle) : dropTitle
   const listSuffixes = (
@@ -52,7 +53,10 @@ export function IpLabel({
   )
   if (decision === null) {
     return (
-      <span className={cn("font-mono", outlined && [IP_PILL_CLASS, DROP_OUTLINE_CLASS], className)} title={markTitle}>
+      <span
+        className={cn("font-mono", outlined && [IP_PILL_CLASS, DROP_OUTLINE_CLASS], className)}
+        title={markTitle}
+      >
         {prefix}
         {ip}
         {listSuffixes}
@@ -61,7 +65,13 @@ export function IpLabel({
   }
   return (
     <span
-      className={cn(IP_PILL_CLASS, "font-mono", decisionTone(decision), outlined && DROP_OUTLINE_CLASS, className)}
+      className={cn(
+        IP_PILL_CLASS,
+        "font-mono",
+        decisionTone(decision),
+        outlined && DROP_OUTLINE_CLASS,
+        className,
+      )}
       title={markTitle}
     >
       {prefix}

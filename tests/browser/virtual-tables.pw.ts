@@ -4,30 +4,61 @@ import type { AccessLogDebugEntry, GeoLogEntry } from "../../resources/generated
 
 const timestamp = "2026-08-16T12:00:00Z"
 const accessRows: AccessLog[] = Array.from({ length: 1_000 }, (_, index) => ({
-  id: index + 1, timestamp, ipAddress: "192.0.2.1", remoteUser: null,
-  method: "GET", url: `/request/${index}/${"long-path/".repeat(index % 20)}`,
-  httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100, referrer: null,
-  userAgent: null, requestTime: 10, upstreamResponseTime: null,
-  host: "example.test", server: null, logFormat: null, countryCode: "NO",
-  countryName: "Norway", city: "Oslo", autonomousSystemNumber: null,
+  id: index + 1,
+  timestamp,
+  ipAddress: "192.0.2.1",
+  remoteUser: null,
+  method: "GET",
+  url: `/request/${index}/${"long-path/".repeat(index % 20)}`,
+  httpVersion: "HTTP/2",
+  statusCode: 200,
+  bytesSent: 100,
+  referrer: null,
+  userAgent: null,
+  requestTime: 10,
+  upstreamResponseTime: null,
+  host: "example.test",
+  server: null,
+  logFormat: null,
+  countryCode: "NO",
+  countryName: "Norway",
+  city: "Oslo",
+  autonomousSystemNumber: null,
   autonomousSystemOrganization: null,
 }))
 const geoRows: GeoLogEntry[] = accessRows.slice(0, 500).map((row) => ({
-  locationId: row.id, ipAddress: row.ipAddress, city: row.city,
-  countryCode: "NO", countryName: "Norway", eventCount: row.id,
-  servers: ["example.test"], lastSeen: timestamp, latitude: 59.9,
-  longitude: 10.7, postalCode: null, state: null, stateCode: null,
-  asn: null, asOrganization: null,
+  locationId: row.id,
+  ipAddress: row.ipAddress,
+  city: row.city,
+  countryCode: "NO",
+  countryName: "Norway",
+  eventCount: row.id,
+  servers: ["example.test"],
+  lastSeen: timestamp,
+  latitude: 59.9,
+  longitude: 10.7,
+  postalCode: null,
+  state: null,
+  stateCode: null,
+  asn: null,
+  asOrganization: null,
 }))
 const debugRows: AccessLogDebugEntry[] = accessRows.map((row) => ({
-  ...row, createdAt: timestamp, isMalformed: false,
-  rawLine: `GET ${row.url}`, accessLogId: row.id, parseError: null,
+  ...row,
+  createdAt: timestamp,
+  isMalformed: false,
+  rawLine: `GET ${row.url}`,
+  accessLogId: row.id,
+  parseError: null,
 }))
 
-const longText = "a detailed value that should use the available column space without an arbitrary text limit"
+const longText =
+  "a detailed value that should use the available column space without an arbitrary text limit"
 const truncationCases = [
   {
-    path: "debug-logs", endpoint: "/api/v1/access-log-debug", row: debugRows[0],
+    path: "debug-logs",
+    endpoint: "/api/v1/access-log-debug",
+    row: debugRows[0],
     fields: [
       { key: "parseError", label: "Parse error", value: "Line did not match expected log format." },
       { key: "rawLine", label: "Raw line", value: longText },
@@ -37,7 +68,9 @@ const truncationCases = [
     ],
   },
   {
-    path: "access-logs", endpoint: "/api/v1/access-logs", row: accessRows[0],
+    path: "access-logs",
+    endpoint: "/api/v1/access-logs",
+    row: accessRows[0],
     fields: [
       { key: "url", label: "URL", value: `/access/${longText}` },
       { key: "host", label: "Host", value: `access-${longText}` },
@@ -47,7 +80,8 @@ const truncationCases = [
     ],
   },
   {
-    path: "geo-logs", endpoint: "/api/v1/geo-events/logs",
+    path: "geo-logs",
+    endpoint: "/api/v1/geo-events/logs",
     row: { ...geoRows[0], servers: [longText] },
     fields: [{ key: "servers", label: "Servers", value: longText }],
   },
@@ -57,12 +91,16 @@ for (const fixture of truncationCases) {
   test(`${fixture.path}: truncation uses the full cell width`, async ({ page }) => {
     const item = {
       ...fixture.row,
-      ...Object.fromEntries(fixture.fields
-        .filter((field) => field.key !== "servers")
-        .map((field) => [field.key, field.value])),
+      ...Object.fromEntries(
+        fixture.fields
+          .filter((field) => field.key !== "servers")
+          .map((field) => [field.key, field.value]),
+      ),
     }
-    await page.route((url) => url.pathname.replace(/\/$/, "") === fixture.endpoint,
-      (route) => route.fulfill({ json: { items: [item], total: 1, limit: 20, offset: 0 } }))
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === fixture.endpoint,
+      (route) => route.fulfill({ json: { items: [item], total: 1, limit: 20, offset: 0 } }),
+    )
     await page.goto(`/${fixture.path}`)
     const table = page.locator("table[aria-rowcount]")
     await expect(table).toHaveAttribute("aria-rowcount", "2")
@@ -71,11 +109,11 @@ for (const fixture of truncationCases) {
     for (const field of fixture.fields) {
       await page.getByRole("button", { name: "Columns", exact: true }).click()
       const target = page.getByRole("menuitemcheckbox", { name: field.label, exact: true })
-      if (await target.getAttribute("aria-checked") !== "true") await target.click()
+      if ((await target.getAttribute("aria-checked")) !== "true") await target.click()
       const choices = page.getByRole("menuitemcheckbox")
       for (const choice of await choices.all()) {
         const wanted = (await choice.innerText()).trim() === field.label
-        if (!wanted && await choice.getAttribute("aria-checked") === "true") await choice.click()
+        if (!wanted && (await choice.getAttribute("aria-checked")) === "true") await choice.click()
       }
       await page.keyboard.press("Escape")
       await expect(table.locator("th")).toHaveCount(1)
@@ -83,28 +121,38 @@ for (const fixture of truncationCases) {
       await expect(text).toHaveAttribute("title", field.value)
       for (const width of [1920, 1280]) {
         await page.setViewportSize({ width, height: 900 })
-        await expect.poll(() => text.evaluate((element) => {
-          const cell = element.closest("td")!
-          const style = getComputedStyle(cell)
-          return Math.abs(element.getBoundingClientRect().width - (
-            cell.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
-          ))
-        })).toBeLessThanOrEqual(1)
+        await expect
+          .poll(() =>
+            text.evaluate((element) => {
+              const cell = element.closest("td")!
+              const style = getComputedStyle(cell)
+              return Math.abs(
+                element.getBoundingClientRect().width -
+                  (cell.clientWidth -
+                    parseFloat(style.paddingLeft) -
+                    parseFloat(style.paddingRight)),
+              )
+            }),
+          )
+          .toBeLessThanOrEqual(1)
         // These values fit a wide cell and must not be cut at the old pixel caps.
-        expect(await text.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false)
+        expect(await text.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
+          false,
+        )
       }
     }
 
     // With every column enabled, text still truncates at the cell boundary.
     await page.getByRole("button", { name: "Columns", exact: true }).click()
     for (const choice of await page.getByRole("menuitemcheckbox").all()) {
-      if (await choice.getAttribute("aria-checked") !== "true") await choice.click()
+      if ((await choice.getAttribute("aria-checked")) !== "true") await choice.click()
     }
     await page.keyboard.press("Escape")
     const lastValue = fixture.fields.at(-1)!.value
     const text = table.locator(`tr[data-index="0"] span[title=${JSON.stringify(lastValue)}]`)
-    await expect.poll(() => text.evaluate((element) =>
-      element.scrollWidth > element.clientWidth)).toBe(true)
+    await expect
+      .poll(() => text.evaluate((element) => element.scrollWidth > element.clientWidth))
+      .toBe(true)
     await expect(text).toHaveCSS("text-overflow", "ellipsis")
   })
 }
@@ -117,10 +165,15 @@ test.beforeEach(async ({ page }) => {
   })
   expect(login.ok()).toBe(true)
   await page.addInitScript(() => {
-    localStorage.setItem("geometrikks-time-range", JSON.stringify({
-      range: "custom", pollInterval: 0, granularity: "auto",
-      customRange: { from: "2026-08-01T00:00:00Z", to: "2026-08-17T00:00:00Z" },
-    }))
+    localStorage.setItem(
+      "geometrikks-time-range",
+      JSON.stringify({
+        range: "custom",
+        pollInterval: 0,
+        granularity: "auto",
+        customRange: { from: "2026-08-01T00:00:00Z", to: "2026-08-17T00:00:00Z" },
+      }),
+    )
   })
 })
 
@@ -128,24 +181,46 @@ for (const fixture of [
   { path: "access-logs", endpoint: "/api/v1/access-logs", rows: accessRows, size: 1_000 },
   { path: "geo-logs", endpoint: "/api/v1/geo-events/logs", rows: geoRows, size: 500 },
   { path: "debug-logs", endpoint: "/api/v1/access-log-debug", rows: debugRows, size: 1_000 },
-  { path: "access-logs", endpoint: "/api/v1/access-logs", rows: accessRows, size: 1_000, mobile: true },
+  {
+    path: "access-logs",
+    endpoint: "/api/v1/access-logs",
+    rows: accessRows,
+    size: 1_000,
+    mobile: true,
+  },
   { path: "geo-logs", endpoint: "/api/v1/geo-events/logs", rows: geoRows, size: 500, mobile: true },
-  { path: "debug-logs", endpoint: "/api/v1/access-log-debug", rows: debugRows, size: 1_000, mobile: true },
+  {
+    path: "debug-logs",
+    endpoint: "/api/v1/access-log-debug",
+    rows: debugRows,
+    size: 1_000,
+    mobile: true,
+  },
 ]) {
-  test(`${fixture.path}${"mobile" in fixture ? " mobile, reduced motion" : ""}: bounded rows, deep scrolling, keyboard and modal focus`, async ({ page }, testInfo) => {
+  test(`${fixture.path}${"mobile" in fixture ? " mobile, reduced motion" : ""}: bounded rows, deep scrolling, keyboard and modal focus`, async ({
+    page,
+  }, testInfo) => {
     if ("mobile" in fixture) {
       await page.setViewportSize({ width: 390, height: 844 })
       await page.emulateMedia({ reducedMotion: "reduce" })
     }
     const errors: string[] = []
     page.on("pageerror", (error) => errors.push(error.message))
-    await page.route((url) => url.pathname.replace(/\/$/, "") === fixture.endpoint, async (route) => {
-      const url = new URL(route.request().url())
-      const limit = Number(url.searchParams.get("pageSize") ?? 20)
-      await route.fulfill({ json: {
-        items: fixture.rows.slice(0, limit), total: fixture.rows.length, limit, offset: 0,
-      } })
-    })
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === fixture.endpoint,
+      async (route) => {
+        const url = new URL(route.request().url())
+        const limit = Number(url.searchParams.get("pageSize") ?? 20)
+        await route.fulfill({
+          json: {
+            items: fixture.rows.slice(0, limit),
+            total: fixture.rows.length,
+            limit,
+            offset: 0,
+          },
+        })
+      },
+    )
     await page.goto(`/${fixture.path}?pageSize=${fixture.size}`)
     if (fixture.path === "debug-logs") {
       await page.getByRole("combobox", { name: "Rows per page" }).click()
@@ -173,49 +248,74 @@ for (const fixture of [
     } else {
       expect(layout.overflow).toBeLessThanOrEqual(1)
       await page.setViewportSize({ width: 1440, height: 900 })
-      await expect.poll(() => table.evaluate((element) =>
-        element.getBoundingClientRect().width)).toBeGreaterThan(layout.table)
-      expect(await table.evaluate((element) =>
-        element.parentElement!.scrollWidth - element.parentElement!.clientWidth)).toBeLessThanOrEqual(1)
+      await expect
+        .poll(() => table.evaluate((element) => element.getBoundingClientRect().width))
+        .toBeGreaterThan(layout.table)
+      expect(
+        await table.evaluate(
+          (element) => element.parentElement!.scrollWidth - element.parentElement!.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(1)
       await page.setViewportSize({ width: 1280, height: 720 })
-      await expect.poll(() => table.evaluate((element) =>
-        element.getBoundingClientRect().width)).toBeCloseTo(layout.table, 0)
+      await expect
+        .poll(() => table.evaluate((element) => element.getBoundingClientRect().width))
+        .toBeCloseTo(layout.table, 0)
     }
     await table.scrollIntoViewIfNeeded()
     await page.screenshot({ path: testInfo.outputPath("responsive-columns.png") })
-    const widths = await table.locator("th").evaluateAll((cells) =>
-      cells.map((cell) => cell.getBoundingClientRect().width))
+    const widths = await table
+      .locator("th")
+      .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width))
 
     if (!("mobile" in fixture)) {
       const container = table.locator("..")
       const main = table.locator("xpath=ancestor::main[1]")
-      await main.evaluate((element) => { element.scrollTop = element.scrollHeight })
-      await container.evaluate((element) => { element.scrollTop = 0 })
+      await main.evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      await container.evaluate((element) => {
+        element.scrollTop = 0
+      })
       expect(await main.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
       await container.hover({ position: { x: 100, y: 100 } })
-      await expect.poll(async () => {
-        await page.mouse.wheel(0, -1_000)
-        return main.evaluate((element) => element.scrollTop)
-      }).toBe(0)
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, -1_000)
+          return main.evaluate((element) => element.scrollTop)
+        })
+        .toBe(0)
       expect(await container.evaluate((element) => element.scrollTop)).toBe(0)
 
-      await container.evaluate((element) => { element.scrollTop = element.scrollHeight })
+      await container.evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
       // Keep the table in view while leaving room for the page to scroll down.
       await main.evaluate((element) => {
         element.scrollTop = element.scrollHeight
         element.scrollTop = Math.max(0, element.scrollTop - 100)
       })
-      expect(await main.evaluate((element) =>
-        element.scrollHeight - element.clientHeight - element.scrollTop)).toBeGreaterThan(0)
+      expect(
+        await main.evaluate(
+          (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+        ),
+      ).toBeGreaterThan(0)
       const bounds = (await container.boundingBox())!
-      await page.mouse.move(bounds.x + 100, Math.min(bounds.y + 100, page.viewportSize()!.height - 50))
-      await expect.poll(async () => {
-        await page.mouse.wheel(0, 1_000)
-        return main.evaluate((element) =>
-          element.scrollHeight - element.clientHeight - element.scrollTop)
-      }).toBeLessThanOrEqual(1)
+      await page.mouse.move(
+        bounds.x + 100,
+        Math.min(bounds.y + 100, page.viewportSize()!.height - 50),
+      )
+      await expect
+        .poll(async () => {
+          await page.mouse.wheel(0, 1_000)
+          return main.evaluate(
+            (element) => element.scrollHeight - element.clientHeight - element.scrollTop,
+          )
+        })
+        .toBeLessThanOrEqual(1)
       await expect(container).toHaveCSS("overscroll-behavior-x", "contain")
-      await container.evaluate((element) => { element.scrollTop = 0 })
+      await container.evaluate((element) => {
+        element.scrollTop = 0
+      })
       await expect(rows.first()).toHaveAttribute("data-index", "0")
     }
 
@@ -223,20 +323,24 @@ for (const fixture of [
     const edge = Number(await rows.last().getAttribute("data-index"))
     await rows.last().focus()
     for (let index = 0; index < 4; index++) await page.keyboard.press("Tab")
-    expect(await page.evaluate(() => Number(
-      document.activeElement?.closest("tr")?.getAttribute("data-index"),
-    ))).toBeGreaterThan(edge)
+    expect(
+      await page.evaluate(() =>
+        Number(document.activeElement?.closest("tr")?.getAttribute("data-index")),
+      ),
+    ).toBeGreaterThan(edge)
 
     const lastRow = table.locator(`tr[data-index="${fixture.size - 1}"]`)
     if (mobile) {
       // Measured rows can grow the page after each jump, so keep going until the last one mounts.
-      await expect.poll(async () => {
-        await table.evaluate((element) => {
-          const main = element.closest("main")!
-          main.scrollTop = main.scrollHeight
+      await expect
+        .poll(async () => {
+          await table.evaluate((element) => {
+            const main = element.closest("main")!
+            main.scrollTop = main.scrollHeight
+          })
+          return lastRow.count()
         })
-        return lastRow.count()
-      }).toBe(1)
+        .toBe(1)
     } else {
       await table.evaluate((element) => {
         element.parentElement!.scrollTop = element.parentElement!.scrollHeight
@@ -248,7 +352,9 @@ for (const fixture of [
     // page has one, so rows pass beneath it.
     const stickyGap = (element: HTMLElement, index: number) => {
       const main = element.closest("main")!
-      const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+      const header = element
+        .closest('[data-slot="data-table-frame"]')!
+        .querySelector(":scope > header")!
       const row = element.querySelector(`tr[data-index="${index}"]`)
       const stickyTop = parseFloat(getComputedStyle(main).getPropertyValue("--sticky-top")) || 0
       return {
@@ -261,10 +367,13 @@ for (const fixture of [
       // Shift+Tab onto a row's controls under the header scrolls them back out.
       const covered = await table.evaluate((element) => {
         const main = element.closest("main")!
-        const header = element.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        const header = element
+          .closest('[data-slot="data-table-frame"]')!
+          .querySelector(":scope > header")!
         main.scrollTop -= 600
-        const row = [...element.querySelectorAll<HTMLElement>("tr[data-index]")]
-          .find((tr) => tr.getBoundingClientRect().top > header.getBoundingClientRect().bottom)!
+        const row = [...element.querySelectorAll<HTMLElement>("tr[data-index]")].find(
+          (tr) => tr.getBoundingClientRect().top > header.getBoundingClientRect().bottom,
+        )!
         main.scrollTop += row.getBoundingClientRect().top - main.getBoundingClientRect().top
         return Number(row.dataset.index)
       })
@@ -272,7 +381,9 @@ for (const fixture of [
       await page.keyboard.press("Shift+Tab")
       const focused = await page.evaluate(() => {
         const control = document.activeElement!
-        const header = control.closest('[data-slot="data-table-frame"]')!.querySelector(":scope > header")!
+        const header = control
+          .closest('[data-slot="data-table-frame"]')!
+          .querySelector(":scope > header")!
         return {
           row: control.closest("tr")?.dataset.index,
           gap: control.getBoundingClientRect().top - header.getBoundingClientRect().bottom,
@@ -283,8 +394,13 @@ for (const fixture of [
 
       // Opening and closing the Sort drawer leaves the page where it is.
       const main = table.locator("xpath=ancestor::main[1]")
-      const settledScrollTop = () => main.evaluate((element) => new Promise<number>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve(element.scrollTop)))))
+      const settledScrollTop = () =>
+        main.evaluate(
+          (element) =>
+            new Promise<number>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve(element.scrollTop))),
+            ),
+        )
       const scrolled = await settledScrollTop()
       expect(scrolled).toBeGreaterThan(0)
       for (const close of ["Escape", "overlay"]) {
@@ -297,11 +413,15 @@ for (const fixture of [
         expect(await settledScrollTop()).toBe(scrolled)
       }
       // Only <main> scrolls, so the app bar never slides away.
-      expect(await page.evaluate(() =>
-        document.scrollingElement!.scrollHeight - window.innerHeight)).toBeLessThanOrEqual(0)
+      expect(
+        await page.evaluate(() => document.scrollingElement!.scrollHeight - window.innerHeight),
+      ).toBeLessThanOrEqual(0)
     }
-    expect(await table.locator("th").evaluateAll((cells) =>
-      cells.map((cell) => cell.getBoundingClientRect().width))).toEqual(widths)
+    expect(
+      await table
+        .locator("th")
+        .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width)),
+    ).toEqual(widths)
 
     await lastRow.focus()
     await page.keyboard.press("Enter")
@@ -312,7 +432,9 @@ for (const fixture of [
       ? page.getByRole("button", { name: /^Sort by/, includeHidden: true })
       : page.getByRole("button", { name: "Columns", exact: true, includeHidden: true })
     await behindDialog.evaluate((button: HTMLElement) => button.focus())
-    await expect.poll(() => dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true)
+    await expect
+      .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+      .toBe(true)
     await page.keyboard.press("Escape")
     await expect(dialog).toHaveCount(0)
     await expect(lastRow).toBeFocused()
@@ -321,7 +443,9 @@ for (const fixture of [
     // inspector opens once the menu has closed and returns focus to its button.
     const actions = lastRow.getByRole("button", { name: "Actions for 192.0.2.1", exact: true })
     await actions.click()
-    await page.getByRole("mobile" in fixture ? "button" : "menuitem", { name: "Inspect IP", exact: true }).click()
+    await page
+      .getByRole("mobile" in fixture ? "button" : "menuitem", { name: "Inspect IP", exact: true })
+      .click()
     await expect(page.locator('[data-slot="sheet-content"]')).toBeVisible()
     await expect(dialog).toHaveCount(1)
     await page.keyboard.press("Escape")
@@ -352,9 +476,13 @@ for (const fixture of [
       const sortLabel = (await sortChoice.locator("..").innerText()).trim()
       await sortChoice.click()
       await page.keyboard.press("Escape")
-      await expect(page.getByRole("button", { name: new RegExp(`^Sort by ${sortLabel}`) })).toBeVisible()
+      await expect(
+        page.getByRole("button", { name: new RegExp(`^Sort by ${sortLabel}`) }),
+      ).toBeVisible()
       // Back at the first row, which sits just below the stuck header.
-      await expect.poll(async () => Math.abs((await table.evaluate(stickyGap, 0)).row ?? 99)).toBeLessThanOrEqual(1)
+      await expect
+        .poll(async () => Math.abs((await table.evaluate(stickyGap, 0)).row ?? 99))
+        .toBeLessThanOrEqual(1)
     } else {
       await table.locator("th button").first().click()
       await expect.poll(() => table.evaluate((element) => element.parentElement!.scrollTop)).toBe(0)
@@ -384,18 +512,29 @@ for (const fixture of [
   })
 }
 
-test("access-logs mobile: rows that arrive late leave a scrolled page where it is", async ({ page }) => {
+test("access-logs mobile: rows that arrive late leave a scrolled page where it is", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 560 })
   let release = () => {}
-  const held = new Promise<void>((resolve) => { release = resolve })
-  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", async (route) => {
-    await held
-    await route.fulfill({ json: { items: accessRows.slice(0, 20), total: accessRows.length, limit: 20, offset: 0 } })
+  const held = new Promise<void>((resolve) => {
+    release = resolve
   })
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+    async (route) => {
+      await held
+      await route.fulfill({
+        json: { items: accessRows.slice(0, 20), total: accessRows.length, limit: 20, offset: 0 },
+      })
+    },
+  )
   await page.goto("/access-logs")
   await expect(page.locator('[data-state="loading"]').first()).toBeVisible()
   const scrolledTo = await page.evaluate(() => {
-    const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
+    const main = [...document.querySelectorAll("main")].find(
+      (element) => getComputedStyle(element).overflowY === "auto",
+    )!
     main.scrollTop = 150
     return main.scrollTop
   })
@@ -403,7 +542,9 @@ test("access-logs mobile: rows that arrive late leave a scrolled page where it i
   release()
   await expect(page.locator("table[aria-rowcount] tr[data-index]").first()).toBeVisible()
   const after = await page.evaluate(() => {
-    const main = [...document.querySelectorAll("main")].find((element) => getComputedStyle(element).overflowY === "auto")!
+    const main = [...document.querySelectorAll("main")].find(
+      (element) => getComputedStyle(element).overflowY === "auto",
+    )!
     return main.scrollTop
   })
   // Measuring the rows nudges the offset by a few pixels.

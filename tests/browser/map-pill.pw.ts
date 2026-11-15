@@ -14,14 +14,25 @@ function location(id: number, longitude: number, latitude: number) {
   return {
     type: "Feature",
     geometry: { type: "Point", coordinates: [longitude, latitude] },
-    properties: { id, geohash: "u0yj", city: "City", countryCode: "NO", countryName: "Norway", eventCount: 40, lastHit: null, topIps: [] },
+    properties: {
+      id,
+      geohash: "u0yj",
+      city: "City",
+      countryCode: "NO",
+      countryName: "Norway",
+      eventCount: 40,
+      lastHit: null,
+      topIps: [],
+    },
   }
 }
 
 async function setup(page: Page, { serverLocation = true } = {}) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
-  expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok(),
+  ).toBe(true)
   await page.addInitScript(() => {
     localStorage.setItem("geometrikks-map-layer", "markers")
     localStorage.setItem("geometrikks-map-live", "false")
@@ -41,19 +52,35 @@ async function setup(page: Page, { serverLocation = true } = {}) {
     return route.fulfill({ json: health })
   })
   // Two places far from the first view, so fitting to them moves the map.
-  await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
-    type: "FeatureCollection", stats: { events: 80, countries: 1, cities: 2, locations: 2 },
-    features: [location(131, 10, 50), location(132, 30, 60)],
-  } }))
-  await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
-    version: 8, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
-    // MapLibre credits only sources that a layer uses.
-    sources: { credit: { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: "© Test" } },
-    layers: [
-      { id: "background", type: "background", paint: { "background-color": "#111827" } },
-      { id: "credit", type: "circle", source: "credit" },
-    ],
-  } }))
+  await page.route("**/api/v1/geo-locations/geojson?*", (route) =>
+    route.fulfill({
+      json: {
+        type: "FeatureCollection",
+        stats: { events: 80, countries: 1, cities: 2, locations: 2 },
+        features: [location(131, 10, 50), location(132, 30, 60)],
+      },
+    }),
+  )
+  await page.route("**/gl/*/style.json*", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
+        // MapLibre credits only sources that a layer uses.
+        sources: {
+          credit: {
+            type: "geojson",
+            data: { type: "FeatureCollection", features: [] },
+            attribution: "© Test",
+          },
+        },
+        layers: [
+          { id: "background", type: "background", paint: { "background-color": "#111827" } },
+          { id: "credit", type: "circle", source: "credit" },
+        ],
+      },
+    }),
+  )
   await page.goto("/map")
   await expect(page.locator(".maplibregl-canvas")).toBeVisible()
 }
@@ -70,16 +97,32 @@ async function box(locator: Locator) {
 function mapCenter(page: Page) {
   return page.evaluate(() => {
     type Camera = { getCenter(): { lng: number; lat: number } }
-    const isCamera = (value: unknown): value is Camera => typeof (value as Camera | null)?.getCenter === "function"
-    const element = document.querySelector(".maplibregl-map") as (Element & Record<string, unknown>) | null
+    const isCamera = (value: unknown): value is Camera =>
+      typeof (value as Camera | null)?.getCenter === "function"
+    const element = document.querySelector(".maplibregl-map") as
+      | (Element & Record<string, unknown>)
+      | null
     if (!element) throw new Error("No map")
     const key = Object.keys(element).find((name) => name.startsWith("__reactFiber$"))
     type Fiber = { return: Fiber | null; memoizedState: unknown }
     type Hook = { memoizedState: unknown; next: Hook | null }
     for (let fiber = element[key!] as Fiber | null; fiber; fiber = fiber.return) {
-      for (let hook = fiber.memoizedState as Hook | null; hook && typeof hook === "object" && "next" in hook; hook = hook.next) {
-        const value = hook.memoizedState as { current?: unknown; map?: unknown; getMap?: () => unknown } | null
-        for (const candidate of [value, value?.current, value?.map, typeof value?.getMap === "function" ? value.getMap() : undefined]) {
+      for (
+        let hook = fiber.memoizedState as Hook | null;
+        hook && typeof hook === "object" && "next" in hook;
+        hook = hook.next
+      ) {
+        const value = hook.memoizedState as {
+          current?: unknown
+          map?: unknown
+          getMap?: () => unknown
+        } | null
+        for (const candidate of [
+          value,
+          value?.current,
+          value?.map,
+          typeof value?.getMap === "function" ? value.getMap() : undefined,
+        ]) {
           if (isCamera(candidate)) {
             const { lng, lat } = candidate.getCenter()
             return [Math.round(lng * 1000) / 1000, Math.round(lat * 1000) / 1000]
@@ -108,7 +151,8 @@ async function showFrameRate(page: Page) {
   await page.addInitScript(() => localStorage.setItem("geometrikks-map-frame-rate", "true"))
 }
 
-const credit = (page: Page) => page.locator(".fullscreen-map .maplibregl-ctrl-attrib").filter({ hasText: "© Test" })
+const credit = (page: Page) =>
+  page.locator(".fullscreen-map .maplibregl-ctrl-attrib").filter({ hasText: "© Test" })
 const frameRate = (page: Page) => page.getByTestId("map-frame-rate")
 
 async function holdOn(page: Page, target: Locator, ms: number) {
@@ -128,7 +172,9 @@ test.describe("portrait", () => {
     expect(pillBox.width).toBe(54)
     expect(393 - (pillBox.x + pillBox.width)).toBeCloseTo(20, 0)
     expect(bar.y - (pillBox.y + pillBox.height)).toBeCloseTo(12, 0)
-    const names = await pill(page).getByRole("button").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")))
+    const names = await pill(page)
+      .getByRole("button")
+      .evaluateAll((buttons) => buttons.map((button) => button.getAttribute("aria-label")))
     expect(names).toEqual(["Layers and filters", "All traffic", "Server", "Live"])
     await page.screenshot({ path: "smoke-artifacts/map-pill-portrait.png" })
   })
@@ -170,7 +216,9 @@ test.describe("portrait", () => {
     await expect.poll(() => settledCenter(page)).not.toEqual(before)
   })
 
-  test("an unavailable button says why on a long press and does nothing on a tap", async ({ page }) => {
+  test("an unavailable button says why on a long press and does nothing on a tap", async ({
+    page,
+  }) => {
     await setup(page, { serverLocation: false })
     const server = pill(page).getByRole("button", { name: "Server: no location", exact: true })
     await expect(server).toHaveAttribute("aria-disabled", "true")
@@ -200,15 +248,26 @@ test.describe("portrait", () => {
     expect(badge.y + badge.height).toBeLessThan(line.y)
   })
 
-  test("the Layers drawer's filters are rows, and a long list opens a search page in the drawer", async ({ page }) => {
-    await page.route("**/api/v1/geo-events/facets*", (route) => route.fulfill({ json: {
-      servers: ["edge-1", "edge-2"],
-      countries: [{ code: "NO", name: "Norway" }, { code: "SE", name: "Sweden" }],
-      cities: ["Oslo"],
-      asns: [],
-    } }))
+  test("the Layers drawer's filters are rows, and a long list opens a search page in the drawer", async ({
+    page,
+  }) => {
+    await page.route("**/api/v1/geo-events/facets*", (route) =>
+      route.fulfill({
+        json: {
+          servers: ["edge-1", "edge-2"],
+          countries: [
+            { code: "NO", name: "Norway" },
+            { code: "SE", name: "Sweden" },
+          ],
+          cities: ["Oslo"],
+          asns: [],
+        },
+      }),
+    )
     await setup(page)
-    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await pill(page)
+      .getByRole("button", { name: /^Layers and filters/ })
+      .click()
     const drawer = page.locator('[data-slot="drawer-content"]')
     await expect(drawer.getByRole("textbox")).toHaveCount(0)
 
@@ -231,14 +290,20 @@ test.describe("portrait", () => {
     await expect(drawer.getByRole("heading", { name: "Country", exact: true })).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(drawer).toHaveCount(0)
-    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await pill(page)
+      .getByRole("button", { name: /^Layers and filters/ })
+      .click()
     await expect(drawer.getByRole("button", { name: "Country: Norway", exact: true })).toBeVisible()
     await expect(drawer.getByRole("button", { name: "Map tools" })).toBeVisible()
   })
 
-  test("leaving the phone layout closes the Layers drawer, search page and all", async ({ page }) => {
+  test("leaving the phone layout closes the Layers drawer, search page and all", async ({
+    page,
+  }) => {
     await setup(page)
-    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await pill(page)
+      .getByRole("button", { name: /^Layers and filters/ })
+      .click()
     const drawer = page.locator('[data-slot="drawer-content"]')
     await drawer.getByRole("button", { name: "Country: Any", exact: true }).click()
     await expect(drawer.getByRole("heading", { name: "Country", exact: true })).toBeVisible()
@@ -249,7 +314,9 @@ test.describe("portrait", () => {
     await expect(pill(page)).toBeVisible()
     await expect(drawer).toHaveCount(0)
 
-    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await pill(page)
+      .getByRole("button", { name: /^Layers and filters/ })
+      .click()
     await expect(drawer.getByRole("heading", { name: "Map controls", exact: true })).toBeVisible()
   })
 
@@ -263,11 +330,15 @@ test.describe("portrait", () => {
 })
 
 test.describe("phone held sideways", () => {
-  test("a short screen leaves Layers and Live, and the tools menu takes the rest", async ({ page }) => {
+  test("a short screen leaves Layers and Live, and the tools menu takes the rest", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 780, height: 280 })
     await setup(page, { serverLocation: false })
     await expect(pill(page).getByRole("button")).toHaveCount(2)
-    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await pill(page)
+      .getByRole("button", { name: /^Layers and filters/ })
+      .click()
     await page.getByRole("button", { name: "Map tools", exact: true }).click()
     const fit = page.getByRole("menuitem", { name: "Show all traffic", exact: true })
     const server = page.getByRole("menuitem", { name: "Go to server", exact: true })
@@ -319,17 +390,20 @@ test.describe("phone held sideways", () => {
     await emulateSafeAreas(page, IPHONE_LANDSCAPE_INSETS)
     await showFrameRate(page)
     await setup(page)
-    const savedChoice = () => page.evaluate(() => localStorage.getItem("geometrikks-map-attribution"))
+    const savedChoice = () =>
+      page.evaluate(() => localStorage.getItem("geometrikks-map-attribution"))
     await expect(credit(page)).toHaveClass(/maplibregl-compact/)
     await expect(credit(page)).not.toHaveClass(/maplibregl-compact-show/)
     expect(await savedChoice()).toBeNull()
 
     await credit(page).locator(".maplibregl-ctrl-attrib-button").tap()
     await expect(credit(page)).toHaveClass(/maplibregl-compact-show/)
-    await expect.poll(async () => {
-      const [button, badge] = await Promise.all([box(credit(page)), box(frameRate(page))])
-      return Math.round(badge.x - (button.x + button.width))
-    }).toBe(8)
+    await expect
+      .poll(async () => {
+        const [button, badge] = await Promise.all([box(credit(page)), box(frameRate(page))])
+        return Math.round(badge.x - (button.x + button.width))
+      })
+      .toBe(8)
     expect(await savedChoice()).toBeNull()
   })
 
@@ -339,7 +413,9 @@ test.describe("phone held sideways", () => {
     const bar = page.locator("[data-tab-bar]")
     const drawer = page.locator('[data-slot="drawer-content"]')
     await expect(bar).toBeVisible()
-    await pill(page).getByRole("button", { name: /^Layers and filters/ }).click()
+    await pill(page)
+      .getByRole("button", { name: /^Layers and filters/ })
+      .click()
     await expect(drawer).toBeVisible()
     await expect(bar).toBeHidden()
     await expect(pill(page)).toBeHidden()

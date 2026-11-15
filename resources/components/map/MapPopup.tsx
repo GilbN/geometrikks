@@ -96,11 +96,20 @@ function NetworkTooltip({ network, children }: { network: string | null; childre
 }
 
 /** "Banned · 355 events · AS13335 Cloudflare, Inc." under a top IP. */
-function TopIpMeta({ ip, eventCount, network }: { ip: string; eventCount: number; network: string | null }) {
+function TopIpMeta({
+  ip,
+  eventCount,
+  network,
+}: {
+  ip: string
+  eventCount: number
+  network: string | null
+}) {
   return (
     <>
       <IpStatusWords ip={ip} />
-      <span className="tabular-nums">{formatNumber(eventCount)}</span> {eventCount === 1 ? "event" : "events"}
+      <span className="tabular-nums">{formatNumber(eventCount)}</span>{" "}
+      {eventCount === 1 ? "event" : "events"}
       {network && ` · ${network}`}
     </>
   )
@@ -142,35 +151,101 @@ export function MapPopup({
         minWidth="240px"
         header={
           <>
-            <MapPin style={{ width: 16, height: 16, color: "var(--primary)", flexShrink: 0, alignSelf: "flex-start", marginTop: "2px" }} />
+            <MapPin
+              style={{
+                width: 16,
+                height: 16,
+                color: "var(--primary)",
+                flexShrink: 0,
+                alignSelf: "flex-start",
+                marginTop: "2px",
+              }}
+            />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "14px", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {titleIsCountry ? <CountryLabel code={countryCode} name={countryName}>{title}</CountryLabel> : title}
+              <div
+                style={{
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {titleIsCountry ? (
+                  <CountryLabel code={countryCode} name={countryName}>
+                    {title}
+                  </CountryLabel>
+                ) : (
+                  title
+                )}
               </div>
               {where && (
                 <div style={{ fontSize: "11px", color: "var(--popup-muted)", marginTop: "1px" }}>
-                  <CountryLabel code={countryCode} name={countryName}>{where}</CountryLabel>
+                  <CountryLabel code={countryCode} name={countryName}>
+                    {where}
+                  </CountryLabel>
                 </div>
               )}
             </div>
           </>
         }
       >
-        <PopupRow label="Events" icon={<Activity style={POPUP_ROW_ICON_STYLE} />} value={<PopupBadge>{formatNumber(eventCount)}</PopupBadge>} />
-        <PopupRow label="Unique IPs" icon={<Users style={POPUP_ROW_ICON_STYLE} />} value={topIPsData ? formatNumber(topIPsData.uniqueIps) : "–"} />
-        <PopupRow label="Of all events" icon={<Percent style={POPUP_ROW_ICON_STYLE} />} value={totalEvents ? formatShare(eventCount, totalEvents) : "–"} />
-        <PopupRow label="Last hit" icon={<Clock style={POPUP_ROW_ICON_STYLE} />} value={lastHit ? <LastHitToolTip lastHit={new Date(lastHit).toLocaleString()} /> : "Unknown"} />
+        <PopupRow
+          label="Events"
+          icon={<Activity style={POPUP_ROW_ICON_STYLE} />}
+          value={<PopupBadge>{formatNumber(eventCount)}</PopupBadge>}
+        />
+        <PopupRow
+          label="Unique IPs"
+          icon={<Users style={POPUP_ROW_ICON_STYLE} />}
+          value={topIPsData ? formatNumber(topIPsData.uniqueIps) : "–"}
+        />
+        <PopupRow
+          label="Of all events"
+          icon={<Percent style={POPUP_ROW_ICON_STYLE} />}
+          value={totalEvents ? formatShare(eventCount, totalEvents) : "–"}
+        />
+        <PopupRow
+          label="Last hit"
+          icon={<Clock style={POPUP_ROW_ICON_STYLE} />}
+          value={
+            lastHit ? <LastHitToolTip lastHit={new Date(lastHit).toLocaleString()} /> : "Unknown"
+          }
+        />
 
         {(isLoadingTopIPs || topIps.length > 0) && (
           <div style={{ paddingTop: "8px", marginTop: "8px", borderTop: divider }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "2px", fontSize: "12px", color: "var(--popup-muted)" }}>
-              {isLoadingTopIPs ? <Loader2 className="size-3 animate-spin" /> : <Users style={{ width: 12, height: 12 }} />}
-              {isLoadingTopIPs ? "Loading top IPs..." : topIps.length === 1 ? "Top IP" : `Top ${topIps.length} IPs`}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                marginBottom: "2px",
+                fontSize: "12px",
+                color: "var(--popup-muted)",
+              }}
+            >
+              {isLoadingTopIPs ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <Users style={{ width: 12, height: 12 }} />
+              )}
+              {isLoadingTopIPs
+                ? "Loading top IPs..."
+                : topIps.length === 1
+                  ? "Top IP"
+                  : `Top ${topIps.length} IPs`}
             </div>
             {topIps.map((ip, index) => (
               <div
                 key={ip.ipAddress}
-                style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 0", borderTop: index ? divider : undefined }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "4px 0",
+                  borderTop: index ? divider : undefined,
+                }}
               >
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <IpStatusDetails
@@ -179,11 +254,27 @@ export function MapPopup({
                     fromLocationId={locationId}
                     onOpenAlert={onOpenAlert}
                   >
-                    <IpLabel ip={ip.ipAddress} prefix={`${index + 1}.\u00a0`} className="text-[11px] break-all" />
+                    <IpLabel
+                      ip={ip.ipAddress}
+                      prefix={`${index + 1}.\u00a0`}
+                      className="text-[11px] break-all"
+                    />
                   </IpStatusDetails>
                   <NetworkTooltip network={networkName(ip)}>
-                    <div style={{ fontSize: "10px", color: "var(--popup-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <TopIpMeta ip={ip.ipAddress} eventCount={ip.eventCount} network={networkName(ip)} />
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        color: "var(--popup-muted)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <TopIpMeta
+                        ip={ip.ipAddress}
+                        eventCount={ip.eventCount}
+                        network={networkName(ip)}
+                      />
                     </div>
                   </NetworkTooltip>
                 </div>
@@ -210,7 +301,9 @@ export function MapPopup({
             color: "var(--popup-muted)",
           }}
         >
-          <span className="tabular-nums">{latitude.toFixed(4)}, {longitude.toFixed(4)}</span>
+          <span className="tabular-nums">
+            {latitude.toFixed(4)}, {longitude.toFixed(4)}
+          </span>
           <a
             href={openStreetMapUrl(latitude, longitude)}
             target="_blank"
@@ -228,7 +321,15 @@ export function MapPopup({
 
 /** A top IP row on a phone: address, its events and network, then copy, inspect and ban.
  *  The address carries its decision fill and list outline, as in the tables. */
-function PanelTopIpRow({ rank, ip, network, place, eventCount, locationId, onOpenAlert }: {
+function PanelTopIpRow({
+  rank,
+  ip,
+  network,
+  place,
+  eventCount,
+  locationId,
+  onOpenAlert,
+}: {
   rank: number
   ip: string
   /** "AS64500 Example Net", or null when GeoIP had no ASN for the IP. */
@@ -258,7 +359,11 @@ function PanelTopIpRow({ rank, ip, network, place, eventCount, locationId, onOpe
           <TopIpMeta ip={ip} eventCount={eventCount} network={network} />
         </span>
       </span>
-      <InspectIpButton ip={ip} fromLocationId={locationId} className="size-11 rounded-full [&_svg:not([class*='size-'])]:size-5" />
+      <InspectIpButton
+        ip={ip}
+        fromLocationId={locationId}
+        className="size-11 rounded-full [&_svg:not([class*='size-'])]:size-5"
+      />
       <PanelBanButton ip={ip} />
     </li>
   )
@@ -289,14 +394,31 @@ export function LocationPanel({
       onClose={onClose}
       icon={<MapPin className="size-5 text-primary" />}
       // Without a city or region the country is the title, so its flag moves up with it.
-      title={titleIsCountry ? <CountryLabel code={countryCode} name={countryName} className="gap-2">{title}</CountryLabel> : title}
-      subtitle={where && <CountryLabel code={countryCode} name={countryName}>{where}</CountryLabel>}
+      title={
+        titleIsCountry ? (
+          <CountryLabel code={countryCode} name={countryName} className="gap-2">
+            {title}
+          </CountryLabel>
+        ) : (
+          title
+        )
+      }
+      subtitle={
+        where && (
+          <CountryLabel code={countryCode} name={countryName}>
+            {where}
+          </CountryLabel>
+        )
+      }
     >
       <PanelStats
         items={[
           { label: "Events", value: formatNumber(eventCount), accent: true },
           { label: "Unique IPs", value: topIPsData ? formatNumber(topIPsData.uniqueIps) : "–" },
-          { label: "Of all events", value: totalEvents ? formatShare(eventCount, totalEvents) : "–" },
+          {
+            label: "Of all events",
+            value: totalEvents ? formatShare(eventCount, totalEvents) : "–",
+          },
           {
             label: "Last hit",
             value: lastHit ? new Date(lastHit).toLocaleString() : "Unknown",
@@ -308,7 +430,13 @@ export function LocationPanel({
       {(isLoadingTopIPs || topIps.length > 0) && (
         <PanelSection
           icon={isLoadingTopIPs ? <Loader2 className="animate-spin" /> : <Users />}
-          title={isLoadingTopIPs ? "Loading top IPs..." : topIps.length === 1 ? "Top IP" : `Top ${topIps.length} IPs`}
+          title={
+            isLoadingTopIPs
+              ? "Loading top IPs..."
+              : topIps.length === 1
+                ? "Top IP"
+                : `Top ${topIps.length} IPs`
+          }
         >
           <ol>
             {topIps.map((ip, index) => (
@@ -327,7 +455,9 @@ export function LocationPanel({
         </PanelSection>
       )}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 text-xs text-muted-foreground">
-        <span className="tabular-nums">{latitude.toFixed(4)}, {longitude.toFixed(4)}</span>
+        <span className="tabular-nums">
+          {latitude.toFixed(4)}, {longitude.toFixed(4)}
+        </span>
         <Button asChild variant="link" className="h-auto min-h-11 px-0 text-xs">
           <a href={openStreetMapUrl(latitude, longitude)} target="_blank" rel="noopener noreferrer">
             Open in OpenStreetMap

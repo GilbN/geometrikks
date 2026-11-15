@@ -260,12 +260,20 @@ describe("isTextEntryElement", () => {
     expect(isTextEntryElement({ tagName: "INPUT", type, isContentEditable: false })).toBe(true)
   })
 
-  it.each(["checkbox", "radio", "range", "button", "submit", "reset", "color", "file", "image", "hidden"])(
-    "is false for an input of type %s",
-    (type) => {
-      expect(isTextEntryElement({ tagName: "INPUT", type, isContentEditable: false })).toBe(false)
-    },
-  )
+  it.each([
+    "checkbox",
+    "radio",
+    "range",
+    "button",
+    "submit",
+    "reset",
+    "color",
+    "file",
+    "image",
+    "hidden",
+  ])("is false for an input of type %s", (type) => {
+    expect(isTextEntryElement({ tagName: "INPUT", type, isContentEditable: false })).toBe(false)
+  })
 
   it("is true for a contenteditable element", () => {
     expect(isTextEntryElement({ tagName: "DIV", isContentEditable: true })).toBe(true)
@@ -514,7 +522,11 @@ function fetchFailureEvent(): Event {
 }
 
 describe("createPreloadErrorHandler", () => {
-  function handlerSetup({ pending = false, changeAt = null as number | null, canAutoReload = true } = {}) {
+  function handlerSetup({
+    pending = false,
+    changeAt = null as number | null,
+    canAutoReload = true,
+  } = {}) {
     const reload = vi.fn(() => true)
     const handler = createPreloadErrorHandler({
       isPending: () => pending,

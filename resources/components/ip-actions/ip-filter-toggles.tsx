@@ -66,25 +66,39 @@ function FilterToggleRow({
     <div className="flex min-h-12.5 items-center gap-2.5 pr-1 pl-3">
       <div className="min-w-0 flex-1">
         <div className="text-sm leading-tight">{label}</div>
-        <div className="truncate font-mono text-xs text-muted-foreground" title={shown ?? undefined}>
+        <div
+          className="truncate font-mono text-xs text-muted-foreground"
+          title={shown ?? undefined}
+        >
           {shown ?? `this ${target.noun}`}
         </div>
       </div>
-      <div className={cn("grid shrink-0", excludeColumn ? "grid-cols-[5.5rem_5.5rem]" : "grid-cols-[5.5rem]")}>
+      <div
+        className={cn(
+          "grid shrink-0",
+          excludeColumn ? "grid-cols-[5.5rem_5.5rem]" : "grid-cols-[5.5rem]",
+        )}
+      >
         <ToggleGroup
           type="single"
           variant="outline"
           value={target.state ?? ""}
           onValueChange={choose}
           aria-label={`${label}${detail}`}
-          className={cn(target.include && target.exclude && "col-span-2", !target.include && "col-start-2")}
+          className={cn(
+            target.include && target.exclude && "col-span-2",
+            !target.include && "col-start-2",
+          )}
         >
           {target.include && (
             <DrawerClose asChild>
               <ToggleGroupItem
                 value="include"
                 aria-label={`Filter by ${target.noun}${detail}`}
-                className={cn(BUTTON, "data-[state=on]:border-primary/40 data-[state=on]:bg-primary/15 data-[state=on]:text-primary")}
+                className={cn(
+                  BUTTON,
+                  "data-[state=on]:border-primary/40 data-[state=on]:bg-primary/15 data-[state=on]:text-primary",
+                )}
               >
                 {included ? <Check /> : <Filter />}
                 Filter
@@ -96,7 +110,10 @@ function FilterToggleRow({
               <ToggleGroupItem
                 value="exclude"
                 aria-label={`Exclude ${target.noun}${detail}`}
-                className={cn(BUTTON, "data-[state=on]:border-destructive/40 data-[state=on]:bg-destructive/15 data-[state=on]:text-destructive")}
+                className={cn(
+                  BUTTON,
+                  "data-[state=on]:border-destructive/40 data-[state=on]:bg-destructive/15 data-[state=on]:text-destructive",
+                )}
               >
                 {excluded ? <Check /> : <EyeOff />}
                 Exclude

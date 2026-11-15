@@ -1,6 +1,9 @@
 import { expect, test, type Page } from "@playwright/test"
 
-test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
+test.use({
+  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+  serviceWorkers: "block",
+})
 
 const PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
@@ -10,7 +13,9 @@ const PIXEL_PNG = Buffer.from(
 async function setup(page: Page, esriApiKey: string | null, { satellite = false } = {}) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
-  expect((await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username: "admin", password } })).ok(),
+  ).toBe(true)
   // Seeds only the first load, so a reload shows what the switches saved.
   await page.addInitScript((satelliteOn) => {
     if (sessionStorage.getItem("satellite-test-seeded")) return
@@ -26,20 +31,45 @@ async function setup(page: Page, esriApiKey: string | null, { satellite = false 
     settings.map.defaultView = { latitude: 50, longitude: 10, zoom: 3 }
     return route.fulfill({ json: settings })
   })
-  await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
-    type: "FeatureCollection", stats: { events: 40, countries: 1, cities: 1, locations: 1 },
-    features: [{ type: "Feature", geometry: { type: "Point", coordinates: [10, 50] }, properties: {
-      id: 131, geohash: "u0yj", city: "Frankfurt", countryCode: "DE", countryName: "Germany", eventCount: 40, lastHit: null, topIps: [],
-    } }],
-  } }))
+  await page.route("**/api/v1/geo-locations/geojson?*", (route) =>
+    route.fulfill({
+      json: {
+        type: "FeatureCollection",
+        stats: { events: 40, countries: 1, cities: 1, locations: 1 },
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [10, 50] },
+            properties: {
+              id: 131,
+              geohash: "u0yj",
+              city: "Frankfurt",
+              countryCode: "DE",
+              countryName: "Germany",
+              eventCount: 40,
+              lastHit: null,
+              topIps: [],
+            },
+          },
+        ],
+      },
+    }),
+  )
   // The street map and the satellite build both read a CARTO style. Neither needs real tiles.
   const styles = { requests: 0, failDarkMatter: false }
   await page.route("**/gl/*/style.json*", (route) => {
     styles.requests += 1
-    if (styles.failDarkMatter && route.request().url().includes("dark-matter")) return route.fulfill({ status: 500 })
-    return route.fulfill({ json: {
-      version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
-    } })
+    if (styles.failDarkMatter && route.request().url().includes("dark-matter"))
+      return route.fulfill({ status: 500 })
+    return route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          { id: "background", type: "background", paint: { "background-color": "#111827" } },
+        ],
+      },
+    })
   })
   const tokens: string[] = []
   await page.route("**/ibasemaps-api.arcgis.com/**", (route) => {
@@ -54,20 +84,42 @@ async function setup(page: Page, esriApiKey: string | null, { satellite = false 
 /** Source ids and projection of the MapLibre style, read through React's fiber tree. */
 function mapState(page: Page) {
   return page.evaluate(() => {
-    type StyledMap = { getStyle(): { sources: Record<string, unknown> }; getProjection(): { type?: unknown } | undefined }
+    type StyledMap = {
+      getStyle(): { sources: Record<string, unknown> }
+      getProjection(): { type?: unknown } | undefined
+    }
     const isMap = (value: unknown): value is StyledMap =>
-      typeof (value as StyledMap | null)?.getStyle === "function" && typeof (value as StyledMap | null)?.getProjection === "function"
-    const element = document.querySelector(".maplibregl-map") as (Element & Record<string, unknown>) | null
+      typeof (value as StyledMap | null)?.getStyle === "function" &&
+      typeof (value as StyledMap | null)?.getProjection === "function"
+    const element = document.querySelector(".maplibregl-map") as
+      | (Element & Record<string, unknown>)
+      | null
     if (!element) throw new Error("No map")
     const key = Object.keys(element).find((name) => name.startsWith("__reactFiber$"))
     type Fiber = { return: Fiber | null; memoizedState: unknown }
     type Hook = { memoizedState: unknown; next: Hook | null }
     for (let fiber = element[key!] as Fiber | null; fiber; fiber = fiber.return) {
-      for (let hook = fiber.memoizedState as Hook | null; hook && typeof hook === "object" && "next" in hook; hook = hook.next) {
-        const value = hook.memoizedState as { current?: unknown; map?: unknown; getMap?: () => unknown } | null
-        for (const candidate of [value, value?.current, value?.map, typeof value?.getMap === "function" ? value.getMap() : undefined]) {
+      for (
+        let hook = fiber.memoizedState as Hook | null;
+        hook && typeof hook === "object" && "next" in hook;
+        hook = hook.next
+      ) {
+        const value = hook.memoizedState as {
+          current?: unknown
+          map?: unknown
+          getMap?: () => unknown
+        } | null
+        for (const candidate of [
+          value,
+          value?.current,
+          value?.map,
+          typeof value?.getMap === "function" ? value.getMap() : undefined,
+        ]) {
           if (isMap(candidate)) {
-            return { sources: Object.keys(candidate.getStyle().sources).sort(), projection: candidate.getProjection()?.type ?? "mercator" }
+            return {
+              sources: Object.keys(candidate.getStyle().sources).sort(),
+              projection: candidate.getProjection()?.type ?? "mercator",
+            }
           }
         }
       }
@@ -84,13 +136,18 @@ test("satellite swaps in Esri imagery and keeps the data layers and globe", asyn
   await page.getByRole("switch", { name: "Globe", exact: true }).click()
   await page.getByRole("switch", { name: "Satellite", exact: true }).click()
 
-  await expect.poll(() => mapState(page)).toEqual({ sources: ["geo-data", "satellite"], projection: "globe" })
+  await expect
+    .poll(() => mapState(page))
+    .toEqual({ sources: ["geo-data", "satellite"], projection: "globe" })
   await expect.poll(() => tokens.length).toBeGreaterThan(0)
   expect(new Set(tokens)).toEqual(new Set(["test-esri-key"]))
 
   styles.requests = 0
   await page.reload()
-  await expect(page.getByRole("switch", { name: "Satellite", exact: true })).toHaveAttribute("aria-checked", "true")
+  await expect(page.getByRole("switch", { name: "Satellite", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  )
   await expect.poll(async () => (await mapState(page)).sources).toEqual(["geo-data", "satellite"])
   // Only the satellite build's own request. The map never loaded the street style first.
   expect(styles.requests).toBe(1)
@@ -163,7 +220,9 @@ test.describe("a phone held sideways", () => {
     if (!canvas) throw new Error("Map has no bounds")
     await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
     await page.mouse.down()
-    await page.mouse.move(canvas.x + canvas.width / 2 + 80, canvas.y + canvas.height / 2 + 40, { steps: 8 })
+    await page.mouse.move(canvas.x + canvas.width / 2 + 80, canvas.y + canvas.height / 2 + 40, {
+      steps: 8,
+    })
     await page.mouse.up()
 
     await expect(show).toBeHidden()

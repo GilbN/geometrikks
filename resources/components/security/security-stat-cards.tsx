@@ -29,9 +29,7 @@ export function SecurityStatCards() {
   }
 
   const localCount = stats
-    ? stats.byOrigin
-        .filter((o) => LOCAL_ORIGINS.has(o.origin))
-        .reduce((sum, o) => sum + o.count, 0)
+    ? stats.byOrigin.filter((o) => LOCAL_ORIGINS.has(o.origin)).reduce((sum, o) => sum + o.count, 0)
     : null
   const crowdCount = stats && localCount !== null ? stats.total - localCount : null
   const topScenario = stats?.topScenarios[0]
@@ -69,7 +67,10 @@ export function SecurityStatCards() {
       <StatCard
         title="LAPI"
         value={status.lapiReachable ? "Connected" : "Unreachable"}
-        valueClassName={cn("max-md:text-lg", status.lapiReachable ? "text-emerald-500" : "text-red-500")}
+        valueClassName={cn(
+          "max-md:text-lg",
+          status.lapiReachable ? "text-emerald-500" : "text-red-500",
+        )}
         subtitle={status.writeEnabled ? "ban/unban enabled" : "read-only (no machine credentials)"}
         icon={ShieldCheck}
         iconClassName={status.lapiReachable ? "text-emerald-500" : "text-red-500"}

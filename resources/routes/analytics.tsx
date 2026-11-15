@@ -104,26 +104,46 @@ function AnalyticsPage() {
         <AnalyticsFilterBar />
         <SectionHeader>Traffic</SectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
-          <JumpTarget id="requests"><RequestsChart /></JumpTarget>
-          <JumpTarget id="status"><StatusChart /></JumpTarget>
-          <JumpTarget id="bandwidth"><BytesChart /></JumpTarget>
-          <JumpTarget id="latency"><LatencyChart /></JumpTarget>
+          <JumpTarget id="requests">
+            <RequestsChart />
+          </JumpTarget>
+          <JumpTarget id="status">
+            <StatusChart />
+          </JumpTarget>
+          <JumpTarget id="bandwidth">
+            <BytesChart />
+          </JumpTarget>
+          <JumpTarget id="latency">
+            <LatencyChart />
+          </JumpTarget>
         </div>
         <SectionHeader>Top Lists</SectionHeader>
         <div className="grid gap-4 lg:grid-cols-2">
-          <JumpTarget id="top-ips"><TopIpsTable /></JumpTarget>
-          <JumpTarget id="locations"><TopCountriesCities /></JumpTarget>
+          <JumpTarget id="top-ips">
+            <TopIpsTable />
+          </JumpTarget>
+          <JumpTarget id="locations">
+            <TopCountriesCities />
+          </JumpTarget>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <JumpTarget id="urls"><TopUrlsTable /></JumpTarget>
-          <JumpTarget id="user-agents"><TopUserAgentsTable /></JumpTarget>
+          <JumpTarget id="urls">
+            <TopUrlsTable />
+          </JumpTarget>
+          <JumpTarget id="user-agents">
+            <TopUserAgentsTable />
+          </JumpTarget>
         </div>
         <SectionHeader>Traffic Origin</SectionHeader>
         {/* A grid gap, because space-y margins don't apply to JumpTarget's
             display: contents wrapper. */}
         <div className="grid gap-4">
-          <JumpTarget id="origin"><TrafficOriginCard /></JumpTarget>
-          <JumpTarget id="asns"><TopAsnsTable /></JumpTarget>
+          <JumpTarget id="origin">
+            <TrafficOriginCard />
+          </JumpTarget>
+          <JumpTarget id="asns">
+            <TopAsnsTable />
+          </JumpTarget>
         </div>
       </div>
     </AnalyticsFiltersProvider>

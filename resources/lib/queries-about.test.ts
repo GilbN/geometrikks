@@ -1,9 +1,14 @@
 import { expect, it, vi } from "vite-plus/test"
 const mocks = vi.hoisted(() => ({
-  options: [] as Array<{ queryKey: unknown[]; staleTime: unknown; refetchInterval: unknown; refetchOnWindowFocus: unknown }>,
+  options: [] as Array<{
+    queryKey: unknown[]
+    staleTime: unknown
+    refetchInterval: unknown
+    refetchOnWindowFocus: unknown
+  }>,
 }))
 vi.mock("@tanstack/react-query", () => ({
-  useQuery: (options: typeof mocks.options[number]) => {
+  useQuery: (options: (typeof mocks.options)[number]) => {
     mocks.options.push(options)
     return { data: undefined }
   },

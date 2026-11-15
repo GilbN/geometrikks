@@ -18,7 +18,9 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: QueryOptions) => {
     mocks.options.push(options)
     if (options.queryKey[0] === "drop") {
-      return { data: options.enabled && mocks.dropLists ? options.select!(mocks.dropLists) : undefined }
+      return {
+        data: options.enabled && mocks.dropLists ? options.select!(mocks.dropLists) : undefined,
+      }
     }
     return { data: mocks.about }
   },
@@ -28,7 +30,7 @@ vi.mock("@tanstack/react-query", () => ({
 }))
 vi.mock("react", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react")>()),
-  useMemo: <T,>(compute: () => T) => compute(),
+  useMemo: <T>(compute: () => T) => compute(),
 }))
 import { DROP_LISTS_REFETCH_MS, DROP_LISTS_STALE_MS, useDropLists, useDropNetwork } from "./queries"
 
@@ -47,10 +49,16 @@ function dropListsResponse(overrides: Partial<DropListsResponse> = {}): DropList
 }
 
 function aboutWith(dropLists: { enabled: boolean; loaded: boolean } | null) {
-  return { dropLists: dropLists && { ...dropLists, updatedAt: dropLists.loaded ? "2026-11-01T06:00:00Z" : null } }
+  return {
+    dropLists: dropLists && {
+      ...dropLists,
+      updatedAt: dropLists.loaded ? "2026-11-01T06:00:00Z" : null,
+    },
+  }
 }
 
-const dropListsOptions = () => mocks.options.filter((options) => options.queryKey[0] === "drop").at(-1)!
+const dropListsOptions = () =>
+  mocks.options.filter((options) => options.queryKey[0] === "drop").at(-1)!
 
 beforeEach(() => {
   mocks.options = []
@@ -61,7 +69,9 @@ beforeEach(() => {
 it("keys the lists on About's download time, keeps them 30 minutes and refetches hourly", () => {
   useDropLists()
   expect(dropListsOptions().queryKey).toEqual(["drop", "lists", "2026-11-01T06:00:00Z"])
-  expect(dropListsOptions().staleTime!({ state: { data: dropListsResponse() } })).toBe(DROP_LISTS_STALE_MS)
+  expect(dropListsOptions().staleTime!({ state: { data: dropListsResponse() } })).toBe(
+    DROP_LISTS_STALE_MS,
+  )
   expect(DROP_LISTS_STALE_MS).toBe(30 * 60_000)
   expect(dropListsOptions().refetchInterval).toBe(DROP_LISTS_REFETCH_MS)
   expect(DROP_LISTS_REFETCH_MS).toBe(60 * 60_000)
@@ -80,7 +90,12 @@ it("treats a cached answer from while DROP was off or not downloaded as stale", 
 })
 
 it("does not fetch while About is loading, DROP is off, or the lists never downloaded", () => {
-  for (const about of [undefined, aboutWith(null), aboutWith({ enabled: false, loaded: true }), aboutWith({ enabled: true, loaded: false })]) {
+  for (const about of [
+    undefined,
+    aboutWith(null),
+    aboutWith({ enabled: false, loaded: true }),
+    aboutWith({ enabled: true, loaded: false }),
+  ]) {
     mocks.about = about
     expect(useDropLists()).toEqual({ loaded: false })
     expect(dropListsOptions().enabled).toBe(false)

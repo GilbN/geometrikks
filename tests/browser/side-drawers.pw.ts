@@ -1,7 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test"
 
 // The Geo Logs map needs WebGL to draw a point to tap.
-test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
+test.use({
+  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+  serviceWorkers: "block",
+})
 
 const IP = "203.0.113.7"
 const ASN = 64500
@@ -10,20 +13,48 @@ async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 async function routeAccessLogs(page: Page) {
-  await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
-    items: [{
-      id: 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: IP, remoteUser: null,
-      method: "GET", url: "/request/detail", httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
-      referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
-      host: "example.test", server: null, logFormat: null, countryCode: "NO",
-      countryName: "Norway", city: "Oslo", autonomousSystemNumber: ASN, autonomousSystemOrganization: "Example Net",
-    }],
-    total: 1, limit: 20, offset: 0,
-  } }))
+  await page.route(
+    (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+    (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            {
+              id: 1,
+              timestamp: "2026-08-16T12:00:00Z",
+              ipAddress: IP,
+              remoteUser: null,
+              method: "GET",
+              url: "/request/detail",
+              httpVersion: "HTTP/2",
+              statusCode: 200,
+              bytesSent: 100,
+              referrer: null,
+              userAgent: null,
+              requestTime: 10,
+              upstreamResponseTime: null,
+              host: "example.test",
+              server: null,
+              logFormat: null,
+              countryCode: "NO",
+              countryName: "Norway",
+              city: "Oslo",
+              autonomousSystemNumber: ASN,
+              autonomousSystemOrganization: "Example Net",
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        },
+      }),
+  )
 }
 
 /** The inspector's IP with no CrowdSec decision, so its shield offers a ban. */
@@ -33,35 +64,63 @@ async function routeUnbannedInspector(page: Page) {
 
 // Only opens the form: no ban is sent.
 async function routeWritableCrowdsec(page: Page) {
-  await page.route("**/api/v1/crowdsec/status", (route) => route.fulfill({ json: {
-    enabled: true, writeEnabled: true, lapiReachable: true, liveUpdates: true,
-  } }))
+  await page.route("**/api/v1/crowdsec/status", (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        writeEnabled: true,
+        lapiReachable: true,
+        liveUpdates: true,
+      },
+    }),
+  )
 }
 
 async function routeLogTail(page: Page) {
-  await page.route("**/api/v1/logs/tail?*", (route) => route.fulfill({ json: {
-    records: [{
-      event: "request failed",
-      level: "error",
-      logger: "geometrikks.test",
-      timestamp: "2026-08-16T12:00:00Z",
-      exception: Array.from({ length: 80 }, (_, line) => `  File "app.py", line ${line}, in handler`).join("\n"),
-    }],
-  } }))
+  await page.route("**/api/v1/logs/tail?*", (route) =>
+    route.fulfill({
+      json: {
+        records: [
+          {
+            event: "request failed",
+            level: "error",
+            logger: "geometrikks.test",
+            timestamp: "2026-08-16T12:00:00Z",
+            exception: Array.from(
+              { length: 80 },
+              (_, line) => `  File "app.py", line ${line}, in handler`,
+            ).join("\n"),
+          },
+        ],
+      },
+    }),
+  )
 }
 
 // Only creates a key in the browser: the POST never reaches the server.
 async function routeApiKeyCreate(page: Page) {
   await page.route("**/api/v1/auth/api-keys", (route) => {
-    if (route.request().method() !== "POST") return route.fulfill({ json: { available: true, keys: [] } })
+    if (route.request().method() !== "POST")
+      return route.fulfill({ json: { available: true, keys: [] } })
     const now = new Date().toISOString()
-    return route.fulfill({ status: 201, json: {
-      key: "gmk_test_only_not_a_real_key",
-      apiKey: {
-        id: "k1", name: "Side test", scope: "read", displayPrefix: "gmk_test", createdAt: now, createdBy: "admin",
-        expired: false, expiresAt: null, lastUsedAt: null, lastUsedIp: null,
+    return route.fulfill({
+      status: 201,
+      json: {
+        key: "gmk_test_only_not_a_real_key",
+        apiKey: {
+          id: "k1",
+          name: "Side test",
+          scope: "read",
+          displayPrefix: "gmk_test",
+          createdAt: now,
+          createdBy: "admin",
+          expired: false,
+          expiresAt: null,
+          lastUsedAt: null,
+          lastUsedIp: null,
+        },
       },
-    } })
+    })
   })
 }
 
@@ -69,26 +128,74 @@ async function routeApiKeyCreate(page: Page) {
 async function routeGeoLogsPoint(page: Page) {
   await page.addInitScript(() => localStorage.setItem("geometrikks-map-live", "false"))
   await routeWritableCrowdsec(page)
-  await page.route("**/api/v1/geo-locations/geojson?*", (route) => route.fulfill({ json: {
-    type: "FeatureCollection", stats: { events: 40, countries: 1, cities: 1, locations: 1 },
-    features: [{
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [10.75, 59.91] },
-      properties: { id: 131, geohash: "u4xs", city: "Oslo", countryCode: "NO", countryName: "Norway", eventCount: 40, lastHit: null, topIps: [] },
-    }],
-  } }))
-  await page.route("**/api/v1/geo-locations/131/top-ips*", (route) => route.fulfill({ json: {
-    locationId: 131, uniqueIps: 1,
-    topIps: [{ ipAddress: IP, eventCount: 40, location: null, asn: null, asOrganization: null }],
-  } }))
-  await page.route("**/api/v1/crowdsec/banned-ips", (route) => route.fulfill({ json: [{ ip: IP, type: "ban" }] }))
-  await page.route("**/api/v1/crowdsec/decisions/lookup?*", (route) => route.fulfill({ json: [{
-    id: 1, ip: IP, type: "ban", scope: "Ip", origin: "crowdsec", scenario: "http-probing", duration: "2h",
-    countryCode: null, countryName: null, city: null, requestCount24h: null,
-  }] }))
-  await page.route("**/gl/*/style.json*", (route) => route.fulfill({ json: {
-    version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#111827" } }],
-  } }))
+  await page.route("**/api/v1/geo-locations/geojson?*", (route) =>
+    route.fulfill({
+      json: {
+        type: "FeatureCollection",
+        stats: { events: 40, countries: 1, cities: 1, locations: 1 },
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [10.75, 59.91] },
+            properties: {
+              id: 131,
+              geohash: "u4xs",
+              city: "Oslo",
+              countryCode: "NO",
+              countryName: "Norway",
+              eventCount: 40,
+              lastHit: null,
+              topIps: [],
+            },
+          },
+        ],
+      },
+    }),
+  )
+  await page.route("**/api/v1/geo-locations/131/top-ips*", (route) =>
+    route.fulfill({
+      json: {
+        locationId: 131,
+        uniqueIps: 1,
+        topIps: [
+          { ipAddress: IP, eventCount: 40, location: null, asn: null, asOrganization: null },
+        ],
+      },
+    }),
+  )
+  await page.route("**/api/v1/crowdsec/banned-ips", (route) =>
+    route.fulfill({ json: [{ ip: IP, type: "ban" }] }),
+  )
+  await page.route("**/api/v1/crowdsec/decisions/lookup?*", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 1,
+          ip: IP,
+          type: "ban",
+          scope: "Ip",
+          origin: "crowdsec",
+          scenario: "http-probing",
+          duration: "2h",
+          countryCode: null,
+          countryName: null,
+          city: null,
+          requestCount24h: null,
+        },
+      ],
+    }),
+  )
+  await page.route("**/gl/*/style.json*", (route) =>
+    route.fulfill({
+      json: {
+        version: 8,
+        sources: {},
+        layers: [
+          { id: "background", type: "background", paint: { "background-color": "#111827" } },
+        ],
+      },
+    }),
+  )
 }
 
 /** Taps the Geo Logs map until the point's card opens. The map frames the one point in its middle. */
@@ -107,8 +214,10 @@ async function openGeoLogsCard(page: Page) {
   return card
 }
 
-const closingDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="closed"]')
-const inspectorSheet = (page: Page) => page.locator('[data-slot="sheet-content"][data-state="open"]')
+const closingDrawer = (page: Page) =>
+  page.locator('[data-slot="drawer-content"][data-state="closed"]')
+const inspectorSheet = (page: Page) =>
+  page.locator('[data-slot="sheet-content"][data-state="open"]')
 const openDrawer = (page: Page) => page.locator('[data-slot="drawer-content"][data-state="open"]')
 const tabBar = (page: Page) => page.locator("[data-tab-bar]")
 const ipActions = (page: Page) => page.getByRole("button", { name: `Actions for ${IP}` })
@@ -120,7 +229,13 @@ async function expectRightFullHeight(page: Page, drawer: Locator) {
   await expect
     .poll(async () => {
       const box = await drawer.boundingBox()
-      return box && { top: Math.round(box.y), bottom: Math.round(box.y + box.height), right: Math.round(box.x + box.width) }
+      return (
+        box && {
+          top: Math.round(box.y),
+          bottom: Math.round(box.y + box.height),
+          right: Math.round(box.x + box.width),
+        }
+      )
     })
     .toEqual({ top: 0, bottom: height, right: width })
 }
@@ -131,11 +246,16 @@ async function expectBackCloses(page: Page, drawer: Locator, path: RegExp) {
   await expect(page).toHaveURL(path)
 }
 
-for (const viewport of [{ width: 932, height: 430 }, { width: 844, height: 390 }]) {
+for (const viewport of [
+  { width: 932, height: 430 },
+  { width: 844, height: 390 },
+]) {
   test.describe(`phone held sideways at ${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport, hasTouch: true, isMobile: true })
 
-    test("the ban form opens from the right at full height and Back closes it", async ({ page }) => {
+    test("the ban form opens from the right at full height and Back closes it", async ({
+      page,
+    }) => {
       await login(page)
       await routeWritableCrowdsec(page)
       await page.goto("/")
@@ -155,7 +275,9 @@ for (const viewport of [{ width: 932, height: 430 }, { width: 844, height: 390 }
       await expect(tabBar(page)).toBeVisible()
     })
 
-    test("the IP actions menu opens from the right at full height and Back closes it", async ({ page }) => {
+    test("the IP actions menu opens from the right at full height and Back closes it", async ({
+      page,
+    }) => {
       await login(page)
       await routeAccessLogs(page)
       await page.goto("/")
@@ -170,7 +292,9 @@ for (const viewport of [{ width: 932, height: 430 }, { width: 844, height: 390 }
       await expect(tabBar(page)).toBeVisible()
     })
 
-    test("the Access Logs Filters drawer opens from the right at full height and Back closes it", async ({ page }) => {
+    test("the Access Logs Filters drawer opens from the right at full height and Back closes it", async ({
+      page,
+    }) => {
       await login(page)
       await routeAccessLogs(page)
       await page.goto("/")
@@ -186,7 +310,9 @@ for (const viewport of [{ width: 932, height: 430 }, { width: 844, height: 390 }
       await expect(tabBar(page)).toBeVisible()
     })
 
-    test("the hosting ASN list opens from the right at full height and Back closes it", async ({ page }) => {
+    test("the hosting ASN list opens from the right at full height and Back closes it", async ({
+      page,
+    }) => {
       await login(page)
       await page.goto("/")
       await page.goto("/settings/about")
@@ -205,7 +331,9 @@ for (const viewport of [{ width: 932, height: 430 }, { width: 844, height: 390 }
 test.describe("turning a phone with a drawer open", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
 
-  test("closes the drawer and reopens it from the right, then from the bottom again", async ({ page }) => {
+  test("closes the drawer and reopens it from the right, then from the bottom again", async ({
+    page,
+  }) => {
     await login(page)
     await routeAccessLogs(page)
     await page.goto("/")
@@ -252,7 +380,9 @@ test.describe("portrait phone", () => {
     await expect(drawer).toHaveAttribute("data-vaul-drawer-direction", "bottom")
   })
 
-  test("Ban opens the ban drawer after the actions drawer, and closing it returns focus to the row", async ({ page }) => {
+  test("Ban opens the ban drawer after the actions drawer, and closing it returns focus to the row", async ({
+    page,
+  }) => {
     await login(page)
     await routeAccessLogs(page)
     await routeWritableCrowdsec(page)
@@ -269,7 +399,9 @@ test.describe("portrait phone", () => {
     await expect.poll(() => page.evaluate(() => document.body.style.pointerEvents)).not.toBe("none")
   })
 
-  test("More options in the ban drawer opens the ban form and leaves the page usable", async ({ page }) => {
+  test("More options in the ban drawer opens the ban form and leaves the page usable", async ({
+    page,
+  }) => {
     await login(page)
     await routeAccessLogs(page)
     await routeWritableCrowdsec(page)
@@ -395,7 +527,11 @@ test.describe("desktop", () => {
 
     await page.goto("/security")
     await page.getByRole("button", { name: "Ban IP" }).click()
-    await expect(page.locator('[data-slot="dialog-content"]').getByRole("heading", { name: "Ban an IP or range" })).toBeVisible()
+    await expect(
+      page
+        .locator('[data-slot="dialog-content"]')
+        .getByRole("heading", { name: "Ban an IP or range" }),
+    ).toBeVisible()
     await expect(openDrawer(page)).toHaveCount(0)
   })
 })
@@ -480,11 +616,15 @@ test.describe("phone held sideways at 932x430", () => {
     await expectRightFullHeight(page, drawer)
     // The long traceback scrolls inside the drawer instead of running off the screen.
     const scroller = drawer.locator("pre").locator("..")
-    await expect.poll(async () => {
-      const box = await scroller.boundingBox()
-      return box !== null && box.y + box.height <= 430
-    }).toBe(true)
-    expect(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+    await expect
+      .poll(async () => {
+        const box = await scroller.boundingBox()
+        return box !== null && box.y + box.height <= 430
+      })
+      .toBe(true)
+    expect(await scroller.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+      true,
+    )
     await page.goBack()
     await expect(closingDrawer(page).locator("pre")).toBeAttached()
     await expect(drawer).toHaveCount(0)
@@ -495,7 +635,9 @@ test.describe("phone held sideways at 932x430", () => {
 test.describe("phone held sideways at 844x390", () => {
   test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true })
 
-  test("the Geo Logs card opens a marked IP's status and its ban sheet from the right", async ({ page }) => {
+  test("the Geo Logs card opens a marked IP's status and its ban sheet from the right", async ({
+    page,
+  }) => {
     await login(page)
     await routeGeoLogsPoint(page)
     await page.goto("/")
@@ -524,7 +666,9 @@ test.describe("phone held sideways at 844x390", () => {
 test.describe("turning a phone with a form open", () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true })
 
-  test("the new API key drawer stays open through a turn and closes cleanly with Done", async ({ page }) => {
+  test("the new API key drawer stays open through a turn and closes cleanly with Done", async ({
+    page,
+  }) => {
     await login(page)
     await routeApiKeyCreate(page)
     await page.goto("/settings/api-keys")

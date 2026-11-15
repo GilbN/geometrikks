@@ -50,7 +50,12 @@ export function TagInput({
         }}
         placeholder={placeholder}
         aria-invalid={invalid}
-        className={cn("h-8 w-full font-mono text-xs", exclude && "pl-7", value && "pr-7", inputClassName)}
+        className={cn(
+          "h-8 w-full font-mono text-xs",
+          exclude && "pl-7",
+          value && "pr-7",
+          inputClassName,
+        )}
         {...props}
       />
       {value && (

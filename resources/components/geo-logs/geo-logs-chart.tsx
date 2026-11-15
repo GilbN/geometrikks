@@ -3,18 +3,23 @@
  * unique IPs, honoring the shared filter set and the global time range.
  */
 import { useMemo } from "react"
-import { Area, Bar, CartesianGrid, ComposedChart, Rectangle, XAxis, YAxis, type RectangleProps } from "recharts"
+import {
+  Area,
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Rectangle,
+  XAxis,
+  YAxis,
+  type RectangleProps,
+} from "recharts"
 import { SignalPanel } from "@/components/data/signal-panel"
 import { dataState } from "@/components/data/types"
 import { ChartLegendRow } from "@/components/analytics/chart-legend-row"
 import { ChartOptionsMenu, ScaleNotes } from "@/components/analytics/chart-options-menu"
 import { AREA_BARS_OPTIONS, barSpacer, formatLogCount } from "@/components/analytics/chart-utils"
 import { GranularityBadge } from "@/components/analytics/granularity-badge"
-import {
-  ChartContainer,
-  ChartTooltip,
-  type ChartConfig,
-} from "@/components/ui/chart"
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart"
 import { formatNumber } from "@/lib/api"
 import { useChartOptions } from "@/lib/chart-options"
 import { scaleSeries } from "@/lib/chart-scale"
@@ -66,7 +71,11 @@ export function GeoLogsChart() {
             zerosRaised={series.zerosRaised}
           />
           <GranularityBadge granularity={data?.granularity} />
-          <ChartOptionsMenu title="Geo events over time" spec={AREA_BARS_OPTIONS} options={options} />
+          <ChartOptionsMenu
+            title="Geo events over time"
+            spec={AREA_BARS_OPTIONS}
+            options={options}
+          />
         </>
       }
       legend={<ChartLegendRow config={chartConfig} label="Geo event chart legend" />}
@@ -86,7 +95,9 @@ export function GeoLogsChart() {
               tickLine={false}
               axisLine={false}
               width={48}
-              tickFormatter={(v: number) => (options.scale === "log" ? formatLogCount(v) : formatNumber(v))}
+              tickFormatter={(v: number) =>
+                options.scale === "log" ? formatLogCount(v) : formatNumber(v)
+              }
               {...series.axis}
             />
             <ChartTooltip content={<TimeSeriesTooltip granularity={data.granularity} />} />

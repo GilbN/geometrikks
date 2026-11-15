@@ -23,6 +23,8 @@ export function sortOptions<F extends string>(
   columns: readonly { label: string; sortField?: F; sortKind?: SortKind }[],
 ): SortOption<F>[] {
   return columns.flatMap((column) =>
-    column.sortField ? [{ field: column.sortField, label: column.label, kind: column.sortKind ?? "text" }] : [],
+    column.sortField
+      ? [{ field: column.sortField, label: column.label, kind: column.sortKind ?? "text" }]
+      : [],
   )
 }

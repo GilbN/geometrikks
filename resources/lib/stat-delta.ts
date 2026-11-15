@@ -16,10 +16,7 @@ export const FLAT_DELTA_LABEL = formatPercent(0).replace(/^\+/, "")
 export const FLAT_DELTA_EPSILON =
   0.5 * 10 ** -(FLAT_DELTA_LABEL.replace("%", "").split(".")[1]?.length ?? 0)
 
-export function deltaTone(
-  value: number | null | undefined,
-  positive?: boolean
-): DeltaTone | null {
+export function deltaTone(value: number | null | undefined, positive?: boolean): DeltaTone | null {
   if (value == null || !Number.isFinite(value)) return null
   if (Math.abs(value) < FLAT_DELTA_EPSILON) return "muted"
   return (positive ?? value >= 0) ? "accent" : "destructive"

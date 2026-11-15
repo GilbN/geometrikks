@@ -24,7 +24,9 @@ export function useRouteHeader(): {
   cardCharts: CardChartsPage | undefined
 } {
   const timeRange = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.timeRange })
-  const chartBuckets = useMatches({ select: (matches) => !!matches.at(-1)?.staticData.chartBuckets })
+  const chartBuckets = useMatches({
+    select: (matches) => !!matches.at(-1)?.staticData.chartBuckets,
+  })
   const cardCharts = useMatches({ select: (matches) => matches.at(-1)?.staticData.cardCharts })
   return { timeRange, chartBuckets, cardCharts }
 }

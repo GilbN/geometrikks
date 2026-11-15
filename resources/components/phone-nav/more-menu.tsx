@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactElement } from "react"
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactElement,
+} from "react"
 import { createPortal } from "react-dom"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { ChevronRight, LogOut } from "lucide-react"
@@ -22,7 +29,13 @@ import { logOut } from "@/lib/log-out"
 import { useOverlayEntry } from "@/lib/overlay-history"
 import { usePhoneChrome } from "@/lib/phone-chrome"
 import { moreItems, slotFour } from "@/lib/phone-nav"
-import { useChangelogUnseen, useMe, useRuntimeSettings, useSecurityNavStatus, useUnseenRelease } from "@/lib/queries"
+import {
+  useChangelogUnseen,
+  useMe,
+  useRuntimeSettings,
+  useSecurityNavStatus,
+  useUnseenRelease,
+} from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/version"
 
@@ -36,7 +49,9 @@ function StatusLink() {
       replace
       className={cn(
         "mx-3.5 my-1.5 flex items-center gap-2.5 rounded-[10px] border px-3 text-[13px] text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        warn ? "min-h-[54px] border-amber-400/35 bg-amber-400/7 py-2" : "h-11 border-border bg-foreground/2",
+        warn
+          ? "min-h-[54px] border-amber-400/35 bg-amber-400/7 py-2"
+          : "h-11 border-border bg-foreground/2",
       )}
     >
       <span aria-hidden className="relative size-2 shrink-0">
@@ -46,7 +61,11 @@ function StatusLink() {
       {warn ? (
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="text-sm font-medium text-foreground">{label}</span>
-          {attention.length > 0 && <span className="text-xs text-amber-700 dark:text-amber-300">{attention.join(", ")}</span>}
+          {attention.length > 0 && (
+            <span className="text-xs text-amber-700 dark:text-amber-300">
+              {attention.join(", ")}
+            </span>
+          )}
         </span>
       ) : (
         <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -75,11 +94,18 @@ function Destinations({ compact }: { compact: boolean }) {
       >
         <span className="relative text-muted-foreground">
           <Icon aria-hidden className="size-5" />
-          {notice && <span aria-hidden className="absolute -top-0.5 -right-[3px] size-[7px] rounded-full bg-primary" />}
+          {notice && (
+            <span
+              aria-hidden
+              className="absolute -top-0.5 -right-[3px] size-[7px] rounded-full bg-primary"
+            />
+          )}
         </span>
         <span className="min-w-0 flex-1">
           {item.title}
-          {notice && <small className="-mt-px block text-[11.5px] text-primary">New in the changelog</small>}
+          {notice && (
+            <small className="-mt-px block text-[11.5px] text-primary">New in the changelog</small>
+          )}
         </span>
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </Link>
@@ -97,7 +123,11 @@ function Footer() {
       <span className="flex h-11 items-center gap-1.5">
         {settings && displayVersion(publicVersion(settings.version))}
         {settings?.runtime.container && (
-          <span role="img" aria-label={containerRuntimeLabel(settings.runtime.imageTag)} className="inline-flex">
+          <span
+            role="img"
+            aria-label={containerRuntimeLabel(settings.runtime.imageTag)}
+            className="inline-flex"
+          >
             <SiDocker aria-hidden className="size-4 text-[#2496ED]" />
           </span>
         )}
@@ -127,7 +157,9 @@ function LogOutButton() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Log out?</AlertDialogTitle>
-          <AlertDialogDescription>You will need to sign in again on this device.</AlertDialogDescription>
+          <AlertDialogDescription>
+            You will need to sign in again on this device.
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -250,7 +282,11 @@ export function MoreMenu({ compact, trigger }: { compact: boolean; trigger: Reac
         // the popover 8px above the bar and flush with its right edge.
         sideOffset={12}
         alignOffset={-4}
-        collisionPadding={{ top: Math.max(8, insets.top), left: Math.max(8, insets.left), right: Math.max(8, insets.right) }}
+        collisionPadding={{
+          top: Math.max(8, insets.top),
+          left: Math.max(8, insets.left),
+          right: Math.max(8, insets.right),
+        }}
         onInteractOutside={(event) => {
           const target = event.target as Element | null
           if (target?.closest("[data-tab-bar]")) {

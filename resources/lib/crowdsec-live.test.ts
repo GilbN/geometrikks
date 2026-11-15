@@ -9,7 +9,9 @@ import {
 
 const decisionsFrame: CrowdsecDecisionsFrame = {
   type: "crowdsec_decisions",
-  added: [{ ip: "1.2.3.4", type: "captcha", origin: "cscli", scenario: "manual ban", duration: "4h" }],
+  added: [
+    { ip: "1.2.3.4", type: "captcha", origin: "cscli", scenario: "manual ban", duration: "4h" },
+  ],
   deleted: [{ ip: "5.6.7.8", type: "ban", origin: "cscli" }],
 }
 
@@ -33,7 +35,13 @@ describe("parseCrowdsecFrame", () => {
 describe("applyBannedIpsDelta", () => {
   it("adds and removes entries without duplicating", () => {
     expect(
-      applyBannedIpsDelta([{ ip: "5.6.7.8", type: "ban" }, { ip: "1.2.3.4", type: "captcha" }], decisionsFrame),
+      applyBannedIpsDelta(
+        [
+          { ip: "5.6.7.8", type: "ban" },
+          { ip: "1.2.3.4", type: "captcha" },
+        ],
+        decisionsFrame,
+      ),
     ).toEqual([{ ip: "1.2.3.4", type: "captcha" }])
   })
 
@@ -49,7 +57,9 @@ describe("applyBannedIpsDelta", () => {
       added: [],
       deleted: [{ ip: "1.2.3.4", type: "captcha", origin: "crowdsec" }],
     }
-    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "ban" }], frame)).toEqual([{ ip: "1.2.3.4", type: "ban" }])
+    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "ban" }], frame)).toEqual([
+      { ip: "1.2.3.4", type: "ban" },
+    ])
   })
 
   it("passes undefined through (cache not populated yet)", () => {
@@ -62,16 +72,22 @@ describe("applyBannedIpsDelta", () => {
       added: [{ ip: "1.2.3.4", type: "ban", origin: "CAPI", scenario: "ssh-bf", duration: "4h" }],
       deleted: [],
     }
-    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "captcha" }], frame)).toEqual([{ ip: "1.2.3.4", type: "ban" }])
+    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "captcha" }], frame)).toEqual([
+      { ip: "1.2.3.4", type: "ban" },
+    ])
   })
 
   it("keeps an IP whose ban is deleted and re-added in the same frame", () => {
     const frame: CrowdsecDecisionsFrame = {
       type: "crowdsec_decisions",
-      added: [{ ip: "1.2.3.4", type: "ban", origin: "crowdsec", scenario: "ssh-bf", duration: "4h" }],
+      added: [
+        { ip: "1.2.3.4", type: "ban", origin: "crowdsec", scenario: "ssh-bf", duration: "4h" },
+      ],
       deleted: [{ ip: "1.2.3.4", type: "ban", origin: "crowdsec" }],
     }
-    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "ban" }], frame)).toEqual([{ ip: "1.2.3.4", type: "ban" }])
+    expect(applyBannedIpsDelta([{ ip: "1.2.3.4", type: "ban" }], frame)).toEqual([
+      { ip: "1.2.3.4", type: "ban" },
+    ])
   })
 })
 

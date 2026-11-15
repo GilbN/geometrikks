@@ -9,7 +9,9 @@ export async function settledToastBox(toast: Locator) {
     const frame = () => new Promise((resolve) => requestAnimationFrame(resolve))
     while (element.getAttribute("data-mounted") !== "true") await frame()
     await frame()
-    await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => undefined)))
+    await Promise.all(
+      element.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+    )
     const { x, y, width, height } = element.getBoundingClientRect()
     return { x, y, width, height }
   })

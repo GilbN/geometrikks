@@ -103,11 +103,17 @@ function GeoLogsPage() {
               <GeoLogsMap />
             </Suspense>
           </JumpTarget>
-          <JumpTarget id="over-time"><GeoLogsChart /></JumpTarget>
+          <JumpTarget id="over-time">
+            <GeoLogsChart />
+          </JumpTarget>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
-          <JumpTarget id="top-ips"><GeoTopIpsTable /></JumpTarget>
-          <JumpTarget id="locations"><GeoTopCountriesCities /></JumpTarget>
+          <JumpTarget id="top-ips">
+            <GeoTopIpsTable />
+          </JumpTarget>
+          <JumpTarget id="locations">
+            <GeoTopCountriesCities />
+          </JumpTarget>
         </div>
         <JumpTarget id="events">
           <GeoLogsTable

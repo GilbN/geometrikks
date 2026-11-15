@@ -7,7 +7,12 @@ import { FilterField, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import { FilterListRow, FilterSection } from "@/components/ui/filter-rows"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   ALERT_KIND_OPTIONS,
@@ -27,14 +32,23 @@ export function AlertKindRadioGroup({
 }) {
   return (
     <FilterField label="Kind" group>
-      <RadioGroup aria-label="Alert kind" value={kind} onValueChange={(value) => onChange(value as AlertKindFilter)} className="gap-1">
+      <RadioGroup
+        aria-label="Alert kind"
+        value={kind}
+        onValueChange={(value) => onChange(value as AlertKindFilter)}
+        className="gap-1"
+      >
         {ALERT_KIND_OPTIONS.map((option) => (
           <label key={option.key} className="flex items-start gap-3 py-1.5 pointer-coarse:py-2">
             <RadioGroupItem value={option.key} className="mt-0.5" />
             <span className="flex min-w-0 flex-col">
-              <span className="text-sm normal-case tracking-normal text-foreground">{option.label}</span>
+              <span className="text-sm normal-case tracking-normal text-foreground">
+                {option.label}
+              </span>
               {option.description && (
-                <span className="text-xs normal-case tracking-normal text-muted-foreground">{option.description}</span>
+                <span className="text-xs normal-case tracking-normal text-muted-foreground">
+                  {option.description}
+                </span>
               )}
             </span>
           </label>

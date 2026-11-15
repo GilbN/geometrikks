@@ -1,6 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "@tanstack/react-router"
-import { Bug, ChevronDown, Copy, Cpu, Database, ExternalLink, FileClock, Globe2, OctagonX } from "lucide-react"
+import {
+  Bug,
+  ChevronDown,
+  Copy,
+  Cpu,
+  Database,
+  ExternalLink,
+  FileClock,
+  Globe2,
+  OctagonX,
+} from "lucide-react"
 import { toast } from "sonner"
 import type { AboutResponse, DropListsAboutView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
@@ -91,7 +101,8 @@ function useReleaseLine() {
   const { data: releaseCheck } = useReleaseCheck()
   const [nowMs, setNowMs] = useState(() => Date.now())
   const releaseLine = releaseCheckLine(releaseCheck, nowMs)
-  const announcedVersion = releaseLine?.kind === "available" ? releaseCheck?.latest?.version : undefined
+  const announcedVersion =
+    releaseLine?.kind === "available" ? releaseCheck?.latest?.version : undefined
 
   useEffect(() => {
     if (announcedVersion) saveSeenRelease(announcedVersion)
@@ -174,7 +185,10 @@ function SkippedReleases({ text, href }: { text: string; href: string }) {
   return (
     <li className={cn(TRACK_STEP, "@2xl:max-w-64")}>
       <TrackConnector />
-      <span aria-hidden className="relative mt-[5px] flex size-[11px] shrink-0 items-center justify-center">
+      <span
+        aria-hidden
+        className="relative mt-[5px] flex size-[11px] shrink-0 items-center justify-center"
+      >
         <span className="size-[5px] rounded-full bg-muted-foreground/70" />
       </span>
       <a
@@ -212,7 +226,9 @@ function InstallationCard({
   const fullVersion = displayVersion(app.version)
   const version = displayVersion(publicVersion(app.version))
   const newer = releaseLine?.kind === "available" && latest ? { ...releaseLine, latest } : null
-  const skippedText = newer ? skippedReleasesText(newer.latest.newerReleaseCount, newer.latest.newerReleaseCountExact) : null
+  const skippedText = newer
+    ? skippedReleasesText(newer.latest.newerReleaseCount, newer.latest.newerReleaseCountExact)
+    : null
 
   return (
     <Card className="@container py-4 md:col-span-2 md:py-6">
@@ -274,7 +290,9 @@ function InstallationCard({
                 Release notes
                 <ExternalLink className="h-3 w-3" />
               </a>
-              {newer.checked && <p className="mt-2 text-xs text-muted-foreground">{newer.checked}</p>}
+              {newer.checked && (
+                <p className="mt-2 text-xs text-muted-foreground">{newer.checked}</p>
+              )}
             </TrackStop>
           )}
         </ol>
@@ -319,7 +337,8 @@ function DropTermsLink({ dropLists }: { dropLists: DropListsAboutView }) {
 const DROP_LISTS_EXPLAINER =
   "Networks hijacked or run by spam and cybercrime operations. Their IPs get a dashed red outline, and listed ASNs a DROP badge."
 
-const DROP_LISTS_PENDING = "The scheduler downloads the lists every DROP_REFRESH_HOURS, 24 hours by default."
+const DROP_LISTS_PENDING =
+  "The scheduler downloads the lists every DROP_REFRESH_HOURS, 24 hours by default."
 
 function DropListsCredit({ dropLists }: { dropLists: DropListsAboutView }) {
   return (
@@ -354,7 +373,9 @@ function DropListsCard({ dropLists }: { dropLists: DropListsAboutView }) {
             {dropFeedRecords(dropLists.feeds).map((feedRecords) => (
               <Row key={feedRecords.label} label={feedRecords.label} value={feedRecords.count} />
             ))}
-            <p className="max-w-[80ch] pt-2 text-xs text-muted-foreground">{DROP_LISTS_EXPLAINER}</p>
+            <p className="max-w-[80ch] pt-2 text-xs text-muted-foreground">
+              {DROP_LISTS_EXPLAINER}
+            </p>
             <p className="pt-1 text-xs text-muted-foreground">
               <DropListsCredit dropLists={dropLists} />
             </p>
@@ -395,8 +416,7 @@ function PhoneDropListsValues({ dropLists }: { dropLists: DropListsAboutView }) 
 function MaxMindAttribution() {
   return (
     <p className="mt-4 text-xs text-muted-foreground">
-      This product includes GeoLite2 data created by MaxMind, available
-      from{" "}
+      This product includes GeoLite2 data created by MaxMind, available from{" "}
       <a
         href="https://www.maxmind.com"
         target="_blank"
@@ -455,18 +475,28 @@ function PhoneRow({ label, value }: { label: ReactNode; value: ReactNode }) {
 
 /** The rest of the row above's value, in a muted line under it. */
 function PhoneRowDetail({ children }: { children: ReactNode }) {
-  return <div className="pt-0.5 pb-1 text-right text-xs break-words text-muted-foreground">{children}</div>
+  return (
+    <div className="pt-0.5 pb-1 text-right text-xs break-words text-muted-foreground">
+      {children}
+    </div>
+  )
 }
 
 function VersionValue({ version }: { version: string | null }) {
-  return version ? <MonoChip>{version}</MonoChip> : <span className="text-muted-foreground">unavailable</span>
+  return version ? (
+    <MonoChip>{version}</MonoChip>
+  ) : (
+    <span className="text-muted-foreground">unavailable</span>
+  )
 }
 
 function GeoipHeader({ name, state }: { name: string; state: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/40 py-1.5">
       <span className="text-sm font-medium">{name}</span>
-      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">{state}</span>
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        {state}
+      </span>
     </div>
   )
 }
@@ -484,7 +514,10 @@ function SummarySection({
   children: ReactNode
 }) {
   return (
-    <Collapsible defaultOpen={startsOpen(summary)} className="border-b border-border/50 last:border-b-0">
+    <Collapsible
+      defaultOpen={startsOpen(summary)}
+      className="border-b border-border/50 last:border-b-0"
+    >
       <CollapsibleTrigger className="group flex min-h-15 w-full items-center gap-3 border-border/50 px-3.5 py-2.5 text-left data-[state=open]:border-b">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
           <Icon className="size-4 text-primary" />
@@ -514,8 +547,13 @@ function PhoneDatabaseValues({ database }: { database: AboutResponse["database"]
   return (
     <>
       <PhoneRow label="PostgreSQL" value={<VersionValue version={shortPostgres} />} />
-      {shortPostgres !== database.postgresVersion && <PhoneRowDetail>{database.postgresVersion}</PhoneRowDetail>}
-      <PhoneRow label="TimescaleDB" value={<VersionValue version={database.timescaledbVersion} />} />
+      {shortPostgres !== database.postgresVersion && (
+        <PhoneRowDetail>{database.postgresVersion}</PhoneRowDetail>
+      )}
+      <PhoneRow
+        label="TimescaleDB"
+        value={<VersionValue version={database.timescaledbVersion} />}
+      />
       <PhoneRow label="PostGIS" value={<VersionValue version={database.postgisVersion} />} />
       <PhoneRow
         label="Migration"
@@ -562,10 +600,7 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
           </>
         }
       />
-      <PhoneRow
-        label="Build date"
-        value={buildDateLabel(about.geoip.buildDate)}
-      />
+      <PhoneRow label="Build date" value={buildDateLabel(about.geoip.buildDate)} />
       <PhoneRow label="File" value={<MonoChip>{cityPath.fileName}</MonoChip>} />
       {cityPath.folder && <PhoneRowDetail>in {cityPath.folder}</PhoneRowDetail>}
       <div className="mt-2.5">
@@ -585,7 +620,9 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
         {asnPath ? (
           <>
             <PhoneRow label="File" value={<MonoChip>{asnPath.fileName}</MonoChip>} />
-            {asnPath.folder && asnPath.folder !== cityPath.folder && <PhoneRowDetail>in {asnPath.folder}</PhoneRowDetail>}
+            {asnPath.folder && asnPath.folder !== cityPath.folder && (
+              <PhoneRowDetail>in {asnPath.folder}</PhoneRowDetail>
+            )}
             {about.asnClassification && (
               <>
                 <PhoneRow
@@ -637,8 +674,14 @@ function PhoneAbout({ about }: { about: AboutResponse }) {
       <div className="overflow-hidden rounded-xl bg-glass-card ring-1 ring-border shadow-[var(--shadow-card)] backdrop-blur-[2px]">
         <SummarySection icon={Cpu} title="Runtime" summary={runtimeSummary(about.runtime)}>
           <PhoneRow label="Python" value={<VersionValue version={about.runtime.pythonVersion} />} />
-          <PhoneRow label="Litestar" value={<VersionValue version={about.runtime.litestarVersion} />} />
-          <PhoneRow label="APScheduler" value={<VersionValue version={about.runtime.apschedulerVersion} />} />
+          <PhoneRow
+            label="Litestar"
+            value={<VersionValue version={about.runtime.litestarVersion} />}
+          />
+          <PhoneRow
+            label="APScheduler"
+            value={<VersionValue version={about.runtime.apschedulerVersion} />}
+          />
         </SummarySection>
         <SummarySection icon={Database} title="Database" summary={databaseSummary(about.database)}>
           <PhoneDatabaseValues database={about.database} />
@@ -647,7 +690,11 @@ function PhoneAbout({ about }: { about: AboutResponse }) {
           <PhoneGeoipValues about={about} />
         </SummarySection>
         {about.dropLists && (
-          <SummarySection icon={OctagonX} title="DROP lists" summary={dropListsSummary(about.dropLists)}>
+          <SummarySection
+            icon={OctagonX}
+            title="DROP lists"
+            summary={dropListsSummary(about.dropLists)}
+          >
             <PhoneDropListsValues dropLists={about.dropLists} />
           </SummarySection>
         )}
@@ -779,10 +826,7 @@ export function AboutPage() {
                   {geoip.label}
                 </span>
               </div>
-              <Row
-                label="Build date"
-                value={buildDateLabel(data.geoip.buildDate)}
-              />
+              <Row label="Build date" value={buildDateLabel(data.geoip.buildDate)} />
               <Row
                 label="Age"
                 value={
@@ -809,10 +853,7 @@ export function AboutPage() {
               </div>
               {asn && data.geoipAsn ? (
                 <>
-                  <Row
-                    label="Build date"
-                    value={buildDateLabel(data.geoipAsn.buildDate)}
-                  />
+                  <Row label="Build date" value={buildDateLabel(data.geoipAsn.buildDate)} />
                   <Row
                     label="Age"
                     value={
@@ -834,7 +875,8 @@ export function AboutPage() {
                             className="inline-flex items-center gap-1 hover:underline underline-offset-2"
                           >
                             <MonoChip>
-                              {data.asnClassification.dataset} · {data.asnClassification.entries} ASNs · {data.asnClassification.license}
+                              {data.asnClassification.dataset} · {data.asnClassification.entries}{" "}
+                              ASNs · {data.asnClassification.license}
                             </MonoChip>
                             <ExternalLink className="h-3 w-3 text-muted-foreground" />
                           </a>
@@ -842,9 +884,8 @@ export function AboutPage() {
                       />
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                         <p className="max-w-[32ch] text-xs text-muted-foreground">
-                          Community list of hosting, VPN, and datacenter
-                          operators; matching networks are badged Hosting,
-                          the rest show as Other.
+                          Community list of hosting, VPN, and datacenter operators; matching
+                          networks are badged Hosting, the rest show as Other.
                         </p>
                         <AsnListDialog />
                       </div>

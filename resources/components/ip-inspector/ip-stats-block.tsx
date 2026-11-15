@@ -51,7 +51,10 @@ export function IpStatsBlock({
   const peak = profile.peak
   // API timestamps carry a +00:00 offset; bucketFloor returns "...Z". Same
   // string form on both sides or the ReferenceLine never matches a bar.
-  const series = profile.series.map((b) => ({ ...b, timestamp: new Date(b.timestamp).toISOString() }))
+  const series = profile.series.map((b) => ({
+    ...b,
+    timestamp: new Date(b.timestamp).toISOString(),
+  }))
   // Chart-level click so the whole column is a target, not only the bar's
   // painted height; activeLabel is the hovered column's x value.
   const zoomToBucket = (state: unknown) => {
@@ -83,7 +86,12 @@ export function IpStatsBlock({
         {STATUS_SEGMENTS.map((s) => {
           const share = (profile[s.key] / total) * 100
           return share > 0 ? (
-            <div key={s.key} className={s.className} style={{ width: `${share}%` }} title={`${s.label}: ${formatNumber(profile[s.key])}`} />
+            <div
+              key={s.key}
+              className={s.className}
+              style={{ width: `${share}%` }}
+              title={`${s.label}: ${formatNumber(profile[s.key])}`}
+            />
           ) : null
         })}
       </div>
@@ -111,43 +119,55 @@ export function IpStatsBlock({
               <TimeSeriesTooltip
                 granularity={profile.granularity}
                 formatter={(value, _name, item) => {
-                  const bucket = item.payload as { errorHits?: number; timestamp?: string } | undefined
+                  const bucket = item.payload as
+                    | { errorHits?: number; timestamp?: string }
+                    | undefined
                   const errors = Number(bucket?.errorHits ?? 0)
-                  const afterBan = banCreatedAt !== null && (bucket?.timestamp ?? "") >= banCreatedAt
+                  const afterBan =
+                    banCreatedAt !== null && (bucket?.timestamp ?? "") >= banCreatedAt
                   return (
                     <span className="flex w-full flex-col gap-0.5">
-                      {afterBan && <span className="font-medium text-destructive">After the ban</span>}
+                      {afterBan && (
+                        <span className="font-medium text-destructive">After the ban</span>
+                      )}
                       <span className="flex justify-between gap-3">
                         <span className="text-muted-foreground">Requests</span>
-                        <span className="font-mono tabular-nums">{formatNumber(Number(value))}</span>
+                        <span className="font-mono tabular-nums">
+                          {formatNumber(Number(value))}
+                        </span>
                       </span>
                       <span className="flex justify-between gap-3">
                         <span className="text-muted-foreground">4xx and 5xx</span>
                         <span className="font-mono tabular-nums">{formatNumber(errors)}</span>
                       </span>
-                      <span className="text-[10px] text-muted-foreground">Click to zoom the time range to this bucket</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Click to zoom the time range to this bucket
+                      </span>
                     </span>
                   )
                 }}
               />
             }
           />
-          <Bar
-            dataKey="hits"
-            fill="var(--color-hits)"
-            radius={1}
-            isAnimationActive={false}
-          >
+          <Bar dataKey="hits" fill="var(--color-hits)" radius={1} isAnimationActive={false}>
             {series.map((b) => (
               <Cell
                 key={b.timestamp}
-                fill={banCreatedAt !== null && b.timestamp >= banCreatedAt ? "var(--destructive)" : "var(--color-hits)"}
+                fill={
+                  banCreatedAt !== null && b.timestamp >= banCreatedAt
+                    ? "var(--destructive)"
+                    : "var(--color-hits)"
+                }
               />
             ))}
           </Bar>
           {/* Background halo first so the red line reads on top of a teal or red bar. */}
-          {banCreatedAt && <ReferenceLine x={banCreatedAt} stroke="var(--background)" strokeWidth={5} />}
-          {banCreatedAt && <ReferenceLine x={banCreatedAt} stroke="var(--destructive)" strokeWidth={2} />}
+          {banCreatedAt && (
+            <ReferenceLine x={banCreatedAt} stroke="var(--background)" strokeWidth={5} />
+          )}
+          {banCreatedAt && (
+            <ReferenceLine x={banCreatedAt} stroke="var(--destructive)" strokeWidth={2} />
+          )}
         </BarChart>
       </ChartContainer>
 

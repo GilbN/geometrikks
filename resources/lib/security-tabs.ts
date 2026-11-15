@@ -39,7 +39,8 @@ export function securityNavStatus(
   reportingEnabled: boolean | undefined,
   reportingFailed: boolean,
 ): { status: { enabled: boolean } | undefined; isError: boolean } {
-  if (crowdsecEnabled === true || reportingEnabled === true) return { status: { enabled: true }, isError: false }
+  if (crowdsecEnabled === true || reportingEnabled === true)
+    return { status: { enabled: true }, isError: false }
   const crowdsecSettled = crowdsecEnabled !== undefined || crowdsecFailed
   const reportingSettled = reportingEnabled !== undefined || reportingFailed
   if (!crowdsecSettled || !reportingSettled) return { status: undefined, isError: false }

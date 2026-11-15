@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import type { MyIpExclusion } from "@/lib/my-ip-exclusion"
 import { cn } from "@/lib/utils"
 
-const EXCLUDED_BUTTON = "border-destructive/50 text-destructive hover:text-destructive dark:border-destructive/50"
+const EXCLUDED_BUTTON =
+  "border-destructive/50 text-destructive hover:text-destructive dark:border-destructive/50"
 
 export const UNTRUSTED_PROXY_HINT = "Needs APP_TRUSTED_PROXIES"
 
@@ -24,7 +25,10 @@ export function ExcludeMyIpButton({ exclusion }: { exclusion: MyIpExclusion }) {
     >
       <UserX />
       {exclusion.excluded && (
-        <span aria-hidden className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-destructive" />
+        <span
+          aria-hidden
+          className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-destructive"
+        />
       )}
     </Button>
   )
@@ -34,7 +38,9 @@ export function ExcludeMyIpField({ exclusion }: { exclusion: MyIpExclusion }) {
   if (exclusion.behindUntrustedProxy) {
     return (
       <FilterField label="Exclude your IP" group>
-        <span className="flex h-8 items-center text-xs text-muted-foreground">{UNTRUSTED_PROXY_HINT}</span>
+        <span className="flex h-8 items-center text-xs text-muted-foreground">
+          {UNTRUSTED_PROXY_HINT}
+        </span>
       </FilterField>
     )
   }

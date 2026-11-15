@@ -127,7 +127,7 @@ api.interceptors.response.use(
       window.location.href = "/login"
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 // ============================================================================
@@ -478,13 +478,15 @@ export async function banDropNetworks(body: BanNetworksRequest): Promise<BanNetw
 }
 
 /** IPs under a current CrowdSec decision, seen in the selected traffic window, grouped as GeoJSON. */
-export async function fetchCrowdsecBannedLocations(params: {
-  fromTimestamp?: string
-  toTimestamp?: string
-  countryCodes?: string[]
-  cities?: string[]
-  servers?: string[]
-} = {}): Promise<BannedMapCollection> {
+export async function fetchCrowdsecBannedLocations(
+  params: {
+    fromTimestamp?: string
+    toTimestamp?: string
+    countryCodes?: string[]
+    cities?: string[]
+    servers?: string[]
+  } = {},
+): Promise<BannedMapCollection> {
   const { data } = await api.get<BannedMapCollection>("/crowdsec/banned-locations", {
     params: {
       fromTimestamp: params.fromTimestamp,
@@ -530,7 +532,10 @@ export async function fetchCrowdsecAlerts(params?: {
 
 /** Scenarios among the newest 500 alerts in the window, most frequent
  *  first; requires writeEnabled. */
-export async function fetchCrowdsecAlertScenarios(params: { since: string; kind?: string }): Promise<ScenarioCount[]> {
+export async function fetchCrowdsecAlertScenarios(params: {
+  since: string
+  kind?: string
+}): Promise<ScenarioCount[]> {
   const { data } = await api.get<ScenarioCount[]>("/crowdsec/alerts/scenarios", {
     params: { since: params.since, kind: params.kind || undefined },
   })
@@ -544,8 +549,13 @@ export async function fetchCrowdsecAlert(id: number): Promise<AlertDetailView> {
 }
 
 /** The alert that produced one decision. Blocklist decisions answer 404. */
-export async function fetchCrowdsecDecisionAlert(decisionId: number, ip: string): Promise<AlertDetailView> {
-  const { data } = await api.get<AlertDetailView>(`/crowdsec/decisions/${decisionId}/alert`, { params: { ip } })
+export async function fetchCrowdsecDecisionAlert(
+  decisionId: number,
+  ip: string,
+): Promise<AlertDetailView> {
+  const { data } = await api.get<AlertDetailView>(`/crowdsec/decisions/${decisionId}/alert`, {
+    params: { ip },
+  })
   return data
 }
 
@@ -615,7 +625,6 @@ export interface TimeSeriesParams {
 }
 
 export type ChartGranularity = "auto" | "hourly" | "daily"
-
 
 export interface GeoJSONParams {
   fromTimestamp: string // Full ISO timestamp
@@ -725,7 +734,9 @@ export async function fetchGlobalTopIPs(params: TopIPsParams): Promise<GlobalTop
 /**
  * Fetch top IPs for a specific location.
  */
-export async function fetchLocationTopIPs(params: LocationTopIPsParams): Promise<LocationTopIPsResponse> {
+export async function fetchLocationTopIPs(
+  params: LocationTopIPsParams,
+): Promise<LocationTopIPsResponse> {
   const { data } = await api.get<LocationTopIPsResponse>(
     `/geo-locations/${params.locationId}/top-ips`,
     {
@@ -734,7 +745,7 @@ export async function fetchLocationTopIPs(params: LocationTopIPsParams): Promise
         toTimestamp: params.toTimestamp,
         limit: params.limit ?? 5,
       },
-    }
+    },
   )
   return data
 }
@@ -810,7 +821,9 @@ export async function fetchGeoTimeSeries(params: TimeSeriesParams) {
   return data
 }
 
-export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+export async function fetchTopUrls(
+  params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+) {
   const { data } = await apiV1AnalyticsTopUrlsGetTopUrls({
     query: {
       startDate: params.startDate,
@@ -823,7 +836,9 @@ export async function fetchTopUrls(params: TimeSeriesParams & { limit?: number }
   return data
 }
 
-export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+export async function fetchTopUserAgents(
+  params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+) {
   const { data } = await apiV1AnalyticsTopUserAgentsGetTopUserAgents({
     query: {
       startDate: params.startDate,
@@ -836,7 +851,9 @@ export async function fetchTopUserAgents(params: TimeSeriesParams & { limit?: nu
   return data
 }
 
-export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+export async function fetchTopAsns(
+  params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+) {
   const { data } = await apiV1AnalyticsTopAsnsGetTopAsns({
     query: {
       startDate: params.startDate,
@@ -849,7 +866,9 @@ export async function fetchTopAsns(params: TimeSeriesParams & { limit?: number }
   return data
 }
 
-export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+export async function fetchTopIpStats(
+  params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+) {
   const { data } = await apiV1AnalyticsTopIpsGetTopIps({
     query: {
       startDate: params.startDate,
@@ -862,7 +881,9 @@ export async function fetchTopIpStats(params: TimeSeriesParams & { limit?: numbe
   return data
 }
 
-export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+export async function fetchTopCountryStats(
+  params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+) {
   const { data } = await apiV1AnalyticsTopCountriesGetTopCountries({
     query: {
       startDate: params.startDate,
@@ -875,7 +896,9 @@ export async function fetchTopCountryStats(params: TimeSeriesParams & { limit?: 
   return data
 }
 
-export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams) {
+export async function fetchTopCityStats(
+  params: TimeSeriesParams & { limit?: number } & AnalyticsFilterParams,
+) {
   const { data } = await apiV1AnalyticsTopCitiesGetTopCities({
     query: {
       startDate: params.startDate,
@@ -890,7 +913,12 @@ export async function fetchTopCityStats(params: TimeSeriesParams & { limit?: num
 
 export async function fetchIpProfile(params: TimeSeriesParams & { ip: string }) {
   const { data } = await apiV1AnalyticsIpProfileGetIpProfile({
-    query: { startDate: params.startDate, endDate: params.endDate, ipAddress: params.ip, tz: BROWSER_TZ },
+    query: {
+      startDate: params.startDate,
+      endDate: params.endDate,
+      ipAddress: params.ip,
+      tz: BROWSER_TZ,
+    },
     throwOnError: true,
   })
   return data
@@ -941,7 +969,10 @@ export async function fetchReportedIps() {
 }
 
 export async function fetchAbuseIpdbReports(ipAddress: string) {
-  const { data } = await apiV1AbuseipdbReportsListReports({ query: { ipAddress }, throwOnError: true })
+  const { data } = await apiV1AbuseipdbReportsListReports({
+    query: { ipAddress },
+    throwOnError: true,
+  })
   return data
 }
 
@@ -952,7 +983,10 @@ export async function fetchAbuseIpdbReportHistory(params: {
   currentPage: number
   pageSize: number
 }) {
-  const { data } = await apiV1AbuseipdbReportsHistoryListReportHistory({ query: params, throwOnError: true })
+  const { data } = await apiV1AbuseipdbReportsHistoryListReportHistory({
+    query: params,
+    throwOnError: true,
+  })
   return data
 }
 
@@ -962,20 +996,28 @@ export async function fetchAbuseIpdbCheck(ipAddress: string) {
 }
 
 export async function submitAbuseIpdbReport(report: ReportItemInput) {
-  const { data } = await apiV1AbuseipdbReportsCreateReports({ body: { reports: [report] }, throwOnError: true })
+  const { data } = await apiV1AbuseipdbReportsCreateReports({
+    body: { reports: [report] },
+    throwOnError: true,
+  })
   return data
 }
 
 /**
  * Fetch cumulative time series data.
  */
-export async function fetchCumulativeTimeSeries(params: TimeSeriesParams): Promise<CumulativeTimeSeriesResponse> {
-  const { data } = await api.get<CumulativeTimeSeriesResponse>("/analytics/time-series/cumulative", {
-    params: {
-      startDate: params.startDate,
-      endDate: params.endDate,
+export async function fetchCumulativeTimeSeries(
+  params: TimeSeriesParams,
+): Promise<CumulativeTimeSeriesResponse> {
+  const { data } = await api.get<CumulativeTimeSeriesResponse>(
+    "/analytics/time-series/cumulative",
+    {
+      params: {
+        startDate: params.startDate,
+        endDate: params.endDate,
+      },
     },
-  })
+  )
   return data
 }
 
@@ -1046,12 +1088,13 @@ const GEO_LOG_SORT_FIELD_TO_COLUMN: Record<GeoLogSortField, string> = {
 }
 
 export async function fetchGeoLogs(
-  params: GeoLogsWindowParams & GeoLogFilterParams & {
-    currentPage?: number
-    pageSize?: number
-    sortField?: GeoLogSortField
-    sortOrder?: GeoLogSortOrder
-  },
+  params: GeoLogsWindowParams &
+    GeoLogFilterParams & {
+      currentPage?: number
+      pageSize?: number
+      sortField?: GeoLogSortField
+      sortOrder?: GeoLogSortOrder
+    },
 ) {
   const { data } = await apiV1GeoEventsLogsGetGeoLogs({
     query: {
@@ -1172,7 +1215,10 @@ export async function fetchServerLocations(): Promise<ServerLocationsResponse> {
 }
 
 export async function deleteServerLocation(server: string): Promise<void> {
-  await apiV1GeoLocationsServerLocationsDeleteServerLocation({ path: { server }, throwOnError: true })
+  await apiV1GeoLocationsServerLocationsDeleteServerLocation({
+    path: { server },
+    throwOnError: true,
+  })
 }
 
 /** Every instance writing heartbeats to this database, the head included,
@@ -1226,8 +1272,14 @@ export interface AccessLogsPage {
 
 /** Columns the history table can sort by (must match the backend allowlist). */
 export type AccessLogSortField =
-  | "timestamp" | "statusCode" | "bytesSent" | "requestTime"
-  | "method" | "ipAddress" | "host" | "url"
+  | "timestamp"
+  | "statusCode"
+  | "bytesSent"
+  | "requestTime"
+  | "method"
+  | "ipAddress"
+  | "host"
+  | "url"
 export type SortOrder = "asc" | "desc"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */
@@ -1300,7 +1352,7 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       countryCodeIn: params.countryCodeIn?.length ? params.countryCodeIn : undefined,
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
       orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
-      sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
+      sortOrder: params.sortField ? (params.sortOrder ?? "desc") : undefined,
     },
   })
   return data
@@ -1373,8 +1425,16 @@ export interface AccessLogDebugPage {
 
 /** Columns the debug table can sort by (must match the backend allowlist). */
 export type AccessLogDebugSortField =
-  | "createdAt" | "isMalformed" | "parseError" | "logFormat"
-  | "timestamp" | "statusCode" | "ipAddress" | "host" | "countryCode" | "city"
+  | "createdAt"
+  | "isMalformed"
+  | "parseError"
+  | "logFormat"
+  | "timestamp"
+  | "statusCode"
+  | "ipAddress"
+  | "host"
+  | "countryCode"
+  | "city"
 
 /** camelCase sort key -> backend snake_case column name for `orderBy`. */
 const DEBUG_SORT_FIELD_TO_COLUMN: Record<AccessLogDebugSortField, string> = {
@@ -1424,7 +1484,7 @@ export async function fetchAccessLogDebug(
       cityIn: params.cityIn?.length ? params.cityIn : undefined,
       malformed: params.malformed,
       orderBy: params.sortField ? DEBUG_SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
-      sortOrder: params.sortField ? params.sortOrder ?? "desc" : undefined,
+      sortOrder: params.sortField ? (params.sortOrder ?? "desc") : undefined,
     },
   })
   return data
@@ -1533,11 +1593,28 @@ export function getNowTimestamp(): string {
 // ============================================================================
 
 export type TimeRangeValue =
-  | "5m" | "15m" | "30m" | "1h" | "2h" | "3h" | "6h" | "12h" | "24h"
-  | "7d" | "14d" | "30d" | "90d" | "180d" | "365d"
+  | "5m"
+  | "15m"
+  | "30m"
+  | "1h"
+  | "2h"
+  | "3h"
+  | "6h"
+  | "12h"
+  | "24h"
+  | "7d"
+  | "14d"
+  | "30d"
+  | "90d"
+  | "180d"
+  | "365d"
   // Grafana-style presets
-  | "today" | "this_week" | "this_month"
-  | "yesterday" | "last_week" | "last_month"
+  | "today"
+  | "this_week"
+  | "this_month"
+  | "yesterday"
+  | "last_week"
+  | "last_month"
   | "custom"
 
 export interface CustomTimeRange {
@@ -1687,7 +1764,9 @@ export function resolveChartGranularity(
 ): "hourly" | "daily" {
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
-  const hours = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 3_600_000)
+  const hours = Math.round(
+    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 3_600_000,
+  )
   return hours >= 7 * 24 - 1 ? "daily" : "hourly"
 }
 

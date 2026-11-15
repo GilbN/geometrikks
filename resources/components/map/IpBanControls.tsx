@@ -135,18 +135,26 @@ export function IpBanControls({
               <>
                 <DropdownMenuLabel>Ban {ip}</DropdownMenuLabel>
                 {BAN_DURATIONS.map((d) => (
-                  <DropdownMenuItem key={d.value} disabled={isPending} onClick={() => ban(ip, d.value, d.label)}>
+                  <DropdownMenuItem
+                    key={d.value}
+                    disabled={isPending}
+                    onClick={() => ban(ip, d.value, d.label)}
+                  >
                     {d.label}
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setDialogOpen(true)}>More options…</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setDialogOpen(true)}>
+                  More options…
+                </DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      {status?.writeEnabled && <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />}
+      {status?.writeEnabled && (
+        <BanIpDialog open={dialogOpen} onOpenChange={setDialogOpen} initialIp={ip} />
+      )}
     </Wrapper>
   )
 }

@@ -1,11 +1,25 @@
 import { describe, expect, it, vi } from "vite-plus/test"
 import { GeoJSONVT, type Supercluster } from "@maplibre/geojson-vt"
 import type { Feature, Point } from "geojson"
-import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom, type ClusterSource } from "./map-clusters"
+import {
+  clusterIndex,
+  nearestFirst,
+  predictUnclusteredZoom,
+  unclusteredZoom,
+  type ClusterSource,
+} from "./map-clusters"
 
-const point = (id: number): Feature => ({ type: "Feature", geometry: { type: "Point", coordinates: [0, 0] }, properties: { id } })
+const point = (id: number): Feature => ({
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [0, 0] },
+  properties: { id },
+})
 
-interface Node { expansion: number, children: number[], points: number[] }
+interface Node {
+  expansion: number
+  children: number[]
+  points: number[]
+}
 
 // Cluster 1 (points 1-4) splits at zoom 9 into point 1 and cluster 2, which
 // passes through the one-child cluster 3 and splits at zoom 12. Like
@@ -25,13 +39,20 @@ function leaves(id: number): number[] {
 }
 
 function cluster(id: number): Feature {
-  return { type: "Feature", geometry: { type: "Point", coordinates: [0, 0] }, properties: { cluster: true, cluster_id: id, point_count: leaves(id).length } }
+  return {
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [0, 0] },
+    properties: { cluster: true, cluster_id: id, point_count: leaves(id).length },
+  }
 }
 
 function fakeSource() {
   return {
     getClusterExpansionZoom: vi.fn(async (id: number) => tree[id].expansion),
-    getClusterChildren: vi.fn(async (id: number) => [...tree[id].points.map(point), ...tree[id].children.map(cluster)]),
+    getClusterChildren: vi.fn(async (id: number) => [
+      ...tree[id].points.map(point),
+      ...tree[id].children.map(cluster),
+    ]),
     getClusterLeaves: vi.fn(async (id: number) => leaves(id).map(point)),
   } satisfies ClusterSource
 }
@@ -56,7 +77,9 @@ describe("unclusteredZoom", () => {
 
   it("skips a nearer cluster that does not hold the point", async () => {
     const source = fakeSource()
-    expect(await unclusteredZoom(source, [cluster(6), cluster(6), cluster(1)], matching(3), 7, 15)).toBe(14)
+    expect(
+      await unclusteredZoom(source, [cluster(6), cluster(6), cluster(1)], matching(3), 7, 15),
+    ).toBe(14)
     expect(source.getClusterLeaves).toHaveBeenCalledWith(6, 2, 0)
     expect(source.getClusterLeaves.mock.calls.filter(([id]) => id === 6)).toHaveLength(1)
   })
@@ -67,20 +90,26 @@ describe("unclusteredZoom", () => {
   })
 
   it("gives up when no candidate holds the point", async () => {
-    expect(await unclusteredZoom(fakeSource(), [cluster(6), point(1)], matching(42), 7, 15)).toBeUndefined()
+    expect(
+      await unclusteredZoom(fakeSource(), [cluster(6), point(1)], matching(42), 7, 15),
+    ).toBeUndefined()
     expect(await unclusteredZoom(fakeSource(), [], matching(1), 7, 15)).toBeUndefined()
   })
 
   it("rejects when the source retired a cluster id mid-descent", async () => {
     const source = fakeSource()
     source.getClusterChildren.mockRejectedValueOnce(new Error("No cluster with the specified id."))
-    await expect(unclusteredZoom(source, [cluster(1)], matching(2), 7, 15)).rejects.toThrow("No cluster")
+    await expect(unclusteredZoom(source, [cluster(1)], matching(2), 7, 15)).rejects.toThrow(
+      "No cluster",
+    )
   })
 })
 
 describe("nearestFirst", () => {
   const at = (id: number, longitude: number, latitude: number): Feature => ({
-    type: "Feature", geometry: { type: "Point", coordinates: [longitude, latitude] }, properties: { id },
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [longitude, latitude] },
+    properties: { id },
   })
   // At zoom 8 a degree of longitude is 512 * 256 / 360, about 364 pixels.
   const ids = (features: Feature[]) => features.map((feature) => feature.properties?.id)
@@ -108,7 +137,9 @@ describe("nearestFirst", () => {
 
 describe("predictUnclusteredZoom", () => {
   const at = (id: number, longitude: number, latitude: number): Feature<Point> => ({
-    type: "Feature", geometry: { type: "Point", coordinates: [longitude, latitude] }, properties: { id },
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [longitude, latitude] },
+    properties: { id },
   })
   // 0.01 degrees apart at the equator: 0.01 * 512 * 2^z / 360 pixels, which
   // passes the 50 px radius at zoom 12.
@@ -141,7 +172,9 @@ describe("predictUnclusteredZoom", () => {
     // Seeded scatter over a few degrees, so the points break out at many zooms.
     let seed = 7
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-    const points = Array.from({ length: 400 }, (_, i) => at(i, 10 + random() ** 3 * 4, 50 + random() ** 3 * 4))
+    const points = Array.from({ length: 400 }, (_, i) =>
+      at(i, 10 + random() ** 3 * 4, 50 + random() ** 3 * 4),
+    )
     const dense = clusterIndex(points, 50, 14)
     const source: ClusterSource = {
       getClusterExpansionZoom: async (id) => dense.getClusterExpansionZoom(id) ?? 15,
@@ -152,7 +185,13 @@ describe("predictUnclusteredZoom", () => {
     for (const point of points.slice(0, 80)) {
       const center = point.geometry.coordinates as [number, number]
       const candidates = nearestFirst(dense.getClusters([0, 40, 20, 60], 7), center, 7, 200)
-      const descended = await unclusteredZoom(source, candidates, matching(point.properties?.id), 7, 15)
+      const descended = await unclusteredZoom(
+        source,
+        candidates,
+        matching(point.properties?.id),
+        7,
+        15,
+      )
       const predicted = predictUnclusteredZoom(dense, center, matching(point.properties?.id), 7, 15)
       expect(predicted).toBe(descended)
       zooms.add(predicted)
@@ -172,18 +211,36 @@ describe("predictUnclusteredZoom", () => {
     })
     // The options maplibre-gl 6 passes for a clustered source with the
     // default buffer, tolerance and maxzoom.
-    const vt = new GeoJSONVT({ type: "FeatureCollection", features: points }, {
-      buffer: 2048, tolerance: 6, extent: 8192, maxZoom: 18, lineMetrics: false, generateId: false,
-      cluster: true, updateable: true,
-      clusterOptions: { maxZoom: 14, minPoints: 2, extent: 8192, radius: 800, log: false, generateId: false },
-    })
+    const vt = new GeoJSONVT(
+      { type: "FeatureCollection", features: points },
+      {
+        buffer: 2048,
+        tolerance: 6,
+        extent: 8192,
+        maxZoom: 18,
+        lineMetrics: false,
+        generateId: false,
+        cluster: true,
+        updateable: true,
+        clusterOptions: {
+          maxZoom: 14,
+          minPoints: 2,
+          extent: 8192,
+          radius: 800,
+          log: false,
+          generateId: false,
+        },
+      },
+    )
     const worker = (vt as unknown as { tileIndex: Supercluster }).tileIndex
     const local = clusterIndex(points, 50, 14)
     const zooms = new Set<number>()
     for (const point of points) {
       const center = point.geometry.coordinates as [number, number]
       const expected = predictUnclusteredZoom(worker, center, matching(point.properties?.id), 7, 15)
-      expect(predictUnclusteredZoom(local, center, matching(point.properties?.id), 7, 15)).toBe(expected)
+      expect(predictUnclusteredZoom(local, center, matching(point.properties?.id), 7, 15)).toBe(
+        expected,
+      )
       zooms.add(expected)
     }
     expect(zooms.size).toBeGreaterThan(4)

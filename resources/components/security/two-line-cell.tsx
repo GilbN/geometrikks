@@ -13,7 +13,10 @@ export function ExpandChevron({ open }: { open: boolean }) {
   return (
     <ChevronRight
       aria-hidden
-      className={cn("mr-1 inline size-3.5 shrink-0 align-middle text-muted-foreground transition-transform", open && "rotate-90")}
+      className={cn(
+        "mr-1 inline size-3.5 shrink-0 align-middle text-muted-foreground transition-transform",
+        open && "rotate-90",
+      )}
     />
   )
 }
@@ -24,7 +27,8 @@ export const ROW_TARGET_VALUE_CLASS = "min-w-0 whitespace-normal font-mono [over
 
 /** Lets a decision badge wrap inside a phone row, for a bouncer's own
  *  decision type that is longer than the row is wide. */
-export const WRAPPING_BADGE_CLASS = "h-auto min-h-5 max-w-full whitespace-normal [overflow-wrap:anywhere]"
+export const WRAPPING_BADGE_CLASS =
+  "h-auto min-h-5 max-w-full whitespace-normal [overflow-wrap:anywhere]"
 
 /**
  * The first line of a row with a target: expand chevron, flag, value and
@@ -56,7 +60,9 @@ export function RowTarget({
         {value}
         {actions}
       </span>
-      <span className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1">{status}</span>
+      <span className="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1">
+        {status}
+      </span>
     </div>
   )
 }

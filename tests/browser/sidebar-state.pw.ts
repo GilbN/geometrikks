@@ -6,7 +6,9 @@ async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 test("the desktop sidebar keeps its state across a reload", async ({ page }) => {

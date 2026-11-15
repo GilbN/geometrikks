@@ -51,7 +51,11 @@ export function loadNow(href: string): void {
 }
 
 export function useUpdateDetector(): void {
-  const { data: healthResponse, dataUpdatedAt, errorUpdatedAt } = useQuery({
+  const {
+    data: healthResponse,
+    dataUpdatedAt,
+    errorUpdatedAt,
+  } = useQuery({
     queryKey: ["health"],
     queryFn: fetchHealth,
     refetchInterval: 30_000,

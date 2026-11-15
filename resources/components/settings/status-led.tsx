@@ -44,7 +44,13 @@ export function StatusLed({
 }
 
 /** Monospace chip for machine values: env vars, triggers, versions, paths. */
-export function MonoChip({ children, className }: { children: React.ReactNode; className?: string }) {
+export function MonoChip({
+  children,
+  className,
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
   return (
     <code
       className={cn(

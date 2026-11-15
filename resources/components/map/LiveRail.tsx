@@ -42,12 +42,7 @@ export function LiveRail({ onSelect }: { onSelect: (request: LiveRequest) => voi
         />
       </div>
 
-      <LiveFeedList
-        rows={rows}
-        lane={lane}
-        onSelect={onSelect}
-        className="min-h-0 flex-1 px-2"
-      />
+      <LiveFeedList rows={rows} lane={lane} onSelect={onSelect} className="min-h-0 flex-1 px-2" />
 
       {decisions && (
         <div className="border-t px-3 py-1.5 text-[10px] text-red-400">

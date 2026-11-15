@@ -77,11 +77,7 @@ describe("applyFilterUpdate", () => {
   })
 
   it("preserves search keys the codec does not own", () => {
-    const next = applyFilterUpdate(
-      { pageSize: 100 },
-      (f) => ({ ...f, ips: ["1.2.3.4"] }),
-      codec,
-    )
+    const next = applyFilterUpdate({ pageSize: 100 }, (f) => ({ ...f, ips: ["1.2.3.4"] }), codec)
     expect(next.pageSize).toBe(100)
   })
 })

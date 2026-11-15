@@ -12,7 +12,13 @@ interface SortableHeadProps {
   onToggle: () => void
 }
 
-export function SortableHead({ label, active, sortOrder, alignRight = false, onToggle }: SortableHeadProps) {
+export function SortableHead({
+  label,
+  active,
+  sortOrder,
+  alignRight = false,
+  onToggle,
+}: SortableHeadProps) {
   const ariaSort = active ? (sortOrder === "asc" ? "ascending" : "descending") : undefined
   return (
     <TableHead aria-sort={ariaSort} className={cn(alignRight && "text-right")}>

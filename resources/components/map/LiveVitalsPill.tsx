@@ -31,7 +31,13 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
       }
       // A grid, so the column with the unit and sparkline adds nothing to the
       // pill's minimum width. The row cuts the range label only once both are gone.
-      style={disconnected ? undefined : { gridTemplateColumns: `auto auto minmax(0, max-content)${underAttack ? " auto" : ""} auto` }}
+      style={
+        disconnected
+          ? undefined
+          : {
+              gridTemplateColumns: `auto auto minmax(0, max-content)${underAttack ? " auto" : ""} auto`,
+            }
+      }
       className={cn(
         "pointer-events-auto min-h-9 items-center overflow-hidden rounded-full border pl-3 pr-2 pointer-coarse:min-h-11",
         // Margins, not a gap: a collapsed column would still take a gap on each side.
@@ -62,7 +68,10 @@ export function LiveVitalsPill({ onOpenFeed }: { onOpenFeed: () => void }) {
 
           {/* On a narrow row these wrap onto a clipped second line, last one
               first, so the sparkline goes before the unit and the rate stays whole. */}
-          <span data-rate-extras="" className="flex h-3.5 min-w-0 flex-wrap content-start items-center gap-x-2 overflow-hidden">
+          <span
+            data-rate-extras=""
+            className="flex h-3.5 min-w-0 flex-wrap content-start items-center gap-x-2 overflow-hidden"
+          >
             <span className="ml-1 text-[10px] leading-3.5 text-muted-foreground">/min</span>
             {/* Ambient rhythm: the shape says "busy" or "quiet" faster than the
                 number changing does. */}

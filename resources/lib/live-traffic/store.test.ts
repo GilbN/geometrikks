@@ -113,7 +113,10 @@ describe("LiveTrafficStore", () => {
     store.ingest([request({ id: "first", receivedAt: 300_000 })], 0, 300_000)
     store.ingest([request({ id: "second", receivedAt: 300_400 })], 0, 300_400)
     store.ingest(
-      [request({ id: "third-a", receivedAt: 300_600 }), request({ id: "third-b", receivedAt: 300_600 })],
+      [
+        request({ id: "third-a", receivedAt: 300_600 }),
+        request({ id: "third-b", receivedAt: 300_600 }),
+      ],
       0,
       300_600,
     )
@@ -241,7 +244,11 @@ describe("LiveTrafficStore", () => {
   it("reset clears requests and buckets and notifies subscribers", () => {
     const store = new LiveTrafficStore()
     const seen = vi.fn()
-    store.ingest([request({ id: "a", receivedAt: 1000 }), request({ id: "b", receivedAt: 1000 })], 0, 1000)
+    store.ingest(
+      [request({ id: "a", receivedAt: 1000 }), request({ id: "b", receivedAt: 1000 })],
+      0,
+      1000,
+    )
     store.onRequests(seen)
 
     store.reset()

@@ -109,7 +109,9 @@ export function StatusPhone({
                     <span className="sr-only">{SEVERITY[problem.tone]}: </span>
                     <span className="line-clamp-2 text-sm font-medium">{problem.label}</span>
                     {problem.detail && (
-                      <span className="block truncate text-xs text-muted-foreground">{problem.detail}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {problem.detail}
+                      </span>
                     )}
                   </span>
                   <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
@@ -146,7 +148,9 @@ export function StatusPhone({
                 <StatusLed tone={tile.state.tone} className="mt-1.5" />
                 <span className="line-clamp-2 text-sm font-medium">{tile.state.label}</span>
               </span>
-              {tile.sub && <span className="truncate pl-4 text-xs text-muted-foreground">{tile.sub}</span>}
+              {tile.sub && (
+                <span className="truncate pl-4 text-xs text-muted-foreground">{tile.sub}</span>
+              )}
             </button>
           ))}
         </div>
@@ -185,9 +189,15 @@ function ProblemDetail({ problem }: { problem: StatusProblem }) {
         </DrawerDescription>
       </DrawerHeader>
       <div className="flex flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-6">
-        {problem.detail && <p aria-hidden className="text-sm text-muted-foreground">{problem.detail}</p>}
+        {problem.detail && (
+          <p aria-hidden className="text-sm text-muted-foreground">
+            {problem.detail}
+          </p>
+        )}
         {problem.remedy && (
-          <code className="block whitespace-pre-line rounded bg-muted px-2 py-1.5 text-xs">{problem.remedy}</code>
+          <code className="block whitespace-pre-line rounded bg-muted px-2 py-1.5 text-xs">
+            {problem.remedy}
+          </code>
         )}
         {problem.docsUrl && (
           <Button asChild variant="outline">

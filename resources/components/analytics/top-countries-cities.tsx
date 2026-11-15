@@ -23,7 +23,9 @@ export function TopCountriesCities() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top Countries / Cities</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Top Countries / Cities
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="countries">
@@ -47,14 +49,23 @@ export function TopCountriesCities() {
                   <TableBody>
                     {countryItems.map((row) => (
                       <TableRow key={row.countryCode}>
-                        <TableCell><CountryLabel code={row.countryCode} name={row.countryName} /></TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                        <TableCell>
+                          <CountryLabel code={row.countryCode} name={row.countryName} />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.hits)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.uniqueIps)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-                <TablePaginationFooter {...countryPagination} onPageChange={countryPagination.setPage} />
+                <TablePaginationFooter
+                  {...countryPagination}
+                  onPageChange={countryPagination.setPage}
+                />
               </>
             )}
           </TabsContent>
@@ -74,9 +85,15 @@ export function TopCountriesCities() {
                   <TableBody>
                     {cityItems.map((row, index) => (
                       <TableRow key={`${row.city}-${row.countryCode}-${index}`}>
-                        <TableCell><CountryLabel code={row.countryCode}>{row.city}</CountryLabel></TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatNumber(row.uniqueIps)}</TableCell>
+                        <TableCell>
+                          <CountryLabel code={row.countryCode}>{row.city}</CountryLabel>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.hits)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatNumber(row.uniqueIps)}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

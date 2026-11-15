@@ -26,14 +26,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { TABLE_PAGE_SIZE, TablePaginationFooter } from "@/components/analytics/table-pagination"
 import { DecisionBadge } from "@/components/crowdsec/decision-badge"
 import { useFitLayout } from "@/components/data/narrow-layout"
 import { DropCredit } from "@/components/drop/drop-credit"
 import { SblRecordLink } from "@/components/drop/sbl-record-link"
-import type { BanNetworkResult, BanNetworksResponse, DropNetworkTrafficView } from "@/generated/api/types.gen"
+import type {
+  BanNetworkResult,
+  BanNetworksResponse,
+  DropNetworkTrafficView,
+} from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
 import { dropBanReason, dropNetworkBannedText, dropNetworksLoaded } from "@/lib/drop-lists"
@@ -56,7 +67,13 @@ import {
   unbannedNetworkCount,
   type DropNetworkRange,
 } from "@/lib/drop-networks"
-import { useAbout, useBanDropNetworks, useBanIp, useCrowdsecStatus, useDropNetworks } from "@/lib/queries"
+import {
+  useAbout,
+  useBanDropNetworks,
+  useBanIp,
+  useCrowdsecStatus,
+  useDropNetworks,
+} from "@/lib/queries"
 import { DROP_NETWORKS_CARD_ID } from "@/lib/security-tabs"
 import { cn } from "@/lib/utils"
 
@@ -77,7 +94,11 @@ function DropNetworksCardBody() {
   const { data: about } = useAbout()
   const [days, setDays] = useState<DropNetworkRange>(30)
   const [page, setPage] = useState(1)
-  const { data, isError, isPlaceholderData } = useDropNetworks({ days, page, pageSize: TABLE_PAGE_SIZE })
+  const { data, isError, isPlaceholderData } = useDropNetworks({
+    days,
+    page,
+    pageSize: TABLE_PAGE_SIZE,
+  })
   const cardRef = useScrollToCardOnArrival(data !== undefined)
   const bulkBanButtonRef = useRef<HTMLButtonElement>(null)
   const [bulkBanDuration, setBulkBanDuration] = useState<BanDuration | null>(null)
@@ -182,7 +203,8 @@ function DropNetworksCardBody() {
               </TableHeader>
             )}
             <TableBody className={cn(isPlaceholderData && "opacity-60")}>
-              {!data && !isError &&
+              {!data &&
+                !isError &&
                 Array.from({ length: 5 }).map((_, rowIndex) => (
                   <TableRow key={rowIndex}>
                     <TableCell colSpan={narrow ? 1 : 7}>
@@ -199,7 +221,10 @@ function DropNetworksCardBody() {
               )}
               {data && data.items.length === 0 && !isPlaceholderData && (
                 <TableRow>
-                  <TableCell colSpan={narrow ? 1 : 7} className="h-20 text-center text-muted-foreground">
+                  <TableCell
+                    colSpan={narrow ? 1 : 7}
+                    className="h-20 text-center text-muted-foreground"
+                  >
                     No traffic from DROP networks in this range.
                   </TableCell>
                 </TableRow>
@@ -216,8 +241,18 @@ function DropNetworksCardBody() {
             </TableBody>
           </Table>
         </div>
-        <TablePaginationFooter page={page} pageCount={pageCount} total={total} pageSize={TABLE_PAGE_SIZE} onPageChange={setPage} />
-        <DropCredit updatedAt={freshness.updatedAt} stale={freshness.stale} staleNote={DROP_NETWORKS_STALE_NOTE} />
+        <TablePaginationFooter
+          page={page}
+          pageCount={pageCount}
+          total={total}
+          pageSize={TABLE_PAGE_SIZE}
+          onPageChange={setPage}
+        />
+        <DropCredit
+          updatedAt={freshness.updatedAt}
+          stale={freshness.stale}
+          staleNote={DROP_NETWORKS_STALE_NOTE}
+        />
       </CardContent>
     </Card>
   )
@@ -253,7 +288,13 @@ function DropNetworkRow({
   decisionsAvailable: boolean
 }) {
   const asnText = dropNetwork.asn === null ? null : `AS${dropNetwork.asn}`
-  const status = <NetworkStatus dropNetwork={dropNetwork} banControls={banControls} decisionsAvailable={decisionsAvailable} />
+  const status = (
+    <NetworkStatus
+      dropNetwork={dropNetwork}
+      banControls={banControls}
+      decisionsAvailable={decisionsAvailable}
+    />
+  )
   const lastSeen = dropLastSeenText(dropNetwork.lastSeen)
 
   if (narrow) {
@@ -262,11 +303,15 @@ function DropNetworkRow({
       <TableRow>
         <TableCell className="py-2.5">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 font-mono [overflow-wrap:anywhere] whitespace-normal">{dropNetwork.cidr}</span>
+            <span className="min-w-0 font-mono [overflow-wrap:anywhere] whitespace-normal">
+              {dropNetwork.cidr}
+            </span>
             <span className="ml-auto flex shrink-0 items-center">{status}</span>
           </div>
           <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-            <span className="shrink-0 whitespace-nowrap tabular-nums">{dropNetworkPhoneText(dropNetwork)}</span>
+            <span className="shrink-0 whitespace-nowrap tabular-nums">
+              {dropNetworkPhoneText(dropNetwork)}
+            </span>
             <span className="ml-auto min-w-0 truncate tabular-nums" title={hitsText}>
               {hitsText}
             </span>
@@ -337,7 +382,9 @@ function RowBanMenu({ dropNetwork }: { dropNetwork: DropNetworkTrafficView }) {
       .then(
         () => toast.success(dropNetworkBannedText(cidr, duration.label)),
         (error: unknown) =>
-          toast.error(crowdsecErrorMessage(error, `Ban failed for ${cidr}; the LAPI may be unreachable.`)),
+          toast.error(
+            crowdsecErrorMessage(error, `Ban failed for ${cidr}; the LAPI may be unreachable.`),
+          ),
       )
   }
   return (
@@ -381,7 +428,13 @@ function BulkBanMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button ref={ref} variant="outline" size="sm" className={BAN_BUTTON_CLASS} disabled={disabled}>
+        <Button
+          ref={ref}
+          variant="outline"
+          size="sm"
+          className={BAN_BUTTON_CLASS}
+          disabled={disabled}
+        >
           Ban all unbanned for…
           <ChevronDown />
         </Button>
@@ -424,7 +477,9 @@ function BulkBanDialog({
     banNetworks.mutateAsync({ allUnbannedDays: days, duration: duration.value }).then(
       (response) => setOutcome({ response, durationLabel: duration.label }),
       (error: unknown) => {
-        toast.error(crowdsecErrorMessage(error, "The bulk ban failed; the LAPI may be unreachable."))
+        toast.error(
+          crowdsecErrorMessage(error, "The bulk ban failed; the LAPI may be unreachable."),
+        )
         onClose()
       },
     )
@@ -494,11 +549,21 @@ function BulkBanOutcomeView({ outcome, onDone }: { outcome: BulkBanOutcome; onDo
         <AlertDialogTitle>{bulkBanResultTitle(counts)}</AlertDialogTitle>
         <AlertDialogDescription>{bulkBanResultText(counts, durationLabel)}</AlertDialogDescription>
       </AlertDialogHeader>
-      {leftOutText && <p className="text-center text-sm text-amber-600 sm:text-left dark:text-amber-400">{leftOutText}</p>}
+      {leftOutText && (
+        <p className="text-center text-sm text-amber-600 sm:text-left dark:text-amber-400">
+          {leftOutText}
+        </p>
+      )}
       {banResults.length > 0 && (
-        <ul className="max-h-60 overflow-y-auto rounded-md border text-sm" aria-label="Result per network">
+        <ul
+          className="max-h-60 overflow-y-auto rounded-md border text-sm"
+          aria-label="Result per network"
+        >
           {banResults.map((banResult) => (
-            <li key={banResult.network} className="flex flex-wrap items-baseline gap-x-3 border-b px-3 py-1.5 last:border-b-0">
+            <li
+              key={banResult.network}
+              className="flex flex-wrap items-baseline gap-x-3 border-b px-3 py-1.5 last:border-b-0"
+            >
               <span className="font-mono">{banResult.network}</span>
               <BanResultText banResult={banResult} />
             </li>
@@ -514,9 +579,13 @@ function BulkBanOutcomeView({ outcome, onDone }: { outcome: BulkBanOutcome; onDo
 
 function BanResultText({ banResult }: { banResult: BanNetworkResult }) {
   if (!banResult.ok) {
-    return <span className="ml-auto text-right text-destructive">{banResult.error ?? "Failed"}</span>
+    return (
+      <span className="ml-auto text-right text-destructive">{banResult.error ?? "Failed"}</span>
+    )
   }
   return (
-    <span className="ml-auto text-muted-foreground">{banResult.alreadyBanned ? "Already banned" : "Banned"}</span>
+    <span className="ml-auto text-muted-foreground">
+      {banResult.alreadyBanned ? "Already banned" : "Banned"}
+    </span>
   )
 }

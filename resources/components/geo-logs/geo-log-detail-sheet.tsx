@@ -32,10 +32,16 @@ export function GeoLogDetailSheet({
       open={entry !== null}
       onOpenChange={onOpenChange}
       title={entry ? entry.city || entry.countryName || "Location details" : "Location details"}
-      description={entry ? `${formatNumber(entry.eventCount)} events · ${entry.ipAddress}` : undefined}
+      description={
+        entry ? `${formatNumber(entry.eventCount)} events · ${entry.ipAddress}` : undefined
+      }
       footer={
         entry && (
-          <DetailIpActions values={ipValues(entry)} locationId={entry.locationId} onNavigate={() => onOpenChange(false)} />
+          <DetailIpActions
+            values={ipValues(entry)}
+            locationId={entry.locationId}
+            onNavigate={() => onOpenChange(false)}
+          />
         )
       }
     >
@@ -56,14 +62,25 @@ export function GeoLogDetailSheet({
           />
           <DetailField
             label="ASN"
-            value={entry.asn != null ? `AS${entry.asn}${entry.asOrganization ? ` ${entry.asOrganization}` : ""}` : null}
+            value={
+              entry.asn != null
+                ? `AS${entry.asn}${entry.asOrganization ? ` ${entry.asOrganization}` : ""}`
+                : null
+            }
             mono
           />
           <DetailField label="Request count" value={formatNumber(entry.eventCount)} />
-          <DetailField label="Last seen" value={entry.lastSeen ? new Date(entry.lastSeen).toLocaleString() : null} />
+          <DetailField
+            label="Last seen"
+            value={entry.lastSeen ? new Date(entry.lastSeen).toLocaleString() : null}
+          />
           <DetailField label="Latitude" value={entry.latitude.toFixed(4)} mono />
           <DetailField label="Longitude" value={entry.longitude.toFixed(4)} mono />
-          <DetailField label="Servers" value={entry.servers.length ? entry.servers.join(", ") : null} mono />
+          <DetailField
+            label="Servers"
+            value={entry.servers.length ? entry.servers.join(", ") : null}
+            mono
+          />
         </dl>
       )}
     </DetailSheet>

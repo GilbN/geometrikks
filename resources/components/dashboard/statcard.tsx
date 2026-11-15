@@ -14,12 +14,18 @@ import { cn } from "@/lib/utils"
  * The grid for a row of stat cards. Below md the cards sit two to a row and
  * an odd last card takes the whole row; `className` sets the wider columns.
  */
-export function StatGrid({ className, children }: { className?: string; children: React.ReactNode }) {
+export function StatGrid({
+  className,
+  children,
+}: {
+  className?: string
+  children: React.ReactNode
+}) {
   return (
     <div
       className={cn(
         "grid grid-cols-2 gap-3 md:gap-4 max-md:[&>:last-child:nth-child(odd)]:col-span-2",
-        className
+        className,
       )}
     >
       {children}
@@ -29,7 +35,8 @@ export function StatGrid({ className, children }: { className?: string; children
 
 // A two-row subgrid of the StatGrid, so titles and values line up across a
 // row when one title wraps onto more lines than its neighbours.
-const CARD_CLASS = "relative row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid overflow-hidden gap-1.5 py-3 md:gap-2 md:py-4"
+const CARD_CLASS =
+  "relative row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid overflow-hidden gap-1.5 py-3 md:gap-2 md:py-4"
 const HEADER_CLASS = "flex flex-row items-center justify-between px-3 md:px-6"
 const CONTENT_CLASS = "px-3 md:px-6"
 
@@ -133,26 +140,19 @@ export function StatCard({
         <Icon className={cn("h-4 w-4 shrink-0 text-primary", iconClassName)} />
       </CardHeader>
       <CardContent className={CONTENT_CLASS}>
-        <div
-          className={cn(
-            "text-2xl font-semibold tracking-tight tabular-nums",
-            valueClassName
-          )}
-        >
+        <div className={cn("text-2xl font-semibold tracking-tight tabular-nums", valueClassName)}>
           {value}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="text-xs text-muted-foreground">{subtitle}</span>
-          {tone !== null && deltaValue != null && (
-            <DeltaBadge value={deltaValue} tone={tone} />
-          )}
+          {tone !== null && deltaValue != null && <DeltaBadge value={deltaValue} tone={tone} />}
         </div>
         {sparkline && (
           <div
             aria-hidden={!sparklineOpen}
             className={cn(
               "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
-              sparklineOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              sparklineOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
             )}
           >
             <div className="min-h-0 overflow-hidden">
@@ -169,21 +169,12 @@ export function StatCard({
   )
 }
 
-function DeltaBadge({
-  value,
-  tone,
-}: {
-  value: number
-  tone: "accent" | "destructive" | "muted"
-}) {
+function DeltaBadge({ value, tone }: { value: number; tone: "accent" | "destructive" | "muted" }) {
   const direction = deltaDirection(value)
   const DirectionIcon = DIRECTION_ICON[direction]
   return (
     <span
-      className={cn(
-        "flex items-center gap-0.5 text-xs font-medium tabular-nums",
-        TONE_CLASS[tone]
-      )}
+      className={cn("flex items-center gap-0.5 text-xs font-medium tabular-nums", TONE_CLASS[tone])}
     >
       <DirectionIcon className="h-3 w-3" />
       {direction === "flat" ? FLAT_DELTA_LABEL : formatPercent(value)}

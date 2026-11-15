@@ -15,7 +15,15 @@ function openOnKey(event: KeyboardEvent<HTMLElement>) {
   }
 }
 
-function TapHint({ hint, holdsLink, children }: { hint: string; holdsLink: boolean; children: ReactElement }) {
+function TapHint({
+  hint,
+  holdsLink,
+  children,
+}: {
+  hint: string
+  holdsLink: boolean
+  children: ReactElement
+}) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -24,7 +32,8 @@ function TapHint({ hint, holdsLink, children }: { hint: string; holdsLink: boole
     if (!open) return
     const closeOnTapAway = (event: MouseEvent) => {
       const target = event.target as Node
-      if (!triggerRef.current?.contains(target) && !contentRef.current?.contains(target)) setOpen(false)
+      if (!triggerRef.current?.contains(target) && !contentRef.current?.contains(target))
+        setOpen(false)
     }
     // On iOS a tap moves no focus, so Radix misses one on a control that stops its click.
     document.addEventListener("click", closeOnTapAway, true)
@@ -33,7 +42,14 @@ function TapHint({ hint, holdsLink, children }: { hint: string; holdsLink: boole
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger ref={triggerRef} asChild role={holdsLink ? undefined : "button"} tabIndex={0} data-badge-hint="" onKeyDown={openOnKey}>
+      <PopoverTrigger
+        ref={triggerRef}
+        asChild
+        role={holdsLink ? undefined : "button"}
+        tabIndex={0}
+        data-badge-hint=""
+        onKeyDown={openOnKey}
+      >
         {children}
       </PopoverTrigger>
       <PopoverContent
@@ -70,7 +86,12 @@ export function BadgeHint({
   children: ReactElement
 }) {
   const noHover = useMediaQuery(NO_HOVER_QUERY)
-  if (noHover && tappable) return <TapHint hint={hint} holdsLink={holdsLink}>{children}</TapHint>
+  if (noHover && tappable)
+    return (
+      <TapHint hint={hint} holdsLink={holdsLink}>
+        {children}
+      </TapHint>
+    )
   if (hover === "tooltip") {
     return (
       <Tooltip>

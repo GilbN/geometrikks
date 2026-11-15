@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
-import { ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS } from "@/components/access-logs/columns"
+import {
+  ACCESS_LOG_COLUMNS,
+  ACCESS_LOG_RENAMED_COLUMN_KEYS,
+} from "@/components/access-logs/columns"
 import { GEO_LOG_COLUMNS, GEO_LOG_RENAMED_COLUMN_KEYS } from "@/components/geo-logs/columns"
 import {
   loadColumnOverrides,
@@ -49,7 +52,6 @@ describe("resolveVisibleColumns", () => {
 })
 
 describe("load/save", () => {
-
   it("round-trips overrides and removes the key when empty", () => {
     saveColumnOverrides("k", { ip: false })
     expect(loadColumnOverrides("k")).toEqual({ ip: false })
@@ -68,7 +70,6 @@ describe("load/save", () => {
 })
 
 describe("renamed column keys", () => {
-
   it("carries a saved override over to the renamed key", () => {
     store.set("k", JSON.stringify({ hostname: true, ip: false }))
     expect(loadColumnOverrides("k", { hostname: "server" })).toEqual({ server: true, ip: false })
@@ -81,7 +82,10 @@ describe("renamed column keys", () => {
 
   it("keeps a saved key that matches an Object prototype name", () => {
     store.set("k", JSON.stringify({ constructor: true, toString: false }))
-    expect(loadColumnOverrides("k", { hostname: "server" })).toEqual({ constructor: true, toString: false })
+    expect(loadColumnOverrides("k", { hostname: "server" })).toEqual({
+      constructor: true,
+      toString: false,
+    })
   })
 
   it("shows the access-log server column for a saved hostname: true", () => {

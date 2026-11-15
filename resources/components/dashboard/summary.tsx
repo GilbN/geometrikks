@@ -18,7 +18,12 @@ import { ErrorBanner } from "@/components/error-banner"
 
 export function Summary() {
   const { range } = useTimeRange()
-  const { data: summary, isLoading, isError, error } = useSummary({
+  const {
+    data: summary,
+    isLoading,
+    isError,
+    error,
+  } = useSummary({
     comparePrevious: true,
   })
   const [chartsOn] = useCardCharts("overview")

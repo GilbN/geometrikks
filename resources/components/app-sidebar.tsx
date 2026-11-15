@@ -15,19 +15,8 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import {
-  ChevronLeft,
-  Activity,
-  Globe2,
-  AlertCircle,
-  LogOut,
-  PowerOff,
-} from "lucide-react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ChevronLeft, Activity, Globe2, AlertCircle, LogOut, PowerOff } from "lucide-react"
 import { NAV_ITEMS, SETTINGS_ITEM, type NavItem as NavItemData } from "@/lib/phone-nav"
 import { logOut } from "@/lib/log-out"
 import { cn } from "@/lib/utils"
@@ -35,7 +24,13 @@ import { containerRuntimeLabel, displayVersion, publicVersion } from "@/lib/vers
 import { BrandMark } from "@/components/brand/brand-mark"
 import { Wordmark } from "@/components/brand/wordmark"
 import { useServiceStatus } from "@/hooks/use-service-status"
-import { useChangelogUnseen, useMe, useRuntimeSettings, useSecurityNavStatus, useUnseenRelease } from "@/lib/queries"
+import {
+  useChangelogUnseen,
+  useMe,
+  useRuntimeSettings,
+  useSecurityNavStatus,
+  useUnseenRelease,
+} from "@/lib/queries"
 import { SiDocker } from "react-icons/si"
 import { useReloadNotice } from "@/lib/reload-notice"
 import { GlowDot, ReloadNoticeCard, ReloadNoticeCollapsedButton } from "@/components/reload-notice"
@@ -45,18 +40,14 @@ function GeoLogo({ collapsed }: { collapsed: boolean }) {
     <div
       className={cn(
         "flex items-center py-1 transition-all duration-200",
-        collapsed ? "justify-center px-0 gap-0" : "justify-start px-2 gap-3"
+        collapsed ? "justify-center px-0 gap-0" : "justify-start px-2 gap-3",
       )}
     >
-      <BrandMark
-        size={40}
-        className="text-sidebar-foreground"
-        decorative
-      />
+      <BrandMark size={40} className="text-sidebar-foreground" decorative />
       <div
         className={cn(
           "flex flex-col overflow-hidden transition-all duration-200",
-          collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+          collapsed ? "w-0 opacity-0" : "w-auto opacity-100",
         )}
       >
         <Wordmark sub className="text-[25px] text-sidebar-foreground" />
@@ -91,7 +82,9 @@ function NavItem({
                 <span className="font-medium">{item.title}</span>
                 <span className="text-muted-foreground text-xs">{item.description}</span>
               </span>
-              {warning && <span className="text-amber-700 dark:text-amber-400 text-xs">{warning}</span>}
+              {warning && (
+                <span className="text-amber-700 dark:text-amber-400 text-xs">{warning}</span>
+              )}
               {notice && <span className="text-primary text-xs">{notice}</span>}
             </span>
           ),
@@ -104,7 +97,7 @@ function NavItem({
             "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2",
             "before:w-[3px] before:h-5 before:rounded-r-full",
             "before:bg-primary before:shadow-[0_0_8px_var(--primary)]",
-          ]
+          ],
         )}
       >
         <Link to={item.url}>
@@ -114,12 +107,10 @@ function NavItem({
                 "w-4 h-4 transition-colors duration-200",
                 isActive
                   ? "text-primary"
-                  : "text-[color:var(--nav-inactive-icon)] group-hover/nav-item:text-sidebar-foreground"
+                  : "text-[color:var(--nav-inactive-icon)] group-hover/nav-item:text-sidebar-foreground",
               )}
             />
-            {isActive && (
-              <div className="absolute inset-0 blur-sm bg-primary/30 rounded-full" />
-            )}
+            {isActive && <div className="absolute inset-0 blur-sm bg-primary/30 rounded-full" />}
             {warning && (
               <span
                 className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
@@ -138,7 +129,7 @@ function NavItem({
               "transition-colors duration-200",
               isActive
                 ? "text-sidebar-foreground font-medium"
-                : "text-[color:var(--nav-inactive-text)] group-hover/nav-item:text-sidebar-foreground"
+                : "text-[color:var(--nav-inactive-text)] group-hover/nav-item:text-sidebar-foreground",
             )}
           >
             {item.title}
@@ -166,7 +157,12 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
           >
             <div className="relative flex items-center justify-center w-3 h-3">
               {isRunning && (
-                <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
+                <span
+                  className={cn(
+                    "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+                    color,
+                  )}
+                />
               )}
               <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
             </div>
@@ -192,13 +188,16 @@ function LiveIndicator({ collapsed }: { collapsed: boolean }) {
         >
           <div className="relative flex items-center justify-center w-2 h-2">
             {isRunning && (
-              <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-75", color)} />
+              <span
+                className={cn(
+                  "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
+                  color,
+                )}
+              />
             )}
             <span className={cn("relative inline-flex w-2 h-2 rounded-full", color)} />
           </div>
-          <span className="text-xs font-medium text-sidebar-foreground/70">
-            {label}
-          </span>
+          <span className="text-xs font-medium text-sidebar-foreground/70">{label}</span>
           {variant === "running" ? (
             <Activity className="w-3 h-3 text-emerald-400 ml-auto" />
           ) : variant === "disabled" ? (
@@ -241,14 +240,14 @@ function LogoutButton() {
             "flex items-center justify-center w-full py-2",
             collapsed ? "px-0" : "px-3",
             "text-sidebar-foreground/50 hover:text-sidebar-foreground",
-            "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200"
+            "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200",
           )}
         >
           <LogOut className="w-4 h-4 shrink-0" />
           <span
             className={cn(
               "text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100"
+              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100",
             )}
           >
             Log out
@@ -301,19 +300,19 @@ function CollapseToggle() {
             collapsed ? "px-0" : "px-3",
             "text-sidebar-foreground/50 hover:text-sidebar-foreground",
             "hover:bg-sidebar-accent/50 rounded-md transition-all duration-200",
-            "group/collapse"
+            "group/collapse",
           )}
         >
           <ChevronLeft
             className={cn(
               "w-4 h-4 shrink-0 transition-transform duration-300",
-              collapsed && "rotate-180"
+              collapsed && "rotate-180",
             )}
           />
           <span
             className={cn(
               "text-xs font-medium overflow-hidden transition-all duration-200",
-              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100"
+              collapsed ? "ml-0 w-0 opacity-0" : "ml-2 w-auto opacity-100",
             )}
           >
             Collapse
@@ -414,7 +413,7 @@ export function AppSidebar() {
           <SidebarGroupLabel
             className={cn(
               "text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/40",
-              "flex items-center gap-2"
+              "flex items-center gap-2",
             )}
           >
             <Globe2 className="w-3 h-3" />
@@ -427,9 +426,7 @@ export function AppSidebar() {
                   key={item.title}
                   item={item}
                   isActive={
-                    item.url === "/"
-                      ? currentPath === "/"
-                      : currentPath.startsWith(item.url)
+                    item.url === "/" ? currentPath === "/" : currentPath.startsWith(item.url)
                   }
                   warning={
                     item.url === "/security" && crowdsecDown
@@ -445,7 +442,7 @@ export function AppSidebar() {
         <SidebarGroup className="mt-auto">
           <SidebarGroupLabel
             className={cn(
-              "text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/40"
+              "text-[10px] font-semibold tracking-widest uppercase text-sidebar-foreground/40",
             )}
           >
             {!collapsed && "System"}

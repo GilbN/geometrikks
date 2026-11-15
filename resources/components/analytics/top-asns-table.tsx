@@ -16,7 +16,10 @@ import { useTopAsns } from "@/lib/queries"
 import { useAnalyticsFilters } from "@/lib/analytics-filters-context"
 import { asnFilterTarget } from "@/lib/ip-filter-targets"
 import { AsnActionsMenu } from "@/components/ip-actions/asn-actions-menu"
-import { AsnReportButton, useAbuseReportDialog } from "@/components/abuse-report/abuse-report-dialog"
+import {
+  AsnReportButton,
+  useAbuseReportDialog,
+} from "@/components/abuse-report/abuse-report-dialog"
 import { useFitLayout } from "@/components/data/narrow-layout"
 import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { TablePaginationFooter, usePagedRows } from "./table-pagination"
@@ -43,7 +46,11 @@ export function TopAsnsTable() {
   const actions = (asn: number, organization: string | null | undefined) => (
     <span className="inline-flex items-center">
       <AsnReportButton asn={asn} organization={organization} onOpen={report.openFor} />
-      <AsnActionsMenu asn={asn} organization={organization} target={asnFilterTarget(asn, filters, setFilters)} />
+      <AsnActionsMenu
+        asn={asn}
+        organization={organization}
+        target={asnFilterTarget(asn, filters, setFilters)}
+      />
     </span>
   )
   const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(pageItems.map((row) => row.asn).join())
@@ -51,7 +58,9 @@ export function TopAsnsTable() {
   return (
     <Card ref={layoutRef}>
       <CardHeader>
-        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Top ASNs</CardTitle>
+        <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Top ASNs
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {isError && !data ? (
@@ -86,38 +95,59 @@ export function TopAsnsTable() {
                     </TableHead>
                     <TableHead className="text-right">Hits</TableHead>
                     <TableHead className="text-right">Bytes</TableHead>
-                    <TableHead className="w-16"><span className="sr-only">Actions</span></TableHead>
+                    <TableHead className="w-16">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
               )}
               <TableBody>
-                {pageItems.map((row) => narrow ? (
-                  <TableRow key={row.asn}>
-                    <RankedNarrowCell
-                      primary={<span className="line-clamp-2" title={row.organization ?? undefined}>{row.organization ?? "Unknown"}</span>}
-                      value={formatNumber(row.hits)}
-                      trailing={actions(row.asn, row.organization)}
-                      secondary={
-                        <>
-                          <span className="font-mono">AS{row.asn}</span>
-                          <CategoryBadge category={row.category} />
-                          <span>{formatBytes(row.totalBytes)}</span>
-                        </>
-                      }
-                    />
-                  </TableRow>
-                ) : (
-                  <TableRow key={row.asn}>
-                    <TableCell className="max-w-[420px] truncate" title={row.organization ?? undefined}>
-                      {row.organization ?? "Unknown"}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">AS{row.asn}</TableCell>
-                    <TableCell><CategoryBadge category={row.category} /></TableCell>
-                    <TableCell className="text-right tabular-nums">{formatNumber(row.hits)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatBytes(row.totalBytes)}</TableCell>
-                    <TableCell className="py-0 text-right">{actions(row.asn, row.organization)}</TableCell>
-                  </TableRow>
-                ))}
+                {pageItems.map((row) =>
+                  narrow ? (
+                    <TableRow key={row.asn}>
+                      <RankedNarrowCell
+                        primary={
+                          <span className="line-clamp-2" title={row.organization ?? undefined}>
+                            {row.organization ?? "Unknown"}
+                          </span>
+                        }
+                        value={formatNumber(row.hits)}
+                        trailing={actions(row.asn, row.organization)}
+                        secondary={
+                          <>
+                            <span className="font-mono">AS{row.asn}</span>
+                            <CategoryBadge category={row.category} />
+                            <span>{formatBytes(row.totalBytes)}</span>
+                          </>
+                        }
+                      />
+                    </TableRow>
+                  ) : (
+                    <TableRow key={row.asn}>
+                      <TableCell
+                        className="max-w-[420px] truncate"
+                        title={row.organization ?? undefined}
+                      >
+                        {row.organization ?? "Unknown"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        AS{row.asn}
+                      </TableCell>
+                      <TableCell>
+                        <CategoryBadge category={row.category} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(row.hits)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatBytes(row.totalBytes)}
+                      </TableCell>
+                      <TableCell className="py-0 text-right">
+                        {actions(row.asn, row.organization)}
+                      </TableCell>
+                    </TableRow>
+                  ),
+                )}
               </TableBody>
             </Table>
             <TablePaginationFooter {...pagination} onPageChange={pagination.setPage} />

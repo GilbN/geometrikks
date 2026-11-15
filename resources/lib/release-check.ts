@@ -18,7 +18,9 @@ export const RELEASE_CHECK_POLL_MS = HOUR_MS
  * server re-checks every 12 hours and an hourly poll is plenty. False means
  * the check is off and polling stops.
  */
-export function releaseCheckPollMs(status: ReleaseCheckResponse["status"] | undefined): number | false {
+export function releaseCheckPollMs(
+  status: ReleaseCheckResponse["status"] | undefined,
+): number | false {
   if (status === "off") return false
   if (status === "pending") return RELEASE_CHECK_PENDING_POLL_MS
   return RELEASE_CHECK_POLL_MS
@@ -43,11 +45,16 @@ export function releaseCheckLine(
       kind: "available",
       text: `${releaseCheck.latest.displayVersion} is available`,
       url: releaseCheck.latest.url,
-      checked: releaseCheck.checkedAt ? `Checked ${checkedAgo(releaseCheck.checkedAt, nowMs)}` : null,
+      checked: releaseCheck.checkedAt
+        ? `Checked ${checkedAgo(releaseCheck.checkedAt, nowMs)}`
+        : null,
     }
   }
   if (!releaseCheck.checkedAt) return null
-  return { kind: "up-to-date", text: `Up to date, checked ${checkedAgo(releaseCheck.checkedAt, nowMs)}` }
+  return {
+    kind: "up-to-date",
+    text: `Up to date, checked ${checkedAgo(releaseCheck.checkedAt, nowMs)}`,
+  }
 }
 
 export function showsReleaseDot({
@@ -63,7 +70,10 @@ export function showsReleaseDot({
 }
 
 /** The releases a jump to the newest one would skip, or null when there are none. */
-export function skippedReleasesText(newerReleaseCount: number, countIsExact: boolean): string | null {
+export function skippedReleasesText(
+  newerReleaseCount: number,
+  countIsExact: boolean,
+): string | null {
   const skipped = newerReleaseCount - 1
   if (skipped < 1) return countIsExact ? null : "There may be more releases in between"
   if (!countIsExact) return `${skipped} or more releases in between`

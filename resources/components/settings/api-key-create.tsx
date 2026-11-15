@@ -7,12 +7,25 @@ import { cn } from "@/lib/utils"
 import { useNarrowLayout } from "@/components/data/narrow-layout"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
   EXPIRY_CHOICES,
@@ -50,9 +63,18 @@ function startOfToday(): Date {
   return new Date(today.getFullYear(), today.getMonth(), today.getDate())
 }
 
-function ExpiryHint({ choice, pickedDate }: { choice: ExpiryChoice; pickedDate: Date | undefined }) {
+function ExpiryHint({
+  choice,
+  pickedDate,
+}: {
+  choice: ExpiryChoice
+  pickedDate: Date | undefined
+}) {
   if (choice === "never") return <>Never, 30 days, 90 days, 1 year, or a date you pick.</>
-  if (choice === "date") return <>{pickedDate ? "It stops working at the end of that day." : "Pick the last day it works."}</>
+  if (choice === "date")
+    return (
+      <>{pickedDate ? "It stops working at the end of that day." : "Pick the last day it works."}</>
+    )
   return <>Stops working on {formatKeyDate(expiresAtFor(choice, undefined, new Date()) ?? "")}.</>
 }
 
@@ -87,7 +109,8 @@ export function ApiKeyCreateForm({
     event.preventDefault()
     if (pending) return
     const nextNameError = apiKeyNameError(name)
-    const nextDateError = expiryChoice === "date" && !pickedDate ? "Pick a date, or choose another expiry." : null
+    const nextDateError =
+      expiryChoice === "date" && !pickedDate ? "Pick a date, or choose another expiry." : null
     setNameError(nextNameError)
     setDateError(nextDateError)
     setServerError(null)
@@ -103,7 +126,8 @@ export function ApiKeyCreateForm({
           createApiKeyMutation.reset()
           onCreated(created)
         },
-        onError: (error) => setServerError(apiErrorMessage(error, "Could not create the key. Try again.")),
+        onError: (error) =>
+          setServerError(apiErrorMessage(error, "Could not create the key. Try again.")),
       },
     )
   }
@@ -126,7 +150,11 @@ export function ApiKeyCreateForm({
             if (nameError) setNameError(apiKeyNameError(event.target.value))
           }}
         />
-        {nameError && <FieldError id={`${fieldId}-name-error`} className="text-xs">{nameError}</FieldError>}
+        {nameError && (
+          <FieldError id={`${fieldId}-name-error`} className="text-xs">
+            {nameError}
+          </FieldError>
+        )}
       </div>
 
       <div className="space-y-1.5">
@@ -138,9 +166,17 @@ export function ApiKeyCreateForm({
           className="gap-1.5"
         >
           {SCOPE_CHOICES.map((scopeChoice) => (
-            <FieldLabel key={scopeChoice.value} htmlFor={`${fieldId}-${scopeChoice.value}`} className="w-full">
+            <FieldLabel
+              key={scopeChoice.value}
+              htmlFor={`${fieldId}-${scopeChoice.value}`}
+              className="w-full"
+            >
               <Field orientation="horizontal" className="items-start gap-2.5 px-3! py-2.5!">
-                <RadioGroupItem value={scopeChoice.value} id={`${fieldId}-${scopeChoice.value}`} className="mt-0.5" />
+                <RadioGroupItem
+                  value={scopeChoice.value}
+                  id={`${fieldId}-${scopeChoice.value}`}
+                  className="mt-0.5"
+                />
                 <FieldContent className="gap-0.5">
                   <FieldTitle className="text-[13px]">{scopeChoice.title}</FieldTitle>
                   <FieldDescription className="text-xs">
@@ -182,7 +218,10 @@ export function ApiKeyCreateForm({
                 <Button
                   type="button"
                   variant="outline"
-                  className={cn("min-w-36 flex-1 justify-start font-normal", !pickedDate && "text-muted-foreground")}
+                  className={cn(
+                    "min-w-36 flex-1 justify-start font-normal",
+                    !pickedDate && "text-muted-foreground",
+                  )}
                   aria-invalid={dateError ? true : undefined}
                   aria-describedby={dateError ? `${fieldId}-date-error` : undefined}
                 >
@@ -207,7 +246,9 @@ export function ApiKeyCreateForm({
           )}
         </div>
         {dateError ? (
-          <FieldError id={`${fieldId}-date-error`} className="text-xs">{dateError}</FieldError>
+          <FieldError id={`${fieldId}-date-error`} className="text-xs">
+            {dateError}
+          </FieldError>
         ) : (
           <p className="text-xs text-muted-foreground">
             <ExpiryHint choice={expiryChoice} pickedDate={pickedDate} />
@@ -223,7 +264,12 @@ export function ApiKeyCreateForm({
             Cancel
           </Button>
         )}
-        <Button type="submit" size={compact ? "lg" : "default"} className={cn(compact && "w-full")} disabled={pending}>
+        <Button
+          type="submit"
+          size={compact ? "lg" : "default"}
+          className={cn(compact && "w-full")}
+          disabled={pending}
+        >
           {pending ? "Creating" : "Create"}
         </Button>
       </div>
@@ -309,13 +355,22 @@ export function ApiKeyReveal({
             onFocus={(event) => event.currentTarget.select()}
             className="min-h-0 resize-none border-primary/40 bg-primary/[0.07] font-mono text-[12.5px] leading-relaxed break-all dark:bg-primary/[0.07]"
           />
-          <Button type="button" variant="outline" size={compact ? "lg" : "default"} className="w-full" onClick={selectKey}>
+          <Button
+            type="button"
+            variant="outline"
+            size={compact ? "lg" : "default"}
+            className="w-full"
+            onClick={selectKey}
+          >
             Select the key, then copy it
           </Button>
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/[0.07] px-3 py-2.5">
-          <code aria-label="API key" className="min-w-0 flex-1 font-mono text-[12.5px] leading-relaxed break-all select-all">
+          <code
+            aria-label="API key"
+            className="min-w-0 flex-1 font-mono text-[12.5px] leading-relaxed break-all select-all"
+          >
             {created.key}
           </code>
           {!compact && (
@@ -340,7 +395,13 @@ export function ApiKeyReveal({
 
       <div className={cn("flex gap-2 pt-1", compact ? "flex-col" : "justify-end")}>
         {compact && !manualCopy && (
-          <Button ref={copyButtonRef} type="button" size="lg" className="w-full" onClick={() => void copyKey()}>
+          <Button
+            ref={copyButtonRef}
+            type="button"
+            size="lg"
+            className="w-full"
+            onClick={() => void copyKey()}
+          >
             {copyIcon}
             {copied ? "Copied" : "Copy key"}
           </Button>

@@ -1,24 +1,18 @@
 import { expect, test } from "@playwright/test"
 
 for (const width of [1280, 390]) {
-  test(`frame rate menu persists and removes its counter at ${width}px`, async ({
-    page,
-  }) => {
+  test(`frame rate menu persists and removes its counter at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 })
-    const password =
-      process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
+    const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
     if (!password) throw new Error("Administrator credentials are required")
     const response = await page.request.post("/api/v1/auth/login", {
       data: {
-        username:
-          process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin",
+        username: process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin",
         password,
       },
     })
     expect(response.ok()).toBe(true)
-    await page.addInitScript(() =>
-      localStorage.setItem("geometrikks-map-live", "false"),
-    )
+    await page.addInitScript(() => localStorage.setItem("geometrikks-map-live", "false"))
     await page.goto("/map")
     const monitor = page.getByTestId("map-frame-rate")
     const toolsMenu = page.getByRole("button", {
@@ -27,9 +21,7 @@ for (const width of [1280, 390]) {
     })
     const openMenu = async () => {
       if (width < 768 && !(await page.locator('[data-slot="drawer-content"]').isVisible())) {
-        await page
-          .getByRole("button", { name: /^Layers and filters/ })
-          .click()
+        await page.getByRole("button", { name: /^Layers and filters/ }).click()
       }
       await toolsMenu.click()
     }
@@ -62,11 +54,14 @@ for (const width of [1280, 390]) {
     let direction = 1
     try {
       await expect
-        .poll(async () => {
-          await page.mouse.move(x + direction * 40, y - 20, { steps: 5 })
-          direction *= -1
-          return Number.parseFloat((await monitor.textContent()) ?? "")
-        }, { intervals: [100], timeout: 10_000 })
+        .poll(
+          async () => {
+            await page.mouse.move(x + direction * 40, y - 20, { steps: 5 })
+            direction *= -1
+            return Number.parseFloat((await monitor.textContent()) ?? "")
+          },
+          { intervals: [100], timeout: 10_000 },
+        )
         .toBeGreaterThan(0)
     } finally {
       await page.mouse.up()

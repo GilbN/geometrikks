@@ -3,13 +3,18 @@ import { emulateSafeAreas, IPHONE_LANDSCAPE_INSETS } from "./safe-areas"
 import { settledToastBox } from "./toasts"
 
 // The scrim test needs the map, and the map needs WebGL.
-test.use({ launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] }, serviceWorkers: "block" })
+test.use({
+  launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+  serviceWorkers: "block",
+})
 
 async function login(page: Page) {
   const password = process.env.SMOKE_ADMIN_PASSWORD ?? process.env.APP_ADMIN_PASSWORD
   if (!password) throw new Error("Administrator credentials are required")
   const username = process.env.SMOKE_ADMIN_USER ?? process.env.APP_ADMIN_USER ?? "admin"
-  expect((await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok()).toBe(true)
+  expect(
+    (await page.request.post("/api/v1/auth/login", { data: { username, password } })).ok(),
+  ).toBe(true)
 }
 
 const tabBar = (page: Page) => page.locator("[data-tab-bar]")
@@ -28,7 +33,10 @@ async function emulateInstalledApp(page: Page) {
   // Chromium accepts a display-mode emulation request and ignores it.
   await page.route(/\/assets\/main-[^/]+\.css/, async (route) => {
     const response = await route.fetch()
-    await route.fulfill({ response, body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0") })
+    await route.fulfill({
+      response,
+      body: (await response.text()).replaceAll("display-mode:standalone", "min-width:0"),
+    })
   })
 }
 
@@ -44,7 +52,8 @@ async function degradeHealth(page: Page) {
 async function expectLogOutConfirmed(page: Page) {
   let logoutRequests = 0
   page.on("request", (request) => {
-    if (request.method() === "POST" && request.url().endsWith("/api/v1/auth/logout")) logoutRequests++
+    if (request.method() === "POST" && request.url().endsWith("/api/v1/auth/logout"))
+      logoutRequests++
   })
   const menu = moreMenu(page)
   const confirm = page.getByRole("alertdialog", { name: "Log out?" })
@@ -75,9 +84,15 @@ test.describe("portrait phone", () => {
     const bar = tabBar(page)
     await expect(bar).toBeVisible()
     await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0)
-    await expect(page.locator("header").first().getByRole("button", { name: "Toggle Sidebar" })).toHaveCount(0)
+    await expect(
+      page.locator("header").first().getByRole("button", { name: "Toggle Sidebar" }),
+    ).toHaveCount(0)
 
-    const title = (await page.locator("header").first().locator('[aria-current="page"]').boundingBox())!
+    const title = (await page
+      .locator("header")
+      .first()
+      .locator('[aria-current="page"]')
+      .boundingBox())!
     expect(title.x).toBe(16)
 
     const box = (await bar.boundingBox())!
@@ -90,12 +105,24 @@ test.describe("portrait phone", () => {
     expect(names.slice(0, 3)).toEqual(["Overview", "Map", "Logs"])
     expect(["Security", "Analytics"]).toContain(names[3])
     await expect(barCells(page).nth(4)).toHaveText("More")
-    expect(await barCells(page).nth(4).evaluate((el) => el.tagName)).toBe("BUTTON")
+    expect(
+      await barCells(page)
+        .nth(4)
+        .evaluate((el) => el.tagName),
+    ).toBe("BUTTON")
 
-    await expect(bar.getByRole("link", { name: "Logs", exact: true })).toHaveAttribute("aria-current", "page")
-    await expect(bar.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current", "page")
+    await expect(bar.getByRole("link", { name: "Logs", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    )
+    await expect(bar.getByRole("link", { name: "Overview" })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    )
 
-    const paddingBottom = await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => getComputedStyle(el).paddingBottom)
+    const paddingBottom = await page
+      .locator('[data-slot="sidebar-inset"] main')
+      .evaluate((el) => getComputedStyle(el).paddingBottom)
     expect(parseFloat(paddingBottom)).toBeCloseTo(852 - box.y + 12, 0)
   })
 
@@ -145,7 +172,10 @@ test.describe("portrait phone", () => {
     // A build without release tags, as in CI, shows "local build" instead of a version.
     await expect(menu.getByText(/^(v\d+\.\d+|local build)/)).toBeVisible()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "true")
-    await expect(tabBar(page).locator("a", { hasText: "Overview" })).toHaveAttribute("aria-current", "page")
+    await expect(tabBar(page).locator("a", { hasText: "Overview" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    )
 
     await menu.getByRole("link", { name: "Geo Logs" }).click()
     await expect(page).toHaveURL(/\/geo-logs$/)
@@ -178,7 +208,11 @@ test.describe("portrait phone", () => {
     await expect(moreMenu(page)).toBeHidden()
     await expect(moreCell(page)).toHaveAttribute("aria-expanded", "false")
     await expect(tabBar(page)).toBeVisible()
-    expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") === null)).toBe(true)
+    expect(
+      await page
+        .locator('[data-slot="sidebar-inset"] main')
+        .evaluate((el) => el.closest("[inert]") === null),
+    ).toBe(true)
 
     await tabBar(page).getByRole("link", { name: "Logs", exact: true }).tap()
     await expect(page).toHaveURL(/\/access-logs$/)
@@ -196,7 +230,9 @@ test.describe("portrait phone", () => {
     expect(toast.width).toBeCloseTo(393 - 40, 0)
   })
 
-  test("sizes an installed app from the large viewport without a document scroll", async ({ page }) => {
+  test("sizes an installed app from the large viewport without a document scroll", async ({
+    page,
+  }) => {
     await login(page)
     await emulateInstalledApp(page)
     await page.goto("/")
@@ -213,31 +249,65 @@ test.describe("portrait phone", () => {
   test("keeps a record sheet's header clear of the status bar", async ({ page }) => {
     await login(page)
     await emulateSafeAreas(page, { top: 47, left: 0, right: 0, bottom: 34 })
-    await page.route((url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs", (route) => route.fulfill({ json: {
-      items: [{
-        id: 1, timestamp: "2026-08-16T12:00:00Z", ipAddress: "203.0.113.7", remoteUser: null,
-        method: "GET", url: "/request/detail", httpVersion: "HTTP/2", statusCode: 200, bytesSent: 100,
-        referrer: null, userAgent: null, requestTime: 10, upstreamResponseTime: null,
-        host: "example.test", server: null, logFormat: null, countryCode: "NO",
-        countryName: "Norway", city: "Oslo", autonomousSystemNumber: null, autonomousSystemOrganization: null,
-      }],
-      total: 1, limit: 20, offset: 0,
-    } }))
+    await page.route(
+      (url) => url.pathname.replace(/\/$/, "") === "/api/v1/access-logs",
+      (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                id: 1,
+                timestamp: "2026-08-16T12:00:00Z",
+                ipAddress: "203.0.113.7",
+                remoteUser: null,
+                method: "GET",
+                url: "/request/detail",
+                httpVersion: "HTTP/2",
+                statusCode: 200,
+                bytesSent: 100,
+                referrer: null,
+                userAgent: null,
+                requestTime: 10,
+                upstreamResponseTime: null,
+                host: "example.test",
+                server: null,
+                logFormat: null,
+                countryCode: "NO",
+                countryName: "Norway",
+                city: "Oslo",
+                autonomousSystemNumber: null,
+                autonomousSystemOrganization: null,
+              },
+            ],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          },
+        }),
+    )
     await page.goto("/access-logs")
     await page.locator("table tr[data-index='0']").getByText("/request/detail").click()
 
     const sheet = page.locator('[data-slot="sheet-content"][data-state="open"]')
     await expect(sheet).toBeVisible()
-    await sheet.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)))
+    await sheet.evaluate((element) =>
+      Promise.all(element.getAnimations().map((animation) => animation.finished)),
+    )
 
     expect((await sheet.boundingBox())!.y).toBe(0)
-    expect((await sheet.locator('[data-slot="sheet-title"]').boundingBox())!.y).toBeGreaterThanOrEqual(47)
-    expect((await sheet.getByRole("button", { name: "Close" }).boundingBox())!.y).toBeGreaterThanOrEqual(47)
+    expect(
+      (await sheet.locator('[data-slot="sheet-title"]').boundingBox())!.y,
+    ).toBeGreaterThanOrEqual(47)
+    expect(
+      (await sheet.getByRole("button", { name: "Close" }).boundingBox())!.y,
+    ).toBeGreaterThanOrEqual(47)
   })
 
   test("stops toasts on the map short of the pill", async ({ page }) => {
     await login(page)
-    await page.route("**/api/v1/geo-events/logs?*", (route) => route.fulfill({ json: { items: [], total: 0 } }))
+    await page.route("**/api/v1/geo-events/logs?*", (route) =>
+      route.fulfill({ json: { items: [], total: 0 } }),
+    )
     await page.goto("/map?focusIp=192.0.2.250")
 
     const toast = await settledToast(page, "IP not on the map")
@@ -256,7 +326,10 @@ test.describe("portrait phone", () => {
 
     await expect(moreCell(page).locator(".bg-amber-400")).toHaveCount(1)
     await moreCell(page).click()
-    await expect(moreMenu(page).getByRole("link", { name: /Degraded/ })).toHaveAttribute("href", "/settings/status")
+    await expect(moreMenu(page).getByRole("link", { name: /Degraded/ })).toHaveAttribute(
+      "href",
+      "/settings/status",
+    )
     // A health poll still in the route when the test ends fails the next test.
     await page.unrouteAll({ behavior: "ignoreErrors" })
   })
@@ -299,11 +372,16 @@ test.describe("phone held sideways", () => {
     expect(box.x + box.width).toBeLessThanOrEqual(932 - right)
     expect(430 - (box.y + box.height)).toBeCloseTo(17, 0)
 
-    const headerHeight = await page.locator("header").first().evaluate((el) => getComputedStyle(el).height)
+    const headerHeight = await page
+      .locator("header")
+      .first()
+      .evaluate((el) => getComputedStyle(el).height)
     expect(headerHeight).toBe("48px")
   })
 
-  test("puts auto refresh and chart buckets in the range drawer, as on a portrait phone", async ({ page }) => {
+  test("puts auto refresh and chart buckets in the range drawer, as on a portrait phone", async ({
+    page,
+  }) => {
     await login(page)
     await page.goto("/analytics")
 
@@ -344,8 +422,17 @@ test.describe("More on a phone held sideways", () => {
     expect(box.x).toBeGreaterThanOrEqual(insets.left)
     expect(bar.y - (box.y + box.height)).toBeCloseTo(8, 0)
     expect(box.x + box.width).toBeCloseTo(bar.x + bar.width, 0)
-    expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
-    expect(await page.locator("header").first().evaluate((el) => el.closest("[inert]") !== null)).toBe(true)
+    expect(
+      await page
+        .locator('[data-slot="sidebar-inset"] main')
+        .evaluate((el) => el.closest("[inert]") !== null),
+    ).toBe(true)
+    expect(
+      await page
+        .locator("header")
+        .first()
+        .evaluate((el) => el.closest("[inert]") !== null),
+    ).toBe(true)
     expect(await tabBar(page).evaluate((el) => el.closest("[inert]") === null)).toBe(true)
 
     await moreCell(page).tap()
@@ -402,8 +489,15 @@ test.describe("More on a phone held sideways", () => {
     await expect(menu).toBeHidden()
     await expect(moreCell(page)).toBeFocused()
     await expect(page).toHaveURL(/\/map$/)
-    expect(await page.evaluate(() => (window as unknown as { mapHits: unknown }).mapHits)).toEqual({ pointerdown: 0, click: 0 })
-    expect(await page.locator('[data-slot="sidebar-inset"] main').evaluate((el) => el.closest("[inert]") === null)).toBe(true)
+    expect(await page.evaluate(() => (window as unknown as { mapHits: unknown }).mapHits)).toEqual({
+      pointerdown: 0,
+      click: 0,
+    })
+    expect(
+      await page
+        .locator('[data-slot="sidebar-inset"] main')
+        .evaluate((el) => el.closest("[inert]") === null),
+    ).toBe(true)
   })
 
   test("lets another tab close More and navigate", async ({ page }) => {
@@ -416,7 +510,10 @@ test.describe("More on a phone held sideways", () => {
     await tabBar(page).getByRole("link", { name: "Logs", exact: true }).tap()
     await expect(page).toHaveURL(/\/access-logs$/)
     await expect(moreMenu(page)).toBeHidden()
-    await expect(tabBar(page).getByRole("link", { name: "Logs", exact: true })).toHaveAttribute("aria-current", "page")
+    await expect(tabBar(page).getByRole("link", { name: "Logs", exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    )
     await expect(moreCell(page)).not.toBeFocused()
   })
 })

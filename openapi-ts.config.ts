@@ -1,4 +1,4 @@
-import { defineConfig } from "@hey-api/openapi-ts";
+import { defineConfig } from "@hey-api/openapi-ts"
 
 export default defineConfig({
   input: "./resources/generated/openapi.json",
@@ -20,4 +20,4 @@ export default defineConfig({
       enums: "javascript",
     },
   ],
-});
+})

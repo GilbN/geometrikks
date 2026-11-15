@@ -27,7 +27,10 @@ describe("bandRows", () => {
 describe("latencyTooltipRows", () => {
   it("lists Average, p50, p95 and p99 with raw values and colors", () => {
     const row = {
-      avgRequestTime: 0.001, p50RequestTime: 0.001, p95RequestTime: 0.4, p99RequestTime: 1.1,
+      avgRequestTime: 0.001,
+      p50RequestTime: 0.001,
+      p95RequestTime: 0.4,
+      p99RequestTime: 1.1,
       raw: { avgRequestTime: 0, p50RequestTime: 0, p95RequestTime: 0.4, p99RequestTime: 1.1 },
     }
     const out = latencyTooltipRows(row)

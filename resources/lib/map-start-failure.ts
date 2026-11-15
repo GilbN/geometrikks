@@ -13,9 +13,13 @@ export interface MapStartFailure {
   detail: string
 }
 
-const WEBGL2_ADVICE = "The map needs WebGL2 to draw. Try another browser or device, or check that graphics acceleration is available."
+const WEBGL2_ADVICE =
+  "The map needs WebGL2 to draw. Try another browser or device, or check that graphics acceleration is available."
 
-export function mapStartFailure(event: { error?: unknown; target?: unknown }): MapStartFailure | null {
+export function mapStartFailure(event: {
+  error?: unknown
+  target?: unknown
+}): MapStartFailure | null {
   const { error } = event
   // Matched by name: MapLibre sets it explicitly, and importing the class
   // here would pull maplibre-gl into every caller's chunk.

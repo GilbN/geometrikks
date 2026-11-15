@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
-import {
-  LIVE_OVERLAYS_STORAGE_KEY,
-  loadLiveOverlays,
-  saveLiveOverlays,
-} from "./live-overlays"
+import { LIVE_OVERLAYS_STORAGE_KEY, loadLiveOverlays, saveLiveOverlays } from "./live-overlays"
 
 const store = new Map<string, string>()
 let blocked = false

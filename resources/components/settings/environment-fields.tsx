@@ -115,7 +115,11 @@ export function ValueBlock({ field }: { field: SettingFieldView }) {
 }
 
 /** The search the page's filter field runs: key, env var, section title or description. */
-export function fieldMatches(field: SettingFieldView, section: SettingsSectionView, query: string): boolean {
+export function fieldMatches(
+  field: SettingFieldView,
+  section: SettingsSectionView,
+  query: string,
+): boolean {
   if (!query) return true
   return (
     field.key.toLowerCase().includes(query) ||

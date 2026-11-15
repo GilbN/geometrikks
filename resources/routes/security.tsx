@@ -13,7 +13,12 @@ import { ErrorBanner } from "@/components/error-banner"
 import { PageHeader } from "@/components/page-header"
 import { CROWDSEC_DOCS_URL } from "@/lib/docs-links"
 import { dropNetworksLoaded } from "@/lib/drop-lists"
-import { useAbout, useAbuseIpdbStatus, useCrowdsecLiveUpdates, useCrowdsecStatus } from "@/lib/queries"
+import {
+  useAbout,
+  useAbuseIpdbStatus,
+  useCrowdsecLiveUpdates,
+  useCrowdsecStatus,
+} from "@/lib/queries"
 import { activeSecurityTab, availableSecurityTabs, type SecurityTab } from "@/lib/security-tabs"
 
 interface SecuritySearch {
@@ -99,8 +104,8 @@ function SecurityPage() {
             <ShieldBan className="h-10 w-10 text-muted-foreground" />
             <p className="font-medium">CrowdSec integration is not configured</p>
             <p className="max-w-md text-sm text-muted-foreground">
-              Set CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY to connect
-              GeoMetrikks to your CrowdSec Local API, then run docker compose up -d.
+              Set CROWDSEC_LAPI_URL and CROWDSEC_BOUNCER_API_KEY to connect GeoMetrikks to your
+              CrowdSec Local API, then run docker compose up -d.
             </p>
             <a
               href={CROWDSEC_DOCS_URL}
@@ -144,7 +149,8 @@ function SecurityPage() {
         )}
         <TabsContent value={activeTab}>
           {activeTab === "decisions" && <DecisionsTable />}
-          {activeTab === "alerts" && (status?.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />)}
+          {activeTab === "alerts" &&
+            (status?.writeEnabled ? <AlertsTable /> : <AlertHistoryUnavailable />)}
           {activeTab === "drop" && <DropNetworksCard />}
           {activeTab === "reports" && <AbuseIpdbReportsTable />}
         </TabsContent>

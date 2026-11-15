@@ -45,7 +45,11 @@ describe("parseColorTheme", () => {
     expect(parseColorTheme("junk", "copper")).toBe("forge")
   })
   it("defaults to Aurora with nothing usable saved", () => {
-    for (const [saved, accent] of [[null, null], ["", ""], ["junk", "mauve"]] as const) {
+    for (const [saved, accent] of [
+      [null, null],
+      ["", ""],
+      ["junk", "mauve"],
+    ] as const) {
       expect(parseColorTheme(saved, accent)).toBe("aurora")
     }
   })
@@ -59,7 +63,9 @@ describe("first-paint preferences", () => {
     const classes = new Set<string>()
     const attributes: Record<string, string> = {}
     const style: Record<string, string | ((key: string, value: string) => void)> = {
-      setProperty(key: string, value: string) { style[key] = value },
+      setProperty(key: string, value: string) {
+        style[key] = value
+      },
     }
     const meta: Record<string, string> = {}
     runInNewContext(bootstrap, {
@@ -73,10 +79,16 @@ describe("first-paint preferences", () => {
       document: {
         documentElement: {
           classList: { add: (value: string) => classes.add(value) },
-          setAttribute: (key: string, value: string) => { attributes[key] = value },
+          setAttribute: (key: string, value: string) => {
+            attributes[key] = value
+          },
           style,
         },
-        querySelector: () => ({ setAttribute: (key: string, value: string) => { meta[key] = value } }),
+        querySelector: () => ({
+          setAttribute: (key: string, value: string) => {
+            meta[key] = value
+          },
+        }),
       },
     })
     return { classes, attributes, style, meta }
@@ -95,7 +107,10 @@ describe("first-paint preferences", () => {
               if (accent !== null) saved["geometrikks-accent"] = accent
               const result = boot(saved, prefersDark)
               const mode = resolveTheme(parseTheme(theme, "dark"), prefersDark)
-              const expectedTheme = parseColorTheme(mode === "dark" ? darkTheme : lightTheme, accent)
+              const expectedTheme = parseColorTheme(
+                mode === "dark" ? darkTheme : lightTheme,
+                accent,
+              )
               expect([...result.classes]).toEqual([mode])
               expect(result.style.colorScheme).toBe(mode)
               expect(result.attributes["data-theme"]).toBe(expectedTheme)

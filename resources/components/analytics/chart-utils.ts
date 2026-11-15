@@ -41,7 +41,10 @@ export function barSpacer(buckets: number): { stroke?: string; strokeWidth?: num
   return buckets > DENSE_BUCKETS ? {} : { stroke: "var(--card)", strokeWidth: 1 }
 }
 
-const compactCount = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 })
+const compactCount = new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
 
 /**
  * Log count ticks: log ceilings round up to the next power of ten, so full
@@ -71,8 +74,19 @@ export const AREA_BARS_OPTIONS = {
 
 export const STATUS_OPTIONS = {
   views: [
-    { id: "stacked", label: "Stacked counts", scales: ["log", "clip", "full"], scaleHints: { log: "Shows as lines" } },
-    { id: "share", label: "Share of responses", chip: "Share", scales: ["full"], fixedScaleNote: "Fixed 0 to 100% axis" },
+    {
+      id: "stacked",
+      label: "Stacked counts",
+      scales: ["log", "clip", "full"],
+      scaleHints: { log: "Shows as lines" },
+    },
+    {
+      id: "share",
+      label: "Share of responses",
+      chip: "Share",
+      scales: ["full"],
+      fixedScaleNote: "Fixed 0 to 100% axis",
+    },
     { id: "error-rate", label: "Error rate", scales: ["clip", "full"] },
   ],
 } satisfies ChartOptionsSpec

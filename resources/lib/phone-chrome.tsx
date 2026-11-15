@@ -76,6 +76,7 @@ export function useCoverToasts(open: boolean): void {
 }
 
 export function usePhoneChrome(): PhoneChrome {
-  const { barCovered, toastsCovered, moreOpen, setMoreOpen, moreTriggerRef } = useContext(PhoneChromeContext)
+  const { barCovered, toastsCovered, moreOpen, setMoreOpen, moreTriggerRef } =
+    useContext(PhoneChromeContext)
   return { barCovered, toastsCovered, moreOpen, setMoreOpen, moreTriggerRef }
 }

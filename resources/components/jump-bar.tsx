@@ -85,7 +85,10 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
       let current = shown[0].id
       if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
         const tapped = tappedRef.current
-        current = tapped && shown.some((section) => section.id === tapped) ? tapped : shown[shown.length - 1].id
+        current =
+          tapped && shown.some((section) => section.id === tapped)
+            ? tapped
+            : shown[shown.length - 1].id
       } else {
         for (const section of shown) {
           const top = targetElement(scroller, section.id)?.getBoundingClientRect().top ?? Infinity
@@ -109,7 +112,8 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
     schedule()
     scroller.addEventListener("scroll", schedule, { passive: true })
     scroller.addEventListener("scrollend", endJump)
-    for (const type of manualScrollEvents) scroller.addEventListener(type, forgetTap, { passive: true })
+    for (const type of manualScrollEvents)
+      scroller.addEventListener(type, forgetTap, { passive: true })
     // A section can mount after the bar (the map loads behind Suspense), so
     // presence is rechecked on DOM changes.
     const observer = new MutationObserver(schedule)
@@ -142,7 +146,10 @@ export function JumpBar({ sections }: { sections: readonly JumpSection[] }) {
     const chip = chips?.querySelector<HTMLElement>(`[data-section="${active}"]`)
     if (!chips || !chip) return
     const center = (behavior: ScrollBehavior) =>
-      chips.scrollTo({ left: chip.offsetLeft - (chips.clientWidth - chip.offsetWidth) / 2, behavior })
+      chips.scrollTo({
+        left: chip.offsetLeft - (chips.clientWidth - chip.offsetWidth) / 2,
+        behavior,
+      })
     center(prefersReducedMotion() ? "auto" : "smooth")
     // Only on a real width change: the observer's first report would cut the
     // smooth scroll above short.

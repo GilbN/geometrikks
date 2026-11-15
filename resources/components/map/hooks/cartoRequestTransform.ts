@@ -21,7 +21,9 @@ export function withCartoApiKey(url: string, key: string | null | undefined): st
   return parsed.toString()
 }
 
-export function createCartoRequestTransform(key: string | null | undefined): RequestTransformFunction | undefined {
+export function createCartoRequestTransform(
+  key: string | null | undefined,
+): RequestTransformFunction | undefined {
   if (!key) return undefined
   return (url) => {
     const keyed = withCartoApiKey(url, key)

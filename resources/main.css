@@ -106,12 +106,20 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: 'Inter Variable', sans-serif;
-  --font-runr: 'runr', sans-serif;
+  --font-sans: "Inter Variable", sans-serif;
+  --font-runr: "runr", sans-serif;
 }
 
 :root {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Ubuntu,
+    Cantarell,
+    Noto Sans,
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -220,18 +228,18 @@
   /* Tailwind v4 dropped the pointer cursor on buttons, and Base UI renders
      some controls as spans with a role, so both need covering here. */
   :where(
-      button,
-      summary,
-      [role="button"],
-      [role="tab"],
-      [role="switch"],
-      [role="checkbox"],
-      [role="radio"],
-      [role="option"],
-      [role="menuitem"],
-      [role="menuitemcheckbox"],
-      [role="menuitemradio"]
-    ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    button,
+    summary,
+    [role="button"],
+    [role="tab"],
+    [role="switch"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="option"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]) {
     cursor: pointer;
   }
 
@@ -410,7 +418,8 @@
   position: absolute;
   inset: 0;
   background-color: currentColor;
-  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") center / 24px 24px no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E")
+    center / 24px 24px no-repeat;
 }
 
 .maplibregl-ctrl-attrib-button:hover {
@@ -461,14 +470,23 @@
 }
 
 /* Over satellite imagery the grey line vanishes on snow and sand. */
-.fullscreen-map [data-satellite] .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
+.fullscreen-map
+  [data-satellite]
+  .maplibregl-ctrl-bottom-left
+  .maplibregl-ctrl-attrib:not(.maplibregl-compact) {
   @variant phone {
     color: rgb(255 255 255 / 0.8);
-    text-shadow: 0 0 3px rgb(0 0 0 / 0.9), 0 1px 2px rgb(0 0 0 / 0.9);
+    text-shadow:
+      0 0 3px rgb(0 0 0 / 0.9),
+      0 1px 2px rgb(0 0 0 / 0.9);
   }
 }
 
-.fullscreen-map [data-satellite] .maplibregl-ctrl-bottom-left .maplibregl-ctrl-attrib:not(.maplibregl-compact) :is(a, .esri-credit-toggle) {
+.fullscreen-map
+  [data-satellite]
+  .maplibregl-ctrl-bottom-left
+  .maplibregl-ctrl-attrib:not(.maplibregl-compact)
+  :is(a, .esri-credit-toggle) {
   @variant phone {
     color: #fff !important;
   }
@@ -561,7 +579,7 @@
    tells them apart. The .toaster class outranks sonner's stylesheet.
    A custom toast (the reload notice) opts into the same surface with
    .toast-surface, since sonner leaves custom toasts unstyled. */
-.toaster [data-sonner-toast][data-styled='true'],
+.toaster [data-sonner-toast][data-styled="true"],
 .toaster .toast-surface {
   background: var(--floating-surface);
   backdrop-filter: blur(8px);
@@ -576,7 +594,7 @@
    Behind the front toast the card shrinks to its collapsed slot and hides
    its content. */
 @media (min-width: 601px) {
-  .toaster [data-sonner-toast][data-styled='false'] {
+  .toaster [data-sonner-toast][data-styled="false"] {
     width: var(--width);
   }
 }
@@ -615,57 +633,63 @@
   transition: opacity 0.4s;
 }
 
-.toaster:not(:focus-within) [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface {
+.toaster:not(:focus-within)
+  [data-sonner-toast][data-expanded="false"][data-front="false"]
+  .toast-surface {
   height: 100%;
 }
 
-.toaster:not(:focus-within) [data-sonner-toast][data-expanded='false'][data-front='false'] .toast-surface > * {
+.toaster:not(:focus-within)
+  [data-sonner-toast][data-expanded="false"][data-front="false"]
+  .toast-surface
+  > * {
   opacity: 0;
 }
 
 /* Sonner expands the stack on hover but not on focus, so Tab could reach an
    Undo hidden behind the front toast. These rules copy sonner's expanded
    layout and apply it while focus is inside the stack. */
-.toaster:focus-within [data-sonner-toast][data-mounted='true'][data-expanded='false']:not([data-removed='true']) {
+.toaster:focus-within
+  [data-sonner-toast][data-mounted="true"][data-expanded="false"]:not([data-removed="true"]) {
   --y: translateY(calc(var(--lift) * var(--offset)));
   height: var(--initial-height);
 }
 
-.toaster:focus-within [data-sonner-toast][data-expanded='false'][data-styled='true'] > * {
+.toaster:focus-within [data-sonner-toast][data-expanded="false"][data-styled="true"] > * {
   opacity: 1;
 }
 
 /* Sonner hides every toast past the third. One that holds focus stays
    visible and clickable, or Enter would act on a toast nobody can see. */
-.toaster [data-sonner-toast][data-visible='false']:focus-within {
+.toaster [data-sonner-toast][data-visible="false"]:focus-within {
   opacity: 1;
   pointer-events: auto;
 }
 
-.toaster [data-sonner-toast][data-styled='true'] [data-description] {
+.toaster [data-sonner-toast][data-styled="true"] [data-description] {
   color: var(--muted-foreground);
 }
 
-.toaster [data-sonner-toast][data-styled='true'] [data-close-button] {
+.toaster [data-sonner-toast][data-styled="true"] [data-close-button] {
   background: var(--card);
   border-color: var(--border);
   color: var(--muted-foreground);
 }
 
-.toaster [data-sonner-toast][data-styled='true']:hover [data-close-button]:hover {
+.toaster [data-sonner-toast][data-styled="true"]:hover [data-close-button]:hover {
   background: var(--muted);
   color: var(--foreground);
 }
 
-.toaster [data-sonner-toast][data-type='info'] [data-icon],
-.toaster [data-sonner-toast][data-type='success'] [data-icon] {
+.toaster [data-sonner-toast][data-type="info"] [data-icon],
+.toaster [data-sonner-toast][data-type="success"] [data-icon] {
   color: var(--primary);
 }
 
-.toaster [data-sonner-toast][data-type='error'] [data-icon] {
+.toaster [data-sonner-toast][data-type="error"] [data-icon] {
   color: var(--destructive);
 }
 
-.toaster [data-sonner-toast][data-type='warning'] [data-icon] {
+.toaster [data-sonner-toast][data-type="warning"] [data-icon] {
   color: oklch(0.8 0.16 80);
 }

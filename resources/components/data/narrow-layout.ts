@@ -34,7 +34,9 @@ export function useNarrowLayout<T extends HTMLElement>(
  * their figures: each try swaps the rows' components, which closes any menu
  * open in them, and a top list's counts change on nearly every poll.
  */
-export function useFitLayout<T extends HTMLElement>(contentKey: string): [(element: T | null) => void, boolean] {
+export function useFitLayout<T extends HTMLElement>(
+  contentKey: string,
+): [(element: T | null) => void, boolean] {
   const [element, setElement] = useState<T | null>(null)
   const [narrow, setNarrow] = useState(false)
   const neededWidth = useRef(0)

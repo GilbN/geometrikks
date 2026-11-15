@@ -47,7 +47,12 @@ function createObserver() {
 }
 
 function cachedText(): string {
-  return JSON.stringify(queryClient.getMutationCache().getAll().map((mutation) => mutation.state))
+  return JSON.stringify(
+    queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => mutation.state),
+  )
 }
 
 beforeEach(() => {
@@ -76,5 +81,9 @@ it("does not keep a finished create around for the default five minutes", () => 
 
 it("tags the create so a host can tell it is still running", () => {
   createObserver()
-  expect((mocks.options as CreateMutationOptions).mutationKey).toEqual(["auth", "api-keys", "create"])
+  expect((mocks.options as CreateMutationOptions).mutationKey).toEqual([
+    "auth",
+    "api-keys",
+    "create",
+  ])
 })

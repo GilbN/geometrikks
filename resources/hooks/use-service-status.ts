@@ -9,13 +9,28 @@ import {
 } from "@/components/settings/status-logic"
 import { agentsNeedingAttention } from "@/components/settings/agents-logic"
 
-const INDICATOR_STYLES: Record<SidebarIngestionVariant, { color: string; label: string; tooltip: string }> = {
+const INDICATOR_STYLES: Record<
+  SidebarIngestionVariant,
+  { color: string; label: string; tooltip: string }
+> = {
   offline: { color: "bg-gray-400", label: "Offline", tooltip: "Cannot connect to backend" },
-  degraded: { color: "bg-amber-400", label: "Degraded", tooltip: "Service degraded - see Settings > Status" },
-  attention: { color: "bg-amber-400", label: "Attention", tooltip: "Advisories need attention - see Settings > Status" },
+  degraded: {
+    color: "bg-amber-400",
+    label: "Degraded",
+    tooltip: "Service degraded - see Settings > Status",
+  },
+  attention: {
+    color: "bg-amber-400",
+    label: "Attention",
+    tooltip: "Advisories need attention - see Settings > Status",
+  },
   // Neutral, not amber: LOGPARSER_ENABLED=false is a deliberate setting
   // (UI-head deployments); other instances or agents write the data.
-  disabled: { color: "bg-sidebar-foreground/30", label: "Ingestion off", tooltip: "Log tailing is turned off (LOGPARSER_ENABLED=false)" },
+  disabled: {
+    color: "bg-sidebar-foreground/30",
+    label: "Ingestion off",
+    tooltip: "Log tailing is turned off (LOGPARSER_ENABLED=false)",
+  },
   running: { color: "bg-emerald-400", label: "Live ingestion", tooltip: "Live ingestion active" },
   inactive: { color: "bg-gray-400", label: "Inactive", tooltip: "Service status unknown" },
 }
@@ -54,10 +69,11 @@ export function useServiceStatus(): {
       : baseTooltip
 
   const attention =
-    variant === "degraded" || variant === "attention" ? attentionParts(headAdvisoryCount, agentAttentionCount) : []
+    variant === "degraded" || variant === "attention"
+      ? attentionParts(headAdvisoryCount, agentAttentionCount)
+      : []
 
-  const crowdsecDown =
-    health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
+  const crowdsecDown = health?.crowdsec?.enabled === true && health.crowdsec.lapiReachable === false
 
   return { variant, color, label, tooltip, attention, statusRoute, crowdsecDown }
 }

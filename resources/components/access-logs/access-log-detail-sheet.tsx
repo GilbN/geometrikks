@@ -39,9 +39,13 @@ export function AccessLogDetailSheet({
       onOpenChange={onOpenChange}
       title={entry ? `Request #${entry.id}` : "Request details"}
       description={
-        entry ? `${new Date(entry.timestamp).toLocaleString()} · ${entry.method ?? "Unknown method"}` : undefined
+        entry
+          ? `${new Date(entry.timestamp).toLocaleString()} · ${entry.method ?? "Unknown method"}`
+          : undefined
       }
-      footer={entry && <DetailIpActions values={ipValues(entry)} onNavigate={() => onOpenChange(false)} />}
+      footer={
+        entry && <DetailIpActions values={ipValues(entry)} onNavigate={() => onOpenChange(false)} />
+      }
     >
       {entry && <DetailIpBlock values={ipValues(entry)} />}
       {entry && (
@@ -49,7 +53,12 @@ export function AccessLogDetailSheet({
           <DetailField
             label="Status"
             value={
-              <Badge className={cn("tabular-nums border-transparent", statusBadgeClass(entry.statusCode))}>
+              <Badge
+                className={cn(
+                  "tabular-nums border-transparent",
+                  statusBadgeClass(entry.statusCode),
+                )}
+              >
                 HTTP {entry.statusCode}
               </Badge>
             }
@@ -64,7 +73,11 @@ export function AccessLogDetailSheet({
           <DetailField label="Request time" value={formatDurationOrNa(entry.requestTime)} />
           <DetailField
             label="Upstream response"
-            value={entry.upstreamResponseTime != null ? formatDuration(entry.upstreamResponseTime * 1000) : null}
+            value={
+              entry.upstreamResponseTime != null
+                ? formatDuration(entry.upstreamResponseTime * 1000)
+                : null
+            }
           />
           <DetailField label="Referrer" value={entry.referrer} mono />
           <DetailField label="User agent" value={entry.userAgent} mono />
@@ -81,7 +94,9 @@ export function AccessLogDetailSheet({
           <DetailField label="City" value={entry.city} />
           <DetailField
             label="ASN"
-            value={entry.autonomousSystemNumber != null ? `AS${entry.autonomousSystemNumber}` : null}
+            value={
+              entry.autonomousSystemNumber != null ? `AS${entry.autonomousSystemNumber}` : null
+            }
             mono
           />
           <DetailField label="AS organization" value={entry.autonomousSystemOrganization} />

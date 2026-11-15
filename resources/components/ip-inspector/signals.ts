@@ -15,7 +15,14 @@ export const SIGNAL_THRESHOLDS = {
 
 export type SignalTone = "red" | "amber" | "gray"
 
-export type SignalKey = "errors" | "drop-asn" | "hosting" | "after-ban" | "paths" | "malformed" | "burst"
+export type SignalKey =
+  | "errors"
+  | "drop-asn"
+  | "hosting"
+  | "after-ban"
+  | "paths"
+  | "malformed"
+  | "burst"
 
 export interface Signal {
   key: SignalKey
@@ -104,13 +111,19 @@ export function computeSignals({
     out.push({ key: "hosting", label: "Hosting ASN", tone: "amber" })
   }
 
-  if (banned && banCreatedAt && profile.lastSeen && Date.parse(profile.lastSeen) > Date.parse(banCreatedAt)) {
+  if (
+    banned &&
+    banCreatedAt &&
+    profile.lastSeen &&
+    Date.parse(profile.lastSeen) > Date.parse(banCreatedAt)
+  ) {
     const hours = hoursBetween(banCreatedAt, profile.lastSeen)
     const count = requestsAfter(profile.series, banCreatedAt)
     const when = hours === 0 ? "under an hour" : `${hours}h`
-    const label = count === 0
-      ? `Still seen ${when} after ban`
-      : `Still seen ${when} after ban (${count} request${count === 1 ? "" : "s"})`
+    const label =
+      count === 0
+        ? `Still seen ${when} after ban`
+        : `Still seen ${when} after ban (${count} request${count === 1 ? "" : "s"})`
     out.push({
       key: "after-ban",
       label,

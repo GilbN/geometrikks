@@ -71,13 +71,25 @@ function CustomRangeFields({
   return (
     <div className={cn("flex flex-col gap-2 p-2", className)}>
       <label className="text-xs text-muted-foreground">From</label>
-      <Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClassName} />
+      <Input
+        type="datetime-local"
+        value={from}
+        onChange={(e) => setFrom(e.target.value)}
+        className={inputClassName}
+      />
       <label className="text-xs text-muted-foreground">To</label>
-      <Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={inputClassName} />
+      <Input
+        type="datetime-local"
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        className={inputClassName}
+      />
       <Button
         size="sm"
         disabled={!valid}
-        onClick={() => onApply({ from: new Date(from).toISOString(), to: new Date(to).toISOString() })}
+        onClick={() =>
+          onApply({ from: new Date(from).toISOString(), to: new Date(to).toISOString() })
+        }
       >
         Apply
       </Button>
@@ -104,11 +116,21 @@ export function TimeRangePicker({
   align?: "start" | "end"
   refreshControls?: { chartBuckets: boolean; cardCharts?: CardChartsPage }
 }) {
-  const { range, setRange, setCustomRange, pollInterval, setPollInterval, granularity, setGranularity } = useTimeRange()
+  const {
+    range,
+    setRange,
+    setCustomRange,
+    pollInterval,
+    setPollInterval,
+    granularity,
+    setGranularity,
+  } = useTimeRange()
   const asDrawer = usePhoneLayout()
   const [rangeDrawerOpen, setRangeDrawerOpen] = useState(false)
   const overlayId = useId()
-  useOverlayEntry(`time-range-${overlayId}`, asDrawer && rangeDrawerOpen, () => setRangeDrawerOpen(false))
+  useOverlayEntry(`time-range-${overlayId}`, asDrawer && rangeDrawerOpen, () =>
+    setRangeDrawerOpen(false),
+  )
   const [tab, setTab] = useState<RangeTab>(() => rangeTab(range))
   // See ResponsiveRadioMenu: don't reopen after a rotation to wide and back.
   useEffect(() => {
@@ -126,7 +148,10 @@ export function TimeRangePicker({
             setRange(preset.value)
             setRangeDrawerOpen(false)
           }}
-          className={cn("text-xs", range === preset.value && "bg-primary/20 text-primary border-primary/40")}
+          className={cn(
+            "text-xs",
+            range === preset.value && "bg-primary/20 text-primary border-primary/40",
+          )}
         >
           {preset.label}
         </Button>
@@ -189,7 +214,11 @@ export function TimeRangePicker({
                   className="w-full"
                 >
                   {POLL_INTERVAL_OPTIONS.map((option) => (
-                    <ToggleGroupItem key={option.value} value={String(option.value)} className="flex-1 text-xs">
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={String(option.value)}
+                      className="flex-1 text-xs"
+                    >
                       {option.label}
                     </ToggleGroupItem>
                   ))}
@@ -207,7 +236,11 @@ export function TimeRangePicker({
                   className="w-full"
                 >
                   {CHART_GRANULARITY_OPTIONS.map((option) => (
-                    <ToggleGroupItem key={option.value} value={option.value} className="flex-1 text-xs">
+                    <ToggleGroupItem
+                      key={option.value}
+                      value={option.value}
+                      className="flex-1 text-xs"
+                    >
                       {option.label}
                     </ToggleGroupItem>
                   ))}
@@ -229,10 +262,7 @@ export function TimeRangePicker({
           <DropdownMenuItem
             key={preset.value}
             onClick={() => setRange(preset.value)}
-            className={cn(
-              "text-xs",
-              range === preset.value && "bg-primary/20 text-primary"
-            )}
+            className={cn("text-xs", range === preset.value && "bg-primary/20 text-primary")}
           >
             {preset.label}
           </DropdownMenuItem>
@@ -259,8 +289,12 @@ function CardChartsControl({ page }: { page: CardChartsPage }) {
         onValueChange={(value) => value && setChartsOn(value === "on")}
         className="w-full"
       >
-        <ToggleGroupItem value="on" className="flex-1 text-xs">On</ToggleGroupItem>
-        <ToggleGroupItem value="off" className="flex-1 text-xs">Off</ToggleGroupItem>
+        <ToggleGroupItem value="on" className="flex-1 text-xs">
+          On
+        </ToggleGroupItem>
+        <ToggleGroupItem value="off" className="flex-1 text-xs">
+          Off
+        </ToggleGroupItem>
       </ToggleGroup>
     </RefreshControl>
   )

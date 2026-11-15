@@ -2,7 +2,10 @@ import { Supercluster } from "@maplibre/geojson-vt"
 import type { GeoJSONSource } from "maplibre-gl"
 import type { Feature, GeoJsonProperties, Geometry, Point } from "geojson"
 
-export type ClusterSource = Pick<GeoJSONSource, "getClusterExpansionZoom" | "getClusterChildren" | "getClusterLeaves">
+export type ClusterSource = Pick<
+  GeoJSONSource,
+  "getClusterExpansionZoom" | "getClusterChildren" | "getClusterLeaves"
+>
 
 /** A rendered feature near the target: a cluster or a lone point. */
 export interface ClusterCandidate {
@@ -22,7 +25,10 @@ const WRAP_LONGITUDE = 180 - (128 / TILE_SIZE) * 360
 
 function shifted(feature: Feature<Point>, degrees: number): Feature<Point> {
   const [longitude, ...rest] = feature.geometry.coordinates
-  return { ...feature, geometry: { ...feature.geometry, coordinates: [longitude + degrees, ...rest] } }
+  return {
+    ...feature,
+    geometry: { ...feature.geometry, coordinates: [longitude + degrees, ...rest] },
+  }
 }
 
 const indexes = new WeakMap<Feature<Point>[], Supercluster>()
@@ -33,16 +39,29 @@ const indexes = new WeakMap<Feature<Point>[], Supercluster>()
  * Built once per features array, at about 60 ms per 10,000 points on a
  * desktop.
  */
-export function clusterIndex(features: Feature<Point>[], radius: number, maxZoom: number): Supercluster {
+export function clusterIndex(
+  features: Feature<Point>[],
+  radius: number,
+  maxZoom: number,
+): Supercluster {
   let index = indexes.get(features)
   if (!index) {
-    index = new Supercluster({ maxZoom, minPoints: 2, extent: TILE_EXTENT, radius: (radius * TILE_EXTENT) / TILE_SIZE })
+    index = new Supercluster({
+      maxZoom,
+      minPoints: 2,
+      extent: TILE_EXTENT,
+      radius: (radius * TILE_EXTENT) / TILE_SIZE,
+    })
     // Same order as the source: west copies, the points, east copies.
     const points = features.filter((feature) => feature.geometry)
     index.load([
-      ...points.filter((feature) => feature.geometry.coordinates[0] < -WRAP_LONGITUDE).map((feature) => shifted(feature, 360)),
+      ...points
+        .filter((feature) => feature.geometry.coordinates[0] < -WRAP_LONGITUDE)
+        .map((feature) => shifted(feature, 360)),
       ...points,
-      ...points.filter((feature) => feature.geometry.coordinates[0] >= WRAP_LONGITUDE).map((feature) => shifted(feature, -360)),
+      ...points
+        .filter((feature) => feature.geometry.coordinates[0] >= WRAP_LONGITUDE)
+        .map((feature) => shifted(feature, -360)),
     ])
     indexes.set(features, index)
   }
@@ -65,9 +84,16 @@ export function predictUnclusteredZoom(
   // The index stores 32-bit projected coordinates, so the box leaves room
   // for the rounding.
   const [longitude, latitude] = center
-  const box: [number, number, number, number] = [longitude - 1e-4, latitude - 1e-4, longitude + 1e-4, latitude + 1e-4]
+  const box: [number, number, number, number] = [
+    longitude - 1e-4,
+    latitude - 1e-4,
+    longitude + 1e-4,
+    latitude + 1e-4,
+  ]
   for (let zoom = Math.floor(fromZoom); zoom < maxZoom; zoom++) {
-    const alone = index.getClusters(box, zoom).some((feature) => !feature.properties?.cluster && matches(feature.properties))
+    const alone = index
+      .getClusters(box, zoom)
+      .some((feature) => !feature.properties?.cluster && matches(feature.properties))
     if (alone) return Math.max(zoom, fromZoom)
   }
   return maxZoom
@@ -105,8 +131,16 @@ function clusterId(properties: GeoJsonProperties): number | undefined {
   return properties?.cluster ? Number(properties.cluster_id) : undefined
 }
 
-async function clusterHolds(source: ClusterSource, properties: GeoJsonProperties, matches: Matches) {
-  const leaves = await source.getClusterLeaves(Number(properties?.cluster_id), Number(properties?.point_count), 0)
+async function clusterHolds(
+  source: ClusterSource,
+  properties: GeoJsonProperties,
+  matches: Matches,
+) {
+  const leaves = await source.getClusterLeaves(
+    Number(properties?.cluster_id),
+    Number(properties?.point_count),
+    0,
+  )
   return leaves.some((leaf) => matches(leaf.properties))
 }
 

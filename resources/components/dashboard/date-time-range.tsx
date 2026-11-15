@@ -1,8 +1,4 @@
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import { Clock } from "lucide-react"
 
@@ -74,19 +70,19 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
         <>
           <Tooltip>
             <TooltipTrigger asChild>
-                <span suppressHydrationWarning className="cursor-default font-mono">
-                  {TIME_ONLY.format(startDate)}
+              <span suppressHydrationWarning className="cursor-default font-mono">
+                {TIME_ONLY.format(startDate)}
               </span>
             </TooltipTrigger>
             <TooltipContent>
               <p>{fullFormat(startDate)}</p>
             </TooltipContent>
           </Tooltip>
-            <span className="text-muted-foreground/60">→</span>
-            <Tooltip>
+          <span className="text-muted-foreground/60">→</span>
+          <Tooltip>
             <TooltipTrigger asChild>
               <span suppressHydrationWarning className="cursor-default font-mono">
-                  {TIME_ONLY.format(endDate)}
+                {TIME_ONLY.format(endDate)}
               </span>
             </TooltipTrigger>
             <TooltipContent>
@@ -101,7 +97,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
           <span className="text-muted-foreground/60">→</span>
           <Tooltip>
             <TooltipTrigger asChild>
-                <span suppressHydrationWarning className="cursor-default font-mono">
+              <span suppressHydrationWarning className="cursor-default font-mono">
                 <DateTime date={endDate} />
               </span>
             </TooltipTrigger>
@@ -112,9 +108,7 @@ export function DateTimeRange({ start, end }: { start: string; end: string }) {
         </>
       )}
       {ZONE_LABEL && (
-        <span className="ml-1 text-[10px] font-bold text-muted-foreground/80">
-          {ZONE_LABEL}
-        </span>
+        <span className="ml-1 text-[10px] font-bold text-muted-foreground/80">{ZONE_LABEL}</span>
       )}
     </div>
   )

@@ -81,14 +81,22 @@ export function AgentList({
               <StatusLed tone={instanceTone(instance)} />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
-                  <MonoChip className="min-w-0 truncate text-foreground">{instance.instanceName}</MonoChip>
+                  <MonoChip className="min-w-0 truncate text-foreground">
+                    {instance.instanceName}
+                  </MonoChip>
                   {instance.isSelf && (
-                    <Badge variant="outline" className={cn(rowBadgeClasses, "text-muted-foreground")}>
+                    <Badge
+                      variant="outline"
+                      className={cn(rowBadgeClasses, "text-muted-foreground")}
+                    >
                       this instance
                     </Badge>
                   )}
                   {drift && (
-                    <Badge variant="outline" className={cn(rowBadgeClasses, driftBadgeClasses[drift])}>
+                    <Badge
+                      variant="outline"
+                      className={cn(rowBadgeClasses, driftBadgeClasses[drift])}
+                    >
                       {shortVersion(instance.appVersion)}
                       <span className="sr-only">, {versionDriftText(drift)}</span>
                     </Badge>
@@ -156,11 +164,19 @@ export function AgentDrawer({
           // open with a focus ring on Close.
           event.preventDefault()
           const content = event.currentTarget
-          if (content instanceof HTMLElement) content.querySelector<HTMLElement>("[data-slot='drawer-title']")?.focus()
+          if (content instanceof HTMLElement)
+            content.querySelector<HTMLElement>("[data-slot='drawer-title']")?.focus()
         }}
         onCloseAutoFocus={onCloseAutoFocus}
       >
-        {shown && <AgentDetail key={shown.instanceName} instance={shown} head={head} checkedAt={checkedAt} />}
+        {shown && (
+          <AgentDetail
+            key={shown.instanceName}
+            instance={shown}
+            head={head}
+            checkedAt={checkedAt}
+          />
+        )}
       </DrawerContent>
     </Drawer>
   )
@@ -206,9 +222,15 @@ function AgentDetail({
       </p>
       <DrawerHeader className="flex-row items-start gap-2 pb-3 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left">
         <div className="min-w-0 flex-1 space-y-1">
-          <DrawerTitle ref={titleRef} tabIndex={-1} className="flex items-center gap-2 outline-none">
+          <DrawerTitle
+            ref={titleRef}
+            tabIndex={-1}
+            className="flex items-center gap-2 outline-none"
+          >
             <StatusLed tone={instanceTone(instance)} />
-            <MonoChip className="min-w-0 truncate text-[13px] text-foreground">{instance.instanceName}</MonoChip>
+            <MonoChip className="min-w-0 truncate text-[13px] text-foreground">
+              {instance.instanceName}
+            </MonoChip>
             <span className="sr-only">, {instanceStatusLabel(instance.status)}</span>
           </DrawerTitle>
           <DrawerDescription className="text-xs">
@@ -232,14 +254,22 @@ function AgentDetail({
           </DrawerDescription>
         </div>
         <DrawerClose asChild>
-          <Button type="button" variant="ghost" size="icon" aria-label="Close" className="-mt-1 -mr-2 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Close"
+            className="-mt-1 -mr-2 shrink-0"
+          >
             <X className="size-[18px]" />
           </Button>
         </DrawerClose>
       </DrawerHeader>
       <div className="overflow-y-auto overscroll-contain px-4 pb-6">
         {problemCount > 1 && (
-          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{problemCount} problems</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">
+            {problemCount} problems
+          </h3>
         )}
         {problemCount > 0 && (
           <div className="grid gap-2">
@@ -376,7 +406,8 @@ function RemoveFromList({ instanceName }: { instanceName: string }) {
           Remove from the list
         </Button>
         <p className="text-xs text-muted-foreground">
-          Shut it down on purpose? Remove it. If it still runs somewhere, it comes back within 30 seconds.
+          Shut it down on purpose? Remove it. If it still runs somewhere, it comes back within 30
+          seconds.
         </p>
       </div>
     )
@@ -392,8 +423,8 @@ function RemoveFromList({ instanceName }: { instanceName: string }) {
       className="space-y-2 rounded-md border border-border/60 p-2 text-xs"
     >
       <p id={descriptionId} className="text-muted-foreground">
-        Remove {instanceName} from the list? This deletes its heartbeat row. If {instanceName} is still
-        running somewhere, it writes the row again within 30 seconds and comes back here.
+        Remove {instanceName} from the list? This deletes its heartbeat row. If {instanceName} is
+        still running somewhere, it writes the row again within 30 seconds and comes back here.
       </p>
       {removeError && (
         <p role="alert" className="text-destructive">

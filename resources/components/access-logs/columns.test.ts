@@ -4,9 +4,9 @@ import { resolveVisibleColumns } from "@/lib/column-visibility"
 import { ACCESS_LOG_COLUMNS } from "./columns"
 
 const defaults = (mobile: boolean) =>
-  ACCESS_LOG_COLUMNS.filter((c) => resolveVisibleColumns(ACCESS_LOG_COLUMNS, {}, mobile).has(c.key)).map(
-    (c) => c.key,
-  )
+  ACCESS_LOG_COLUMNS.filter((c) =>
+    resolveVisibleColumns(ACCESS_LOG_COLUMNS, {}, mobile).has(c.key),
+  ).map((c) => c.key)
 
 describe("access log columns", () => {
   it("has unique keys and a label for each", () => {
@@ -20,7 +20,9 @@ describe("access log columns", () => {
   })
 
   it("shows every desktop default on desktop", () => {
-    expect(defaults(false)).toEqual(ACCESS_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
+    expect(defaults(false)).toEqual(
+      ACCESS_LOG_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key),
+    )
   })
 
   it("labels the server column", () => {

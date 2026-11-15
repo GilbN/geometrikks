@@ -61,11 +61,19 @@ export function AsnActionsMenu({
     const heading = (
       <>
         <DrawerTitle className="font-mono">{label}</DrawerTitle>
-        <DrawerDescription className="[overflow-wrap:anywhere]">{organization ?? "Unknown organization"}</DrawerDescription>
+        <DrawerDescription className="[overflow-wrap:anywhere]">
+          {organization ?? "Unknown organization"}
+        </DrawerDescription>
       </>
     )
     return (
-      <Drawer key={drawer.key} direction={drawer.direction} open={drawer.open} onOpenChange={setMenuOpen} onClosed={drawer.onClosed}>
+      <Drawer
+        key={drawer.key}
+        direction={drawer.direction}
+        open={drawer.open}
+        onOpenChange={setMenuOpen}
+        onClosed={drawer.onClosed}
+      >
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent className={drawer.contentClassName}>
           {drawer.side ? (
@@ -102,13 +110,19 @@ export function AsnActionsMenu({
         <DropdownMenuLabel className="flex flex-col items-start gap-0.5">
           <span className="font-mono">{label}</span>
           {organization && (
-            <span className="max-w-80 truncate font-normal text-muted-foreground" title={organization}>
+            <span
+              className="max-w-80 truncate font-normal text-muted-foreground"
+              title={organization}
+            >
               {organization}
             </span>
           )}
         </DropdownMenuLabel>
         {actions.map((action) => (
-          <DropdownMenuItem key={action.key} onSelect={(event) => action.run(event.target as HTMLElement)}>
+          <DropdownMenuItem
+            key={action.key}
+            onSelect={(event) => action.run(event.target as HTMLElement)}
+          >
             {action.icon}
             {action.label}
           </DropdownMenuItem>

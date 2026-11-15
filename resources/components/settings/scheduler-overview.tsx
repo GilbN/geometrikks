@@ -247,8 +247,7 @@ export function SchedulerOverview() {
   const queryClient = useQueryClient()
   const runJob = useMutation({
     mutationFn: runSchedulerJob,
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: queryKeys.system.schedulerJobs }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.system.schedulerJobs }),
   })
   useTicker(data?.jobs.some((j) => j.running) ?? false)
 
@@ -305,8 +304,7 @@ export function SchedulerOverview() {
             </CardTitle>
             <CardDescription>
               {data.jobs.length} background jobs, scheduler{" "}
-              {data.schedulerRunning ? "running" : "stopped"}. Last-run info resets on app
-              restart.
+              {data.schedulerRunning ? "running" : "stopped"}. Last-run info resets on app restart.
             </CardDescription>
           </div>
         </div>

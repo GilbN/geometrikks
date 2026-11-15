@@ -20,7 +20,8 @@ import { sblRecordUrl } from "@/lib/drop-lists"
 
 /** The API error envelope's detail, else the fallback. */
 export function errorDetail(err: unknown, fallback: string): string {
-  if (err && typeof err === "object" && "detail" in err && typeof err.detail === "string") return err.detail
+  if (err && typeof err === "object" && "detail" in err && typeof err.detail === "string")
+    return err.detail
   return fallback
 }
 
@@ -54,14 +55,18 @@ export function wrap(text: string, indent = "", width = WRAP_WIDTH): string[] {
 const bullet = (text: string) => wrap(`- ${text}`, "  ")
 
 const count = (n: number) => n.toLocaleString("en-US")
-const plural = (n: number, word: string, many = `${word}s`) => `${count(n)} ${n === 1 ? word : many}`
+const plural = (n: number, word: string, many = `${word}s`) =>
+  `${count(n)} ${n === 1 ? word : many}`
 const pct = (part: number, whole: number) => `${Math.round((part / whole) * 100)}%`
 
 /** "2026-09-26 20:20:42" in UTC; unparseable input passes through. */
 export function utc(iso: string, precision: "seconds" | "minutes" = "seconds"): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return date.toISOString().replace("T", " ").slice(0, precision === "seconds" ? 19 : 16)
+  return date
+    .toISOString()
+    .replace("T", " ")
+    .slice(0, precision === "seconds" ? 19 : 16)
 }
 
 /** "[26/Sep/2026:20:20:42 +0000]", the timestamp of the combined log format. */
@@ -80,13 +85,16 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f\u0085\u2028\u2029]/g
 export const printable = (value: string) =>
   value.replace(CONTROL_CHARS, (c) => {
     const code = c.charCodeAt(0)
-    return code > 0xff ? `\\u${code.toString(16).padStart(4, "0")}` : `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`
+    return code > 0xff
+      ? `\\u${code.toString(16).padStart(4, "0")}`
+      : `\\x${code.toString(16).toUpperCase().padStart(2, "0")}`
   })
 
 // Besides control characters, only quotes are escaped. nginx already stored
 // its own \x escapes, and doubling their backslashes would change what the
 // client sent.
-const quoted = (value: string | null) => (value ? `"${printable(value).replace(/"/g, '\\"')}"` : '"-"')
+const quoted = (value: string | null) =>
+  value ? `"${printable(value).replace(/"/g, '\\"')}"` : '"-"'
 
 /** One line in the combined log format, with the referrer withheld. */
 export function logLine(ip: string, line: ReportLineDto): string {
@@ -122,7 +130,11 @@ export function groupDecisions(decisions: ReportDecisionDto[]): DecisionGroup[] 
     if (!group.scenarios.includes(d.scenario)) group.scenarios.push(d.scenario)
     groups.set(d.type, group)
   }
-  return [...groups.values()].map(({ type, duration, scenarios }) => ({ type, duration, scenarios }))
+  return [...groups.values()].map(({ type, duration, scenarios }) => ({
+    type,
+    duration,
+    scenarios,
+  }))
 }
 
 export interface ScenarioSummary {
@@ -147,10 +159,18 @@ export function summarizeAlerts(alerts: ReportAlertDto[]): ScenarioSummary[] {
       if (Date.parse(at) < Date.parse(summary.first)) summary.first = at
       if (Date.parse(at) > Date.parse(summary.last)) summary.last = at
     } else {
-      byScenario.set(alert.scenario, { scenario: alert.scenario, detections: 1, events: alert.eventsCount, first: at, last: at })
+      byScenario.set(alert.scenario, {
+        scenario: alert.scenario,
+        detections: 1,
+        events: alert.eventsCount,
+        first: at,
+        last: at,
+      })
     }
   }
-  return [...byScenario.values()].sort((a, b) => b.detections - a.detections || a.scenario.localeCompare(b.scenario))
+  return [...byScenario.values()].sort(
+    (a, b) => b.detections - a.detections || a.scenario.localeCompare(b.scenario),
+  )
 }
 
 /** "3h12m" from Go's "3h12m5.123s"; long bans keep only hours and minutes. */
@@ -176,27 +196,39 @@ export function behaviorFindings(ip: ReportIpDto, granularity: "hourly" | "daily
   const total = ip.totalRequests
   const out: string[] = []
   if (total >= t.errorShareMinRequests && ip.status4xx / total >= t.errorShareMin) {
-    out.push(`${pct(ip.status4xx, total)} of the requests got a 4xx response, so they asked for paths that do not exist or that the server refuses.`)
+    out.push(
+      `${pct(ip.status4xx, total)} of the requests got a 4xx response, so they asked for paths that do not exist or that the server refuses.`,
+    )
   }
   if (ip.distinctPaths >= t.distinctPathsMin) {
-    out.push(`It requested ${count(ip.distinctPaths)} distinct paths, a pattern of automated scanning.`)
+    out.push(
+      `It requested ${count(ip.distinctPaths)} distinct paths, a pattern of automated scanning.`,
+    )
   }
   if (ip.peak && total >= t.burstMinRequests && ip.peak.hits / total >= t.burstShare) {
     const span = granularity === "hourly" ? "hour" : "day"
-    const start = granularity === "hourly" ? utc(ip.peak.timestamp, "minutes") : utc(ip.peak.timestamp).slice(0, 10)
-    out.push(`${count(ip.peak.hits)} of the requests (${pct(ip.peak.hits, total)}) arrived in the ${span} starting ${start} UTC.`)
+    const start =
+      granularity === "hourly"
+        ? utc(ip.peak.timestamp, "minutes")
+        : utc(ip.peak.timestamp).slice(0, 10)
+    out.push(
+      `${count(ip.peak.hits)} of the requests (${pct(ip.peak.hits, total)}) arrived in the ${span} starting ${start} UTC.`,
+    )
   }
   if (ip.malformedRequests > 0) {
-    out.push(`${plural(ip.malformedRequests, "request")} ${ip.malformedRequests === 1 ? "was" : "were"} not valid HTTP.`)
+    out.push(
+      `${plural(ip.malformedRequests, "request")} ${ip.malformedRequests === 1 ? "was" : "were"} not valid HTTP.`,
+    )
   }
   return out
 }
 
 function scenarioLine(summary: ScenarioSummary): string {
   const name = summary.scenario === MANUAL ? "manual decision" : summary.scenario
-  const when = summary.detections === 1
-    ? `at ${utc(summary.first)}`
-    : `${utc(summary.first, "minutes")} to ${utc(summary.last, "minutes")}`
+  const when =
+    summary.detections === 1
+      ? `at ${utc(summary.first)}`
+      : `${utc(summary.first, "minutes")} to ${utc(summary.last, "minutes")}`
   return `- ${name}: ${plural(summary.detections, "detection")}, ${plural(summary.events, "event")}, ${when}`
 }
 
@@ -210,7 +242,8 @@ function networkLabel(ip: ReportIpDto): string | null {
 /** "Spamhaus DROP SBL000042 (198.51.100.0/24), ASN-DROP AS64500", naming only the listings that apply. */
 function listedOn(ip: ReportIpDto): string | null {
   const listings = []
-  if (ip.dropNetwork) listings.push(`Spamhaus DROP ${ip.dropNetwork.sblId} (${ip.dropNetwork.cidr})`)
+  if (ip.dropNetwork)
+    listings.push(`Spamhaus DROP ${ip.dropNetwork.sblId} (${ip.dropNetwork.cidr})`)
   if (ip.asnDrop && ip.asn != null) listings.push(`ASN-DROP AS${ip.asn}`)
   return listings.length ? listings.join(", ") : null
 }
@@ -229,7 +262,9 @@ export function addressDropNetworks(ips: ReportIpDto[]): AddressDropNetwork[] {
     if (known) known.addresses += 1
     else byCidr.set(ip.dropNetwork.cidr, { ...ip.dropNetwork, addresses: 1 })
   }
-  return [...byCidr.values()].sort((a, b) => b.addresses - a.addresses || a.cidr.localeCompare(b.cidr))
+  return [...byCidr.values()].sort(
+    (a, b) => b.addresses - a.addresses || a.cidr.localeCompare(b.cidr),
+  )
 }
 
 export interface ReportDropListings {
@@ -249,9 +284,19 @@ export function reportDropListings(report: AbuseReportResponse): ReportDropListi
   const { target } = report
   const asnDropAsn = target.asnDrop && target.asn != null ? target.asn : null
   if (target.kind === "asn") {
-    return { dropNetwork: null, asnDropAsn, addressNetworks: addressDropNetworks(report.ips), addressCount: report.ips.length }
+    return {
+      dropNetwork: null,
+      asnDropAsn,
+      addressNetworks: addressDropNetworks(report.ips),
+      addressCount: report.ips.length,
+    }
   }
-  return { dropNetwork: report.ips[0]?.dropNetwork ?? null, asnDropAsn, addressNetworks: [], addressCount: 0 }
+  return {
+    dropNetwork: report.ips[0]?.dropNetwork ?? null,
+    asnDropAsn,
+    addressNetworks: [],
+    addressCount: 0,
+  }
 }
 
 /** Which DROP badge the dialog title carries: the network listing wins, since it names the SBL record. */
@@ -265,12 +310,18 @@ export function titleDropBadgeKind({
 
 /** Whether the report covers this target, whatever its time range, line count or address cap. */
 export function reportIsFor(report: AbuseReportResponse, target: AbuseReportTarget): boolean {
-  if (target.kind === "ip") return report.target.kind === "ip" && report.target.ipAddress === target.ip
+  if (target.kind === "ip")
+    return report.target.kind === "ip" && report.target.ipAddress === target.ip
   return report.target.kind === "asn" && report.target.asn === target.asn
 }
 
 /** The bold first sentence of the dialog's DROP notice, or null when nothing is listed. */
-export function dropNoticeHeadline({ dropNetwork, asnDropAsn, addressNetworks, addressCount }: ReportDropListings): string | null {
+export function dropNoticeHeadline({
+  dropNetwork,
+  asnDropAsn,
+  addressNetworks,
+  addressCount,
+}: ReportDropListings): string | null {
   const clauses = []
   if (dropNetwork) clauses.push(`On the DROP list as ${dropNetwork.sblId} (${dropNetwork.cidr})`)
   if (asnDropAsn != null) clauses.push(`AS${asnDropAsn} is on ASN-DROP`)
@@ -281,27 +332,43 @@ export function dropNoticeHeadline({ dropNetwork, asnDropAsn, addressNetworks, a
 }
 
 /** "all 25 addresses the report lists are in DROP networks" or "3 of the 25 addresses the report lists are in a DROP network". */
-function addressesInDropClause(addressNetworks: AddressDropNetwork[], addressCount: number): string {
+function addressesInDropClause(
+  addressNetworks: AddressDropNetwork[],
+  addressCount: number,
+): string {
   const inDrop = addressNetworks.reduce((sum, network) => sum + network.addresses, 0)
   const where = addressNetworks.length === 1 ? "in a DROP network" : "in DROP networks"
   if (inDrop === addressCount) {
-    return addressCount === 1 ? `the one address the report lists is ${where}` : `all ${count(addressCount)} addresses the report lists are ${where}`
+    return addressCount === 1
+      ? `the one address the report lists is ${where}`
+      : `all ${count(addressCount)} addresses the report lists are ${where}`
   }
   return `${count(inDrop)} of the ${count(addressCount)} addresses the report lists ${inDrop === 1 ? "is" : "are"} ${where}`
 }
 
 /** How many of the addresses are on AbuseIPDB's blacklist, matched in canonical form. */
-export function blacklistedAddressCount(ips: readonly Pick<ReportIpDto, "ipAddress">[], blacklist: ReadonlySet<string>): number {
-  return ips.filter((reportIp) => blacklist.has(canonicalIp(reportIp.ipAddress) ?? reportIp.ipAddress)).length
+export function blacklistedAddressCount(
+  ips: readonly Pick<ReportIpDto, "ipAddress">[],
+  blacklist: ReadonlySet<string>,
+): number {
+  return ips.filter((reportIp) =>
+    blacklist.has(canonicalIp(reportIp.ipAddress) ?? reportIp.ipAddress),
+  ).length
 }
 
 /** The bold first sentence of the dialog's blacklist notice, or null when nothing is listed. */
-export function blacklistNoticeHeadline(kind: "ip" | "asn", listed: number, total: number): string | null {
+export function blacklistNoticeHeadline(
+  kind: "ip" | "asn",
+  listed: number,
+  total: number,
+): string | null {
   if (listed === 0) return null
   if (kind === "ip") return "On AbuseIPDB's blacklist, with a 100% abuse confidence score."
   const where = "on AbuseIPDB's blacklist"
   if (listed === total) {
-    return total === 1 ? `The one address the report lists is ${where}.` : `All ${count(total)} addresses the report lists are ${where}.`
+    return total === 1
+      ? `The one address the report lists is ${where}.`
+      : `All ${count(total)} addresses the report lists are ${where}.`
   }
   return `${count(listed)} of the ${count(total)} addresses the report lists ${listed === 1 ? "is" : "are"} ${where}.`
 }
@@ -312,7 +379,9 @@ function dropRecordLines(ips: ReportIpDto[]): string[] {
   if (!networks.length) return []
   return [
     networks.length === 1 ? "Spamhaus DROP record:" : "Spamhaus DROP records:",
-    ...networks.map((network) => `${network.sblId} (${network.cidr}): ${sblRecordUrl(network.sblId)}`),
+    ...networks.map(
+      (network) => `${network.sblId} (${network.cidr}): ${sblRecordUrl(network.sblId)}`,
+    ),
     "",
   ]
 }
@@ -344,40 +413,58 @@ function ipSection(ip: ReportIpDto, report: AbuseReportResponse): string[] {
   if (decisions.length) {
     out.push(
       "Active CrowdSec decisions:",
-      ...decisions.map((d) => {
-        const reasons = d.scenarios.filter((name) => name !== MANUAL)
-        const manual = reasons.length < d.scenarios.length ? "manual" : null
-        const why = [reasons.join(", "), manual].filter(Boolean).join(", ")
-        return bullet(`${d.type} for ${shortDuration(d.duration)} more: ${why}`)
-      }).flat(),
+      ...decisions
+        .map((d) => {
+          const reasons = d.scenarios.filter((name) => name !== MANUAL)
+          const manual = reasons.length < d.scenarios.length ? "manual" : null
+          const why = [reasons.join(", "), manual].filter(Boolean).join(", ")
+          return bullet(`${d.type} for ${shortDuration(d.duration)} more: ${why}`)
+        })
+        .flat(),
     )
   }
 
   if (ip.paths.length) {
     const width = Math.max(...ip.paths.map((p) => count(p.hits).length))
-    out.push("Most requested paths:", ...ip.paths.map((p) => `  ${count(p.hits).padStart(width)}  ${printable(p.url)}`))
+    out.push(
+      "Most requested paths:",
+      ...ip.paths.map((p) => `  ${count(p.hits).padStart(width)}  ${printable(p.url)}`),
+    )
   }
   if (ip.userAgents.length) {
     const width = Math.max(...ip.userAgents.map((u) => count(u.hits).length))
-    out.push("User agents:", ...ip.userAgents.map((u) => `  ${count(u.hits).padStart(width)}  ${printable(u.userAgent)}`))
+    out.push(
+      "User agents:",
+      ...ip.userAgents.map((u) => `  ${count(u.hits).padStart(width)}  ${printable(u.userAgent)}`),
+    )
   }
   if (ip.lines.length) {
-    const of = ip.lines.length < ip.totalRequests ? `newest ${count(ip.lines.length)} of ${count(ip.totalRequests)}` : `all ${count(ip.lines.length)}`
-    out.push(`Log excerpt (${of} lines, UTC, target host and referrer withheld):`, ...ip.lines.map((l) => logLine(ip.ipAddress, l)))
+    const of =
+      ip.lines.length < ip.totalRequests
+        ? `newest ${count(ip.lines.length)} of ${count(ip.totalRequests)}`
+        : `all ${count(ip.lines.length)}`
+    out.push(
+      `Log excerpt (${of} lines, UTC, target host and referrer withheld):`,
+      ...ip.lines.map((l) => logLine(ip.ipAddress, l)),
+    )
   }
   return out
 }
 
 function targetLabel(report: AbuseReportResponse): string {
   const { target } = report
-  if (target.kind === "asn") return `AS${target.asn}${target.asnOrganization ? ` (${target.asnOrganization})` : ""}`
+  if (target.kind === "asn")
+    return `AS${target.asn}${target.asnOrganization ? ` (${target.asnOrganization})` : ""}`
   return target.ipAddress ?? ""
 }
 
 function summaryTable(ips: ReportIpDto[]): string[] {
   const rows = ips.map((ip) => {
     const scenarios = [...detectedScenarios(ip)]
-    const crowdsec = scenarios.length > 2 ? `${scenarios.slice(0, 2).join(", ")}, +${scenarios.length - 2}` : scenarios.join(", ")
+    const crowdsec =
+      scenarios.length > 2
+        ? `${scenarios.slice(0, 2).join(", ")}, +${scenarios.length - 2}`
+        : scenarios.join(", ")
     return [
       ip.ipAddress,
       count(ip.totalRequests),
@@ -387,11 +474,27 @@ function summaryTable(ips: ReportIpDto[]): string[] {
       crowdsec || "-",
     ]
   })
-  const header = ["IP address", "Requests", "4xx", "First seen (UTC)", "Last seen (UTC)", "CrowdSec"]
+  const header = [
+    "IP address",
+    "Requests",
+    "4xx",
+    "First seen (UTC)",
+    "Last seen (UTC)",
+    "CrowdSec",
+  ]
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)))
   const numeric = new Set([1, 2])
   const render = (cells: string[]) =>
-    cells.map((cell, i) => (i === cells.length - 1 ? cell : numeric.has(i) ? cell.padStart(widths[i]) : cell.padEnd(widths[i]))).join("  ").trimEnd()
+    cells
+      .map((cell, i) =>
+        i === cells.length - 1
+          ? cell
+          : numeric.has(i)
+            ? cell.padStart(widths[i])
+            : cell.padEnd(widths[i]),
+      )
+      .join("  ")
+      .trimEnd()
   return [render(header), ...rows.map(render)]
 }
 
@@ -408,14 +511,21 @@ function opening(report: AbuseReportResponse): string[] {
   } else {
     const ip = ips[0]
     const network = ip ? networkLabel(ip) : null
-    const sent = report.totalRequests ? plural(report.totalRequests, "HTTP request") : "no HTTP requests"
+    const sent = report.totalRequests
+      ? plural(report.totalRequests, "HTTP request")
+      : "no HTTP requests"
     lines.push(
       `The IP address ${targetLabel(report)}${network ? ` (${network})` : ""} sent ${sent} to a web server I operate ${period}.`,
     )
   }
   const total = report.totalRequests
-  if (total >= SIGNAL_THRESHOLDS.errorShareMinRequests && report.status4xx / total >= SIGNAL_THRESHOLDS.errorShareMin) {
-    lines.push(`${pct(report.status4xx, total)} of those requests got a 4xx response, which points to automated scanning rather than normal visits.`)
+  if (
+    total >= SIGNAL_THRESHOLDS.errorShareMinRequests &&
+    report.status4xx / total >= SIGNAL_THRESHOLDS.errorShareMin
+  ) {
+    lines.push(
+      `${pct(report.status4xx, total)} of those requests got a 4xx response, which points to automated scanning rather than normal visits.`,
+    )
   }
 
   const byScenario = new Map<string, number>()
@@ -426,13 +536,20 @@ function opening(report: AbuseReportResponse): string[] {
     for (const name of names) byScenario.set(name, (byScenario.get(name) ?? 0) + 1)
   }
   if (flagged) {
-    const top = [...byScenario.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, SUMMARY_SCENARIOS)
-    const names = top.map(([name, n]) => (report.target.kind === "asn" ? `${name} (${n})` : name)).join(", ")
-    const who = report.target.kind !== "asn"
-      ? "it"
-      : flagged === ips.length
-        ? ips.length === 1 ? "the address listed below" : `all ${count(ips.length)} addresses listed below`
-        : `${flagged} of the ${plural(ips.length, "address", "addresses")} listed below`
+    const top = [...byScenario.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, SUMMARY_SCENARIOS)
+    const names = top
+      .map(([name, n]) => (report.target.kind === "asn" ? `${name} (${n})` : name))
+      .join(", ")
+    const who =
+      report.target.kind !== "asn"
+        ? "it"
+        : flagged === ips.length
+          ? ips.length === 1
+            ? "the address listed below"
+            : `all ${count(ips.length)} addresses listed below`
+          : `${flagged} of the ${plural(ips.length, "address", "addresses")} listed below`
     const more = byScenario.size > top.length ? `, and ${byScenario.size - top.length} more` : ""
     lines.push(`CrowdSec flagged ${who} for ${names}${more}.`)
   }
@@ -441,14 +558,22 @@ function opening(report: AbuseReportResponse): string[] {
 }
 
 /** The report as plain text for an email body or an abuse form. */
-export function formatAbuseReportText(report: AbuseReportResponse, contact?: AbuseContactResponse | null): string {
+export function formatAbuseReportText(
+  report: AbuseReportResponse,
+  contact?: AbuseContactResponse | null,
+): string {
   const out: string[] = []
   const days = `${utc(report.startDate).slice(0, 10)} to ${utc(report.endDate).slice(0, 10)}`
   const scope = report.target.kind === "asn" ? `, ${plural(report.ipCount, "IP", "IPs")}` : ""
   out.push(`Subject: Abuse report for ${targetLabel(report)}${scope}, ${days}`)
   if (contact?.abuseEmails.length) out.push(`To: ${contact.abuseEmails.join(", ")}`)
   out.push("", "Hello,", "", ...opening(report), "")
-  if (report.target.kind === "asn" && !report.ips.length && report.target.asnDrop && report.target.asn != null) {
+  if (
+    report.target.kind === "asn" &&
+    !report.ips.length &&
+    report.target.asnDrop &&
+    report.target.asn != null
+  ) {
     out.push(`Listed on: ASN-DROP AS${report.target.asn}`, "")
   }
 
@@ -465,11 +590,24 @@ export function formatAbuseReportText(report: AbuseReportResponse, contact?: Abu
   }
   out.push(...dropRecordLines(report.ips))
   if (contact && (contact.name || contact.cidrs.length)) {
-    const holder = [contact.name, contact.handle && contact.handle !== contact.name ? contact.handle : null].filter(Boolean).join(" / ")
-    const range = contact.cidrs.length ? contact.cidrs.join(", ") : [contact.startAddress, contact.endAddress].filter(Boolean).join(" - ")
-    out.push(`Registry record (${contact.registry}): ${[holder, range].filter(Boolean).join(", ")}`, "")
+    const holder = [
+      contact.name,
+      contact.handle && contact.handle !== contact.name ? contact.handle : null,
+    ]
+      .filter(Boolean)
+      .join(" / ")
+    const range = contact.cidrs.length
+      ? contact.cidrs.join(", ")
+      : [contact.startAddress, contact.endAddress].filter(Boolean).join(" - ")
+    out.push(
+      `Registry record (${contact.registry}): ${[holder, range].filter(Boolean).join(", ")}`,
+      "",
+    )
   }
-  out.push(...wrap("All times are UTC. The target host is withheld; I can confirm it on request."), "")
+  out.push(
+    ...wrap("All times are UTC. The target host is withheld; I can confirm it on request."),
+    "",
+  )
 
   for (const ip of report.ips) out.push(...ipSection(ip, report), "")
   return `${out.join("\n").trimEnd()}\n`
@@ -532,6 +670,9 @@ export function formatAbuseReportCsv(report: AbuseReportResponse): string {
 
 /** A file name such as "abuse-report-AS396982-2026-09-26.txt". */
 export function reportFileName(report: AbuseReportResponse, extension: "txt" | "csv"): string {
-  const target = report.target.kind === "asn" ? `AS${report.target.asn}` : (report.target.ipAddress ?? "ip").replace(/:/g, "-")
+  const target =
+    report.target.kind === "asn"
+      ? `AS${report.target.asn}`
+      : (report.target.ipAddress ?? "ip").replace(/:/g, "-")
   return `abuse-report-${target}-${utc(report.endDate).slice(0, 10)}.${extension}`
 }
