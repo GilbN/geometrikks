@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -34,7 +34,7 @@ def _heartbeat_write(
         mode="agent",
         app_version="0.20.0",
         schema_revision="18be2778bd7c",
-        started_at=started_at or datetime.now(timezone.utc),
+        started_at=started_at or datetime.now(UTC),
         payload=payload or {},
     )
 
@@ -89,7 +89,7 @@ async def test_read_heartbeat_returns_none_for_unknown_name(pg_engine, clean_ins
 async def test_last_seen_comes_from_database_clock(
     pg_engine, pg_session_maker, clean_instance_heartbeats
 ):
-    future_start = datetime.now(timezone.utc) + timedelta(hours=3)
+    future_start = datetime.now(UTC) + timedelta(hours=3)
     async with pg_engine.begin() as connection:
         await upsert_heartbeat(connection, _heartbeat_write(started_at=future_start))
     async with pg_session_maker() as session:

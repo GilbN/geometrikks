@@ -1,7 +1,7 @@
 """/health is liveness (always 200); /health/ready is readiness (503 without DB)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -13,7 +13,7 @@ from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers import health as health_module
 from geometrikks.domain.system.controllers.health import health, health_ready
-from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.services.ingestion import LogIngestionService, LogInput
 from geometrikks.services.ingestion.service import BatchError
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource
@@ -110,7 +110,7 @@ def test_ready_200_for_agent_past_schema_gate(monkeypatch):
             assert client.get("/health/ready").status_code == 200
 
 
-def _running_service(file_missing: bool) -> "LogIngestionService":
+def _running_service(file_missing: bool) -> LogIngestionService:
     """A real (never-started) service so Litestar DI type validation passes."""
     source = FileSource(Path("nginx_logs/access.log"))
     source._unavailable_reason = "missing" if file_missing else None
@@ -163,10 +163,10 @@ def test_health_started_at_from_app_state(monkeypatch):
         return True
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     app = make_app()
-    app.state.started_at = datetime(2026, 7, 31, 8, 0, 0, tzinfo=timezone.utc)
+    app.state.started_at = datetime(2026, 7, 31, 8, 0, 0, tzinfo=UTC)
     with TestClient(app=app) as client:
         body = client.get("/health").json()
     assert body["startedAt"] == "2026-07-31T08:00:00+00:00"
@@ -456,7 +456,10 @@ def test_health_reports_server_count_advisory_without_container_ids(monkeypatch)
     monkeypatch.setattr(health_module, "_database_reachable", db_up)
 
     from geometrikks.server import timescale
-    from geometrikks.server.timescale import DISTINCT_SERVER_CEILING, ServerNamePollution
+    from geometrikks.server.timescale import (
+        DISTINCT_SERVER_CEILING,
+        ServerNamePollution,
+    )
     monkeypatch.setattr(
         timescale, "_server_name_pollution",
         ServerNamePollution(distinct_count=DISTINCT_SERVER_CEILING + 1, container_id_count=0),
@@ -609,7 +612,7 @@ def test_health_write_failure_advisory_reports_stopped_ingestion(monkeypatch):
     assert "restart the app" in advisory["detail"]
 
 
-WRITE_FAILURES_AT = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+WRITE_FAILURES_AT = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 SECRET_ARGUMENT_ERROR = (
     "(sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: "
     "invalid input for query argument $4: '/login?token=s3cr3t' (expected str, got int)"
@@ -673,7 +676,7 @@ def test_public_health_never_quotes_the_write_error(monkeypatch):
     from geometrikks.server import timescale
 
     monkeypatch.setattr(timescale, "_server_name_pollution", None)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     service = _running_service(file_missing=False)
     service.failed_batches = 2
     service.failed_records = 2
@@ -761,7 +764,7 @@ def test_proxy_advisory_setting_suppresses_scan_failure(monkeypatch):
 
     monkeypatch.setattr(timescale, "_server_name_pollution", None)
     monkeypatch.setattr(proxy_scan, "get_scan_error", lambda: "db down")
-    monkeypatch.setattr(proxy_scan, "get_scan_findings", lambda: [])
+    monkeypatch.setattr(proxy_scan, "get_scan_findings", list)
 
     with TestClient(app=make_app()) as client:
         advisory_ids = {

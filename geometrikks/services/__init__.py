@@ -1,5 +1,5 @@
 """Services layer - background tasks and external integrations."""
-from .logparser import LogParser
 from .ingestion import LogIngestionService
+from .logparser import LogParser
 
-__all__ = ["LogParser", "LogIngestionService"]
+__all__ = ["LogIngestionService", "LogParser"]

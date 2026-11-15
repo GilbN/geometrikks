@@ -1,11 +1,16 @@
 """Ingestion stamps the server name and source format onto AccessLog rows."""
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from geometrikks.services.ingestion.service import LogIngestionService
-from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
+from geometrikks.services.logparser.schemas import (
+    ParsedAccessLog,
+    ParsedGeoData,
+    ParsedLogRecord,
+)
 
 
 def _parsed(ts: datetime) -> ParsedAccessLog:
@@ -23,7 +28,7 @@ def test_to_access_log_model_stamps_server_and_format() -> None:
         inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     model = service._to_access_log_model(
-        _parsed(datetime.now(timezone.utc)), log_format="traefik-json"
+        _parsed(datetime.now(UTC)), log_format="traefik-json"
     )
     assert model.server == "myserver"
     assert model.log_format == "traefik-json"
@@ -35,7 +40,7 @@ def test_to_access_log_model_record_server_wins() -> None:
         inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     model = service._to_access_log_model(
-        _parsed(datetime.now(timezone.utc)), log_format="nginx", server="vps-2"
+        _parsed(datetime.now(UTC)), log_format="nginx", server="vps-2"
     )
     assert model.server == "vps-2"
 
@@ -45,7 +50,7 @@ def test_to_access_log_model_empty_server_falls_back() -> None:
         inputs=[], session_maker=cast("Any", None), geoip_path="unused", server="myserver",
     )
     model = service._to_access_log_model(
-        _parsed(datetime.now(timezone.utc)), log_format="nginx", server=None
+        _parsed(datetime.now(UTC)), log_format="nginx", server=None
     )
     assert model.server == "myserver"
 
@@ -57,7 +62,7 @@ async def test_process_record_stamps_record_server_on_geo_event() -> None:
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
-        country_name="United Kingdom", timestamp=datetime.now(timezone.utc),
+        country_name="United Kingdom", timestamp=datetime.now(UTC),
     )
     record = ParsedLogRecord(
         ip_address="203.0.113.7", geo_data=geo, access_log=None,
@@ -80,7 +85,7 @@ async def test_process_record_stamps_asn_on_geo_event() -> None:
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
-        country_name="United Kingdom", timestamp=datetime.now(timezone.utc),
+        country_name="United Kingdom", timestamp=datetime.now(UTC),
         autonomous_system_number=1221, autonomous_system_organization="Telstra Pty Ltd",
     )
     record = ParsedLogRecord(ip_address="1.128.0.0", geo_data=geo, access_log=None, raw_line="raw")
@@ -101,7 +106,7 @@ async def test_process_record_leaves_asn_null_when_unresolved() -> None:
     )
     geo = ParsedGeoData(
         latitude=51.5, longitude=-0.1, geohash="gcpvj0", country_code="GB",
-        country_name="United Kingdom", timestamp=datetime.now(timezone.utc),
+        country_name="United Kingdom", timestamp=datetime.now(UTC),
     )
     record = ParsedLogRecord(ip_address="203.0.113.7", geo_data=geo, access_log=None, raw_line="raw")
     service._location_cache[geo.geohash] = 42

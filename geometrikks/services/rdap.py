@@ -167,9 +167,12 @@ def bootstrap_base_for_ip(bootstrap: dict[str, Any], ip: str) -> str | None:
                 network = ipaddress.ip_network(prefix, strict=False)
             except ValueError:
                 continue
-            if address.version == network.version and address in network:
-                if best is None or network.prefixlen > best[0]:
-                    best = (network.prefixlen, base)
+            if (
+                address.version == network.version
+                and address in network
+                and (best is None or network.prefixlen > best[0])
+            ):
+                best = (network.prefixlen, base)
     return best[1] if best else None
 
 

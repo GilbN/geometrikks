@@ -5,8 +5,9 @@ of auth wiring.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import (
@@ -15,12 +16,10 @@ from geometrikks.domain.analytics.repositories import (
     SummaryStatsRepository,
 )
 
-import pytest
-
 pytestmark = pytest.mark.anyio
 
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 async def _insert_log(
@@ -117,7 +116,10 @@ async def test_time_series_methods_survive_sub_24h_ranges(pg_session_maker, clea
 async def test_get_time_series_granularity_override(pg_session_maker, clean_tables):
     """Explicit granularity overrides auto-routing: same data, different bucket
     counts (issue #14 - user-selectable chart granularity)."""
-    from geometrikks.domain.analytics.repositories import StatsGranularity, SummaryStatsRepository
+    from geometrikks.domain.analytics.repositories import (
+        StatsGranularity,
+        SummaryStatsRepository,
+    )
 
     # Midnight of yesterday: guaranteed in the past regardless of wall-clock hour,
     # and both inserts stay within the same calendar day.
@@ -453,11 +455,11 @@ async def test_iter_null_asn_ips_pages_without_gaps_or_repeats(pg_engine, pg_ses
 
 
 async def test_summary_without_timed_rows_reports_none(pg_session_maker, clean_tables):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from geometrikks.domain.analytics.repositories import LiveStatsRepository
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with pg_session_maker() as session:
         for _ in range(3):
             await session.execute(text(
@@ -475,11 +477,11 @@ async def test_summary_without_timed_rows_reports_none(pg_session_maker, clean_t
 
 
 async def test_summary_mixed_rows_average_only_the_timed_ones(pg_session_maker, clean_tables):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from geometrikks.domain.analytics.repositories import LiveStatsRepository
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with pg_session_maker() as session:
         for rt in (0.2, 0.4, None, None):
             await session.execute(text(
@@ -498,12 +500,15 @@ async def test_summary_mixed_rows_average_only_the_timed_ones(pg_session_maker, 
 
 
 async def test_cagg_time_series_carries_timed_requests(pg_engine, pg_session_maker, clean_tables):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    from geometrikks.domain.analytics.repositories import StatsGranularity, SummaryStatsRepository
+    from geometrikks.domain.analytics.repositories import (
+        StatsGranularity,
+        SummaryStatsRepository,
+    )
     from geometrikks.server.timescale import refresh_caggs_range
 
-    now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     ts = now - timedelta(hours=2)
     async with pg_session_maker() as session:
         for rt in (0.1, None):

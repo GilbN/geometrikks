@@ -4,7 +4,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import msgspec
@@ -75,7 +75,7 @@ class HeartbeatWriter:
         self._instance_name = settings.resolved_instance_name
         self._app_version = get_installed_version()
         self._schema_revision: str | None = None
-        self._started_at = runtime.get_started_at(app) or datetime.now(timezone.utc)
+        self._started_at = runtime.get_started_at(app) or datetime.now(UTC)
         self._task: asyncio.Task[None] | None = None
         self._lines_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
         self._failed_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
@@ -240,7 +240,7 @@ class HeartbeatWriter:
             return False
         if foreign_boot_id is None:
             return False
-        self._name_conflict_at = datetime.now(timezone.utc)
+        self._name_conflict_at = datetime.now(UTC)
         if not self._conflict_logged:
             self._conflict_logged = True
             logger.warning(

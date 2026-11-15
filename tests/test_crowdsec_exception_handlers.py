@@ -1,13 +1,16 @@
 """CrowdSec domain exceptions translate to clean HTTP responses."""
 from __future__ import annotations
 
+import pytest
 from litestar import Litestar, get
 from litestar.testing import AsyncTestClient
 
 from geometrikks.server.exceptions import CROWDSEC_EXCEPTION_HANDLERS
-from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError, CrowdSecUnsupportedError
-
-import pytest
+from geometrikks.services.crowdsec import (
+    CrowdSecAuthError,
+    CrowdSecUnavailableError,
+    CrowdSecUnsupportedError,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -54,7 +57,10 @@ async def test_upstream_message_is_not_echoed():
 def test_handlers_registered_on_app(monkeypatch):
     monkeypatch.setenv("APP_AUTH_DISABLED", "true")
     from geometrikks.server.core import create_app
-    from geometrikks.services.crowdsec import CrowdSecAuthError, CrowdSecUnavailableError
+    from geometrikks.services.crowdsec import (
+        CrowdSecAuthError,
+        CrowdSecUnavailableError,
+    )
 
     app = create_app()
     assert CrowdSecUnavailableError in app.exception_handlers

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import httpx2
@@ -17,15 +17,15 @@ from geometrikks.config.settings import Settings
 from geometrikks.domain.analytics.asn_classification import hosting_asn_count
 from geometrikks.domain.system import commit
 from geometrikks.domain.system.controllers.system import SystemController
-from geometrikks.server.scheduler_tracking import JobRunTracker
-from geometrikks.services.release_check import ReleaseChecker
-from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.server.routes import create_api_v1_router
+from geometrikks.server.scheduler_tracking import JobRunTracker
+from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
+from geometrikks.services.release_check import ReleaseChecker
 from tests.support import ambient_settings_dependency
 
 pytestmark = pytest.mark.anyio
 
-FUTURE = datetime.now(timezone.utc) + timedelta(days=365)
+FUTURE = datetime.now(UTC) + timedelta(days=365)
 
 
 class UnreachableEngine:
@@ -48,7 +48,7 @@ def make_app(*, with_scheduler: bool = True) -> Litestar:
     async def startup(app: Litestar) -> None:
         if not with_scheduler:
             return
-        scheduler = AsyncIOScheduler(timezone=timezone.utc)
+        scheduler = AsyncIOScheduler(timezone=UTC)
         scheduler.start(paused=True)
         scheduler.add_job(
             noop,
@@ -193,7 +193,7 @@ async def test_system_settings_never_leak_secrets(monkeypatch):
     for secret in ("super-secret-db-pass", "maxmind-secret-key", "admin-secret-pass"):
         assert secret not in resp.text
     body = resp.json()
-    assert [s["name"] for s in body["sections"]][0] == "app"
+    assert next(s["name"] for s in body["sections"]) == "app"
 
 
 async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):
@@ -386,7 +386,7 @@ def test_bundled_revision_doc_is_the_migration_message():
 
 
 RELEASE_PUBLISHED_AT = "2026-10-01T08:00:00Z"
-RELEASE_CHECKED_AT = datetime(2026, 10, 25, 12, 0, tzinfo=timezone.utc)
+RELEASE_CHECKED_AT = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)
 
 
 def release_transport(

@@ -84,14 +84,15 @@ VITE_DEV_MODE=false uv run litestar --app geometrikks.server.core:create_app ass
 
 CI runs the same command with `VITE_DEV_MODE=false` and fails when `resources/generated/` differs from what you committed. A dev-mode run adds dev-only Vite routes to `routes.json`, and starting the app rewrites these files as well, so run `git status` on `resources/generated/` before you commit and regenerate if something unexpected changed.
 
-## Type checks
+## Lint and type checks
 
 ```bash
+uv run ruff check
 uv run ty check geometrikks tests
 bun run typecheck
 ```
 
-CI runs both, the second against the regenerated types.
+CI runs all three, and `bun run typecheck` runs against the regenerated types.
 
 ## Tests
 

@@ -18,10 +18,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
-from sqlalchemy import text
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
+from sqlalchemy import text
 
-from geometrikks.domain.geo.models import GeoLocation, GeoEvent
+from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)

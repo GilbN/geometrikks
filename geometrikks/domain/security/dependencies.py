@@ -1,18 +1,20 @@
 """Dependency providers for the security (CrowdSec) domain."""
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from litestar import Request
 from litestar.di import NamedDependency
 from litestar.params import SkipValidation
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.security.repositories import (
+    DropTrafficRepository,
+    SecurityEnrichmentRepository,
+)
 from geometrikks.server import runtime
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.locator import GeoIpLocator
-from geometrikks.domain.security.repositories import DropTrafficRepository, SecurityEnrichmentRepository
 
 
 def provide_crowdsec_service(request: Request) -> CrowdSecService | None:

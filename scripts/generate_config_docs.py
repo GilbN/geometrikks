@@ -27,7 +27,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 # Import via the package so nested settings classes resolve.
-from geometrikks.config import settings as settings_module  # noqa: E402
+from geometrikks.config import settings as settings_module
 
 SITE_OUTPUT = REPO_ROOT / "site" / "content" / "docs" / "next" / "reference" / "configuration.mdx"
 
@@ -77,70 +77,86 @@ CONTAINER_VARIABLES: list[tuple[str, str, str]] = [
     (
         "PUID",
         "`1000`",
-        "User id the app runs as. At startup the entrypoint remaps the `geometrikks` user to "
-        "it, chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`, then drops root. "
-        "Match your host user (`id -u`) so host tools can manage the files in `./logs`. "
-        "A non-root `user:` on the `app` service skips the remap and every chown. That user "
-        "must then own `./logs` and the geoip volume, or GeoLite2 downloads fail. It must also "
-        "be able to write to `/app`, which UID 1000 owns in the image. In `full` mode the app "
-        "rewrites `/app/.litestar.json` through a temporary file in `/app` at startup, so "
-        "without that access startup stops with a PermissionError.",
+        (
+            "User id the app runs as. At startup the entrypoint remaps the `geometrikks` user to "
+            "it, chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`, then drops root. "
+            "Match your host user (`id -u`) so host tools can manage the files in `./logs`. "
+            "A non-root `user:` on the `app` service skips the remap and every chown. That user "
+            "must then own `./logs` and the geoip volume, or GeoLite2 downloads fail. It must also "
+            "be able to write to `/app`, which UID 1000 owns in the image. In `full` mode the app "
+            "rewrites `/app/.litestar.json` through a temporary file in `/app` at startup, so "
+            "without that access startup stops with a PermissionError."
+        ),
     ),
     (
         "PGID",
         "`1000`",
-        "Group id the app runs as. At startup the entrypoint remaps the `geometrikks` group to "
-        "it and chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`. Match your "
-        "host group (`id -g`). A non-root `user:` on the `app` service skips this remap too. "
-        "See `PUID` for what that user then needs.",
+        (
+            "Group id the app runs as. At startup the entrypoint remaps the `geometrikks` group to "
+            "it and chowns `/app`, `/app/logs` and `/app/data/geoip` to `PUID:PGID`. Match your "
+            "host group (`id -g`). A non-root `user:` on the `app` service skips this remap too. "
+            "See `PUID` for what that user then needs."
+        ),
     ),
     (
         "ACCESS_LOG_DIR",
         "`/var/log/nginx`",
-        "Host folder the compose file mounts read-only at `/var/log/access`, where "
-        "`LOGPARSER_LOG_PATHS` points by default. Set it to the folder that holds your "
-        "proxy's access logs.",
+        (
+            "Host folder the compose file mounts read-only at `/var/log/access`, where "
+            "`LOGPARSER_LOG_PATHS` points by default. Set it to the folder that holds your "
+            "proxy's access logs."
+        ),
     ),
     (
         "NGINX_LOG_DIR",
         "-",
-        "Older name for `ACCESS_LOG_DIR`. The compose file uses it only when `ACCESS_LOG_DIR` "
-        "is unset.",
+        (
+            "Older name for `ACCESS_LOG_DIR`. The compose file uses it only when `ACCESS_LOG_DIR` "
+            "is unset."
+        ),
     ),
     (
         "POSTGRES_USER",
         "`geouser`",
-        "Database user the `timescale_db` service creates. The compose file sets it on that "
-        "service, so a value in `.env` changes nothing. It must match `DB_USER`. Postgres "
-        "reads it only when it creates the data volume.",
+        (
+            "Database user the `timescale_db` service creates. The compose file sets it on that "
+            "service, so a value in `.env` changes nothing. It must match `DB_USER`. Postgres "
+            "reads it only when it creates the data volume."
+        ),
     ),
     (
         "POSTGRES_PASSWORD",
         "`DB_PASSWORD`, else `geopass`",
-        "Password of the database user. The compose file sets it to `${DB_PASSWORD:-geopass}` "
-        "and sets the app's `DB_PASSWORD` the same way, so both fall back to `geopass` when "
-        "`DB_PASSWORD` is unset. Postgres applies it only when it creates the "
-        "data volume. Changing `DB_PASSWORD` later locks the app out of the database until "
-        "you also change the password inside Postgres with `ALTER USER geouser PASSWORD '...'`.",
+        (
+            "Password of the database user. The compose file sets it to `${DB_PASSWORD:-geopass}` "
+            "and sets the app's `DB_PASSWORD` the same way, so both fall back to `geopass` when "
+            "`DB_PASSWORD` is unset. Postgres applies it only when it creates the "
+            "data volume. Changing `DB_PASSWORD` later locks the app out of the database until "
+            "you also change the password inside Postgres with `ALTER USER geouser PASSWORD '...'`."
+        ),
     ),
     (
         "POSTGRES_DB",
         "`geometrikks`",
-        "Database the `timescale_db` service creates. The compose file sets it on that "
-        "service, so a value in `.env` changes nothing. It must match `DB_DATABASE`. Postgres "
-        "reads it only when it creates the data volume.",
+        (
+            "Database the `timescale_db` service creates. The compose file sets it on that "
+            "service, so a value in `.env` changes nothing. It must match `DB_DATABASE`. Postgres "
+            "reads it only when it creates the data volume."
+        ),
     ),
     (
         "LITESTAR_WEB_CONCURRENCY",
         "`1`",
-        "Worker count for `litestar run`. The image's command passes `--workers 1`, which wins "
-        "over this and the two variables below, so they change nothing in the container. "
-        "Outside the image, every worker runs the whole app. Each one tails every log, so "
-        "each line is stored once per worker, and runs every scheduled job. Each process "
-        "runs its own `/ws/crowdsec` and `/ws/logs` feeds and keeps its own session lock, "
-        "so logins and logouts on different workers can race. Two processes can also run "
-        "migrations at once. "
-        "See [Deployment](deployment.md).",
+        (
+            "Worker count for `litestar run`. The image's command passes `--workers 1`, which wins "
+            "over this and the two variables below, so they change nothing in the container. "
+            "Outside the image, every worker runs the whole app. Each one tails every log, so "
+            "each line is stored once per worker, and runs every scheduled job. Each process "
+            "runs its own `/ws/crowdsec` and `/ws/logs` feeds and keeps its own session lock, "
+            "so logins and logouts on different workers can race. Two processes can also run "
+            "migrations at once. "
+            "See [Deployment](deployment.md)."
+        ),
     ),
     (
         "WEB_CONCURRENCY",
@@ -150,15 +166,19 @@ CONTAINER_VARIABLES: list[tuple[str, str, str]] = [
     (
         "GRANIAN_WORKERS",
         "`1`",
-        "Same as `LITESTAR_WEB_CONCURRENCY`, read only when neither it nor `WEB_CONCURRENCY` "
-        "is set.",
+        (
+            "Same as `LITESTAR_WEB_CONCURRENCY`, read only when neither it nor `WEB_CONCURRENCY` "
+            "is set."
+        ),
     ),
     (
         "LITESTAR_APP",
         "*(set by the image)*",
-        "Tells `litestar` CLI commands where the app is. The image sets it to "
-        "`geometrikks.server.core:create_app`, so commands run in the container need no "
-        "`--app`. Outside the image, pass `--app geometrikks.server.core:create_app`.",
+        (
+            "Tells `litestar` CLI commands where the app is. The image sets it to "
+            "`geometrikks.server.core:create_app`, so commands run in the container need no "
+            "`--app`. Outside the image, pass `--app geometrikks.server.core:create_app`."
+        ),
     ),
 ]
 

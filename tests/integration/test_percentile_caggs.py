@@ -1,20 +1,19 @@
 """Summary CAGGs must expose pct_agg and correct percentiles after upgrade."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 
 from geometrikks.server.timescale import refresh_caggs_range
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 
 # Derived from the wall clock, not hard-coded: the scratch DB has live
 # retention/refresh policies, so a fixed date would age out of their windows
 # (see test_repositories_pg.py). Hour-aligned for deterministic bucketing.
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 async def _seed_latency_data(session_maker) -> None:

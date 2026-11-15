@@ -9,20 +9,18 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
-from types import SimpleNamespace
-
+import pytest
 from sqlalchemy import text
 
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
-from geometrikks.services.ingestion.service import LogInput, LogIngestionService
+from geometrikks.services.ingestion.service import LogIngestionService, LogInput
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import FileSource
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 
@@ -30,7 +28,7 @@ GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"   # resolves in the MaxMind test DB
 # Recent, not a fixed date: an old access log left behind sends the next
 # setup_timescaledb through its gap backfill from that date.
-LOGGED_AT = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(hours=1)
+LOGGED_AT = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
 TEST_IP_2 = "81.2.69.142"   # second location in the test DB
 
 
@@ -40,7 +38,7 @@ def make_log_line(ip: str) -> str:
     Unlike the unit-test helper this stamps the current time, so the row
     stays inside the 180-day raw retention window.
     """
-    ts = datetime.now(timezone.utc).strftime("%d/%b/%Y:%H:%M:%S +0000")
+    ts = datetime.now(UTC).strftime("%d/%b/%Y:%H:%M:%S +0000")
     return (
         f'{ip} - - [{ts}]"GET /index.php HTTP/2.0" 200 1024"-" '
         f'example.com "-""0.002" "0.001""City" "CC"'

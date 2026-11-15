@@ -1,5 +1,5 @@
 """The AbuseIPDB blacklist job's registration and failure signal, and the read path without a database."""
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -7,7 +7,11 @@ import pytest
 from pydantic import SecretStr
 
 from geometrikks.config.settings import AbuseIpdbSettings, SchedulerSettings, Settings
-from geometrikks.domain.abuseipdb.blacklist import BlacklistOutcome, BlacklistView, current_blacklist
+from geometrikks.domain.abuseipdb.blacklist import (
+    BlacklistOutcome,
+    BlacklistView,
+    current_blacklist,
+)
 from geometrikks.domain.drop.refresh import FirstRunFlag
 from geometrikks.server import scheduler as sched
 
@@ -34,7 +38,7 @@ def blacklist_settings(
 
 
 async def test_registered_on_a_server_with_the_feature_on():
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     scheduler = await sched.create_scheduler(MagicMock(), blacklist_settings(refresh_hours=12), mode="full")
 
     job = scheduler.get_job("abuseipdb-blacklist-refresh")

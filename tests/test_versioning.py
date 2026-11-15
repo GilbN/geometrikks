@@ -1,6 +1,11 @@
 import pytest
 
-from geometrikks.lib.versioning import LOCAL_BUILD_LABEL, display_version, is_local_build, same_release
+from geometrikks.lib.versioning import (
+    LOCAL_BUILD_LABEL,
+    display_version,
+    is_local_build,
+    same_release,
+)
 
 
 @pytest.mark.parametrize(

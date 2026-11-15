@@ -1,7 +1,7 @@
 """The /api/v1/instances routes through the full app composition."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -74,7 +74,7 @@ async def _seed_agent(
         mode="agent",
         app_version=app_version or get_installed_version(),
         schema_revision=schema_revision or bundled_head_revision(),
-        started_at=datetime.now(timezone.utc),
+        started_at=datetime.now(UTC),
         payload=payload if payload is not None else {"instanceNameSource": "configured"},
     )
     async with pg_engine.begin() as connection:

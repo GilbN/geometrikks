@@ -1,20 +1,21 @@
 from collections.abc import Callable, Mapping
 from functools import lru_cache
-from ipaddress import ip_address as parse_ip_address, ip_network
+from ipaddress import ip_address as parse_ip_address
+from ipaddress import ip_network
 
+from geohash2 import encode
 from geoip2.database import Reader
 from geoip2.models import ASN, City
-from geohash2 import encode
 from IPy import IP
+
+from geometrikks.domain.analytics.cdn_asns import CDN_ASNS
+from geometrikks.server.logging import get_logger
 
 from .constants import MONITORED_IP_TYPES
 from .formats import FORMATS, IMPORT_ONLY_FORMATS, sniff_format
 from .formats.base import LogLineFormat, NormalizedLine
 from .peer_window import PeerSummary, PeerWindow
-from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
-from geometrikks.domain.analytics.cdn_asns import CDN_ASNS
-from geometrikks.server.logging import get_logger
-
+from .schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
 
 logger = get_logger(__name__)
 

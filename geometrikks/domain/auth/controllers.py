@@ -5,12 +5,11 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 import msgspec
-
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotAuthorizedException, NotFoundException
-from litestar.params import JSONBody, QueryParameter, SkipValidation
 from litestar.openapi.datastructures import ResponseSpec
+from litestar.params import JSONBody, QueryParameter, SkipValidation
 from litestar.response import Redirect
 from litestar.status_codes import (
     HTTP_200_OK,
@@ -29,7 +28,12 @@ from geometrikks.server.api_key_auth import (
     SESSION_ONLY_SECURITY,
     requires_session_user,
 )
-from geometrikks.server.auth import AdminUser, AuthState, require_session_database, rotate_session
+from geometrikks.server.auth import (
+    AdminUser,
+    AuthState,
+    require_session_database,
+    rotate_session,
+)
 from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import LOGIN_LOGGER_NAME, get_logger
 from geometrikks.services.oidc import (
@@ -38,7 +42,6 @@ from geometrikks.services.oidc import (
     OidcUnavailable,
     PendingLogin,
 )
-
 
 login_logger = get_logger(LOGIN_LOGGER_NAME)
 

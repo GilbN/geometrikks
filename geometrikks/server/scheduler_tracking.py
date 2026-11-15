@@ -8,7 +8,7 @@ local and resets on restart by design.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal
 
 from apscheduler.events import (
@@ -45,7 +45,7 @@ class JobRunTracker:
     def __init__(self) -> None:
         self._runs: dict[str, JobRunInfo] = {}
 
-    def attach(self, scheduler: "BaseScheduler") -> None:
+    def attach(self, scheduler: BaseScheduler) -> None:
         """Subscribe to the scheduler's job lifecycle events."""
         scheduler.add_listener(self._on_submitted, EVENT_JOB_SUBMITTED)
         scheduler.add_listener(self._on_executed, EVENT_JOB_EXECUTED | EVENT_JOB_ERROR)
@@ -58,14 +58,14 @@ class JobRunTracker:
     def _info(self, job_id: str) -> JobRunInfo:
         return self._runs.setdefault(job_id, JobRunInfo())
 
-    def _on_submitted(self, event: "JobSubmissionEvent") -> None:
+    def _on_submitted(self, event: JobSubmissionEvent) -> None:
         info = self._info(event.job_id)
         info.running = True
-        info.last_start = datetime.now(timezone.utc)
+        info.last_start = datetime.now(UTC)
 
-    def _on_executed(self, event: "JobExecutionEvent") -> None:
+    def _on_executed(self, event: JobExecutionEvent) -> None:
         info = self._info(event.job_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         info.running = False
         info.last_finish = now
         if info.last_start is not None:
@@ -88,6 +88,6 @@ class JobRunTracker:
                 duration_seconds=info.last_duration_seconds,
             )
 
-    def _on_missed(self, event: "JobEvent") -> None:
+    def _on_missed(self, event: JobEvent) -> None:
         self._info(event.job_id).last_status = "missed"
         logger.warning("scheduler_job_missed", job_id=event.job_id)

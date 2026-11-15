@@ -5,6 +5,7 @@ from advanced_alchemy.extensions.litestar import SQLAlchemyDTO, SQLAlchemyDTOCon
 
 from geometrikks.domain.logs.models import AccessLog
 
+
 class AccessLogDTO(SQLAlchemyDTO[AccessLog]):
     """Data transfer object for AccessLog model."""
     config = SQLAlchemyDTOConfig(rename_strategy="camel")

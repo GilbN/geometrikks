@@ -1,14 +1,14 @@
 """Decision stream poller: fans LAPI ban/unban deltas out to live subscribers."""
 from __future__ import annotations
-from geometrikks.services.crowdsec.schemas import DecisionStreamDelta
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from geometrikks.lib.validation import canonical_ip
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec.exceptions import CrowdSecError
+from geometrikks.services.crowdsec.schemas import DecisionStreamDelta
 from geometrikks.services.crowdsec.service import CrowdSecService
 
 logger = get_logger(__name__)
@@ -72,7 +72,7 @@ class CrowdSecStreamPoller:
         changed = self._lapi_reachable != reachable
         self._lapi_reachable = reachable
         if reachable:
-            self._last_success = datetime.now(timezone.utc)
+            self._last_success = datetime.now(UTC)
         if changed:
             self._broadcast({"type": "crowdsec_status", "lapi_reachable": reachable})
 

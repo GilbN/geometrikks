@@ -22,7 +22,6 @@ from sqlalchemy import func, select, text
 from geometrikks.domain.analytics.asn_classification import classify_asn
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
-
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.repositories import (
     GeoLocationRepository,

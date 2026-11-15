@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from geometrikks.services.logparser.peer_window import (
-    PEER_MIN_LINES, PEER_SHARE_OFF, PEER_SHARE_ON, PeerWindow,
+    PeerWindow,
 )
 
 

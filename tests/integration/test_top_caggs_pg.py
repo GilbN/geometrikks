@@ -6,14 +6,14 @@ filter routing, and the CAGG-backed access-log facets.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import text
 
 from geometrikks.server.timescale import refresh_caggs_range
 
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 # Misaligned >24h window: neither edge on an hour boundary, so CAGG reads
 # must stitch partial head/tail buckets from raw access_logs.
@@ -56,13 +56,13 @@ class TestCaggWiring:
         )
 
 
+import pytest
+
 from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
     LiveStatsRepository,
     SummaryStatsRepository,
 )
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 

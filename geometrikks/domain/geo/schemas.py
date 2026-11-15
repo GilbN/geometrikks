@@ -7,13 +7,17 @@ generated TS client.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Sequence
+from typing import Annotated
 
 import msgspec
 
-from geometrikks.domain.analytics.asn_classification import ASN_CATEGORY_DESCRIPTION, AsnCategory
+from geometrikks.domain.analytics.asn_classification import (
+    ASN_CATEGORY_DESCRIPTION,
+    AsnCategory,
+)
 
 EchoedFrom = Annotated[str, msgspec.Meta(description="The request's `fromTimestamp`, echoed as ISO 8601.")]
 EchoedTo = Annotated[str, msgspec.Meta(description="The request's `toTimestamp`, echoed as ISO 8601.")]

@@ -7,7 +7,7 @@ re-logging in once when it expires.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import httpx2
@@ -297,7 +297,7 @@ class CrowdSecService:
             CrowdSecAuthError: Machine credentials missing or rejected.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
         """
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         reason = reason or manual_reason(decision_type)
         scenario = f"geometrikks/manual-{decision_type}"
         source_key = "ip" if scope == "Ip" else "range"

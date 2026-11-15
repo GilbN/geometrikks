@@ -2,7 +2,10 @@ import re
 
 from sqlalchemy.dialects import postgresql
 
-from geometrikks.domain.instances.models import INSTANCE_HEARTBEAT_COLUMNS, InstanceHeartbeat
+from geometrikks.domain.instances.models import (
+    INSTANCE_HEARTBEAT_COLUMNS,
+    InstanceHeartbeat,
+)
 from geometrikks.domain.instances.repositories import _UPSERT_HEARTBEAT
 
 # (postgres type, server default) of the nine original columns, all NOT NULL.

@@ -10,7 +10,6 @@ from __future__ import annotations
 from typing import Annotated
 
 import msgspec
-
 from litestar import Request, get
 from litestar.di import NamedDependency
 from litestar.params import SkipValidation

@@ -1,7 +1,7 @@
 """Wire schema for the live_events channel: envelope shape, truncation, size guard."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from geometrikks.domain.realtime.events import (
     PAYLOAD_MAX,
@@ -17,7 +17,7 @@ from geometrikks.services.logparser.schemas import (
     ParsedLogRecord,
 )
 
-TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
+TS = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 
 
 def _record(

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import msgspec
 from datetime import datetime
 from typing import Annotated, Literal
 
+import msgspec
 from litestar import Controller, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException

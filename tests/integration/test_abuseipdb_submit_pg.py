@@ -19,7 +19,11 @@ from geometrikks.domain.abuseipdb.errors import (
 )
 from geometrikks.domain.abuseipdb.models import AbuseIpdbReport
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbReportRepository
-from geometrikks.domain.abuseipdb.service import Reporter, ReportSubmission, submit_report
+from geometrikks.domain.abuseipdb.service import (
+    Reporter,
+    ReportSubmission,
+    submit_report,
+)
 from geometrikks.services.abuseipdb import AbuseIpdbClient
 
 pytestmark = pytest.mark.anyio

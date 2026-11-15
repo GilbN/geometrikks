@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import Event
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
@@ -15,13 +15,17 @@ from litestar.exceptions import WebSocketDisconnect
 from litestar.testing import TestClient
 
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, record_to_event
-from geometrikks.services.logparser.schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
+from geometrikks.services.logparser.schemas import (
+    ParsedAccessLog,
+    ParsedGeoData,
+    ParsedLogRecord,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
     from typing import Any
 
-TS = datetime(2026, 7, 1, 12, 0, tzinfo=timezone.utc)
+TS = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 
 
 async def _until(predicate, timeout: float = 10.0) -> None:
@@ -117,10 +121,9 @@ def test_ws_sends_empty_batch_heartbeat_when_idle(monkeypatch):
 def test_ws_closes_1013_when_db_unavailable():
     """Degraded mode closes with 1013 (try again later) and a usable reason."""
     app, _channels = _live_app(db_available=False)
-    with TestClient(app) as client:
-        with pytest.raises(WebSocketDisconnect) as exc_info:
-            with client.websocket_connect("/ws/live") as ws:
-                ws.receive_json(timeout=10)
+    with TestClient(app) as client, pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/ws/live") as ws:
+            ws.receive_json(timeout=10)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "live feed unavailable (database down)"
 
@@ -131,10 +134,9 @@ def test_crowdsec_ws_closes_1013_when_poller_is_deferred():
     app = Litestar(route_handlers=[crowdsec_feed])
     app.state.crowdsec_stream_poller = None
     app.state.crowdsec_stream_poller_deferred = object()
-    with TestClient(app) as client:
-        with pytest.raises(WebSocketDisconnect) as exc_info:
-            with client.websocket_connect("/ws/crowdsec") as ws:
-                ws.receive_json(timeout=10)
+    with TestClient(app) as client, pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/ws/crowdsec") as ws:
+            ws.receive_json(timeout=10)
     assert exc_info.value.code == 1013
     assert exc_info.value.detail == "crowdsec stream not running"
 

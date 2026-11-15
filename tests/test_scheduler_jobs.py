@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -63,12 +63,12 @@ async def test_full_refresh_stops_at_the_bucket_still_filling(monkeypatch):
         bounds[sql.split("'")[1]] = args
 
     monkeypatch.setattr(sched, "_execute_call_outside_transaction", fake_call)
-    now = datetime(2026, 1, 7, 15, 20, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 7, 15, 20, tzinfo=UTC)
 
     await sched.refresh_all_caggs_job(cast("Any", object()), now=now)
 
-    assert bounds["summary_hourly_stats"] == (datetime(2026, 1, 7, 15, tzinfo=timezone.utc),)
-    assert bounds["summary_daily_stats"] == (datetime(2026, 1, 7, tzinfo=timezone.utc),)
+    assert bounds["summary_hourly_stats"] == (datetime(2026, 1, 7, 15, tzinfo=UTC),)
+    assert bounds["summary_daily_stats"] == (datetime(2026, 1, 7, tzinfo=UTC),)
     assert set(bounds) == set(ALL_CAGGS)
 
 
@@ -107,8 +107,7 @@ async def test_server_location_job_updates_app_state_and_clears_the_advisory(
     from geometrikks.config.settings import MapSettings, Settings
     from geometrikks.lib.advisories import SERVER_LOCATION_UNDETECTED
     from geometrikks.server import runtime
-    from geometrikks.services.geoip import self_location
-    from geometrikks.services.geoip import server_locations
+    from geometrikks.services.geoip import self_location, server_locations
 
     resolved = self_location.SelfLocation(
         latitude=59.9, longitude=10.7, source="external_ip"
@@ -140,8 +139,7 @@ async def test_server_location_job_updates_a_ui_head_without_writing_the_databas
     from geometrikks.config.settings import LogParserSettings, MapSettings, Settings
     from geometrikks.lib.advisories import SERVER_LOCATION_UNDETECTED
     from geometrikks.server import runtime
-    from geometrikks.services.geoip import self_location
-    from geometrikks.services.geoip import server_locations
+    from geometrikks.services.geoip import self_location, server_locations
 
     resolved = self_location.SelfLocation(
         latitude=59.9, longitude=10.7, source="external_ip"
@@ -172,8 +170,7 @@ async def test_server_location_job_keeps_state_when_detection_fails(monkeypatch)
     from types import SimpleNamespace
 
     from geometrikks.config.settings import MapSettings, Settings
-    from geometrikks.services.geoip import self_location
-    from geometrikks.services.geoip import server_locations
+    from geometrikks.services.geoip import self_location, server_locations
 
     previous = self_location.SelfLocation(
         latitude=1.0, longitude=2.0, source="external_ip"
@@ -196,7 +193,11 @@ async def test_server_location_job_keeps_state_when_detection_fails(monkeypatch)
 
 
 async def test_server_location_job_is_registered_under_its_id_and_name():
-    from geometrikks.config.settings import LogParserSettings, SchedulerSettings, Settings
+    from geometrikks.config.settings import (
+        LogParserSettings,
+        SchedulerSettings,
+        Settings,
+    )
 
     settings = Settings(
         scheduler=SchedulerSettings(enabled=True, _env_file=None),
@@ -227,7 +228,7 @@ async def test_agent_health_check_registered_for_head_only():
 
 
 async def test_agent_health_check_job_feeds_the_monitor(monkeypatch):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     from uuid import uuid4
 
     from structlog.testing import capture_logs
@@ -237,7 +238,7 @@ async def test_agent_health_check_job_feeds_the_monitor(monkeypatch):
     from geometrikks.domain.instances.models import InstanceHeartbeat
     from geometrikks.domain.instances.monitor import InstanceMonitor
 
-    now = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
     head = HeadIdentity(
         boot_id=uuid4(),
         instance_name="head",
@@ -281,12 +282,12 @@ def _release_check_settings(
 
 
 async def test_release_check_registered_on_a_head_with_the_setting_and_an_app(monkeypatch):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from litestar import Litestar
 
     app = Litestar(route_handlers=[])
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     scheduler = await sched.create_scheduler(MagicMock(), _release_check_settings(monkeypatch), mode="full", app=app)
 
     job = scheduler.get_job("release-check")

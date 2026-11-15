@@ -1,8 +1,8 @@
 """The head's log trail of agent state changes."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -16,7 +16,7 @@ from geometrikks.domain.instances.evaluation import (
 )
 from geometrikks.domain.instances.monitor import InstanceMonitor
 
-NOW = datetime(2026, 10, 17, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
 HEAD_BOOT_ID = uuid4()
 HEAD = HeadIdentity(
     boot_id=HEAD_BOOT_ID,

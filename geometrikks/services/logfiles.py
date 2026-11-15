@@ -13,7 +13,7 @@ import re
 import stat
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, TypedDict, cast
 
@@ -70,7 +70,7 @@ def _entry(path: Path, kind: LogFileKind, name: str | None = None) -> LogFileEnt
             name=name or path.name,
             kind=kind,
             size_bytes=stat_result.st_size,
-            modified_at=datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc),
+            modified_at=datetime.fromtimestamp(stat_result.st_mtime, tz=UTC),
             available=readable,
         )
     except OSError:

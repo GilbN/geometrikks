@@ -268,7 +268,10 @@ async def test_scheduler_skips_server_location_refresh_when_parser_disabled(monk
 
 async def test_scheduler_registers_server_location_refresh_for_a_ui_head(monkeypatch):
     from geometrikks.config.settings import MapSettings, Settings
-    from geometrikks.server.scheduler import create_scheduler, refresh_server_location_job
+    from geometrikks.server.scheduler import (
+        create_scheduler,
+        refresh_server_location_job,
+    )
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
     settings = Settings(map=MapSettings(auto_detect_server_location=True, _env_file=None))

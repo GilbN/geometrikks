@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import ipaddress
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.dialects import postgresql
@@ -15,8 +15,13 @@ from geometrikks.domain.geo.repositories import (
     stitched_ip_location_cte,
 )
 from geometrikks.domain.geo.schemas import GeoEventFilters
+from geometrikks.domain.security.schemas import (
+    DropNetworkHits,
+    DropNetworkOrigin,
+    IpEnrichment,
+    IpLocation,
+)
 from geometrikks.lib.time import ensure_utc
-from geometrikks.domain.security.schemas import DropNetworkHits, DropNetworkOrigin, IpEnrichment, IpLocation
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -65,7 +70,7 @@ class SecurityEnrichmentRepository:
         if not valid_ips:
             return {}
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rows = await self.session.execute(
             ENRICH_STMT,
             {
@@ -110,7 +115,7 @@ class SecurityEnrichmentRepository:
         counts, and buckets older than the server backfill carry none at all.
         """
         valid_ips = [ip for ip in ips if _is_ip(ip)]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         start_ts = ensure_utc(start) if start is not None else now - GEO_LOOKBACK
         end_ts = ensure_utc(end) if end is not None else now
         if not valid_ips or start_ts >= end_ts:

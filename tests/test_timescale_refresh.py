@@ -1,7 +1,7 @@
 """refresh_caggs_range must bind timestamps as query args, never interpolate."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -11,8 +11,8 @@ from geometrikks.server.timescale import refresh_caggs_range, whole_day_window
 
 pytestmark = pytest.mark.anyio
 
-START = datetime(2026, 1, 1, tzinfo=timezone.utc)
-END = datetime(2026, 2, 1, tzinfo=timezone.utc)
+START = datetime(2026, 1, 1, tzinfo=UTC)
+END = datetime(2026, 2, 1, tzinfo=UTC)
 
 
 def make_engine(recorder: list) -> MagicMock:
@@ -134,7 +134,7 @@ async def test_cagg_summary_returned_when_only_geo_events_exist():
 
 
 async def test_refresh_caggs_range_force_flag_adds_force_argument() -> None:
-    from datetime import datetime, timezone
+    from datetime import datetime
     from unittest.mock import AsyncMock, MagicMock
 
     from geometrikks.server import timescale
@@ -150,8 +150,8 @@ async def test_refresh_caggs_range_force_flag_adds_force_argument() -> None:
     engine = MagicMock()
     engine.connect = MagicMock(return_value=conn)
 
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    end = datetime(2026, 1, 2, tzinfo=UTC)
     failed = await timescale.refresh_caggs_range(
         engine, start=start, end=end, caggs=["summary_hourly_stats"], force=True
     )
@@ -171,21 +171,21 @@ async def test_refresh_caggs_range_force_flag_adds_force_argument() -> None:
     ("start", "end", "expected"),
     [
         pytest.param(
-            datetime(2026, 1, 5, 12, 34, tzinfo=timezone.utc),
-            datetime(2026, 1, 5, 12, 40, tzinfo=timezone.utc),
-            (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 6, tzinfo=timezone.utc)),
+            datetime(2026, 1, 5, 12, 34, tzinfo=UTC),
+            datetime(2026, 1, 5, 12, 40, tzinfo=UTC),
+            (datetime(2026, 1, 5, tzinfo=UTC), datetime(2026, 1, 6, tzinfo=UTC)),
             id="inside-one-day",
         ),
         pytest.param(
-            datetime(2026, 1, 5, tzinfo=timezone.utc),
-            datetime(2026, 1, 7, tzinfo=timezone.utc),
-            (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 7, tzinfo=timezone.utc)),
+            datetime(2026, 1, 5, tzinfo=UTC),
+            datetime(2026, 1, 7, tzinfo=UTC),
+            (datetime(2026, 1, 5, tzinfo=UTC), datetime(2026, 1, 7, tzinfo=UTC)),
             id="already-whole-days",
         ),
         pytest.param(
             datetime(2026, 1, 5, 1, 30, tzinfo=timezone(timedelta(hours=2))),
             datetime(2026, 1, 5, 1, 45, tzinfo=timezone(timedelta(hours=2))),
-            (datetime(2026, 1, 4, tzinfo=timezone.utc), datetime(2026, 1, 5, tzinfo=timezone.utc)),
+            (datetime(2026, 1, 4, tzinfo=UTC), datetime(2026, 1, 5, tzinfo=UTC)),
             id="offset-input-uses-utc-days",
         ),
     ],
@@ -198,17 +198,17 @@ async def test_refresh_widens_the_window_to_whole_days() -> None:
     calls: list = []
     await refresh_caggs_range(
         make_engine(calls),
-        start=datetime(2026, 1, 5, 12, 34, tzinfo=timezone.utc),
-        end=datetime(2026, 1, 5, 12, 40, tzinfo=timezone.utc),
+        start=datetime(2026, 1, 5, 12, 34, tzinfo=UTC),
+        end=datetime(2026, 1, 5, 12, 40, tzinfo=UTC),
         caggs=["summary_daily_stats"],
     )
     assert calls[0][1] == (
-        datetime(2026, 1, 5, tzinfo=timezone.utc),
-        datetime(2026, 1, 6, tzinfo=timezone.utc),
+        datetime(2026, 1, 5, tzinfo=UTC),
+        datetime(2026, 1, 6, tzinfo=UTC),
     )
 
 
-NOW = datetime(2026, 1, 7, 15, 20, tzinfo=timezone.utc)
+NOW = datetime(2026, 1, 7, 15, 20, tzinfo=UTC)
 
 
 async def test_refresh_never_materializes_the_bucket_still_filling() -> None:
@@ -216,14 +216,14 @@ async def test_refresh_never_materializes_the_bucket_still_filling() -> None:
     calls: list = []
     await refresh_caggs_range(
         make_engine(calls),
-        start=datetime(2026, 1, 5, 12, tzinfo=timezone.utc),
+        start=datetime(2026, 1, 5, 12, tzinfo=UTC),
         end=NOW,
         caggs=["summary_hourly_stats", "summary_daily_stats"],
         now=NOW,
     )
     assert [args for _, args in calls] == [
-        (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 7, 15, tzinfo=timezone.utc)),
-        (datetime(2026, 1, 5, tzinfo=timezone.utc), datetime(2026, 1, 7, tzinfo=timezone.utc)),
+        (datetime(2026, 1, 5, tzinfo=UTC), datetime(2026, 1, 7, 15, tzinfo=UTC)),
+        (datetime(2026, 1, 5, tzinfo=UTC), datetime(2026, 1, 7, tzinfo=UTC)),
     ]
 
 
@@ -232,7 +232,7 @@ async def test_refresh_skips_a_view_with_no_complete_bucket() -> None:
     calls: list = []
     failed = await refresh_caggs_range(
         make_engine(calls),
-        start=datetime(2026, 1, 7, 9, tzinfo=timezone.utc),
+        start=datetime(2026, 1, 7, 9, tzinfo=UTC),
         end=NOW,
         caggs=["summary_daily_stats"],
         now=NOW,

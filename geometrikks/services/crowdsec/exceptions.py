@@ -5,6 +5,7 @@ handlers in server/core.py translate them to HTTP responses.
 """
 from __future__ import annotations
 
+
 class CrowdSecError(Exception):
     """Base for CrowdSec integration failures."""
 

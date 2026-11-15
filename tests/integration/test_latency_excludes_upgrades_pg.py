@@ -7,7 +7,7 @@ pre-latency shape and run setup against them.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -28,7 +28,7 @@ pytestmark = pytest.mark.anyio
 
 # Wall-clock derived and hour-aligned: the scratch DB has live retention and
 # refresh policies, and the CAGG path needs a range longer than 24h.
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 BUSY_HOUR = NOW - timedelta(days=2, hours=2)
 SOCKET_ONLY_HOUR = NOW - timedelta(days=2, hours=5)
 RANGE = (NOW - timedelta(days=3), NOW)

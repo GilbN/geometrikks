@@ -22,8 +22,15 @@ from structlog.testing import capture_logs
 from geometrikks.config.settings import AbuseIpdbSettings, Settings
 from geometrikks.domain.abuseipdb import blacklist as blacklist_module
 from geometrikks.domain.abuseipdb import blacklist_file as blacklist_file_module
-from geometrikks.domain.abuseipdb.blacklist import current_blacklist, refresh_blacklist, refresh_blacklist_file
-from geometrikks.domain.abuseipdb.models import AbuseIpdbBlacklistEntry, AbuseIpdbBlacklistStatus
+from geometrikks.domain.abuseipdb.blacklist import (
+    current_blacklist,
+    refresh_blacklist,
+    refresh_blacklist_file,
+)
+from geometrikks.domain.abuseipdb.models import (
+    AbuseIpdbBlacklistEntry,
+    AbuseIpdbBlacklistStatus,
+)
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
 from geometrikks.server.core import create_app
 from geometrikks.services.abuseipdb import AbuseIpdbClient, BlacklistResult

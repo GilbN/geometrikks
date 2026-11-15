@@ -2,15 +2,18 @@
 existing get_stats_granularity routing, RAW is never returned."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+
+from geometrikks.domain.analytics.controllers import (
+    _build_filters,
+    _resolve_chart_granularity,
+)
+from geometrikks.domain.analytics.repositories import StatsGranularity, use_local_days
 from geometrikks.domain.exceptions import DomainValidationError
 
-from geometrikks.domain.analytics.controllers import _build_filters, _resolve_chart_granularity
-from geometrikks.domain.analytics.repositories import StatsGranularity, use_local_days
-
-NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 
 
 def test_explicit_override_wins():

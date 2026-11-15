@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 class DecisionStreamDelta:
     """One page of the LAPI decision stream: decisions added and expired."""
 
-    new: list["Decision"]
-    deleted: list["Decision"]
+    new: list[Decision]
+    deleted: list[Decision]
 
 
 @dataclass

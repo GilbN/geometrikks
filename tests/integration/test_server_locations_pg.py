@@ -1,14 +1,14 @@
 """server_locations: migration shape, upsert precedence, override reconcile."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import structlog
 from sqlalchemy import text
 
-from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError
+from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.services.geoip.server_locations import (
     fetch_last_event_days,
     fetch_server_locations,
@@ -128,7 +128,7 @@ async def test_last_event_days_reports_the_latest_day_per_server(
     buckets past the materialization watermark, and earlier tests may have
     refreshed the aggregate beyond the seed day, so refresh the seed window
     explicitly instead of relying on it."""
-    day = datetime(2026, 8, 20, 13, 0, tzinfo=timezone.utc)
+    day = datetime(2026, 8, 20, 13, 0, tzinfo=UTC)
     async with pg_session_maker() as session:
         location_id = (await session.execute(text(
             "INSERT INTO geo_locations (geohash, latitude, longitude, geographic_point, "

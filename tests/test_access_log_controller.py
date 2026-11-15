@@ -7,11 +7,9 @@ tests cover the two project-specific providers appended alongside it.
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from geometrikks.domain.exceptions import DomainValidationError
-from sqlalchemy import or_
 from advanced_alchemy.filters import (
     CollectionFilter,
     FilterGroup,
@@ -19,7 +17,9 @@ from advanced_alchemy.filters import (
     NullFilter,
     OnBeforeAfter,
 )
+from sqlalchemy import or_
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.logs.controllers.access_logs import (
     provide_access_log_in_filters,
     provide_access_log_time_window,
@@ -31,8 +31,8 @@ class TestTimeWindow:
         assert provide_access_log_time_window(None, None).filters == []
 
     def test_adds_inclusive_window_on_timestamp(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 2, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
+        end = datetime(2026, 7, 2, tzinfo=UTC)
         result = provide_access_log_time_window(start, end).filters
         assert len(result) == 1
         window = result[0]
@@ -42,7 +42,7 @@ class TestTimeWindow:
         assert window.on_or_before == end
 
     def test_open_ended_window_when_only_one_bound(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
         result = provide_access_log_time_window(start, None).filters
         assert len(result) == 1
         window = result[0]
@@ -59,7 +59,7 @@ class TestTimeWindow:
         assert window_filter.on_or_after == result.start
         assert window_filter.on_or_before == result.end
 
-    @pytest.mark.parametrize("bounds", [(datetime.now(timezone.utc), None), (None, datetime.now(timezone.utc))])
+    @pytest.mark.parametrize("bounds", [(datetime.now(UTC), None), (None, datetime.now(UTC))])
     def test_relative_window_rejects_either_explicit_bound(self, bounds) -> None:
         with pytest.raises(DomainValidationError) as error:
             provide_access_log_time_window(*bounds, window="10m")

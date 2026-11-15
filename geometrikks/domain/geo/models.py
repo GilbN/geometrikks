@@ -1,22 +1,23 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from advanced_alchemy import base
+from advanced_alchemy.types import DateTimeUTC
+from geoalchemy2 import Geography
+from litestar.dto import dto_field
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Float,
-    BigInteger,
-    String,
-    Index,
     ForeignKey,
+    Index,
+    String,
     UniqueConstraint,
 )
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from advanced_alchemy.types import DateTimeUTC
-from advanced_alchemy import base
-from geoalchemy2 import Geography
-from litestar.dto import dto_field
 
 from geometrikks.domain.geo.utils import WGS84_SRID
+
 
 class GeoLocation(base.BigIntAuditBase):
     """Normalized geo-location data to avoid duplication.
@@ -84,7 +85,7 @@ class GeoEvent(base.BigIntBase):
     timestamp: Mapped[datetime] = mapped_column(
         DateTimeUTC(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         index=True,
         info=dto_field("read-only")
     )

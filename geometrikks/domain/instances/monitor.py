@@ -1,5 +1,9 @@
 """Log agent state changes seen by the head's scheduled check."""
-from geometrikks.domain.instances.evaluation import WRITES_FAILING_ID, HeadIdentity, InstanceEvaluation
+from geometrikks.domain.instances.evaluation import (
+    WRITES_FAILING_ID,
+    HeadIdentity,
+    InstanceEvaluation,
+)
 from geometrikks.lib.advisories import INGESTION_WRITE_FAILURES_ID
 from geometrikks.server.logging import get_logger
 

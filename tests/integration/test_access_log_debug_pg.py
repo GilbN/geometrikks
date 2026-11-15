@@ -6,19 +6,19 @@ rows to join against.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from advanced_alchemy.filters import LimitOffset, OnBeforeAfter, SearchFilter
-from geometrikks.domain.exceptions import DomainValidationError
 from sqlalchemy import text
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.logs.services import AccessLogDebugService
 
 pytestmark = pytest.mark.anyio
 
 # Wall-clock-relative so seeds stay inside the retention window.
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 async def _insert_debug(
@@ -218,7 +218,7 @@ async def test_malformed_tri_state_filter(pg_session_maker, clean_tables) -> Non
 
     async with pg_session_maker() as session:
         service = AccessLogDebugService(session=session)
-        all_rows, all_total = await service.list_entries(_window(), LimitOffset(50, 0))
+        _all_rows, all_total = await service.list_entries(_window(), LimitOffset(50, 0))
         bad_rows, bad_total = await service.list_entries(
             _window(), LimitOffset(50, 0), malformed=True,
         )

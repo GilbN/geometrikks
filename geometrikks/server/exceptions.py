@@ -11,7 +11,10 @@ from litestar.exceptions import (
     ServiceUnavailableException,
     ValidationException,
 )
-from litestar.exceptions.responses import create_debug_response, create_exception_response
+from litestar.exceptions.responses import (
+    create_debug_response,
+    create_exception_response,
+)
 from litestar.status_codes import (
     HTTP_400_BAD_REQUEST,
     HTTP_404_NOT_FOUND,
@@ -21,7 +24,11 @@ from litestar.status_codes import (
 )
 from litestar.types import ExceptionHandlersMap
 
-from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
+from geometrikks.domain.exceptions import (
+    DomainConflictError,
+    DomainNotFoundError,
+    DomainValidationError,
+)
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec import (
     CrowdSecAuthError,

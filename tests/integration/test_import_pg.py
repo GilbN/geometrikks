@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import gzip
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
 from geoip2.database import Reader
 from sqlalchemy import text
 
@@ -12,8 +13,6 @@ from geometrikks.services.importer import import_file
 from geometrikks.services.ingestion.service import LogIngestionService
 from geometrikks.services.logparser.formats import IMPORT_FORMATS
 from geometrikks.services.logparser.logparser import LogParser
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 
@@ -23,7 +22,7 @@ TEST_IP = "2.125.160.216"
 # Wall-clock-relative so rows stay inside the raw retention window (180 days
 # by default) — the scratch DB has live retention policies that drop chunks
 # with older timestamps mid-test. Same convention as test_repositories_pg.py.
-DAYS = [datetime.now(timezone.utc) - timedelta(days=d) for d in range(5, 0, -1)]
+DAYS = [datetime.now(UTC) - timedelta(days=d) for d in range(5, 0, -1)]
 
 
 def make_log_line(ip: str, ts: datetime) -> str:
@@ -153,7 +152,7 @@ async def test_refresh_after_import_materializes_partial_days(
     """
     from geometrikks.server.timescale import refresh_caggs_range
 
-    midday = (datetime.now(timezone.utc) - timedelta(days=3)).replace(
+    midday = (datetime.now(UTC) - timedelta(days=3)).replace(
         hour=12, minute=34, second=0, microsecond=0
     )
     log = tmp_path / "access.log.1"

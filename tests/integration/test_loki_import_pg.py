@@ -1,7 +1,7 @@
 """import_loki_range against real TimescaleDB: rows, loki_imports, NULL tenant, resume."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import httpx2
 import pytest
@@ -10,12 +10,12 @@ from sqlalchemy import text
 
 from geometrikks.services.ingestion.service import LogIngestionService
 from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logsources.loki import NS, LokiSource
 from geometrikks.services.loki_importer import (
     LokiImportOverlapError,
     claim_loki_range,
     import_loki_range,
 )
-from geometrikks.services.logsources.loki import NS, LokiSource
 from tests.test_loki_source import FakeLoki
 
 pytestmark = pytest.mark.anyio
@@ -24,7 +24,7 @@ GEOIP_DB_PATH = "tests/GeoLite2-City-Test.mmdb"
 TEST_IP = "2.125.160.216"
 QUERY = '{job="nginx"}'
 # Recent so the rows sit inside the raw retention window should the policy ever run.
-SINCE = (datetime.now(timezone.utc) - timedelta(days=3)).replace(minute=0, second=0, microsecond=0)
+SINCE = (datetime.now(UTC) - timedelta(days=3)).replace(minute=0, second=0, microsecond=0)
 
 
 def make_log_line(ip: str, moment: datetime) -> str:

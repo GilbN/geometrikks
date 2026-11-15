@@ -35,7 +35,7 @@ async def test_window_bounds_can_be_reused_across_pages_and_polls(
     engine = create_async_engine(migrated_database_url, poolclass=NullPool)
     session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
-    async def provide_session() -> AsyncGenerator[AsyncSession, None]:
+    async def provide_session() -> AsyncGenerator[AsyncSession]:
         async with session_maker() as session:
             yield session
 

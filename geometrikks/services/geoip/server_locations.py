@@ -8,7 +8,7 @@ ingestion service's geo_locations upsert).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import CursorResult, delete, select, text
@@ -29,9 +29,9 @@ logger = get_logger(__name__)
 
 
 async def upsert_auto_server_locations(
-    session_maker: "Callable[[], AsyncSession]",
+    session_maker: Callable[[], AsyncSession],
     server_names: list[str],
-    self_location: "SelfLocation | None",
+    self_location: SelfLocation | None,
 ) -> None:
     """Record this process's detected location for each server name it ingests.
 
@@ -40,7 +40,7 @@ async def upsert_auto_server_locations(
     """
     if self_location is None or not server_names:
         return
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     affected: list[str] = []
     async with session_maker() as session:
         # Sorted, not input order: concurrent writers must lock rows in the
@@ -78,7 +78,7 @@ async def upsert_auto_server_locations(
 
 
 async def reconcile_override_server_locations(
-    session_maker: "Callable[[], AsyncSession]",
+    session_maker: Callable[[], AsyncSession],
     overrides: dict[str, tuple[float, float]],
 ) -> None:
     """Make override rows exactly match MAP_SERVER_LOCATIONS.
@@ -86,7 +86,7 @@ async def reconcile_override_server_locations(
     Removed overrides are deleted (not demoted): the owning agent's next
     auto upsert recreates the row, so there is no stale-override limbo.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with session_maker() as session:
         # Sorted, not dict order: consistent lock order across concurrent writers.
         for server_name, (latitude, longitude) in sorted(overrides.items()):
@@ -125,12 +125,12 @@ async def reconcile_override_server_locations(
         logger.info("server_locations_overrides_reconciled", server_names=sorted(overrides))
 
 
-async def fetch_server_locations(session: "AsyncSession") -> list[ServerLocation]:
+async def fetch_server_locations(session: AsyncSession) -> list[ServerLocation]:
     result = await session.execute(select(ServerLocation).order_by(ServerLocation.server))
     return list(result.scalars())
 
 
-async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
+async def fetch_last_event_days(session: AsyncSession) -> dict[str, datetime]:
     """Most recent day with traffic per server.
 
     Reads the server_daily_stats aggregate, not geo_events. The raw table
@@ -144,7 +144,7 @@ async def fetch_last_event_days(session: "AsyncSession") -> dict[str, datetime]:
     return {row.server: row.last_day for row in result}
 
 
-async def remove_server_location(session: "AsyncSession", server: str, *, actor: str) -> None:
+async def remove_server_location(session: AsyncSession, server: str, *, actor: str) -> None:
     """Remove one server's location row.
 
     Only auto rows can go. Override rows mirror MAP_SERVER_LOCATIONS and would

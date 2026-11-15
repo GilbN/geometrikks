@@ -144,7 +144,7 @@ def _log_transition(
 
 
 async def _query_scan_rows(
-    session: "AsyncSession", exclude_servers: set[str]
+    session: AsyncSession, exclude_servers: set[str]
 ) -> tuple[list[ScanGroup], list[ScanProvider]]:
     asns = list(CDN_ASNS)
     exclude = sorted(exclude_servers)
@@ -188,7 +188,7 @@ async def _query_scan_rows(
 
 
 async def run_proxy_scan(
-    session_factory: "Callable[[], AsyncSession]", exclude_servers: set[str]
+    session_factory: Callable[[], AsyncSession], exclude_servers: set[str]
 ) -> None:
     global _last_error
     try:

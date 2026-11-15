@@ -16,9 +16,18 @@ from geometrikks.domain.analytics.repositories import SummaryStatsRepository
 from geometrikks.domain.analytics.summary import period_summary
 from geometrikks.domain.instances.views import InstancesResponse
 from geometrikks.domain.integrations.schemas import (
-    CrowdSecSummary, InstanceSummary, InstancesSummary, IntegrationSummary, SummaryReason, SummarySection, TrafficSummary,
+    CrowdSecSummary,
+    InstancesSummary,
+    InstanceSummary,
+    IntegrationSummary,
+    SummaryReason,
+    SummarySection,
+    TrafficSummary,
 )
-from geometrikks.domain.system.controllers.health import IngestionHealth, build_ingestion_health
+from geometrikks.domain.system.controllers.health import (
+    IngestionHealth,
+    build_ingestion_health,
+)
 from geometrikks.lib.time_ranges import TimeRange
 from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger

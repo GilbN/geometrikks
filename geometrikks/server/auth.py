@@ -99,7 +99,7 @@ class AuthState:
         return _hasher.verify(password, self.password_hash)
 
 
-def build_auth_state(settings: "Settings") -> AuthState | None:
+def build_auth_state(settings: Settings) -> AuthState | None:
     """Hash the env-provided admin password once per process.
 
     None means password login is off: OIDC is configured and no password is
@@ -131,7 +131,7 @@ def warn_auth_disabled() -> None:
 
 
 async def retrieve_user_handler(
-    session: dict[str, Any], connection: "ASGIConnection | None" = None
+    session: dict[str, Any], connection: ASGIConnection | None = None
 ) -> AdminUser | None:
     """Rehydrate request.user from the session dict on every request."""
     username = session.get("username")
@@ -141,13 +141,13 @@ async def retrieve_user_handler(
     return AdminUser(username=username, provider=provider)
 
 
-def _scope_dict(connection: "ASGIConnection") -> dict[str, Any]:
+def _scope_dict(connection: ASGIConnection) -> dict[str, Any]:
     # Scope is a TypedDict; the backend keeps its bookkeeping under
     # namespaced keys that no Litestar code reads.
     return cast("dict[str, Any]", connection.scope)
 
 
-def require_session_database(request: "Request") -> None:
+def require_session_database(request: Request) -> None:
     """Refuse a login up front while the session store can't take writes.
 
     A browser without a session cookie never reads the session store on the
@@ -160,7 +160,7 @@ def require_session_database(request: "Request") -> None:
         )
 
 
-def rotate_session(request: "Request") -> None:
+def rotate_session(request: Request) -> None:
     """Issue a fresh session id on this response.
 
     Call before set_session() on every successful login. The id the browser
@@ -200,19 +200,19 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         """
         return cast("RotatingServerSideSessionConfig", self.config).write_lock
 
-    async def load_from_connection(self, connection: "ASGIConnection") -> dict[str, Any]:
+    async def load_from_connection(self, connection: ASGIConnection) -> dict[str, Any]:
         data = await super().load_from_connection(connection)
         _scope_dict(connection)[_LOADED_KEY] = copy.deepcopy(data)
         return data
 
-    def get_session_id(self, connection: "ASGIConnection") -> str:
+    def get_session_id(self, connection: ASGIConnection) -> str:
         forced = _scope_dict(connection).get(_NEW_ID_KEY)
         if isinstance(forced, str):
             return forced
         return super().get_session_id(connection)
 
     async def store_in_message(
-        self, scope_session: "ScopeSession", message: "Message", connection: "ASGIConnection"
+        self, scope_session: ScopeSession, message: Message, connection: ASGIConnection
     ) -> None:
         scope = _scope_dict(connection)
         loaded = scope.get(_LOADED_KEY)
@@ -255,9 +255,9 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
     async def _write_session(
         self,
         session_id: str,
-        scope_session: "ScopeSession",
-        message: "Message",
-        connection: "ASGIConnection",
+        scope_session: ScopeSession,
+        message: Message,
+        connection: ASGIConnection,
         *,
         expires_in: int,
     ) -> None:
@@ -281,7 +281,7 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         )
 
     async def _store_loaded_session(
-        self, scope_session: "ScopeSession", message: "Message", connection: "ASGIConnection"
+        self, scope_session: ScopeSession, message: Message, connection: ASGIConnection
     ) -> None:
         """Write back a session that was loaded from the store under this id.
 
@@ -310,7 +310,7 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
             )
 
     async def _store_pending_session(
-        self, scope_session: dict[str, Any], message: "Message", connection: "ASGIConnection"
+        self, scope_session: dict[str, Any], message: Message, connection: ASGIConnection
     ) -> None:
         """Write a pre-login session with a short lifetime, then sweep the store.
 
@@ -329,7 +329,7 @@ class RotatingServerSideSessionBackend(ServerSideSessionBackend):
         store = self.config.get_store_from_app(connection.scope["app"])
         await self._sweep_expired_if_due(store)
 
-    async def _sweep_expired_if_due(self, store: "Store") -> None:
+    async def _sweep_expired_if_due(self, store: Store) -> None:
         """Drop expired store rows, at most once per PENDING_LIFETIME_SECONDS.
 
         The throttle lives on the config, which every handler's backend
@@ -372,7 +372,7 @@ class RotatingServerSideSessionConfig(ServerSideSessionConfig):
         self.next_sweep_at = 0.0
 
 
-def create_session_auth(settings: "Settings") -> "GeoSessionAuth":
+def create_session_auth(settings: Settings) -> GeoSessionAuth:
     """Build the SessionAuth component applied via on_app_init in create_app().
 
     Server-side sessions in the ``sessions`` store. create_app() backs that

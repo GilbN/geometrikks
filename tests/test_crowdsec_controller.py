@@ -4,31 +4,45 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any, cast
-from uuid import uuid4
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
+import pytest
 from litestar import Litestar, Request
 from litestar.di import Provide
 from litestar.testing import AsyncTestClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from structlog.testing import capture_logs
 
+from geometrikks.domain.drop.snapshot import (
+    EMPTY_DROP_SNAPSHOT,
+    DropNetworkMatch,
+    DropSnapshot,
+    FeedState,
+)
 from geometrikks.domain.security import controllers as security_controllers
 from geometrikks.domain.security.controllers import CrowdSecController
-from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
-from geometrikks.domain.security.schemas import IpEnrichment
-from geometrikks.domain.drop.snapshot import EMPTY_DROP_SNAPSHOT, DropNetworkMatch, DropSnapshot, FeedState
-from geometrikks.domain.security.repositories import DropTrafficRepository
-from geometrikks.domain.security.schemas import DropNetworkHits, DropNetworkOrigin
-from geometrikks.services.crowdsec import CrowdSecService, CrowdSecUnavailableError, CrowdSecUnreachableError, Decision
-from geometrikks.services.geoip.locator import GeoIpLocator, GeoIpPlace
+from geometrikks.domain.security.repositories import (
+    DropTrafficRepository,
+    SecurityEnrichmentRepository,
+)
+from geometrikks.domain.security.schemas import (
+    DropNetworkHits,
+    DropNetworkOrigin,
+    IpEnrichment,
+)
 from geometrikks.server.api_key_auth import ApiKeyPrincipal
 from geometrikks.server.auth import AdminUser
+from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 from geometrikks.server.routes import create_api_v1_router
+from geometrikks.services.crowdsec import (
+    CrowdSecService,
+    CrowdSecUnavailableError,
+    CrowdSecUnreachableError,
+    Decision,
+)
+from geometrikks.services.geoip.locator import GeoIpLocator, GeoIpPlace
 from tests.support import ambient_settings_dependency
-
-import pytest
-from structlog.testing import capture_logs
 
 pytestmark = pytest.mark.anyio
 
@@ -1265,7 +1279,7 @@ async def test_banned_locations_deduplicates_ips_before_geo_join():
 
 
 async def test_banned_locations_forwards_time_window():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     enrichment = LocationsFakeEnrichment([])
     service = FakeCrowdSec([make_decision(id=1, value="1.2.3.4")])
@@ -1280,8 +1294,8 @@ async def test_banned_locations_forwards_time_window():
     assert resp.status_code == 200
     assert enrichment.location_windows == [
         (
-            datetime(2026, 7, 1, tzinfo=timezone.utc),
-            datetime(2026, 7, 2, tzinfo=timezone.utc),
+            datetime(2026, 7, 1, tzinfo=UTC),
+            datetime(2026, 7, 2, tzinfo=UTC),
         )
     ]
 

@@ -10,44 +10,44 @@ from __future__ import annotations
 import ipaddress
 import re
 import time
-
-import msgspec
-from datetime import datetime, timedelta, timezone
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
+import msgspec
 from advanced_alchemy.extensions.litestar import filters
 from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.exceptions import NotFoundException, PermissionDeniedException
-from litestar.params import JSONBody, PathParameter, QueryParameter, SkipValidation
 from litestar.openapi.datastructures import ResponseSpec
+from litestar.params import JSONBody, PathParameter, QueryParameter, SkipValidation
 from litestar.status_codes import (
-    HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_404_NOT_FOUND, HTTP_409_CONFLICT,
+    HTTP_200_OK,
+    HTTP_204_NO_CONTENT,
+    HTTP_404_NOT_FOUND,
+    HTTP_409_CONFLICT,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from geometrikks.config.settings import Settings
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
+from geometrikks.domain.exceptions import DomainValidationError
+from geometrikks.domain.security.alert_history import (
+    BOT_KIND_GROUP,
+    AlertFilters,
+    decode_cursor,
+    fetch_alert_page,
+)
 from geometrikks.domain.security.dependencies import (
     provide_crowdsec_poller,
     provide_crowdsec_service,
     provide_drop_traffic_repo,
     provide_geoip_locator,
     provide_security_enrichment_repo,
-)
-from geometrikks.config.settings import Settings
-from geometrikks.domain.exceptions import DomainValidationError
-from geometrikks.lib.pagination import limit_offset_provider
-from geometrikks.lib.validation import validate_ip_address
-from geometrikks.domain.security.alert_history import (
-    BOT_KIND_GROUP,
-    AlertFilters,
-    decode_cursor,
-    fetch_alert_page,
 )
 from geometrikks.domain.security.grouping import (
     DecisionGroup,
@@ -56,20 +56,29 @@ from geometrikks.domain.security.grouping import (
     search_groups,
     search_network,
 )
-from geometrikks.domain.security.repositories import DropTrafficRepository, SecurityEnrichmentRepository
+from geometrikks.domain.security.map_data import (
+    active_decision_ips,
+    banned_map_collection,
+    canonical_ip,
+    decision_winner,
+)
+from geometrikks.domain.security.repositories import (
+    DropTrafficRepository,
+    SecurityEnrichmentRepository,
+)
 from geometrikks.domain.security.schemas import (
-    BanNetworkResult,
-    BanNetworksRequest,
-    BanNetworksResponse,
+    MAX_BULK_BAN_NETWORKS,
     BannedIp,
     BannedMapCollection,
     BannedRangeView,
+    BanNetworkResult,
+    BanNetworksRequest,
+    BanNetworksResponse,
     DropNetworksResponse,
     DropNetworkTrafficView,
     IpEnrichment,
-    MAX_BULK_BAN_NETWORKS,
 )
-from geometrikks.domain.security.map_data import active_decision_ips, banned_map_collection, canonical_ip, decision_winner
+from geometrikks.lib.pagination import limit_offset_provider
 from geometrikks.lib.parameters import (
     CityFilter,
     CountryCodeFilter,
@@ -77,6 +86,7 @@ from geometrikks.lib.parameters import (
     range_end_examples,
     range_start_examples,
 )
+from geometrikks.lib.validation import validate_ip_address
 from geometrikks.server.api_key_auth import ApiKeyPrincipal
 from geometrikks.server.auth import AdminUser
 from geometrikks.server.exceptions import ErrorEnvelope
@@ -713,7 +723,7 @@ async def _active_banned_ranges(
     """Range decisions, plus Ip decisions on the snapshot's single-address networks."""
     host_networks = drop_snapshot.host_networks
     decisions = await service.get_decisions(scopes="Range,Ip" if host_networks else "Range")
-    return _banned_ranges(decisions, datetime.now(timezone.utc), host_networks)
+    return _banned_ranges(decisions, datetime.now(UTC), host_networks)
 
 
 async def _banned_ranges_if_reachable(
@@ -989,7 +999,7 @@ class CrowdSecController(Controller):
                 loaded=False, days=days, total_networks=0, total_ips=0, total_hits=0,
                 banned_networks=0, decisions_available=True, items=[],
             )
-        end = datetime.now(timezone.utc)
+        end = datetime.now(UTC)
         start = end - timedelta(days=days)
         all_drop_network_hits = await drop_traffic_repo.network_hits(start, end)
         reachable_banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot)
@@ -1419,7 +1429,7 @@ class CrowdSecController(Controller):
                 requested_networks = []
                 banned_ranges = {}
                 if drop_snapshot.networks_loaded:
-                    end = datetime.now(timezone.utc)
+                    end = datetime.now(UTC)
                     start = end - timedelta(days=data.all_unbanned_days or 0)
                     banned_ranges = await _active_banned_ranges(service, drop_snapshot)
                     unbanned_networks = [

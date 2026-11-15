@@ -1,5 +1,9 @@
 """Complete map membership and stable coordinate groups."""
-from geometrikks.domain.security.map_data import banned_map_collection, canonical_ip, decision_winner
+from geometrikks.domain.security.map_data import (
+    banned_map_collection,
+    canonical_ip,
+    decision_winner,
+)
 from geometrikks.domain.security.schemas import IpLocation
 
 

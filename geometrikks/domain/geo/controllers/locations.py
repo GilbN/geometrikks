@@ -1,5 +1,6 @@
 """GeoLocation API endpoints."""
 from __future__ import annotations
+
 from typing import Annotated, Literal, cast
 
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
@@ -13,45 +14,44 @@ from litestar.status_codes import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
-from geometrikks.domain.geo.models import GeoLocation
-from geometrikks.domain.geo.services import GeoLocationService
 from geometrikks.domain.geo.dtos import (
-    GeoLocationDTO,
+    DefaultServerLocationView,
     EmbeddedLocationDTO,
-    GeoJSONFeatureCollection,
     GeoJSONFeature,
-    GeoJSONPointGeometry,
+    GeoJSONFeatureCollection,
     GeoJSONFeatureProperties,
     GeoJSONFeatureStats,
-    TopIPDTO,
-    LocationTopIPsResponse,
+    GeoJSONPointGeometry,
+    GeoLocationDTO,
     GlobalTopIPsResponse,
-    TopCountryDTO,
-    TopCountriesResponse,
-    ServerLocationView,
-    DefaultServerLocationView,
+    LocationTopIPsResponse,
     ServerLocationsResponse,
+    ServerLocationView,
+    TopCountriesResponse,
+    TopCountryDTO,
+    TopIPDTO,
 )
-
+from geometrikks.domain.geo.models import GeoLocation
+from geometrikks.domain.geo.services import GeoLocationService
+from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, limit_offset_provider
 from geometrikks.lib.parameters import (
+    GEO_WHOLE_BUCKETS_NOTE,
     AsnIn,
     AsnNotIn,
     CityFilter,
     CountryCodeFilter,
-    ToTimestamp,
-    ServerIn,
+    FromTimestamp,
     IpAddressIn,
     IpAddressNotIn,
-    FromTimestamp,
-    GEO_WHOLE_BUCKETS_NOTE,
+    ServerIn,
+    ToTimestamp,
 )
-from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, limit_offset_provider
 from geometrikks.lib.time import ensure_utc
 from geometrikks.lib.validation import validate_ip_addresses
 from geometrikks.server import runtime
+from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.server.logging import get_logger
 from geometrikks.services.geoip.self_location import SelfLocation
-from geometrikks.server.exceptions import ErrorEnvelope
 from geometrikks.services.geoip.server_locations import (
     fetch_last_event_days,
     fetch_server_locations,

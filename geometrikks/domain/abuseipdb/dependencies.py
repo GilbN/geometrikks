@@ -6,7 +6,10 @@ from litestar.params import SkipValidation
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.config.settings import Settings
-from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository, AbuseIpdbReportRepository
+from geometrikks.domain.abuseipdb.repositories import (
+    AbuseIpdbBlacklistRepository,
+    AbuseIpdbReportRepository,
+)
 from geometrikks.services.abuseipdb import AbuseIpdbClient, get_abuseipdb_client
 
 

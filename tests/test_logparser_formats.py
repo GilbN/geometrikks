@@ -1,7 +1,7 @@
 """Tests for the log line format adapters."""
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 
@@ -20,7 +20,9 @@ from geometrikks.services.logparser.formats.base import (
     parse_seconds,
 )
 from geometrikks.services.logparser.formats.caddy import CaddyJsonFormat
-from geometrikks.services.logparser.formats.geometrikks_json import GeometrikksJsonFormat
+from geometrikks.services.logparser.formats.geometrikks_json import (
+    GeometrikksJsonFormat,
+)
 from geometrikks.services.logparser.formats.nginx import NginxFormat
 from geometrikks.services.logparser.formats.npm import NpmFormat
 from geometrikks.services.logparser.formats.traefik import TraefikJsonFormat
@@ -773,7 +775,7 @@ def test_gjson_parse_full_line() -> None:
     assert norm is not None
     assert norm.ip_address == "203.0.113.7"
     assert norm.timestamp == datetime(2026, 8, 25, 22, 0, 24, tzinfo=timezone(timedelta(hours=2)))
-    assert norm.timestamp.astimezone(timezone.utc).hour == 20
+    assert norm.timestamp.astimezone(UTC).hour == 20
     assert norm.method == "GET"
     assert norm.path == "/api/v2/homepage/plex/recent"
     assert norm.http_version == "HTTP/2.0"
@@ -1022,7 +1024,7 @@ def test_caddy_parse_full_line() -> None:
     norm = CaddyJsonFormat().parse(caddy())
     assert norm is not None
     assert norm.ip_address == "203.0.113.7"  # client_ip, not the remote_ip peer
-    assert norm.timestamp == datetime.fromtimestamp(1788204125.4837868, tz=timezone.utc)
+    assert norm.timestamp == datetime.fromtimestamp(1788204125.4837868, tz=UTC)
     assert norm.method == "GET"
     assert norm.path == "/robots.txt"
     assert norm.http_version == "HTTP/2.0"
@@ -1061,15 +1063,15 @@ def test_caddy_missing_both_ips_rejected() -> None:
         "2026-08-31T21:22:05+0200",  # zap iso8601 offset style
     ],
 )
-def test_caddy_ts_variants(ts: float | int | str) -> None:
+def test_caddy_ts_variants(ts: float | str) -> None:
     norm = CaddyJsonFormat().parse(caddy(ts=ts))
     assert norm is not None
-    expected = datetime(2026, 8, 31, 19, 22, 5, tzinfo=timezone.utc)
+    expected = datetime(2026, 8, 31, 19, 22, 5, tzinfo=UTC)
     assert abs((norm.timestamp - expected).total_seconds()) < 1
 
 
 @pytest.mark.parametrize("ts", ["2026-08-31T19:22:05", "1m32s", 0, -5, ""])
-def test_caddy_bad_ts_rejected(ts: float | int | str) -> None:
+def test_caddy_bad_ts_rejected(ts: float | str) -> None:
     assert CaddyJsonFormat().parse(caddy(ts=ts)) is None
 
 

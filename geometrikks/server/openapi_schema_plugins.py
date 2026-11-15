@@ -18,8 +18,8 @@ from litestar._openapi.schema_generation.plugins import (
     StructSchemaPlugin,
     TypedDictSchemaPlugin,
 )
-from litestar.pagination import OffsetPagination
 from litestar.openapi.spec import OpenAPIType, Schema
+from litestar.pagination import OffsetPagination
 
 if TYPE_CHECKING:
     from litestar import Litestar
