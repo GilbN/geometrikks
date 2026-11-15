@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import timedelta
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING
 
 from pwdlib.exceptions import UnknownHashError
 
@@ -27,8 +27,6 @@ logger = get_logger(__name__)
 
 FINGERPRINT_KEY = "auth-settings"
 _FINGERPRINT_LIFETIME = timedelta(days=36500)
-
-_T = TypeVar("_T")
 
 
 class SessionRevocationError(RuntimeError):
@@ -55,7 +53,7 @@ def auth_fingerprint_material(settings: Settings) -> str:
     )
 
 
-async def _store_step(step: str, operation: Callable[[], Awaitable[_T]]) -> _T:
+async def _store_step[T](step: str, operation: Callable[[], Awaitable[T]]) -> T:
     try:
         return await operation()
     except Exception as error:
@@ -64,7 +62,7 @@ async def _store_step(step: str, operation: Callable[[], Awaitable[_T]]) -> _T:
         ) from error
 
 
-async def _sanitized_store_step(step: str, operation: Callable[[], Awaitable[_T]]) -> _T:
+async def _sanitized_store_step[T](step: str, operation: Callable[[], Awaitable[T]]) -> T:
     failure = ""
     try:
         return await operation()

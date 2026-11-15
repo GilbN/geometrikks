@@ -15,6 +15,7 @@ def test_server_imports_without_geoip_db() -> None:
         [sys.executable, "-c", "import geometrikks.server.core, geometrikks.server.migrations"],
         env=env,
         capture_output=True,
+        check=False,
         text=True,
         timeout=60,
     )

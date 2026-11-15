@@ -399,7 +399,7 @@ class TestCreateLoggingConfig:
         structlog.stdlib.get_logger("geometrikks.test").info("hello_jsonl", answer=42)
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "hello_jsonl" in main.read_text(encoding="utf-8"))
-        line = [l for l in main.read_text(encoding="utf-8").splitlines() if "hello_jsonl" in l][0]
+        line = next(l for l in main.read_text(encoding="utf-8").splitlines() if "hello_jsonl" in l)
         record = jsonlib.loads(line)
         assert record["event"] == "hello_jsonl"
         assert record["level"] == "info"
@@ -414,7 +414,7 @@ class TestCreateLoggingConfig:
         cast("Any", structlog.stdlib.get_logger("geometrikks.test")).success("it_worked")
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "it_worked" in main.read_text(encoding="utf-8"))
-        line = [l for l in main.read_text(encoding="utf-8").splitlines() if "it_worked" in l][0]
+        line = next(l for l in main.read_text(encoding="utf-8").splitlines() if "it_worked" in l)
         assert jsonlib.loads(line)["level"] == "success"
 
     def test_login_logger_reaches_login_file_with_contract_format(self, configured_logging):
@@ -534,12 +534,12 @@ class TestExceptionTraceback:
         try:
             raise ValueError("boom for jsonl")
         except ValueError:
-            logger.error("caught_error_jsonl", exc_info=True)
+            logger.error("caught_error_jsonl", exc_info=True)  # noqa: G201
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "caught_error_jsonl" in main.read_text(encoding="utf-8"))
-        line = [
+        line = next(
             l for l in main.read_text(encoding="utf-8").splitlines() if "caught_error_jsonl" in l
-        ][0]
+        )
         record = jsonlib.loads(line)
         assert "exception" in record
         assert "ValueError" in record["exception"]
@@ -555,12 +555,12 @@ class TestExceptionTraceback:
         try:
             raise ValueError("boom for kwarg")
         except ValueError:
-            logger.error("caught_error_kwarg", exc_info=True, error="custom message")
+            logger.error("caught_error_kwarg", exc_info=True, error="custom message")  # noqa: G201
         main = configured_logging / "geometrikks.log"
         assert _wait_for(lambda: "caught_error_kwarg" in main.read_text(encoding="utf-8"))
-        line = [
+        line = next(
             l for l in main.read_text(encoding="utf-8").splitlines() if "caught_error_kwarg" in l
-        ][0]
+        )
         record = jsonlib.loads(line)
         assert record["error"] == "custom message"
         assert "Traceback" in record["exception"]
@@ -578,7 +578,7 @@ class TestExceptionTraceback:
                 try:
                     raise ValueError("boom for broadcast")
                 except ValueError:
-                    logger.error("caught_error_broadcast", exc_info=True)
+                    logger.error("caught_error_broadcast", exc_info=True)  # noqa: G201
 
                 event = None
                 deadline = time.time() + 60.0

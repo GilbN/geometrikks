@@ -116,10 +116,14 @@ LEGACY_CAGG_DDL = [
         """,
         f"CREATE INDEX ix_ip_location_{suffix}_stats_bucket ON ip_location_{suffix}_stats (bucket DESC)",
         f"CREATE INDEX ix_ip_location_{suffix}_stats_location ON ip_location_{suffix}_stats (location_id)",
-        f"CREATE INDEX ix_ip_location_{suffix}_stats_location_ip "
-        f"ON ip_location_{suffix}_stats (location_id, ip_address)",
-        f"CREATE INDEX ix_ip_location_{suffix}_stats_ip_bucket "
-        f"ON ip_location_{suffix}_stats (ip_address, bucket DESC)",
+        (
+            f"CREATE INDEX ix_ip_location_{suffix}_stats_location_ip "
+            f"ON ip_location_{suffix}_stats (location_id, ip_address)"
+        ),
+        (
+            f"CREATE INDEX ix_ip_location_{suffix}_stats_ip_bucket "
+            f"ON ip_location_{suffix}_stats (ip_address, bucket DESC)"
+        ),
     )
 ] + [
     """

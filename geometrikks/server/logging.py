@@ -214,14 +214,14 @@ class LogBroadcaster:
             loop.call_soon_threadsafe(self._publish, event)
 
     def _publish(self, event: dict[str, Any]) -> None:
-        for queue in list(self._subscribers):
+        for subscriber_queue in list(self._subscribers):
             try:
-                queue.put_nowait(event)
+                subscriber_queue.put_nowait(event)
             except asyncio.QueueFull:
                 with contextlib.suppress(asyncio.QueueEmpty):
-                    queue.get_nowait()
+                    subscriber_queue.get_nowait()
                 with contextlib.suppress(asyncio.QueueFull):
-                    queue.put_nowait(event)
+                    subscriber_queue.put_nowait(event)
 
 
 log_broadcaster = LogBroadcaster()

@@ -335,7 +335,7 @@ def execute_teardown(
     for resource in plan:
         try:
             skipped = _tear_down_one(resource, actions)
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             # Docker calls already sort "gone" from a failed call by exit code; their errors are real failures.
             if resource.kind in ("container", "network") or not already_gone(
                 resource, f"{type(error).__name__}: {error}"

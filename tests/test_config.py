@@ -689,13 +689,13 @@ def test_map_server_location_refresh_hours_parses_env(monkeypatch):
     assert settings.server_location_refresh_hours == 6
 
 
-OIDC_VALID = dict(
-    issuer="https://auth.example.com",
-    client_id="geo",
-    client_secret="s3cret",
-    redirect_uri="https://geo.example.com/api/v1/auth/oidc/callback",
-    allowed_groups=["admins"],
-)
+OIDC_VALID = {
+    "issuer": "https://auth.example.com",
+    "client_id": "geo",
+    "client_secret": "s3cret",
+    "redirect_uri": "https://geo.example.com/api/v1/auth/oidc/callback",
+    "allowed_groups": ["admins"],
+}
 
 
 def _oidc(**overrides):

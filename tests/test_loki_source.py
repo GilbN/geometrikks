@@ -5,7 +5,7 @@ import asyncio
 import base64
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Self
 
 import httpx2
 import pytest
@@ -310,7 +310,7 @@ class Tail:
         self.lines: list[str] = []
         self.task: asyncio.Task[None] | None = None
 
-    async def __aenter__(self) -> Tail:
+    async def __aenter__(self) -> Self:
         async def run() -> None:
             async for line in self.source.lines(self.stop):
                 self.lines.append(line)

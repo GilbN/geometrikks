@@ -673,15 +673,15 @@ class LogIngestionService:
         except asyncio.CancelledError:
             logger.info("Ingestion cancelled")
             raise
-        except Exception as e:
-            logger.exception("Ingestion loop error: %s", e)
+        except Exception:
+            logger.exception("Ingestion loop error")
             raise
         finally:
             if self._batch:
                 try:
                     await self._flush_batch()
-                except Exception as e:
-                    logger.exception("Final flush failed: %s", e)
+                except Exception:
+                    logger.exception("Final flush failed")
             # ``stop()`` sets the event before waiting for this task. If the
             # consumer reaches this point without that signal, the service
             # died on its own and health should expose an operator advisory.

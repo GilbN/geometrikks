@@ -218,7 +218,7 @@ async def test_malformed_tri_state_filter(pg_session_maker, clean_tables) -> Non
 
     async with pg_session_maker() as session:
         service = AccessLogDebugService(session=session)
-        all_rows, all_total = await service.list_entries(_window(), LimitOffset(50, 0))
+        _all_rows, all_total = await service.list_entries(_window(), LimitOffset(50, 0))
         bad_rows, bad_total = await service.list_entries(
             _window(), LimitOffset(50, 0), malformed=True,
         )

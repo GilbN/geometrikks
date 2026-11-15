@@ -18,13 +18,13 @@ pytestmark = pytest.mark.anyio
 
 
 def oidc_settings(**overrides) -> OidcSettings:
-    values: dict = dict(
-        issuer=ISSUER,
-        client_id=CLIENT_ID,
-        client_secret=CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        allowed_groups=["admins"],
-    )
+    values: dict = {
+        "issuer": ISSUER,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "allowed_groups": ["admins"],
+    }
     values.update(overrides)
     return OidcSettings(_env_file=None, **values)
 
@@ -435,9 +435,15 @@ def test_userinfo_sub_must_match():
 def _identity(**overrides):
     from geometrikks.services.oidc import OidcIdentity
 
-    values = dict(subject="user-1", username="gil", email="gil@example.com", email_verified=True, groups=("admins",))
+    values = {
+        "subject": "user-1",
+        "username": "gil",
+        "email": "gil@example.com",
+        "email_verified": True,
+        "groups": ("admins",),
+    }
     values.update(overrides)
-    return OidcIdentity(**values)  # ty: ignore[invalid-argument-type]
+    return OidcIdentity(**values)
 
 
 def test_allow_list_subject_match():

@@ -200,8 +200,8 @@ async def _create_hypertables(conn: AsyncConnection) -> None:
             """))
 
             logger.info("Hypertable created: %s (chunk: %s)", table, chunk_interval)
-        except Exception as e:
-            logger.exception("Hypertable %s setup failed: %s", table, e)
+        except Exception:
+            logger.exception("Hypertable %s setup failed", table)
             raise
 
 

@@ -193,7 +193,7 @@ async def test_system_settings_never_leak_secrets(monkeypatch):
     for secret in ("super-secret-db-pass", "maxmind-secret-key", "admin-secret-pass"):
         assert secret not in resp.text
     body = resp.json()
-    assert [s["name"] for s in body["sections"]][0] == "app"
+    assert next(s["name"] for s in body["sections"]) == "app"
 
 
 async def test_about_reports_app_runtime_and_geoip_metadata(monkeypatch):

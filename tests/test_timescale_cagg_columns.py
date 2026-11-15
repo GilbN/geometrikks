@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import inspect
 import re
-from types import SimpleNamespace
+from types import SimpleNamespace, TracebackType
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
@@ -196,7 +196,12 @@ class FakeConn:
                 conn.savepoints += 1
                 return self
 
-            async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+            async def __aexit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc: BaseException | None,
+                tb: TracebackType | None,
+            ) -> bool:
                 if exc_type is not None:
                     conn.aborted = False  # ROLLBACK TO SAVEPOINT heals the transaction
                 return False

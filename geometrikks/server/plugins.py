@@ -255,7 +255,7 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         try:
             logger.error("channels listener connection lost; attempting automatic reconnect")
             self._ensure_retry()
-        except Exception:  # pragma: no cover - callback must not cascade
+        except Exception:  # noqa: S110  # pragma: no cover - callback must not cascade
             pass
 
     async def _reconnect_listener(self) -> None:

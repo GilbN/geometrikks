@@ -700,7 +700,7 @@ class LokiSettings(BaseSettings):
         # urlsplit checks the port only when it is read, and httpx2 would then
         # raise InvalidURL at the first request.
         try:
-            parts.port
+            _ = parts.port
         except ValueError as exc:
             raise ValueError("LOKI_URL has an invalid port") from exc
         return value.rstrip("/")

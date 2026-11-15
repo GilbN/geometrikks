@@ -36,13 +36,13 @@ from tests.test_live_ws import publish_once_subscribed
 
 PASSWORD = "bestpasswordintheworldnojoke"
 CREDS = {"username": "admin", "password": PASSWORD}
-OIDC_DEFAULTS: dict[str, Any] = dict(
-    issuer=ISSUER,
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET,
-    redirect_uri=REDIRECT_URI,
-    allowed_groups=["admins"],
-)
+OIDC_DEFAULTS: dict[str, Any] = {
+    "issuer": ISSUER,
+    "client_id": CLIENT_ID,
+    "client_secret": CLIENT_SECRET,
+    "redirect_uri": REDIRECT_URI,
+    "allowed_groups": ["admins"],
+}
 
 
 def make_oidc_app(

@@ -672,7 +672,7 @@ async def _unwind_database_recovery(app: Litestar) -> None:
             logger.warning("db_recovery_cleanup_cancelled", service=service)
         except Exception:
             # Retained state lets the owning lifespan retry cleanup at shutdown.
-            logger.error("db_recovery_cleanup_failed", service=service, exc_info=True)
+            logger.exception("db_recovery_cleanup_failed", service=service)
     if cancelled is not None:
         raise cancelled
 
@@ -729,7 +729,7 @@ async def _recover_database(app: Litestar) -> None:
         await _unwind_database_recovery(app)
         raise
     except Exception as exc:
-        logger.error("db_recovery_failed", stage=stage, error=str(exc), exc_info=True)
+        logger.exception("db_recovery_failed", stage=stage, error=str(exc))
         advisory = DATABASE_RECOVERY_FAILED
         if stage != "migration":
             failed_step = f"{stage} startup" if stage in {"scheduler", "ingestion"} else stage

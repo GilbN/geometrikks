@@ -270,7 +270,7 @@ async def refresh_geoip_databases(
     Looked up through the module (not captured references) so tests can
     monkeypatch the ensure functions.
     """
-    from geometrikks.services.geoip import downloader as _self
+    from geometrikks.services.geoip import downloader as _self  # noqa: PLW0406
 
     city_errors: list[str] = []
     asn_errors: list[str] = []

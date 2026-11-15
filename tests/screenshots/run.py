@@ -474,7 +474,7 @@ def _recover(prefix: str) -> bool:
     try:
         for line in recover_publish(DATA_SCREENSHOTS):
             say(f"{prefix}: {line}")
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         say(
             f"{prefix}: publish recovery failed: {error}; "
             f"check {DATA_SCREENSHOTS}, {STAGING_NAME} and {BACKUP_NAME} next to it by hand"
@@ -752,7 +752,7 @@ def full_run(args: argparse.Namespace) -> int:
                     if log is not None:
                         say(f"last lines of {log}:\n{_tail(log)}")
                     code = EXIT_FAILED
-                except Exception:  # noqa: BLE001
+                except Exception:
                     traceback.print_exc()
                     code = EXIT_FAILED
         except Interrupted as interrupt:
@@ -837,7 +837,7 @@ class FullRun:
         failure: Exception | None = None
         try:
             self.capture()
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             failure = error
         if self.args.hold:
             self.hold(failure)
