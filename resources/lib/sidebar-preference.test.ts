@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { loadSidebarOpenPreference, saveSidebarOpenPreference } from "@/lib/sidebar-preference"
 
 function stubStorage(initial: Record<string, string> = {}) {

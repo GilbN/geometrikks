@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
 import { errorRateSeries, isIsolated, shareLabel, shareRows, statusTotal } from "./status-series"

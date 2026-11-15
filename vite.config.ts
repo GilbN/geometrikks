@@ -1,5 +1,5 @@
 import path from "path"
-import { defineConfig } from "vite";
+import { defineConfig, lazyPlugins } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 // Keep litestar-vite-plugin in step with litestar-vite in pyproject.toml.
@@ -9,6 +9,8 @@ import { VitePWA } from "vite-plugin-pwa";
 import { themeHtml } from "./resources/lib/theme-html-plugin.ts";
 
 export default defineConfig({
+  fmt: {},
+  lint: {"jsPlugins":[{"name":"vite-plus","specifier":"vite-plus/oxlint-plugin"}],"rules":{"vite-plus/prefer-vite-plus-imports":"error"},"options":{"typeAware":true,"typeCheck":true}},
   publicDir: "resources/static",
   build: {
     outDir: "public",
@@ -34,7 +36,7 @@ export default defineConfig({
   // /static/* assets and the /static/vite-hmr websocket through :8000, so
   // manual /api and /ws proxies, CORS, and HMR host overrides are not needed.
   // Standalone `bun run dev` against :5173 is not a supported workflow.
-  plugins: [
+  plugins: lazyPlugins(() => [
     themeHtml(),
     tailwindcss(),
     tanstackRouter({
@@ -108,7 +110,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
-  ],
+  ]),
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "resources"),

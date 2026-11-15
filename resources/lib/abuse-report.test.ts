@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { AbuseReportResponse, ReportAlertDto, ReportIpDto } from "@/generated/api/types.gen"
 import {
   CSV_COLUMNS,

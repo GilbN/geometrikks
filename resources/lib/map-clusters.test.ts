@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vite-plus/test"
 import { GeoJSONVT, type Supercluster } from "@maplibre/geojson-vt"
 import type { Feature, Point } from "geojson"
 import { clusterIndex, nearestFirst, predictUnclusteredZoom, unclusteredZoom, type ClusterSource } from "./map-clusters"

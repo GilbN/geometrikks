@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { activeTab, barItems, moreBadge, moreItems, slotFour } from "./phone-nav"
 
 const ids = (items: { id: string }[]) => items.map((item) => item.id)

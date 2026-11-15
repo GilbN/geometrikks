@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { COLOR_THEMES, DEFAULT_COLOR_THEME } from "./theme"
 
 const read = (file: string) => readFileSync(new URL(`../themes/${file}.css`, import.meta.url), "utf8")

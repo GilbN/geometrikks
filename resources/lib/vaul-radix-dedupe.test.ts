@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { expect, it } from "vitest"
+import { expect, it } from "vite-plus/test"
 
 // A nested copy keeps its own focus-trap and layer stacks, so a drawer opened
 // over a dialog or sheet can't take focus and leaves the page unclickable.

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { IDLE_RELOAD_MS, createIdleReloader } from "./auto-reload"
 import { getReloadNoticeState, resetReloadNoticeForTests } from "./reload-notice"
 import type { BuildIdentity } from "./update-detector"

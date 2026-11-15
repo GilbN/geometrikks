@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest"
+import { beforeEach, expect, it, vi } from "vite-plus/test"
 type QueryOptions = {
   queryKey: readonly unknown[]
   refetchInterval: number

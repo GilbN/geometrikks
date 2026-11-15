@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { createBrowserHistory, createMemoryHistory } from "@tanstack/react-router"
 import { createOverlayHistory, overlayCloseAction, overlaysAbove, planOverlaySteps } from "./overlay-history"
 

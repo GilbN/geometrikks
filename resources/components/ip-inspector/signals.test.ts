@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { IpProfileResponse } from "@/generated/api/types.gen"
 import { bucketFloor, computeSignals, requestsAfter, SIGNAL_THRESHOLDS } from "./signals"
 

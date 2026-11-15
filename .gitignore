@@ -406,3 +406,4 @@ site/.wrangler/
 # Docs screenshot run: publish staging and the old folder during the swap
 data/.screenshots-staging/
 data/.screenshots-backup/
+.vitest/

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vite-plus/test"
 import { bannedClusterGroupIds, bannedGroupMembers, bannedGroupOf, indexBannedFeatures, topBannedIps } from "./banned-map"
 import type { BannedMapCollection, BannedMapFeature } from "@/generated/api/types.gen"
 

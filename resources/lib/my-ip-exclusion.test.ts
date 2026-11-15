@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { myIpExclusion, toggleWithFreshIp } from "./my-ip-exclusion"
 
 const MY_IP = "2001:db8:4f1::1a"

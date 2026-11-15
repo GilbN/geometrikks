@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { client } from "@/generated/api/client.gen"
 import axios from "axios"
 import { api, deleteServerLocation, fetchHealth, fetchHealthWithin, fetchCrowdsecAlertScenarios, fetchCrowdsecAlerts } from "./api"

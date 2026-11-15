@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { resolveVisibleColumns } from "@/lib/column-visibility"
 import { GEO_LOG_COLUMNS } from "./columns"

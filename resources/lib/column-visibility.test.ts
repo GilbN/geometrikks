@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { ACCESS_LOG_COLUMNS, ACCESS_LOG_RENAMED_COLUMN_KEYS } from "@/components/access-logs/columns"
 import { GEO_LOG_COLUMNS, GEO_LOG_RENAMED_COLUMN_KEYS } from "@/components/geo-logs/columns"
 import {

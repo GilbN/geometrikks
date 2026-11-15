@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { AccessLogData, GeoEventData, LiveEvent } from "@/lib/websocket"
 import { matchesServers, toLiveRequests } from "./requests"
 import type { LiveRequest } from "./types"

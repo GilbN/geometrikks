@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { SERVER_LOCATION_ZOOM, FIT_MAX_ZOOM, FIT_PADDING, WORLD_VIEW, initialMapView, trafficView, trafficWindow, type MapView } from "@/lib/map-initial-view"
 import type { ServerLocationsData } from "@/lib/server-locations"
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { describeDecisions, EMPTY_SUMMARY, smooth, summarize, trendPercent } from "./summary"
 import type { LiveRequest } from "./types"
 

@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import { rowActivation, stopRowActivation } from "./row-activation"
 
 const inside = { id: "cell text", closest: () => null }

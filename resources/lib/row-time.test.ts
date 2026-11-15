@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { formatRowTime } from "./row-time"
 
 const NOW = new Date(2026, 9, 28, 15, 30, 0)

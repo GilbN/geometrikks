@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest"
+import { beforeEach, expect, it, vi } from "vite-plus/test"
 import type { MutationObserverOptions } from "@tanstack/react-query"
 import type { BanNetworksRequest, BanNetworksResponse } from "@/generated/api/types.gen"
 
