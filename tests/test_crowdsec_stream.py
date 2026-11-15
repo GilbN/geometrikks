@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import httpx2
+import pytest
 
 from tests.test_crowdsec_service import DECISION_JSON, make_service
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 
@@ -247,7 +246,7 @@ class FakePoller:
     def __init__(self) -> None:
         import asyncio
 
-        self.queue: "asyncio.Queue" = __import__("asyncio").Queue()
+        self.queue: asyncio.Queue = __import__("asyncio").Queue()
         self.unsubscribed = False
 
     def subscribe(self, maxsize: int = 100):

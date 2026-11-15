@@ -141,7 +141,7 @@ INGESTION_STOPPED = Advisory(
 )
 
 
-def legacy_env_advisory(names: list["LegacyEnvName"]) -> Advisory:
+def legacy_env_advisory(names: list[LegacyEnvName]) -> Advisory:
     """Warn that this process reads env vars under names that were renamed."""
     renames = "\n".join(f"{legacy_env_name.old} → {legacy_env_name.new}" for legacy_env_name in names)
     noun = "variable uses its old name" if len(names) == 1 else "variables use their old names"

@@ -7,13 +7,17 @@ GeoEventFilters SQL fragments consumed by the aggregate endpoints.
 from __future__ import annotations
 
 import inspect
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from advanced_alchemy.filters import CollectionFilter, NotInCollectionFilter, OnBeforeAfter
-from geometrikks.domain.exceptions import DomainValidationError
+from advanced_alchemy.filters import (
+    CollectionFilter,
+    NotInCollectionFilter,
+    OnBeforeAfter,
+)
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.geo.controllers.events import (
     GeoEventController,
     provide_geo_event_filters,
@@ -30,8 +34,8 @@ class TestTimeWindow:
         assert provide_geo_event_time_window(None, None) == []
 
     def test_adds_inclusive_window_on_timestamp(self) -> None:
-        start = datetime(2026, 7, 1, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 2, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 1, tzinfo=UTC)
+        end = datetime(2026, 7, 2, tzinfo=UTC)
         result = provide_geo_event_time_window(start, end)
         assert len(result) == 1
         window = result[0]
@@ -47,8 +51,8 @@ class TestTimeWindow:
         window = provide_geo_event_time_window(start, end)[0]
 
         assert isinstance(window, OnBeforeAfter)
-        assert window.on_or_after == datetime(2026, 7, 1, tzinfo=timezone.utc)
-        assert window.on_or_before == datetime(2026, 7, 2, tzinfo=timezone.utc)
+        assert window.on_or_after == datetime(2026, 7, 1, tzinfo=UTC)
+        assert window.on_or_before == datetime(2026, 7, 2, tzinfo=UTC)
 
 
 class TestInFilters:
@@ -132,8 +136,8 @@ class TestAggregateFilters:
 
 class TestSummaryComparison:
     async def test_previous_period_is_adjacent_and_equal_length(self) -> None:
-        start = datetime(2026, 7, 2, tzinfo=timezone.utc)
-        end = datetime(2026, 7, 3, tzinfo=timezone.utc)
+        start = datetime(2026, 7, 2, tzinfo=UTC)
+        end = datetime(2026, 7, 3, tzinfo=UTC)
         current = GeoLogPeriod(total_events=10, unique_ips=5, unique_countries=2, unique_cities=3)
         previous = GeoLogPeriod(total_events=5, unique_ips=4, unique_countries=2, unique_cities=2)
         service = MagicMock()
@@ -145,7 +149,7 @@ class TestSummaryComparison:
 
         assert service.get_summary.await_args_list[0].args[:2] == (start, end)
         assert service.get_summary.await_args_list[1].args[:2] == (
-            datetime(2026, 7, 1, tzinfo=timezone.utc),
+            datetime(2026, 7, 1, tzinfo=UTC),
             start,
         )
         assert response.previous_period == previous

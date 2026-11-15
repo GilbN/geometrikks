@@ -24,7 +24,7 @@ import asyncio
 import re
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import text
@@ -93,7 +93,7 @@ def classify_server_names(server_names: list[str]) -> ServerNamePollution:
     )
 
 
-async def detect_server_name_pollution(conn: "AsyncConnection") -> ServerNamePollution:
+async def detect_server_name_pollution(conn: AsyncConnection) -> ServerNamePollution:
     """Bounded distinct-server probe against geo_events.
 
     GROUP BY + LIMIT streams groups off ix_geo_events_server and stops at
@@ -158,14 +158,14 @@ HYPERTABLES = [
 ]
 
 
-async def _enable_extensions(conn: "AsyncConnection") -> None:
+async def _enable_extensions(conn: AsyncConnection) -> None:
     """Enable TimescaleDB and toolkit extensions."""
     await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE"))
     await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb_toolkit CASCADE"))
     logger.info("TimescaleDB and toolkit extensions enabled")
 
 
-async def _create_hypertables(conn: "AsyncConnection") -> None:
+async def _create_hypertables(conn: AsyncConnection) -> None:
     """Convert tables to TimescaleDB hypertables."""
     for table, time_col, chunk_interval, pk_name in HYPERTABLES:
         try:
@@ -225,7 +225,7 @@ _LEGACY_SERVER_INDEX_RENAMES = (
 )
 
 
-async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
+async def _rename_legacy_server_objects(conn: AsyncConnection) -> list[str]:
     """Rename the CAGG objects that still carry the legacy hostname names.
 
     Every rename is a catalog change guarded by an existence check, so a
@@ -304,7 +304,7 @@ async def _rename_legacy_server_objects(conn: "AsyncConnection") -> list[str]:
 # Continuous Aggregate Definitions
 # =============================================================================
 
-async def _create_summary_caggs(conn: "AsyncConnection") -> None:
+async def _create_summary_caggs(conn: AsyncConnection) -> None:
     """Create summary stats CAGGs from access_logs.
 
     Used for: Summary page, Analytics charts. The `latency_*` pair repeats
@@ -361,7 +361,7 @@ async def _create_summary_caggs(conn: "AsyncConnection") -> None:
     logger.info("CAGG created/verified: summary_daily_stats")
 
 
-async def _create_geo_summary_caggs(conn: "AsyncConnection") -> None:
+async def _create_geo_summary_caggs(conn: AsyncConnection) -> None:
     """Create geo summary stats CAGGs with HyperLogLog.
 
     Used for: Summary page unique counts (IPs, countries, cities)
@@ -400,7 +400,7 @@ async def _create_geo_summary_caggs(conn: "AsyncConnection") -> None:
     logger.info("CAGG created/verified: geo_summary_daily_stats")
 
 
-async def _create_location_caggs(conn: "AsyncConnection") -> None:
+async def _create_location_caggs(conn: AsyncConnection) -> None:
     """Create location stats CAGGs.
 
     Used for: Map page GeoJSON with location event counts
@@ -457,7 +457,7 @@ async def _create_location_caggs(conn: "AsyncConnection") -> None:
             """))
 
 
-async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
+async def _create_ip_location_cagg(conn: AsyncConnection) -> None:
     """Create IP-location stats CAGGs (hourly + daily).
 
     Used for: Top IPs per location, Global top IPs, grouped geo-logs rows,
@@ -508,7 +508,7 @@ async def _create_ip_location_cagg(conn: "AsyncConnection") -> None:
         """))
 
 
-async def _create_log_ip_caggs(conn: "AsyncConnection") -> None:
+async def _create_log_ip_caggs(conn: AsyncConnection) -> None:
     """Create per-IP access-log CAGGs (hourly + daily).
 
     Used for: analytics /top-ips, /top-countries, /top-cities and the
@@ -545,7 +545,7 @@ async def _create_log_ip_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
-async def _create_url_caggs(conn: "AsyncConnection") -> None:
+async def _create_url_caggs(conn: AsyncConnection) -> None:
     """Create per-host-and-URL access-log CAGGs (hourly + daily).
 
     Used for: analytics /top-urls (unfiltered path). One group per host and
@@ -584,7 +584,7 @@ async def _create_url_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
-async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
+async def _create_user_agent_caggs(conn: AsyncConnection) -> None:
     """Create per-user-agent access-log CAGGs (hourly + daily).
 
     Used for: analytics /top-user-agents (unfiltered path).
@@ -610,7 +610,7 @@ async def _create_user_agent_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
-async def _create_asn_caggs(conn: "AsyncConnection") -> None:
+async def _create_asn_caggs(conn: AsyncConnection) -> None:
     """Create per-ASN access-log CAGGs (hourly + daily) for /top-asns.
 
     max(as_org) keeps one series per ASN when an mmdb build renames the
@@ -640,7 +640,7 @@ async def _create_asn_caggs(conn: "AsyncConnection") -> None:
         """))
 
 
-async def _create_host_facet_caggs(conn: "AsyncConnection") -> None:
+async def _create_host_facet_caggs(conn: AsyncConnection) -> None:
     """Create tiny daily host/server/log-source CAGGs for the facet dropdowns.
 
     A DISTINCT over the raw hypertables scans every chunk (compressed chunks
@@ -791,7 +791,7 @@ def check_refresh_offsets(*, raw_retention_days: int) -> None:
 
 
 async def _add_refresh_policies(
-    conn: "AsyncConnection",
+    conn: AsyncConnection,
     refresh_interval_minutes: int,
 ) -> None:
     """Add refresh policies for all CAGGs."""
@@ -823,7 +823,7 @@ async def _add_refresh_policies(
 
 
 async def _add_retention_policies(
-    conn: "AsyncConnection",
+    conn: AsyncConnection,
     raw_retention_days: int,
     debug_retention_days: int,
     hourly_retention_days: int,
@@ -872,7 +872,7 @@ _POLICY_JOB_FOR_TARGET = """
 
 
 async def _sync_policy_config(
-    conn: "AsyncConnection", *, policy: str, proc: str, target: str, key: str, interval: timedelta
+    conn: AsyncConnection, *, policy: str, proc: str, target: str, key: str, interval: timedelta
 ) -> None:
     """Update an existing policy whose config interval differs from the setting.
 
@@ -898,7 +898,7 @@ async def _sync_policy_config(
 
 
 async def _sync_policy_schedule(
-    conn: "AsyncConnection", *, policy: str, proc: str, target: str, interval: timedelta
+    conn: AsyncConnection, *, policy: str, proc: str, target: str, interval: timedelta
 ) -> None:
     """Update an existing policy whose schedule_interval differs from the setting."""
     rows = (await conn.execute(text(f"""
@@ -916,7 +916,7 @@ async def _sync_policy_schedule(
 
 
 async def _add_compression_policies(
-    conn: "AsyncConnection",
+    conn: AsyncConnection,
     compression_after_days: int,
 ) -> None:
     """Add compression policies for hypertables."""
@@ -960,7 +960,7 @@ async def _add_compression_policies(
             _record_policy_failure("compression", table, str(e))
 
 
-async def _enable_realtime_aggregation(conn: "AsyncConnection") -> None:
+async def _enable_realtime_aggregation(conn: AsyncConnection) -> None:
     """Enable real-time aggregation on all CAGGs.
 
     By default (TimescaleDB 2.7+), CAGGs are created with
@@ -1012,7 +1012,7 @@ ALL_CAGGS = [
 ]
 
 
-async def teardown_timescaledb(conn: "AsyncConnection") -> None:
+async def teardown_timescaledb(conn: AsyncConnection) -> None:
     """Tear down TimescaleDB objects so metadata.drop_all() can succeed.
 
     Must be called BEFORE metadata.drop_all() to avoid dependency errors.
@@ -1181,7 +1181,7 @@ CAGG_COLUMNS: dict[str, tuple[CaggColumn, ...]] = {
 
 
 async def _cagg_columns_need_upgrade(
-    conn: "AsyncConnection", *, raw_retention_days: int, include_manual: bool = True,
+    conn: AsyncConnection, *, raw_retention_days: int, include_manual: bool = True,
     columns_only: bool = False,
 ) -> list[str]:
     """Views missing an upgrade column, or not yet backfilled after one.
@@ -1242,7 +1242,7 @@ def server_cagg_available(view: str) -> bool:
     return view not in _server_columns_unavailable
 
 
-async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[str]:
+async def _add_cagg_columns(conn: AsyncConnection, views: list[str]) -> list[str]:
     """Add every missing upgrade column of ``views`` in place.
 
     The in-place ALTER keeps every existing bucket; only the new columns are
@@ -1306,7 +1306,7 @@ async def _add_cagg_columns(conn: "AsyncConnection", views: list[str]) -> list[s
     return dropped
 
 
-async def _summary_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+async def _summary_caggs_need_upgrade(conn: AsyncConnection) -> bool:
     """True when a summary CAGG exists in the pre-percentile_agg shape.
 
     CAGGs are plain views over the internal materialized hypertable, so
@@ -1321,7 +1321,7 @@ async def _summary_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     return bool(result.scalar())
 
 
-async def _upgrade_summary_caggs(conn: "AsyncConnection") -> None:
+async def _upgrade_summary_caggs(conn: AsyncConnection) -> None:
     """Drop old-shape summary CAGGs so setup recreates them with pct_agg.
 
     Materialized data is lost and rebuilt from raw access_logs: refresh
@@ -1353,7 +1353,7 @@ def _set_location_caggs_have_server(value: bool) -> None:
     _location_caggs_have_server = value
 
 
-async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+async def _location_caggs_need_upgrade(conn: AsyncConnection) -> bool:
     """True when any existing location CAGG is in the pre-server shape.
 
     Every existing CAGG must carry the column, not just one of them: the
@@ -1377,7 +1377,7 @@ async def _location_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
 URL_CAGGS = ["url_hourly_stats", "url_daily_stats"]
 
 
-async def _url_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
+async def _url_caggs_need_upgrade(conn: AsyncConnection) -> bool:
     """True when an existing URL CAGG is in the pre-host shape.
 
     A GROUP BY cannot change in place, so the pair is dropped and recreated
@@ -1397,7 +1397,7 @@ async def _url_caggs_need_upgrade(conn: "AsyncConnection") -> bool:
     return with_host < existing
 
 
-async def _drop_url_caggs(conn: "AsyncConnection", *, attempts: int = 3) -> None:
+async def _drop_url_caggs(conn: AsyncConnection, *, attempts: int = 3) -> None:
     """Drop both URL CAGGs, retrying a transient catalog error.
 
     A refresh-policy job running on the view makes the DROP fail with
@@ -1420,8 +1420,8 @@ async def _drop_url_caggs(conn: "AsyncConnection", *, attempts: int = 3) -> None
 
 
 async def setup_timescaledb(
-    engine: "AsyncEngine",
-    analytics: "AnalyticsSettings",
+    engine: AsyncEngine,
+    analytics: AnalyticsSettings,
 ) -> None:
     """Set up TimescaleDB hypertables, continuous aggregates, and policies.
 
@@ -1552,16 +1552,16 @@ async def setup_timescaledb(
         # refreshing further back is pure waste.
         await refresh_caggs_range(
             engine,
-            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
-            end=datetime.now(timezone.utc),
+            start=datetime.now(UTC) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(UTC),
             caggs=SUMMARY_CAGGS,
         )
 
     if location_upgrade:
         await refresh_caggs_range(
             engine,
-            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
-            end=datetime.now(timezone.utc),
+            start=datetime.now(UTC) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(UTC),
             caggs=LOCATION_CAGGS,
         )
 
@@ -1569,8 +1569,8 @@ async def setup_timescaledb(
         started = time.monotonic()
         failed = await refresh_caggs_range(
             engine,
-            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
-            end=datetime.now(timezone.utc),
+            start=datetime.now(UTC) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(UTC),
             caggs=URL_CAGGS,
         )
         if failed:
@@ -1588,8 +1588,8 @@ async def setup_timescaledb(
         started = time.monotonic()
         failed = await refresh_caggs_range(
             engine,
-            start=datetime.now(timezone.utc) - timedelta(days=analytics.raw_retention_days),
-            end=datetime.now(timezone.utc),
+            start=datetime.now(UTC) - timedelta(days=analytics.raw_retention_days),
+            end=datetime.now(UTC),
             caggs=pending_views,
             force=True,
         )
@@ -1628,8 +1628,8 @@ def whole_day_window(start: datetime, end: datetime) -> tuple[datetime, datetime
     Returns:
         (start floored to UTC midnight, end raised to the next UTC midnight).
     """
-    day_start = start.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    end_utc = end.astimezone(timezone.utc)
+    day_start = start.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    end_utc = end.astimezone(UTC)
     day_end = end_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     if day_end < end_utc:
         day_end += timedelta(days=1)
@@ -1638,7 +1638,7 @@ def whole_day_window(start: datetime, end: datetime) -> tuple[datetime, datetime
 
 def open_bucket_start(cagg: str, now: datetime) -> datetime:
     """Start of the cagg's bucket that contains now and is still filling."""
-    hour = now.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    hour = now.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
     return hour if cagg in HOURLY_CAGGS else hour.replace(hour=0)
 
 
@@ -1687,7 +1687,7 @@ async def refresh_caggs_range(
     if unknown:
         raise ValueError(f"Unknown CAGG name(s): {sorted(unknown)}")
     start, end = whole_day_window(start, end)
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
 
     failed: list[str] = []
     for cagg in target_caggs:
@@ -1751,7 +1751,7 @@ CAGG_SOURCE_TABLES: dict[str, str] = {
 
 
 async def backfill_cagg_gaps(
-    engine: "AsyncEngine", *, raw_retention_days: int, hourly_retention_days: int
+    engine: AsyncEngine, *, raw_retention_days: int, hourly_retention_days: int
 ) -> None:
     """Materialize CAGG history that predates refresh-policy coverage.
 
@@ -1769,7 +1769,7 @@ async def backfill_cagg_gaps(
     them as a gap would re-backfill (and re-drop) the same ~120 days of
     hourly buckets on every startup.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     raw_horizon = now - timedelta(days=raw_retention_days)
     hourly_horizon = now - timedelta(days=hourly_retention_days)
     to_backfill: list[tuple[str, datetime]] = []
@@ -1784,7 +1784,7 @@ async def backfill_cagg_gaps(
         try:
             async with engine.connect() as conn:
                 raw_min = (await conn.execute(
-                    text(f"SELECT MIN(timestamp) FROM {source} WHERE timestamp >= :horizon"),  # noqa: S608 - allowlisted identifiers
+                    text(f"SELECT MIN(timestamp) FROM {source} WHERE timestamp >= :horizon"),
                     {"horizon": horizon},
                 )).scalar()
                 if raw_min is None:
@@ -1800,7 +1800,7 @@ async def backfill_cagg_gaps(
                     continue
 
                 cagg_min = (await conn.execute(
-                    text(f"SELECT MIN(bucket) FROM {mat_table}")  # noqa: S608
+                    text(f"SELECT MIN(bucket) FROM {mat_table}")
                 )).scalar()
         except Exception as e:
             logger.warning("CAGG gap probe failed: %s: %s", cagg, e)
@@ -1821,6 +1821,6 @@ async def backfill_cagg_gaps(
     for cagg, start in to_backfill:
         logger.warning("CAGG %s is missing history since %s; backfilling", cagg, start)
         await refresh_caggs_range(
-            engine, start=start, end=datetime.now(timezone.utc), caggs=[cagg]
+            engine, start=start, end=datetime.now(UTC), caggs=[cagg]
         )
 

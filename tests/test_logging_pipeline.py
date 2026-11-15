@@ -202,6 +202,7 @@ class TestLoginLineFormat:
 
     def test_forged_field_poc_captures_real_ip(self):
         import re as re_mod
+
         from geometrikks.server.logging import render_login_line
         line = render_login_line(
             None, "warning",
@@ -375,6 +376,7 @@ class TestCreateLoggingConfig:
 
     def test_queue_is_bounded(self, configured_logging):
         import logging.handlers as lh
+
         from geometrikks.server.logging import LOG_QUEUE_MAXSIZE
         root = logging.getLogger()
         handler = next(h for h in root.handlers if isinstance(h, lh.QueueHandler))
@@ -392,6 +394,7 @@ class TestCreateLoggingConfig:
 
     def test_jsonl_main_log_line(self, configured_logging):
         import json as jsonlib
+
         import structlog
         structlog.stdlib.get_logger("geometrikks.test").info("hello_jsonl", answer=42)
         main = configured_logging / "geometrikks.log"
@@ -406,6 +409,7 @@ class TestCreateLoggingConfig:
 
     def test_success_level_renders_in_json(self, configured_logging):
         import json as jsonlib
+
         import structlog
         cast("Any", structlog.stdlib.get_logger("geometrikks.test")).success("it_worked")
         main = configured_logging / "geometrikks.log"
@@ -415,6 +419,7 @@ class TestCreateLoggingConfig:
 
     def test_login_logger_reaches_login_file_with_contract_format(self, configured_logging):
         import structlog
+
         from geometrikks.server.logging import LOGIN_LOGGER_NAME
         structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).warning(
             "login_failed", user="admin", ip="203.0.113.7"
@@ -455,6 +460,7 @@ class TestCreateLoggingConfig:
 
     def test_handler_levels_are_respected_behind_queue(self, configured_logging):
         import structlog
+
         from geometrikks.server.logging import LOGIN_LOGGER_NAME
         # Use a non-login logger for this probe: the login logger is pinned
         # at INFO (see TestLoginLoggerLevelPinned), so a DEBUG call on it
@@ -488,6 +494,7 @@ class TestCreateLoggingConfig:
 class TestRotateLogFiles:
     def test_rotates_main_log_and_keeps_logging_working(self, configured_logging):
         import structlog
+
         from geometrikks.server.logging import rotate_log_files
 
         structlog.stdlib.get_logger("geometrikks.test.rotate").info("before_rotate")
@@ -521,6 +528,7 @@ class TestExceptionTraceback:
 
     def test_jsonl_main_log_carries_exception_traceback(self, configured_logging):
         import json as jsonlib
+
         import structlog
         logger = structlog.stdlib.get_logger("geometrikks.test.exc")
         try:
@@ -541,6 +549,7 @@ class TestExceptionTraceback:
 
     def test_explicit_error_kwarg_is_not_clobbered(self, configured_logging):
         import json as jsonlib
+
         import structlog
         logger = structlog.stdlib.get_logger("geometrikks.test.exc")
         try:
@@ -558,6 +567,7 @@ class TestExceptionTraceback:
 
     def test_broadcast_record_carries_exception_traceback(self, configured_logging):
         import structlog
+
         from geometrikks.server.logging import log_broadcaster
 
         async def scenario():
@@ -575,7 +585,7 @@ class TestExceptionTraceback:
                 while time.time() < deadline:
                     try:
                         candidate = await asyncio.wait_for(q.get(), timeout=0.5)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         continue
                     if candidate.get("event") == "caught_error_broadcast":
                         event = candidate
@@ -606,6 +616,7 @@ class TestLoginLoggerLevelPinned:
         log_dir = tmp_path / "logs"
 
         import structlog
+
         from geometrikks.server.logging import LOGIN_LOGGER_NAME
         structlog.stdlib.get_logger(LOGIN_LOGGER_NAME).info(
             "login_success", user="admin", ip="203.0.113.7"
@@ -838,6 +849,7 @@ class TestExceptionLoggingWiring:
         produce each status we care about."""
         from litestar import Litestar, get
         from litestar.exceptions import NotAuthorizedException
+
         from geometrikks.config.settings import get_settings
         from geometrikks.server.logging import create_logging_config
 

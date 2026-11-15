@@ -29,7 +29,11 @@ import jwt
 from geometrikks.lib.session import PENDING_LIFETIME_SECONDS
 from geometrikks.lib.urls import validate_https_url
 from geometrikks.server.logging import get_logger
-from geometrikks.services.oidc.errors import OidcForbidden, OidcProtocolError, OidcUnavailable
+from geometrikks.services.oidc.errors import (
+    OidcForbidden,
+    OidcProtocolError,
+    OidcUnavailable,
+)
 
 if TYPE_CHECKING:
     from geometrikks.config.settings import OidcSettings

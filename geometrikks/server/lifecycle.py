@@ -30,13 +30,13 @@ import asyncio
 import contextlib
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Protocol
 
-from sqlalchemy import text
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.events import EVENT_SCHEDULER_SHUTDOWN
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from litestar.plugins import InitPlugin
+from sqlalchemy import text
 
 from geometrikks.config.settings import get_settings
 from geometrikks.domain.instances.heartbeat import HeartbeatWriter
@@ -47,10 +47,12 @@ from geometrikks.lib.advisories import (
     Advisory,
 )
 from geometrikks.lib.utils import retries_disabled
+from geometrikks.server import runtime
 from geometrikks.server.logging import get_logger
 from geometrikks.server.migrations import migrate_database
-from geometrikks.server import runtime
 from geometrikks.server.plugins import get_app_db_config
+from geometrikks.server.scheduler import create_scheduler
+from geometrikks.server.scheduler_tracking import JobRunTracker
 from geometrikks.server.schema_wait import wait_for_schema
 from geometrikks.server.session_revocation import revoke_sessions_if_auth_changed
 from geometrikks.server.session_store import (
@@ -59,29 +61,30 @@ from geometrikks.server.session_store import (
     create_session_table_store,
 )
 from geometrikks.server.timescale import setup_timescaledb
-
 from geometrikks.services.crowdsec import CrowdSecService
 from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
-from geometrikks.services.geoip.downloader import ensure_asn_database, ensure_geoip_database
+from geometrikks.services.geoip.downloader import (
+    ensure_asn_database,
+    ensure_geoip_database,
+)
 from geometrikks.services.geoip.self_location import resolve_self_location
 from geometrikks.services.geoip.server_locations import (
     reconcile_override_server_locations,
     upsert_auto_server_locations,
 )
-from geometrikks.services.ingestion import LogInput, LogIngestionService
+from geometrikks.services.ingestion import LogIngestionService, LogInput
 from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logparser.peer_window import PeerWindow
 from geometrikks.services.logsources import FileSource, LokiSource
-from geometrikks.server.scheduler import create_scheduler
-from geometrikks.server.scheduler_tracking import JobRunTracker
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
 
-    from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
-    from geometrikks.config.settings import Settings
     from litestar import Litestar
     from litestar.config.app import AppConfig
+
+    from geometrikks.config.settings import Settings
+    from geometrikks.server.plugins import DegradedTolerantAsyncPgBackend
 
 logger = get_logger(__name__)
 
@@ -107,7 +110,7 @@ class _SystemClock:
 _SYSTEM_CLOCK = _SystemClock()
 
 
-def _resolve_settings(app: "Litestar") -> "Settings":
+def _resolve_settings(app: Litestar) -> Settings:
     """The settings the app was composed with.
 
     create_app() stores its composed settings on state; the fallback keeps
@@ -116,7 +119,7 @@ def _resolve_settings(app: "Litestar") -> "Settings":
     return getattr(app.state, "settings", None) or get_settings()
 
 
-async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
+async def _db_available(app: Litestar, timeout: float = 10.0) -> bool:
     """Run one bounded database connection probe."""
     try:
         async def _probe():
@@ -131,7 +134,7 @@ async def _db_available(app: "Litestar", timeout: float = 10.0) -> bool:
 
 
 async def _wait_for_database(
-    app: "Litestar", wait_seconds: float, *, _clock: _Clock = _SYSTEM_CLOCK
+    app: Litestar, wait_seconds: float, *, _clock: _Clock = _SYSTEM_CLOCK
 ) -> bool:
     """Probe until the database answers or the startup window expires."""
     if wait_seconds == 0 or retries_disabled():
@@ -168,12 +171,12 @@ async def _wait_for_database(
 
 
 @asynccontextmanager
-async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def core_state_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Process start time and the log broadcaster's event loop binding.
 
     Runs first so /about reports uptime even when later managers degrade.
     """
-    app.state.started_at = datetime.now(timezone.utc)
+    app.state.started_at = datetime.now(UTC)
     runtime.get_advisories(app)
 
     from geometrikks.server.logging import log_broadcaster
@@ -193,7 +196,7 @@ async def core_state_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 @asynccontextmanager
-async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def geoip_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """GeoLite2 download/refresh and detection of this server's location.
 
     Runs before the DB gate: geo enrichment does not need the database, and
@@ -233,7 +236,7 @@ async def geoip_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 @asynccontextmanager
-async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def crowdsec_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """CrowdSec LAPI client and decision-stream poller wiring.
 
     The LAPI client needs no database, so this runs before the DB gate;
@@ -282,7 +285,7 @@ async def crowdsec_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 @asynccontextmanager
-async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def oidc_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Background discovery warm-up and client shutdown.
 
     Discovery runs as a task rather than inline so an identity provider that
@@ -309,7 +312,7 @@ async def oidc_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 @asynccontextmanager
-async def heartbeat_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def heartbeat_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Start the heartbeat writer; it writes its first row from its own task."""
     writer = HeartbeatWriter(app, _resolve_settings(app), get_app_db_config(app).get_engine())
     app.state.heartbeat_writer = writer
@@ -323,7 +326,7 @@ async def heartbeat_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
 
 
 @asynccontextmanager
-async def heartbeat_shutdown_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def heartbeat_shutdown_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Stop the heartbeat writer before any other manager tears down."""
     try:
         yield
@@ -333,11 +336,11 @@ async def heartbeat_shutdown_lifespan(app: "Litestar") -> "AsyncGenerator[None]"
             await writer.stop()
 
 
-def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
+def _enter_db_degraded(app: Litestar, *, detail: str | None = None) -> None:
     """Record DB-degraded mode and pause database-bound services."""
     app.state.db_available = False
     app.state.session_store_ready = False
-    app.state.db_degraded_since = datetime.now(timezone.utc)
+    app.state.db_degraded_since = datetime.now(UTC)
     poller = runtime.get_crowdsec_poller(app)
     if poller is not None:
         app.state.crowdsec_stream_poller_deferred = poller
@@ -356,7 +359,7 @@ def _enter_db_degraded(app: "Litestar", *, detail: str | None = None) -> None:
 
 
 async def bring_up_database(
-    app: "Litestar",
+    app: Litestar,
     *,
     _on_stage: Callable[[str], None] | None = None,
     _shield_migration: bool = False,
@@ -417,7 +420,7 @@ async def bring_up_database(
 
 
 @asynccontextmanager
-async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def database_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Probe the database, then prepare it or enter degraded mode."""
     settings = _resolve_settings(app)
 
@@ -460,7 +463,7 @@ async def database_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
     yield
 
 
-async def start_scheduler(app: "Litestar") -> None:
+async def start_scheduler(app: Litestar) -> None:
     """Create, attach and start APScheduler."""
     settings = _resolve_settings(app)
     session_maker = get_app_db_config(app).create_session_maker()
@@ -479,7 +482,7 @@ async def start_scheduler(app: "Litestar") -> None:
     logger.info("scheduler_started")
 
 
-async def stop_scheduler(app: "Litestar") -> None:
+async def stop_scheduler(app: Litestar) -> None:
     """Stop and detach the current scheduler, if any."""
     scheduler = runtime.get_scheduler(app)
     stopped_cleanly = scheduler is None or not scheduler.running
@@ -512,7 +515,7 @@ async def stop_scheduler(app: "Litestar") -> None:
 
 
 @asynccontextmanager
-async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def scheduler_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Start the scheduler when the database is available."""
     try:
         if runtime.is_db_available(app, default=False):
@@ -522,7 +525,7 @@ async def scheduler_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
         await stop_scheduler(app)
 
 
-def build_log_inputs(settings: "Settings") -> list[LogInput]:
+def build_log_inputs(settings: Settings) -> list[LogInput]:
     """One LogInput per configured source: tailed files first, then Loki queries."""
     proxy_advisory = settings.app.proxy_advisory
     inputs = [
@@ -580,7 +583,7 @@ def build_log_inputs(settings: "Settings") -> list[LogInput]:
     return inputs
 
 
-async def start_ingestion(app: "Litestar") -> None:
+async def start_ingestion(app: Litestar) -> None:
     """Build and start the log ingestion service."""
     settings = _resolve_settings(app)
     from litestar.channels import ChannelsPlugin
@@ -613,7 +616,7 @@ async def start_ingestion(app: "Litestar") -> None:
     logger.info("ingestion_started")
 
 
-async def stop_ingestion(app: "Litestar") -> None:
+async def stop_ingestion(app: Litestar) -> None:
     """Stop and detach the current ingestion service, if any."""
     service = runtime.get_ingestion_service(app)
     stopped_cleanly = service is None
@@ -633,7 +636,7 @@ async def stop_ingestion(app: "Litestar") -> None:
 
 
 @asynccontextmanager
-async def ingestion_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def ingestion_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Start ingestion when configured and the database is available."""
     settings = _resolve_settings(app)
     if not settings.logparser.enabled:
@@ -653,7 +656,7 @@ _RECOVERY_INITIAL_DELAY = 10.0
 _RECOVERY_MAX_DELAY = 60.0
 
 
-async def _unwind_database_recovery(app: "Litestar") -> None:
+async def _unwind_database_recovery(app: Litestar) -> None:
     poller = runtime.get_crowdsec_poller(app)
     if poller is not None:
         app.state.crowdsec_stream_poller_deferred = poller
@@ -674,7 +677,7 @@ async def _unwind_database_recovery(app: "Litestar") -> None:
         raise cancelled
 
 
-async def _recover_database(app: "Litestar") -> None:
+async def _recover_database(app: Litestar) -> None:
     """Re-probe with backoff and complete the startup skipped by the DB gate."""
     settings = _resolve_settings(app)
     registry = runtime.get_advisories(app)
@@ -686,7 +689,7 @@ async def _recover_database(app: "Litestar") -> None:
         stage = value
 
     def degraded_seconds() -> float | None:
-        return (datetime.now(timezone.utc) - since).total_seconds() if since else None
+        return (datetime.now(UTC) - since).total_seconds() if since else None
 
     try:
         delay = _RECOVERY_INITIAL_DELAY
@@ -752,7 +755,7 @@ async def _recover_database(app: "Litestar") -> None:
 
 
 @asynccontextmanager
-async def db_recovery_lifespan(app: "Litestar") -> "AsyncGenerator[None]":
+async def db_recovery_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Recover full-mode degraded startup, cancelling before service teardown."""
     settings = _resolve_settings(app)
     task: asyncio.Task[None] | None = None
@@ -799,7 +802,7 @@ class LifecyclePlugin(InitPlugin):
     def __init__(self, channels_backend: DegradedTolerantAsyncPgBackend | None = None) -> None:
         self._channels_backend = channels_backend
 
-    def on_app_init(self, app_config: "AppConfig") -> "AppConfig":
+    def on_app_init(self, app_config: AppConfig) -> AppConfig:
         app_config.lifespan.extend(LIFESPAN)
         if self._channels_backend is not None:
             app_config.state.channels_backend = self._channels_backend

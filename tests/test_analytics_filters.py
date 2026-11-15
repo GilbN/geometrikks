@@ -7,10 +7,10 @@ access_logs, so their is_active() gate is load-bearing.
 from __future__ import annotations
 
 import pytest
-from geometrikks.domain.exceptions import DomainValidationError
 
 from geometrikks.domain.analytics.controllers import _build_filters
 from geometrikks.domain.analytics.repositories import AnalyticsFilters
+from geometrikks.domain.exceptions import DomainValidationError
 
 
 class TestIsActive:

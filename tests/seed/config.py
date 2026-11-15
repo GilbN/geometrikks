@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-
+from datetime import UTC, datetime, timedelta
 
 # Ten years; also keeps the window start clear of datetime overflow.
 MAX_DAYS = 3650
@@ -45,7 +44,7 @@ class SeedConfig:
     home_share: float = 0.4
     debug_share: float = 0.02
     batch_size: int = 20_000
-    end: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    end: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __post_init__(self) -> None:
         if self.rows < 1:

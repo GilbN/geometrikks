@@ -3,27 +3,38 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import QueryParameter, SkipValidation
-from litestar.status_codes import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_502_BAD_GATEWAY
+from litestar.status_codes import (
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_502_BAD_GATEWAY,
+)
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.domain.exceptions import DomainValidationError
-from geometrikks.domain.reports.abuse_report import AbuseReportRepository, ReportIp, mark_drop_listings
+from geometrikks.domain.reports.abuse_report import (
+    AbuseReportRepository,
+    ReportIp,
+    mark_drop_listings,
+)
 from geometrikks.domain.reports.crowdsec import (
     ASN_ALERT_LIMIT,
     IP_ALERT_LIMIT,
     IpCrowdSec,
     gather_crowdsec,
 )
-from geometrikks.domain.reports.dependencies import provide_abuse_report_repo, provide_rdap_client
+from geometrikks.domain.reports.dependencies import (
+    provide_abuse_report_repo,
+    provide_rdap_client,
+)
 from geometrikks.domain.reports.schemas import (
     AbuseContactResponse,
     AbuseReportResponse,
@@ -321,7 +332,7 @@ class ReportsController(Controller):
             target=target,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
-            generated_at=datetime.now(timezone.utc).isoformat(),
+            generated_at=datetime.now(UTC).isoformat(),
             granularity=evidence.granularity,
             ip_count=ip_count,
             total_requests=total_requests,

@@ -1,20 +1,18 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from advanced_alchemy import base
+from advanced_alchemy.types import DateTimeUTC
+from litestar.dto import dto_field
 from sqlalchemy import (
     BigInteger,
     Float,
+    Index,
     SmallInteger,
     String,
     Text,
-    Index,
-    ForeignKey,
 )
-
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from advanced_alchemy.types import DateTimeUTC
-from advanced_alchemy import base
-from litestar.dto import dto_field
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class AccessLog(base.BigIntBase):
@@ -118,7 +116,7 @@ class AccessLogDebug(base.BigIntBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTimeUTC(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         info=dto_field("read-only")
     )
 

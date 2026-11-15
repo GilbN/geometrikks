@@ -25,7 +25,7 @@ import heapq
 import json
 import time
 from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx2
@@ -259,7 +259,7 @@ class LokiSource:
         start_ns: int,
         end_ns: int,
         stop: asyncio.Event,
-    ) -> AsyncGenerator[list[Entry], None]:
+    ) -> AsyncGenerator[list[Entry]]:
         """Pages of entries stamped in [start_ns, end_ns), oldest first.
 
         Loki's ``start`` is inclusive, so each page after the first is asked
@@ -301,7 +301,7 @@ class LokiSource:
                         "the shipper stamps each line when it reads it. See %s.",
                         PAGE_LIMIT,
                         self.query,
-                        datetime.fromtimestamp(last / NS, tz=timezone.utc).isoformat(),
+                        datetime.fromtimestamp(last / NS, tz=UTC).isoformat(),
                         PAGE_LIMIT,
                         LOKI_DOCS_URL,
                     )
@@ -312,7 +312,7 @@ class LokiSource:
 
     async def read_range(
         self, start_ns: int, end_ns: int
-    ) -> AsyncGenerator[list[Entry], None]:
+    ) -> AsyncGenerator[list[Entry]]:
         """Pages of entries stamped in [start_ns, end_ns), oldest first.
 
         For import-loki. Owns its client. Unlike lines(), it retries nothing
@@ -322,14 +322,13 @@ class LokiSource:
         Raises:
             httpx2.HTTPError, LokiRejected: as ``_request``.
         """
-        async with self._client() as client:
-            async with contextlib.aclosing(
-                self._pages(client, start_ns, end_ns, asyncio.Event())
-            ) as pages:
-                async for page in pages:
-                    yield page
+        async with self._client() as client, contextlib.aclosing(
+            self._pages(client, start_ns, end_ns, asyncio.Event())
+        ) as pages:
+            async for page in pages:
+                yield page
 
-    async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str, None]:
+    async def lines(self, stop: asyncio.Event) -> AsyncGenerator[str]:
         """Poll Loki until stop is set, yielding each new line once.
 
         ``floor`` is the clock wait_ready recorded, or the clock now. Entries

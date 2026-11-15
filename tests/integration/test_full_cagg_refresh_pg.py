@@ -1,7 +1,7 @@
 """The scheduler's full refresh against real continuous aggregates."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -30,12 +30,12 @@ async def _insert(pg_engine, count: int, timestamp: datetime) -> None:
 
 
 async def test_rows_after_a_full_refresh_still_count(pg_engine, pg_session_maker, clean_tables) -> None:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     await _insert(pg_engine, 10, now - timedelta(days=2))
     await _insert(pg_engine, 10, now - timedelta(minutes=20))
 
     await refresh_all_caggs_job(pg_session_maker)
-    await _insert(pg_engine, 5, datetime.now(timezone.utc))
+    await _insert(pg_engine, 5, datetime.now(UTC))
 
     async with pg_engine.connect() as conn:
         raw, daily, hourly = (await conn.execute(TOTALS)).one()

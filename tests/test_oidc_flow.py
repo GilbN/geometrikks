@@ -23,7 +23,14 @@ from geometrikks.server.routes import create_api_v1_router
 from geometrikks.server.session_store import install_session_store
 from geometrikks.services.oidc import OidcClient
 from geometrikks.services.oidc import client as client_module
-from tests.oidc_fake import CLIENT_ID, CLIENT_SECRET, ISSUER, REDIRECT_URI, FakeIdp, make_fake_idp
+from tests.oidc_fake import (
+    CLIENT_ID,
+    CLIENT_SECRET,
+    ISSUER,
+    REDIRECT_URI,
+    FakeIdp,
+    make_fake_idp,
+)
 from tests.test_auth_endpoints import _ws_event, make_app, make_disabled_app, protected
 from tests.test_live_ws import publish_once_subscribed
 

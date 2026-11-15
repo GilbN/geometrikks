@@ -1,9 +1,8 @@
 """Startup schema path against real TimescaleDB: alembic head + timescale objects."""
 from __future__ import annotations
 
-from sqlalchemy import text
-
 import pytest
+from sqlalchemy import text
 
 pytestmark = pytest.mark.anyio
 

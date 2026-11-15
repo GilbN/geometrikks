@@ -9,11 +9,16 @@ from __future__ import annotations
 import asyncio
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from geometrikks.domain.reports.schemas import CrowdSecReportStatus
 from geometrikks.server.logging import get_logger
-from geometrikks.services.crowdsec import Alert, CrowdSecError, CrowdSecService, Decision
+from geometrikks.services.crowdsec import (
+    Alert,
+    CrowdSecError,
+    CrowdSecService,
+    Decision,
+)
 
 logger = get_logger(__name__)
 
@@ -60,7 +65,7 @@ def _parse(value: str | None) -> datetime | None:
         parsed = datetime.fromisoformat(value)
     except ValueError:
         return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def alert_in_window(alert: Alert, start: datetime, end: datetime) -> bool:
@@ -88,7 +93,7 @@ async def gather_crowdsec(
     exist; ``alert_limit`` caps the newest alerts fetched per IP."""
     if service is None:
         return CrowdSecEvidence(status="disabled")
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     since, until = _since(start, now), _until(end, now)
     limiter = asyncio.Semaphore(LAPI_CONCURRENCY)
 
@@ -103,7 +108,7 @@ async def gather_crowdsec(
             alerts=sorted(
                 (a for a in alerts if alert_in_window(a, start, end)),
                 # Sorted by parsed time, because LAPI times carry nanoseconds.
-                key=lambda a: _parse(a.start_at) or _parse(a.created_at) or datetime.min.replace(tzinfo=timezone.utc),
+                key=lambda a: _parse(a.start_at) or _parse(a.created_at) or datetime.min.replace(tzinfo=UTC),
             ),
             alerts_truncated=len(alerts) >= alert_limit,
         )

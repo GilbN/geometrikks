@@ -11,7 +11,10 @@ from litestar.params import QueryParameter
 
 from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.lib.parameters import (
-    RANGE_END_DESCRIPTION, RANGE_START_DESCRIPTION, range_end_examples, range_start_examples,
+    RANGE_END_DESCRIPTION,
+    RANGE_START_DESCRIPTION,
+    range_end_examples,
+    range_start_examples,
 )
 
 MAX_WINDOW = timedelta(days=365)

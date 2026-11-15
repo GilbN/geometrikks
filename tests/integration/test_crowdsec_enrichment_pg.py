@@ -1,17 +1,16 @@
 """SecurityEnrichmentRepository bulk geo/request-count lookups on real TimescaleDB."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 
 from geometrikks.domain.security.repositories import SecurityEnrichmentRepository
 
-import pytest
-
 pytestmark = pytest.mark.anyio
 
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 async def seed_access_log(
@@ -265,7 +264,10 @@ async def test_banned_map_filters_before_location_choice_and_excludes_end(
 async def test_banned_map_materialized_buckets_match_raw_presence(
     pg_engine, pg_session_maker, clean_tables, days,
 ):
-    from geometrikks.server.timescale import refresh_caggs_range, IP_LOCATION_CAGGS_NAMES
+    from geometrikks.server.timescale import (
+        IP_LOCATION_CAGGS_NAMES,
+        refresh_caggs_range,
+    )
 
     start = NOW - timedelta(days=days, minutes=30)
     end = NOW - timedelta(minutes=10)

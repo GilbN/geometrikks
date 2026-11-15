@@ -6,7 +6,7 @@ fallback appear so a refactor cannot drop one silently.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -30,7 +30,7 @@ pytestmark = pytest.mark.anyio
 
 FILTER = f"FILTER (WHERE {LATENCY_FILTER})"
 
-NOW = datetime(2026, 8, 27, 12, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 27, 12, tzinfo=UTC)
 
 
 class CaptureSession:
@@ -41,7 +41,7 @@ class CaptureSession:
 
     async def execute(self, statement: Any, params: Any = None) -> Any:
         self.sql.append(str(statement))
-        return SimpleNamespace(one_or_none=lambda: None, fetchall=lambda: [])
+        return SimpleNamespace(one_or_none=lambda: None, fetchall=list)
 
 
 def test_latency_col_falls_back_only_when_the_count_is_null() -> None:

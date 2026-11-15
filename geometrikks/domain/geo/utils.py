@@ -1,4 +1,4 @@
-from geoalchemy2.functions import ST_SetSRID, ST_MakePoint
+from geoalchemy2.functions import ST_MakePoint, ST_SetSRID
 
 WGS84_SRID = 4326  # Standard GPS coordinate system
 

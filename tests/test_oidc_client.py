@@ -5,7 +5,14 @@ import pytest
 
 from geometrikks.config.settings import OidcSettings
 from geometrikks.services.oidc import OidcClient, OidcUnavailable
-from tests.oidc_fake import CLIENT_ID, CLIENT_SECRET, ISSUER, REDIRECT_URI, FakeIdp, make_fake_idp
+from tests.oidc_fake import (
+    CLIENT_ID,
+    CLIENT_SECRET,
+    ISSUER,
+    REDIRECT_URI,
+    FakeIdp,
+    make_fake_idp,
+)
 
 pytestmark = pytest.mark.anyio
 

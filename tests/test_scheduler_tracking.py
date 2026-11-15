@@ -103,6 +103,7 @@ class TestJobOutcomeLogging:
 
     def test_error_logged(self, caplog):
         import logging as stdlib_logging
+
         from geometrikks.server.scheduler_tracking import JobRunTracker
 
         tracker = JobRunTracker()

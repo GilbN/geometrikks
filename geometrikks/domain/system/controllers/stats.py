@@ -4,13 +4,12 @@ from __future__ import annotations
 from typing import Annotated
 
 import msgspec
-
 from litestar import get
 from litestar.di import NamedDependency, Provide
 
+from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 from geometrikks.services.ingestion import LogIngestionService
 from geometrikks.services.logsources import LokiSource
-from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 
 
 # The selector and the server name describe the operator's log setup, so

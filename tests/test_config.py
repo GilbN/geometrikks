@@ -7,7 +7,11 @@ import pytest
 from pydantic import ValidationError
 
 from geometrikks.config import GeoIPSettings, MapSettings, Settings, get_settings
-from geometrikks.config.settings import AppSettings, LogParserSettings, get_installed_version
+from geometrikks.config.settings import (
+    AppSettings,
+    LogParserSettings,
+    get_installed_version,
+)
 
 
 def test_default_settings():
@@ -489,6 +493,7 @@ def test_admin_password_is_secret_and_auth_still_verifies(monkeypatch):
 
 def test_build_auth_state_rejects_empty_password(monkeypatch):
     import pytest
+
     from geometrikks.config.settings import Settings
     from geometrikks.server.auth import build_auth_state
     monkeypatch.setenv("APP_ADMIN_PASSWORD", "")
@@ -531,6 +536,7 @@ class TestCrowdSecSettings:
     def test_machine_credentials_must_be_paired(self, monkeypatch):
         import pytest
         from pydantic import ValidationError
+
         from geometrikks.config.settings import CrowdSecSettings
         monkeypatch.setenv("CROWDSEC_MACHINE_ID", "geometrikks")
         with pytest.raises(ValidationError):
@@ -654,6 +660,7 @@ def test_map_server_locations_parses_json(monkeypatch):
 def test_map_server_locations_rejects_bad_ranges(monkeypatch):
     import pydantic
     import pytest as _pytest
+
     from geometrikks.config.settings import MapSettings
     monkeypatch.setenv("MAP_SERVER_LOCATIONS", '{"x": [95.0, 10.0]}')
     with _pytest.raises(pydantic.ValidationError):
@@ -663,6 +670,7 @@ def test_map_server_locations_rejects_bad_ranges(monkeypatch):
 def test_map_server_locations_rejects_wrong_arity(monkeypatch):
     import pydantic
     import pytest as _pytest
+
     from geometrikks.config.settings import MapSettings
     monkeypatch.setenv("MAP_SERVER_LOCATIONS", '{"x": [59.91]}')
     with _pytest.raises(pydantic.ValidationError):

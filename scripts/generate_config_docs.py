@@ -27,7 +27,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 # Import via the package so nested settings classes resolve.
-from geometrikks.config import settings as settings_module  # noqa: E402
+from geometrikks.config import settings as settings_module
 
 SITE_OUTPUT = REPO_ROOT / "site" / "content" / "docs" / "next" / "reference" / "configuration.mdx"
 

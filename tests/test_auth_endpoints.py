@@ -167,8 +167,8 @@ def test_ws_live_streams_after_login():
 
 
 def _ws_event():
-    from tests.test_live_ws import make_record
     from geometrikks.domain.realtime.events import record_to_event
+    from tests.test_live_ws import make_record
 
     return record_to_event(make_record())
 

@@ -33,7 +33,7 @@ def _clip(value: str | None, limit: int) -> str | None:
     return value[:limit]
 
 
-def record_to_event(record: "ParsedLogRecord") -> dict[str, Any] | None:
+def record_to_event(record: ParsedLogRecord) -> dict[str, Any] | None:
     """Convert one committed record to its wire envelope; None when empty."""
     geo: dict[str, Any] | None = None
     log: dict[str, Any] | None = None

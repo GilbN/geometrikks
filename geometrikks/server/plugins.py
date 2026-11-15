@@ -7,6 +7,7 @@ when e.g. the GeoIP database is missing.
 """
 
 from __future__ import annotations
+
 import asyncio
 import contextlib
 import platform
@@ -15,30 +16,28 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from litestar.channels import ChannelsPlugin
-from litestar.channels.backends.asyncpg import AsyncPgChannelsBackend
-from litestar.middleware.logging import LoggingMiddlewareConfig
-from litestar.plugins.structlog import StructlogConfig, StructlogPlugin
-from litestar.serialization import decode_json, encode_json
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import NullPool
-
 from advanced_alchemy import base
 from advanced_alchemy.extensions.litestar import (
     AsyncSessionConfig,
     SQLAlchemyAsyncConfig,
     SQLAlchemyInitPlugin,
 )
-
+from litestar.channels import ChannelsPlugin
+from litestar.channels.backends.asyncpg import AsyncPgChannelsBackend
+from litestar.middleware.logging import LoggingMiddlewareConfig
 from litestar.plugins import CLIPlugin
+from litestar.plugins.structlog import StructlogConfig, StructlogPlugin
+from litestar.serialization import decode_json, encode_json
 from litestar_geoalchemy import GeoAlchemyPlugin
 from litestar_granian import GranianPlugin
 from litestar_vite import ViteConfig, VitePlugin
-from litestar_vite.config import RuntimeConfig, TypeGenConfig, PathConfig
+from litestar_vite.config import PathConfig, RuntimeConfig, TypeGenConfig
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
-from geometrikks.config.settings import get_settings, Settings
+from geometrikks.config.settings import Settings, get_settings
 from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL
-from geometrikks.server.logging import get_logger, create_logging_config
+from geometrikks.server.logging import create_logging_config, get_logger
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Iterable
@@ -372,7 +371,7 @@ class DegradedTolerantAsyncPgBackend(AsyncPgChannelsBackend):
         """
         del channels
 
-    async def stream_events(self) -> AsyncGenerator[tuple[str, bytes], None]:
+    async def stream_events(self) -> AsyncGenerator[tuple[str, bytes]]:
         if self.degraded:
             await self._recovered.wait()
         async for item in super().stream_events():

@@ -12,7 +12,10 @@ from typing import Annotated, Literal
 
 import msgspec
 
-from geometrikks.domain.analytics.asn_classification import ASN_CATEGORY_DESCRIPTION, AsnCategory
+from geometrikks.domain.analytics.asn_classification import (
+    ASN_CATEGORY_DESCRIPTION,
+    AsnCategory,
+)
 
 BucketStart = Annotated[str, msgspec.Meta(description="The bucket start, as ISO 8601 in UTC.")]
 EchoedStart = Annotated[str, msgspec.Meta(description="The request's `startDate`, echoed as ISO 8601.")]

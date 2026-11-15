@@ -6,12 +6,12 @@ ip_location_daily_stats / geo_summary CAGG paths.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from geometrikks.domain.exceptions import DomainValidationError
 from sqlalchemy import text
 
+from geometrikks.domain.exceptions import DomainValidationError
 from geometrikks.domain.geo.repositories import StatsGranularity, get_stats_granularity
 from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
@@ -20,7 +20,7 @@ from geometrikks.server.timescale import refresh_caggs_range
 pytestmark = pytest.mark.anyio
 
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 # ≤ 24h window → RAW routing for the unfiltered path.
 RAW_START = NOW - timedelta(hours=23)

@@ -1,17 +1,14 @@
+import asyncio
 import os
 import time
-import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-
-import msgspec
-
-import aiofiles.os
 import aiofiles
-
+import aiofiles.os
 import maxminddb
-from datetime import datetime, timezone
+import msgspec
 
 from geometrikks.server.logging import get_logger
 
@@ -57,7 +54,7 @@ async def sleep_unless_stopped(
         return False
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=seconds)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return False
     return True
 
@@ -113,8 +110,8 @@ def geoip_info(db_path: Path) -> GeoIPInfoView:
     """Build date and age from mmdb metadata; degrades when missing."""
     try:
         with maxminddb.open_database(str(db_path)) as reader:
-            build: datetime = datetime.fromtimestamp(reader.metadata().build_epoch, tz=timezone.utc)
-        age_days: int = (datetime.now(timezone.utc) - build).days
+            build: datetime = datetime.fromtimestamp(reader.metadata().build_epoch, tz=UTC)
+        age_days: int = (datetime.now(UTC) - build).days
         return GeoIPInfoView(
             available=True, db_path=str(db_path), build_date=build, age_days=age_days
         )

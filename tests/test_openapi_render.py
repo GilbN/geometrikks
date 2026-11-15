@@ -12,7 +12,12 @@ from litestar.openapi import OpenAPIConfig
 from litestar.openapi.plugins import ScalarRenderPlugin
 from litestar.testing import TestClient
 
-from geometrikks.lib.parameters import EXAMPLE_RANGE_END, EXAMPLE_RANGE_START, EndDate, StartDate
+from geometrikks.lib.parameters import (
+    EXAMPLE_RANGE_END,
+    EXAMPLE_RANGE_START,
+    EndDate,
+    StartDate,
+)
 from geometrikks.server.openapi_render import LiveRangeExamplesJsonPlugin
 
 FROZEN_NOW = datetime(2027, 3, 9, 14, 37, 52, tzinfo=UTC)

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,15 +13,18 @@ from geoip2.database import Reader
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
-from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
 from geometrikks.services.ingestion.lookups import GeoLookups
 from geometrikks.services.ingestion.service import (
     FormatValidation,
-    IngestionRepos,
-    LogInput,
     LogIngestionService,
+    LogInput,
     UnavailableSource,
+)
+from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.schemas import (
+    ParsedAccessLog,
+    ParsedGeoData,
+    ParsedLogRecord,
 )
 from geometrikks.services.logsources import FileSource, SourceStatus
 
@@ -57,7 +60,7 @@ class FakeSession:
     discards pending. Failure injection lives on FakeRepos (fail_next_commits,
     fail_flush_calls) since real integrity errors surface at flush/commit."""
 
-    def __init__(self, repos: "FakeRepos") -> None:
+    def __init__(self, repos: FakeRepos) -> None:
         self.repos = repos
         self.pending: list[Any] = []
         self.commits = 0
@@ -65,7 +68,7 @@ class FakeSession:
         self.flushes = 0
         self.closed = False
 
-    async def __aenter__(self) -> "FakeSession":
+    async def __aenter__(self) -> FakeSession:
         return self
 
     async def __aexit__(self, *exc_info) -> None:
@@ -163,7 +166,7 @@ class FakeRepos:
         elif isinstance(obj, AccessLogDebug):
             self.access_log_debug.added.append(obj)
 
-    def factory(self, session: FakeSession) -> "FakeRepos":
+    def factory(self, session: FakeSession) -> FakeRepos:
         self.sessions.append(session)
         for repo in (self.geo_location, self.geo_event, self.access_log, self.access_log_debug):
             repo.session = session
@@ -397,7 +400,7 @@ async def test_stop_distinguishes_consumer_timeout_error_from_shutdown_timeout(
     service, city_reader, asn_reader = _stop_failure_service()
     stop_event = service._stop_event
     assert stop_event is not None
-    failure = asyncio.TimeoutError("consumer timed out")
+    failure = TimeoutError("consumer timed out")
 
     async def fail_when_stopped() -> None:
         await stop_event.wait()
@@ -584,7 +587,7 @@ async def test_missing_city_database_is_recorded_as_start_failure(
 async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
     """last_record_at is None until a record is consumed, then a recent UTC
     timestamp (surfaced in /health as the last-event-ingested signal)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     log_file = tmp_path / "a.log"
     log_file.write_text("", encoding="utf-8")
@@ -595,7 +598,7 @@ async def test_last_record_at_tracks_ingestion_activity(tmp_path: Path) -> None:
     await service.start(skip_validation=True)
     try:
         await wait_tailing(log_input)
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         append_line(log_file, make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: service.total_processed >= 1)
         assert service.last_record_at is not None
@@ -620,7 +623,7 @@ async def test_source_activity_is_independent_and_uses_processing_time(tmp_path:
     await service.start(skip_validation=True)
     try:
         await wait_tailing(first, second)
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         append_line(paths[0], make_log_line(TEST_DB_IPS[0]))
         await wait_until(lambda: first.last_parsed_at is not None)
         parsed_at = first.last_parsed_at
@@ -1307,7 +1310,7 @@ async def test_flush_records_writes_through_batch_machinery() -> None:
 
     # Build ParsedLogRecord objects for TEST_DB_IPS
     # Using realistic geo data from the test database
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     records = [
         ParsedLogRecord(
             ip_address=TEST_DB_IPS[0],
@@ -1392,7 +1395,7 @@ async def test_flush_records_writes_through_batch_machinery() -> None:
 
 def make_parsed_record(ip: str) -> ParsedLogRecord:
     """Minimal geo+log record (same field shape as the flush_records test data)."""
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     return ParsedLogRecord(
         ip_address=ip,
         geo_data=ParsedGeoData(
@@ -1418,7 +1421,7 @@ def _geo_record(ip: str, longitude: float) -> ParsedLogRecord:
         geohash=encode(51.5, longitude, precision=5),
         country_code="GB",
         country_name="UK",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         city="London",
     )
     return ParsedLogRecord(
@@ -1456,7 +1459,7 @@ async def test_commit_failure_counts_lost_records_once_and_success_does_not_incr
 
 async def test_successful_commit_counts_written_records() -> None:
     service, _repos, _sessions = make_service([])
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
 
     await service.flush_records([
         _geo_record(TEST_DB_IPS[0], -0.09),
@@ -1465,7 +1468,7 @@ async def test_successful_commit_counts_written_records() -> None:
 
     assert service.written_records == 2
     assert service.last_written_at is not None
-    assert before <= service.last_written_at <= datetime.now(timezone.utc)
+    assert before <= service.last_written_at <= datetime.now(UTC)
 
 
 async def test_failed_commit_writes_nothing() -> None:
@@ -1512,27 +1515,27 @@ async def test_record_that_adds_no_row_is_not_written() -> None:
 async def test_failed_batch_records_when_it_failed() -> None:
     service, repos, _sessions = make_service([])
     repos.fail_next_commits = 2
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
 
     await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
     await service.flush_records([_geo_record(TEST_DB_IPS[1], -0.19)])
 
     assert len(service.last_failed_batch_times) == 2
-    assert all(before <= failed_at <= datetime.now(timezone.utc) for failed_at in service.last_failed_batch_times)
+    assert all(before <= failed_at <= datetime.now(UTC) for failed_at in service.last_failed_batch_times)
 
 
 async def test_failed_batch_records_last_error() -> None:
     service, repos, _sessions = make_service([])
     assert service.last_batch_error is None
     repos.fail_next_commits = 1
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
 
     await service.flush_records([_geo_record(TEST_DB_IPS[0], -0.09)])
 
     assert service.last_batch_error is not None
     assert "simulated" in service.last_batch_error.message
     assert len(service.last_batch_error.message) <= 500
-    assert before <= service.last_batch_error.at <= datetime.now(timezone.utc)
+    assert before <= service.last_batch_error.at <= datetime.now(UTC)
 
 
 async def test_record_failure_records_last_error() -> None:
@@ -1668,7 +1671,7 @@ def test_service_has_no_inprocess_subscriber_api() -> None:
 def make_full_record(server: str) -> ParsedLogRecord:
     """A record with both geo_data and access_log (field values mirror
     tests/test_realtime_events.py's `_record`), stamped with `server`."""
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     return ParsedLogRecord(
         ip_address="203.0.113.7",
         geo_data=ParsedGeoData(
@@ -1802,7 +1805,6 @@ class TestAsnWiring:
         class FakeParser:
             def parse_line(self, line, lookup, asn_lookup=None):
                 captured["asn_lookup"] = asn_lookup
-                return None
 
         service = LogIngestionService(
             inputs=[LogInput(source=ListSource(["x\n"]), parser=cast(Any, FakeParser()))],

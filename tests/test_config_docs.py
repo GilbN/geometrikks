@@ -61,7 +61,7 @@ def test_advanced_settings_are_listed_only_in_their_own_section():
 
 def test_every_documented_variable_has_one_row():
     text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
-    documented = re.findall(r"^\| `([A-Z0-9_]+)` \|", text, flags=re.M)
+    documented = re.findall(r"^\| `([A-Z0-9_]+)` \|", text, flags=re.MULTILINE)
     assert len(documented) == len(set(documented))
 
 
@@ -136,8 +136,8 @@ def test_oidc_section_names_its_startup_failures():
 def test_defaults_are_readable():
     text = gen.SITE_OUTPUT.read_text(encoding="utf-8")
     assert "*(computed)*" not in text and "| `` |" not in text
-    assert re.search(r"^\| `LOKI_QUERIES` \| \*\(empty\)\* \|", text, flags=re.M)
-    assert re.search(r"^\| `LOGPARSER_LOG_PATHS` \| `/var/log/access/access.log` \|", text, flags=re.M)
+    assert re.search(r"^\| `LOKI_QUERIES` \| \*\(empty\)\* \|", text, flags=re.MULTILINE)
+    assert re.search(r"^\| `LOGPARSER_LOG_PATHS` \| `/var/log/access/access.log` \|", text, flags=re.MULTILINE)
     assert "| `LOGPARSER_SERVER_NAME` | *(the machine's hostname)* |" in text
 
 
@@ -148,7 +148,7 @@ def test_trusted_proxies_description_names_api_keys():
 
 
 def _container_row(name: str) -> str:
-    match = re.search(rf"^\| `{name}` \|.*$", gen.SITE_OUTPUT.read_text(encoding="utf-8"), flags=re.M)
+    match = re.search(rf"^\| `{name}` \|.*$", gen.SITE_OUTPUT.read_text(encoding="utf-8"), flags=re.MULTILINE)
     assert match, name
     return match.group(0)
 
@@ -166,7 +166,7 @@ def test_worker_row_states_the_multi_worker_consequences():
 
 
 def test_names_in_container_rows_and_notes_exist():
-    rows = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", gen.build_site(), flags=re.M))
+    rows = set(re.findall(r"^\| `([A-Z0-9_]+)` \|", gen.build_site(), flags=re.MULTILINE))
     container = {name for name, _, _ in gen.CONTAINER_VARIABLES}
     texts = [desc for _, _, desc in gen.CONTAINER_VARIABLES]
     texts += [line for lines in gen.SECTION_NOTES.values() for line in lines]

@@ -1,5 +1,5 @@
 """The drop-refresh job: registration rules and the all-feeds-failed signal."""
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Literal, get_args
 from unittest.mock import AsyncMock, MagicMock
 
@@ -23,7 +23,7 @@ def drop_settings(*, drop_enabled: bool = True, scheduler_enabled: bool = True, 
 
 
 async def test_drop_refresh_registered_on_a_head_with_the_feature_on():
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     scheduler = await sched.create_scheduler(MagicMock(), drop_settings(refresh_hours=12), mode="full")
 
     job = scheduler.get_job("drop-refresh")

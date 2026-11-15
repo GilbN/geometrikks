@@ -9,7 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, cast
 
-from advanced_alchemy.filters import FilterTypes, ModelT, OrderBy, StatementFilter, StatementTypeT
+from advanced_alchemy.filters import (
+    FilterTypes,
+    ModelT,
+    OrderBy,
+    StatementFilter,
+    StatementTypeT,
+)
 from sqlalchemy import Select
 
 TIMING_SORT_FIELDS: frozenset[str] = frozenset({"request_time", "upstream_response_time"})

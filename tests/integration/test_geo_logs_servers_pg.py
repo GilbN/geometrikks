@@ -243,6 +243,7 @@ async def test_cli_failure_resumes_and_completed_run_is_noop(
     pg_engine, pg_session_maker, clean_tables, monkeypatch,
 ):
     import click
+
     from geometrikks.server.server_backfill import server_backfill_ranges
 
     view = "ip_location_daily_stats"
@@ -290,8 +291,10 @@ async def test_cli_failure_resumes_and_completed_run_is_noop(
 async def test_cli_decline_and_concurrent_run_do_not_refresh(
     pg_engine, pg_session_maker, clean_tables, monkeypatch,
 ):
-    import click
     from unittest.mock import AsyncMock
+
+    import click
+
     from geometrikks.cli import _run_backfill_geo_servers
     from geometrikks.server import plugins
 

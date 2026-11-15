@@ -14,7 +14,7 @@ raw request bytes.
 """
 
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import msgspec
 
@@ -54,7 +54,7 @@ class CaddyLine(msgspec.Struct, kw_only=True):
 _decoder = msgspec.json.Decoder(CaddyLine)
 
 
-def _parse_timestamp(raw: float | int | str | None) -> datetime | None:
+def _parse_timestamp(raw: float | str | None) -> datetime | None:
     if isinstance(raw, (int, float)):
         if raw <= 0:
             return None
@@ -71,7 +71,7 @@ def _parse_timestamp(raw: float | int | str | None) -> datetime | None:
                 seconds = value / 1_000_000_000
             if not math.isfinite(seconds):
                 return None
-            return datetime.fromtimestamp(seconds, tz=timezone.utc)
+            return datetime.fromtimestamp(seconds, tz=UTC)
         except (OverflowError, OSError, ValueError):
             return None
     if isinstance(raw, str) and raw:
@@ -83,7 +83,7 @@ def _parse_timestamp(raw: float | int | str | None) -> datetime | None:
     return None
 
 
-def _parse_duration(raw: float | int | str | None) -> float | None:
+def _parse_duration(raw: float | str | None) -> float | None:
     if not isinstance(raw, (int, float)):
         return None
     try:

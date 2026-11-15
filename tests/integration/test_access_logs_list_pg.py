@@ -1,8 +1,9 @@
 """Ordering, time-window, and filtering for the access-logs list, on real TimescaleDB."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from advanced_alchemy.filters import (
     CollectionFilter,
     FilterGroup,
@@ -14,16 +15,16 @@ from advanced_alchemy.filters import (
 )
 from sqlalchemy import or_, text
 
-from geometrikks.domain.logs.controllers.access_logs import provide_access_log_in_filters
+from geometrikks.domain.logs.controllers.access_logs import (
+    provide_access_log_in_filters,
+)
 from geometrikks.domain.logs.services import AccessLogService
 from geometrikks.server.timescale import refresh_caggs_range
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 
 # Wall-clock-relative so seeds stay inside the raw-retention window (see conftest).
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
 async def _insert(

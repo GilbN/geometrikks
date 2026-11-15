@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 
 import pytest
 from litestar.testing import AsyncTestClient
-from structlog.testing import capture_logs
 from sqlalchemy.ext.asyncio import AsyncEngine
+from structlog.testing import capture_logs
 
 from geometrikks.domain.drop.refresh import refresh_drop_lists
 from geometrikks.domain.system.controllers.system import _database_versions

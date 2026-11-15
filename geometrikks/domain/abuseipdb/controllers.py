@@ -28,8 +28,15 @@ from geometrikks.domain.abuseipdb.dependencies import (
     provide_abuseipdb_reports,
 )
 from geometrikks.domain.abuseipdb.errors import AbuseIpdbDisabledError
-from geometrikks.domain.abuseipdb.models import AbuseIpdbReport, ReporterKind, ReportStatus
-from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository, AbuseIpdbReportRepository
+from geometrikks.domain.abuseipdb.models import (
+    AbuseIpdbReport,
+    ReporterKind,
+    ReportStatus,
+)
+from geometrikks.domain.abuseipdb.repositories import (
+    AbuseIpdbBlacklistRepository,
+    AbuseIpdbReportRepository,
+)
 from geometrikks.domain.abuseipdb.schemas import (
     AbuseIpdbBlacklistResponse,
     AbuseIpdbStatusResponse,

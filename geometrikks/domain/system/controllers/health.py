@@ -11,10 +11,10 @@ format this payload has always used on the wire.
 """
 from __future__ import annotations
 
-import msgspec
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
+import msgspec
 from litestar import Litestar, Request, Response, get
 from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
@@ -23,22 +23,21 @@ from litestar.status_codes import HTTP_200_OK, HTTP_503_SERVICE_UNAVAILABLE
 from sqlalchemy import text
 
 from geometrikks.config.settings import Settings
+from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
 from geometrikks.domain.system.proxy_detection import proxy_advisories, proxy_findings
-from geometrikks.lib.utils import geoip_info
 from geometrikks.lib.advisories import (
-    Advisory,
     CITY_DATABASE_MISSING,
     INGESTION_STOPPED,
     INGESTION_WRITE_FAILURES_ID,
     ONGOING_FAILED_BATCHES,
+    Advisory,
     legacy_env_advisory,
 )
+from geometrikks.lib.utils import geoip_info
 from geometrikks.server import runtime
 from geometrikks.server.api_key_auth import NO_CREDENTIALS_SECURITY
 from geometrikks.services.geoip.downloader import has_credentials
 from geometrikks.services.ingestion import LogIngestionService
-from geometrikks.domain.system.dependencies import provide_ingestion_service as pis
-
 
 # This license window is independent of the configured refresh schedule.
 MAXMIND_REFRESH_WINDOW_DAYS = 30
@@ -422,7 +421,7 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     if service is not None and getattr(service, "unexpected_stop", False):
         advisories.append(INGESTION_STOPPED)
     if service is not None and service.failed_batches > 0:
-        advisories.append(_write_failures_advisory(service, datetime.now(timezone.utc)))
+        advisories.append(_write_failures_advisory(service, datetime.now(UTC)))
     pollution = timescale.get_server_name_pollution()
     # No early return: the pollution gate must not swallow the ASN advisory.
     server_name_pollution_active = bool(
@@ -650,7 +649,7 @@ def build_health_response(
             enabled=runtime.get_crowdsec_service(app) is not None,
             lapi_reachable=poller.lapi_reachable if poller is not None else None,
         ),
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         mode="agent" if settings.is_agent else "full",
         schema_wait=(
             (getattr(app.state, "schema_wait_result", None) or "waiting")

@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from geometrikks.server.scheduler_tracking import JobRunTracker
 from geometrikks.lib.advisories import AdvisoryRegistry
+from geometrikks.server.scheduler_tracking import JobRunTracker
 
 if TYPE_CHECKING:
     from datetime import datetime

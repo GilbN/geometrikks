@@ -7,13 +7,13 @@ is the only user, so no extra guards are needed here.
 from __future__ import annotations
 
 import platform
-
-import msgspec
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as dist_version
 from ipaddress import ip_address, ip_network
-from importlib.metadata import PackageNotFoundError, version as dist_version
 from typing import TYPE_CHECKING, Annotated, Literal
 
+import msgspec
 from litestar import Controller, Litestar, Request, get, post
 from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
@@ -28,7 +28,6 @@ from geometrikks.config.introspection import (
     build_settings_overview,
 )
 from geometrikks.config.settings import Settings
-from geometrikks.domain.system import changelog, commit
 from geometrikks.domain.analytics.asn_classification import (
     DATASET_LICENSE,
     DATASET_NAME,
@@ -38,14 +37,15 @@ from geometrikks.domain.analytics.asn_classification import (
 )
 from geometrikks.domain.drop.schemas import DropListsAboutView, build_drop_lists_about
 from geometrikks.domain.drop.snapshot import ensure_drop_snapshot
-from geometrikks.server import runtime
-from geometrikks.server.logging import get_logger
-from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
-from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
+from geometrikks.domain.system import changelog, commit
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.lib.utils import GeoIPInfoView, geoip_info
 from geometrikks.lib.validation import canonical_ip
 from geometrikks.lib.versioning import display_version
+from geometrikks.server import runtime
+from geometrikks.server.logging import get_logger
+from geometrikks.server.scheduler_tracking import JobRunTracker, JobStatus
+from geometrikks.server.schema_wait import bundled_head_revision, bundled_revision_doc
 from geometrikks.services.release_check import release_check_enabled
 
 if TYPE_CHECKING:
@@ -456,7 +456,7 @@ async def _database_stats(engine: AsyncEngine) -> tuple[int | None, list[Hyperta
         return None, []
 
 
-def _job_view(job: "Job", tracker: JobRunTracker) -> SchedulerJobView:
+def _job_view(job: Job, tracker: JobRunTracker) -> SchedulerJobView:
     info = tracker.get(job.id)
     return SchedulerJobView(
         id=job.id,
@@ -773,5 +773,5 @@ class SystemController(Controller):
         if scheduler is None or scheduler.get_job(job_id) is None:
             raise NotFoundException(detail=f"Unknown scheduler job: {job_id}")
         logger.info("scheduler_job_triggered_manually", job_id=job_id)
-        scheduler.modify_job(job_id, next_run_time=datetime.now(timezone.utc))
+        scheduler.modify_job(job_id, next_run_time=datetime.now(UTC))
         return _job_view(scheduler.get_job(job_id), runtime.get_scheduler_tracker(request.app))

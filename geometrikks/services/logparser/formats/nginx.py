@@ -1,7 +1,7 @@
 """Adapter for the project's custom nginx log_format (see the nginx page on the docs site)."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from geometrikks.server.logging import get_logger
@@ -11,6 +11,7 @@ from geometrikks.services.logparser.constants import (
     ipv6_geo_pattern,
     ipv6_pattern,
 )
+
 from .base import NormalizedLine, convert_dash_to_none, detect_probe, parse_seconds
 
 logger = get_logger(__name__)
@@ -43,7 +44,7 @@ class NginxFormat:
             ts = datetime.strptime(d["dateandtime"], "%d/%b/%Y:%H:%M:%S %z")
         except Exception as e:
             logger.error("Failed to parse timestamp '%s': %s", d.get("dateandtime"), e)
-            ts = datetime.now(timezone.utc)
+            ts = datetime.now(UTC)
 
         if geo_only:
             return NormalizedLine(

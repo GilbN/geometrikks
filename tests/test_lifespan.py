@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import MutableMapping
+from datetime import UTC
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -343,8 +344,8 @@ async def test_cancelled_ingestion_stop_retains_handle_for_later_cleanup(
 async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
     """Agent mode never migrates or manages TimescaleDB objects -- it waits
     for the primary instance's schema instead -- and never wires CrowdSec."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -370,8 +371,8 @@ async def test_agent_mode_waits_for_schema_and_skips_crowdsec(monkeypatch):
 async def test_agent_mode_schema_timeout_is_db_degraded(monkeypatch):
     """A schema wait that never reaches ready/newer degrades like an
     unreachable database: no scheduler, no ingestion."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -394,8 +395,8 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
     the service -- mirrors the DB-degraded no-op path. /health tells
     "disabled by configuration" apart from degraded by reading
     settings.logparser.enabled directly."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
     _patch_startup_collaborators(
@@ -414,8 +415,8 @@ async def test_ingestion_disabled_by_config_skips_construction(monkeypatch):
 async def test_agent_schema_ready_triggers_server_location_upsert(monkeypatch):
     """A successful schema wait records this agent's detected location for
     each server name it tails."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -439,8 +440,8 @@ async def test_agent_schema_ready_triggers_server_location_upsert(monkeypatch):
 async def test_agent_schema_timeout_skips_server_location_upsert(monkeypatch):
     """A timed-out schema wait leaves server_locations untouched: the agent is
     already going degraded, there is nothing trustworthy to record."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("APP_MODE", "agent")
     _patch_startup_collaborators(
@@ -461,8 +462,8 @@ async def test_agent_schema_timeout_skips_server_location_upsert(monkeypatch):
 async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
     """A primary instance always reconciles MAP_SERVER_LOCATIONS overrides and,
     when it also tails logs, records its own auto-detected location."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
@@ -484,8 +485,8 @@ async def test_full_startup_reconciles_overrides_and_upserts(monkeypatch):
 async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
     """LOGPARSER_ENABLED=false tails nothing under its own server name, so it
     still reconciles overrides but skips the auto upsert."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("LOGPARSER_ENABLED", "false")
     _patch_startup_collaborators(
@@ -508,8 +509,8 @@ async def test_ui_head_reconciles_but_does_not_upsert(monkeypatch):
 async def test_full_startup_server_location_failure_does_not_block_startup(monkeypatch):
     """Server locations are presentation data: a write failure logs a warning and
     startup still reaches a healthy, DB-available state."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     _patch_startup_collaborators(
         monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
@@ -527,8 +528,8 @@ async def test_full_startup_server_location_failure_does_not_block_startup(monke
 async def test_ingestion_wires_per_file_server_names(monkeypatch):
     """Each tailed file's source gets its positional server name; the service
     fallback gets the first resolved server name."""
-    from geometrikks.server import lifecycle as lc
     from geometrikks.config.settings import Settings
+    from geometrikks.server import lifecycle as lc
 
     monkeypatch.setenv("LOGPARSER_LOG_PATHS", '["/a.log", "/b.log"]')
     monkeypatch.setenv("LOGPARSER_SERVER_NAME", '["vps-1", "vps-2"]')
@@ -1069,11 +1070,11 @@ async def test_recovery_respects_disabled_ingestion(monkeypatch):
 
 
 async def test_recovery_elapsed_time_includes_bringup_and_service_start(monkeypatch):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from geometrikks.server import lifecycle as lc
 
-    now = datetime(2026, 9, 6, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 6, tzinfo=UTC)
 
     class RecoveryDateTime(datetime):
         @classmethod

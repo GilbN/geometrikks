@@ -1,7 +1,7 @@
 """HeartbeatWriter against the real instance_heartbeats table."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -55,7 +55,7 @@ async def test_beat_writes_identity_columns(pg_engine, pg_session_maker, clean_i
 
 
 async def test_restart_carries_recent_starts_forward(pg_engine, clean_instance_heartbeats):
-    first_start = datetime(2026, 10, 17, 9, 0, tzinfo=timezone.utc)
+    first_start = datetime(2026, 10, 17, 9, 0, tzinfo=UTC)
     second_start = first_start + timedelta(minutes=5)
     writer_a = _writer(pg_engine, started_at=first_start)
     writer_b = _writer(pg_engine, started_at=second_start)
@@ -71,7 +71,7 @@ async def test_restart_carries_recent_starts_forward(pg_engine, clean_instance_h
 async def test_retry_after_an_unrecorded_commit_keeps_recent_starts(
     pg_engine, clean_instance_heartbeats
 ):
-    first_start = datetime(2026, 10, 17, 9, 0, tzinfo=timezone.utc)
+    first_start = datetime(2026, 10, 17, 9, 0, tzinfo=UTC)
     second_start = first_start + timedelta(minutes=5)
     assert await _writer(pg_engine, started_at=first_start).beat() is True
     committed_writer = _writer(pg_engine, started_at=second_start)

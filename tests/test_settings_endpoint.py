@@ -7,8 +7,8 @@ from litestar.testing import TestClient
 
 from geometrikks.domain.system.controllers.settings import read_settings
 from geometrikks.domain.system.controllers.system import SystemController
-from geometrikks.services.geoip.self_location import SelfLocation
 from geometrikks.server.routes import create_api_v1_router
+from geometrikks.services.geoip.self_location import SelfLocation
 from tests.support import ambient_settings_dependency
 from tests.test_system_controller import UnreachableEngine
 

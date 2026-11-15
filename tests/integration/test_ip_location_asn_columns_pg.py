@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -15,7 +15,7 @@ from tests.integration.test_geo_logs_pg import _insert_location
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 RETENTION_DAYS = get_settings().analytics.raw_retention_days
 
 OLD_SHAPE = {

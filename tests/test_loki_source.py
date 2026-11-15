@@ -16,7 +16,12 @@ from geometrikks.services.logparser.logparser import LogParser
 from geometrikks.services.logsources import LogSource, LokiSource, SourceStatus
 from geometrikks.services.logsources import loki as loki_module
 from geometrikks.services.logsources.loki import LOKI_DOCS_URL, NS, QUERY_RANGE_PATH
-from tests.test_ingestion import TEST_DB_IPS, added_geo_events, make_log_line, make_service
+from tests.test_ingestion import (
+    TEST_DB_IPS,
+    added_geo_events,
+    make_log_line,
+    make_service,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -305,7 +310,7 @@ class Tail:
         self.lines: list[str] = []
         self.task: asyncio.Task[None] | None = None
 
-    async def __aenter__(self) -> "Tail":
+    async def __aenter__(self) -> Tail:
         async def run() -> None:
             async for line in self.source.lines(self.stop):
                 self.lines.append(line)

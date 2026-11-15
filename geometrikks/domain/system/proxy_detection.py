@@ -4,8 +4,9 @@ Pure functions; /health calls them per request, so no I/O and no state.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable, Literal
+from typing import Any, Literal
 
 from geometrikks.lib.advisories import Advisory
 

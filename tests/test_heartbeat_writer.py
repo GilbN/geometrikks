@@ -12,7 +12,11 @@ import structlog
 from litestar import Litestar
 
 from geometrikks.config.settings import AppSettings, Settings
-from geometrikks.domain.instances.heartbeat import STARTUP_GRACE_SECONDS, HeartbeatWriter, WindowCounts
+from geometrikks.domain.instances.heartbeat import (
+    STARTUP_GRACE_SECONDS,
+    HeartbeatWriter,
+    WindowCounts,
+)
 
 pytestmark = pytest.mark.anyio
 

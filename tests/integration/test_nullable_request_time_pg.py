@@ -1,11 +1,10 @@
 """access_logs.request_time accepts NULL after the nullable-timings revision."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from sqlalchemy import text
+from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import text
 
 pytestmark = pytest.mark.anyio
 
@@ -21,7 +20,7 @@ async def test_request_time_column_is_nullable_without_default(pg_engine) -> Non
 
 
 async def test_insert_without_request_time_stores_null(pg_session_maker, clean_tables) -> None:
-    ts = datetime.now(timezone.utc)
+    ts = datetime.now(UTC)
     async with pg_session_maker() as session:
         await session.execute(text(
             "INSERT INTO access_logs (timestamp, ip_address, method, url, status_code, bytes_sent) "

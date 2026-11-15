@@ -337,9 +337,8 @@ async def test_reconnect_closes_connection_on_partial_setup_failure(
     assert backend._reconnect_task is not None
     caplog.clear()
 
-    with caplog.at_level("ERROR"):
-        with contextlib.suppress(asyncio.CancelledError):
-            await backend._reconnect_task
+    with caplog.at_level("ERROR"), contextlib.suppress(asyncio.CancelledError):
+        await backend._reconnect_task
 
     assert bad_conn.close_called is True
     assert not any("listener connection lost" in r.getMessage() for r in caplog.records)
@@ -753,6 +752,7 @@ async def test_shutdown_cancels_retry_during_listener_registration(monkeypatch) 
 
 async def test_channels_backend_app_state_wiring() -> None:
     from litestar import Litestar
+
     from geometrikks.config.settings import Settings
     from geometrikks.server.lifecycle import LifecyclePlugin
     from geometrikks.server.plugins import create_channels_plugin

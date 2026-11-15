@@ -10,7 +10,11 @@ from geometrikks.domain.abuseipdb import blacklist_file
 from geometrikks.domain.abuseipdb.blacklist_file import BlacklistFileError
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
 from geometrikks.server.logging import get_logger
-from geometrikks.services.abuseipdb import AbuseIpdbError, AbuseIpdbRateLimitedError, AbuseIpdbRejectedError
+from geometrikks.services.abuseipdb import (
+    AbuseIpdbError,
+    AbuseIpdbRateLimitedError,
+    AbuseIpdbRejectedError,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable

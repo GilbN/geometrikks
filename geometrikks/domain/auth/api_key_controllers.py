@@ -9,7 +9,7 @@ from uuid import UUID
 import msgspec
 from litestar import Controller, Request, delete, get, post
 from litestar.di import NamedDependency
-from litestar.exceptions import HTTPException, ServiceUnavailableException
+from litestar.exceptions import HTTPException
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import JSONBody, PathParameter, SkipValidation
 from litestar.status_codes import (
@@ -25,7 +25,11 @@ from geometrikks.domain.auth.api_keys import ApiKeyRecord, ApiKeyScope
 from geometrikks.domain.exceptions import DomainConflictError
 from geometrikks.lib.client_ip import resolve_client_ip
 from geometrikks.server import runtime
-from geometrikks.server.api_key_auth import SESSION_ONLY_RESPONSE, SESSION_ONLY_SECURITY, requires_session_user
+from geometrikks.server.api_key_auth import (
+    SESSION_ONLY_RESPONSE,
+    SESSION_ONLY_SECURITY,
+    requires_session_user,
+)
 from geometrikks.server.api_key_store import API_KEY_NAME_MAX_LENGTH, ApiKeyStore
 from geometrikks.server.auth import AdminUser
 from geometrikks.server.exceptions import ApiKeysUnavailableError, ErrorEnvelope

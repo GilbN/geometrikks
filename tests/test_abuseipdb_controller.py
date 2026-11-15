@@ -14,7 +14,10 @@ from structlog.testing import capture_logs
 
 from geometrikks.domain.abuseipdb.controllers import AbuseIpdbController
 from geometrikks.server.exceptions import EXCEPTION_HANDLERS
-from geometrikks.server.logging import _capture_exc_info, _exception_logging_handler_factory
+from geometrikks.server.logging import (
+    _capture_exc_info,
+    _exception_logging_handler_factory,
+)
 from geometrikks.server.routes import create_api_v1_router
 from geometrikks.services.abuseipdb import AbuseIpdbClient
 from tests.support import ambient_settings_dependency

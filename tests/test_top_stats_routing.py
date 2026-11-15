@@ -7,22 +7,22 @@ CAGG reads mention the *_stats view name).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, cast
+
+import pytest
 
 from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
     SummaryStatsRepository,
 )
 
-import pytest
-
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 pytestmark = pytest.mark.anyio
 
-NOW = datetime(2026, 7, 16, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 SHORT_START = NOW - timedelta(hours=6)     # RAW routing
 WEEK_START = NOW - timedelta(days=7)       # HOURLY routing
 LONG_START = NOW - timedelta(days=60)      # DAILY routing

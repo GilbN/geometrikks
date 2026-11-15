@@ -1,5 +1,5 @@
 """Log parser module - parsing only, no database operations."""
 from .logparser import LogParser
-from .schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
+from .schemas import ParsedAccessLog, ParsedGeoData, ParsedLogRecord
 
-__all__ = ["LogParser", "ParsedLogRecord", "ParsedGeoData", "ParsedAccessLog"]
+__all__ = ["LogParser", "ParsedAccessLog", "ParsedGeoData", "ParsedLogRecord"]

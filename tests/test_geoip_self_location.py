@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import httpx2
+import pytest
 
 from geometrikks.config.settings import GeoIPSettings, MapSettings
 from geometrikks.services.geoip.self_location import resolve_self_location
-
-import pytest
 
 pytestmark = pytest.mark.anyio
 

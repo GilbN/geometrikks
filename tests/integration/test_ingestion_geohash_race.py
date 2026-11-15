@@ -1,7 +1,7 @@
 """A concurrently created geo_locations row must not blow up the batch."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from geohash2 import encode
@@ -35,7 +35,7 @@ async def test_get_or_create_location_survives_existing_geohash(pg_session_maker
         geo = ParsedGeoData(
             latitude=lat, longitude=lon, geohash=geohash,
             country_code="GB", country_name="United Kingdom",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
         location_id = await service._get_or_create_location(geo, repos)
         assert location_id == existing.id
@@ -64,7 +64,7 @@ async def test_insert_conflict_resolves_to_existing_id(pg_session_maker, clean_t
         geo = ParsedGeoData(
             latitude=lat, longitude=lon, geohash=geohash,
             country_code="GB", country_name="United Kingdom",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
         # Only the pre-check's first call is faked as a miss; the fallback

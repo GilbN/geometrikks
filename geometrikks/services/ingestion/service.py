@@ -11,14 +11,15 @@ Analytics aggregation is handled automatically by TimescaleDB continuous aggrega
 
 """
 from __future__ import annotations
+
 import asyncio
 import enum
 import os
 import time
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,20 +27,35 @@ from geoip2.database import Reader
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from geometrikks.domain.geo.models import GeoLocation, GeoEvent
-from geometrikks.domain.geo.repositories import GeoLocationRepository, GeoEventRepository
-from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
-from geometrikks.domain.logs.repositories import AccessLogRepository, AccessLogDebugRepository
+from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.domain.geo.repositories import (
+    GeoEventRepository,
+    GeoLocationRepository,
+)
 from geometrikks.domain.geo.utils import make_point
 from geometrikks.domain.instances.schemas import ERROR_MESSAGE_MAX_CHARS
-from geometrikks.domain.realtime.events import LIVE_EVENTS_CHANNEL, encode_guard, record_to_event
-from geometrikks.services.logparser.schemas import ParsedLogRecord, ParsedGeoData, ParsedAccessLog
-from geometrikks.services.logparser.logparser import LogParser
-from geometrikks.services.logsources import LogSource
+from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
+from geometrikks.domain.logs.repositories import (
+    AccessLogDebugRepository,
+    AccessLogRepository,
+)
+from geometrikks.domain.realtime.events import (
+    LIVE_EVENTS_CHANNEL,
+    encode_guard,
+    record_to_event,
+)
 from geometrikks.lib.advisories import ONGOING_FAILED_BATCHES
 from geometrikks.lib.geoip import ALLOWED_GEOIP_LOCALES, GEOIP_LOCALES_DEFAULT
 from geometrikks.lib.utils import retries_disabled, sleep_unless_stopped
 from geometrikks.server.logging import get_logger
+from geometrikks.services.logparser.logparser import LogParser
+from geometrikks.services.logparser.schemas import (
+    ParsedAccessLog,
+    ParsedGeoData,
+    ParsedLogRecord,
+)
+from geometrikks.services.logsources import LogSource
+
 from .lookups import GeoLookups
 
 if TYPE_CHECKING:
@@ -97,7 +113,7 @@ class IngestionRepos:
     access_log_debug: AccessLogDebugRepository
 
     @classmethod
-    def from_session(cls, session: AsyncSession) -> "IngestionRepos":
+    def from_session(cls, session: AsyncSession) -> IngestionRepos:
         return cls(
             geo_location=GeoLocationRepository(session=session),
             geo_event=GeoEventRepository(session=session),
@@ -153,7 +169,7 @@ class LogIngestionService:
 
     def __init__(
         self,
-        inputs: list["LogInput"],
+        inputs: list[LogInput],
         session_maker: Callable[[], AsyncSession],
         geoip_path: Path|str,
         locales: list[str] | None = None,
@@ -165,7 +181,7 @@ class LogIngestionService:
         commit_interval: float = 5.0,
         store_debug_lines: bool = False,
         queue_maxsize: int = 10_000,
-        channels: "ChannelsPlugin | None" = None,
+        channels: ChannelsPlugin | None = None,
     ) -> None:
         """Initialize the log ingestion service.
 
@@ -200,7 +216,7 @@ class LogIngestionService:
         self.commit_interval: int | float = commit_interval
         self.store_debug_lines: bool = store_debug_lines
         self._queue_maxsize: int = queue_maxsize
-        self._channels: "ChannelsPlugin | None" = channels
+        self._channels: ChannelsPlugin | None = channels
         self.publish_dropped: int = 0
         self.failed_batches: int = 0
         self.failed_records: int = 0
@@ -330,7 +346,7 @@ class LogIngestionService:
                     # the format, the loop below would exit immediately anyway.
                     return
             async for line in log_input.source.lines(stop):
-                log_input.last_read_at = datetime.now(timezone.utc)
+                log_input.last_read_at = datetime.now(UTC)
                 lookups = self._lookups
                 if lookups is None:
                     break  # stop() released the readers; this task is on its way out
@@ -640,12 +656,12 @@ class LogIngestionService:
                 timeout = min(timeout, 0.25)
                 try:
                     record = await asyncio.wait_for(self._queue.get(), timeout=timeout)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     record = None
 
                 if record is not None:
                     self._batch.append(record)
-                    self.last_record_at = datetime.now(timezone.utc)
+                    self.last_record_at = datetime.now(UTC)
 
                 now = time.monotonic()
                 if len(self._batch) >= self.batch_size or (
@@ -919,13 +935,13 @@ class LogIngestionService:
                     self._uncommitted_geohashes.clear()
                     if candidates_with_rows:
                         self.written_records += candidates_with_rows
-                        self.last_written_at = datetime.now(timezone.utc)
+                        self.last_written_at = datetime.now(UTC)
                     self._publish(committed_candidates)
         finally:
             if batch_failed:
                 self.failed_batches += 1
                 self.failed_records += lost_records
-                self.last_failed_batch_times.append(datetime.now(timezone.utc))
+                self.last_failed_batch_times.append(datetime.now(UTC))
 
         logger.debug(
             "Committed batch of %d records. (Geo: %d | Log: %d | Debug: %d)",
@@ -938,7 +954,7 @@ class LogIngestionService:
     def _record_batch_error(self, error: Exception) -> None:
         self.last_batch_error = BatchError(
             message=(str(error) or type(error).__name__)[:ERROR_MESSAGE_MAX_CHARS],
-            at=datetime.now(timezone.utc),
+            at=datetime.now(UTC),
         )
 
     async def flush_records(self, records: list[ParsedLogRecord]) -> None:
@@ -949,7 +965,7 @@ class LogIngestionService:
         """
         self._batch.extend(records)
         if records:
-            self.last_record_at = datetime.now(timezone.utc)
+            self.last_record_at = datetime.now(UTC)
         await self._flush_batch()
 
     def _publish(self, records: list[ParsedLogRecord]) -> None:

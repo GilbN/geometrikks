@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import tarfile
 import tempfile
-import time
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -53,7 +52,7 @@ class RefreshResult:
         ]
 
 
-def has_credentials(settings: "GeoIPSettings") -> bool:
+def has_credentials(settings: GeoIPSettings) -> bool:
     # SecretStr("") is truthy, so the key must be unwrapped before testing.
     return bool(
         settings.account_id
@@ -81,7 +80,7 @@ def database_is_stale(db_path: Path, max_age_days: int) -> bool:
 
 
 
-async def _fetch_tarball(settings: "GeoIPSettings", edition: str) -> bytes:
+async def _fetch_tarball(settings: GeoIPSettings, edition: str) -> bytes:
     """GET the tar.gz with basic auth; module-level for test monkeypatching."""
     try:
         async with httpx2.AsyncClient(
@@ -133,7 +132,7 @@ def _extract_mmdb(tarball: bytes, dest: Path) -> None:
 
 
 async def download_database(
-    settings: "GeoIPSettings", *, edition: str, db_path: Path
+    settings: GeoIPSettings, *, edition: str, db_path: Path
 ) -> Path:
     """Download + extract one edition; raises GeoIPDownloadError."""
     logger.info("Downloading %s from MaxMind...", edition)
@@ -146,7 +145,7 @@ async def download_database(
 
 
 async def ensure_geoip_database(
-    settings: "GeoIPSettings",
+    settings: GeoIPSettings,
     *,
     force: bool = False,
     errors: list[str] | None = None,
@@ -207,7 +206,7 @@ async def ensure_geoip_database(
 
 
 async def ensure_asn_database(
-    settings: "GeoIPSettings",
+    settings: GeoIPSettings,
     *,
     force: bool = False,
     errors: list[str] | None = None,
@@ -264,7 +263,7 @@ async def ensure_asn_database(
 
 
 async def refresh_geoip_databases(
-    settings: "GeoIPSettings", *, force: bool = False
+    settings: GeoIPSettings, *, force: bool = False
 ) -> RefreshResult:
     """Scheduler entry point: refresh City always, ASN when enabled.
 

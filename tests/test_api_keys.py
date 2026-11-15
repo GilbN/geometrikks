@@ -24,7 +24,11 @@ from geometrikks.domain.auth.api_keys import (
     is_api_key_token,
     is_well_formed_api_key,
 )
-from geometrikks.domain.exceptions import DomainConflictError, DomainNotFoundError, DomainValidationError
+from geometrikks.domain.exceptions import (
+    DomainConflictError,
+    DomainNotFoundError,
+    DomainValidationError,
+)
 from geometrikks.server import api_key_store, runtime
 from geometrikks.server.api_key_store import ApiKeyStore, install_api_key_store
 from tests.api_key_support import MemoryApiKeyRepository

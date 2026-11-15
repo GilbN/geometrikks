@@ -67,8 +67,9 @@ def test_site_homes_routes_are_gone(monkeypatch):
 
 def test_server_handler_names(monkeypatch):
     monkeypatch.setenv("APP_AUTH_DISABLED", "true")
-    from geometrikks.server.core import create_app
     from litestar.routes import HTTPRoute
+
+    from geometrikks.server.core import create_app
 
     handler_names = {
         route_handler.handler_name

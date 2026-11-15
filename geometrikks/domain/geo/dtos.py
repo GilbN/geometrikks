@@ -1,12 +1,13 @@
 """DTOs for geo-location and geo-event data transfer."""
 
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Annotated, Literal
 
 import msgspec
-
 from advanced_alchemy.extensions.litestar import SQLAlchemyDTO, SQLAlchemyDTOConfig
+
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
 from geometrikks.domain.geo.schemas import AsnOrganization
 

@@ -5,8 +5,20 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from litestar.testing import AsyncTestClient
 
-from geometrikks.config.settings import CrowdSecSettings, DropSettings, GeoIPSettings, get_installed_version
-from tests.test_api_key_auth import CREDS, UNKNOWN_KEY, bearer, create_key, expire_keys, key_app
+from geometrikks.config.settings import (
+    CrowdSecSettings,
+    DropSettings,
+    GeoIPSettings,
+    get_installed_version,
+)
+from tests.test_api_key_auth import (
+    CREDS,
+    UNKNOWN_KEY,
+    bearer,
+    create_key,
+    expire_keys,
+    key_app,
+)
 from tests.test_auth_endpoints import make_disabled_app
 
 pytestmark = pytest.mark.anyio

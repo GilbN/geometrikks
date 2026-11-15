@@ -12,7 +12,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from geometrikks.domain.abuseipdb.models import AbuseIpdbReport
-from geometrikks.domain.abuseipdb.repositories import AbuseIpdbReportRepository, ReportedIp
+from geometrikks.domain.abuseipdb.repositories import (
+    AbuseIpdbReportRepository,
+    ReportedIp,
+)
 
 pytestmark = pytest.mark.anyio
 

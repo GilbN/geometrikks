@@ -3,18 +3,27 @@ import os
 import socket
 import unicodedata
 from functools import lru_cache
-from importlib.metadata import PackageNotFoundError, version as distribution_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as distribution_version
 from ipaddress import ip_network
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote, urlsplit
 
 import msgspec
-from pydantic import Field, PrivateAttr, SecretStr, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic.json_schema import JsonDict
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
-from geometrikks.lib.urls import validate_https_url
+
 from geometrikks.lib.geoip import ALLOWED_GEOIP_LOCALES
+from geometrikks.lib.urls import validate_https_url
 
 
 def _env_file() -> str | None:

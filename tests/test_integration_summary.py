@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import cast
 
-
 import pytest
 from litestar import Litestar
 from litestar.di import Provide
@@ -37,7 +36,6 @@ class TrafficReader:
         self.calls.append((start, end))
         if self.error:
             raise self.error
-        return None
 
     async def latest_event_at(self, start, end):
         return None

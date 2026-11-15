@@ -4,8 +4,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address
 
-import pytest
-
 from geometrikks.domain.analytics import asn_classification
 from geometrikks.domain.analytics.asn_classification import classify_asn
 from geometrikks.domain.drop import snapshot as snapshot_module
@@ -16,7 +14,6 @@ from geometrikks.domain.drop.snapshot import (
     DropSnapshot,
     FeedState,
     current_drop_snapshot,
-    reset_drop_snapshot,
 )
 
 NETWORK_V4 = DropNetworkMatch(cidr="198.51.100.64/26", sbl_id="SBL000001")

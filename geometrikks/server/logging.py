@@ -25,7 +25,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import structlog
 from litestar.logging.config import LoggingConfig, StructLoggingConfig
-from litestar.status_codes import HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND, HTTP_503_SERVICE_UNAVAILABLE
+from litestar.status_codes import (
+    HTTP_401_UNAUTHORIZED,
+    HTTP_404_NOT_FOUND,
+    HTTP_503_SERVICE_UNAVAILABLE,
+)
 
 if TYPE_CHECKING:
     from litestar.types import Scope
@@ -351,7 +355,7 @@ def _console_renderer() -> structlog.dev.ConsoleRenderer:
     )
 
 
-def _log_dir_write_error(log_dir: "Path") -> str | None:
+def _log_dir_write_error(log_dir: Path) -> str | None:
     """Try to create log_dir and confirm it is actually writable.
 
     Returns None when the directory is usable, otherwise a short
@@ -380,7 +384,7 @@ QUIET_STATUS_CODES = frozenset({HTTP_401_UNAUTHORIZED, HTTP_404_NOT_FOUND})
 UNAVAILABLE_STATUS_CODES = frozenset({HTTP_503_SERVICE_UNAVAILABLE})
 
 
-def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandler":
+def _exception_logging_handler_factory(*, debug: bool) -> ExceptionLoggingHandler:
     """Build the hook Litestar calls for every exception it turns into a response.
 
     Litestar invokes this from inside its own ``except`` block, so
@@ -390,7 +394,7 @@ def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandl
     record there is (the request-logging middleware never runs for one).
     """
 
-    def _log_exception(logger: Any, scope: "Scope", _tb: list[str]) -> None:
+    def _log_exception(logger: Any, scope: Scope, _tb: list[str]) -> None:
         exc = sys.exc_info()[1]
         status_code = getattr(exc, "status_code", None)
         if not debug and status_code in QUIET_STATUS_CODES | UNAVAILABLE_STATUS_CODES:
@@ -418,7 +422,7 @@ def _exception_logging_handler_factory(*, debug: bool) -> "ExceptionLoggingHandl
     return _log_exception
 
 
-def create_logging_config(settings: "Settings") -> StructLoggingConfig:
+def create_logging_config(settings: Settings) -> StructLoggingConfig:
     """Full pipeline: console + JSONL file + login file + WS broadcast.
 
     Everything hangs off the stdlib queue listener; structlog and foreign

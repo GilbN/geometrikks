@@ -4,16 +4,20 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal
 
-from litestar import Controller, get
-from litestar.di import NamedDependency, Provide
-from litestar.params import QueryParameter, SkipValidation
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import FilterTypes, LimitOffset, OnBeforeAfter
 from advanced_alchemy.service import OffsetPagination
+from litestar import Controller, get
+from litestar.di import NamedDependency, Provide
+from litestar.params import QueryParameter, SkipValidation
 
 from geometrikks.domain.logs.schemas import AccessLogDebugEntry, AccessLogDebugStats
 from geometrikks.domain.logs.services import DEBUG_SORT_COLUMNS, AccessLogDebugService
-from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, MAX_LOG_PAGE_SIZE, limit_offset_provider
+from geometrikks.lib.pagination import (
+    LIMIT_OFFSET_KEY,
+    MAX_LOG_PAGE_SIZE,
+    limit_offset_provider,
+)
 from geometrikks.lib.parameters import (
     CITY_FILTER_DESCRIPTION,
     COUNTRY_FILTER_DESCRIPTION,

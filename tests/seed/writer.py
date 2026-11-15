@@ -5,13 +5,12 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import cycle
 
 import asyncpg
 
 from geometrikks.server.timescale import ALL_CAGGS, open_bucket_start
-
 from tests.seed.catalog import SERVER_SITES
 from tests.seed.config import SeedError
 from tests.seed.traffic import AccessLogRow, Batch, DebugRow, GeoEventRow
@@ -74,7 +73,7 @@ class SeedWriter:
             "SELECT name FROM unnest($1::text[]) AS name WHERE to_regclass(name) IS NOT NULL",
             list(ALL_CAGGS),
         )
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         failed: list[str] = []
         for row in existing:
             end = None if through_open_bucket else open_bucket_start(row["name"], now)

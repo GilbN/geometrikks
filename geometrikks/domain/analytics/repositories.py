@@ -24,10 +24,11 @@ For short ranges (≤1 hour), raw table queries provide exact time range results
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Sequence, cast
+from typing import cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -155,7 +156,7 @@ def _floor_to_hour(dt: datetime) -> datetime:
     """Truncate datetime to the start of its hour."""
     result = dt.replace(minute=0, second=0, microsecond=0)
     if result.tzinfo is None:
-        result = result.replace(tzinfo=timezone.utc)
+        result = result.replace(tzinfo=UTC)
     return result
 
 
@@ -166,7 +167,7 @@ def _ceil_to_hour(dt: datetime) -> datetime:
     else:
         result = dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     if result.tzinfo is None:
-        result = result.replace(tzinfo=timezone.utc)
+        result = result.replace(tzinfo=UTC)
     return result
 
 

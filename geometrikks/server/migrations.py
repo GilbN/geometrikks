@@ -9,9 +9,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
+from advanced_alchemy import base
 from advanced_alchemy.alembic.commands import AlembicCommands
 from advanced_alchemy.config import AlembicAsyncConfig, SQLAlchemyAsyncConfig
-from advanced_alchemy import base
 from sqlalchemy import text
 
 from geometrikks.config.settings import get_settings

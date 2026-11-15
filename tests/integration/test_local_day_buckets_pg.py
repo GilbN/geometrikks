@@ -9,8 +9,9 @@ shift with DST.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import (
@@ -24,14 +25,12 @@ from geometrikks.domain.geo.schemas import GeoEventFilters
 from geometrikks.domain.geo.services import GeoEventService
 from geometrikks.server.timescale import refresh_caggs_range
 
-import pytest
-
 pytestmark = pytest.mark.anyio
 
 TZ = "Etc/GMT-2"
 
 # Wall-clock derived, hour-aligned (see test_repositories_pg.py for why).
-NOW = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 # Base UTC day two days ago. Local (UTC+2) midnight of the *next* local day
 # falls at BASE+22h; the window mimics "today" selected shortly after noon.

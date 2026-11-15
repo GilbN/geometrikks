@@ -9,7 +9,6 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import func, select, text
 
 from geometrikks.domain.exceptions import DomainValidationError
-
 from geometrikks.domain.logs.models import AccessLog, AccessLogDebug
 from geometrikks.domain.logs.raw_line_fields import raw_line_fields
 from geometrikks.domain.logs.schemas import (

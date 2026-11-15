@@ -9,57 +9,61 @@ from litestar import Controller, get
 from litestar.di import NamedDependency, Provide
 from litestar.params import QueryParameter, SkipValidation
 
-from geometrikks.domain.analytics.repositories import (
-    AnalyticsFilters,
-    LiveStatsRepository,
-    SummaryStatsRepository,
-    SummaryStats,
+from geometrikks.domain.analytics.asn_classification import classify_asn
+from geometrikks.domain.analytics.dependencies import (
+    provide_ip_profile_repo,
+    provide_live_stats_repo,
+    provide_summary_stats_repo,
 )
 from geometrikks.domain.analytics.dtos import (
-    SummaryResponse,
-    PercentChange,
+    AsnCategoryTotalsDTO,
     CumulativeDataPoint,
     CumulativeTimeSeriesResponse,
     GeoEventsDataPoint,
     GeoEventsTimeSeriesResponse,
-    TimeSeriesDataPoint,
-    TimeSeriesResponse,
-    TopUrlDTO,
-    TopUrlsResponse,
-    TopUserAgentDTO,
-    TopUserAgentsResponse,
-    TopAsnDTO,
-    TopAsnsResponse,
-    AsnCategoryTotalsDTO,
-    TopIpDTO,
-    TopIpsResponse,
-    TopCountryStatsDTO,
-    TopCountriesStatsResponse,
-    TopCityStatsDTO,
-    TopCitiesResponse,
     IpProfileBucketDTO,
     IpProfileHostDTO,
     IpProfilePathDTO,
     IpProfileResponse,
     IpProfileUserAgentDTO,
+    PercentChange,
+    SummaryResponse,
+    TimeSeriesDataPoint,
+    TimeSeriesResponse,
+    TopAsnDTO,
+    TopAsnsResponse,
+    TopCitiesResponse,
+    TopCityStatsDTO,
+    TopCountriesStatsResponse,
+    TopCountryStatsDTO,
+    TopIpDTO,
+    TopIpsResponse,
+    TopUrlDTO,
+    TopUrlsResponse,
+    TopUserAgentDTO,
+    TopUserAgentsResponse,
 )
-from geometrikks.domain.analytics.repositories import StatsGranularity, get_stats_granularity
+from geometrikks.domain.analytics.ip_profile import (
+    IpProfile,
+    IpProfileBucket,
+    IpProfileRepository,
+)
+from geometrikks.domain.analytics.repositories import (
+    AnalyticsFilters,
+    LiveStatsRepository,
+    StatsGranularity,
+    SummaryStats,
+    SummaryStatsRepository,
+    get_stats_granularity,
+)
 from geometrikks.domain.analytics.summary import period_summary
-from geometrikks.domain.analytics.asn_classification import classify_asn
-from geometrikks.domain.analytics.ip_profile import IpProfile, IpProfileBucket, IpProfileRepository
-
-from geometrikks.domain.analytics.dependencies import (
-    provide_ip_profile_repo,
-    provide_live_stats_repo,
-    provide_summary_stats_repo
-)
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
 from geometrikks.lib.parameters import (
     AsnIn,
     AsnNotIn,
-    CityFilter,
     ChartGranularity,
+    CityFilter,
     ComparePrevious,
     CountryCodeFilter,
     IpAddressExcludeFilter,
@@ -68,7 +72,11 @@ from geometrikks.lib.parameters import (
     local_days_edge_note,
 )
 from geometrikks.lib.time_ranges import TimeRange, provide_time_range
-from geometrikks.lib.validation import validate_ip_address, validate_ip_addresses, validate_timezone
+from geometrikks.lib.validation import (
+    validate_ip_address,
+    validate_ip_addresses,
+    validate_timezone,
+)
 
 
 def _calculate_percent_change(current: float, previous: float) -> float | None:

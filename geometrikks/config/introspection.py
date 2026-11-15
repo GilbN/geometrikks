@@ -9,10 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-
-import msgspec
 from typing import Annotated, Any, get_args
 
+import msgspec
 from pydantic import SecretStr
 from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined, to_jsonable_python

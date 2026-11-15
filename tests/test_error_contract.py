@@ -132,6 +132,7 @@ def test_domain_lookup_errors_render_native_envelope(exc_factory, status):
 )
 async def test_specific_codes_preserve_headers_and_extra(exception_type, expected_code):
     from litestar import Litestar, get
+
     from geometrikks.server import exceptions
 
     @get("/api/v1/error")
@@ -152,6 +153,7 @@ async def test_specific_codes_preserve_headers_and_extra(exception_type, expecte
 async def test_internal_http_errors_do_not_expose_the_detail():
     from litestar import Litestar, get
     from litestar.exceptions import InternalServerException
+
     from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 
     @get("/api/v1/error")
@@ -165,6 +167,7 @@ async def test_internal_http_errors_do_not_expose_the_detail():
 
 def test_domain_error_can_supply_a_specific_code():
     from litestar.testing import RequestFactory
+
     from geometrikks.domain.exceptions import DomainValidationError
     from geometrikks.server.exceptions import handle_domain_validation_error
 
@@ -177,6 +180,7 @@ def test_domain_error_can_supply_a_specific_code():
 async def test_non_api_http_errors_keep_the_framework_envelope():
     from litestar import Litestar, get
     from litestar.exceptions import PermissionDeniedException
+
     from geometrikks.server.exceptions import EXCEPTION_HANDLERS
 
     @get("/outside")
@@ -193,6 +197,7 @@ def test_debug_http_errors_keep_the_debug_response():
     from litestar import Litestar
     from litestar.exceptions import InternalServerException
     from litestar.testing import RequestFactory
+
     from geometrikks.server.exceptions import handle_http_exception
 
     app = Litestar(debug=True)
