@@ -41,8 +41,20 @@ cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true 
 dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
+    "ruff>=0.17.5",
     "ty>=0.0.74",
 ]
+
+[tool.ruff.lint]
+ignore = [
+    "BLE001", # background loops and health probes catch every error on purpose
+    "RUF012", # Litestar reads guards and dependencies from plain class attributes
+    "TRY004", # callers and docstrings expect ValueError for bad input
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/versions/*" = ["N999"]
+"tests/**" = ["ASYNC230", "SIM117"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
