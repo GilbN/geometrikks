@@ -649,3 +649,35 @@ class TestScheduledRetry:
             await task
         assert errors == []
         assert len(requests) == 1
+
+
+@pytest.mark.parametrize(
+    ("failure", "retryable"),
+    [
+        pytest.param(lambda httpx2, request: httpx2.ConnectError("dns", request=request), True, id="connect-error"),
+        pytest.param(lambda httpx2, request: httpx2.ConnectTimeout("slow", request=request), True, id="connect-timeout"),
+        pytest.param(lambda httpx2, request: httpx2.ReadTimeout("stalled", request=request), False, id="read-timeout"),
+        pytest.param(lambda httpx2, request: httpx2.Response(401), False, id="401"),
+    ],
+)
+async def test_fetch_tarball_marks_only_unreached_requests_retryable(tmp_path, monkeypatch, failure, retryable):
+    import httpx2
+
+    from geometrikks.services.geoip import downloader
+
+    def handler(request):
+        outcome = failure(httpx2, request)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    real_client = httpx2.AsyncClient
+    monkeypatch.setattr(
+        httpx2, "AsyncClient", lambda **kwargs: real_client(transport=httpx2.MockTransport(handler), **kwargs)
+    )
+    settings = make_settings(tmp_path, account_id="1", license_key="k")
+
+    with pytest.raises(downloader.GeoIPDownloadError) as raised:
+        await downloader._fetch_tarball(settings, downloader.CITY_EDITION)
+
+    assert raised.value.retryable is retryable
