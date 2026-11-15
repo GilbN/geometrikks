@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vite-plus/test"
 import { LiveTrafficStore, RECENT_DROP_MS } from "./store"
 import type { LiveRequest } from "./types"
 

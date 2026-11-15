@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { phoneToastPlacement, toastTopEdge } from "./phone-toasts"
 
 const base = { side: false, onMap: false, covered: false, barSide: 20, leftInset: 0, rightInset: 0, topEdge: 56 }

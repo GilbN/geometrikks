@@ -1,5 +1,5 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { EMPTY_ACCESS_LOG_FILTERS } from "./access-log-filters-context"
 import {

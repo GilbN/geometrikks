@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import { CLOSE_TRY_AGAIN_LATER, LiveFeedClient, type LiveFeedStatus } from "./websocket"
 
 class FakeSocket {

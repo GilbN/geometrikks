@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest"
+import { expect, it, vi } from "vite-plus/test"
 const mocks = vi.hoisted(() => ({
   options: [] as Array<{ queryKey: unknown[]; staleTime: unknown; refetchInterval: unknown; refetchOnWindowFocus: unknown }>,
 }))

@@ -804,7 +804,7 @@ export function useCrowdsecLiveUpdates(active = true) {
           // Recovery: refetch decisions/alerts/stats immediately so the page
           // leaves its stale state without waiting for the 60s intervals.
           if (frame.lapi_reachable && previous?.lapiReachable === false) {
-            queryClient.invalidateQueries({ queryKey: ["crowdsec"] })
+            void queryClient.invalidateQueries({ queryKey: ["crowdsec"] })
           }
           return
         }
@@ -820,9 +820,9 @@ export function useCrowdsecLiveUpdates(active = true) {
         if (refreshTimer === null) {
           refreshTimer = setTimeout(() => {
             refreshTimer = null
-            queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps })
-            queryClient.invalidateQueries({ queryKey: ["crowdsec", "banned-locations"] })
-            queryClient.invalidateQueries({ queryKey: ["crowdsec", "lookup"] })
+            void queryClient.invalidateQueries({ queryKey: queryKeys.crowdsec.bannedIps })
+            void queryClient.invalidateQueries({ queryKey: ["crowdsec", "banned-locations"] })
+            void queryClient.invalidateQueries({ queryKey: ["crowdsec", "lookup"] })
           }, 500)
         }
       }

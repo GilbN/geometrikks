@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { inspectSearchSchema } from "@/lib/ip-inspector-search"
 
 describe("inspect search param", () => {

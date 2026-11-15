@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import type { RawLineField, RawLineFields } from "@/lib/api"
 import { breakSegments, rawLineSections } from "./raw-line-sections"

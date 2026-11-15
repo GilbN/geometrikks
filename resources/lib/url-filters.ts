@@ -38,5 +38,5 @@ export function applyFilterUpdate<TSearch extends object, TFilters>(
   codec: FilterCodec<TSearch, TFilters>,
 ): TSearch {
   const next = updater(codec.decode(prev))
-  return { ...prev, ...codec.encode(next), ...(codec.resetOnChange ?? {}) }
+  return { ...prev, ...codec.encode(next), ...codec.resetOnChange }
 }

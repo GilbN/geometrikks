@@ -1,5 +1,5 @@
 import { defaultParseSearch, defaultStringifySearch } from "@tanstack/react-router"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { EMPTY_GEO_LOG_FILTERS } from "./geo-log-filters-context"
 import { decodeGeoLogsSearch, encodeGeoLogFilters, geoLogsSearchSchema } from "./geo-logs-search"

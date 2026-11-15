@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { countActiveAccessLogFilters, EMPTY_ACCESS_LOG_FILTERS } from "./access-log-filters-context"
 import { countActiveAnalyticsFilters, EMPTY_FILTERS } from "./analytics-filters-context"

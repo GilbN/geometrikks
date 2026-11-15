@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import type { DropFeedView } from "@/generated/api/types.gen"
 import { formatTs } from "./datetime"
 import {

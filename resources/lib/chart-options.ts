@@ -43,8 +43,8 @@ export type ChartOptionsState = {
   view: ChartViewSpec
   scale: ChartScale
   isDefault: { view: boolean; scale: boolean }
-  setView(id: string): void
-  setScale(scale: ChartScale): void
+  setView: (id: string) => void
+  setScale: (scale: ChartScale) => void
 }
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">

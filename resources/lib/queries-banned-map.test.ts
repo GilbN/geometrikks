@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest"
+import { beforeEach, expect, it, vi } from "vite-plus/test"
 const mocks = vi.hoisted(() => ({
   options: [] as Array<{ queryKey: unknown[]; queryFn: () => unknown; enabled: boolean }>,
   enabled: true,

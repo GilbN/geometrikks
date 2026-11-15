@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test } from "vite-plus/test"
 import type { ReportIpDto, ReportedIpDto } from "@/generated/api/types.gen"
 import {
   abuseipdbCheckUrl,

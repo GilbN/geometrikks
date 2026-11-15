@@ -8,7 +8,7 @@
 import { readdirSync, readFileSync } from "node:fs"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { BrandMark } from "../components/brand/brand-mark"
 import { themeHead } from "./theme-bootstrap"

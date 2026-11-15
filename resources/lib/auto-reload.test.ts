@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 import {
   CHUNK_ERROR_WINDOW_MS,
   IDLE_RELOAD_MS,

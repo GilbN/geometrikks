@@ -17,12 +17,12 @@ type PhoneChrome = {
   barCovered: boolean
   toastsCovered: boolean
   moreOpen: boolean
-  setMoreOpen(open: boolean): void
+  setMoreOpen: (open: boolean) => void
   moreTriggerRef: RefObject<HTMLButtonElement | null>
 }
 
 type PhoneChromeContextValue = PhoneChrome & {
-  cover(kind: CoverKind): () => void
+  cover: (kind: CoverKind) => () => void
 }
 
 const PhoneChromeContext = createContext<PhoneChromeContextValue>({

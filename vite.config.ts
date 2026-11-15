@@ -1,14 +1,45 @@
 import path from "path"
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import { tanstackRouter } from '@tanstack/router-plugin/vite'
+import { defineConfig, lazyPlugins } from "vite-plus"
+import react from "@vitejs/plugin-react"
+import { tanstackRouter } from "@tanstack/router-plugin/vite"
 // Keep litestar-vite-plugin in step with litestar-vite in pyproject.toml.
-import litestar from "litestar-vite-plugin";
-import tailwindcss from "@tailwindcss/vite";
-import { VitePWA } from "vite-plugin-pwa";
-import { themeHtml } from "./resources/lib/theme-html-plugin.ts";
+import litestar from "litestar-vite-plugin"
+import tailwindcss from "@tailwindcss/vite"
+import { VitePWA } from "vite-plugin-pwa"
+import { themeHtml } from "./resources/lib/theme-html-plugin.ts"
 
 export default defineConfig({
+  fmt: {
+    semi: false,
+    ignorePatterns: [
+      "resources/generated/**",
+      "resources/routeTree.gen.ts",
+      "site/**",
+      ".vscode/**",
+      "*.md",
+      "*.toml",
+      "*.yml",
+      "*.yaml",
+    ],
+  },
+  lint: {
+    ignorePatterns: [
+      "resources/generated/**",
+      "resources/routeTree.gen.ts",
+      "resources/components/ui/**",
+      "site/**",
+      ".github/**",
+    ],
+    jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
+    rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+    overrides: [
+      // Asserting on a mocked method, e.g. expect(body.append), never calls it.
+      { files: ["**/*.test.ts"], rules: { "typescript/unbound-method": "off" } },
+      // node:test runs top-level test() calls without awaiting them.
+      { files: ["**/*.test.cjs"], rules: { "typescript/no-floating-promises": "off" } },
+    ],
+    options: { typeAware: true, typeCheck: true },
+  },
   publicDir: "resources/static",
   build: {
     outDir: "public",
@@ -34,14 +65,14 @@ export default defineConfig({
   // /static/* assets and the /static/vite-hmr websocket through :8000, so
   // manual /api and /ws proxies, CORS, and HMR host overrides are not needed.
   // Standalone `bun run dev` against :5173 is not a supported workflow.
-  plugins: [
+  plugins: lazyPlugins(() => [
     themeHtml(),
     tailwindcss(),
     tanstackRouter({
-      target: 'react',
+      target: "react",
       autoCodeSplitting: true,
-      routesDirectory: './resources/routes',
-      generatedRouteTree: './resources/routeTree.gen.ts',
+      routesDirectory: "./resources/routes",
+      generatedRouteTree: "./resources/routeTree.gen.ts",
     }),
     react(),
     litestar({
@@ -77,8 +108,8 @@ export default defineConfig({
           {
             urlPattern: ({ request, url }) =>
               request.mode === "navigate" &&
-              ![/^\/api\//, /^\/ws/, /^\/schema/, /^\/static\//, /^\/sw\.js/].some(
-                (denied) => denied.test(url.pathname),
+              ![/^\/api\//, /^\/ws/, /^\/schema/, /^\/static\//, /^\/sw\.js/].some((denied) =>
+                denied.test(url.pathname),
               ),
             handler: "NetworkFirst",
             options: {
@@ -108,10 +139,10 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
-  ],
+  ]),
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "resources"),
     },
   },
-});
+})

@@ -1,4 +1,4 @@
-import { mergeConfig, type Plugin } from "vite";
+import { mergeConfig, type Plugin } from "vite-plus";
 import base from "../../vite.config.ts";
 
 // The screenshot build reads no dotenv file: Vite would bake VITE_* keys from

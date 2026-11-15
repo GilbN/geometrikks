@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test"
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import type { DropListsResponse } from "@/generated/api/types.gen"
 const mocks = vi.hoisted(() => ({ buildCalls: 0 }))

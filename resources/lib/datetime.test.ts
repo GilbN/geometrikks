@@ -6,7 +6,7 @@
  * `Intl.DateTimeFormat` instances at module load, so they capture whatever
  * timezone is in effect at import time.
  */
-import { afterAll, describe, expect, it } from "vitest"
+import { afterAll, describe, expect, it } from "vite-plus/test"
 
 const ORIGINAL_TZ = process.env.TZ
 process.env.TZ = "America/New_York"

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { clampedYMax, floorForLog, logAxis, niceCeil, scaleSeries } from "./chart-scale"
 
 describe("niceCeil", () => {

@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest"
+import { beforeEach, expect, it, vi } from "vite-plus/test"
 import type { DropListsResponse } from "@/generated/api/types.gen"
 type QueryOptions = {
   queryKey: readonly unknown[]

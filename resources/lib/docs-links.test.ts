@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import * as docsLinks from "./docs-links"
 
 const DOCS_URL = /^https:\/\/geometrikks\.dev\/docs\/(?!next\/)(?!\d+\.\d+\.\d+\/)[a-z0-9-]+(\/[a-z0-9-]+)*\/$/

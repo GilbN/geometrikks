@@ -1,5 +1,5 @@
 import type { StyleSpecification } from "maplibre-gl"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 
 import { buildSatelliteStyle } from "./satelliteStyle"
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { describeUnban } from "./pending-ip-actions"
 
 const origins = (...values: string[]) => values.map((origin) => ({ origin }))

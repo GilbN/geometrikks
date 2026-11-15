@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { panToBox, phoneFitPadding, sidePanelWidth, sideVisibleBox } from "@/lib/phone-map-geometry"
 
 const IPHONE = { left: 59, right: 59, bottom: 21 }

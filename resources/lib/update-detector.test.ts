@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vite-plus/test"
 import { buildKey, createUpdateDetector, type BuildIdentity } from "./update-detector"
 
 function build(version: string, changelogDigest: string | null = null): BuildIdentity {

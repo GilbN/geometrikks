@@ -1,6 +1,6 @@
 import type { ReactElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 const banIp = vi.fn(async () => {})
 const unbanIp = vi.fn(async () => ({ deleted: 1 }))

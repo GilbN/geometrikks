@@ -65,7 +65,7 @@ function LoginPage() {
   // Read once, then dropped from the URL so a reload does not repeat it.
   const [plan] = useState(() => planLoginForm(options, errorCode ?? null))
   useEffect(() => {
-    if (errorCode) navigate({ to: "/login", search: {}, replace: true })
+    if (errorCode) void navigate({ to: "/login", search: {}, replace: true })
   }, [errorCode, navigate])
 
   const [username, setUsername] = useState("")
@@ -79,7 +79,7 @@ function LoginPage() {
     setSubmitting(true)
     try {
       await login(username, password)
-      navigate({ to: "/" })
+      void navigate({ to: "/" })
     } catch (failure) {
       setError(loginErrorMessage(failure))
     } finally {

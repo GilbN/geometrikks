@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { PHONE_QUERY, PHONE_SIDE_QUERY } from "@/hooks/use-phone-map"
 import { drawerLayout, isKeyboardOpen, isPortraitList, settleDrawerLayout } from "./phone-layout"
 

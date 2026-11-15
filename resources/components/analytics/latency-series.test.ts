@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { scaleSeries } from "@/lib/chart-scale"
 import { bandRows, LATENCY_KEYS, latencyTooltipRows } from "./latency-series"
 

@@ -31,7 +31,7 @@ export interface UpdateDetector {
   observeStartedAt(startedAt: string | null): Promise<void>
   recheck(): Promise<void>
   pageBuildKey(): string | null
-  lastStartedAtChangeAt(): number | null
+  lastStartedAtChangeAt: () => number | null
 }
 
 export function createUpdateDetector(deps: UpdateDetectorDeps): UpdateDetector {

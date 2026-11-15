@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it } from "vite-plus/test"
 import { buildGeoLogSparklines, buildOverviewSparklines, fillGaps, geoLogSparklinesFromSeries, hasSparklines, sparklineGranularity } from "./sparklines"
 import type { TimeSeriesResponse } from "./api"
 
