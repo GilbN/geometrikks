@@ -123,17 +123,20 @@ class IntegrationSummaryService:
         service = runtime.get_crowdsec_service(self.app)
         if service is None:
             return SummarySection(available=False, reason="not_started")
-        try:
-            async with asyncio.timeout(CROWDSEC_TIMEOUT):
-                decisions = await service.get_decisions()
-        except CrowdSecAuthError:
-            return SummarySection(available=False, reason="crowdsec_credentials_rejected")
-        except TimeoutError:
-            return SummarySection(available=False, reason="crowdsec_timeout")
-        except CrowdSecUnavailableError:
-            return SummarySection(available=False, reason="crowdsec_unreachable")
-        except (msgspec.DecodeError, ValueError):
-            return SummarySection(available=False, reason="invalid_response")
+        poller = runtime.get_crowdsec_poller(self.app)
+        decisions = poller.decisions() if poller is not None else None
+        if decisions is None:
+            try:
+                async with asyncio.timeout(CROWDSEC_TIMEOUT):
+                    decisions = await service.get_decisions()
+            except CrowdSecAuthError:
+                return SummarySection(available=False, reason="crowdsec_credentials_rejected")
+            except TimeoutError:
+                return SummarySection(available=False, reason="crowdsec_timeout")
+            except CrowdSecUnavailableError:
+                return SummarySection(available=False, reason="crowdsec_unreachable")
+            except (msgspec.DecodeError, ValueError):
+                return SummarySection(available=False, reason="invalid_response")
         return SummarySection(available=True, data=CrowdSecSummary(
             active_decisions=len(decisions), write_enabled=self.settings.crowdsec.write_enabled,
             checked_at=datetime.now(UTC),

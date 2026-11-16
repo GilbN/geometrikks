@@ -6,12 +6,12 @@ from typing import Any
 import pytest
 
 from geometrikks.domain.security.grouping import (
-    go_duration_seconds,
     group_decisions,
     search_groups,
     search_network,
 )
 from geometrikks.services.crowdsec import Decision
+from geometrikks.services.crowdsec.schemas import go_duration_seconds
 
 
 def make_decision(**overrides: Any) -> Decision:

@@ -1476,7 +1476,7 @@ export const apiV1CrowdsecBannedLocationsListBannedLocations = <
 /**
  * List every range under an active decision
  *
- * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.
+ * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts. The ranges come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecBannedRangesListBannedRanges = <
   ThrowOnError extends boolean = false,
@@ -1510,7 +1510,7 @@ export const apiV1CrowdsecBannedRangesListBannedRanges = <
 /**
  * List active CrowdSec decisions, one row per target
  *
- * Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate.
+ * Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate. The decisions come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecDecisionsListDecisions = <
   ThrowOnError extends boolean = false,
@@ -1643,7 +1643,7 @@ export const apiV1CrowdsecDropNetworksListDropNetworks = <
 /**
  * Count the active CrowdSec decisions by origin and scenario
  *
- * Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions.
+ * Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecStatsGetStats = <
   ThrowOnError extends boolean = false,

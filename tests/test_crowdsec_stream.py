@@ -1,7 +1,7 @@
 """Decision stream: service parsing and the poller's broadcast behavior."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx2
 import pytest
@@ -9,6 +9,9 @@ import pytest
 from tests.test_crowdsec_service import DECISION_JSON, make_service
 
 pytestmark = pytest.mark.anyio
+
+DELTA = {"dedup": "false", "scopes": "ip,range,country,as"}
+STARTUP = {**DELTA, "startup": "true"}
 
 
 class _StreamResponder:
@@ -37,7 +40,7 @@ async def test_stream_parses_new_and_deleted():
     delta = await service.get_decisions_stream(startup=True)
     assert [d.value for d in delta.new] == ["1.2.3.4"]
     assert [d.value for d in delta.deleted] == ["5.6.7.8"]
-    assert respond.calls[0]["params"] == {"startup": "true"}
+    assert respond.calls[0]["params"] == STARTUP
     assert respond.calls[0]["headers"]["X-Api-Key"] == "bouncer-key"
     await service.aclose()
 
@@ -47,7 +50,7 @@ async def test_stream_handles_null_lists():
     service = make_service(respond)
     delta = await service.get_decisions_stream(startup=False)
     assert delta.new == [] and delta.deleted == []
-    assert respond.calls[0]["params"] == {}
+    assert respond.calls[0]["params"] == DELTA
     await service.aclose()
 
 
@@ -67,7 +70,7 @@ async def test_first_poll_is_startup_and_silent():
     queue = poller.subscribe()
 
     await poller.poll()
-    assert respond.calls[0]["params"] == {"startup": "true"}
+    assert respond.calls[0]["params"] == STARTUP
     # The reachability transition (None -> True) broadcasts, the startup
     # decision snapshot does not: it is state, not news.
     assert queue.get_nowait() == {"type": "crowdsec_status", "lapi_reachable": True}
@@ -78,7 +81,7 @@ async def test_first_poll_is_startup_and_silent():
 async def test_later_polls_broadcast_ip_deltas():
     respond = stream_responder(
         [
-            {"new": None, "deleted": None},  # startup poll
+            {"new": [{**DECISION_JSON, "id": 45, "value": "5.6.7.8"}], "deleted": None},  # startup poll
             {
                 "new": [
                     DECISION_JSON,
@@ -94,7 +97,7 @@ async def test_later_polls_broadcast_ip_deltas():
 
     await poller.poll()
     await poller.poll()
-    assert respond.calls[1]["params"] == {}
+    assert respond.calls[1]["params"] == DELTA
 
     assert queue.get_nowait()["type"] == "crowdsec_status"  # first-poll transition
     frame = queue.get_nowait()
@@ -111,7 +114,7 @@ async def test_later_polls_broadcast_ip_deltas():
 async def test_stream_frames_carry_canonical_addresses():
     respond = stream_responder(
         [
-            {"new": None, "deleted": None},  # startup poll
+            {"new": [{**DECISION_JSON, "id": 47, "value": "1:2::3"}], "deleted": None},  # startup poll
             {
                 "new": [{**DECISION_JSON, "id": 46, "value": "2001:0db8::1", "type": "captcha"}],
                 "deleted": [
@@ -229,7 +232,7 @@ def decision(ip: str, kind: str = "ban", **overrides) -> dict:
 
 
 def tracked(poller) -> dict[str, set[str]] | None:
-    state = poller.ip_decisions()
+    state = poller.ip_decision_types()
     return None if state is None else {ip: set(types) for ip, types in state.items()}
 
 
@@ -245,7 +248,7 @@ async def test_startup_poll_seeds_the_tracked_set():
     }])
     service = make_service(respond)
     poller = make_poller(service)
-    assert poller.ip_decisions() is None
+    assert poller.ip_decision_types() is None
 
     await poller.poll()
     assert tracked(poller) == {"1.2.3.4": {"ban", "captcha"}, "2001:db8::1": {"ban"}}
@@ -272,21 +275,61 @@ async def test_deltas_delete_before_they_add():
     await service.aclose()
 
 
-async def test_held_decisions_keep_the_duration_each_poll_saw():
+async def test_an_ip_stays_tracked_until_its_last_decision_of_a_type_goes():
     respond = stream_responder([
-        {"new": [decision("1.2.3.4", duration="4h", origin="crowdsec")], "deleted": None},
-        {"new": [decision("1.2.3.4", id=43, duration="24h", origin="geometrikks")], "deleted": None},
+        {"new": [decision("1.2.3.4", duration="4h"), decision("1.2.3.4", id=43, duration="1h")], "deleted": None},
+        {"new": None, "deleted": [decision("1.2.3.4", id=42)]},
+        {"new": None, "deleted": [decision("1.2.3.4", id=43, origin="crowdsec")]},
     ])
     service = make_service(respond)
     poller = make_poller(service)
+    queue = poller.subscribe()
 
     await poller.poll()
-    first = poller.ip_decisions()["1.2.3.4"]["ban"]
     await poller.poll()
-    second = poller.ip_decisions()["1.2.3.4"]["ban"]
-    assert (first.duration, first.origin) == ("4h", "crowdsec")
-    assert (second.duration, second.origin) == ("24h", "geometrikks")
-    assert second.seen_at >= first.seen_at
+    assert tracked(poller) == {"1.2.3.4": {"ban"}}
+    await poller.poll()
+    assert tracked(poller) == {}
+
+    assert queue.get_nowait()["type"] == "crowdsec_status"
+    assert queue.get_nowait() == {
+        "type": "crowdsec_decisions", "added": [],
+        "deleted": [{"ip": "1.2.3.4", "type": "ban", "origin": "cscli"}],
+    }
+    assert queue.empty()
+    await service.aclose()
+
+
+async def test_decisions_hold_every_scope_with_the_time_left_now(monkeypatch):
+    from geometrikks.services.crowdsec import stream
+
+    respond = stream_responder([{
+        "new": [
+            decision("1.2.3.4", duration="4h"),
+            decision("1.2.3.4", id=43, duration="30s", origin="CAPI"),
+            decision("10.0.0.0/24", id=44, scope="Range", duration="1h30m"),
+            decision("FR", id=45, scope="Country", duration="6h"),
+            decision("5.6.7.8", id=46, duration="0s"),
+        ],
+        "deleted": None,
+    }])
+    service = make_service(respond)
+    poller = make_poller(service)
+    assert poller.decisions() is None
+    await poller.poll()
+
+    class Later(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + timedelta(minutes=1)
+
+    monkeypatch.setattr(stream, "datetime", Later)
+    held = {decision.id: decision.duration for decision in poller.decisions()}
+    # The 30s ban ran out, and one with no time left counts as gone.
+    assert held == {42: "3h59m0s", 44: "1h29m0s", 45: "5h59m0s"}
+    assert [decision.id for decision in poller.decisions(scopes=("Range",))] == [44]
+    assert [decision.id for decision in poller.decisions(origins=("CAPI",))] == []
+    assert [decision.id for decision in poller.decisions(scopes=("Ip",), origins=("cscli",))] == [42]
     await service.aclose()
 
 
@@ -304,9 +347,88 @@ async def test_tracked_set_is_withheld_while_the_lapi_is_down():
     await poller.poll()
     assert tracked(poller) == {"1.2.3.4": {"ban"}}
     await poller.poll()
-    assert poller.ip_decisions() is None
+    assert poller.ip_decision_types() is None
+    assert poller.decisions() is None
     await poller.poll()
     assert tracked(poller) == {"1.2.3.4": {"ban"}}
+    await service.aclose()
+
+
+async def test_a_blocklist_refresh_is_followed_by_a_full_resync():
+    # The refresh deleted id 42 outright, so no delta reports it.
+    respond = stream_responder([
+        {"new": [decision("1.2.3.4", origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+    ])
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+
+    await poller.poll()
+    await poller.poll()
+    assert [call["params"] for call in respond.calls] == [STARTUP, DELTA, STARTUP]
+    assert [held.id for held in poller.decisions()] == [43]
+    assert queue.get_nowait()["type"] == "crowdsec_status"
+    assert queue.empty()
+    await service.aclose()
+
+
+async def test_a_failed_resync_after_a_blocklist_refresh_is_retried_in_full():
+    calls: list[dict] = []
+    payloads = [
+        {"new": [decision("1.2.3.4", origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+        None,
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+    ]
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        calls.append(dict(request.url.params))
+        payload = payloads[len(calls) - 1]
+        if payload is None:
+            raise httpx2.ReadTimeout("lost")
+        return httpx2.Response(200, json=payload)
+
+    service = make_service(respond)
+    poller = make_poller(service)
+    for _ in range(3):
+        await poller.poll()
+
+    assert calls == [STARTUP, DELTA, STARTUP, STARTUP]
+    assert [held.id for held in poller.decisions()] == [43]
+    await service.aclose()
+
+
+async def test_a_failed_poll_is_followed_by_a_full_resync():
+    # The LAPI can move the key's stream position and still fail the
+    # response, so the delta it carried never arrives.
+    calls: list[dict] = []
+    payloads = [
+        {"new": [decision("1.2.3.4")], "deleted": None},
+        None,
+        {"new": [decision("1.2.3.4"), decision("5.6.7.8", id=43)], "deleted": None},
+    ]
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        calls.append(dict(request.url.params))
+        payload = payloads[len(calls) - 1]
+        if payload is None:
+            raise httpx2.ReadTimeout("lost")
+        return httpx2.Response(200, json=payload)
+
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+    for _ in payloads:
+        await poller.poll()
+
+    assert calls == [STARTUP, DELTA, STARTUP]
+    assert tracked(poller) == {"1.2.3.4": {"ban"}, "5.6.7.8": {"ban"}}
+    frames = [queue.get_nowait() for _ in range(queue.qsize())]
+    assert {"type": "crowdsec_decisions", "added": [
+        {"ip": "5.6.7.8", "type": "ban", "origin": "cscli", "scenario": "manual ban", "duration": "3h59m"}
+    ], "deleted": []} in frames
     await service.aclose()
 
 
@@ -322,7 +444,7 @@ async def test_first_poll_failure_retries_with_startup():
     poller = make_poller(service)
     await poller.poll()
     await poller.poll()
-    assert calls == [{"startup": "true"}, {"startup": "true"}]
+    assert calls == [STARTUP, STARTUP]
     assert tracked(poller) == {"1.2.3.4": {"ban"}}
     await service.aclose()
 
@@ -341,7 +463,7 @@ async def test_resync_replaces_the_set_and_broadcasts_the_difference():
 
     await poller.poll()
     await poller.poll()
-    assert [call["params"] for call in respond.calls] == [{"startup": "true"}, {"startup": "true"}]
+    assert [call["params"] for call in respond.calls] == [STARTUP, STARTUP]
     assert tracked(poller) == {"1.2.3.4": {"ban"}, "9.9.9.9": {"ban"}}
 
     assert queue.get_nowait()["type"] == "crowdsec_status"

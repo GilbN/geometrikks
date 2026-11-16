@@ -69,7 +69,7 @@ class FakeCrowdSec(CrowdSecService):
         self.calls: list[dict[str, Any]] = []
 
     async def get_decisions(self, **filters: Any) -> list[Decision]:
-        self.calls.append(filters)
+        self.calls.append({key: value for key, value in filters.items() if value is not None})
         ip = filters.get("ip")
         if ip is not None:
             return [d for d in self._decisions if d.value == ip]
@@ -426,6 +426,62 @@ async def test_stats_counts_by_origin_and_scenario():
     assert service.calls == [{}]
 
 
+async def test_stats_count_the_poller_decisions_without_asking_the_lapi():
+    service = FakeCrowdSec([make_decision(id=9, value="9.9.9.9")])
+    app = make_app(service)
+    app.state.crowdsec_stream_poller = TrackingPoller({}, [
+        make_decision(id=1, origin="CAPI", scenario="crowdsecurity/http-probing"),
+        make_decision(id=2, origin="CAPI", scenario="crowdsecurity/http-probing", value="5.6.7.8"),
+        make_decision(id=3, origin="crowdsec", scenario="crowdsecurity/ssh-bf", value="5.6.7.8"),
+    ])
+    async with AsyncTestClient(app=app) as client:
+        body = (await client.get("/api/v1/crowdsec/stats")).json()
+    assert body["total"] == 3
+    assert body["byOrigin"] == [{"origin": "CAPI", "count": 2}, {"origin": "crowdsec", "count": 1}]
+    assert service.calls == []
+
+
+POLLER_DECISIONS = [
+    make_decision(id=1, value="45.148.10.80", origin="CAPI", scenario="crowdsecurity/http-probing"),
+    make_decision(id=2, value="5.6.7.8", origin="crowdsec", scenario="crowdsecurity/ssh-bf"),
+    make_decision(id=3, value="10.0.0.0/24", scope="Range", origin="cscli"),
+]
+
+
+async def test_decisions_tab_keeps_its_origins_from_the_poller_decisions():
+    service = FakeCrowdSec([])
+    app = make_app(service)
+    app.state.crowdsec_stream_poller = TrackingPoller({}, POLLER_DECISIONS)
+    async with AsyncTestClient(app=app) as client:
+        default_tab = (await client.get("/api/v1/crowdsec/decisions")).json()
+        capi_tab = (await client.get("/api/v1/crowdsec/decisions", params={"origins": "CAPI"})).json()
+    assert [item["ip"] for item in default_tab["items"]] == ["5.6.7.8", "10.0.0.0/24"]
+    assert [item["ip"] for item in capi_tab["items"]] == ["45.148.10.80"]
+    assert service.calls == []
+
+
+async def test_decisions_ip_search_reads_every_origin_from_the_poller_decisions():
+    service = FakeCrowdSec([])
+    app = make_app(service)
+    app.state.crowdsec_stream_poller = TrackingPoller({}, POLLER_DECISIONS)
+    async with AsyncTestClient(app=app) as client:
+        body = (await client.get("/api/v1/crowdsec/decisions", params={"q": "10.0.0.0/8"})).json()
+        probe = (await client.get("/api/v1/crowdsec/decisions", params={"q": "45.148.10.80"})).json()
+    assert [item["ip"] for item in body["items"]] == ["10.0.0.0/24"]
+    assert [item["ip"] for item in probe["items"]] == ["45.148.10.80"]
+    assert service.calls == []
+
+
+async def test_decisions_ask_the_lapi_while_the_poller_has_none():
+    service = FakeCrowdSec([])
+    app = make_app(service)
+    app.state.crowdsec_stream_poller = TrackingPoller(None, None)
+    async with AsyncTestClient(app=app) as client:
+        await client.get("/api/v1/crowdsec/decisions")
+        await client.get("/api/v1/crowdsec/stats")
+    assert service.calls == [{"origins": "crowdsec,cscli,geometrikks"}, {}]
+
+
 # -- write endpoints + banned-ips ------------------------------------------
 
 
@@ -655,16 +711,30 @@ async def test_banned_ips_canonicalizes_addresses_and_skips_non_ips():
 
 
 class TrackingPoller:
-    """The decision set the stream poller would hold, and a count of polls."""
+    """The decisions the stream poller would hold, and a count of polls."""
 
     lapi_reachable = True
 
-    def __init__(self, ip_decisions: Mapping[str, Collection[str]] | None) -> None:
-        self._ip_decisions = ip_decisions
+    def __init__(
+        self, ip_decision_types: Mapping[str, Collection[str]] | None, decisions: list[Decision] | None = None
+    ) -> None:
+        self._ip_decision_types = ip_decision_types
+        self._decisions = decisions
         self.polls = 0
 
-    def ip_decisions(self) -> Mapping[str, Collection[str]] | None:
-        return self._ip_decisions
+    def ip_decision_types(self) -> Mapping[str, Collection[str]] | None:
+        return self._ip_decision_types
+
+    def decisions(
+        self, *, scopes: Collection[str] | None = None, origins: Collection[str] | None = None
+    ) -> list[Decision] | None:
+        if self._decisions is None:
+            return None
+        return [
+            decision
+            for decision in self._decisions
+            if (scopes is None or decision.scope in scopes) and (origins is None or decision.origin in origins)
+        ]
 
     async def poll(self) -> None:
         self.polls += 1
@@ -1751,7 +1821,7 @@ class LapiStateCrowdSec(WritableFakeCrowdSec):
     """Keeps the decisions its bans create, the way the LAPI does, and filters on scopes."""
 
     async def get_decisions(self, **filters: Any) -> list[Decision]:
-        self.calls.append(filters)
+        self.calls.append({key: value for key, value in filters.items() if value is not None})
         scopes = filters.get("scopes")
         if scopes is None:
             return self._decisions
@@ -1823,29 +1893,23 @@ async def test_banned_ranges_asks_only_for_range_decisions_without_single_addres
 
 
 async def test_banned_ranges_reads_single_address_networks_from_the_poller():
-    from geometrikks.services.crowdsec.stream import HeldDecision
-
-    seen_at = datetime.now(UTC) - timedelta(hours=1)
-    service = LapiStateCrowdSec([range_decision("198.51.100.0/24", id=3)])
+    service = LapiStateCrowdSec([])
     app = make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT)
-    app.state.crowdsec_stream_poller = TrackingPoller({
-        "192.0.2.7": {
-            "captcha": HeldDecision(origin="crowdsec", duration="47h", seen_at=seen_at),
-            "ban": HeldDecision(origin="geometrikks", duration="23h", seen_at=seen_at),
-        },
-        "2001:db8::1": {"ban": HeldDecision(origin="geometrikks", duration="30m", seen_at=seen_at)},
-        "203.0.113.9": {"ban": HeldDecision(origin="CAPI", duration="23h", seen_at=seen_at)},
-    })
+    app.state.crowdsec_stream_poller = TrackingPoller({}, [
+        range_decision("198.51.100.0/24", id=3),
+        make_decision(id=4, value="192.0.2.7", type="captcha", duration="47h"),
+        make_decision(id=5, value="192.0.2.7", duration="23h"),
+        make_decision(id=6, value="203.0.113.9", origin="CAPI", duration="23h"),
+    ])
     async with AsyncTestClient(app=app) as client:
         resp = await client.get("/api/v1/crowdsec/banned-ranges")
 
     banned_ranges = {banned_range["value"]: banned_range for banned_range in resp.json()}
-    # The /128's ban ran out after the poll that saw it.
     assert set(banned_ranges) == {"192.0.2.7/32", "198.51.100.0/24"}
     assert banned_ranges["192.0.2.7/32"]["type"] == "ban"
     expires_at = datetime.fromisoformat(banned_ranges["192.0.2.7/32"]["expiresAt"])
-    assert abs(expires_at - (seen_at + timedelta(hours=23))) < timedelta(seconds=1)
-    assert service.calls == [{"scopes": "Range"}]
+    assert abs(expires_at - (datetime.now(UTC) + timedelta(hours=23))) < timedelta(seconds=5)
+    assert service.calls == []
 
 
 async def test_banned_ranges_asks_the_lapi_for_ip_decisions_while_the_poller_has_no_set():

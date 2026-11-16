@@ -1,7 +1,35 @@
 """Typed shapes for CrowdSec LAPI responses."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+
+_GO_UNIT_SECONDS = {"h": 3600.0, "m": 60.0, "s": 1.0, "ms": 1e-3, "us": 1e-6, "µs": 1e-6, "ns": 1e-9}
+_GO_DURATION_PART = re.compile(r"(\d+(?:\.\d+)?)(h|ms|us|µs|ns|m|s)")
+
+
+def go_duration_seconds(duration: str) -> float:
+    """Seconds in a Go duration such as ``1h49m36s``; 0 when it does not parse.
+
+    The LAPI sends the time left as a duration only, never as a timestamp.
+    """
+    sign = -1.0 if duration.startswith("-") else 1.0
+    body = duration.lstrip("+-")
+    parts = _GO_DURATION_PART.findall(body)
+    if not parts or "".join(amount + unit for amount, unit in parts) != body:
+        return 0.0
+    return sign * sum(float(amount) * _GO_UNIT_SECONDS[unit] for amount, unit in parts)
+
+
+def go_duration(seconds: int) -> str:
+    """Whole seconds as the LAPI spells a duration, such as ``1h0m5s``."""
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}h{minutes}m{secs}s"
+    if minutes:
+        return f"{minutes}m{secs}s"
+    return f"{secs}s"
 
 
 @dataclass

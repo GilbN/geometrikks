@@ -173,13 +173,18 @@ class CrowdSecService:
         """Poll the decision stream: decisions added/expired since last call.
 
         The LAPI tracks stream state per bouncer key; ``startup=True`` on the
-        first call returns the full current state instead of a delta.
+        first call returns the full current state instead of a delta. Every
+        decision comes on its own, not just the longest per target and type,
+        in the four scopes the LAPI names. The stream has no way to ask for
+        every scope.
 
         Raises:
             CrowdSecAuthError: The LAPI rejected the bouncer API key.
             CrowdSecUnavailableError: The LAPI is unreachable or errored.
         """
-        params = {"startup": "true"} if startup else {}
+        params = {"dedup": "false", "scopes": "ip,range,country,as"}
+        if startup:
+            params["startup"] = "true"
         try:
             resp = await self._client.get(
                 "/v1/decisions/stream", headers=self._bouncer_headers, params=params
