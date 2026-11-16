@@ -15,10 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The CrowdSec badges and the map's Banned view now read the banned IPs from the decision stream GeoMetrikks already polls. Before, each load asked the LAPI for every decision, which took 750 ms or more with large blocklists. A change can now take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds, 15 by default, to show. Bans and unbans made in GeoMetrikks still show at once. Give GeoMetrikks a bouncer key of its own. When another bouncer polls the stream with the same key, the list can be wrong for up to 10 minutes.
 - When the scheduled GeoLite2 refresh can't reach MaxMind, for example during a short DNS outage, it tries again after 30 seconds and again after 2 minutes before it reports the job as failed. The download at startup still makes one attempt.
 
 ### Fixed
 
+- Opening an IP's sheet or menu no longer downloads the whole CrowdSec ban list again.
+- Large responses come back faster when the browser reaches GeoMetrikks over plain http. The browser then asks for gzip, which the server now compresses at level 4 instead of 9. The CrowdSec ban list with 40,000 IPs took 236 ms to compress before and 55 ms now.
 - Settings > Agents no longer says ingestion on an instance is not running for up to 30 seconds after the instance restarts. While it starts up, its Ingestion row reads Starting, and the instance reports in again as soon as ingestion runs.
 - A missed run of a scheduled job no longer hides the error from the run before it on Settings > Scheduler.
 - On the Security page, switching tabs no longer clears the other tabs' search, filters and page.

@@ -589,6 +589,9 @@ export function useBannedIps() {
     queryKey: queryKeys.crowdsec.bannedIps,
     queryFn: fetchCrowdsecBannedIps,
     enabled: status?.enabled === true,
+    // With CAPI blocklists the list holds tens of thousands of IPs. Without a
+    // staleTime, each IP sheet or popup that mounts refetches it.
+    staleTime: 60_000,
     refetchInterval: 60_000,
     select: (ips) => new Map(ips.map((entry) => [entry.ip, entry.type])),
   })
@@ -615,6 +618,7 @@ export function useBannedRanges(active = true) {
     queryKey: queryKeys.crowdsec.bannedRanges,
     queryFn: fetchCrowdsecBannedRanges,
     enabled: active && status?.enabled === true,
+    staleTime: 60_000,
     refetchInterval: 60_000,
     select: selectBannedRanges,
   })

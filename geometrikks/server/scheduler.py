@@ -527,9 +527,11 @@ async def create_scheduler(
         )
         logger.info("Scheduled AbuseIPDB blacklist refresh every %s", blacklist_schedule)
 
-    # CrowdSec decision-stream poll: feeds live ban/unban updates to the
-    # /ws/crowdsec subscribers. Only registered when the integration is on;
-    # agents never receive a poller (crowdsec_lifespan no-ops for them).
+    # CrowdSec decision-stream poll: keeps the banned-IP set and feeds live
+    # ban/unban updates to the /ws/crowdsec subscribers. Only registered when
+    # the integration is on; agents never receive a poller (crowdsec_lifespan
+    # no-ops for them). It runs at startup too, because /banned-ips asks the
+    # LAPI for every decision until the first poll loads the set.
     if mode != "agent" and crowdsec_poller is not None:
         scheduler.add_job(
             crowdsec_poller.poll,
@@ -538,6 +540,7 @@ async def create_scheduler(
             name="Poll CrowdSec decision stream",
             max_instances=1,
             replace_existing=True,
+            next_run_time=datetime.now(UTC),
             misfire_grace_time=10,  # seconds
         )
         logger.info(

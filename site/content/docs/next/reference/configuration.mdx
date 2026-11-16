@@ -218,7 +218,7 @@ connection pool that runs dry or a log that rotates too often.
 | `MAP_PUBLIC_IP_TIMEOUT` | `3.0` | Timeout in seconds for public-IP discovery. |
 | `MAP_SERVER_LOCATION_REFRESH_HOURS` | `24` | Hours between re-detecting this server's public-IP location and updating its stored server locations. Formerly `MAP_HOME_REFRESH_HOURS`, which still works until 1.0. |
 | `CROWDSEC_REQUEST_TIMEOUT` | `10.0` | LAPI request timeout in seconds |
-| `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls feeding live ban/unban updates |
+| `CROWDSEC_STREAM_POLL_INTERVAL` | `15.0` | Seconds between decision-stream polls, which keep the banned-IP list and the live ban/unban updates current |
 | `DROP_REFRESH_HOURS` | `24` | Hours between DROP list downloads. A list is never fetched again within an hour of its last attempt, whatever this is set to. |
 | `ABUSEIPDB_BLACKLIST_REFRESH_HOURS` | `24` | Hours between blacklist downloads, from 6 to 36. The list is never fetched again within 5 hours of the last attempt, since free plans get 5 calls a day. If downloads keep failing, a list more than 72 hours old is no longer shown. Not used with ABUSEIPDB_BLACKLIST_FILE. |
 | `ABUSEIPDB_REQUEST_TIMEOUT` | `10.0` | AbuseIPDB request timeout in seconds |
