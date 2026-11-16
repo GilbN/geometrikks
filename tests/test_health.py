@@ -269,6 +269,20 @@ def test_health_ingestion_status_degraded_when_service_not_running(monkeypatch):
     assert body["ingestion"]["running"] is False
 
 
+def test_health_ingestion_status_starting_before_startup_reaches_ingestion(monkeypatch):
+    async def db_up(app, timeout: float = 2.0) -> bool:
+        return True
+    monkeypatch.setattr(health_module, "_database_reachable", db_up)
+
+    app = make_app()
+    app.state.ingestion_starting = True
+    with TestClient(app=app) as client:
+        body = client.get("/health").json()
+    assert body["ingestion"]["status"] == "starting"
+    assert body["ingestion"]["running"] is False
+    assert body["status"] == "healthy"
+
+
 def test_health_logparser_disabled_is_not_degraded(monkeypatch):
     """LOGPARSER_ENABLED=false reports ingestion.status "disabled" and the
     overall status stays healthy -- disabled-by-config is not an outage."""

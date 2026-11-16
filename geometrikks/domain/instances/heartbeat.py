@@ -1,5 +1,6 @@
 """The background task that writes this instance's row in instance_heartbeats."""
 import asyncio
+import contextlib
 import time
 from collections import deque
 from collections.abc import Callable
@@ -82,6 +83,7 @@ class HeartbeatWriter:
         self._schema_revision: str | None = None
         self._started_at = runtime.get_started_at(app) or datetime.now(UTC)
         self._task: asyncio.Task[None] | None = None
+        self._wake = asyncio.Event()
         self._lines_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
         self._failed_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
         self._written_counter = RollingCounter(window_seconds=_COUNTER_WINDOW_SECONDS)
@@ -119,10 +121,16 @@ class HeartbeatWriter:
             self._task = None
             logger.info("heartbeat_writer_stopped", instance_name=self._instance_name)
 
+    def beat_soon(self) -> None:
+        """Write the next heartbeat now instead of at the end of the interval."""
+        self._wake.set()
+
     async def _run(self) -> None:
         while True:
             await self.beat()
-            await asyncio.sleep(self._interval)
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._wake.wait(), timeout=self._interval)
+            self._wake.clear()
 
     async def beat(self) -> bool:
         """Write one heartbeat; False when the write failed."""

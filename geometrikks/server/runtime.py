@@ -38,6 +38,15 @@ def get_ingestion_service(app: Litestar) -> LogIngestionService | None:
     return getattr(app.state, "ingestion_service", None)
 
 
+def is_ingestion_starting(app: Litestar) -> bool:
+    """Whether startup has yet to reach the point where it starts ingestion.
+
+    The first heartbeat goes out before then, and an agent can wait minutes
+    there for the head's migration.
+    """
+    return bool(getattr(app.state, "ingestion_starting", False))
+
+
 def get_release_checker(app: Litestar) -> ReleaseChecker | None:
     """None when the release check is off or the scheduler never registered it."""
     return getattr(app.state, "release_checker", None)

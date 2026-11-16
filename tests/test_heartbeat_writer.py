@@ -114,6 +114,58 @@ async def test_start_beats_immediately_and_stop_cancels_the_sleep() -> None:
     assert engine.begin_calls == 1
 
 
+async def test_beat_soon_writes_without_waiting_for_the_interval() -> None:
+    engine = _UnreachableEngine()
+    writer = _writer(engine, interval=3600.0)
+    writer.start()
+    async with asyncio.timeout(5):
+        while engine.begin_calls == 0:
+            await asyncio.sleep(0.01)
+        writer.beat_soon()
+        while engine.begin_calls == 1:
+            await asyncio.sleep(0.01)
+    await writer.stop()
+    assert engine.begin_calls == 2
+
+
+class _GatedEngine:
+    """Holds each write open until the test releases it, then fails it."""
+
+    def __init__(self) -> None:
+        self.begin_calls = 0
+        self.release = asyncio.Event()
+
+    def begin(self) -> Any:
+        self.begin_calls += 1
+        engine = self
+
+        class _Connection:
+            async def __aenter__(self) -> None:
+                await engine.release.wait()
+                engine.release.clear()
+                raise OSError("connection refused")
+
+            async def __aexit__(self, *exc_info: object) -> None:
+                return None
+
+        return _Connection()
+
+
+async def test_beat_soon_during_a_beat_writes_again_once_it_finishes() -> None:
+    engine = _GatedEngine()
+    writer = _writer(cast("Any", engine), interval=3600.0)
+    writer.start()
+    async with asyncio.timeout(5):
+        while engine.begin_calls == 0:
+            await asyncio.sleep(0.01)
+        writer.beat_soon()
+        engine.release.set()
+        while engine.begin_calls == 1:
+            await asyncio.sleep(0.01)
+    await writer.stop()
+    assert engine.begin_calls == 2
+
+
 
 def _service_totals(
     *, parsed_lines: int, failed_records: int, written_records: int, failed_batches: int

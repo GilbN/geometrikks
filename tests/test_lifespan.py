@@ -250,6 +250,88 @@ async def test_ingestion_start_failure_still_stops_service(monkeypatch):
     ingestion.stop.assert_awaited_once()
 
 
+@pytest.mark.parametrize("db_available", [True, False])
+async def test_ingestion_stops_counting_as_starting_once_startup_reaches_it(monkeypatch, db_available):
+    """Heartbeats sent before startup reaches ingestion report it as starting,
+    not degraded. Once startup has tried to start ingestion, the next heartbeat
+    goes out at once."""
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.server import lifecycle as lc
+
+    ingestion, _ = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=db_available, ensure=AsyncMock(return_value=True)
+    )
+    app = SimpleNamespace(state=SimpleNamespace())
+    starting_while_ingestion_starts: list[bool] = []
+    ingestion.start = AsyncMock(
+        side_effect=lambda **_: starting_while_ingestion_starts.append(app.state.ingestion_starting)
+    )
+    beat_soon = MagicMock()
+    monkeypatch.setattr(HeartbeatWriter, "beat_soon", beat_soon)
+
+    async with enter_lifespan(app):
+        assert app.state.ingestion_starting is False
+        beat_soon.assert_called_once_with()
+
+    assert starting_while_ingestion_starts == ([True] if db_available else [])
+
+
+@pytest.mark.parametrize("failing_step", ["scheduler", "ingestion"])
+async def test_failed_startup_writes_a_last_heartbeat_after_stopping_the_loop(monkeypatch, failing_step):
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.server import lifecycle as lc
+
+    ingestion, _ = _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    app = SimpleNamespace(state=SimpleNamespace())
+    order: list[str] = []
+    starting_at_last_beat: list[bool] = []
+    if failing_step == "scheduler":
+        scheduler = cast("AsyncMock", lc.create_scheduler).return_value
+        scheduler.start = MagicMock(side_effect=RuntimeError("startup exploded"))
+    else:
+        ingestion.start = AsyncMock(side_effect=RuntimeError("startup exploded"))
+        ingestion.stop = AsyncMock(side_effect=lambda timeout=None: order.append("ingestion"))
+
+    async def record_stop(self) -> None:
+        order.append("writer_stop")
+
+    async def record_beat(self) -> bool:
+        order.append("beat")
+        starting_at_last_beat.append(app.state.ingestion_starting)
+        return True
+
+    monkeypatch.setattr(HeartbeatWriter, "stop", record_stop)
+    monkeypatch.setattr(HeartbeatWriter, "beat", record_beat)
+
+    with pytest.raises(RuntimeError, match="startup exploded"):
+        async with enter_lifespan(app):
+            pass
+
+    stopped_ingestion = ["ingestion"] if failing_step == "ingestion" else []
+    assert order == [*stopped_ingestion, "writer_stop", "beat", "writer_stop"]
+    assert starting_at_last_beat == [False]
+
+
+async def test_a_failure_after_startup_writes_no_extra_heartbeat(monkeypatch):
+    from geometrikks.domain.instances.heartbeat import HeartbeatWriter
+    from geometrikks.server import lifecycle as lc
+
+    _patch_startup_collaborators(
+        monkeypatch, lc, db_available=True, ensure=AsyncMock(return_value=True)
+    )
+    beat = AsyncMock(return_value=True)
+    monkeypatch.setattr(HeartbeatWriter, "beat", beat)
+
+    app = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(RuntimeError, match="served and then failed"):
+        async with enter_lifespan(app):
+            raise RuntimeError("served and then failed")
+
+    beat.assert_not_awaited()
+
+
 async def test_db_degraded_mode_skips_scheduler_and_ingestion(monkeypatch):
     """DB-degraded mode serves the API but never starts DB-bound services."""
     from geometrikks.server import lifecycle as lc

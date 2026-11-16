@@ -79,11 +79,11 @@ class IngestionHealth(msgspec.Struct, rename="camel"):
     ]
     # Additive: kept alongside `running` for wire compatibility.
     status: Annotated[
-        Literal["running", "degraded", "disabled"],
+        Literal["running", "starting", "degraded", "disabled"],
         msgspec.Meta(
             description=(
-                "`disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, "
-                "else `running`."
+                "`disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion "
+                "yet, `degraded` when ingestion should run but does not, else `running`."
             )
         ),
     ] = "running"
@@ -569,15 +569,25 @@ def _collect_advisories(app: Litestar, settings: Settings) -> list[Advisory]:
     return sorted(advisories, key=lambda advisory: advisory.severity != "critical")
 
 
-def build_ingestion_health(settings: Settings, ingestion_service: LogIngestionService | None) -> IngestionHealth:
+def build_ingestion_health(
+    settings: Settings, ingestion_service: LogIngestionService | None, *, starting: bool = False
+) -> IngestionHealth:
     """The local parser's health, independent of agents and database totals."""
     is_running = ingestion_service.is_running if ingestion_service else False
     # A tailer keeps waiting for an unavailable source through log rotation,
     # so running can stay true while some sources are unreadable.
     unavailable_sources = ingestion_service.unavailable_sources if ingestion_service else []
     missing_files = [source.label for source in unavailable_sources]
+    ingestion_status: Literal["running", "starting", "degraded", "disabled"]
     # Disabling parsing is an operator choice, not an outage.
-    ingestion_status = "disabled" if not settings.logparser.enabled else "running" if is_running else "degraded"
+    if not settings.logparser.enabled:
+        ingestion_status = "disabled"
+    elif is_running:
+        ingestion_status = "running"
+    elif starting:
+        ingestion_status = "starting"
+    else:
+        ingestion_status = "degraded"
     last_record_at = ingestion_service.last_record_at if ingestion_service else None
     return IngestionHealth(
         running=is_running,
@@ -615,7 +625,9 @@ def build_health_response(
     def _iso(dt: datetime | None) -> str | None:
         return dt.isoformat() if dt else None
 
-    ingestion_health = build_ingestion_health(settings, ingestion_service)
+    ingestion_health = build_ingestion_health(
+        settings, ingestion_service, starting=runtime.is_ingestion_starting(app)
+    )
     services_active = runtime.is_db_available(app, default=True)
 
     poller = runtime.get_crowdsec_poller(app)

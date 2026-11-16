@@ -4415,8 +4415,8 @@ export const IngestionHealthSchema = {
     status: {
       default: "running",
       description:
-        "`disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.",
-      enum: ["running", "degraded", "disabled"],
+        "`disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion yet, `degraded` when ingestion should run but does not, else `running`.",
+      enum: ["running", "starting", "degraded", "disabled"],
       type: "string",
     },
     unavailableSources: {
