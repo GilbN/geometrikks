@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The CrowdSec badges and the map's Banned view now read the banned IPs from the decision stream GeoMetrikks already polls. Before, each load asked the LAPI for every decision, which took 750 ms or more with large blocklists. A change can now take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds, 15 by default, to show. Bans and unbans made in GeoMetrikks still show at once. Give GeoMetrikks a bouncer key of its own. When another bouncer polls the stream with the same key, the list can be wrong for up to 10 minutes.
-- Pages that mark AbuseIPDB blacklist IPs get the list faster. A reload within 5 minutes reuses the browser's copy instead of asking the server, and the server answers in about 0.45 seconds instead of 0.8 with 100,000 listed IPs. When the list changes or expires, a page reloaded within those 5 minutes still shows the old marks, and keeps them for up to an hour, as an open page already did.
+- Pages that mark AbuseIPDB blacklist IPs get the list faster. A reload within 5 minutes reuses the browser's copy instead of asking the server, and the server answers in about 0.45 seconds instead of 0.8 with 100,000 listed IPs. When the list changes or expires, a page reloaded within those 5 minutes still shows the old marks until it fetches the list again, which it does no more than once an hour, as an open page already did.
 - When the scheduled GeoLite2 refresh can't reach MaxMind, for example during a short DNS outage, it tries again after 30 seconds and again after 2 minutes before it reports the job as failed. The download at startup still makes one attempt.
 
 ### Fixed
