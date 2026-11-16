@@ -135,8 +135,13 @@ class AbuseIpdbBlacklistRepository(SQLAlchemyAsyncRepository[AbuseIpdbBlacklistE
         return (await self.session.execute(statement)).scalar_one_or_none()
 
     async def ips(self) -> list[str]:
-        statement = select(AbuseIpdbBlacklistEntry.ip_address).order_by(AbuseIpdbBlacklistEntry.ip_address)
-        return [str(ip_address) for ip_address in (await self.session.execute(statement)).scalars()]
+        # host() drops the /32 or /128 that a text cast adds.
+        # Postgres writes ::3.5.140.9 where Python writes ::305:8c09, so dotted IPv6 text goes through Python.
+        statement = select(func.host(AbuseIpdbBlacklistEntry.ip_address)).order_by(AbuseIpdbBlacklistEntry.ip_address)
+        return [
+            str(ipaddress.ip_address(ip_text)) if ":" in ip_text and "." in ip_text else ip_text
+            for ip_text in (await self.session.execute(statement)).scalars()
+        ]
 
     async def claim_attempt(self, now: datetime, *, last_allowed: datetime) -> bool:
         """Record an attempt at ``now`` unless one happened after ``last_allowed``; False means it did."""
