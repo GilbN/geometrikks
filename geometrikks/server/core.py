@@ -121,6 +121,10 @@ def create_app(
         backend="brotli",
         minimum_size=1000,  # Only compress responses >= 1KB
         brotli_quality=4,
+        # Browsers offer only gzip over plain http. Litestar's default level 9
+        # spent 200 ms on a 1.4 MB body that level 4 compresses in 23 ms, for
+        # a body 12% larger.
+        gzip_compress_level=4,
         exclude=[
             r"^/ws/.*",  # Exclude WebSocket endpoints
         ],
