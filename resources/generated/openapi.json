@@ -15187,7 +15187,7 @@
     "/api/v1/crowdsec/decisions": {
       "get": {
         "deprecated": false,
-        "description": "Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate.",
+        "description": "Returns the active decisions grouped by target, in the order the LAPI lists them, paged with `currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and 24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP database fills in the place for an IP the logs do not locate. The decisions come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecDecisionsListDecisions",
         "parameters": [
           {
@@ -15660,7 +15660,7 @@
     "/api/v1/crowdsec/stats": {
       "get": {
         "deprecated": false,
-        "description": "Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions.",
+        "description": "Returns how many decisions are active across every origin, blocklists included, with the count per origin and the ten scenarios with the most decisions. The counts come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecStatsGetStats",
         "responses": {
           "200": {

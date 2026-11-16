@@ -11,7 +11,7 @@ import ipaddress
 import re
 import time
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import reduce
@@ -52,7 +52,6 @@ from geometrikks.domain.security.dependencies import (
 )
 from geometrikks.domain.security.grouping import (
     DecisionGroup,
-    go_duration_seconds,
     group_decisions,
     search_groups,
     search_network,
@@ -102,7 +101,8 @@ from geometrikks.services.crowdsec import (
     DecisionType,
     manual_reason,
 )
-from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller, HeldDecision
+from geometrikks.services.crowdsec.schemas import go_duration_seconds
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
 from geometrikks.services.geoip.locator import GeoIpLocator
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -725,39 +725,36 @@ def _banned_ranges(
     return banned_ranges
 
 
-def _hold_tracked_host_networks(
-    banned_ranges: dict[str, BannedRangeView],
-    tracked: Mapping[str, Mapping[str, HeldDecision]],
-    host_networks: frozenset[str],
-    now: datetime,
-) -> None:
-    """Add the poller's Ip decisions on single-address networks to ``banned_ranges``."""
-    for cidr in host_networks:
-        for decision_type, held in tracked.get(str(ipaddress.ip_network(cidr).network_address), {}).items():
-            seconds_left = go_duration_seconds(held.duration)
-            expires_at = held.seen_at + timedelta(seconds=seconds_left) if seconds_left > 0 else None
-            if expires_at is not None and expires_at <= now:
-                continue
-            _hold_strongest(banned_ranges, cidr, decision_type, expires_at)
+async def _current_decisions(
+    service: CrowdSecService,
+    poller: CrowdSecStreamPoller | None,
+    *,
+    origins: str | None = None,
+    scopes: str | None = None,
+) -> list[Decision]:
+    """Active decisions from the poller, or from the LAPI while the poller has none.
+
+    ``origins`` and ``scopes`` are comma-separated, as the LAPI takes them.
+    """
+    tracked = (
+        poller.decisions(
+            scopes=set(scopes.split(",")) if scopes else None, origins=set(origins.split(",")) if origins else None
+        )
+        if poller is not None
+        else None
+    )
+    return tracked if tracked is not None else await service.get_decisions(origins=origins, scopes=scopes)
 
 
 async def _active_banned_ranges(
     service: CrowdSecService, drop_snapshot: DropSnapshot, poller: CrowdSecStreamPoller | None
 ) -> dict[str, BannedRangeView]:
-    """Range decisions, plus Ip decisions on the snapshot's single-address networks.
-
-    The Ip decisions come from the poller when it has them. Asking the LAPI
-    for them means asking for every Ip decision, blocklists included.
-    """
+    """Range decisions, plus Ip decisions on the snapshot's single-address networks."""
     host_networks = drop_snapshot.host_networks
-    now = datetime.now(UTC)
-    tracked = poller.ip_decisions() if poller is not None and host_networks else None
-    if host_networks and tracked is None:
-        return _banned_ranges(await service.get_decisions(scopes="Range,Ip"), now, host_networks)
-    banned_ranges = _banned_ranges(await service.get_decisions(scopes="Range"), now)
-    if tracked is not None:
-        _hold_tracked_host_networks(banned_ranges, tracked, host_networks, now)
-    return banned_ranges
+    # Asking the LAPI for Ip decisions means asking for every one, blocklists included.
+    scopes = "Range,Ip" if host_networks else "Range"
+    decisions = await _current_decisions(service, poller, scopes=scopes)
+    return _banned_ranges(decisions, datetime.now(UTC), host_networks)
 
 
 async def _banned_ranges_if_reachable(
@@ -846,12 +843,15 @@ class CrowdSecController(Controller):
             "Returns the active decisions grouped by target, in the order the LAPI lists them, paged with "
             "`currentPage` and `pageSize`. `total` counts targets, not decisions. The country, city and "
             "24-hour request count come from GeoMetrikks' own access logs of the last 30 days, and the GeoIP "
-            "database fills in the place for an IP the logs do not locate."
+            "database fills in the place for an IP the logs do not locate. The decisions come from the "
+            "decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` "
+            "seconds to show."
         ),
     )
     async def list_decisions(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         geoip: NamedDependency[SkipValidation[GeoIpLocator | None]],
         limit_offset: NamedDependency[filters.LimitOffset],
@@ -894,9 +894,9 @@ class CrowdSecController(Controller):
             # "Is this IP banned" has the same answer on every tab, so an IP or
             # range search reads every origin; the LAPI sends them all when
             # none are named, console and cscli-import included.
-            decisions = await service.get_decisions()
+            decisions = await _current_decisions(service, crowdsec_poller)
         else:
-            decisions = await service.get_decisions(origins=origins or DEFAULT_ORIGINS)
+            decisions = await _current_decisions(service, crowdsec_poller, origins=origins or DEFAULT_ORIGINS)
         groups = group_decisions(decisions)
         if query:
             groups = search_groups(groups, query)
@@ -958,7 +958,7 @@ class CrowdSecController(Controller):
         subscribed CAPI blocklist holds tens of thousands of decisions.
         """
         service = _require_service(crowdsec)
-        tracked = crowdsec_poller.ip_decisions() if crowdsec_poller is not None else None
+        tracked = crowdsec_poller.ip_decision_types() if crowdsec_poller is not None else None
         if tracked is not None:
             return [BannedIp(ip=ip, type=reduce(decision_winner, types)) for ip, types in tracked.items()]
         decisions = await service.get_decisions()
@@ -1124,7 +1124,7 @@ class CrowdSecController(Controller):
         all of them. This is current decision state, not ban history.
         """
         service = _require_service(crowdsec)
-        tracked = crowdsec_poller.ip_decisions() if crowdsec_poller is not None else None
+        tracked = crowdsec_poller.ip_decision_types() if crowdsec_poller is not None else None
         banned_ips = list(tracked) if tracked is not None else active_decision_ips(await service.get_decisions())
         locations = await enrichment_repo.locations(
             banned_ips, start=from_timestamp, end=to_timestamp,
@@ -1613,15 +1613,18 @@ class CrowdSecController(Controller):
         summary="Count the active CrowdSec decisions by origin and scenario",
         description=(
             "Returns how many decisions are active across every origin, blocklists included, with the count per "
-            "origin and the ten scenarios with the most decisions."
+            "origin and the ten scenarios with the most decisions. The counts come from the decision stream the "
+            "server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show."
         ),
     )
     async def get_stats(
-        self, crowdsec: NamedDependency[CrowdSecService | None]
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
     ) -> CrowdSecStatsResponse:
         """Decision counts by origin and top scenarios, across all origins."""
         service = _require_service(crowdsec)
-        decisions = await service.get_decisions()
+        decisions = await _current_decisions(service, crowdsec_poller)
         origin_counts = Counter(d.origin for d in decisions)
         scenario_counts = Counter(d.scenario for d in decisions)
         return CrowdSecStatsResponse(

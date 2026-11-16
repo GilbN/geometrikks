@@ -1,40 +1,41 @@
-"""Decision stream poller: keeps the banned-IP set and fans LAPI ban/unban deltas out to live subscribers."""
+"""Decision stream poller: keeps the active decisions and fans LAPI ban/unban deltas out to live subscribers."""
 from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from geometrikks.lib.validation import canonical_ip
 from geometrikks.server.logging import get_logger
 from geometrikks.services.crowdsec.exceptions import CrowdSecError
-from geometrikks.services.crowdsec.schemas import Decision, DecisionStreamDelta
+from geometrikks.services.crowdsec.schemas import (
+    Decision,
+    DecisionStreamDelta,
+    go_duration,
+    go_duration_seconds,
+)
 from geometrikks.services.crowdsec.service import CrowdSecService
 
 logger = get_logger(__name__)
 
 DecisionFrame = dict[str, Any]
+IpKey = tuple[str, str]
 
 RESYNC_SECONDS = 600.0
 
 
 @dataclass(frozen=True, slots=True)
-class HeldDecision:
-    """The decision the stream last sent for one IP and type.
-
-    ``duration`` is the time left as the LAPI sent it at ``seen_at``.
-    """
-
-    origin: str
-    duration: str
-    seen_at: datetime
+class _Held:
+    decision: Decision
+    # None when the duration did not parse; the stream still reports the end.
+    expires_at: datetime | None
 
 
-def _held(decision: Decision, seen_at: datetime) -> HeldDecision:
-    return HeldDecision(origin=decision.origin, duration=decision.duration, seen_at=seen_at)
+def _expiry(held: _Held) -> datetime:
+    return held.expires_at or datetime.max.replace(tzinfo=UTC)
 
 
 def _ip_of(decision: Decision) -> str | None:
@@ -50,18 +51,31 @@ def _added_entry(ip: str, decision: Decision) -> DecisionFrame:
     }
 
 
+def _frame(before: Mapping[IpKey, Decision], after: Mapping[IpKey, Decision]) -> DecisionFrame:
+    """The IP and type pairs that gained their first decision or lost their last one."""
+    return {
+        "type": "crowdsec_decisions",
+        "added": [_added_entry(key[0], decision) for key, decision in after.items() if key not in before],
+        "deleted": [
+            {"ip": key[0], "type": key[1], "origin": decision.origin}
+            for key, decision in before.items()
+            if key not in after
+        ],
+    }
+
+
 class CrowdSecStreamPoller:
-    """Polls ``GET /v1/decisions/stream``, keeps the IP decision set, and broadcasts deltas.
+    """Polls ``GET /v1/decisions/stream``, keeps every active decision, and broadcasts deltas.
 
     The first poll passes ``startup=true`` and gets the full current decision
-    state, potentially a whole CAPI blocklist. It seeds the set and is not
-    broadcast: subscribers load the same state from ``/banned-ips``. Later
-    polls return only what changed.
+    state, potentially a whole CAPI blocklist. It seeds the decisions and is
+    not broadcast: subscribers load the same state from ``/banned-ips``.
+    Later polls return only what changed.
 
     The LAPI tracks the stream position per bouncer key, so another bouncer
     polling with the same key takes deltas this poller never sees. Every
-    ``resync_seconds`` a poll asks for the full state again, replaces the set,
-    and broadcasts the difference.
+    ``resync_seconds`` a poll asks for the full state again, replaces the
+    decisions, and broadcasts the difference.
     """
 
     def __init__(self, service: CrowdSecService, *, resync_seconds: float = RESYNC_SECONDS) -> None:
@@ -69,12 +83,9 @@ class CrowdSecStreamPoller:
         self._resync_seconds = resync_seconds
         self._lock = asyncio.Lock()
         self._synced_at: float | None = None
-        # IP -> decision type -> the decision held. With the stream's default
-        # dedup the LAPI sends the longest decision per IP and type, and
-        # reports it deleted only when no decision of that type is left on the
-        # IP. A deleted longest one leaves a shorter one whose expiry is not
-        # sent, so the held duration can run long until the next resync.
-        self._ip_decisions: dict[str, dict[str, HeldDecision]] = {}
+        self._decisions: dict[int, _Held] = {}
+        # IP -> decision type -> ids of the Ip-scoped decisions held.
+        self._ip_types: dict[str, dict[str, set[int]]] = {}
         self._lapi_reachable: bool | None = None
         self._last_success: datetime | None = None
         self._subscribers: set[asyncio.Queue[DecisionFrame]] = set()
@@ -101,15 +112,47 @@ class CrowdSecStreamPoller:
     def last_success(self) -> datetime | None:
         return self._last_success
 
-    def ip_decisions(self) -> Mapping[str, Mapping[str, HeldDecision]] | None:
-        """Each IP under an Ip-scoped decision, by decision type.
+    def _current(self) -> bool:
+        """False until the first poll succeeds and while the last poll failed,
+        when the decisions may have fallen behind the LAPI."""
+        return self._synced_at is not None and self._lapi_reachable is True
 
-        None until the first poll succeeds and while the last poll failed,
-        when the set may have fallen behind the LAPI.
+    def ip_decision_types(self) -> Mapping[str, Collection[str]] | None:
+        """The decision types on each IP under an Ip-scoped decision, or None when not current."""
+        return self._ip_types if self._current() else None
+
+    def decisions(
+        self, *, scopes: Collection[str] | None = None, origins: Collection[str] | None = None
+    ) -> list[Decision] | None:
+        """Every active decision, with the time left as of now, or None when not current.
+
+        ``scopes`` and ``origins`` keep the decisions whose scope or origin
+        they name, spelled as the LAPI sends them (``Ip``, ``CAPI``).
         """
-        if self._synced_at is None or self._lapi_reachable is not True:
+        if not self._current():
             return None
-        return self._ip_decisions
+        now = datetime.now(UTC)
+        active: list[Decision] = []
+        for held in self._decisions.values():
+            decision = held.decision
+            if (scopes is not None and decision.scope not in scopes) or (
+                origins is not None and decision.origin not in origins
+            ):
+                continue
+            if held.expires_at is None:
+                active.append(decision)
+                continue
+            seconds_left = round((held.expires_at - now).total_seconds())
+            if seconds_left <= 0:
+                continue
+            # Field by field because dataclasses.replace takes twice as long
+            # over a CAPI blocklist, so a new Decision field must be added here.
+            active.append(Decision(
+                id=decision.id, origin=decision.origin, type=decision.type, scope=decision.scope,
+                value=decision.value, duration=go_duration(seconds_left), scenario=decision.scenario,
+                simulated=decision.simulated,
+            ))
+        return active
 
     def _broadcast(self, frame: DecisionFrame) -> None:
         for queue in self._subscribers:
@@ -154,7 +197,7 @@ class CrowdSecStreamPoller:
             return
         if self._lapi_reachable is False:
             logger.success("crowdsec_stream_connected")  # ty: ignore[unresolved-attribute]
-        # Update the set before any frame goes out, since a subscriber
+        # Update the decisions before any frame goes out, since a subscriber
         # refetches /banned-ips when a frame arrives.
         frame = self._replace(delta.new) if full else self._apply(delta)
         self._set_reachable(True)
@@ -166,52 +209,72 @@ class CrowdSecStreamPoller:
         )
         self._broadcast(frame)
 
+    def _hold(self, decision: Decision, now: datetime) -> None:
+        if decision.id is None:
+            return
+        self._drop(decision.id)
+        seconds_left = go_duration_seconds(decision.duration)
+        expires_at = now + timedelta(seconds=seconds_left) if seconds_left > 0 else None
+        self._decisions[decision.id] = _Held(decision, expires_at)
+        if (ip := _ip_of(decision)) is not None:
+            self._ip_types.setdefault(ip, {}).setdefault(decision.type, set()).add(decision.id)
+
+    def _drop(self, decision_id: int) -> None:
+        held = self._decisions.pop(decision_id, None)
+        if held is None or (ip := _ip_of(held.decision)) is None:
+            return
+        types = self._ip_types[ip]
+        ids = types[held.decision.type]
+        ids.discard(decision_id)
+        if not ids:
+            del types[held.decision.type]
+        if not types:
+            del self._ip_types[ip]
+
+    def _longest(self, keys: Iterable[IpKey]) -> dict[IpKey, Decision]:
+        """The longest-lived decision held on each IP and type that has one."""
+        longest: dict[IpKey, Decision] = {}
+        for ip, kind in keys:
+            ids = self._ip_types.get(ip, {}).get(kind)
+            if ids:
+                longest[ip, kind] = max((self._decisions[i] for i in ids), key=_expiry).decision
+        return longest
+
+    def _ip_keys(self) -> list[IpKey]:
+        return [(ip, kind) for ip, types in self._ip_types.items() for kind in types]
+
     def _apply(self, delta: DecisionStreamDelta) -> DecisionFrame:
-        """Patch the set with one delta, deletions first, as subscribers do."""
-        deleted = []
+        """Patch the decisions with one delta, deletions first."""
+        keys = list(dict.fromkeys(
+            (ip, decision.type)
+            for decision in (*delta.deleted, *delta.new)
+            if (ip := _ip_of(decision)) is not None
+        ))
+        before = self._longest(keys)
         for decision in delta.deleted:
-            if (ip := _ip_of(decision)) is None:
-                continue
-            deleted.append({"ip": ip, "type": decision.type, "origin": decision.origin})
-            held = self._ip_decisions.get(ip)
-            if held is not None:
-                held.pop(decision.type, None)
-                if not held:
-                    del self._ip_decisions[ip]
-        added = []
+            if decision.id is not None:
+                self._drop(decision.id)
         now = datetime.now(UTC)
         for decision in delta.new:
-            if (ip := _ip_of(decision)) is None:
-                continue
-            added.append(_added_entry(ip, decision))
-            self._ip_decisions.setdefault(ip, {})[decision.type] = _held(decision, now)
-        return {"type": "crowdsec_decisions", "added": added, "deleted": deleted}
+            self._hold(decision, now)
+        return _frame(before, self._longest(keys))
 
     def _replace(self, decisions: list[Decision]) -> DecisionFrame | None:
-        """Rebuild the set from the full state. Returns the difference as a frame, or None on the first load."""
-        fresh: dict[str, dict[str, HeldDecision]] = {}
-        added = []
+        """Rebuild the decisions from the full state. Returns the difference as a frame, or None on the first load."""
+        before = self._longest(self._ip_keys())
+        self._decisions = {}
+        self._ip_types = {}
         now = datetime.now(UTC)
         for decision in decisions:
-            if (ip := _ip_of(decision)) is None:
-                continue
-            held = fresh.setdefault(ip, {})
-            if decision.type in held:
-                continue
-            held[decision.type] = _held(decision, now)
-            if decision.type not in self._ip_decisions.get(ip, {}):
-                added.append(_added_entry(ip, decision))
+            self._hold(decision, now)
         first_load = self._synced_at is None
-        deleted = [
-            {"ip": ip, "type": kind, "origin": held_decision.origin}
-            for ip, held in self._ip_decisions.items()
-            for kind, held_decision in held.items()
-            if kind not in fresh.get(ip, {})
-        ]
-        self._ip_decisions = fresh
         self._synced_at = time.monotonic()
         if first_load:
-            logger.info("crowdsec_decisions_loaded", ips=len(fresh))
+            logger.info("crowdsec_decisions_loaded", decisions=len(self._decisions), ips=len(self._ip_types))
             return None
-        logger.debug("crowdsec_decisions_resynced", ips=len(fresh), added=len(added), deleted=len(deleted))
-        return {"type": "crowdsec_decisions", "added": added, "deleted": deleted}
+        frame = _frame(before, self._longest(self._ip_keys()))
+        logger.debug(
+            "crowdsec_decisions_resynced", decisions=len(self._decisions), ips=len(self._ip_types),
+            added=len(frame["added"]), deleted=len(frame["deleted"]),
+        )
+        return frame
