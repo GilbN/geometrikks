@@ -592,6 +592,82 @@ async def test_a_matching_etag_skips_the_list(pg_session_maker, clean_abuseipdb_
     assert revalidated == blacklist_module.CurrentBlacklist(etag=first.etag, body=None)
 
 
+async def test_an_expired_or_disabled_list_ignores_a_matching_etag(
+    pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry
+):
+    refreshed_at = NOW - timedelta(hours=72, seconds=1)
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=refreshed_at)
+    etag = blacklist_module._etag(refreshed_at, GENERATED_AT)
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+
+        assert await current_blacklist(repository, enabled=True, now=NOW, if_none_match=etag) is None
+        assert await current_blacklist(repository, enabled=False, now=NOW, if_none_match=etag) is None
+
+
+async def test_concurrent_first_reads_load_the_rows_once(
+    pg_session_maker, clean_abuseipdb_blacklist, monkeypatch: pytest.MonkeyPatch
+):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1))
+    row_reads = 0
+    read_rows = AbuseIpdbBlacklistRepository.ips
+    read_status = AbuseIpdbBlacklistRepository.status
+    both_read_the_status = asyncio.Barrier(2)
+
+    async def counted_read(repository: AbuseIpdbBlacklistRepository) -> list[str]:
+        nonlocal row_reads
+        row_reads += 1
+        return await read_rows(repository)
+
+    async def status_then_wait(repository: AbuseIpdbBlacklistRepository) -> AbuseIpdbBlacklistStatus | None:
+        status = await read_status(repository)
+        await both_read_the_status.wait()
+        return status
+
+    monkeypatch.setattr(AbuseIpdbBlacklistRepository, "ips", counted_read)
+    monkeypatch.setattr(AbuseIpdbBlacklistRepository, "status", status_then_wait)
+
+    async def read_once():
+        async with pg_session_maker() as session:
+            repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+            return await current_blacklist(repository, enabled=True, now=NOW)
+
+    first, second = await asyncio.gather(read_once(), read_once())
+
+    assert first is not None and second is not None and first.body == second.body
+    assert row_reads == 1
+
+
+async def test_a_list_replaced_mid_read_carries_the_new_version(
+    pg_session_maker, clean_abuseipdb_blacklist, monkeypatch: pytest.MonkeyPatch
+):
+    old_refreshed_at = NOW - timedelta(hours=1)
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=old_refreshed_at)
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        read_rows = repository.ips
+        replaced = False
+
+        async def replace_then_read() -> list[str]:
+            nonlocal replaced
+            if not replaced:
+                replaced = True
+                async with pg_session_maker() as other_session, other_session.begin():
+                    await AbuseIpdbBlacklistRepository(session=other_session, wrap_exceptions=False).replace(
+                        ["3.5.140.9"], generated_at=GENERATED_AT, refreshed_at=NOW
+                    )
+            return await read_rows()
+
+        monkeypatch.setattr(repository, "ips", replace_then_read)
+        blacklist = await current_blacklist(repository, enabled=True, now=NOW)
+
+    assert blacklist is not None and blacklist.body is not None
+    body = msgspec.json.decode(blacklist.body, type=AbuseIpdbBlacklistResponse)
+    assert (body.refreshed_at, body.ips) == (NOW, ["3.5.140.9"])
+    assert blacklist.etag == blacklist_module._etag(NOW, GENERATED_AT)
+    assert blacklist.etag != blacklist_module._etag(old_refreshed_at, GENERATED_AT)
+
+
 async def test_a_later_expiry_is_logged_again(pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry):
     await store_list(pg_session_maker, ["3.5.140.9"], refreshed_at=NOW - timedelta(hours=80))
     with capture_logs() as first_expiry_logs:
@@ -685,6 +761,7 @@ async def test_the_route_answers_a_current_etag_with_304(pg_session_maker, clean
     assert (not_modified.status_code, not_modified.content) == (304, b"")
     assert not_modified.headers["etag"] == etag
     assert not_modified.headers["cache-control"] == "private, max-age=300"
+    assert not_modified.headers["vary"] == "Accept-Encoding"
     assert changed.status_code == 200
     assert changed.headers["etag"] != etag
     assert changed.json()["ips"] == ["3.5.140.2"]

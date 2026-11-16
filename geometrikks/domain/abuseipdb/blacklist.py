@@ -219,17 +219,26 @@ def etag_matches(if_none_match: str | None, etag: str) -> bool:
 
 
 async def _encoded_body(
-    repository: AbuseIpdbBlacklistRepository, refreshed_at: datetime, generated_at: datetime | None
-) -> bytes:
+    repository: AbuseIpdbBlacklistRepository, key: tuple[datetime, datetime | None]
+) -> tuple[tuple[datetime, datetime | None], bytes] | None:
+    """The encoded list and its version, or None if the status row is gone after the read."""
     global _body_key, _body
     async with _body_lock:
-        if _body_key != (refreshed_at, generated_at):
+        while _body_key != key:
             ips = await repository.ips()
-            _body = msgspec.json.encode(
-                AbuseIpdbBlacklistResponse(generated_at=generated_at, refreshed_at=refreshed_at, ips=ips)
-            )
-            _body_key = (refreshed_at, generated_at)
-        return _body
+            # A replacement can commit between the caller's status read and the row read.
+            # The rows count only when the version is unchanged after them.
+            stored_key = await repository.list_version()
+            if stored_key is None:
+                return None
+            if stored_key == key:
+                refreshed_at, generated_at = key
+                _body = msgspec.json.encode(
+                    AbuseIpdbBlacklistResponse(generated_at=generated_at, refreshed_at=refreshed_at, ips=ips)
+                )
+                _body_key = key
+            key = stored_key
+        return key, _body
 
 
 async def current_blacklist(
@@ -254,7 +263,13 @@ async def current_blacklist(
     etag = _etag(status.refreshed_at, status.generated_at)
     if etag_matches(if_none_match, etag):
         return CurrentBlacklist(etag=etag, body=None)
-    return CurrentBlacklist(etag=etag, body=await _encoded_body(repository, status.refreshed_at, status.generated_at))
+    encoded = await _encoded_body(repository, (status.refreshed_at, status.generated_at))
+    if encoded is None:
+        return None
+    (refreshed_at, generated_at), body = encoded
+    if _expired(refreshed_at, generated_at, now=now):
+        return None
+    return CurrentBlacklist(etag=_etag(refreshed_at, generated_at), body=body)
 
 
 def _last_attempt_failed(status: AbuseIpdbBlacklistStatus, *, from_file: bool, now: datetime) -> bool:

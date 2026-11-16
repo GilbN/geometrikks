@@ -374,26 +374,11 @@
       },
       "AbuseIpdbBlacklistResponse": {
         "description": "The IPs on AbuseIPDB's blacklist, as of the last download or file read.",
-        "examples": [
-          {
-            "generatedAt": "2014-02-19T12:44:15.071136",
-            "refreshedAt": "2015-09-24T11:22:40.579119",
-            "ips": [
-              "bgpSmpeFCZfQiysuOZjE"
-            ]
-          }
-        ],
         "properties": {
           "generatedAt": {
             "description": "When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.",
-            "examples": [
-              "2011-10-01T19:02:29.031525"
-            ],
             "oneOf": [
               {
-                "examples": [
-                  "2024-06-30T01:36:10.990620"
-                ],
                 "format": "date-time",
                 "type": "string"
               },
@@ -404,29 +389,15 @@
           },
           "ips": {
             "description": "The listed IPs in their canonical spelling.",
-            "examples": [
-              [
-                "hFRPhSOVrnPxrBBMqbkV"
-              ]
-            ],
             "items": {
-              "examples": [
-                "ZozziJUhCsuKDfYRTwds"
-              ],
               "type": "string"
             },
             "type": "array"
           },
           "refreshedAt": {
             "description": "When GeoMetrikks downloaded the list, as ISO 8601 in UTC. With ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.",
-            "examples": [
-              "2018-12-19T15:55:45.955468"
-            ],
             "oneOf": [
               {
-                "examples": [
-                  "2023-09-06T15:42:39.994381"
-                ],
                 "format": "date-time",
                 "type": "string"
               },

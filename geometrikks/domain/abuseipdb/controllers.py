@@ -187,10 +187,12 @@ class AbuseIpdbController(Controller):
         ),
         responses={
             HTTP_200_OK: ResponseSpec(
-                data_container=AbuseIpdbBlacklistResponse, description="The list, or an empty one."
+                data_container=AbuseIpdbBlacklistResponse,
+                description="The list, or an empty one.",
+                generate_examples=False,
             ),
             HTTP_304_NOT_MODIFIED: ResponseSpec(
-                data_container=None, description="`If-None-Match` names the current list."
+                data_container=None, description="`If-None-Match` names the current list.", generate_examples=False
             ),
             HTTP_401_UNAUTHORIZED: _error("The request has no valid session or API key."),
         },
@@ -212,7 +214,10 @@ class AbuseIpdbController(Controller):
             return Response(EMPTY_BLACKLIST_BODY, media_type=MediaType.JSON, headers={"Cache-Control": "no-cache"})
         headers = {"Cache-Control": "private, max-age=300", "ETag": blacklist.etag}
         if blacklist.body is None:
-            return Response(b"", status_code=HTTP_304_NOT_MODIFIED, headers=headers)
+            # The compression middleware skips an empty body, so it adds no Vary here.
+            return Response(
+                b"", status_code=HTTP_304_NOT_MODIFIED, headers={**headers, "Vary": "Accept-Encoding"}
+            )
         return Response(blacklist.body, media_type=MediaType.JSON, headers=headers)
 
     @get(
