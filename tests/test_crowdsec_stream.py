@@ -374,6 +374,32 @@ async def test_a_blocklist_refresh_is_followed_by_a_full_resync():
     await service.aclose()
 
 
+async def test_a_failed_resync_after_a_blocklist_refresh_is_retried_in_full():
+    calls: list[dict] = []
+    payloads = [
+        {"new": [decision("1.2.3.4", origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+        None,
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+    ]
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        calls.append(dict(request.url.params))
+        payload = payloads[len(calls) - 1]
+        if payload is None:
+            raise httpx2.ReadTimeout("lost")
+        return httpx2.Response(200, json=payload)
+
+    service = make_service(respond)
+    poller = make_poller(service)
+    for _ in range(3):
+        await poller.poll()
+
+    assert calls == [STARTUP, DELTA, STARTUP, STARTUP]
+    assert [held.id for held in poller.decisions()] == [43]
+    await service.aclose()
+
+
 async def test_a_failed_poll_is_followed_by_a_full_resync():
     # The LAPI can move the key's stream position and still fail the
     # response, so the delta it carried never arrives.
