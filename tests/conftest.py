@@ -102,6 +102,16 @@ def reset_drop_snapshot_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def reset_blacklist_body_between_tests():
+    """The encoded blacklist is process-global; keep one test's list out of the next."""
+    from geometrikks.domain.abuseipdb.blacklist import reset_blacklist_body
+
+    reset_blacklist_body()
+    yield
+    reset_blacklist_body()
+
+
+@pytest.fixture(autouse=True)
 def refresh_settings_cache():
     """Clear settings cache so env changes take effect per test.
 

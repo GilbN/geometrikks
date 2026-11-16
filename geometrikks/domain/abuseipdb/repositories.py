@@ -134,6 +134,14 @@ class AbuseIpdbBlacklistRepository(SQLAlchemyAsyncRepository[AbuseIpdbBlacklistE
         statement = select(AbuseIpdbBlacklistStatus).where(AbuseIpdbBlacklistStatus.id == BLACKLIST_STATUS_ID)
         return (await self.session.execute(statement)).scalar_one_or_none()
 
+    async def list_version(self) -> tuple[datetime, datetime | None] | None:
+        """The stored list's ``(refreshed_at, generated_at)``. Selecting columns skips the session's cached status row."""
+        statement = select(AbuseIpdbBlacklistStatus.refreshed_at, AbuseIpdbBlacklistStatus.generated_at).where(
+            AbuseIpdbBlacklistStatus.id == BLACKLIST_STATUS_ID
+        )
+        row = (await self.session.execute(statement)).first()
+        return None if row is None or row.refreshed_at is None else (row.refreshed_at, row.generated_at)
+
     async def ips(self) -> list[str]:
         # host() drops the /32 or /128 that a text cast adds.
         # Postgres writes ::3.5.140.9 where Python writes ::305:8c09, so dotted IPv6 text goes through Python.

@@ -4498,7 +4498,7 @@ export type ApiV1AbuseipdbBlacklistGetBlacklistError =
 
 export type ApiV1AbuseipdbBlacklistGetBlacklistResponses = {
   /**
-   * Request fulfilled, document follows
+   * The list, or an empty one.
    */
   200: AbuseIpdbBlacklistResponse;
 };
