@@ -10,10 +10,17 @@ import {
   FileClock,
   Globe2,
   OctagonX,
+  ShieldAlert,
 } from "lucide-react"
 import { toast } from "sonner"
-import type { AboutResponse, DropListsAboutView } from "@/generated/api/types.gen"
+import type {
+  AboutResponse,
+  AbuseIpdbBlacklistAboutView,
+  DropListsAboutView,
+} from "@/generated/api/types.gen"
+import { formatNumber } from "@/lib/api"
 import { copyText } from "@/lib/clipboard"
+import { formatTs } from "@/lib/datetime"
 import { dropFeedRecords, dropListsErrorLines } from "@/lib/drop-lists"
 import { useAbout, useReleaseCheck } from "@/lib/queries"
 import { releaseCheckLine, skippedReleasesText } from "@/lib/release-check"
@@ -31,6 +38,8 @@ import { Wordmark } from "@/components/brand/wordmark"
 import { AsnListDialog } from "@/components/settings/asn-list-dialog"
 import {
   aboutDetailsText,
+  abuseipdbBlacklistStatus,
+  abuseipdbBlacklistSummary,
   buildDateLabel,
   databaseSummary,
   dropListsStatus,
@@ -350,9 +359,9 @@ function DropListsCredit({ dropLists }: { dropLists: DropListsAboutView }) {
 }
 
 /** The DROP lists card: each feed's last error, record counts, and the list's credit. */
-function DropListsCard({ dropLists }: { dropLists: DropListsAboutView }) {
+function DropListsCard({ dropLists, wide }: { dropLists: DropListsAboutView; wide: boolean }) {
   return (
-    <Card className="md:col-span-2">
+    <Card className={cn(wide && "md:col-span-2")}>
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -408,6 +417,133 @@ function PhoneDropListsValues({ dropLists }: { dropLists: DropListsAboutView }) 
         </>
       ) : (
         <p className="pt-1 text-xs text-muted-foreground">{DROP_LISTS_PENDING}</p>
+      )}
+    </>
+  )
+}
+
+const BLACKLIST_EXPLAINER =
+  "IPs with a 100% abuse confidence score. They get a dashed red outline and an AbuseIPDB blacklist badge."
+
+function blacklistPendingText(blacklist: AbuseIpdbBlacklistAboutView): string {
+  return blacklist.source === "file"
+    ? "GeoMetrikks reads ABUSEIPDB_BLACKLIST_FILE every 5 minutes."
+    : "The scheduler downloads the list a minute after startup, then every ABUSEIPDB_BLACKLIST_REFRESH_HOURS, 24 hours by default."
+}
+
+function blacklistRecords(
+  blacklist: AbuseIpdbBlacklistAboutView,
+): { label: string; value: ReactNode }[] {
+  return [
+    { label: "Listed IPs", value: formatNumber(blacklist.ipCount) },
+    {
+      label: "Generated",
+      value: blacklist.generatedAt ? formatTs(blacklist.generatedAt, "hourly") : "unknown",
+    },
+  ]
+}
+
+const BLACKLIST_SOURCE_LABEL = "Configured source"
+
+/** Why the light is amber or red: a failed download, or a list too old to mark IPs with. */
+function BlacklistNotes({
+  blacklist,
+  className,
+}: {
+  blacklist: AbuseIpdbBlacklistAboutView
+  className: string
+}) {
+  return (
+    <>
+      {blacklist.lastAttemptFailed && blacklist.lastAttemptAt && (
+        <p className={className}>
+          The download at {formatTs(blacklist.lastAttemptAt, "hourly")} failed. The System log line{" "}
+          <MonoChip className="break-words">abuseipdb_blacklist_refresh_failed</MonoChip> gives the
+          reason. Older lines are in the log files on the Downloads tab of{" "}
+          <Link to="/settings/logs" className="tap-area underline underline-offset-2">
+            Logs
+          </Link>
+          .
+        </p>
+      )}
+      {blacklist.expired && (
+        <p className={className}>
+          The list is more than 72 hours old, so GeoMetrikks stops marking its IPs until a newer one
+          arrives.
+        </p>
+      )}
+    </>
+  )
+}
+
+function AbuseIpdbBlacklistCard({
+  blacklist,
+  wide,
+}: {
+  blacklist: AbuseIpdbBlacklistAboutView
+  wide: boolean
+}) {
+  const status = abuseipdbBlacklistStatus(blacklist)
+  return (
+    <Card className={cn(wide && "md:col-span-2")}>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <SectionIcon icon={ShieldAlert} />
+            <CardTitle className="text-base">AbuseIPDB blacklist</CardTitle>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <StatusLed tone={status.tone} />
+            {status.label}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <BlacklistNotes blacklist={blacklist} className="pb-1.5 text-xs text-muted-foreground" />
+        {blacklist.refreshedAt ? (
+          <>
+            {blacklistRecords(blacklist).map((record) => (
+              <Row key={record.label} label={record.label} value={record.value} />
+            ))}
+            <Row
+              label={BLACKLIST_SOURCE_LABEL}
+              value={blacklist.filePath ? <MonoChip>{blacklist.filePath}</MonoChip> : "API"}
+            />
+            {!blacklist.expired && (
+              <p className="max-w-[80ch] pt-2 text-xs text-muted-foreground">
+                {BLACKLIST_EXPLAINER}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{blacklistPendingText(blacklist)}</p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function PhoneAbuseIpdbBlacklistValues({ blacklist }: { blacklist: AbuseIpdbBlacklistAboutView }) {
+  const sourcePath = blacklist.filePath ? splitPath(blacklist.filePath) : null
+  return (
+    <>
+      <BlacklistNotes blacklist={blacklist} className="py-1 text-xs text-muted-foreground" />
+      {blacklist.refreshedAt ? (
+        <>
+          {blacklistRecords(blacklist).map((record) => (
+            <PhoneRow key={record.label} label={record.label} value={record.value} />
+          ))}
+          <PhoneRow
+            label={BLACKLIST_SOURCE_LABEL}
+            value={sourcePath ? <MonoChip>{sourcePath.fileName}</MonoChip> : "API"}
+          />
+          {sourcePath?.folder && <PhoneRowDetail>in {sourcePath.folder}</PhoneRowDetail>}
+          {!blacklist.expired && (
+            <p className="pt-1.5 text-xs text-muted-foreground">{BLACKLIST_EXPLAINER}</p>
+          )}
+        </>
+      ) : (
+        <p className="pt-1 text-xs text-muted-foreground">{blacklistPendingText(blacklist)}</p>
       )}
     </>
   )
@@ -662,7 +798,7 @@ function PhoneGeoipValues({ about }: { about: AboutResponse }) {
   )
 }
 
-/** Phones: the version card, then Runtime, Database, GeoIP and DROP as rows that open on tap. */
+/** Phones: the version card, then Runtime, Database, GeoIP, DROP and the blacklist as rows that open on tap. */
 function PhoneAbout({ about }: { about: AboutResponse }) {
   return (
     <div className="space-y-4">
@@ -696,6 +832,15 @@ function PhoneAbout({ about }: { about: AboutResponse }) {
             summary={dropListsSummary(about.dropLists)}
           >
             <PhoneDropListsValues dropLists={about.dropLists} />
+          </SummarySection>
+        )}
+        {about.abuseipdbBlacklist && (
+          <SummarySection
+            icon={ShieldAlert}
+            title="AbuseIPDB blacklist"
+            summary={abuseipdbBlacklistSummary(about.abuseipdbBlacklist)}
+          >
+            <PhoneAbuseIpdbBlacklistValues blacklist={about.abuseipdbBlacklist} />
           </SummarySection>
         )}
       </div>
@@ -903,7 +1048,13 @@ export function AboutPage() {
         </CardContent>
       </Card>
 
-      {data.dropLists && <DropListsCard dropLists={data.dropLists} />}
+      {data.dropLists && (
+        <DropListsCard dropLists={data.dropLists} wide={!data.abuseipdbBlacklist} />
+      )}
+
+      {data.abuseipdbBlacklist && (
+        <AbuseIpdbBlacklistCard blacklist={data.abuseipdbBlacklist} wide={!data.dropLists} />
+      )}
 
       <Card className="md:col-span-2">
         <CardContent className="flex flex-wrap gap-2 py-4">

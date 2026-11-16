@@ -1,4 +1,9 @@
-import type { AboutResponse, DropListsAboutView, GeoIpInfoView } from "@/generated/api/types.gen"
+import type {
+  AboutResponse,
+  AbuseIpdbBlacklistAboutView,
+  DropListsAboutView,
+  GeoIpInfoView,
+} from "@/generated/api/types.gen"
 import type { LedTone } from "@/components/settings/status-led"
 import { formatTs } from "@/lib/datetime"
 import { dropListsState } from "@/lib/drop-lists"
@@ -122,6 +127,41 @@ export function dropListsSummary(dropLists: DropListsAboutView): SectionSummary 
   return {
     tone: status.tone,
     text: `Download failed, ${status.label.charAt(0).toLowerCase()}${status.label.slice(1)}`,
+  }
+}
+
+/**
+ * The AbuseIPDB blacklist's light and state. Red once the list is past 72
+ * hours, since GeoMetrikks stops marking its IPs then. Amber when the latest
+ * download failed, with or without an earlier list.
+ */
+export function abuseipdbBlacklistStatus(blacklist: AbuseIpdbBlacklistAboutView): {
+  tone: LedTone
+  label: string
+} {
+  if (!blacklist.refreshedAt) {
+    return {
+      tone: blacklist.lastAttemptFailed ? "amber" : "muted",
+      label: blacklist.source === "file" ? "Not read yet" : "Not downloaded yet",
+    }
+  }
+  const updatedAt = formatTs(blacklist.refreshedAt, "hourly")
+  if (blacklist.expired) return { tone: "red", label: `Expired, updated ${updatedAt}` }
+  return { tone: blacklist.lastAttemptFailed ? "amber" : "emerald", label: `Updated ${updatedAt}` }
+}
+
+/** The phone row's line: the status, with a failed download named ahead of the last good one. */
+export function abuseipdbBlacklistSummary(blacklist: AbuseIpdbBlacklistAboutView): SectionSummary {
+  const status = abuseipdbBlacklistStatus(blacklist)
+  if (!blacklist.lastAttemptFailed || !blacklist.refreshedAt) {
+    return { tone: status.tone, text: status.label }
+  }
+  const updatedAt = formatTs(blacklist.refreshedAt, "hourly")
+  return {
+    tone: status.tone,
+    text: blacklist.expired
+      ? `Expired, download failed, updated ${updatedAt}`
+      : `Download failed, updated ${updatedAt}`,
   }
 }
 

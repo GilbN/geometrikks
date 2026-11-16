@@ -78,6 +78,57 @@ class AbuseIpdbBlacklistResponse(msgspec.Struct, rename="camel", kw_only=True):
     ips: Annotated[list[str], Meta(description="The listed IPs in their canonical spelling.")]
 
 
+class AbuseIpdbBlacklistAboutView(msgspec.Struct, rename="camel", kw_only=True):
+    """How current the stored AbuseIPDB blacklist is, for Settings > About."""
+
+    source: Annotated[
+        Literal["download", "file"],
+        Meta(
+            description=(
+                "`file` when ABUSEIPDB_BLACKLIST_FILE is set, else `download`. The stored list can still come from "
+                "an earlier source until this one delivers a list."
+            )
+        ),
+    ]
+    file_path: Annotated[str | None, Meta(description="ABUSEIPDB_BLACKLIST_FILE, or null when downloading.")]
+    ip_count: Annotated[int, Meta(description="How many IPs the stored list holds, also while `expired` hides them.")]
+    generated_at: Annotated[
+        datetime | None,
+        Meta(
+            description=(
+                f"When AbuseIPDB generated the list, {IN_UTC}. For a plaintext file, when the file was last "
+                "written. Null before the first list."
+            )
+        ),
+    ]
+    refreshed_at: Annotated[
+        datetime | None,
+        Meta(
+            description=(
+                f"When GeoMetrikks downloaded the list, or when the file was last written, {IN_UTC}. "
+                "Null before the first list."
+            )
+        ),
+    ]
+    last_attempt_at: Annotated[
+        datetime | None,
+        Meta(description=f"When the last download started, {IN_UTC}. Always null for a file."),
+    ]
+    last_attempt_failed: Annotated[
+        bool,
+        Meta(
+            description=(
+                "True when the last download stored no list. False for 2 minutes after it starts, while it may "
+                "still run. Always false for a file."
+            )
+        ),
+    ]
+    expired: Annotated[
+        bool,
+        Meta(description="True when the list is more than 72 hours old, so GeoMetrikks no longer marks its IPs."),
+    ]
+
+
 class ReportedIpDTO(msgspec.Struct, rename="camel", kw_only=True):
     """An IP reported from GeoMetrikks, with its latest report."""
 

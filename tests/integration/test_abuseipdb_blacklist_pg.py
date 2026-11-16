@@ -23,6 +23,7 @@ from geometrikks.config.settings import AbuseIpdbSettings, Settings
 from geometrikks.domain.abuseipdb import blacklist as blacklist_module
 from geometrikks.domain.abuseipdb import blacklist_file as blacklist_file_module
 from geometrikks.domain.abuseipdb.blacklist import (
+    blacklist_about,
     current_blacklist,
     refresh_blacklist,
     refresh_blacklist_file,
@@ -607,3 +608,106 @@ async def test_the_route_is_empty_with_the_feature_off(pg_session_maker, clean_a
 
     assert blacklist_response.json() == {"generatedAt": None, "refreshedAt": None, "ips": []}
     assert status_response.json()["blacklistEnabled"] is False
+
+
+async def read_about(pg_session_maker, *, file_path: Path | None = None, now: datetime = NOW):
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        return await blacklist_about(repository, file_path=file_path, now=now)
+
+
+async def test_about_before_the_first_download(pg_session_maker, clean_abuseipdb_blacklist):
+    about = await read_about(pg_session_maker)
+
+    assert about.source == "download"
+    assert (about.ip_count, about.refreshed_at, about.last_attempt_at) == (0, None, None)
+    assert (about.last_attempt_failed, about.expired) == (False, False)
+
+
+async def test_about_counts_the_stored_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2", "2600:1f18::1"])
+
+    about = await read_about(pg_session_maker)
+
+    assert about.ip_count == 2
+    assert (about.generated_at, about.refreshed_at, about.last_attempt_at) == (GENERATED_AT, NOW, NOW)
+    assert (about.last_attempt_failed, about.expired) == (False, False)
+
+
+async def test_about_reports_a_good_download_as_not_failed(pg_session_maker, clean_abuseipdb_blacklist):
+    client, _ = blacklist_client(answer)
+    await refresh_blacklist(pg_session_maker, client, now=NOW)
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=3))
+
+    assert (about.ip_count, about.last_attempt_failed) == (2, False)
+
+
+async def test_about_reports_a_failed_download(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=6))
+    client, _ = blacklist_client(rate_limited)
+    await refresh_blacklist(pg_session_maker, client, now=NOW)
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=3))
+
+    assert about.last_attempt_failed is True
+    assert about.last_attempt_at == NOW
+    assert about.ip_count == 1
+
+
+async def test_about_does_not_call_a_download_still_running_failed(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=6))
+    async with pg_session_maker() as session, session.begin():
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        assert await repository.claim_attempt(NOW, last_allowed=NOW - timedelta(hours=5))
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=1))
+
+    assert (about.last_attempt_at, about.last_attempt_failed) == (NOW, False)
+
+
+async def test_about_reports_a_failed_first_download(pg_session_maker, clean_abuseipdb_blacklist):
+    client, _ = blacklist_client(rate_limited)
+    await refresh_blacklist(pg_session_maker, client, now=NOW)
+
+    about = await read_about(pg_session_maker, now=NOW + timedelta(minutes=3))
+
+    assert (about.refreshed_at, about.last_attempt_failed) == (None, True)
+
+
+async def test_about_counts_an_expired_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2", "3.5.140.9"], refreshed_at=NOW - timedelta(hours=72, seconds=1))
+
+    about = await read_about(pg_session_maker)
+
+    assert (about.expired, about.ip_count) == (True, 2)
+
+
+async def test_about_for_a_file_ignores_download_attempts(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(
+        pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1), last_attempt_at=NOW
+    )
+
+    about = await read_about(pg_session_maker, file_path=Path("/data/blacklist.txt"), now=NOW + timedelta(minutes=3))
+
+    assert (about.source, about.file_path) == ("file", "/data/blacklist.txt")
+    assert (about.last_attempt_at, about.last_attempt_failed) == (None, False)
+
+
+async def test_the_about_route_carries_the_blacklist(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
+    refreshed_at = datetime.now(UTC) - timedelta(hours=1)
+    await store_list(
+        pg_session_maker, ["3.5.140.2"], generated_at=refreshed_at - timedelta(hours=2), refreshed_at=refreshed_at
+    )
+    feature_off = app_settings.model_copy(update={"abuseipdb": AbuseIpdbSettings(api_key="test-key", _env_file=None)})
+
+    async with AsyncTestClient(create_app(settings=app_settings)) as http:
+        about = (await http.get("/api/v1/system/about")).json()
+    async with AsyncTestClient(create_app(settings=feature_off)) as http:
+        about_feature_off = (await http.get("/api/v1/system/about")).json()
+
+    assert about["abuseipdbBlacklist"]["ipCount"] == 1
+    assert about["abuseipdbBlacklist"]["source"] == "download"
+    assert about["abuseipdbBlacklist"]["lastAttemptFailed"] is False
+    assert about["abuseipdbBlacklist"]["expired"] is False
+    assert about_feature_off["abuseipdbBlacklist"] is None

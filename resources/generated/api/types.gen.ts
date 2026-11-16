@@ -54,9 +54,12 @@ export type AboutLinksView = {
  * Version, runtime and database details for the About page.
  *
  * `geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null
- * with DROP_ENABLED=false, or when the database cannot answer.
+ * with DROP_ENABLED=false, and `abuseipdbBlacklist` with ABUSEIPDB_BLACKLIST_ENABLED=false.
+ * When the database cannot answer, `abuseipdbBlacklist` is null, and so is `dropLists` until this process has
+ * loaded it once.
  */
 export type AboutResponse = {
+  abuseipdbBlacklist?: AbuseIpdbBlacklistAboutView | null;
   app: AboutAppView;
   asnClassification?: AsnClassificationView | null;
   database: DatabaseVersionsView;
@@ -122,6 +125,46 @@ export type AbuseContactResponse = {
    * The first address of the network.
    */
   startAddress: string | null;
+};
+
+/**
+ * AbuseIpdbBlacklistAboutView
+ *
+ * How current the stored AbuseIPDB blacklist is, for Settings > About.
+ */
+export type AbuseIpdbBlacklistAboutView = {
+  /**
+   * True when the list is more than 72 hours old, so GeoMetrikks no longer marks its IPs.
+   */
+  expired: boolean;
+  /**
+   * ABUSEIPDB_BLACKLIST_FILE, or null when downloading.
+   */
+  filePath: string | null;
+  /**
+   * When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext file, when the file was last written. Null before the first list.
+   */
+  generatedAt: string | null;
+  /**
+   * How many IPs the stored list holds, also while `expired` hides them.
+   */
+  ipCount: number;
+  /**
+   * When the last download started, as ISO 8601 in UTC. Always null for a file.
+   */
+  lastAttemptAt: string | null;
+  /**
+   * True when the last download stored no list. False for 2 minutes after it starts, while it may still run. Always false for a file.
+   */
+  lastAttemptFailed: boolean;
+  /**
+   * When GeoMetrikks downloaded the list, or when the file was last written, as ISO 8601 in UTC. Null before the first list.
+   */
+  refreshedAt: string | null;
+  /**
+   * `file` when ABUSEIPDB_BLACKLIST_FILE is set, else `download`. The stored list can still come from an earlier source until this one delivers a list.
+   */
+  source: "download" | "file";
 };
 
 /**

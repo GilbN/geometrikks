@@ -286,6 +286,25 @@ async def test_about_database_degrades_when_db_unreachable():
     assert resp.json()["dropLists"] is None
 
 
+async def test_about_skips_the_blacklist_when_db_unreachable(monkeypatch):
+    monkeypatch.setenv("ABUSEIPDB_BLACKLIST_ENABLED", "true")
+    monkeypatch.setenv("ABUSEIPDB_API_KEY", "test-key")
+
+    blacklist_calls = []
+
+    async def record_call(*args, **kwargs):
+        blacklist_calls.append(args)
+
+    monkeypatch.setattr("geometrikks.domain.system.controllers.system._abuseipdb_blacklist_about", record_call)
+
+    async with AsyncTestClient(app=make_app()) as client:
+        resp = await client.get("/api/v1/system/about")
+
+    assert resp.status_code == 200
+    assert resp.json()["abuseipdbBlacklist"] is None
+    assert blacklist_calls == []
+
+
 async def test_system_settings_surface_computed_values(monkeypatch):
     monkeypatch.setenv("CROWDSEC_LAPI_URL", "http://localhost:8080")
     monkeypatch.setenv("CROWDSEC_BOUNCER_API_KEY", "bouncer-key")

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test"
 import type { AboutResponse } from "@/generated/api/types.gen"
 import {
   aboutDetailsText,
+  abuseipdbBlacklistStatus,
+  abuseipdbBlacklistSummary,
   buildDateLabel,
   databaseSummary,
   dropListsStatus,
@@ -224,6 +226,68 @@ describe("section summaries", () => {
     expect(startsOpen({ tone: "amber", text: "" })).toBe(true)
     expect(startsOpen({ tone: "emerald", text: "" })).toBe(false)
     expect(startsOpen({ tone: null, text: "" })).toBe(false)
+  })
+})
+
+describe("abuseipdbBlacklistStatus", () => {
+  const refreshedAt = "2026-11-15T12:00:00Z"
+  const updatedAt = `Updated ${formatTs(refreshedAt, "hourly")}`
+  const blacklist = {
+    source: "download" as const,
+    filePath: null,
+    ipCount: 9_412,
+    generatedAt: "2026-11-15T11:40:00Z",
+    refreshedAt,
+    lastAttemptAt: refreshedAt,
+    lastAttemptFailed: false,
+    expired: false,
+  }
+
+  it("is green with the update time while the list is current", () => {
+    expect(abuseipdbBlacklistStatus(blacklist)).toEqual({ tone: "emerald", label: updatedAt })
+    expect(abuseipdbBlacklistSummary(blacklist)).toEqual({ tone: "emerald", text: updatedAt })
+  })
+
+  it("turns amber and names the failure when the latest download failed", () => {
+    const failing = { ...blacklist, lastAttemptAt: "2026-11-16T12:00:00Z", lastAttemptFailed: true }
+    expect(abuseipdbBlacklistStatus(failing)).toEqual({ tone: "amber", label: updatedAt })
+    expect(abuseipdbBlacklistSummary(failing)).toEqual({
+      tone: "amber",
+      text: `Download failed, updated ${formatTs(refreshedAt, "hourly")}`,
+    })
+  })
+
+  it("turns red once the list expired", () => {
+    expect(abuseipdbBlacklistStatus({ ...blacklist, expired: true })).toEqual({
+      tone: "red",
+      label: `Expired, updated ${formatTs(refreshedAt, "hourly")}`,
+    })
+    expect(
+      abuseipdbBlacklistSummary({ ...blacklist, expired: true, lastAttemptFailed: true }),
+    ).toEqual({
+      tone: "red",
+      text: `Expired, download failed, updated ${formatTs(refreshedAt, "hourly")}`,
+    })
+  })
+
+  it("is grey before the first list and amber after a failed first download", () => {
+    const empty = { ...blacklist, ipCount: 0, generatedAt: null, refreshedAt: null }
+    expect(abuseipdbBlacklistStatus({ ...empty, lastAttemptAt: null })).toEqual({
+      tone: "muted",
+      label: "Not downloaded yet",
+    })
+    expect(abuseipdbBlacklistSummary({ ...empty, lastAttemptFailed: true })).toEqual({
+      tone: "amber",
+      text: "Not downloaded yet",
+    })
+    expect(
+      abuseipdbBlacklistStatus({
+        ...empty,
+        source: "file",
+        filePath: "/data/bl.txt",
+        lastAttemptAt: null,
+      }),
+    ).toEqual({ tone: "muted", label: "Not read yet" })
   })
 })
 

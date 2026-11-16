@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Literal
 from geometrikks.domain.abuseipdb import blacklist_file
 from geometrikks.domain.abuseipdb.blacklist_file import BlacklistFileError
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
+from geometrikks.domain.abuseipdb.schemas import AbuseIpdbBlacklistAboutView
 from geometrikks.server.logging import get_logger
 from geometrikks.services.abuseipdb import (
     AbuseIpdbError,
@@ -22,12 +23,14 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from geometrikks.domain.abuseipdb.models import AbuseIpdbBlacklistStatus
     from geometrikks.services.abuseipdb import AbuseIpdbClient
 
 logger = get_logger(__name__)
 
 MIN_ATTEMPT_INTERVAL = timedelta(hours=5)
 MAX_LIST_AGE = timedelta(hours=72)
+RUNNING_ATTEMPT_GRACE = timedelta(minutes=2)
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,10 @@ def _upstream_status(error: AbuseIpdbError) -> int | None:
 def _listed_at(refreshed_at: datetime, generated_at: datetime | None) -> datetime:
     """The time the list's age counts from. A file can hold a list generated long before it was written."""
     return min(refreshed_at, generated_at or refreshed_at)
+
+
+def _expired(refreshed_at: datetime, generated_at: datetime | None, *, now: datetime) -> bool:
+    return now - _listed_at(refreshed_at, generated_at) > MAX_LIST_AGE
 
 
 def _skipped(reason: str) -> BlacklistOutcome:
@@ -182,7 +189,35 @@ async def current_blacklist(
     status = await repository.status()
     if status is None or status.refreshed_at is None:
         return EMPTY_VIEW
-    if now - _listed_at(status.refreshed_at, status.generated_at) > MAX_LIST_AGE:
+    if _expired(status.refreshed_at, status.generated_at, now=now):
         _log_expiry_once(status.refreshed_at, status.generated_at)
         return EMPTY_VIEW
     return BlacklistView(generated_at=status.generated_at, refreshed_at=status.refreshed_at, ips=await repository.ips())
+
+
+def _last_attempt_failed(status: AbuseIpdbBlacklistStatus, *, from_file: bool, now: datetime) -> bool:
+    # A good download stores refreshed_at equal to the attempt's start, so a later attempt stored nothing.
+    # _refresh claims the attempt before the request, so a recent one may still be downloading.
+    if from_file or status.last_attempt_at is None or status.last_attempt_at > now - RUNNING_ATTEMPT_GRACE:
+        return False
+    return status.refreshed_at is None or status.last_attempt_at > status.refreshed_at
+
+
+async def blacklist_about(
+    repository: AbuseIpdbBlacklistRepository, *, file_path: Path | None, now: datetime
+) -> AbuseIpdbBlacklistAboutView:
+    """How current the stored list is, for Settings > About."""
+    status = await repository.status()
+    from_file = file_path is not None
+    refreshed_at = status.refreshed_at if status else None
+    generated_at = status.generated_at if status else None
+    return AbuseIpdbBlacklistAboutView(
+        source="file" if from_file else "download",
+        file_path=str(file_path) if file_path is not None else None,
+        ip_count=await repository.count(),
+        generated_at=generated_at,
+        refreshed_at=refreshed_at,
+        last_attempt_at=None if from_file or status is None else status.last_attempt_at,
+        last_attempt_failed=status is not None and _last_attempt_failed(status, from_file=from_file, now=now),
+        expired=refreshed_at is not None and _expired(refreshed_at, generated_at, now=now),
+    )
