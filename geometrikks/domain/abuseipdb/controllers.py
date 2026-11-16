@@ -6,7 +6,7 @@ from typing import Annotated, Any, cast
 
 from advanced_alchemy.filters import LimitOffset
 from advanced_alchemy.service import OffsetPagination
-from litestar import Controller, Request, get, post
+from litestar import Controller, Request, Response, get, post
 from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import JSONBody, QueryParameter, SkipValidation
@@ -176,7 +176,8 @@ class AbuseIpdbController(Controller):
             "from the local database; nothing leaves the server. `ips` is empty and both times are null with "
             "ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours "
             "old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and "
-            "AbuseIPDB forbids republishing it."
+            "AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300`, or "
+            "`no-cache` while `ips` is empty."
         ),
         responses={HTTP_401_UNAUTHORIZED: _error("The request has no valid session or API key.")},
     )
@@ -184,15 +185,18 @@ class AbuseIpdbController(Controller):
         self,
         settings: NamedDependency[SkipValidation[Settings]],
         abuseipdb_blacklist: NamedDependency[SkipValidation[AbuseIpdbBlacklistRepository]],
-    ) -> AbuseIpdbBlacklistResponse:
+    ) -> Response[AbuseIpdbBlacklistResponse]:
         blacklist_view = await current_blacklist(
             abuseipdb_blacklist, enabled=settings.abuseipdb.blacklist_enabled, now=datetime.now(UTC)
         )
-        return AbuseIpdbBlacklistResponse(
+        blacklist_response = AbuseIpdbBlacklistResponse(
             generated_at=blacklist_view.generated_at,
             refreshed_at=blacklist_view.refreshed_at,
             ips=blacklist_view.ips,
         )
+        # no-cache on an empty answer lets the first download show up on the next fetch.
+        cache_control = "private, max-age=300" if blacklist_view.ips else "no-cache"
+        return Response(blacklist_response, headers={"Cache-Control": cache_control})
 
     @get(
         "/reported-ips",

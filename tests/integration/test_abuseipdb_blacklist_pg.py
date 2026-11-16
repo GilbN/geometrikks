@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import os
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -578,6 +579,25 @@ def app_settings(migrated_database_url: str) -> Settings:
     )
 
 
+async def test_the_stored_ips_read_back_in_python_spelling(pg_session_maker, clean_abuseipdb_blacklist):
+    written = [
+        "3.5.140.2",
+        "2001:0db8:0000:0000:0000:0000:0000:0001",
+        "2001:DB8:0:0:1:0:0:1",
+        "2001:db8:0:1:1:1:1:1",
+        "2600:1f18::",
+        "::ffff:3.5.140.9",
+        "::3.5.140.10",
+        "64:ff9b::3.5.140.11",
+    ]
+    await store_list(pg_session_maker, written)
+
+    async with pg_session_maker() as session:
+        ips = await AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False).ips()
+
+    assert sorted(ips) == sorted(str(ipaddress.ip_address(ip)) for ip in written)
+
+
 async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
     refreshed_at = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
     generated_at = refreshed_at - timedelta(hours=2)
@@ -590,6 +610,7 @@ async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseip
         status_response = await http.get("/api/v1/abuseipdb/status")
 
     assert blacklist_response.status_code == 200
+    assert blacklist_response.headers["cache-control"] == "private, max-age=300"
     assert blacklist_response.json() == {
         "generatedAt": generated_at.isoformat().replace("+00:00", "Z"),
         "refreshedAt": refreshed_at.isoformat().replace("+00:00", "Z"),
@@ -607,6 +628,7 @@ async def test_the_route_is_empty_with_the_feature_off(pg_session_maker, clean_a
         status_response = await http.get("/api/v1/abuseipdb/status")
 
     assert blacklist_response.json() == {"generatedAt": None, "refreshedAt": None, "ips": []}
+    assert blacklist_response.headers["cache-control"] == "no-cache"
     assert status_response.json()["blacklistEnabled"] is False
 
 
