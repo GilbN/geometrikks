@@ -2,14 +2,21 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Literal
 
+import msgspec
+
+from geometrikks.config.settings import get_installed_version
 from geometrikks.domain.abuseipdb import blacklist_file
 from geometrikks.domain.abuseipdb.blacklist_file import BlacklistFileError
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
-from geometrikks.domain.abuseipdb.schemas import AbuseIpdbBlacklistAboutView
+from geometrikks.domain.abuseipdb.schemas import (
+    AbuseIpdbBlacklistAboutView,
+    AbuseIpdbBlacklistResponse,
+)
 from geometrikks.server.logging import get_logger
 from geometrikks.services.abuseipdb import (
     AbuseIpdbError,
@@ -41,10 +48,9 @@ class BlacklistOutcome:
 
 
 @dataclass(frozen=True)
-class BlacklistView:
-    generated_at: datetime | None
-    refreshed_at: datetime | None
-    ips: list[str]
+class CurrentBlacklist:
+    etag: str
+    body: bytes | None
 
 
 def _repository(session: AsyncSession) -> AbuseIpdbBlacklistRepository:
@@ -165,7 +171,25 @@ async def _refresh_from_file(
 
 
 _expiry_logged_for: datetime | None = None
-EMPTY_VIEW = BlacklistView(generated_at=None, refreshed_at=None, ips=[])
+EMPTY_BLACKLIST_BODY = msgspec.json.encode(AbuseIpdbBlacklistResponse(generated_at=None, refreshed_at=None, ips=[]))
+_APP_VERSION = get_installed_version()
+
+_body_key: tuple[datetime, datetime | None] | None = None
+_body = b""
+_body_lock = asyncio.Lock()
+
+
+def reset_blacklist_body() -> None:
+    global _body_key, _body, _body_lock
+    _body_key = None
+    _body = b""
+    _body_lock = asyncio.Lock()
+
+
+def _forget_body() -> None:
+    global _body_key, _body
+    _body_key = None
+    _body = b""
 
 
 def _log_expiry_once(refreshed_at: datetime, generated_at: datetime | None) -> None:
@@ -180,19 +204,57 @@ def _log_expiry_once(refreshed_at: datetime, generated_at: datetime | None) -> N
     )
 
 
+def _etag(refreshed_at: datetime, generated_at: datetime | None) -> str:
+    # The app version is in the tag, so a browser cannot revalidate an answer an older release encoded.
+    version_text = f"{_APP_VERSION}|{refreshed_at.isoformat()}|{generated_at.isoformat() if generated_at else ''}"
+    return f'W/"{hashlib.blake2b(version_text.encode(), digest_size=8).hexdigest()}"'
+
+
+def etag_matches(if_none_match: str | None, etag: str) -> bool:
+    """Weak comparison, as If-None-Match uses."""
+    if if_none_match is None:
+        return False
+    tags = {tag.strip().removeprefix("W/") for tag in if_none_match.split(",")}
+    return "*" in tags or etag.removeprefix("W/") in tags
+
+
+async def _encoded_body(
+    repository: AbuseIpdbBlacklistRepository, refreshed_at: datetime, generated_at: datetime | None
+) -> bytes:
+    global _body_key, _body
+    async with _body_lock:
+        if _body_key != (refreshed_at, generated_at):
+            ips = await repository.ips()
+            _body = msgspec.json.encode(
+                AbuseIpdbBlacklistResponse(generated_at=generated_at, refreshed_at=refreshed_at, ips=ips)
+            )
+            _body_key = (refreshed_at, generated_at)
+        return _body
+
+
 async def current_blacklist(
-    repository: AbuseIpdbBlacklistRepository, *, enabled: bool, now: datetime
-) -> BlacklistView:
-    """The list to show. AbuseIPDB requires an imported list to be kept updated or flushed, so a stale one reads empty."""
+    repository: AbuseIpdbBlacklistRepository, *, enabled: bool, now: datetime, if_none_match: str | None = None
+) -> CurrentBlacklist | None:
+    """The list to show, or None while it is empty.
+
+    AbuseIPDB requires an imported list to be kept updated or flushed, so a stale one reads empty. The process
+    keeps the encoded answer until the stored list changes. ``body`` is None when ``if_none_match`` names it.
+    """
     if not enabled:
-        return EMPTY_VIEW
+        _forget_body()
+        return None
     status = await repository.status()
     if status is None or status.refreshed_at is None:
-        return EMPTY_VIEW
+        _forget_body()
+        return None
     if _expired(status.refreshed_at, status.generated_at, now=now):
         _log_expiry_once(status.refreshed_at, status.generated_at)
-        return EMPTY_VIEW
-    return BlacklistView(generated_at=status.generated_at, refreshed_at=status.refreshed_at, ips=await repository.ips())
+        _forget_body()
+        return None
+    etag = _etag(status.refreshed_at, status.generated_at)
+    if etag_matches(if_none_match, etag):
+        return CurrentBlacklist(etag=etag, body=None)
+    return CurrentBlacklist(etag=etag, body=await _encoded_body(repository, status.refreshed_at, status.generated_at))
 
 
 def _last_attempt_failed(status: AbuseIpdbBlacklistStatus, *, from_file: bool, now: datetime) -> bool:

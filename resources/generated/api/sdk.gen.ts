@@ -266,7 +266,7 @@ export type Options<
 /**
  * List the IPs on AbuseIPDB's blacklist
  *
- * Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300`, or `no-cache` while `ips` is empty.
+ * Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300` and an `ETag` that changes with the list. With the feature off, before the first download and once the list expires, it carries `no-cache` and no `ETag` instead. A request whose `If-None-Match` names the current `ETag` gets a 304 with no body.
  */
 export const apiV1AbuseipdbBlacklistGetBlacklist = <
   ThrowOnError extends boolean = false,

@@ -374,11 +374,26 @@
       },
       "AbuseIpdbBlacklistResponse": {
         "description": "The IPs on AbuseIPDB's blacklist, as of the last download or file read.",
+        "examples": [
+          {
+            "generatedAt": "2014-02-19T12:44:15.071136",
+            "refreshedAt": "2015-09-24T11:22:40.579119",
+            "ips": [
+              "bgpSmpeFCZfQiysuOZjE"
+            ]
+          }
+        ],
         "properties": {
           "generatedAt": {
             "description": "When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.",
+            "examples": [
+              "2011-10-01T19:02:29.031525"
+            ],
             "oneOf": [
               {
+                "examples": [
+                  "2024-06-30T01:36:10.990620"
+                ],
                 "format": "date-time",
                 "type": "string"
               },
@@ -389,15 +404,29 @@
           },
           "ips": {
             "description": "The listed IPs in their canonical spelling.",
+            "examples": [
+              [
+                "hFRPhSOVrnPxrBBMqbkV"
+              ]
+            ],
             "items": {
+              "examples": [
+                "ZozziJUhCsuKDfYRTwds"
+              ],
               "type": "string"
             },
             "type": "array"
           },
           "refreshedAt": {
             "description": "When GeoMetrikks downloaded the list, as ISO 8601 in UTC. With ABUSEIPDB_BLACKLIST_FILE, when the file was last written. Null when `ips` is empty.",
+            "examples": [
+              "2018-12-19T15:55:45.955468"
+            ],
             "oneOf": [
               {
+                "examples": [
+                  "2023-09-06T15:42:39.994381"
+                ],
                 "format": "date-time",
                 "type": "string"
               },
@@ -9207,7 +9236,7 @@
     "/api/v1/abuseipdb/blacklist": {
       "get": {
         "deprecated": false,
-        "description": "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300`, or `no-cache` while `ips` is empty.",
+        "description": "Returns GeoMetrikks' copy of AbuseIPDB's blacklist, which the scheduler downloads every ABUSEIPDB_BLACKLIST_REFRESH_HOURS hours, 24 by default, or reads from ABUSEIPDB_BLACKLIST_FILE. Read from the local database; nothing leaves the server. `ips` is empty and both times are null with ABUSEIPDB_BLACKLIST_ENABLED=false, before the first download, and when the list is more than 72 hours old. With a file, `refreshedAt` is when the file was last written. The list is for your own use, and AbuseIPDB forbids republishing it. The answer carries `Cache-Control: private, max-age=300` and an `ETag` that changes with the list. With the feature off, before the first download and once the list expires, it carries `no-cache` and no `ETag` instead. A request whose `If-None-Match` names the current `ETag` gets a 304 with no body.",
         "operationId": "ApiV1AbuseipdbBlacklistGetBlacklist",
         "responses": {
           "200": {
@@ -9218,8 +9247,10 @@
                 }
               }
             },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
+            "description": "The list, or an empty one."
+          },
+          "304": {
+            "description": "`If-None-Match` names the current list."
           },
           "401": {
             "content": {

@@ -24,6 +24,7 @@ from geometrikks.config.settings import AbuseIpdbSettings, Settings
 from geometrikks.domain.abuseipdb import blacklist as blacklist_module
 from geometrikks.domain.abuseipdb import blacklist_file as blacklist_file_module
 from geometrikks.domain.abuseipdb.blacklist import (
+    EMPTY_BLACKLIST_BODY,
     blacklist_about,
     current_blacklist,
     refresh_blacklist,
@@ -34,6 +35,7 @@ from geometrikks.domain.abuseipdb.models import (
     AbuseIpdbBlacklistStatus,
 )
 from geometrikks.domain.abuseipdb.repositories import AbuseIpdbBlacklistRepository
+from geometrikks.domain.abuseipdb.schemas import AbuseIpdbBlacklistResponse
 from geometrikks.server.core import create_app
 from geometrikks.services.abuseipdb import AbuseIpdbClient, BlacklistResult
 from tests.integration.test_drop_snapshot_pg import build_settings
@@ -500,10 +502,12 @@ async def test_a_long_file_keeps_its_first_ips(pg_session_maker, clean_abuseipdb
     assert (truncated_logs[0]["count"], truncated_logs[0]["kept"]) == (3, 2)
 
 
-async def read_view(pg_session_maker, *, enabled: bool, now: datetime):
+async def read_view(pg_session_maker, *, enabled: bool, now: datetime) -> AbuseIpdbBlacklistResponse:
     async with pg_session_maker() as session:
         repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
-        return await current_blacklist(repository, enabled=enabled, now=now)
+        blacklist = await current_blacklist(repository, enabled=enabled, now=now)
+    body = EMPTY_BLACKLIST_BODY if blacklist is None or blacklist.body is None else blacklist.body
+    return msgspec.json.decode(body, type=AbuseIpdbBlacklistResponse)
 
 
 @pytest.fixture()
@@ -556,6 +560,36 @@ async def test_a_list_generated_more_than_72_hours_ago_is_hidden(
 
     assert view.ips == []
     assert captured_logs[0]["generated_at"] == (NOW - timedelta(hours=72, seconds=1)).isoformat()
+
+
+async def test_the_encoded_list_is_reused_until_the_status_changes(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1))
+    first_view = await read_view(pg_session_maker, enabled=True, now=NOW)
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("INSERT INTO abuseipdb_blacklist (ip_address) VALUES ('3.5.140.9')"))
+
+    unchanged_view = await read_view(pg_session_maker, enabled=True, now=NOW)
+    async with pg_session_maker() as session, session.begin():
+        await session.execute(text("UPDATE abuseipdb_blacklist_status SET refreshed_at = :at"), {"at": NOW})
+    changed_view = await read_view(pg_session_maker, enabled=True, now=NOW)
+
+    assert first_view.ips == unchanged_view.ips == ["3.5.140.2"]
+    assert changed_view.ips == ["3.5.140.2", "3.5.140.9"]
+    assert changed_view.refreshed_at == NOW
+
+
+async def test_a_matching_etag_skips_the_list(pg_session_maker, clean_abuseipdb_blacklist):
+    await store_list(pg_session_maker, ["3.5.140.2"], refreshed_at=NOW - timedelta(hours=1))
+    async with pg_session_maker() as session:
+        repository = AbuseIpdbBlacklistRepository(session=session, wrap_exceptions=False)
+        first = await current_blacklist(repository, enabled=True, now=NOW)
+        assert first is not None
+        repository.ips = AsyncMock(side_effect=AssertionError)  # type: ignore[method-assign]
+        blacklist_module.reset_blacklist_body()
+
+        revalidated = await current_blacklist(repository, enabled=True, now=NOW, if_none_match=first.etag)
+
+    assert revalidated == blacklist_module.CurrentBlacklist(etag=first.etag, body=None)
 
 
 async def test_a_later_expiry_is_logged_again(pg_session_maker, clean_abuseipdb_blacklist, forget_logged_expiry):
@@ -611,6 +645,7 @@ async def test_the_route_returns_the_stored_list(pg_session_maker, clean_abuseip
 
     assert blacklist_response.status_code == 200
     assert blacklist_response.headers["cache-control"] == "private, max-age=300"
+    assert blacklist_response.headers["etag"].startswith('W/"')
     assert blacklist_response.json() == {
         "generatedAt": generated_at.isoformat().replace("+00:00", "Z"),
         "refreshedAt": refreshed_at.isoformat().replace("+00:00", "Z"),
@@ -629,7 +664,30 @@ async def test_the_route_is_empty_with_the_feature_off(pg_session_maker, clean_a
 
     assert blacklist_response.json() == {"generatedAt": None, "refreshedAt": None, "ips": []}
     assert blacklist_response.headers["cache-control"] == "no-cache"
+    assert "etag" not in blacklist_response.headers
     assert status_response.json()["blacklistEnabled"] is False
+
+
+async def test_the_route_answers_a_current_etag_with_304(pg_session_maker, clean_abuseipdb_blacklist, app_settings):
+    refreshed_at = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)
+    await store_list(pg_session_maker, ["3.5.140.2"], generated_at=refreshed_at, refreshed_at=refreshed_at)
+
+    async with AsyncTestClient(create_app(settings=app_settings)) as http:
+        first_response = await http.get("/api/v1/abuseipdb/blacklist")
+        etag = first_response.headers["etag"]
+        not_modified = await http.get("/api/v1/abuseipdb/blacklist", headers={"If-None-Match": etag})
+        async with pg_session_maker() as session, session.begin():
+            await session.execute(
+                text("UPDATE abuseipdb_blacklist_status SET refreshed_at = :at"), {"at": refreshed_at + timedelta(minutes=1)}
+            )
+        changed = await http.get("/api/v1/abuseipdb/blacklist", headers={"If-None-Match": etag})
+
+    assert (not_modified.status_code, not_modified.content) == (304, b"")
+    assert not_modified.headers["etag"] == etag
+    assert not_modified.headers["cache-control"] == "private, max-age=300"
+    assert changed.status_code == 200
+    assert changed.headers["etag"] != etag
+    assert changed.json()["ips"] == ["3.5.140.2"]
 
 
 async def read_about(pg_session_maker, *, file_path: Path | None = None, now: datetime = NOW):
