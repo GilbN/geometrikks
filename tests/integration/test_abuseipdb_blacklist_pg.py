@@ -621,7 +621,8 @@ async def test_concurrent_first_reads_load_the_rows_once(
 
     async def status_then_wait(repository: AbuseIpdbBlacklistRepository) -> AbuseIpdbBlacklistStatus | None:
         status = await read_status(repository)
-        await both_read_the_status.wait()
+        async with asyncio.timeout(5):
+            await both_read_the_status.wait()
         return status
 
     monkeypatch.setattr(AbuseIpdbBlacklistRepository, "ips", counted_read)
