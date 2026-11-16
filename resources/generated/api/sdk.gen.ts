@@ -1476,7 +1476,7 @@ export const apiV1CrowdsecBannedLocationsListBannedLocations = <
 /**
  * List every range under an active decision
  *
- * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.
+ * Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts. The ranges come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecBannedRangesListBannedRanges = <
   ThrowOnError extends boolean = false,

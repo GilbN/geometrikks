@@ -980,7 +980,9 @@ class CrowdSecController(Controller):
         description=(
             "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision "
             "type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an "
-            "`Ip` decision, so that network shows as its /32 or /128 while the decision lasts."
+            "`Ip` decision, so that network shows as its /32 or /128 while the decision lasts. The ranges come "
+            "from the decision stream the server polls, so a change can take up to "
+            "`CROWDSEC_STREAM_POLL_INTERVAL` seconds to show."
         ),
     )
     async def list_banned_ranges(
@@ -1550,7 +1552,7 @@ class CrowdSecController(Controller):
                     ban_results.append(BanNetworkResult(
                         network=planned_ban.cidr, ok=True, error=None, already_banned=False
                     ))
-            # A single-address network becomes an Ip decision, which the poller tracks.
+            # /banned-ranges reads the new Range and Ip decisions from the poller.
             if crowdsec_poller is not None and any(
                 ban_result.ok and not ban_result.already_banned for ban_result in ban_results
             ):

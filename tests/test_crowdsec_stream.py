@@ -308,7 +308,8 @@ async def test_decisions_hold_every_scope_with_the_time_left_now(monkeypatch):
             decision("1.2.3.4", duration="4h"),
             decision("1.2.3.4", id=43, duration="30s", origin="CAPI"),
             decision("10.0.0.0/24", id=44, scope="Range", duration="1h30m"),
-            decision("FR", id=45, scope="Country", duration="not-a-duration"),
+            decision("FR", id=45, scope="Country", duration="6h"),
+            decision("5.6.7.8", id=46, duration="0s"),
         ],
         "deleted": None,
     }])
@@ -324,8 +325,8 @@ async def test_decisions_hold_every_scope_with_the_time_left_now(monkeypatch):
 
     monkeypatch.setattr(stream, "datetime", Later)
     held = {decision.id: decision.duration for decision in poller.decisions()}
-    # The 30s ban ran out; a duration that does not parse is kept as sent.
-    assert held == {42: "3h59m0s", 44: "1h29m0s", 45: "not-a-duration"}
+    # The 30s ban ran out, and one with no time left counts as gone.
+    assert held == {42: "3h59m0s", 44: "1h29m0s", 45: "5h59m0s"}
     assert [decision.id for decision in poller.decisions(scopes=("Range",))] == [44]
     assert [decision.id for decision in poller.decisions(origins=("CAPI",))] == []
     assert [decision.id for decision in poller.decisions(scopes=("Ip",), origins=("cscli",))] == [42]
@@ -350,6 +351,58 @@ async def test_tracked_set_is_withheld_while_the_lapi_is_down():
     assert poller.decisions() is None
     await poller.poll()
     assert tracked(poller) == {"1.2.3.4": {"ban"}}
+    await service.aclose()
+
+
+async def test_a_blocklist_refresh_is_followed_by_a_full_resync():
+    # The refresh deleted id 42 outright, so no delta reports it.
+    respond = stream_responder([
+        {"new": [decision("1.2.3.4", origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, origin="CAPI")], "deleted": None},
+    ])
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+
+    await poller.poll()
+    await poller.poll()
+    assert [call["params"] for call in respond.calls] == [STARTUP, DELTA, STARTUP]
+    assert [held.id for held in poller.decisions()] == [43]
+    assert queue.get_nowait()["type"] == "crowdsec_status"
+    assert queue.empty()
+    await service.aclose()
+
+
+async def test_a_failed_poll_is_followed_by_a_full_resync():
+    # The LAPI can move the key's stream position and still fail the
+    # response, so the delta it carried never arrives.
+    calls: list[dict] = []
+    payloads = [
+        {"new": [decision("1.2.3.4")], "deleted": None},
+        None,
+        {"new": [decision("1.2.3.4"), decision("5.6.7.8", id=43)], "deleted": None},
+    ]
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        calls.append(dict(request.url.params))
+        payload = payloads[len(calls) - 1]
+        if payload is None:
+            raise httpx2.ReadTimeout("lost")
+        return httpx2.Response(200, json=payload)
+
+    service = make_service(respond)
+    poller = make_poller(service)
+    queue = poller.subscribe()
+    for _ in payloads:
+        await poller.poll()
+
+    assert calls == [STARTUP, DELTA, STARTUP]
+    assert tracked(poller) == {"1.2.3.4": {"ban"}, "5.6.7.8": {"ban"}}
+    frames = [queue.get_nowait() for _ in range(queue.qsize())]
+    assert {"type": "crowdsec_decisions", "added": [
+        {"ip": "5.6.7.8", "type": "ban", "origin": "cscli", "scenario": "manual ban", "duration": "3h59m"}
+    ], "deleted": []} in frames
     await service.aclose()
 
 

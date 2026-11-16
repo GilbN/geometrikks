@@ -25,17 +25,15 @@ DecisionFrame = dict[str, Any]
 IpKey = tuple[str, str]
 
 RESYNC_SECONDS = 600.0
+# CrowdSec refreshes these by deleting the old rows outright, which the
+# stream never reports, and inserting the same values under new ids.
+_REPLACED_ORIGINS = frozenset({"CAPI", "lists"})
 
 
 @dataclass(frozen=True, slots=True)
 class _Held:
     decision: Decision
-    # None when the duration did not parse; the stream still reports the end.
-    expires_at: datetime | None
-
-
-def _expiry(held: _Held) -> datetime:
-    return held.expires_at or datetime.max.replace(tzinfo=UTC)
+    expires_at: datetime
 
 
 def _ip_of(decision: Decision) -> str | None:
@@ -139,9 +137,6 @@ class CrowdSecStreamPoller:
                 origins is not None and decision.origin not in origins
             ):
                 continue
-            if held.expires_at is None:
-                active.append(decision)
-                continue
             seconds_left = round((held.expires_at - now).total_seconds())
             if seconds_left <= 0:
                 continue
@@ -188,9 +183,18 @@ class CrowdSecStreamPoller:
             await self._poll()
 
     async def _poll(self) -> None:
-        full = self._synced_at is None or time.monotonic() - self._synced_at >= self._resync_seconds
+        # After a failure, poll the full state. The LAPI may have moved this
+        # key's stream position past a delta that never arrived.
+        full = (
+            self._synced_at is None
+            or self._lapi_reachable is False
+            or time.monotonic() - self._synced_at >= self._resync_seconds
+        )
         try:
             delta: DecisionStreamDelta = await self._service.get_decisions_stream(startup=full)
+            if not full and any(decision.origin in _REPLACED_ORIGINS for decision in delta.new):
+                full = True
+                delta = await self._service.get_decisions_stream(startup=True)
         except CrowdSecError as exc:
             logger.warning("CrowdSec stream poll failed: %s", exc)
             self._set_reachable(False)
@@ -213,8 +217,7 @@ class CrowdSecStreamPoller:
         if decision.id is None:
             return
         self._drop(decision.id)
-        seconds_left = go_duration_seconds(decision.duration)
-        expires_at = now + timedelta(seconds=seconds_left) if seconds_left > 0 else None
+        expires_at = now + timedelta(seconds=go_duration_seconds(decision.duration))
         self._decisions[decision.id] = _Held(decision, expires_at)
         if (ip := _ip_of(decision)) is not None:
             self._ip_types.setdefault(ip, {}).setdefault(decision.type, set()).add(decision.id)
@@ -237,7 +240,7 @@ class CrowdSecStreamPoller:
         for ip, kind in keys:
             ids = self._ip_types.get(ip, {}).get(kind)
             if ids:
-                longest[ip, kind] = max((self._decisions[i] for i in ids), key=_expiry).decision
+                longest[ip, kind] = max((self._decisions[i] for i in ids), key=lambda held: held.expires_at).decision
         return longest
 
     def _ip_keys(self) -> list[IpKey]:

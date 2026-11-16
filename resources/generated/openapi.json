@@ -15160,7 +15160,7 @@
     "/api/v1/crowdsec/banned-ranges": {
       "get": {
         "deprecated": false,
-        "description": "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts.",
+        "description": "Returns each CIDR that holds a Range decision from any origin, once, with the strongest decision type on it and when that decision ends. GeoMetrikks bans a single-address DROP network with an `Ip` decision, so that network shows as its /32 or /128 while the decision lasts. The ranges come from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.",
         "operationId": "ApiV1CrowdsecBannedRangesListBannedRanges",
         "responses": {
           "200": {
