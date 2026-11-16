@@ -11,9 +11,10 @@ import ipaddress
 import re
 import time
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import reduce
 from typing import Annotated, Literal
 
 import msgspec
@@ -101,7 +102,7 @@ from geometrikks.services.crowdsec import (
     DecisionType,
     manual_reason,
 )
-from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
+from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller, HeldDecision
 from geometrikks.services.geoip.locator import GeoIpLocator
 
 # The CAPI community blocklist can hold tens of thousands of decisions; the
@@ -679,6 +680,22 @@ def _host_cidr(value: str) -> str | None:
     return None if ip is None else str(ipaddress.ip_network(ip))
 
 
+def _hold_strongest(
+    banned_ranges: dict[str, BannedRangeView], cidr: str, decision_type: str, expires_at: datetime | None
+) -> None:
+    """Keep the stronger of the held decision and this one; between two of a type the later expiry wins."""
+    current = banned_ranges.get(cidr)
+    if current is not None:
+        winning_type = decision_winner(current.type, decision_type)
+        if winning_type != decision_type:
+            return
+        if winning_type == current.type and (
+            expires_at is None or (current.expires_at is not None and expires_at <= current.expires_at)
+        ):
+            return
+    banned_ranges[cidr] = BannedRangeView(value=cidr, type=decision_type, expires_at=expires_at)
+
+
 def _banned_ranges(
     decisions: list[Decision], now: datetime, host_networks: frozenset[str] = frozenset()
 ) -> dict[str, BannedRangeView]:
@@ -704,34 +721,51 @@ def _banned_ranges(
             continue
         seconds_left = go_duration_seconds(decision.duration)
         expires_at = now + timedelta(seconds=seconds_left) if seconds_left > 0 else None
-        current = banned_ranges.get(cidr)
-        if current is not None:
-            winning_type = decision_winner(current.type, decision.type)
-            if winning_type != decision.type:
-                continue
-            if winning_type == current.type and (
-                expires_at is None or (current.expires_at is not None and expires_at <= current.expires_at)
-            ):
-                continue
-        banned_ranges[cidr] = BannedRangeView(value=cidr, type=decision.type, expires_at=expires_at)
+        _hold_strongest(banned_ranges, cidr, decision.type, expires_at)
     return banned_ranges
 
 
+def _hold_tracked_host_networks(
+    banned_ranges: dict[str, BannedRangeView],
+    tracked: Mapping[str, Mapping[str, HeldDecision]],
+    host_networks: frozenset[str],
+    now: datetime,
+) -> None:
+    """Add the poller's Ip decisions on single-address networks to ``banned_ranges``."""
+    for cidr in host_networks:
+        for decision_type, held in tracked.get(str(ipaddress.ip_network(cidr).network_address), {}).items():
+            seconds_left = go_duration_seconds(held.duration)
+            expires_at = held.seen_at + timedelta(seconds=seconds_left) if seconds_left > 0 else None
+            if expires_at is not None and expires_at <= now:
+                continue
+            _hold_strongest(banned_ranges, cidr, decision_type, expires_at)
+
+
 async def _active_banned_ranges(
-    service: CrowdSecService, drop_snapshot: DropSnapshot
+    service: CrowdSecService, drop_snapshot: DropSnapshot, poller: CrowdSecStreamPoller | None
 ) -> dict[str, BannedRangeView]:
-    """Range decisions, plus Ip decisions on the snapshot's single-address networks."""
+    """Range decisions, plus Ip decisions on the snapshot's single-address networks.
+
+    The Ip decisions come from the poller when it has them. Asking the LAPI
+    for them means asking for every Ip decision, blocklists included.
+    """
     host_networks = drop_snapshot.host_networks
-    decisions = await service.get_decisions(scopes="Range,Ip" if host_networks else "Range")
-    return _banned_ranges(decisions, datetime.now(UTC), host_networks)
+    now = datetime.now(UTC)
+    tracked = poller.ip_decisions() if poller is not None and host_networks else None
+    if host_networks and tracked is None:
+        return _banned_ranges(await service.get_decisions(scopes="Range,Ip"), now, host_networks)
+    banned_ranges = _banned_ranges(await service.get_decisions(scopes="Range"), now)
+    if tracked is not None:
+        _hold_tracked_host_networks(banned_ranges, tracked, host_networks, now)
+    return banned_ranges
 
 
 async def _banned_ranges_if_reachable(
-    service: CrowdSecService, drop_snapshot: DropSnapshot
+    service: CrowdSecService, drop_snapshot: DropSnapshot, poller: CrowdSecStreamPoller | None
 ) -> dict[str, BannedRangeView] | None:
     """Like ``_active_banned_ranges``, but None when the LAPI cannot be asked."""
     try:
-        return await _active_banned_ranges(service, drop_snapshot)
+        return await _active_banned_ranges(service, drop_snapshot, poller)
     except CrowdSecError as exc:
         logger.warning("crowdsec_range_decisions_unavailable", error=str(exc))
         return None
@@ -909,11 +943,14 @@ class CrowdSecController(Controller):
         description=(
             "Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision "
             "type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range "
-            "decisions."
+            "decisions. The list comes from the decision stream the server polls, so a change can take up to "
+            "`CROWDSEC_STREAM_POLL_INTERVAL` seconds to show."
         ),
     )
     async def list_banned_ips(
-        self, crowdsec: NamedDependency[CrowdSecService | None]
+        self,
+        crowdsec: NamedDependency[CrowdSecService | None],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
     ) -> list[BannedIp]:
         """Every IP under an active decision, with the type to badge it as.
 
@@ -921,6 +958,9 @@ class CrowdSecController(Controller):
         subscribed CAPI blocklist holds tens of thousands of decisions.
         """
         service = _require_service(crowdsec)
+        tracked = crowdsec_poller.ip_decisions() if crowdsec_poller is not None else None
+        if tracked is not None:
+            return [BannedIp(ip=ip, type=reduce(decision_winner, types)) for ip, types in tracked.items()]
         decisions = await service.get_decisions()
         # An IP can hold several decisions (e.g. a local captcha plus a CAPI
         # ban); the dict keeps LAPI order and the strongest type wins.
@@ -947,6 +987,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
     ) -> list[BannedRangeView]:
         """Every CIDR under an active Range decision, with the type to show it as.
 
@@ -954,7 +995,7 @@ class CrowdSecController(Controller):
         listed as its /32 or /128 while that decision lasts.
         """
         service = _require_service(crowdsec)
-        return list((await _active_banned_ranges(service, drop_snapshot)).values())
+        return list((await _active_banned_ranges(service, drop_snapshot, crowdsec_poller)).values())
 
     @get(
         "/drop-networks",
@@ -970,6 +1011,7 @@ class CrowdSecController(Controller):
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
         drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
         drop_traffic_repo: NamedDependency[SkipValidation[DropTrafficRepository]],
         days: Annotated[
             Literal[7, 30, 90],
@@ -1002,7 +1044,7 @@ class CrowdSecController(Controller):
         end = datetime.now(UTC)
         start = end - timedelta(days=days)
         all_drop_network_hits = await drop_traffic_repo.network_hits(start, end)
-        reachable_banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot)
+        reachable_banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot, crowdsec_poller)
         banned_ranges = reachable_banned_ranges or {}
         page_drop_network_hits = all_drop_network_hits[(page - 1) * page_size : page * page_size]
         origins = await drop_traffic_repo.network_origins(
@@ -1049,6 +1091,7 @@ class CrowdSecController(Controller):
     async def list_banned_locations(
         self,
         crowdsec: NamedDependency[CrowdSecService | None],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
         enrichment_repo: NamedDependency[SecurityEnrichmentRepository],
         from_timestamp: Annotated[
             datetime | None,
@@ -1081,9 +1124,10 @@ class CrowdSecController(Controller):
         all of them. This is current decision state, not ban history.
         """
         service = _require_service(crowdsec)
-        decisions = await service.get_decisions()
+        tracked = crowdsec_poller.ip_decisions() if crowdsec_poller is not None else None
+        banned_ips = list(tracked) if tracked is not None else active_decision_ips(await service.get_decisions())
         locations = await enrichment_repo.locations(
-            active_decision_ips(decisions), start=from_timestamp, end=to_timestamp,
+            banned_ips, start=from_timestamp, end=to_timestamp,
             country_codes=country_code, cities=city, servers=server_in,
         )
         return banned_map_collection(locations)
@@ -1347,6 +1391,7 @@ class CrowdSecController(Controller):
         data: JSONBody[BanRequest],
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
     ) -> None:
         """Create a manual ban or captcha decision for one IP or range.
 
@@ -1368,6 +1413,8 @@ class CrowdSecController(Controller):
             duration or settings.crowdsec.default_ban_duration,
             reason,
         )
+        if crowdsec_poller is not None:
+            await crowdsec_poller.poll()
 
     @post(
         "/ban-networks",
@@ -1392,6 +1439,7 @@ class CrowdSecController(Controller):
         data: JSONBody[BanNetworksRequest],
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
     ) -> BanNetworksResponse:
         """Ban DROP networks, reporting every network's outcome.
 
@@ -1424,14 +1472,14 @@ class CrowdSecController(Controller):
             if data.networks is not None:
                 requested_networks = data.networks
                 # An unreachable LAPI is reported by the bans themselves.
-                banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot) or {}
+                banned_ranges = await _banned_ranges_if_reachable(service, drop_snapshot, crowdsec_poller) or {}
             else:
                 requested_networks = []
                 banned_ranges = {}
                 if drop_snapshot.networks_loaded:
                     end = datetime.now(UTC)
                     start = end - timedelta(days=data.all_unbanned_days or 0)
-                    banned_ranges = await _active_banned_ranges(service, drop_snapshot)
+                    banned_ranges = await _active_banned_ranges(service, drop_snapshot, crowdsec_poller)
                     unbanned_networks = [
                         drop_network_hits.cidr
                         for drop_network_hits in await drop_traffic_repo.network_hits(start, end)
@@ -1502,6 +1550,11 @@ class CrowdSecController(Controller):
                     ban_results.append(BanNetworkResult(
                         network=planned_ban.cidr, ok=True, error=None, already_banned=False
                     ))
+            # A single-address network becomes an Ip decision, which the poller tracks.
+            if crowdsec_poller is not None and any(
+                ban_result.ok and not ban_result.already_banned for ban_result in ban_results
+            ):
+                await crowdsec_poller.poll()
             completed = True
         finally:
             already_banned_count = sum(1 for ban_result in ban_results if ban_result.already_banned)
@@ -1538,6 +1591,7 @@ class CrowdSecController(Controller):
         data: JSONBody[UnbanRequest],
         request: Request,
         settings: NamedDependency[SkipValidation[Settings]],
+        crowdsec_poller: NamedDependency[SkipValidation[CrowdSecStreamPoller | None]],
     ) -> UnbanResponse:
         """Delete all active decisions on one IP or range.
 
@@ -1550,6 +1604,8 @@ class CrowdSecController(Controller):
             "CrowdSec unban by %s: value=%s scope=%s deleted=%d",
             _actor(request), value, scope, deleted,
         )
+        if crowdsec_poller is not None:
+            await crowdsec_poller.poll()
         return UnbanResponse(deleted=deleted)
 
     @get(

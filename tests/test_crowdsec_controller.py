@@ -1,6 +1,7 @@
 """CrowdSec API: status, decisions (paginated + enriched), lookup, stats."""
 from __future__ import annotations
 
+from collections.abc import Collection, Mapping
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any, cast
@@ -651,6 +652,59 @@ async def test_banned_ips_canonicalizes_addresses_and_skips_non_ips():
     async with AsyncTestClient(app=make_app(FakeCrowdSec(decisions))) as client:
         resp = await client.get("/api/v1/crowdsec/banned-ips")
     assert resp.json() == [{"ip": "2001:db8::1", "type": "ban"}]
+
+
+class TrackingPoller:
+    """The decision set the stream poller would hold, and a count of polls."""
+
+    lapi_reachable = True
+
+    def __init__(self, ip_decisions: Mapping[str, Collection[str]] | None) -> None:
+        self._ip_decisions = ip_decisions
+        self.polls = 0
+
+    def ip_decisions(self) -> Mapping[str, Collection[str]] | None:
+        return self._ip_decisions
+
+    async def poll(self) -> None:
+        self.polls += 1
+
+
+async def test_banned_ips_reads_the_poller_set_without_asking_the_lapi():
+    service = FakeCrowdSec([make_decision(id=1, value="9.9.9.9")])
+    app = make_app(service)
+    app.state.crowdsec_stream_poller = TrackingPoller({
+        "1.2.3.4": {"captcha", "ban"}, "5.6.7.8": {"throttle", "captcha"},
+    })
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ips")
+    assert resp.json() == [
+        {"ip": "1.2.3.4", "type": "ban"},
+        {"ip": "5.6.7.8", "type": "captcha"},
+    ]
+    assert service.calls == []
+
+
+async def test_banned_ips_asks_the_lapi_while_the_poller_has_no_set():
+    service = FakeCrowdSec([make_decision(id=1, value="9.9.9.9")])
+    app = make_app(service)
+    app.state.crowdsec_stream_poller = TrackingPoller(None)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ips")
+    assert resp.json() == [{"ip": "9.9.9.9", "type": "ban"}]
+    assert service.calls == [{}]
+
+
+async def test_ban_and_unban_refresh_the_poller_set(monkeypatch):
+    enable_write(monkeypatch)
+    poller = TrackingPoller({})
+    app = make_app(WritableFakeCrowdSec())
+    app.state.crowdsec_stream_poller = poller
+    async with AsyncTestClient(app=app) as client:
+        assert (await client.post("/api/v1/crowdsec/ban", json={"ip": "1.2.3.4"})).status_code == 204
+        assert poller.polls == 1
+        assert (await client.post("/api/v1/crowdsec/unban", json={"ip": "1.2.3.4"})).status_code == 200
+        assert poller.polls == 2
 
 
 # -- alert history ---------------------------------------------------------
@@ -1308,6 +1362,17 @@ async def test_banned_locations_defaults_to_no_window():
     assert enrichment.location_windows == [(None, None)]
 
 
+async def test_banned_locations_reads_the_poller_set():
+    enrichment = LocationsFakeEnrichment([])
+    service = FakeCrowdSec([make_decision(id=1, value="9.9.9.9")])
+    app = make_app(service, enrichment)
+    app.state.crowdsec_stream_poller = TrackingPoller({"1.2.3.4": {"ban"}, "5.6.7.8": {"captcha"}})
+    async with AsyncTestClient(app=app) as client:
+        assert (await client.get("/api/v1/crowdsec/banned-locations")).status_code == 200
+    assert enrichment.location_calls == [["1.2.3.4", "5.6.7.8"]]
+    assert service.calls == []
+
+
 async def test_banned_locations_404_when_disabled():
     async with AsyncTestClient(app=make_app(None)) as client:
         assert (await client.get("/api/v1/crowdsec/banned-locations")).status_code == 404
@@ -1671,6 +1736,17 @@ async def test_ban_networks_bans_a_single_address_network_as_an_ip_the_way_ban_d
     assert (single_service.bans[0]["scope"], single_service.bans[0]["value"]) == ("Ip", "192.0.2.7")
 
 
+async def test_ban_networks_refreshes_the_poller_set_after_new_bans(monkeypatch):
+    enable_write(monkeypatch)
+    poller = TrackingPoller({})
+    app = make_app(WritableFakeCrowdSec(), drop_snapshot=HOST_PREFIX_SNAPSHOT, drop_traffic=FakeDropTraffic(DROP_HITS))
+    app.state.crowdsec_stream_poller = poller
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.post("/api/v1/crowdsec/ban-networks", json={"networks": ["192.0.2.7/32"], "duration": "24h"})
+    assert resp.json()["results"][0]["ok"] is True
+    assert poller.polls == 1
+
+
 class LapiStateCrowdSec(WritableFakeCrowdSec):
     """Keeps the decisions its bans create, the way the LAPI does, and filters on scopes."""
 
@@ -1744,6 +1820,42 @@ async def test_banned_ranges_asks_only_for_range_decisions_without_single_addres
         resp = await client.get("/api/v1/crowdsec/banned-ranges")
     assert resp.json() == []
     assert service.calls == [{"scopes": "Range"}]
+
+
+async def test_banned_ranges_reads_single_address_networks_from_the_poller():
+    from geometrikks.services.crowdsec.stream import HeldDecision
+
+    seen_at = datetime.now(UTC) - timedelta(hours=1)
+    service = LapiStateCrowdSec([range_decision("198.51.100.0/24", id=3)])
+    app = make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT)
+    app.state.crowdsec_stream_poller = TrackingPoller({
+        "192.0.2.7": {
+            "captcha": HeldDecision(origin="crowdsec", duration="47h", seen_at=seen_at),
+            "ban": HeldDecision(origin="geometrikks", duration="23h", seen_at=seen_at),
+        },
+        "2001:db8::1": {"ban": HeldDecision(origin="geometrikks", duration="30m", seen_at=seen_at)},
+        "203.0.113.9": {"ban": HeldDecision(origin="CAPI", duration="23h", seen_at=seen_at)},
+    })
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+
+    banned_ranges = {banned_range["value"]: banned_range for banned_range in resp.json()}
+    # The /128's ban ran out after the poll that saw it.
+    assert set(banned_ranges) == {"192.0.2.7/32", "198.51.100.0/24"}
+    assert banned_ranges["192.0.2.7/32"]["type"] == "ban"
+    expires_at = datetime.fromisoformat(banned_ranges["192.0.2.7/32"]["expiresAt"])
+    assert abs(expires_at - (seen_at + timedelta(hours=23))) < timedelta(seconds=1)
+    assert service.calls == [{"scopes": "Range"}]
+
+
+async def test_banned_ranges_asks_the_lapi_for_ip_decisions_while_the_poller_has_no_set():
+    service = LapiStateCrowdSec([make_decision(id=1, scope="Ip", value="192.0.2.7")])
+    app = make_app(service, drop_snapshot=HOST_PREFIX_SNAPSHOT)
+    app.state.crowdsec_stream_poller = TrackingPoller(None)
+    async with AsyncTestClient(app=app) as client:
+        resp = await client.get("/api/v1/crowdsec/banned-ranges")
+    assert [banned_range["value"] for banned_range in resp.json()] == ["192.0.2.7/32"]
+    assert service.calls == [{"scopes": "Range,Ip"}]
 
 
 ASN_ONLY_SNAPSHOT = DropSnapshot(

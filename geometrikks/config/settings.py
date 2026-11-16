@@ -1075,7 +1075,7 @@ class CrowdSecSettings(BaseSettings):
     stream_poll_interval: float = Field(
         default=15.0,
         gt=0,
-        description="Seconds between decision-stream polls feeding live ban/unban updates",
+        description="Seconds between decision-stream polls, which keep the banned-IP list and the live ban/unban updates current",
         json_schema_extra=ADVANCED_FIELD,
     )
 

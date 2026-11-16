@@ -1411,7 +1411,7 @@ export const apiV1CrowdsecBanNetworksBanNetworks = <
 /**
  * List every IP under an active decision
  *
- * Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions.
+ * Returns each IP that holds an `Ip` decision from any origin, once, with the strongest decision type on it. `ban` beats `captcha`, which beats the rest. `/banned-ranges` lists the Range decisions. The list comes from the decision stream the server polls, so a change can take up to `CROWDSEC_STREAM_POLL_INTERVAL` seconds to show.
  */
 export const apiV1CrowdsecBannedIpsListBannedIps = <
   ThrowOnError extends boolean = false,

@@ -1,6 +1,8 @@
 """Decision stream: service parsing and the poller's broadcast behavior."""
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import httpx2
 import pytest
 
@@ -219,6 +221,160 @@ async def test_unsubscribe_stops_delivery():
     await service.aclose()
 
 
+# -- tracked decision set ---------------------------------------------------
+
+
+def decision(ip: str, kind: str = "ban", **overrides) -> dict:
+    return {**DECISION_JSON, "value": ip, "type": kind, **overrides}
+
+
+def tracked(poller) -> dict[str, set[str]] | None:
+    state = poller.ip_decisions()
+    return None if state is None else {ip: set(types) for ip, types in state.items()}
+
+
+async def test_startup_poll_seeds_the_tracked_set():
+    respond = stream_responder([{
+        "new": [
+            decision("1.2.3.4"),
+            decision("1.2.3.4", "captcha", id=43, origin="CAPI"),
+            decision("2001:0db8::1", id=44),
+            decision("10.0.0.0/24", id=45, scope="Range"),
+        ],
+        "deleted": [decision("9.9.9.9", id=46)],
+    }])
+    service = make_service(respond)
+    poller = make_poller(service)
+    assert poller.ip_decisions() is None
+
+    await poller.poll()
+    assert tracked(poller) == {"1.2.3.4": {"ban", "captcha"}, "2001:db8::1": {"ban"}}
+    await service.aclose()
+
+
+async def test_deltas_delete_before_they_add():
+    respond = stream_responder([
+        {"new": [decision("1.2.3.4"), decision("1.2.3.4", "captcha", id=43), decision("5.6.7.8", id=44)],
+         "deleted": None},
+        {"new": [decision("5.6.7.8", id=47)],
+         "deleted": [decision("1.2.3.4", id=42), decision("5.6.7.8", id=44)]},
+        {"new": None, "deleted": [decision("1.2.3.4", "captcha", id=43)]},
+    ])
+    service = make_service(respond)
+    poller = make_poller(service)
+
+    await poller.poll()
+    await poller.poll()
+    # The captcha outlives the ban; a ban replaced in the same delta stays.
+    assert tracked(poller) == {"1.2.3.4": {"captcha"}, "5.6.7.8": {"ban"}}
+    await poller.poll()
+    assert tracked(poller) == {"5.6.7.8": {"ban"}}
+    await service.aclose()
+
+
+async def test_held_decisions_keep_the_duration_each_poll_saw():
+    respond = stream_responder([
+        {"new": [decision("1.2.3.4", duration="4h", origin="crowdsec")], "deleted": None},
+        {"new": [decision("1.2.3.4", id=43, duration="24h", origin="geometrikks")], "deleted": None},
+    ])
+    service = make_service(respond)
+    poller = make_poller(service)
+
+    await poller.poll()
+    first = poller.ip_decisions()["1.2.3.4"]["ban"]
+    await poller.poll()
+    second = poller.ip_decisions()["1.2.3.4"]["ban"]
+    assert (first.duration, first.origin) == ("4h", "crowdsec")
+    assert (second.duration, second.origin) == ("24h", "geometrikks")
+    assert second.seen_at >= first.seen_at
+    await service.aclose()
+
+
+async def test_tracked_set_is_withheld_while_the_lapi_is_down():
+    calls = {"n": 0}
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise httpx2.ConnectError("boom")
+        return httpx2.Response(200, json={"new": [decision("1.2.3.4")], "deleted": None})
+
+    service = make_service(respond)
+    poller = make_poller(service)
+    await poller.poll()
+    assert tracked(poller) == {"1.2.3.4": {"ban"}}
+    await poller.poll()
+    assert poller.ip_decisions() is None
+    await poller.poll()
+    assert tracked(poller) == {"1.2.3.4": {"ban"}}
+    await service.aclose()
+
+
+async def test_first_poll_failure_retries_with_startup():
+    respond = flaky_responder(1, {"new": [decision("1.2.3.4")], "deleted": None})
+    calls: list[dict] = []
+
+    def recording(request: httpx2.Request) -> httpx2.Response:
+        calls.append(dict(request.url.params))
+        return respond(request)
+
+    service = make_service(recording)
+    poller = make_poller(service)
+    await poller.poll()
+    await poller.poll()
+    assert calls == [{"startup": "true"}, {"startup": "true"}]
+    assert tracked(poller) == {"1.2.3.4": {"ban"}}
+    await service.aclose()
+
+
+async def test_resync_replaces_the_set_and_broadcasts_the_difference():
+    from geometrikks.services.crowdsec.stream import CrowdSecStreamPoller
+
+    respond = stream_responder([
+        {"new": [decision("1.2.3.4"), decision("5.6.7.8", "captcha", id=43, origin="CAPI")], "deleted": None},
+        {"new": [decision("1.2.3.4"), decision("9.9.9.9", id=44, scenario="ssh-bf", duration="1h")],
+         "deleted": [decision("5.6.7.8", "captcha", id=43)]},
+    ])
+    service = make_service(respond)
+    poller = CrowdSecStreamPoller(service, resync_seconds=0)
+    queue = poller.subscribe()
+
+    await poller.poll()
+    await poller.poll()
+    assert [call["params"] for call in respond.calls] == [{"startup": "true"}, {"startup": "true"}]
+    assert tracked(poller) == {"1.2.3.4": {"ban"}, "9.9.9.9": {"ban"}}
+
+    assert queue.get_nowait()["type"] == "crowdsec_status"
+    assert queue.get_nowait() == {
+        "type": "crowdsec_decisions",
+        "added": [{"ip": "9.9.9.9", "type": "ban", "origin": "cscli", "scenario": "ssh-bf", "duration": "1h"}],
+        "deleted": [{"ip": "5.6.7.8", "type": "captcha", "origin": "CAPI"}],
+    }
+    assert queue.empty()
+    await service.aclose()
+
+
+async def test_overlapping_polls_run_one_at_a_time():
+    import anyio
+
+    in_flight = {"now": 0, "max": 0}
+
+    async def respond(request: httpx2.Request) -> httpx2.Response:
+        in_flight["now"] += 1
+        in_flight["max"] = max(in_flight["max"], in_flight["now"])
+        await anyio.sleep(0.01)
+        in_flight["now"] -= 1
+        return httpx2.Response(200, json={"new": None, "deleted": None})
+
+    service = make_service(respond)
+    poller = make_poller(service)
+    async with anyio.create_task_group() as tg:
+        for _ in range(3):
+            tg.start_soon(poller.poll)
+    assert in_flight["max"] == 1
+    await service.aclose()
+
+
 # -- scheduler + websocket wiring ------------------------------------------
 
 
@@ -232,7 +388,10 @@ async def test_scheduler_registers_stream_poll_job(monkeypatch, tmp_path):
     poller = object.__new__(__import__("geometrikks.services.crowdsec.stream", fromlist=["CrowdSecStreamPoller"]).CrowdSecStreamPoller)
 
     with_poller = await create_scheduler(MagicMock(), Settings(_env_file=None), crowdsec_poller=poller)
-    assert "crowdsec-stream-poll" in {job.id for job in with_poller.get_jobs()}
+    poll_job = with_poller.get_job("crowdsec-stream-poll")
+    assert poll_job is not None
+    # The first poll runs at startup, not one interval later.
+    assert poll_job.next_run_time <= datetime.now(UTC)
 
     without = await create_scheduler(MagicMock(), Settings(_env_file=None))
     assert "crowdsec-stream-poll" not in {job.id for job in without.get_jobs()}
