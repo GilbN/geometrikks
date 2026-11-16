@@ -105,6 +105,8 @@ The scheduler runs the download, so it needs `SCHEDULER_ENABLED=true`, the defau
 
 A failed download keeps the previous list, logs `abuseipdb_blacklist_refresh_failed` with the reason, and marks the AbuseIPDB blacklist refresh job as failed on Settings > Scheduler. When the newest list is more than 72 hours old, GeoMetrikks stops showing it and logs `abuseipdb_blacklist_expired`. The marks come back with the next good download. AbuseIPDB requires a downloaded list to be kept current or dropped.
 
+Settings > About has an AbuseIPDB blacklist card with the number of listed IPs, when AbuseIPDB generated the list, when the list was last updated, and which source is configured, the API or a file. Its light turns amber when the last download failed, and the card names the `abuseipdb_blacklist_refresh_failed` log line that holds the reason. It turns red once the list is more than 72 hours old.
+
 The list is for your own use. AbuseIPDB's terms forbid republishing it, and free plans can't be used commercially.
 
 ### Use a blacklist you already download

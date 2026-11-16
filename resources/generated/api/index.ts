@@ -94,6 +94,7 @@ export type {
   AboutLinksView,
   AboutResponse,
   AbuseContactResponse,
+  AbuseIpdbBlacklistAboutView,
   AbuseIpdbBlacklistResponse,
   AbuseIpdbStatusResponse,
   AbuseReportResponse,

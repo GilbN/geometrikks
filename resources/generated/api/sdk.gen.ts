@@ -2590,7 +2590,7 @@ export const apiV1StatsStats = <ThrowOnError extends boolean = false>(
 /**
  * Get version, runtime and database details
  *
- * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases and DROP lists. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.
+ * Returns the app version and image, the Python and library versions, the PostgreSQL, TimescaleDB and PostGIS versions, the schema migration, and the state of the GeoLite2 databases, the DROP lists and the AbuseIPDB blacklist. When the database is unreachable, every database field is null except `migrationHead`, the newest migration this build ships.
  */
 export const apiV1SystemAboutGetAbout = <ThrowOnError extends boolean = false>(
   options?: Options<ApiV1SystemAboutGetAboutData, ThrowOnError>,

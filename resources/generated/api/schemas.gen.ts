@@ -96,8 +96,18 @@ export const AboutLinksViewSchema = {
 
 export const AboutResponseSchema = {
   description:
-    "Version, runtime and database details for the About page.\n\n`geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null\nwith DROP_ENABLED=false, or when the database cannot answer.",
+    "Version, runtime and database details for the About page.\n\n`geoip` describes the GeoLite2 City database and `geoipAsn` the ASN database. `dropLists` is null\nwith DROP_ENABLED=false, and `abuseipdbBlacklist` with ABUSEIPDB_BLACKLIST_ENABLED=false.\nWhen the database cannot answer, `abuseipdbBlacklist` is null, and so is `dropLists` until this process has\nloaded it once.",
   properties: {
+    abuseipdbBlacklist: {
+      oneOf: [
+        {
+          $ref: "#/components/schemas/AbuseIpdbBlacklistAboutView",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
     app: {
       $ref: "#/components/schemas/AboutAppView",
     },
@@ -273,6 +283,96 @@ export const AbuseContactResponseSchema = {
     "startAddress",
   ],
   title: "AbuseContactResponse",
+  type: "object",
+} as const;
+
+export const AbuseIpdbBlacklistAboutViewSchema = {
+  description:
+    "How current the stored AbuseIPDB blacklist is, for Settings > About.",
+  properties: {
+    expired: {
+      description:
+        "True when the list is more than 72 hours old, so GeoMetrikks no longer marks its IPs.",
+      type: "boolean",
+    },
+    filePath: {
+      description: "ABUSEIPDB_BLACKLIST_FILE, or null when downloading.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    generatedAt: {
+      description:
+        "When AbuseIPDB generated the list, as ISO 8601 in UTC. For a plaintext file, when the file was last written. Null before the first list.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    ipCount: {
+      description:
+        "How many IPs the stored list holds, also while `expired` hides them.",
+      type: "integer",
+    },
+    lastAttemptAt: {
+      description:
+        "When the last download started, as ISO 8601 in UTC. Always null for a file.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    lastAttemptFailed: {
+      description:
+        "True when the last download stored no list. False for 2 minutes after it starts, while it may still run. Always false for a file.",
+      type: "boolean",
+    },
+    refreshedAt: {
+      description:
+        "When GeoMetrikks downloaded the list, or when the file was last written, as ISO 8601 in UTC. Null before the first list.",
+      oneOf: [
+        {
+          format: "date-time",
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+    source: {
+      description:
+        "`file` when ABUSEIPDB_BLACKLIST_FILE is set, else `download`. The stored list can still come from an earlier source until this one delivers a list.",
+      enum: ["download", "file"],
+      type: "string",
+    },
+  },
+  required: [
+    "expired",
+    "filePath",
+    "generatedAt",
+    "ipCount",
+    "lastAttemptAt",
+    "lastAttemptFailed",
+    "refreshedAt",
+    "source",
+  ],
+  title: "AbuseIpdbBlacklistAboutView",
   type: "object",
 } as const;
 

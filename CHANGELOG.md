@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A scheduled job that fails now raises an advisory, so the sidebar status turns to attention until a run of that job succeeds. A failed job on an agent shows under that agent's Problems on Settings > Agents. Jobs that run more often than every 10 minutes raise it only after 10 minutes of failed runs.
+- Settings > About has an AbuseIPDB blacklist card when the blacklist is on. It shows how many IPs the stored list holds, when AbuseIPDB generated it, when it was last updated, and which source is configured, the API or a file. The light turns amber when the last download failed, and red once the list is more than 72 hours old and GeoMetrikks stops marking its IPs.
 - Settings > Agents shows whether each instance's database connection is encrypted and whether the instance verified the server, with a lock in the list and a Connection row in its details. [Multiple sources](https://geometrikks.dev/docs/sources/multiple-sources#encrypt-the-database-link) explains how to encrypt the link between an agent and the database with the standard `PGSSL*` variables. At startup, the log names a `PGSSL*` file the app can't read.
 
 ### Changed
