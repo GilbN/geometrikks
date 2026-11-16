@@ -360,6 +360,12 @@ describe("agentIngestionState", () => {
       agentIngestionState(makeIngestion({ status: "disabled", running: false }), 0).label,
     ).toBe("turned off")
   })
+  it("is muted while the agent is still starting", () => {
+    expect(agentIngestionState(makeIngestion({ status: "starting", running: false }), 0)).toEqual({
+      tone: "muted",
+      label: "starting",
+    })
+  })
   it("is amber when not running", () => {
     expect(agentIngestionState(makeIngestion({ running: false }), 0)).toEqual({
       tone: "amber",

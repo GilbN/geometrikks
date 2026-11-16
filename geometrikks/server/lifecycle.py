@@ -179,6 +179,7 @@ async def core_state_lifespan(app: Litestar) -> AsyncGenerator[None]:
     Runs first so /about reports uptime even when later managers degrade.
     """
     app.state.started_at = datetime.now(UTC)
+    app.state.ingestion_starting = True
     runtime.get_advisories(app)
 
     from geometrikks.server.logging import log_broadcaster
@@ -328,6 +329,15 @@ async def heartbeat_lifespan(app: Litestar) -> AsyncGenerator[None]:
     writer.start()
     try:
         yield
+    except Exception:
+        if runtime.is_ingestion_starting(app):
+            # Startup failed before ingestion ran, so the last row would say
+            # "starting" for a process that is exiting. Stopping the loop
+            # first means its own beat can't run at the same time as this one.
+            app.state.ingestion_starting = False
+            await writer.stop()
+            await writer.beat()
+        raise
     finally:
         # Normally already stopped by heartbeat_shutdown_lifespan; this covers
         # a startup failure that unwinds before that manager was entered.
@@ -649,6 +659,7 @@ async def ingestion_lifespan(app: Litestar) -> AsyncGenerator[None]:
     """Start ingestion when configured and the database is available."""
     settings = _resolve_settings(app)
     if not settings.logparser.enabled:
+        app.state.ingestion_starting = False
         logger.info("ingestion_disabled")
         yield
         return
@@ -656,6 +667,10 @@ async def ingestion_lifespan(app: Litestar) -> AsyncGenerator[None]:
     try:
         if runtime.is_db_available(app, default=False):
             await start_ingestion(app)
+        app.state.ingestion_starting = False
+        heartbeat_writer = runtime.get_heartbeat_writer(app)
+        if heartbeat_writer is not None:
+            heartbeat_writer.beat_soon()
         yield
     finally:
         await stop_ingestion(app)

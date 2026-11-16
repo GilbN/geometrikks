@@ -2249,9 +2249,9 @@ export type IngestionHealth = {
    */
   running: boolean;
   /**
-   * `disabled` with LOGPARSER_ENABLED=false, `degraded` when ingestion should run but does not, else `running`.
+   * `disabled` with LOGPARSER_ENABLED=false, `starting` while startup has not reached ingestion yet, `degraded` when ingestion should run but does not, else `running`.
    */
-  status?: "running" | "degraded" | "disabled";
+  status?: "running" | "starting" | "degraded" | "disabled";
   unavailableSources?: Array<UnavailableSourceHealth>;
 };
 

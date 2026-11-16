@@ -214,6 +214,7 @@ export function agentIngestionState(
 ): CardState {
   if (!ingestion) return { tone: "muted", label: "unknown" }
   if (ingestion.status === "disabled") return { tone: "muted", label: "turned off" }
+  if (ingestion.status === "starting") return { tone: "muted", label: "starting" }
   if (!ingestion.running) return { tone: "amber", label: "not running" }
   if ((failedLastFiveMinutes ?? 0) > 0) return { tone: "red", label: "running, writes failing" }
   if ((ingestion.unavailableSources ?? []).length > 0) {

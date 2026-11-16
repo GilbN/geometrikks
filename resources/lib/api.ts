@@ -196,9 +196,9 @@ export interface HealthIngestionStatus {
   unavailableSources?: { kind: string; label: string; reason: string | null }[]
   /** Wall-clock of the most recent ingested record; null before the first. */
   lastRecordAt: string | null
-  /** Tri-state: "disabled" is a deliberate LOGPARSER_ENABLED=false setting,
-   *  not a fault. Optional: absent on pre-tri-state backends. */
-  status?: "running" | "degraded" | "disabled"
+  /** "disabled" is a deliberate LOGPARSER_ENABLED=false setting, not a
+   *  fault. Optional: absent on older backends. */
+  status?: "running" | "starting" | "degraded" | "disabled"
   failedBatches?: number
   failedRecords?: number
 }

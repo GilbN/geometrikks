@@ -511,6 +511,11 @@ def test_degraded_ingestion_without_sources_is_a_warning() -> None:
     assert problem.summary == "Ingestion on edge-traefik is not running."
 
 
+def test_starting_ingestion_is_not_a_problem() -> None:
+    row = make_row(payload=ingestion_payload({"status": "starting", "unavailableSources": []}))
+    assert problem_ids(row) == []
+
+
 def test_degraded_ingestion_without_sources_points_at_the_agent_log() -> None:
     row = make_row(payload=ingestion_payload({"status": "degraded", "unavailableSources": []}))
     problem = evaluate_instance(row, HEAD, NOW).problems[0]

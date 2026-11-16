@@ -83,7 +83,11 @@ def disable_heartbeat_writer(request: pytest.FixtureRequest, monkeypatch: pytest
     if not request.node.path.is_relative_to(Path(__file__).parent / "integration"):
         from geometrikks.domain.instances.heartbeat import HeartbeatWriter
 
+        async def skip_beat(self) -> bool:
+            return True
+
         monkeypatch.setattr(HeartbeatWriter, "start", lambda self: None)
+        monkeypatch.setattr(HeartbeatWriter, "beat", skip_beat)
     yield
 
 
