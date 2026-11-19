@@ -49,3 +49,16 @@ export function effectiveConnection(
     return stored
   return { ...stored, connection: refresh.connection }
 }
+
+/** True when `b` is still the connection `a` was read as. A reconnect to
+ *  the same origin changes `savedAt` and may change the key. */
+export function sameIdentity(a: StoredConnection | null, b: StoredConnection | null): boolean {
+  return (
+    a !== null &&
+    b !== null &&
+    a.origin === b.origin &&
+    a.savedAt === b.savedAt &&
+    a.key === b.key &&
+    a.lifetime === b.lifetime
+  )
+}

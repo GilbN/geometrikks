@@ -2,7 +2,13 @@ import type { AbuseIpdbStatusResponse } from "@/generated/api/types.gen"
 import type { DropIndex } from "@/lib/drop-lists"
 import { realChrome, type ChromeApi } from "../lib/chrome-api"
 import type { ExtensionClient } from "../lib/client"
-import { effectiveConnection, type Access, type ConnectionRefresh } from "../lib/connection"
+import {
+  deriveAccess,
+  effectiveConnection,
+  sameIdentity,
+  type Access,
+  type ConnectionRefresh,
+} from "../lib/connection"
 import {
   getConnection,
   getConnectionRefresh,
@@ -63,6 +69,33 @@ export interface PopupSession {
    *  each resolves to null when its call or the DROP cache fails. */
   abuseStatus: Promise<AbuseIpdbStatusResponse | null>
   dropIndex: Promise<DropIndex | null>
+}
+
+export const SESSION_STALE_MESSAGE = "The connection changed. Reopen the popup."
+
+/** False once Options saved another connection, or one with other write
+ *  access, after this session opened. The session's client still sends the
+ *  key it opened with, so a write must not go out through it then. */
+export function sessionIsCurrent(session: PopupSession, latest: StoredConnection | null): boolean {
+  if (latest === null || !sameIdentity(session.stored, latest)) return false
+  return deriveAccess(latest, session.connection).write === session.access.write
+}
+
+/** Runs `send` only while the stored connection read right before it is
+ *  still this session's. A failed read counts as changed. */
+export async function sendWhileCurrent<T>(
+  session: PopupSession,
+  send: () => Promise<T>,
+  chromeApi: ChromeApi = realChrome,
+): Promise<{ stale: true } | { stale: false; value: T }> {
+  let latest: StoredConnection | null
+  try {
+    latest = await readStoredConnection(chromeApi)
+  } catch {
+    return { stale: true }
+  }
+  if (!sessionIsCurrent(session, latest)) return { stale: true }
+  return { stale: false, value: await send() }
 }
 
 export function connectionChanged(stored: ConnectionResponse, fresh: ConnectionResponse): boolean {

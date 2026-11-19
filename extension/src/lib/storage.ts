@@ -50,6 +50,8 @@ export interface PendingItem {
   text: string
   result: BanResult | null
   origin: string
+  /** The `lifetime` of the connection the item was made under. */
+  lifetime?: string
   windowId: number
   createdAt: number
   reservedForPage: boolean

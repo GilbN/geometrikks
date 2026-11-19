@@ -1,17 +1,11 @@
 import { BAN_DURATIONS } from "@/lib/crowdsec"
 import type { BanDuration } from "../lib/actions"
 import type { ChromeApi } from "../lib/chrome-api"
-import { deriveAccess, type Access } from "../lib/connection"
+import { deriveAccess, sameIdentity, type Access } from "../lib/connection"
 import { classifyFailure, type Failure } from "../lib/failures"
 import { parseSingleIp } from "../lib/ip"
 import type { BanResult, PendingItem, StoredConnection } from "../lib/storage"
-import {
-  currentConnection,
-  enqueuePending,
-  sameIdentity,
-  storeRefresh,
-  type WorkerDeps,
-} from "./pending-flow"
+import { currentConnection, enqueuePending, storeRefresh, type WorkerDeps } from "./pending-flow"
 
 export const MENU_PARENT = "gmk"
 export const MENU_LOOKUP = "gmk-lookup"
@@ -118,7 +112,8 @@ async function banOutcomeFor(
   const permitted = await deps.chrome.permissions.contains({ origins: [stored.pattern] })
   if (!permitted) return refused(FAILURE_TEXT["access-removed"](host))
   const checked = await deps.fetchConnection({ origin: stored.origin, key: stored.key })
-  if (!sameIdentity(stored, await currentConnection(deps.chrome))) return null
+  const latest = await currentConnection(deps.chrome)
+  if (latest === null || !sameIdentity(stored, latest)) return null
   if (!checked.ok) {
     const failure = classifyFailure(checked.failure, {
       keyless: stored.keyless,
@@ -126,8 +121,8 @@ async function banOutcomeFor(
     })
     return refused(FAILURE_TEXT[failure](host))
   }
-  const before = deriveAccess(stored, stored.connection)
-  const now = deriveAccess(stored, checked.connection)
+  const before = deriveAccess(latest, latest.connection)
+  const now = deriveAccess(latest, checked.connection)
   if (before.write !== now.write) {
     await handleRefreshConnection(
       checked.connection,
@@ -177,6 +172,7 @@ export async function handleMenuClick(
     id: deps.newId(),
     text: selected.slice(0, MAX_SELECTION_LENGTH),
     origin: stored.origin,
+    lifetime: stored.lifetime,
     windowId: await windowIdFor(tab, deps),
     reservedForPage: false,
   }

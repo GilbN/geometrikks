@@ -251,6 +251,30 @@ describe("handleMenuClick", () => {
     expect(pending(deps)).toEqual([])
   })
 
+  it("sends no ban when a reconnect lands between the refresh and connection reads", async () => {
+    const deps = testDeps()
+    const read = deps.chrome.storage.local.get
+    let checked = false
+    deps.fetchConnection.mockImplementation(async () => {
+      checked = true
+      return { ok: true, connection: writeAnswer }
+    })
+    deps.chrome.storage.local.get = async (keys) => {
+      const items = await read(keys)
+      if (checked && keys === "connectionRefresh")
+        deps.chrome.storage.local.data.connection = storedFor(A, {
+          key: "gmk_read",
+          verifiedScope: "read",
+          connection: readAnswer,
+          savedAt: 2,
+        })
+      return items
+    }
+    expect(await handleMenuClick(ban24h("45.148.10.82"), tab, deps)).toBeNull()
+    expect(deps.banIp).not.toHaveBeenCalled()
+    expect(pending(deps)).toEqual([])
+  })
+
   it("sends no ban when the key changes while the check is answered", async () => {
     const deps = testDeps()
     const stored = deps.chrome.storage.local.data.connection as StoredConnection

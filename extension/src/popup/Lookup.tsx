@@ -44,7 +44,7 @@ import {
   type LookupData,
 } from "./lookup"
 import { CAPTCHA_TEXT_CLASS } from "./marks"
-import type { PopupSession } from "./open-context"
+import { SESSION_STALE_MESSAGE, sendWhileCurrent, type PopupSession } from "./open-context"
 import { formatErrorRate, type StatsRange } from "./site-stats"
 import { Chart, ErrorCount, Hits, Kpi, Label, ListRow, RangeSwitch, cardClass } from "./SiteStats"
 
@@ -388,17 +388,21 @@ function Actions({
 
 /** Screens 4 to 6: one IP, with Ban or Unban when the key may write.
  *  `onDecisions` gets each confirmed decisions read and `onRecent` the
- *  recent list after each write to it; both may run after unmount. */
+ *  recent list after each write to it; both may run after unmount.
+ *  `onStale` runs when a Ban or Unban found the connection changed since
+ *  the session opened and sent nothing. */
 export function Lookup({
   session,
   ip,
   onDecisions,
   onRecent,
+  onStale,
 }: {
   session: PopupSession
   ip: string
   onDecisions?: (ip: string, decisions: DecisionView[]) => void
   onRecent?: (items: RecentLookup[]) => void
+  onStale?: () => void
 }) {
   const [range, setRange] = useState<StatsRange>("7d")
   const [results, setResults] = useState<Partial<Record<StatsRange, LookupData>>>({})
@@ -483,19 +487,28 @@ export function Lookup({
 
   const action = actionRowFor(access, snapshot?.decisions ?? null, snapshot?.failed ?? false)
 
+  const staleSession = () => {
+    toast.error(SESSION_STALE_MESSAGE)
+    setBusy(false)
+    onStale?.()
+  }
+
   const ban = async (duration: BanDuration) => {
     setBusy(true)
-    let result: BanResult
-    try {
-      result = await banIp(client, ip, duration)
-    } catch {
-      result = {
-        ok: false,
-        ip,
-        durationLabel: duration.label,
-        message: `Ban failed for ${ip}; the server didn't answer.`,
+    const sent = await sendWhileCurrent(session, async (): Promise<BanResult> => {
+      try {
+        return await banIp(client, ip, duration)
+      } catch {
+        return {
+          ok: false,
+          ip,
+          durationLabel: duration.label,
+          message: `Ban failed for ${ip}; the server didn't answer.`,
+        }
       }
-    }
+    })
+    if (sent.stale) return staleSession()
+    const result = sent.value
     if (result.ok) {
       toast.success(result.message)
       await refreshDecisions(true)
@@ -509,9 +522,13 @@ export function Lookup({
     const before = action
     setBusy(true)
     let seq = 0
-    const outcome = await unbanThenRefetch(client, ip, () => {
-      seq = ++readSeq.current
-    })
+    const sent = await sendWhileCurrent(session, () =>
+      unbanThenRefetch(client, ip, () => {
+        seq = ++readSeq.current
+      }),
+    )
+    if (sent.stale) return staleSession()
+    const outcome = sent.value
     const next = applyRead({ decisions: outcome.decisions, seq, afterWrite: true })
     const message = unbanToast(ip, before, outcome)
     if (message.ok) toast.success(message.message)

@@ -18,6 +18,7 @@ function item(deps: TestDeps, overrides: Partial<PendingItem> = {}): PendingItem
     text: "45.148.10.82",
     result: null,
     origin: A,
+    lifetime: "lifetime-1",
     windowId: 7,
     createdAt: deps.now(),
     reservedForPage: false,
@@ -162,12 +163,39 @@ describe("claimPending", () => {
 })
 
 describe("clearPending", () => {
-  it("empties pending storage inside the queue", async () => {
+  it("drops the old server's items inside the queue", async () => {
     const deps = testDeps()
     await stored(deps)
     const adding = enqueuePending(item(deps), storedFor(A), deps)
+    deps.chrome.storage.local.data.connection = storedFor(B, { savedAt: 2, lifetime: "lifetime-2" })
     await clearPending(deps)
     await adding
+    expect(pending(deps)).toEqual([])
+  })
+
+  it("keeps an item B queued before A's serverChanged arrived and drops A's", async () => {
+    const deps = testDeps()
+    await stored(deps)
+    const b = storedFor(B, { savedAt: 2, lifetime: "lifetime-2" })
+    deps.chrome.storage.local.data.connection = b
+    const queued = await enqueuePending(item(deps, { origin: B, lifetime: "lifetime-2" }), b, deps)
+    await clearPending(deps)
+    expect(pending(deps).map((entry) => entry.id)).toEqual([queued?.id])
+  })
+
+  it("drops items from an earlier lifetime on the same origin", async () => {
+    const deps = testDeps()
+    await stored(deps)
+    deps.chrome.storage.local.data.connection = storedFor(A, { savedAt: 2, lifetime: "lifetime-3" })
+    await clearPending(deps)
+    expect(pending(deps)).toEqual([])
+  })
+
+  it("drops everything after a disconnect", async () => {
+    const deps = testDeps()
+    await stored(deps)
+    delete deps.chrome.storage.local.data.connection
+    await clearPending(deps)
     expect(pending(deps)).toEqual([])
   })
 })

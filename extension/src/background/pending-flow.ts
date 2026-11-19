@@ -5,7 +5,7 @@ import {
   fetchConnection as fetchConnectionReal,
   type ClientTarget,
 } from "../lib/client"
-import { effectiveConnection, type ConnectionRefresh } from "../lib/connection"
+import { effectiveConnection, sameIdentity, type ConnectionRefresh } from "../lib/connection"
 import type { FailureInput } from "../lib/failures"
 import { createSerialQueue, PENDING_TTL_MS, selectById, selectForPopup } from "../lib/pending"
 import {
@@ -47,23 +47,13 @@ const PENDING_KEY = "pending"
 
 export type ClaimRequest = { windowId: number; origin: string } | { id: string; origin: string }
 
-/** The stored connection with a matching refresh applied, or null. */
+/** The stored connection with a matching refresh applied, or null. The
+ *  connection is read last, so a reconnect that lands during the refresh
+ *  read is still seen. */
 export async function currentConnection(chromeApi: ChromeApi): Promise<StoredConnection | null> {
+  const refresh = await getConnectionRefresh(chromeApi)
   const stored = await getConnection(chromeApi)
-  return stored && effectiveConnection(stored, await getConnectionRefresh(chromeApi))
-}
-
-/** True when `b` is still the connection `a` was read as. A reconnect to
- *  the same origin changes `savedAt` and may change the key. */
-export function sameIdentity(a: StoredConnection | null, b: StoredConnection | null): boolean {
-  return (
-    a !== null &&
-    b !== null &&
-    a.origin === b.origin &&
-    a.savedAt === b.savedAt &&
-    a.key === b.key &&
-    a.lifetime === b.lifetime
-  )
+  return stored && effectiveConnection(stored, refresh)
 }
 
 async function readPending(chromeApi: ChromeApi, now: number): Promise<PendingItem[]> {
@@ -113,9 +103,18 @@ export async function claimPending(
   })
 }
 
+/** Drops the items made under any other connection. Options saves the new
+ *  connection before it sends `serverChanged`, so items the new one queued
+ *  in between stay. */
 export async function clearPending(deps: WorkerDeps): Promise<void> {
   await deps.queue(async () => {
-    await deps.chrome.storage.session.remove(PENDING_KEY)
+    const stored = await getConnection(deps.chrome)
+    const items = await readPending(deps.chrome, deps.now())
+    const kept = stored
+      ? items.filter((item) => item.origin === stored.origin && item.lifetime === stored.lifetime)
+      : []
+    if (kept.length === 0) await deps.chrome.storage.session.remove(PENDING_KEY)
+    else await writePending(deps.chrome, kept)
   })
 }
 

@@ -214,6 +214,22 @@ export function Popup({
     setLookupIp(null)
     setPendingDismissed(true)
   }
+  const onStale = useCallback(() => {
+    setCheck({ kind: "checking" })
+    void (async () => {
+      let latest: StoredConnection | null
+      try {
+        latest = await readStoredConnection()
+      } catch {
+        latest = null
+      }
+      setOpened((previous) => {
+        if (previous === null) return previous
+        const claimed = previous.claimed?.origin === latest?.origin ? previous.claimed : null
+        return { ...previous, stored: latest, claimed }
+      })
+    })()
+  }, [])
   const onDecisions = useCallback((ip: string, decisions: DecisionView[]) => {
     const type = winningDecision(decisions)?.type ?? null
     setDecisionTypes((previous) => ({ ...previous, [ip]: type }))
@@ -258,7 +274,13 @@ export function Popup({
         renderPending(claimed, {
           session,
           lookup: (ip) => (
-            <Lookup session={session} ip={ip} onDecisions={onDecisions} onRecent={setRecent} />
+            <Lookup
+              session={session}
+              ip={ip}
+              onDecisions={onDecisions}
+              onRecent={setRecent}
+              onStale={onStale}
+            />
           ),
           home: (initialSearch) => (
             <Home
@@ -286,6 +308,7 @@ export function Popup({
               ip={lookup}
               onDecisions={onDecisions}
               onRecent={setRecent}
+              onStale={onStale}
             />
           )}
           {/* Hidden, not unmounted, so Back doesn't load the site stats again. */}
