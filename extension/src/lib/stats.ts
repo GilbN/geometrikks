@@ -29,17 +29,16 @@ function floorHour(ms: number): number {
   return Math.floor(ms / HOUR_MS) * HOUR_MS
 }
 
-/** One bucket per UTC hour from `start`'s hour to `end`'s hour, inclusive;
- *  the endpoint leaves out hours with no traffic. */
+/** One bucket per UTC hour that overlaps `[start, end)`; the endpoint
+ *  leaves out hours with no traffic. */
 export function zeroFillHourly(
   points: TimeSeriesDataPoint[],
   start: Date,
   end: Date,
 ): HourBucket[] {
   const first = floorHour(start.getTime())
-  const last = floorHour(end.getTime())
   const buckets: HourBucket[] = []
-  for (let at = first; at <= last; at += HOUR_MS)
+  for (let at = first; at < end.getTime(); at += HOUR_MS)
     buckets.push({ start: new Date(at), requests: 0, errors: 0 })
   for (const point of points) {
     const bucket = buckets[(floorHour(Date.parse(point.timestamp)) - first) / HOUR_MS]

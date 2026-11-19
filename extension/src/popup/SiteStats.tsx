@@ -10,7 +10,7 @@ import { formatNumber } from "@/lib/format-number"
 import { cn } from "@/lib/utils"
 import type { HourBucket } from "../lib/stats"
 import { IpChip } from "./IpChip"
-import { ipMarks, type IpMark } from "./marks"
+import { ERROR_TEXT_CLASS, ipMarks, type IpMark } from "./marks"
 import type { PopupSession } from "./open-context"
 import {
   axisLabels,
@@ -145,7 +145,12 @@ export function Label({ children, className }: { children: ReactNode; className?
 
 export function ErrorCount({ count }: { count: number }) {
   return (
-    <span className="relative min-w-[34px] text-right text-[11.5px] text-destructive tabular-nums">
+    <span
+      className={cn(
+        "relative min-w-[34px] text-right text-[11.5px] tabular-nums",
+        ERROR_TEXT_CLASS,
+      )}
+    >
       {count > 0 ? (
         <>
           {formatNumber(count)}
@@ -169,13 +174,23 @@ function EmptyList() {
   return <p className="px-1.5 py-2 text-xs text-muted-foreground">Nothing logged in this range.</p>
 }
 
+type ListTab = "countries" | "paths" | "ips"
+
+function isListTab(value: string): value is ListTab {
+  return value === "countries" || value === "paths" || value === "ips"
+}
+
 function Lists({
   stats,
   marks,
+  tab,
+  onTabChange,
   onLookup,
 }: {
   stats: SiteStatsData
   marks: Record<string, IpMark>
+  tab: ListTab
+  onTabChange: (tab: ListTab) => void
   onLookup: (ip: string) => void
 }) {
   const share = (value: number, values: number[]) => value / Math.max(1, ...values)
@@ -185,7 +200,13 @@ function Lists({
   const trigger =
     "flex-none px-2.5 py-1.5 text-xs font-normal after:border-b-2 after:border-primary after:bg-transparent group-data-[orientation=horizontal]/tabs:after:bottom-[-1px] group-data-[orientation=horizontal]/tabs:after:h-0"
   return (
-    <Tabs defaultValue="countries" className="gap-2">
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        if (isListTab(value)) onTabChange(value)
+      }}
+      className="gap-2"
+    >
       <TabsList
         variant="line"
         aria-label="Top traffic"
@@ -245,7 +266,7 @@ function Lists({
         ))}
       </TabsContent>
       <p className="mt-0.5 text-right text-[10.5px] text-muted-foreground">
-        <span className="text-destructive">red</span> = errors
+        <span className={ERROR_TEXT_CLASS}>red</span> = errors
       </p>
     </Tabs>
   )
@@ -283,7 +304,7 @@ export function RangeSwitch({
   )
 }
 
-/** Screen 2. Reports a 24 h "no traffic" answer up, so Home can show screen 3. */
+/** Screen 2. Reports a "no traffic" answer up, so Home can show screen 3. */
 export function SiteStats({
   session,
   hosts,
@@ -296,6 +317,7 @@ export function SiteStats({
   onNoTraffic: () => void
 }) {
   const [range, setRange] = useState<StatsRange>("24h")
+  const [tab, setTab] = useState<ListTab>("countries")
   const [results, setResults] = useState<Partial<Record<StatsRange, SiteStatsResult>>>({})
   const [marks, setMarks] = useState<Record<string, IpMark>>({})
   const result = results[range]
@@ -387,7 +409,7 @@ export function SiteStats({
       </Card>
       {stats && (
         <Card className={cn(cardClass, "pt-2")}>
-          <Lists stats={stats} marks={marks} onLookup={onLookup} />
+          <Lists stats={stats} marks={marks} tab={tab} onTabChange={setTab} onLookup={onLookup} />
         </Card>
       )}
     </>

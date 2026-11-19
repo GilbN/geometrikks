@@ -17,13 +17,19 @@ import { SITE_STATS_MIN_VERSION } from "../lib/version"
 
 export type Problem = Failure | "not-connected"
 
+const TONES = {
+  error: { box: "border-destructive/45 bg-destructive/10", icon: "text-destructive" },
+  warning: { box: "border-amber-500/45 bg-amber-500/10", icon: "text-amber-500" },
+  neutral: { box: "bg-card", icon: "text-muted-foreground" },
+}
+
 function Notice({
   tone,
   icon: Icon,
   title,
   children,
 }: {
-  tone: "error" | "warning"
+  tone: "error" | "warning" | "neutral"
   icon: LucideIcon
   title: string
   children: ReactNode
@@ -31,20 +37,9 @@ function Notice({
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
-      className={cn(
-        "flex items-start gap-2.5 rounded-xl border p-3 text-[13px]",
-        tone === "error"
-          ? "border-destructive/45 bg-destructive/10"
-          : "border-amber-500/45 bg-amber-500/10",
-      )}
+      className={cn("flex items-start gap-2.5 rounded-xl border p-3 text-[13px]", TONES[tone].box)}
     >
-      <Icon
-        aria-hidden
-        className={cn(
-          "mt-0.5 size-4 shrink-0",
-          tone === "error" ? "text-destructive" : "text-amber-500",
-        )}
-      />
+      <Icon aria-hidden className={cn("mt-0.5 size-4 shrink-0", TONES[tone].icon)} />
       <div className="min-w-0">
         <p className="mb-0.5 font-semibold">{title}</p>
         {children}
@@ -102,7 +97,7 @@ export function Problems({
   switch (problem) {
     case "not-connected":
       return (
-        <Notice tone="error" icon={Plug} title="Connect GeoMetrikks">
+        <Notice tone="neutral" icon={Plug} title="Connect GeoMetrikks">
           <Body>Add your GeoMetrikks server's address and an API key in Options.</Body>
           <OpenOptions />
         </Notice>
@@ -162,7 +157,14 @@ export function Problems({
   }
 }
 
-export function SiteStatsNeedUpdate({ appVersion }: { appVersion: string }) {
+export function SiteStatsNeedUpdate({
+  appVersion,
+  canWrite,
+}: {
+  appVersion: string
+  canWrite: boolean
+}) {
+  const stillWorks = canWrite ? "Lookups and bans still work" : "Lookups still work"
   return (
     <Notice
       tone="warning"
@@ -170,8 +172,7 @@ export function SiteStatsNeedUpdate({ appVersion }: { appVersion: string }) {
       title={`Site stats need GeoMetrikks ${SITE_STATS_MIN_VERSION}`}
     >
       <Body last>
-        This server runs {appVersion}. Lookups and bans work; update the server for stats on your
-        own sites.
+        This server runs {appVersion}. {stillWorks}; update the server for stats on your own sites.
       </Body>
     </Notice>
   )

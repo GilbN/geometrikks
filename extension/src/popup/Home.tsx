@@ -1,4 +1,13 @@
-import { useCallback, useId, useMemo, useState, type ReactNode } from "react"
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+} from "react"
 import { ExternalLink, FileText, Search } from "lucide-react"
 import {
   InputGroup,
@@ -17,9 +26,11 @@ import type { HomeMode } from "./site-stats"
 
 function SearchField({
   autoFocus,
+  inputRef,
   onLookup,
 }: {
   autoFocus: boolean
+  inputRef: Ref<HTMLInputElement>
   onLookup: (ip: string) => void
 }) {
   const [text, setText] = useState("")
@@ -32,6 +43,7 @@ function SearchField({
           <Search aria-hidden />
         </InputGroupAddon>
         <InputGroupInput
+          ref={inputRef}
           value={text}
           placeholder="Look up an IP"
           aria-label="Look up an IP"
@@ -105,6 +117,14 @@ export function Home({
   const [noTraffic, setNoTraffic] = useState(false)
   const hosts = useMemo(() => hostValuesFromUrl(session.ctx.tabUrl), [session.ctx.tabUrl])
   const onNoTraffic = useCallback(() => setNoTraffic(true), [])
+  const searchRef = useRef<HTMLInputElement>(null)
+  // Focus on a control that unmounted with the stats card falls back to body;
+  // anywhere else, the user put it there.
+  useEffect(() => {
+    if (!noTraffic) return
+    const active = document.activeElement
+    if (active === null || active === document.body) searchRef.current?.focus()
+  }, [noTraffic])
   const showStats = mode === "site-stats" && hosts !== null && !noTraffic
   const { access, settings, ctx, connection } = session
   const needsUpdate =
@@ -118,7 +138,7 @@ export function Home({
   return (
     <>
       <main className="grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-3 overflow-auto p-3">
-        <SearchField autoFocus={!showStats} onLookup={onLookup} />
+        <SearchField autoFocus={!showStats} inputRef={searchRef} onLookup={onLookup} />
         {showStats ? (
           <SiteStats
             session={session}
@@ -128,7 +148,9 @@ export function Home({
           />
         ) : (
           <>
-            {needsUpdate && <SiteStatsNeedUpdate appVersion={connection.appVersion} />}
+            {needsUpdate && (
+              <SiteStatsNeedUpdate appVersion={connection.appVersion} canWrite={access.write} />
+            )}
             <RecentLookups
               session={session}
               noTrafficHost={noTraffic && hosts ? hosts[0] : null}

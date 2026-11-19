@@ -2,6 +2,9 @@ import { describe, expect, it } from "vite-plus/test"
 import type { TimeSeriesDataPoint } from "@/generated/api/types.gen"
 import { summarize, toSixHour, zeroFillHourly, type HourBucket } from "./stats"
 
+// Six-hour blocks follow the local clock, so the counts below need a fixed zone.
+process.env.TZ = "Europe/Oslo"
+
 function point(timestamp: string, counts: Partial<TimeSeriesDataPoint>): TimeSeriesDataPoint {
   return {
     timestamp,
@@ -44,7 +47,11 @@ describe("summarize", () => {
 })
 
 describe("zeroFillHourly", () => {
-  it("gives one bucket per hour, both ends included, and keeps edge points", () => {
+  it("runs on Oslo time", () => {
+    expect(new Date("2026-11-18T12:00:00Z").getHours()).toBe(13)
+  })
+
+  it("gives one bucket per hour that overlaps the range and keeps edge points", () => {
     const buckets = zeroFillHourly(
       [
         point("2026-11-18T10:00:00Z", { totalRequests: 3, status5xx: 1 }),
@@ -59,12 +66,25 @@ describe("zeroFillHourly", () => {
     expect(buckets.slice(1, 24).every((bucket) => bucket.requests === 0)).toBe(true)
   })
 
+  it("adds no bucket for an end exactly on the hour", () => {
+    const buckets = zeroFillHourly(
+      [point("2026-11-19T10:00:00Z", { totalRequests: 5 })],
+      new Date("2026-11-18T10:00:00Z"),
+      new Date("2026-11-19T10:00:00Z"),
+    )
+    expect(buckets).toHaveLength(24)
+    expect(buckets[0]?.start).toEqual(new Date("2026-11-18T10:00:00Z"))
+    expect(buckets[23]?.start).toEqual(new Date("2026-11-19T09:00:00Z"))
+    expect(buckets.reduce((sum, bucket) => sum + bucket.requests, 0)).toBe(0)
+  })
+
   it("drops points outside the range", () => {
     const buckets = zeroFillHourly(
       [point("2026-11-17T10:00:00Z", { totalRequests: 9 })],
       new Date("2026-11-18T10:20:00Z"),
       new Date("2026-11-18T12:20:00Z"),
     )
+    expect(buckets).toHaveLength(3)
     expect(buckets.reduce((sum, bucket) => sum + bucket.requests, 0)).toBe(0)
   })
 })
@@ -82,5 +102,12 @@ describe("toSixHour", () => {
       { start: new Date(2026, 10, 18, 6), requests: 7, errors: 2 },
       { start: new Date(2026, 10, 18, 12), requests: 5, errors: 0 },
     ])
+  })
+
+  it("makes 29 blocks from a 7-day window", () => {
+    const week = (start: string, end: string) =>
+      toSixHour(zeroFillHourly([], new Date(start), new Date(end)))
+    expect(week("2026-11-11T10:20:00Z", "2026-11-18T10:20:00Z")).toHaveLength(29)
+    expect(week("2026-11-11T10:00:00Z", "2026-11-18T10:00:00Z")).toHaveLength(29)
   })
 })

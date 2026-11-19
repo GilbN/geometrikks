@@ -129,14 +129,15 @@ export async function loadLookup(
   ip: string,
   range: StatsRange,
   access: Access,
-  dropIndex: DropIndex | null,
+  dropIndexLoad: DropIndex | null | Promise<DropIndex | null>,
   now: Date,
 ): Promise<LookupData> {
   const asked = windowFor(range, now)
-  const [profileResult, location, decisions] = await Promise.all([
+  const [profileResult, location, decisions, dropIndex] = await Promise.all([
     fetchProfile(client, ip, asked),
     fetchLocation(client, ip, asked),
     access.crowdsec ? fetchDecisions(client, ip) : Promise.resolve([]),
+    dropIndexLoad,
   ])
   const dropSblId =
     access.drop && dropIndex ? (matchDropNetwork(dropIndex, ip)?.sblId ?? null) : null

@@ -17,7 +17,8 @@ export interface IpMark {
 
 /** The DROP index for this open: the cached lists while fresh, else one
  *  fetch. `identity` is read before the fetch, so lists that arrive after a
- *  server switch are tagged with the old server and never served to the new one. */
+ *  server switch are tagged with the old server and never served to the new one.
+ *  Never rejects: a failed cache read is a miss, a failed write keeps the index. */
 export async function loadDropIndex(
   client: ExtensionClient,
   chromeApi: ChromeApi,
@@ -25,17 +26,32 @@ export async function loadDropIndex(
   identity: { origin: string; savedAt: number },
 ): Promise<DropIndex | null> {
   if (!access.drop) return null
-  const cached = await getDropLists(identity, chromeApi)
-  if (cached) return buildDropIndex(cached.networks)
-  let result
   try {
-    result = unwrap<DropListsResponse>(await apiV1DropListsGetDropLists({ client }))
+    const cached = await readCachedLists(identity, chromeApi)
+    if (cached) return buildDropIndex(cached.networks)
+    const result = unwrap<DropListsResponse>(await apiV1DropListsGetDropLists({ client }))
+    if (!result.ok) return null
+    const index = buildDropIndex(result.data.networks)
+    try {
+      await setDropLists(identity, result.data, chromeApi)
+    } catch {
+      // The next open fetches again.
+    }
+    return index
   } catch {
     return null
   }
-  if (!result.ok) return null
-  await setDropLists(identity, result.data, chromeApi)
-  return buildDropIndex(result.data.networks)
+}
+
+async function readCachedLists(
+  identity: { origin: string; savedAt: number },
+  chromeApi: ChromeApi,
+): Promise<DropListsResponse | null> {
+  try {
+    return await getDropLists(identity, chromeApi)
+  } catch {
+    return null
+  }
 }
 
 async function decisionTypeFor(client: ExtensionClient, ip: string): Promise<string | null> {
@@ -55,8 +71,9 @@ export async function ipMarks(
   client: ExtensionClient,
   ips: string[],
   access: Access,
-  dropIndex: DropIndex | null,
+  dropIndexLoad: DropIndex | null | Promise<DropIndex | null>,
 ): Promise<Record<string, IpMark>> {
+  const dropIndex = await dropIndexLoad
   const entries = await Promise.all(
     ips.map(async (ip): Promise<[string, IpMark]> => {
       const decisionType = access.crowdsec ? await decisionTypeFor(client, ip) : null
@@ -68,10 +85,15 @@ export async function ipMarks(
   return Object.fromEntries(entries)
 }
 
+/** Red text that stays at 4.5:1 over the row bars and the ban tint, where
+ *  plain `text-destructive` falls to about 3.4:1. */
+export const ERROR_TEXT_CLASS =
+  "text-[color-mix(in_oklab,var(--destructive)_70%,var(--foreground))]"
+
 /** The app's IpLabel tones (`ip-label.tsx`), which the extension can't import
  *  because that component reads the app's query hooks. */
 export function decisionTone(type: string): string {
-  if (type === "ban") return "bg-destructive/10 text-destructive dark:bg-destructive/20"
+  if (type === "ban") return `bg-destructive/10 dark:bg-destructive/20 ${ERROR_TEXT_CLASS}`
   if (type === "captcha") return "bg-amber-500/10 text-amber-500 dark:bg-amber-500/20"
   return "bg-secondary text-secondary-foreground"
 }

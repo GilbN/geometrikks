@@ -45,7 +45,7 @@ export function RecentLookups({
           {recent.length === 0 ? (
             <p className="px-1.5 py-1 text-xs text-muted-foreground">IPs you look up show here.</p>
           ) : (
-            <ul className="grid gap-1">
+            <ul className="grid grid-cols-[minmax(0,1fr)] gap-1">
               {recent.map((lookup) => (
                 <li key={lookup.ip}>
                   <button
@@ -55,15 +55,11 @@ export function RecentLookups({
                     title="Look up"
                   >
                     <CountryFlag code={lookup.countryCode} />
-                    <IpChip
-                      ip={lookup.ip}
-                      mark={lookup}
-                      className="max-w-[52%] flex-none truncate"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    <IpChip ip={lookup.ip} mark={lookup} className="min-w-0 truncate" />
+                    <span className="max-w-[60%] flex-[1_0_auto] truncate text-[11.5px] text-muted-foreground">
                       {lookup.asn !== null && `AS${lookup.asn} ${lookup.asOrganization ?? ""}`}
                     </span>
-                    <span className="text-muted-foreground tabular-nums">
+                    <span className="ml-auto shrink-0 text-muted-foreground tabular-nums">
                       {agoText(new Date(lookup.at).toISOString(), now)}
                     </span>
                   </button>

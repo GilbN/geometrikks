@@ -37,9 +37,10 @@ export interface PopupSession {
   client: ExtensionClient
   access: Access
   settings: Settings
-  /** `/abuseipdb/status`, fetched once per open; null when it failed. */
-  abuseStatus: AbuseIpdbStatusResponse | null
-  dropIndex: DropIndex | null
+  /** Optional data, loaded once per open while Home shows. Neither rejects:
+   *  each resolves to null when its call or the DROP cache fails. */
+  abuseStatus: Promise<AbuseIpdbStatusResponse | null>
+  dropIndex: Promise<DropIndex | null>
 }
 
 export function connectionChanged(stored: ConnectionResponse, fresh: ConnectionResponse): boolean {

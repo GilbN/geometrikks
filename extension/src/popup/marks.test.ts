@@ -3,12 +3,42 @@ import type { DropListsResponse } from "@/generated/api/types.gen"
 import { fakeChrome } from "../../tests/fake-chrome"
 import { createExtensionClient } from "../lib/client"
 import type { Access } from "../lib/connection"
-import { DROP_CACHE_MS, getDropLists, setDropLists } from "../lib/storage"
+import {
+  DROP_CACHE_MS,
+  getConnection,
+  getDropLists,
+  setConnection,
+  setDropLists,
+  type StoredConnection,
+} from "../lib/storage"
 import { ipMarks, loadDropIndex } from "./marks"
 
 const access: Access = { write: false, crowdsec: true, drop: true, asn: true, hostFilter: true }
 const serverA = { origin: "https://a.example.net", savedAt: 1 }
 const serverB = { origin: "https://b.example.net", savedAt: 2 }
+
+function storedFor(identity: { origin: string; savedAt: number }): StoredConnection {
+  return {
+    origin: identity.origin,
+    pattern: `${identity.origin}/*`,
+    key: null,
+    keyless: true,
+    verifiedScope: null,
+    connection: {
+      mode: "disabled",
+      appVersion: "0.26.0",
+      apiVersion: "1",
+      capabilities: [],
+    },
+    savedAt: identity.savedAt,
+  }
+}
+
+async function identityOf(chromeApi: ReturnType<typeof fakeChrome>) {
+  const stored = await getConnection(chromeApi)
+  if (!stored) throw new Error("no stored connection")
+  return { origin: stored.origin, savedAt: stored.savedAt }
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -90,17 +120,39 @@ describe("loadDropIndex", () => {
 
   it("tags a fetch started under A with A even when it lands after a switch to B", async () => {
     const chromeApi = fakeChrome()
+    await setConnection(storedFor(serverA), chromeApi)
     let release: (response: Response) => void = () => {}
     const { client, requests } = server(
       () => new Promise<Response>((resolve) => (release = resolve)),
     )
-    const loading = loadDropIndex(client, chromeApi, access, serverA)
+    const startedUnder = await identityOf(chromeApi)
+    const loading = loadDropIndex(client, chromeApi, access, startedUnder)
     await vi.waitFor(() => expect(requests).toHaveLength(1))
-    // Options switches to B here; the late answer still belongs to A.
+    await setConnection(storedFor(serverB), chromeApi)
     release(json(lists("45.148.10.0/24", "SBL1")))
-    await loading
-    expect(await getDropLists(serverB, chromeApi)).toBeNull()
+    expect(await loading).not.toBeNull()
+    const now = await identityOf(chromeApi)
+    expect(now).toEqual(serverB)
+    expect(await getDropLists(now, chromeApi)).toBeNull()
     expect(await getDropLists(serverA, chromeApi)).not.toBeNull()
+  })
+
+  it("keeps the fetched index when the cache can't be read or written", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.storage.local.get = () => Promise.reject(new Error("storage broke"))
+    chromeApi.storage.local.set = () => Promise.reject(new Error("quota"))
+    const { client, requests } = server(() => json(lists("45.148.10.0/24", "SBL1")))
+    const index = await loadDropIndex(client, chromeApi, access, serverA)
+    expect(requests).toHaveLength(1)
+    const marks = await ipMarks(client, ["45.148.10.82"], { ...access, crowdsec: false }, index)
+    expect(marks["45.148.10.82"]?.dropSblId).toBe("SBL1")
+  })
+
+  it("resolves to null when /drop/lists fails or throws", async () => {
+    const failing = server(() => json({ status_code: 503, detail: "down", code: "x" }, 503))
+    expect(await loadDropIndex(failing.client, fakeChrome(), access, serverA)).toBeNull()
+    const throwing = server(() => Promise.reject(new TypeError("Failed to fetch")))
+    expect(await loadDropIndex(throwing.client, fakeChrome(), access, serverA)).toBeNull()
   })
 })
 

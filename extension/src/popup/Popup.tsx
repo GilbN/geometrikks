@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { apiV1AbuseipdbStatusGetAbuseipdbStatus } from "@/generated/api/sdk.gen"
 import type { AbuseIpdbStatusResponse } from "@/generated/api/types.gen"
 import { realChrome } from "../lib/chrome-api"
@@ -52,13 +52,10 @@ async function fetchAbuseStatus(
 
 async function checkConnection(opened: Opened & { stored: StoredConnection }): Promise<Check> {
   const { ctx, stored, claimed } = opened
-  const target = { origin: stored.origin, key: stored.key }
-  const [permitted, result, settings] = await Promise.all([
-    realChrome.permissions.contains({ origins: [stored.pattern] }),
-    fetchConnection(target),
-    getSettings(),
-  ])
+  const permitted = await realChrome.permissions.contains({ origins: [stored.pattern] })
   if (!permitted) return { kind: "problem", problem: "access-removed" }
+  const target = { origin: stored.origin, key: stored.key }
+  const [result, settings] = await Promise.all([fetchConnection(target), getSettings()])
   if (!result.ok) {
     const problem = classifyFailure(result.failure, {
       keyless: stored.keyless,
@@ -72,10 +69,6 @@ async function checkConnection(opened: Opened & { stored: StoredConnection }): P
     void refreshViaWorker(fresh, { origin: stored.origin, savedAt: stored.savedAt })
   }
   const client = createExtensionClient(target)
-  const [abuseStatus, dropIndex] = await Promise.all([
-    fetchAbuseStatus(client),
-    loadDropIndex(client, realChrome, access, { origin: stored.origin, savedAt: stored.savedAt }),
-  ])
   const session: PopupSession = {
     ctx,
     stored: { ...stored, connection: fresh },
@@ -83,8 +76,11 @@ async function checkConnection(opened: Opened & { stored: StoredConnection }): P
     client,
     access,
     settings,
-    abuseStatus,
-    dropIndex,
+    abuseStatus: fetchAbuseStatus(client),
+    dropIndex: loadDropIndex(client, realChrome, access, {
+      origin: stored.origin,
+      savedAt: stored.savedAt,
+    }),
   }
   const home = chooseHome({
     claimed,
@@ -94,6 +90,34 @@ async function checkConnection(opened: Opened & { stored: StoredConnection }): P
     tabUrl: ctx.tabUrl,
   })
   return { kind: "ready", session, home }
+}
+
+/** Reads the open context and connection, then claims a right-click result.
+ *  Any failure still opens the popup, with nothing claimed. */
+async function openPopup(
+  claim: (ctx: OpenContext, origin: string) => Promise<PendingItem | null>,
+): Promise<Opened> {
+  let ctx: OpenContext
+  try {
+    ctx = await readOpenContext()
+  } catch {
+    const pendingId = new URLSearchParams(location.search).get("pending")
+    ctx = { windowId: -1, tabUrl: undefined, pendingId }
+  }
+  let stored: StoredConnection | null = null
+  try {
+    const saved = await getConnection()
+    stored = saved && effectiveConnection(saved, await getConnectionRefresh())
+  } catch {
+    stored = null
+  }
+  let claimed: PendingItem | null = null
+  try {
+    if (stored) claimed = await claim(ctx, stored.origin)
+  } catch {
+    claimed = null
+  }
+  return { ctx, stored, claimed }
 }
 
 function hostOf(origin: string): string {
@@ -117,15 +141,16 @@ export function Popup({
   const [lookupIp, setLookupIp] = useState<string | null>(null)
   const [lookups, setLookups] = useState(0)
 
-  // A claim removes the item, so it runs once per open, before any host query.
+  // A claim removes the item, so it runs once per open, before any host
+  // query. The ref keeps StrictMode's second mount from claiming again.
+  const opening = useRef<{ claim: typeof claim; promise: Promise<Opened> } | null>(null)
   useEffect(() => {
+    if (opening.current?.claim !== claim) opening.current = { claim, promise: openPopup(claim) }
+    const { promise } = opening.current
     let cancelled = false
     void (async () => {
-      const ctx = await readOpenContext()
-      const saved = await getConnection()
-      const stored = saved && effectiveConnection(saved, await getConnectionRefresh())
-      const claimed = stored ? await claim(ctx, stored.origin) : null
-      if (!cancelled) setOpened({ ctx, stored, claimed })
+      const next = await promise
+      if (!cancelled) setOpened(next)
     })()
     return () => {
       cancelled = true

@@ -5,6 +5,9 @@ import type { Access } from "../lib/connection"
 import type { PendingItem, Settings } from "../lib/storage"
 import { chooseHome, homeMode, loadSiteStats } from "./site-stats"
 
+// The 7 d chart sums local six-hour blocks, so its bar count needs a fixed zone.
+process.env.TZ = "Europe/Oslo"
+
 const fullAccess: Access = { write: true, crowdsec: true, drop: true, asn: true, hostFilter: true }
 const on: Settings = { showSiteStats: true }
 const web = "https://photos.example.net/albums/summer"
@@ -173,7 +176,7 @@ describe("loadSiteStats", () => {
     expect(series?.searchParams.get("granularity")).toBe("hourly")
     expect(result.kind).toBe("stats")
     if (result.kind !== "stats") return
-    expect(result.stats.buckets.length).toBeLessThanOrEqual(29)
+    expect(result.stats.buckets).toHaveLength(29)
     expect(result.stats.buckets.reduce((sum, bucket) => sum + bucket.requests, 0)).toBe(40)
   })
 
@@ -209,11 +212,10 @@ describe("loadSiteStats", () => {
     expect(result.kind).toBe("error")
   })
 
-  it("does not ask for the week on 7 d", async () => {
+  it("reports no traffic from an empty 7 d series without asking again", async () => {
     const { client, requests } = server({ series: zeroSeries })
-    const result = await loadSiteStats(client, hosts, "7d", now)
+    expect(await loadSiteStats(client, hosts, "7d", now)).toEqual({ kind: "no-traffic" })
     expect(requests).toHaveLength(4)
-    expect(result.kind).toBe("stats")
   })
 
   it("reports a failed call as an error", async () => {

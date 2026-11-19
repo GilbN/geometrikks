@@ -115,6 +115,21 @@ function categoryBadge(profile: IpProfileResponse | null) {
   return null
 }
 
+function useSettled<T>(load: Promise<T | null>): T | null {
+  const [value, setValue] = useState<T | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const settled = await load
+      if (!cancelled) setValue(settled)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [load])
+  return value
+}
+
 function Badges({
   ip,
   session,
@@ -131,7 +146,7 @@ function Badges({
   const exact = exactDecision(decisions)
   const range = rangeDecision(decisions)
   const category = categoryBadge(data?.profile ?? null)
-  const abuse = showAbuseCheck(ip, session.abuseStatus)
+  const abuse = showAbuseCheck(ip, useSettled(session.abuseStatus))
   const badgeClass = "h-auto max-w-full cursor-help text-left break-words whitespace-normal"
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
