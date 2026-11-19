@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { apiV1AbuseipdbStatusGetAbuseipdbStatus } from "@/generated/api/sdk.gen"
-import type { AbuseIpdbStatusResponse } from "@/generated/api/types.gen"
+import type { AbuseIpdbStatusResponse, DecisionView } from "@/generated/api/types.gen"
+import { winningDecision } from "@/lib/crowdsec"
 import { realChrome } from "../lib/chrome-api"
 import { createExtensionClient, fetchConnection, unwrap } from "../lib/client"
 import { deriveAccess, effectiveConnection } from "../lib/connection"
@@ -10,6 +11,7 @@ import {
   getConnectionRefresh,
   getSettings,
   type PendingItem,
+  type RecentLookup,
   type StoredConnection,
 } from "../lib/storage"
 import { Header, type ServerHealth } from "./Header"
@@ -140,6 +142,11 @@ export function Popup({
   const [attempt, setAttempt] = useState(0)
   const [lookupIp, setLookupIp] = useState<string | null>(null)
   const [lookups, setLookups] = useState(0)
+  const [recent, setRecent] = useState<RecentLookup[] | null>(null)
+  const [decisionTypes, setDecisionTypes] = useState<Record<string, string | null>>({})
+  const searchRef = useRef<HTMLInputElement>(null)
+  const opener = useRef<HTMLElement | null>(null)
+  const returning = useRef(false)
 
   // A claim removes the item, so it runs once per open, before any host
   // query. The ref keeps StrictMode's second mount from claiming again.
@@ -189,13 +196,26 @@ export function Popup({
     setAttempt((value) => value + 1)
   }
   const onLookup = (ip: string) => {
+    const active = document.activeElement
+    opener.current = active instanceof HTMLElement && active !== document.body ? active : null
     setLookupIp(ip)
     setLookups((count) => count + 1)
   }
   const onBack = () => {
+    returning.current = true
     setLookupIp(null)
-    setLookups((count) => count + 1)
   }
+  const onDecisions = useCallback((ip: string, decisions: DecisionView[]) => {
+    const type = winningDecision(decisions)?.type ?? null
+    setDecisionTypes((previous) => ({ ...previous, [ip]: type }))
+  }, [])
+
+  useEffect(() => {
+    if (lookupIp !== null || !returning.current) return
+    returning.current = false
+    const target = opener.current?.isConnected ? opener.current : searchRef.current
+    target?.focus()
+  }, [lookupIp])
   const ready =
     check.kind === "ready" && check.home !== "pending"
       ? { session: check.session, home: check.home }
@@ -229,7 +249,13 @@ export function Popup({
       ) : ready ? (
         <>
           {lookup !== null && (
-            <Lookup key={`${lookups}:${lookup}`} session={ready.session} ip={lookup} />
+            <Lookup
+              key={`${lookups}:${lookup}`}
+              session={ready.session}
+              ip={lookup}
+              onDecisions={onDecisions}
+              onRecent={setRecent}
+            />
           )}
           {/* Hidden, not unmounted, so Back doesn't load the site stats again. */}
           <div className={lookup !== null ? "hidden" : "contents"}>
@@ -237,7 +263,9 @@ export function Popup({
               session={ready.session}
               mode={ready.home}
               onLookup={onLookup}
-              recentVersion={lookups}
+              searchRef={searchRef}
+              recent={recent}
+              decisionTypes={decisionTypes}
             />
           </div>
         </>

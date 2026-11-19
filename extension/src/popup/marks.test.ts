@@ -11,7 +11,7 @@ import {
   setDropLists,
   type StoredConnection,
 } from "../lib/storage"
-import { ipMarks, loadDropIndex } from "./marks"
+import { ipMarks, loadDropIndex, withDecisionTypes } from "./marks"
 
 const access: Access = { write: false, crowdsec: true, drop: true, asn: true, hostFilter: true }
 const serverA = { origin: "https://a.example.net", savedAt: 1 }
@@ -212,5 +212,18 @@ describe("ipMarks", () => {
     const { client } = server(() => json([decision("captcha")]))
     const marks = await ipMarks(client, ["45.148.10.82"], access, null)
     expect(marks["45.148.10.82"]?.decisionType).toBe("captcha")
+  })
+})
+
+describe("withDecisionTypes", () => {
+  it("lays a confirmed decision type over the mark and keeps its DROP match", () => {
+    const marks = {
+      "45.148.10.82": { decisionType: null, dropSblId: "SBL1" },
+      "185.224.128.17": { decisionType: "ban", dropSblId: null },
+    }
+    expect(withDecisionTypes(marks, { "45.148.10.82": "ban", "185.224.128.17": null })).toEqual({
+      "45.148.10.82": { decisionType: "ban", dropSblId: "SBL1" },
+      "185.224.128.17": { decisionType: null, dropSblId: null },
+    })
   })
 })

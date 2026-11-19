@@ -10,7 +10,7 @@ import { formatNumber } from "@/lib/format-number"
 import { cn } from "@/lib/utils"
 import type { HourBucket } from "../lib/stats"
 import { IpChip } from "./IpChip"
-import { ERROR_TEXT_CLASS, ipMarks, type IpMark } from "./marks"
+import { ERROR_TEXT_CLASS, ipMarks, withDecisionTypes, type IpMark } from "./marks"
 import type { PopupSession } from "./open-context"
 import {
   axisLabels,
@@ -310,11 +310,14 @@ export function SiteStats({
   hosts,
   onLookup,
   onNoTraffic,
+  decisionTypes = {},
 }: {
   session: PopupSession
   hosts: string[]
   onLookup: (ip: string) => void
   onNoTraffic: () => void
+  /** Newer than the marks: what a lookup read after a ban or unban. */
+  decisionTypes?: Record<string, string | null>
 }) {
   const [range, setRange] = useState<StatsRange>("24h")
   const [tab, setTab] = useState<ListTab>("countries")
@@ -409,7 +412,13 @@ export function SiteStats({
       </Card>
       {stats && (
         <Card className={cn(cardClass, "pt-2")}>
-          <Lists stats={stats} marks={marks} tab={tab} onTabChange={setTab} onLookup={onLookup} />
+          <Lists
+            stats={stats}
+            marks={withDecisionTypes(marks, decisionTypes)}
+            tab={tab}
+            onTabChange={setTab}
+            onLookup={onLookup}
+          />
         </Card>
       )}
     </>

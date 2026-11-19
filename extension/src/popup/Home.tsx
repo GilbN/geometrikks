@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
   type Ref,
+  type RefObject,
 } from "react"
 import { ExternalLink, FileText, Search } from "lucide-react"
 import {
@@ -16,6 +17,7 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group"
 import { hostValuesFromUrl } from "../lib/hosts"
+import type { RecentLookup } from "../lib/storage"
 import { parseSingleIp } from "../lib/ip"
 import { accessLogsUrl } from "../lib/links"
 import type { PopupSession } from "./open-context"
@@ -106,18 +108,25 @@ export function Home({
   session,
   mode,
   onLookup,
-  recentVersion = 0,
+  searchRef: givenSearchRef,
+  recent = null,
+  decisionTypes = {},
 }: {
   session: PopupSession
   mode: HomeMode
   onLookup: (ip: string) => void
-  /** A new value reads the recent list again. */
-  recentVersion?: number
+  /** Lets the popup put focus back in the field after a lookup. */
+  searchRef?: RefObject<HTMLInputElement | null>
+  /** The recent list a lookup just wrote. */
+  recent?: RecentLookup[] | null
+  /** Decision types a lookup confirmed after the site stats marked their IPs. */
+  decisionTypes?: Record<string, string | null>
 }) {
   const [noTraffic, setNoTraffic] = useState(false)
   const hosts = useMemo(() => hostValuesFromUrl(session.ctx.tabUrl), [session.ctx.tabUrl])
   const onNoTraffic = useCallback(() => setNoTraffic(true), [])
-  const searchRef = useRef<HTMLInputElement>(null)
+  const ownSearchRef = useRef<HTMLInputElement>(null)
+  const searchRef = givenSearchRef ?? ownSearchRef
   // Focus on a control that unmounted with the stats card falls back to body;
   // anywhere else, the user put it there.
   useEffect(() => {
@@ -145,6 +154,7 @@ export function Home({
             hosts={hosts}
             onLookup={onLookup}
             onNoTraffic={onNoTraffic}
+            decisionTypes={decisionTypes}
           />
         ) : (
           <>
@@ -155,7 +165,7 @@ export function Home({
               session={session}
               noTrafficHost={noTraffic && hosts ? hosts[0] : null}
               onLookup={onLookup}
-              version={recentVersion}
+              latest={recent}
             />
           </>
         )}

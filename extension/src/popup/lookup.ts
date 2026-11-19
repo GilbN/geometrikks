@@ -51,6 +51,8 @@ export interface LookupData {
   decisionsFailed: boolean
   dropSblId: string | null
   neverLogged: boolean
+  /** The 7-day view a 24 h never-logged check fetched, kept for a switch to 7 d. */
+  week: LookupData | null
 }
 
 function windowFor(range: StatsRange, now: Date): { start: Date; end: Date } {
@@ -121,9 +123,9 @@ export async function fetchDecisions(
   }
 }
 
-/** Profile, location, decisions and DROP match for one IP. A 24 h profile
- *  with no requests asks the 7-day profile once; only a zero there means
- *  the IP was never logged. */
+/** Profile, location, decisions and DROP match for one IP. An empty 24 h
+ *  profile asks the 7-day profile once, unless `weekKnown` says the 7-day
+ *  view already loaded; only a zero over 7 days means the IP was never logged. */
 export async function loadLookup(
   client: ExtensionClient,
   ip: string,
@@ -131,6 +133,7 @@ export async function loadLookup(
   access: Access,
   dropIndexLoad: DropIndex | null | Promise<DropIndex | null>,
   now: Date,
+  options: { weekKnown?: boolean } = {},
 ): Promise<LookupData> {
   const asked = windowFor(range, now)
   const [profileResult, location, decisions, dropIndex] = await Promise.all([
@@ -145,6 +148,7 @@ export async function loadLookup(
     decisions: decisions ?? [],
     decisionsFailed: decisions === null,
     dropSblId,
+    week: null,
   }
   if (!profileResult.ok) {
     return {
@@ -158,45 +162,34 @@ export async function loadLookup(
     }
   }
   const profile = profileResult.data
-  if (profile.totalRequests > 0 || range === "7d") {
-    return {
-      ...base,
-      profile,
-      profileFailure: null,
-      shownRange: range,
-      ...asked,
-      location,
-      neverLogged: range === "7d" && profile.totalRequests === 0,
-    }
+  const asAsked: LookupData = {
+    ...base,
+    profile,
+    profileFailure: null,
+    shownRange: range,
+    ...asked,
+    location,
+    neverLogged: range === "7d" && profile.totalRequests === 0,
   }
+  if (range === "7d" || profile.totalRequests > 0 || options.weekKnown) return asAsked
 
   const week = windowFor("7d", now)
   const [weekResult, weekLocation] = await Promise.all([
     fetchProfile(client, ip, week),
     fetchLocation(client, ip, week),
   ])
-  if (!weekResult.ok) {
-    // The 24 h zeros are real; only "never logged" is unknown.
-    return {
-      ...base,
-      profile,
-      profileFailure: null,
-      shownRange: range,
-      ...asked,
-      location: weekLocation,
-      neverLogged: false,
-    }
-  }
-  const neverLogged = weekResult.data.totalRequests === 0
-  return {
+  // The 24 h zeros are real; only "never logged" is unknown.
+  if (!weekResult.ok) return asAsked
+  const weekly: LookupData = {
     ...base,
-    profile: neverLogged ? weekResult.data : profile,
+    profile: weekResult.data,
     profileFailure: null,
-    shownRange: neverLogged ? "7d" : range,
-    ...(neverLogged ? week : asked),
-    location: weekLocation,
-    neverLogged,
+    shownRange: "7d",
+    ...week,
+    location: weekLocation ?? location,
+    neverLogged: weekResult.data.totalRequests === 0,
   }
+  return weekly.neverLogged ? { ...weekly, week: weekly } : { ...asAsked, week: weekly }
 }
 
 /** Hourly buckets from `start`'s hour to `end`'s, zero-filled: the profile
@@ -277,12 +270,54 @@ export function rangeDecision(decisions: DecisionView[]): DecisionView | null {
   return winningDecision(decisions.filter((decision) => isScope(decision, "range")))
 }
 
+export type ActionRow =
+  | { kind: "none" }
+  | { kind: "ban" }
+  | { kind: "unban" }
+  | { kind: "remove-ip"; rangeValue: string; rangeType: string }
+
+/** What the pinned action row offers. Unknown decisions offer nothing, so a
+ *  failed read can't show Ban on an IP that is already banned. A range
+ *  decision alone still offers Ban, which adds an IP decision. */
+export function actionRowFor(
+  access: Access,
+  decisions: DecisionView[] | null,
+  decisionsFailed: boolean,
+): ActionRow {
+  if (!access.write || !access.crowdsec || decisions === null || decisionsFailed) {
+    return { kind: "none" }
+  }
+  const action = unbanActionFor(decisions)
+  if (action.kind === "unban" || action.kind === "remove-ip") return action
+  return { kind: "ban" }
+}
+
+export interface DecisionSnapshot {
+  decisions: DecisionView[]
+  failed: boolean
+  /** Order of the read that produced it; a read started earlier never wins. */
+  seq: number
+}
+
+/** The decisions to show after a read. A failed read keeps a good snapshot,
+ *  unless it followed a ban or unban, which may have changed it. */
+export function applyDecisions(
+  current: DecisionSnapshot | null,
+  read: { decisions: DecisionView[] | null; seq: number; afterWrite: boolean },
+): DecisionSnapshot | null {
+  if (current !== null && read.seq < current.seq) return current
+  if (read.decisions !== null) return { decisions: read.decisions, failed: false, seq: read.seq }
+  if (current !== null && !current.failed && !read.afterWrite) return current
+  return { decisions: [], failed: true, seq: read.seq }
+}
+
 /** Unbans, then always asks for the decisions again, so the badge shows what
  *  the server holds rather than what the unban claimed. `decisions` is null
- *  when that second call failed. */
+ *  when that second call failed. `onRefetch` runs as the second call starts. */
 export async function unbanThenRefetch(
   client: ExtensionClient,
   ip: string,
+  onRefetch?: () => void,
 ): Promise<{
   result: { ok: boolean; deleted: number; message: string }
   decisions: DecisionView[] | null
@@ -293,17 +328,63 @@ export async function unbanThenRefetch(
   } catch {
     result = { ok: false, deleted: 0, message: `Unban failed for ${ip}.` }
   }
+  onRefetch?.()
   return { result, decisions: await fetchDecisions(client, ip) }
 }
 
-/** The recent-lookups row for this lookup, with its marks as of now. */
-export function recentFrom(ip: string, data: LookupData, at: number): RecentLookup {
+/** "Unbanned" only when the refetch shows nothing left covering the IP. */
+export function unbanToast(
+  ip: string,
+  action: ActionRow,
+  outcome: {
+    result: { ok: boolean; message: string }
+    decisions: DecisionView[] | null
+  },
+): { ok: boolean; message: string } {
+  if (!outcome.result.ok) return { ok: false, message: outcome.result.message }
+  const remaining = outcome.decisions
+  if (action.kind === "unban" && remaining !== null && remaining.length === 0) {
+    return { ok: true, message: `Unbanned ${ip}` }
+  }
+  const range =
+    remaining !== null
+      ? rangeDecision(remaining)
+      : action.kind === "remove-ip"
+        ? { ip: action.rangeValue, type: action.rangeType }
+        : null
+  const removed = `Removed the IP decision on ${ip}`
+  return {
+    ok: true,
+    message: range ? `${removed}. The ${range.type} decision on ${range.ip} stays.` : removed,
+  }
+}
+
+/** Worth a recent-lookups row: at least one of traffic, location or decisions came back. */
+export function worthRemembering(data: LookupData, access: Access): boolean {
+  return (
+    data.profileFailure === null ||
+    data.location !== null ||
+    (access.crowdsec && !data.decisionsFailed)
+  )
+}
+
+/** The recent-lookups row for this lookup, with its marks as of now. A part
+ *  that didn't load keeps what `previous` had. */
+export function recentFrom(
+  ip: string,
+  data: LookupData,
+  at: number,
+  previous?: RecentLookup,
+): RecentLookup {
+  const profile = data.profile
   return {
     ip,
-    countryCode: data.location?.countryCode ?? null,
-    asn: data.profile?.asn ?? null,
-    asOrganization: data.profile?.asnOrganization ?? null,
-    decisionType: winningDecision(data.decisions)?.type ?? null,
+    countryCode: data.location?.countryCode ?? previous?.countryCode ?? null,
+    asn: profile ? profile.asn : (previous?.asn ?? null),
+    asOrganization: profile ? profile.asnOrganization : (previous?.asOrganization ?? null),
+    decisionType: data.decisionsFailed
+      ? (previous?.decisionType ?? null)
+      : (winningDecision(data.decisions)?.type ?? null),
     dropSblId: data.dropSblId,
     at,
   }

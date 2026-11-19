@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { DecisionView, IpProfileResponse } from "@/generated/api/types.gen"
 import { abuseipdbCheckUrl, shortAgoText } from "@/lib/abuseipdb"
-import { bgpAsUrl, crowdsecCtiUrl, decisionLabel } from "@/lib/crowdsec"
+import { bgpAsUrl, crowdsecCtiUrl, decisionLabel, winningDecision } from "@/lib/crowdsec"
 import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { formatNumber } from "@/lib/format-number"
 import { scenarioText } from "@/lib/scenario-name"
@@ -20,12 +20,14 @@ import { cn } from "@/lib/utils"
 import { banIp, type BanDuration } from "../lib/actions"
 import { inspectorUrl } from "../lib/links"
 import { toSixHour } from "../lib/stats"
-import { pushRecent, type BanResult } from "../lib/storage"
+import { getRecent, pushRecent, type BanResult, type RecentLookup } from "../lib/storage"
 import { AbuseCheck } from "./AbuseCheck"
 import { BanMenu } from "./BanMenu"
 import { CopyIp } from "./CopyIp"
 import { IpChip } from "./IpChip"
 import {
+  actionRowFor,
+  applyDecisions,
   exactDecision,
   fetchDecisions,
   loadLookup,
@@ -33,28 +35,19 @@ import {
   rangeDecision,
   recentFrom,
   showAbuseCheck,
-  unbanActionFor,
   unbanThenRefetch,
+  unbanToast,
+  worthRemembering,
+  type ActionRow,
+  type DecisionSnapshot,
   type LookupData,
 } from "./lookup"
+import { CAPTCHA_TEXT_CLASS } from "./marks"
 import type { PopupSession } from "./open-context"
 import { formatErrorRate, type StatsRange } from "./site-stats"
 import { Chart, ErrorCount, Hits, Kpi, Label, ListRow, RangeSwitch, cardClass } from "./SiteStats"
 
-interface LiveDecisions {
-  decisions: DecisionView[]
-  failed: boolean
-}
-
-function MetaLine({
-  ip,
-  data,
-  crowdsec,
-}: {
-  ip: string
-  data: LookupData | undefined
-  crowdsec: boolean
-}) {
+function MetaLine({ ip, data }: { ip: string; data: LookupData | undefined }) {
   const location = data?.location ?? null
   const profile = data?.profile ?? null
   const asUrl = bgpAsUrl(profile?.asn)
@@ -74,13 +67,11 @@ function MetaLine({
       </ExternalLink>,
     )
   }
-  if (crowdsec) {
-    parts.push(
-      <ExternalLink key="cti" href={crowdsecCtiUrl(ip)} className={linkClass}>
-        CrowdSec CTI
-      </ExternalLink>,
-    )
-  }
+  parts.push(
+    <ExternalLink key="cti" href={crowdsecCtiUrl(ip)} className={linkClass}>
+      CrowdSec CTI
+    </ExternalLink>,
+  )
   parts.push(
     <ExternalLink key="abuseipdb" href={abuseipdbCheckUrl(ip)} className={linkClass}>
       AbuseIPDB
@@ -134,27 +125,31 @@ function Badges({
   ip,
   session,
   data,
-  live,
+  decisions,
+  busy,
+  onRetryDecisions,
 }: {
   ip: string
   session: PopupSession
   data: LookupData | undefined
-  live: LiveDecisions | null
+  decisions: DecisionSnapshot | null
+  busy: boolean
+  onRetryDecisions: () => void
 }) {
-  const decisions = live?.decisions ?? data?.decisions ?? []
-  const failed = live?.failed ?? data?.decisionsFailed ?? false
-  const exact = exactDecision(decisions)
-  const range = rangeDecision(decisions)
+  const shown = decisions?.decisions ?? []
+  const exact = exactDecision(shown)
+  const range = rangeDecision(shown)
   const category = categoryBadge(data?.profile ?? null)
   const abuse = showAbuseCheck(ip, useSettled(session.abuseStatus))
   const badgeClass = "h-auto max-w-full cursor-help text-left break-words whitespace-normal"
+  const toneClass = (type: string) => cn(badgeClass, type === "captcha" && CAPTCHA_TEXT_CLASS)
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
       {exact && (
         <DecisionBadge
           type={exact.type}
           hover="tooltip"
-          className={badgeClass}
+          className={toneClass(exact.type)}
           title={`Origin: ${exact.origin}`}
         >
           {decisionLabel(exact.type)} · {scenarioText(exact.scenario)} ·{" "}
@@ -165,7 +160,7 @@ function Badges({
         <DecisionBadge
           type={range.type}
           hover="tooltip"
-          className={badgeClass}
+          className={toneClass(range.type)}
           title={`A ${range.type} decision on ${range.ip} covers this IP`}
         >
           {decisionLabel(range.type)} · <span className="font-mono">{range.ip}</span> ·{" "}
@@ -189,9 +184,19 @@ function Badges({
           </Badge>
         </BadgeHint>
       )}
-      {failed && (
-        <span className="basis-full text-xs text-muted-foreground">
+      {decisions?.failed && (
+        <span className="flex basis-full items-center gap-2 text-xs text-muted-foreground">
           CrowdSec decisions didn't load.
+          <Button
+            variant="outline"
+            size="xs"
+            className="h-[22px] rounded-md px-[7px] text-[11.5px] font-medium"
+            disabled={busy}
+            onClick={onRetryDecisions}
+          >
+            {busy ? <Loader2 className="animate-spin" /> : <RotateCw />}
+            Retry
+          </Button>
         </span>
       )}
     </div>
@@ -223,6 +228,7 @@ function StatsCard({
   onRetry: () => void
 }) {
   const profile = data?.profile ?? null
+  const shownRange = data?.shownRange ?? range
   const now = Date.now()
   let body: ReactNode
   if (data === undefined) {
@@ -265,9 +271,9 @@ function StatsCard({
         </div>
         <div className="mt-2.5">
           <Chart
-            buckets={range === "7d" ? toSixHour(hourly) : hourly}
+            buckets={shownRange === "7d" ? toSixHour(hourly) : hourly}
             height={40}
-            label={`Requests per ${range === "24h" ? "hour" : "6 hours"}, errors in red`}
+            label={`Requests per ${shownRange === "24h" ? "hour" : "6 hours"}, errors in red`}
           />
         </div>
       </>
@@ -277,7 +283,7 @@ function StatsCard({
     <Card className={cardClass}>
       <div className="mb-2.5 flex items-center gap-2">
         <h2 className="text-[13px] font-semibold">
-          {range === "24h" ? "Last 24 hours" : "Last 7 days"}
+          {shownRange === "24h" ? "Last 24 hours" : "Last 7 days"}
         </h2>
         <RangeSwitch range={range} onChange={onRange} />
       </div>
@@ -339,41 +345,35 @@ function TrafficCard({ profile }: { profile: IpProfileResponse }) {
 function Actions({
   ip,
   session,
-  decisions,
+  action,
   busy,
   onBan,
   onUnban,
 }: {
   ip: string
   session: PopupSession
-  decisions: LiveDecisions | null
+  action: ActionRow
   busy: boolean
   onBan: (duration: BanDuration) => void
   onUnban: () => void
 }) {
-  const { access } = session
-  const canWrite = access.write && access.crowdsec && decisions !== null && !decisions.failed
-  const action = decisions ? unbanActionFor(decisions.decisions) : { kind: "none" as const }
-  const unban = action.kind === "unban" || action.kind === "remove-ip"
   const button = "h-8 flex-1 text-[12.5px]"
   return (
     <footer className="grid gap-2 border-t px-3 pt-2.5 pb-3">
-      {canWrite && action.kind === "remove-ip" && (
+      {action.kind === "remove-ip" && (
         <p className="text-[11.5px] text-muted-foreground">
-          The {decisionLabel(action.rangeType).toLowerCase()} decision on{" "}
-          <span className="font-mono">{action.rangeValue}</span> stays.
+          The {action.rangeType} decision on <span className="font-mono">{action.rangeValue}</span>{" "}
+          stays.
         </p>
       )}
       <div className="flex gap-2">
-        {canWrite &&
-          (unban ? (
-            <Button variant="outline" className={button} disabled={busy} onClick={onUnban}>
-              {busy ? <Loader2 className="animate-spin" /> : <ShieldOff />}
-              {action.kind === "remove-ip" ? "Remove IP decision" : "Unban"}
-            </Button>
-          ) : (
-            <BanMenu ip={ip} busy={busy} onBan={onBan} />
-          ))}
+        {action.kind === "ban" && <BanMenu ip={ip} busy={busy} onBan={onBan} />}
+        {(action.kind === "unban" || action.kind === "remove-ip") && (
+          <Button variant="outline" className={button} disabled={busy} onClick={onUnban}>
+            {busy ? <Loader2 className="animate-spin" /> : <ShieldOff />}
+            {action.kind === "remove-ip" ? "Remove IP decision" : "Unban"}
+          </Button>
+        )}
         <Button asChild variant="outline" className={button}>
           <a href={inspectorUrl(session.stored.origin, ip)} target="_blank" rel="noreferrer">
             <ScanSearch />
@@ -385,52 +385,107 @@ function Actions({
   )
 }
 
-/** Screens 4 to 6: one IP, with Ban or Unban when the key may write. */
-export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
-  const [range, setRange] = useState<StatsRange>("24h")
+/** Screens 4 to 6: one IP, with Ban or Unban when the key may write.
+ *  `onDecisions` gets each confirmed decisions read and `onRecent` the
+ *  recent list after each write to it; both may run after unmount. */
+export function Lookup({
+  session,
+  ip,
+  onDecisions,
+  onRecent,
+}: {
+  session: PopupSession
+  ip: string
+  onDecisions?: (ip: string, decisions: DecisionView[]) => void
+  onRecent?: (items: RecentLookup[]) => void
+}) {
+  const [range, setRange] = useState<StatsRange>("7d")
   const [results, setResults] = useState<Partial<Record<StatsRange, LookupData>>>({})
-  const [live, setLive] = useState<LiveDecisions | null>(null)
+  const [snapshot, setSnapshot] = useState<DecisionSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
+  const snapshotRef = useRef<DecisionSnapshot | null>(null)
+  const readSeq = useRef(0)
   const remembered = useRef(false)
+  const recentQueue = useRef<Promise<void>>(Promise.resolve())
+  const headingRef = useRef<HTMLHeadingElement>(null)
   const data = results[range]
   const missing = data === undefined
+  const weekKnown = results["7d"] !== undefined && results["7d"].profileFailure === null
   const { client, access, dropIndex, stored } = session
-  // Shown while the other range loads, so the badges and actions don't flash.
-  const shown = data ?? results["24h"] ?? results["7d"]
+  // Shown while the other range loads, so the header doesn't flash.
+  const shown = data ?? results["7d"] ?? results["24h"]
+
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [])
+
+  const applyRead = (read: {
+    decisions: DecisionView[] | null
+    seq: number
+    afterWrite: boolean
+  }): DecisionSnapshot | null => {
+    const next = applyDecisions(snapshotRef.current, read)
+    if (next !== snapshotRef.current) {
+      snapshotRef.current = next
+      setSnapshot(next)
+      if (access.crowdsec && next !== null && !next.failed) onDecisions?.(ip, next.decisions)
+    }
+    return next
+  }
+
+  const remember = (lookup: LookupData, decisions: DecisionSnapshot | null) => {
+    const current = decisions
+      ? { ...lookup, decisions: decisions.decisions, decisionsFailed: decisions.failed }
+      : lookup
+    // In order, so a slow first write can't land over the row a ban wrote.
+    recentQueue.current = recentQueue.current.then(async () => {
+      try {
+        const previous = (await getRecent(stored)).find((entry) => entry.ip === ip)
+        await pushRecent(stored, recentFrom(ip, current, Date.now(), previous))
+        onRecent?.(await getRecent(stored))
+      } catch {
+        // The list keeps its last state.
+      }
+    })
+  }
 
   useEffect(() => {
     if (!missing) return
+    const seq = ++readSeq.current
     let cancelled = false
     void (async () => {
-      const loaded = await loadLookup(client, ip, range, access, dropIndex, new Date())
+      const loaded = await loadLookup(client, ip, range, access, dropIndex, new Date(), {
+        weekKnown,
+      })
       if (cancelled) return
       setResults((previous) => ({
         ...previous,
         [range]: loaded,
-        ...(loaded.neverLogged && range === "24h" ? { "7d": loaded } : {}),
+        ...(loaded.week ? { "7d": loaded.week } : {}),
       }))
-      if (!remembered.current && !loaded.profileFailure) {
+      const decisions = applyRead({
+        decisions: loaded.decisionsFailed ? null : loaded.decisions,
+        seq,
+        afterWrite: false,
+      })
+      if (!remembered.current && worthRemembering(loaded, access)) {
         remembered.current = true
-        void pushRecent(stored, recentFrom(ip, loaded, Date.now()))
+        remember(loaded, decisions)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [range, missing, client, ip, access, dropIndex, stored])
+  }, [range, missing, weekKnown, client, ip, access, dropIndex, stored])
 
-  const decisions: LiveDecisions | null =
-    live ?? (shown ? { decisions: shown.decisions, failed: shown.decisionsFailed } : null)
-
-  const remember = (fresh: DecisionView[]) => {
-    if (shown) void pushRecent(stored, recentFrom(ip, { ...shown, decisions: fresh }, Date.now()))
-  }
-
-  const refreshDecisions = async () => {
+  const refreshDecisions = async (afterWrite: boolean) => {
+    const seq = ++readSeq.current
     const fresh = await fetchDecisions(client, ip)
-    setLive(fresh ? { decisions: fresh, failed: false } : { decisions: [], failed: true })
-    if (fresh) remember(fresh)
+    const next = applyRead({ decisions: fresh, seq, afterWrite })
+    if (fresh && shown) remember(shown, next)
   }
+
+  const action = actionRowFor(access, snapshot?.decisions ?? null, snapshot?.failed ?? false)
 
   const ban = async (duration: BanDuration) => {
     setBusy(true)
@@ -447,7 +502,7 @@ export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
     }
     if (result.ok) {
       toast.success(result.message)
-      await refreshDecisions()
+      await refreshDecisions(true)
     } else {
       toast.error(result.message)
     }
@@ -455,16 +510,23 @@ export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
   }
 
   const unban = async () => {
+    const before = action
     setBusy(true)
-    const outcome = await unbanThenRefetch(client, ip)
-    if (outcome.result.ok) toast.success(outcome.result.message)
-    else toast.error(outcome.result.message)
-    setLive(
-      outcome.decisions
-        ? { decisions: outcome.decisions, failed: false }
-        : { decisions: [], failed: true },
-    )
-    if (outcome.decisions) remember(outcome.decisions)
+    let seq = 0
+    const outcome = await unbanThenRefetch(client, ip, () => {
+      seq = ++readSeq.current
+    })
+    const next = applyRead({ decisions: outcome.decisions, seq, afterWrite: true })
+    const message = unbanToast(ip, before, outcome)
+    if (message.ok) toast.success(message.message)
+    else toast.error(message.message)
+    if (outcome.decisions && shown) remember(shown, next)
+    setBusy(false)
+  }
+
+  const retryDecisions = async () => {
+    setBusy(true)
+    await refreshDecisions(false)
     setBusy(false)
   }
 
@@ -474,8 +536,7 @@ export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
       return rest
     })
 
-  const shownDecisions = decisions?.decisions ?? []
-  const winning = exactDecision(shownDecisions) ?? rangeDecision(shownDecisions)
+  const winning = winningDecision(snapshot?.decisions ?? [])
   const profile = data && !data.neverLogged ? data.profile : null
 
   return (
@@ -483,7 +544,7 @@ export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
       <main className="grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-3 overflow-auto p-3">
         <div>
           <div className="flex items-center gap-1.5">
-            <h1 className="min-w-0">
+            <h1 ref={headingRef} tabIndex={-1} className="min-w-0 outline-none">
               <IpChip
                 ip={ip}
                 mark={{ decisionType: winning?.type ?? null, dropSblId: shown?.dropSblId ?? null }}
@@ -495,8 +556,15 @@ export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
             </h1>
             <CopyIp ip={ip} />
           </div>
-          <MetaLine ip={ip} data={shown} crowdsec={access.crowdsec} />
-          <Badges ip={ip} session={session} data={shown} live={live} />
+          <MetaLine ip={ip} data={shown} />
+          <Badges
+            ip={ip}
+            session={session}
+            data={shown}
+            decisions={snapshot}
+            busy={busy}
+            onRetryDecisions={() => void retryDecisions()}
+          />
         </div>
         <StatsCard data={data} range={range} onRange={setRange} onRetry={retry} />
         {profile && profile.totalRequests > 0 && <TrafficCard profile={profile} />}
@@ -504,7 +572,7 @@ export function Lookup({ session, ip }: { session: PopupSession; ip: string }) {
       <Actions
         ip={ip}
         session={session}
-        decisions={decisions}
+        action={action}
         busy={busy}
         onBan={(duration) => void ban(duration)}
         onUnban={() => void unban()}

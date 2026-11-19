@@ -10,11 +10,13 @@ import { cn } from "@/lib/utils"
 import type { ExtensionClient } from "../lib/client"
 import { getAbuseCache, type ConnectionIdentity } from "../lib/storage"
 import { checkAbuse } from "./lookup"
+import { CAPTCHA_TEXT_CLASS } from "./marks"
 
-/** The app's `AbuseIpdbBadge` tones; that component runs its check through the app's query hooks. */
+/** The app's `AbuseIpdbBadge` tones; that component runs its check through the
+ *  app's query hooks. Medium text is darkened to reach 4.5:1. */
 const TONE_CLASS: Record<AbuseScoreTone, string> = {
   high: "border-destructive/55 text-destructive",
-  medium: "border-amber-500/55 text-amber-500",
+  medium: `border-amber-500/55 ${CAPTCHA_TEXT_CLASS}`,
   low: "text-muted-foreground",
 }
 

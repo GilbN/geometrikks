@@ -6,6 +6,8 @@ import { createExtensionClient } from "../lib/client"
 import type { Access } from "../lib/connection"
 import { ABUSE_CACHE_MS, type StoredConnection } from "../lib/storage"
 import {
+  actionRowFor,
+  applyDecisions,
   checkAbuse,
   loadLookup,
   profileBuckets,
@@ -13,6 +15,9 @@ import {
   showAbuseCheck,
   unbanActionFor,
   unbanThenRefetch,
+  unbanToast,
+  worthRemembering,
+  type LookupData,
 } from "./lookup"
 
 const ORIGIN = "https://geo.example.net"
@@ -253,6 +258,70 @@ describe("loadLookup", () => {
     expect(data.decisions).toEqual([])
     expect(data.location).toBeNull()
   })
+
+  it("asks one 7-day profile when 7 d is asked, and decides never logged from it", async () => {
+    const { client, requests } = lookupServer(0, 0)
+    const data = await loadLookup(client, "185.224.128.17", "7d", access, null, NOW)
+    const profiles = requests.filter((r) => r.url.pathname === "/api/v1/analytics/ip-profile")
+    expect(profiles).toHaveLength(1)
+    expect(data.neverLogged).toBe(true)
+    expect(data.shownRange).toBe("7d")
+    expect(data.week).toBeNull()
+  })
+
+  it("shows the 24 h zeros without a 7-day call once the 7-day view is known", async () => {
+    const { client, requests } = lookupServer(0, 0)
+    const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW, {
+      weekKnown: true,
+    })
+    const profiles = requests.filter((r) => r.url.pathname === "/api/v1/analytics/ip-profile")
+    expect(profiles).toHaveLength(1)
+    expect(data.neverLogged).toBe(false)
+    expect(data.shownRange).toBe("24h")
+    expect(data.profile?.totalRequests).toBe(0)
+  })
+
+  it("returns the 7-day view the never-logged check fetched", async () => {
+    const { client } = lookupServer(0, 12)
+    const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW)
+    expect(data.week?.shownRange).toBe("7d")
+    expect(data.week?.profile?.totalRequests).toBe(12)
+    expect(data.week?.end.getTime() ?? 0).toBe(NOW.getTime())
+    expect(NOW.getTime() - (data.week?.start.getTime() ?? 0)).toBe(7 * 86_400_000)
+  })
+
+  /** Location per window: Frankfurt over 24 h, `weekGeo` over 7 d. */
+  function locationServer(weekGeo: "fails" | "Berlin") {
+    return server((url) => {
+      if (url.pathname === "/api/v1/analytics/ip-profile") {
+        const start = Date.parse(url.searchParams.get("startDate") ?? "")
+        const end = Date.parse(url.searchParams.get("endDate") ?? "")
+        return json(profile(end - start > 2 * 86_400_000 ? 12 : 0))
+      }
+      if (url.pathname === "/api/v1/geo-events/logs") {
+        const from = Date.parse(url.searchParams.get("fromTimestamp") ?? "")
+        const to = Date.parse(url.searchParams.get("toTimestamp") ?? "")
+        if (to - from <= 2 * 86_400_000) return json({ items: [geoRow], total: 1 })
+        if (weekGeo === "fails") return json({ status_code: 500, detail: "x", code: "x" }, 500)
+        return json({ items: [{ ...geoRow, city: "Berlin" }], total: 1 })
+      }
+      return json([])
+    })
+  }
+
+  it("keeps the 24 h location on the 24 h view and the 7-day one for 7 d", async () => {
+    const { client } = locationServer("Berlin")
+    const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW)
+    expect(data.location?.city).toBe("Frankfurt")
+    expect(data.week?.location?.city).toBe("Berlin")
+  })
+
+  it("never replaces a found 24 h location with a failed 7-day read", async () => {
+    const { client } = locationServer("fails")
+    const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW)
+    expect(data.location?.city).toBe("Frankfurt")
+    expect(data.week?.location?.city).toBe("Frankfurt")
+  })
 })
 
 describe("profileBuckets", () => {
@@ -370,6 +439,20 @@ describe("unbanThenRefetch", () => {
     expect(outcome.decisions).toEqual(remaining)
   })
 
+  it("signals the refetch after the unban answered", async () => {
+    const order: string[] = []
+    const { client } = server((url) => {
+      order.push(url.pathname)
+      return url.pathname === "/api/v1/crowdsec/unban" ? json({ deleted: 1 }) : json([])
+    })
+    await unbanThenRefetch(client, "45.148.10.82", () => order.push("refetch"))
+    expect(order).toEqual([
+      "/api/v1/crowdsec/unban",
+      "refetch",
+      "/api/v1/crowdsec/decisions/lookup",
+    ])
+  })
+
   it("refetches even when the unban request throws", async () => {
     const { client, paths } = server((url) =>
       url.pathname === "/api/v1/crowdsec/unban"
@@ -379,5 +462,181 @@ describe("unbanThenRefetch", () => {
     const outcome = await unbanThenRefetch(client, "45.148.10.82")
     expect(outcome.result.ok).toBe(false)
     expect(paths()).toContain("/api/v1/crowdsec/decisions/lookup")
+  })
+})
+
+describe("actionRowFor", () => {
+  const exact = decision("Ip", "ban", "45.148.10.82")
+  const range = decision("Range", "captcha", "45.148.10.0/24")
+
+  it("offers nothing to a Read key", () => {
+    expect(actionRowFor({ ...access, write: false }, [exact], false)).toEqual({ kind: "none" })
+    expect(actionRowFor({ ...access, write: false }, [], false)).toEqual({ kind: "none" })
+  })
+
+  it("offers nothing with CrowdSec off", () => {
+    expect(actionRowFor({ ...access, crowdsec: false }, [], false)).toEqual({ kind: "none" })
+  })
+
+  it("offers nothing while the decisions are unknown or failed", () => {
+    expect(actionRowFor(access, null, false)).toEqual({ kind: "none" })
+    expect(actionRowFor(access, [], true)).toEqual({ kind: "none" })
+  })
+
+  it("offers Ban without decisions", () => {
+    expect(actionRowFor(access, [], false)).toEqual({ kind: "ban" })
+  })
+
+  it("offers Unban for an exact decision", () => {
+    expect(actionRowFor(access, [exact], false)).toEqual({ kind: "unban" })
+  })
+
+  it("offers Remove IP decision with the range when both apply", () => {
+    expect(actionRowFor(access, [exact, range], false)).toEqual({
+      kind: "remove-ip",
+      rangeValue: "45.148.10.0/24",
+      rangeType: "captcha",
+    })
+  })
+
+  it("still offers Ban when only a range covers the IP, since Ban adds an IP decision", () => {
+    expect(actionRowFor(access, [range], false)).toEqual({ kind: "ban" })
+  })
+})
+
+describe("unbanToast", () => {
+  const ip = "45.148.10.82"
+  const ok = { ok: true, message: `Unbanned ${ip}` }
+  const range = decision("Range", "ban", "45.148.10.0/24")
+
+  it("says Unbanned when the refetch shows nothing left", () => {
+    expect(unbanToast(ip, { kind: "unban" }, { result: ok, decisions: [] })).toEqual({
+      ok: true,
+      message: `Unbanned ${ip}`,
+    })
+  })
+
+  it("names the range that stays after Remove IP decision", () => {
+    const action = { kind: "remove-ip" as const, rangeValue: "45.148.10.0/24", rangeType: "ban" }
+    expect(unbanToast(ip, action, { result: ok, decisions: [range] })).toEqual({
+      ok: true,
+      message: `Removed the IP decision on ${ip}. The ban decision on 45.148.10.0/24 stays.`,
+    })
+  })
+
+  it("names a range the refetch found even after a plain Unban", () => {
+    expect(unbanToast(ip, { kind: "unban" }, { result: ok, decisions: [range] }).message).toBe(
+      `Removed the IP decision on ${ip}. The ban decision on 45.148.10.0/24 stays.`,
+    )
+  })
+
+  it("never says Unbanned when the refetch failed", () => {
+    expect(unbanToast(ip, { kind: "unban" }, { result: ok, decisions: null }).message).toBe(
+      `Removed the IP decision on ${ip}`,
+    )
+    const action = {
+      kind: "remove-ip" as const,
+      rangeValue: "45.148.10.0/24",
+      rangeType: "captcha",
+    }
+    expect(unbanToast(ip, action, { result: ok, decisions: null }).message).toBe(
+      `Removed the IP decision on ${ip}. The captcha decision on 45.148.10.0/24 stays.`,
+    )
+  })
+
+  it("passes a failed unban through", () => {
+    const failed = { ok: false, message: `No decision on ${ip} to remove.` }
+    expect(unbanToast(ip, { kind: "unban" }, { result: failed, decisions: [] })).toEqual(failed)
+  })
+})
+
+describe("applyDecisions", () => {
+  const banned = [decision("Ip", "ban", "45.148.10.82")]
+
+  it("takes a newer successful read and ignores an older one", () => {
+    const first = applyDecisions(null, { decisions: [], seq: 1, afterWrite: false })
+    const second = applyDecisions(first, { decisions: banned, seq: 3, afterWrite: true })
+    expect(second).toEqual({ decisions: banned, failed: false, seq: 3 })
+    expect(applyDecisions(second, { decisions: [], seq: 2, afterWrite: false })).toBe(second)
+  })
+
+  it("keeps a good snapshot over a failed range-switch read", () => {
+    const good = { decisions: banned, failed: false, seq: 1 }
+    expect(applyDecisions(good, { decisions: null, seq: 2, afterWrite: false })).toBe(good)
+  })
+
+  it("marks the decisions failed when the read after a write fails", () => {
+    const good = { decisions: banned, failed: false, seq: 1 }
+    expect(applyDecisions(good, { decisions: null, seq: 2, afterWrite: true })).toEqual({
+      decisions: [],
+      failed: true,
+      seq: 2,
+    })
+  })
+
+  it("lets a later successful retry replace a failed snapshot", () => {
+    const failed = applyDecisions(null, { decisions: null, seq: 1, afterWrite: false })
+    expect(failed?.failed).toBe(true)
+    expect(applyDecisions(failed, { decisions: banned, seq: 2, afterWrite: false })?.failed).toBe(
+      false,
+    )
+  })
+})
+
+describe("recent lookups", () => {
+  function lookupData(extra: Partial<LookupData>): LookupData {
+    return {
+      profile: profile(3),
+      profileFailure: null,
+      shownRange: "7d",
+      start: NOW,
+      end: NOW,
+      location: { countryCode: "DE", countryName: "Germany", city: "Frankfurt" },
+      decisions: [],
+      decisionsFailed: false,
+      dropSblId: null,
+      neverLogged: false,
+      week: null,
+      ...extra,
+    }
+  }
+  const previous = {
+    ip: "45.148.10.82",
+    countryCode: "NL",
+    asn: 48090,
+    asOrganization: "DMZHOST",
+    decisionType: "ban",
+    dropSblId: null,
+    at: 1,
+  }
+
+  it("keeps the previous decision type when the decisions failed", () => {
+    const data = lookupData({ decisionsFailed: true })
+    expect(recentFrom("45.148.10.82", data, 9, previous).decisionType).toBe("ban")
+  })
+
+  it("writes the fresh decision type, including none, when the decisions loaded", () => {
+    expect(recentFrom("45.148.10.82", lookupData({}), 9, previous).decisionType).toBeNull()
+  })
+
+  it("keeps the previous ASN when the traffic call failed", () => {
+    const data = lookupData({ profile: null, profileFailure: { networkError: true } })
+    expect(recentFrom("45.148.10.82", data, 9, previous)).toMatchObject({
+      asn: 48090,
+      asOrganization: "DMZHOST",
+      countryCode: "DE",
+    })
+  })
+
+  it("remembers a lookup whose traffic failed when decisions or location came back", () => {
+    const failed = { profile: null, profileFailure: { networkError: true } }
+    expect(worthRemembering(lookupData(failed), access)).toBe(true)
+    expect(worthRemembering(lookupData({ ...failed, location: null }), access)).toBe(true)
+    expect(
+      worthRemembering(lookupData({ ...failed, location: null, decisionsFailed: true }), access),
+    ).toBe(false)
+    expect(
+      worthRemembering(lookupData({ ...failed, location: null }), { ...access, crowdsec: false }),
+    ).toBe(false)
   })
 })

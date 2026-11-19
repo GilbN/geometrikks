@@ -85,16 +85,33 @@ export async function ipMarks(
   return Object.fromEntries(entries)
 }
 
+/** `marks` with each confirmed decision type laid over its IP's mark. */
+export function withDecisionTypes(
+  marks: Record<string, IpMark>,
+  decisionTypes: Record<string, string | null>,
+): Record<string, IpMark> {
+  const merged = { ...marks }
+  for (const [ip, decisionType] of Object.entries(decisionTypes)) {
+    merged[ip] = { dropSblId: marks[ip]?.dropSblId ?? null, decisionType }
+  }
+  return merged
+}
+
 /** Red text that stays at 4.5:1 over the row bars and the ban tint, where
  *  plain `text-destructive` falls to about 3.4:1. */
 export const ERROR_TEXT_CLASS =
   "text-[color-mix(in_oklab,var(--destructive)_70%,var(--foreground))]"
 
+/** Amber text at 4.5:1 or better over the captcha tint and the row bars, in
+ *  light and dark, where plain `text-amber-500` reaches about 2:1 on light. */
+export const CAPTCHA_TEXT_CLASS =
+  "text-[color-mix(in_oklab,var(--color-amber-500)_50%,var(--foreground))]"
+
 /** The app's IpLabel tones (`ip-label.tsx`), which the extension can't import
  *  because that component reads the app's query hooks. */
 export function decisionTone(type: string): string {
   if (type === "ban") return `bg-destructive/10 dark:bg-destructive/20 ${ERROR_TEXT_CLASS}`
-  if (type === "captcha") return "bg-amber-500/10 text-amber-500 dark:bg-amber-500/20"
+  if (type === "captcha") return `bg-amber-500/10 dark:bg-amber-500/20 ${CAPTCHA_TEXT_CLASS}`
   return "bg-secondary text-secondary-foreground"
 }
 

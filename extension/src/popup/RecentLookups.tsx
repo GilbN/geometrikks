@@ -11,29 +11,30 @@ export function RecentLookups({
   session,
   noTrafficHost,
   onLookup,
-  version = 0,
+  latest = null,
 }: {
   session: PopupSession
   /** Set only after a successful 7-day check found no requests for the tab's host. */
   noTrafficHost: string | null
   onLookup: (ip: string) => void
-  /** A new value reads the list again. */
-  version?: number
+  /** The list a lookup just wrote; it wins over the read on mount. */
+  latest?: RecentLookup[] | null
 }) {
-  const [recent, setRecent] = useState<RecentLookup[] | null>(null)
+  const [stored, setStored] = useState<RecentLookup[] | null>(null)
   const { origin, savedAt } = session.stored
 
   useEffect(() => {
     let cancelled = false
     void (async () => {
       const items = await getRecent({ origin, savedAt })
-      if (!cancelled) setRecent(items)
+      if (!cancelled) setStored(items)
     })()
     return () => {
       cancelled = true
     }
-  }, [origin, savedAt, version])
+  }, [origin, savedAt])
 
+  const recent = latest ?? stored
   const now = Date.now()
   return (
     <>
@@ -55,8 +56,12 @@ export function RecentLookups({
                     title="Look up"
                   >
                     <CountryFlag code={lookup.countryCode} />
-                    <IpChip ip={lookup.ip} mark={lookup} className="min-w-0 truncate" />
-                    <span className="max-w-[60%] flex-[1_0_auto] truncate text-[11.5px] text-muted-foreground">
+                    <IpChip
+                      ip={lookup.ip}
+                      mark={lookup}
+                      className={lookup.ip.includes(":") ? "min-w-0 truncate" : "shrink-0"}
+                    />
+                    <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
                       {lookup.asn !== null && `AS${lookup.asn} ${lookup.asOrganization ?? ""}`}
                     </span>
                     <span className="ml-auto shrink-0 text-muted-foreground tabular-nums">
