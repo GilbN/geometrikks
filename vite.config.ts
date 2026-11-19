@@ -53,6 +53,18 @@ export default defineConfig({
                 "@/components/ui/sonner",
                 "@/components/abuseipdb/abuseipdb-badge",
               ].map((name) => ({ name, message: "Not available in the extension." })),
+              patterns: [
+                {
+                  group: [
+                    "@/lib/{api,client,queries}/*",
+                    "**/resources/lib/{api,client,queries}",
+                    "**/resources/components/theme-provider",
+                    "**/resources/components/ui/sonner",
+                    "**/resources/components/abuseipdb/abuseipdb-badge",
+                  ],
+                  message: "Not available in the extension.",
+                },
+              ],
             },
           ],
         },

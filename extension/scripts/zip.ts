@@ -6,6 +6,7 @@ import { zipSync } from "fflate"
 
 const EXTENSION = path.resolve(import.meta.dirname, "..")
 const DIST = path.join(EXTENSION, "dist")
+const FIXED_MTIME = new Date("2026-01-01T00:00:00Z")
 
 function collect(directory: string, files: Record<string, Uint8Array>) {
   for (const name of readdirSync(directory).sort()) {
@@ -21,5 +22,5 @@ const manifest = JSON.parse(readFileSync(path.join(DIST, "manifest.json"), "utf8
 const files: Record<string, Uint8Array> = {}
 collect(DIST, files)
 const zipPath = path.join(EXTENSION, `geometrikks-chrome-${manifest.version}.zip`)
-writeFileSync(zipPath, zipSync(files, { level: 9 }))
+writeFileSync(zipPath, zipSync(files, { level: 9, mtime: FIXED_MTIME }))
 console.log(`wrote ${path.relative(process.cwd(), zipPath)} (${Object.keys(files).length} files)`)

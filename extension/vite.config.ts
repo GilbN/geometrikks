@@ -38,9 +38,13 @@ function moduleGraph(): Plugin {
     name: "geometrikks-extension-module-graph",
     writeBundle(_options, bundle) {
       const entries: Record<string, string[]> = {}
+      const entryFiles: Record<string, string[]> = {}
       const dynamicImports: Record<string, string[]> = {}
+      const all = new Set<string>()
       for (const chunk of Object.values(bundle)) {
-        if (chunk.type !== "chunk" || !chunk.isEntry) continue
+        if (chunk.type !== "chunk") continue
+        for (const id of chunk.moduleIds) all.add(path.relative(ROOT, id))
+        if (!chunk.isEntry) continue
         const modules = new Set<string>()
         const dynamic = new Set<string>()
         const seen = new Set<string>()
@@ -55,12 +59,13 @@ function moduleGraph(): Plugin {
         }
         visit(chunk.fileName)
         entries[chunk.name] = [...modules].sort()
+        entryFiles[chunk.name] = [...seen].sort()
         dynamicImports[chunk.name] = [...dynamic].sort()
       }
       mkdirSync(path.join(EXTENSION, ".build"), { recursive: true })
       writeFileSync(
         path.join(EXTENSION, ".build", "modules.json"),
-        `${JSON.stringify({ entries, dynamicImports }, null, 2)}\n`,
+        `${JSON.stringify({ entries, entryFiles, dynamicImports, all: [...all].sort() }, null, 2)}\n`,
       )
     },
   }
