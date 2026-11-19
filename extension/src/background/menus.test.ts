@@ -11,7 +11,13 @@ import {
 } from "../../tests/worker-deps"
 import type { Access } from "../lib/connection"
 import type { PendingItem, StoredConnection } from "../lib/storage"
-import { buildMenus, handleMenuClick, handleRefreshConnection, rebuildMenus } from "./menus"
+import {
+  buildMenus,
+  handleMenuClick,
+  handleRefreshConnection,
+  MAX_SELECTION_LENGTH,
+  rebuildMenus,
+} from "./menus"
 
 const readOnly: Access = { write: false, crowdsec: true, drop: true, asn: true, hostFilter: true }
 const writable: Access = { ...readOnly, write: true }
@@ -190,18 +196,32 @@ describe("handleMenuClick", () => {
     expect(deps.banIp).not.toHaveBeenCalled()
   })
 
-  it("rebuilds the menus and sends nothing when write mode changed", async () => {
+  it("rebuilds the menus and sends nothing when the server stopped accepting bans", async () => {
     const deps = testDeps()
     deps.fetchConnection.mockResolvedValue({ ok: true, connection: noWriteAnswer })
     const item = await handleMenuClick(ban24h("45.148.10.82"), tab, deps)
     expect(deps.banIp).not.toHaveBeenCalled()
     expect(item?.result).toMatchObject({ ok: false })
+    expect(item?.result?.message).toBe(
+      "45.148.10.82 wasn't banned. a.example no longer accepts bans from this connection.",
+    )
     expect(created(deps).map((menu) => menu.id)).toEqual(["gmk", "gmk-lookup"])
     expect(deps.chrome.storage.local.data.connectionRefresh).toEqual({
       origin: A,
       savedAt: 1,
       connection: noWriteAnswer,
     })
+  })
+
+  it("asks for a retry and sends nothing when the server started accepting bans", async () => {
+    const deps = testDeps(storedFor(A, { connection: noWriteAnswer }))
+    deps.fetchConnection.mockResolvedValue({ ok: true, connection: writeAnswer })
+    const item = await handleMenuClick(ban24h("45.148.10.82"), tab, deps)
+    expect(deps.banIp).not.toHaveBeenCalled()
+    expect(item?.result?.message).toBe(
+      "45.148.10.82 wasn't banned. Ban is now available; try again.",
+    )
+    expect(created(deps).map((menu) => menu.id)).toContain("gmk-ban")
   })
 
   it("sends nothing when the connection can't write before or after the check", async () => {
@@ -231,29 +251,91 @@ describe("handleMenuClick", () => {
     expect(pending(deps)).toEqual([])
   })
 
-  it("sends no ban when the identity changes between the check and the ban", async () => {
+  it("sends no ban when the key changes while the check is answered", async () => {
     const deps = testDeps()
     const stored = deps.chrome.storage.local.data.connection as StoredConnection
-    let reads = 0
-    const get = deps.chrome.storage.local.get.bind(deps.chrome.storage.local)
-    deps.chrome.storage.local.get = async (keys) => {
-      // The third connection read is the one right before banIp.
-      if (keys === "connection" && ++reads === 3)
-        deps.chrome.storage.local.data.connection = { ...stored, key: "gmk_other" }
-      return get(keys)
-    }
+    deps.fetchConnection.mockImplementation(async () => {
+      deps.chrome.storage.local.data.connection = { ...stored, key: "gmk_other" }
+      return { ok: true, connection: writeAnswer }
+    })
     expect(await handleMenuClick(ban24h("45.148.10.82"), tab, deps)).toBeNull()
     expect(deps.banIp).not.toHaveBeenCalled()
+    expect(pending(deps)).toEqual([])
   })
 
-  it("stores no item when the server changed while the ban was in flight", async () => {
+  it("stores a failed ban item without calling the server when host access was removed", async () => {
     const deps = testDeps()
+    deps.chrome.granted.clear()
+    const item = await handleMenuClick(ban24h("45.148.10.82"), tab, deps)
+    expect(deps.fetchConnection).not.toHaveBeenCalled()
+    expect(deps.banIp).not.toHaveBeenCalled()
+    expect(item).toMatchObject({ kind: "ban", result: { ok: false } })
+    expect(item?.result?.message).toBe(
+      "45.148.10.82 wasn't banned. GeoMetrikks for Chrome lost access to a.example.",
+    )
+    expect(pending(deps)).toEqual([item])
+  })
+
+  it("stores a failed ban item when the ban request throws", async () => {
+    const deps = testDeps()
+    deps.banIp.mockRejectedValue(new TypeError("Failed to fetch"))
+    const item = await handleMenuClick(ban24h("45.148.10.82"), tab, deps)
+    expect(item).toMatchObject({ kind: "ban", result: { ok: false } })
+    expect(item?.result?.message).toBe("Ban failed for 45.148.10.82; the server didn't answer.")
+    expect(pending(deps)).toEqual([item])
+  })
+
+  it("uses the current window when the click has no tab", async () => {
+    for (const clickTab of [undefined, { windowId: -1 } as chrome.tabs.Tab]) {
+      const deps = testDeps()
+      const item = await handleMenuClick(
+        { menuItemId: "gmk-lookup", selectionText: "45.148.10.82" },
+        clickTab,
+        deps,
+      )
+      expect(deps.chrome.calls.some((call) => call.name === "windows.getCurrent")).toBe(true)
+      expect(item?.windowId).toBe(1)
+    }
+  })
+
+  it("stores at most 256 characters of the selection", async () => {
+    const deps = testDeps()
+    const item = await handleMenuClick(
+      { menuItemId: "gmk-lookup", selectionText: `  ${"x".repeat(5000)}  ` },
+      tab,
+      deps,
+    )
+    expect(item).toMatchObject({ kind: "not-ip", text: "x".repeat(MAX_SELECTION_LENGTH) })
+    expect(pending(deps)[0]?.text).toHaveLength(MAX_SELECTION_LENGTH)
+  })
+
+  it("stores no item and logs the sent ban when the server changed while it was in flight", async () => {
+    const deps = testDeps()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
     deps.banIp.mockImplementation(async (_target, ip, duration) => {
       deps.chrome.storage.local.data.connection = storedFor(B, { lifetime: "lifetime-2" })
       return { ok: true, ip, durationLabel: duration.label, message: "Banned" }
     })
     expect(await handleMenuClick(ban24h("45.148.10.82"), tab, deps)).toBeNull()
     expect(pending(deps)).toEqual([])
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.[0]).toContain("45.148.10.82")
+    expect(warn.mock.calls[0]?.[0]).toContain(A)
+    warn.mockRestore()
+  })
+
+  it("logs nothing when a refused ban is dropped for a changed connection", async () => {
+    const deps = testDeps()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    deps.chrome.granted.clear()
+    const contains = deps.chrome.permissions.contains.bind(deps.chrome.permissions)
+    deps.chrome.permissions.contains = async (permissions) => {
+      deps.chrome.storage.local.data.connection = storedFor(B, { lifetime: "lifetime-2" })
+      return contains(permissions)
+    }
+    expect(await handleMenuClick(ban24h("45.148.10.82"), tab, deps)).toBeNull()
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })
 

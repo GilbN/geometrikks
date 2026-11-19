@@ -20,6 +20,8 @@ const BAN_PREFIX = "gmk-ban:"
 
 const CONTEXTS: chrome.contextMenus.CreateProperties["contexts"] = ["selection"]
 
+export const MAX_SELECTION_LENGTH = 256
+
 /** Unqueued; callers already hold the queue. */
 async function createMenus(access: Access | null, chromeApi: ChromeApi): Promise<void> {
   await chromeApi.contextMenus.removeAll()
@@ -94,17 +96,27 @@ async function windowIdFor(tab: chrome.tabs.Tab | undefined, deps: WorkerDeps): 
   }
 }
 
+interface BanOutcome {
+  result: BanResult
+  /** True once the ban request left the extension, even if it failed. */
+  sent: boolean
+}
+
 /** Checks the connection right before a ban and sends it only while the
  *  stored connection is unchanged and may still write. */
-async function banResultFor(
+async function banOutcomeFor(
   stored: StoredConnection,
   ip: string,
   duration: BanDuration,
   deps: WorkerDeps,
-): Promise<BanResult | null> {
+): Promise<BanOutcome | null> {
   const host = new URL(stored.origin).host
+  const refused = (reason: string): BanOutcome => ({
+    result: notSent(ip, duration, reason),
+    sent: false,
+  })
   const permitted = await deps.chrome.permissions.contains({ origins: [stored.pattern] })
-  if (!permitted) return notSent(ip, duration, FAILURE_TEXT["access-removed"](host))
+  if (!permitted) return refused(FAILURE_TEXT["access-removed"](host))
   const checked = await deps.fetchConnection({ origin: stored.origin, key: stored.key })
   if (!sameIdentity(stored, await currentConnection(deps.chrome))) return null
   if (!checked.ok) {
@@ -112,7 +124,7 @@ async function banResultFor(
       keyless: stored.keyless,
       permissionMissing: false,
     })
-    return notSent(ip, duration, FAILURE_TEXT[failure](host))
+    return refused(FAILURE_TEXT[failure](host))
   }
   const before = deriveAccess(stored, stored.connection)
   const now = deriveAccess(stored, checked.connection)
@@ -122,19 +134,27 @@ async function banResultFor(
       { origin: stored.origin, savedAt: stored.savedAt },
       deps,
     )
-    return notSent(ip, duration, `${host} no longer accepts bans from this connection.`)
+    return refused(
+      before.write
+        ? `${host} no longer accepts bans from this connection.`
+        : "Ban is now available; try again.",
+    )
   }
-  if (now.write !== true)
-    return notSent(ip, duration, `${host} doesn't accept bans from this connection.`)
-  if (!sameIdentity(stored, await currentConnection(deps.chrome))) return null
+  if (now.write !== true) return refused(`${host} doesn't accept bans from this connection.`)
   try {
-    return await deps.banIp({ origin: stored.origin, key: stored.key }, ip, duration)
+    return {
+      result: await deps.banIp({ origin: stored.origin, key: stored.key }, ip, duration),
+      sent: true,
+    }
   } catch {
     return {
-      ok: false,
-      ip,
-      durationLabel: duration.label,
-      message: `Ban failed for ${ip}; the server didn't answer.`,
+      result: {
+        ok: false,
+        ip,
+        durationLabel: duration.label,
+        message: `Ban failed for ${ip}; the server didn't answer.`,
+      },
+      sent: true,
     }
   }
 }
@@ -151,24 +171,32 @@ export async function handleMenuClick(
   if (info.menuItemId !== MENU_LOOKUP && duration === null) return null
   const stored = await currentConnection(deps.chrome)
   if (stored === null) return null
-  const text = (info.selectionText ?? "").trim()
-  const ip = parseSingleIp(text)
+  const selected = (info.selectionText ?? "").trim()
+  const ip = parseSingleIp(selected)
   const base = {
     id: deps.newId(),
-    text,
+    text: selected.slice(0, MAX_SELECTION_LENGTH),
     origin: stored.origin,
     windowId: await windowIdFor(tab, deps),
     reservedForPage: false,
   }
   let item: PendingItem
+  let sent = false
   if (ip === null) {
     item = { ...base, kind: "not-ip", ip: null, result: null, createdAt: deps.now() }
   } else if (duration === null) {
     item = { ...base, kind: "lookup", ip, result: null, createdAt: deps.now() }
   } else {
-    const result = await banResultFor(stored, ip, duration, deps)
-    if (result === null) return null
-    item = { ...base, kind: "ban", ip, result, createdAt: deps.now() }
+    const outcome = await banOutcomeFor(stored, ip, duration, deps)
+    if (outcome === null) return null
+    sent = outcome.sent
+    item = { ...base, kind: "ban", ip, result: outcome.result, createdAt: deps.now() }
   }
-  return enqueuePending(item, stored, deps)
+  const queued = await enqueuePending(item, stored, deps)
+  if (queued === null && sent)
+    console.warn(
+      `GeoMetrikks: the ban of ${ip} was sent to ${stored.origin}, but the connection changed before its result could be shown`,
+      item.result,
+    )
+  return queued
 }
