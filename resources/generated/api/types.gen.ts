@@ -4368,7 +4368,7 @@ export type TopIpsResponse = {
 /**
  * TopUrlDTO
  *
- * One host and path with its hits.
+ * One URL with its hits, for one host or summed across the `hostIn` hosts.
  */
 export type TopUrlDto = {
   /**
@@ -4381,7 +4381,7 @@ export type TopUrlDto = {
   errorHits: number;
   hits: number;
   /**
-   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` has more than one value.
+   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.
    */
   host: string | null;
   /**
@@ -4398,7 +4398,7 @@ export type TopUrlDto = {
 /**
  * TopUrlsResponse
  *
- * Host and path pairs ordered by hits, most first.
+ * URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.
  */
 export type TopUrlsResponse = {
   /**
@@ -5324,7 +5324,7 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
     /**
@@ -5629,7 +5629,7 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
   };
@@ -5714,7 +5714,7 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
   };
@@ -5799,7 +5799,7 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
-     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
   };

@@ -25,22 +25,33 @@ pytestmark = pytest.mark.anyio
 NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
-async def _insert_log(
-    session, *, ts, url, user_agent, status=200, bytes_sent=100, rt=0.01,
+# access_logs is an id-only base: no created_at/updated_at columns.
+_INSERT_LOG_SQL = text(
+    "INSERT INTO access_logs (timestamp, ip_address, method, url, "
+    "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city, "
+    "autonomous_system_number, autonomous_system_organization, host) "
+    "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, "
+    ":asn, :asn_org, :host)"
+)
+
+
+def _log_params(
+    *, ts, url, user_agent, status=200, bytes_sent=100, rt=0.01,
     ip="10.0.0.1", country=None, country_name=None, city=None, asn=None, asn_org=None, host=None
 ):
-    # access_logs is an id-only base: no created_at/updated_at columns.
-    await session.execute(text(
-        "INSERT INTO access_logs (timestamp, ip_address, method, url, "
-        "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city, "
-        "autonomous_system_number, autonomous_system_organization, host) "
-        "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, "
-        ":asn, :asn_org, :host)"
-    ), {
+    return {
         "ts": ts, "url": url, "status": status, "bytes": bytes_sent, "rt": rt, "ua": user_agent,
         "ip": ip, "country": country, "country_name": country_name, "city": city, "asn": asn,
         "asn_org": asn_org, "host": host,
-    })
+    }
+
+
+async def _insert_log(session, **kwargs):
+    await session.execute(_INSERT_LOG_SQL, _log_params(**kwargs))
+
+
+async def _insert_logs(session, rows):
+    await session.execute(_INSERT_LOG_SQL, [_log_params(**row) for row in rows])
 
 
 async def test_top_urls_ordering_and_math(pg_session_maker, clean_tables):
@@ -838,13 +849,14 @@ async def test_host_filter_on_repositories_at_24h_and_7d(pg_session_maker, clean
 
 async def test_top_urls_groups_paths_across_two_hosts(pg_session_maker, clean_tables):
     ts = NOW - timedelta(hours=1)
+    rows = [
+        {"url": "/login", "host": host} for host in ("a.example", "a.example:8443") for _ in range(50)
+    ]
+    rows += [{"url": f"/p{i}", "host": "a.example"} for i in range(10) for _ in range(60)]
+    rows += [{"url": "/login?next=a", "host": "a.example"} for _ in range(5)]
+    rows += [{"url": "/login?next=b", "host": "a.example:8443"} for _ in range(5)]
     async with pg_session_maker() as session:
-        for host in ("a.example", "a.example:8443"):
-            for _ in range(50):
-                await _insert_log(session, ts=ts, url="/login", user_agent="x", host=host)
-        for i in range(10):
-            for _ in range(60):
-                await _insert_log(session, ts=ts, url=f"/p{i}", user_agent="x", host="a.example")
+        await _insert_logs(session, [{**row, "ts": ts, "user_agent": "x"} for row in rows])
         await session.commit()
 
     start = NOW - timedelta(days=7)
@@ -856,9 +868,13 @@ async def test_top_urls_groups_paths_across_two_hosts(pg_session_maker, clean_ta
         one_host = await repo.get_top_urls(start, NOW, limit=20, filters=AnalyticsFilters(hosts=["a.example"]))
 
     assert [(r.url, r.hits, r.host) for r in top] == [("/login", 100, None)]
-    assert len(everything) == 11
+    assert len(everything) == 13
     assert {r.host for r in everything} == {None}
     assert ("/p0", 60) in [(r.url, r.hits) for r in everything]
+    assert [(r.url, r.hits) for r in everything if r.url.startswith("/login?")] == [
+        ("/login?next=a", 5),
+        ("/login?next=b", 5),
+    ]
     assert {r.host for r in one_host} == {"a.example"}
     assert ("/login", 50) in [(r.url, r.hits) for r in one_host]
 

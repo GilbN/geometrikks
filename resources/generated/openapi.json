@@ -8987,7 +8987,7 @@
         "type": "object"
       },
       "TopUrlDTO": {
-        "description": "One host and path with its hits.",
+        "description": "One URL with its hits, for one host or summed across the `hostIn` hosts.",
         "properties": {
           "avgRequestTime": {
             "description": "The mean request time in seconds over the `timedHits`. Null when it is 0.",
@@ -9008,7 +9008,7 @@
             "type": "integer"
           },
           "host": {
-            "description": "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` has more than one value.",
+            "description": "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.",
             "oneOf": [
               {
                 "type": "string"
@@ -9043,7 +9043,7 @@
         "type": "object"
       },
       "TopUrlsResponse": {
-        "description": "Host and path pairs ordered by hits, most first.",
+        "description": "URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.",
         "properties": {
           "endDate": {
             "description": "The request's `endDate`, echoed as ISO 8601.",
@@ -11705,12 +11705,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
             "in": "query",
             "name": "hostIn",
             "required": false,
             "schema": {
-              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
               "oneOf": [
                 {
                   "items": {
@@ -12810,12 +12810,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
             "in": "query",
             "name": "hostIn",
             "required": false,
             "schema": {
-              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
               "oneOf": [
                 {
                   "items": {
@@ -12896,7 +12896,7 @@
     "/api/v1/analytics/top-ips": {
       "get": {
         "deprecated": false,
-        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
         "parameters": [
           {
@@ -13135,12 +13135,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
             "in": "query",
             "name": "hostIn",
             "required": false,
             "schema": {
-              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
               "oneOf": [
                 {
                   "items": {
@@ -13221,7 +13221,7 @@
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
-        "description": "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` host or none, each row is a host and path pair. With two or more different hosts, each row is one URL (path plus query string) counted across those hosts, and `host` is null. Lines without a path are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopUrlsGetTopUrls",
         "parameters": [
           {
@@ -13460,12 +13460,12 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
-            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
             "in": "query",
             "name": "hostIn",
             "required": false,
             "schema": {
-              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.",
               "oneOf": [
                 {
                   "items": {

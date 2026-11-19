@@ -113,7 +113,7 @@ def _build_filters(
         ip_exclude=ip_address_not_in or None,
         asns=asn_in or None,
         asns_exclude=asn_not_in or None,
-        hosts=host_in or None,
+        hosts=list(dict.fromkeys(host_in)) if host_in else None,
     )
 
 
@@ -559,7 +559,9 @@ class AnalyticsController(Controller):
         "/top-urls",
         summary="List the most requested URLs",
         description=(
-            "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. "
+            "Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` "
+            "host or none, each row is a host and path pair. With two or more different hosts, each row is one "
+            "URL (path plus query string) counted across those hosts, and `host` is null. "
             f"Lines without a path are left out. {HOST_FILTERED_RAW_NOTE}"
         ),
     )
@@ -737,9 +739,9 @@ class AnalyticsController(Controller):
         summary="List the client IPs with the most requests",
         description=(
             "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus "
-            "the number of distinct IPs in the range. A country, city or IP filter reads the per-IP "
-            "aggregates, so unlike the URL and user agent lists it reaches past "
-            f"ANALYTICS_RAW_RETENTION_DAYS. {HOST_ASN_RAW_NOTE}"
+            "the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host "
+            "filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent "
+            f"lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. {HOST_ASN_RAW_NOTE}"
         ),
     )
     async def get_top_ips(

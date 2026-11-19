@@ -114,3 +114,7 @@ class TestHostFilters:
     def test_build_filters_passes_hosts(self) -> None:
         assert _build_filters(None, None, None, host_in=["a.example"]).hosts == ["a.example"]
         assert _build_filters(None, None, None, host_in=[]).hosts is None
+
+    def test_build_filters_dedupes_hosts_in_order(self) -> None:
+        filters = _build_filters(None, None, None, host_in=["b.example", "a.example", "b.example"])
+        assert filters.hosts == ["b.example", "a.example"]

@@ -905,7 +905,7 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
 /**
  * List the client IPs with the most requests
  *
- * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
@@ -936,7 +936,7 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
 /**
  * List the most requested URLs
  *
- * Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` host or none, each row is a host and path pair. With two or more different hosts, each row is one URL (path plus query string) counted across those hosts, and `host` is null. Lines without a path are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,

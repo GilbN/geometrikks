@@ -8861,7 +8861,8 @@ export const TopIpsResponseSchema = {
 } as const;
 
 export const TopUrlDTOSchema = {
-  description: "One host and path with its hits.",
+  description:
+    "One URL with its hits, for one host or summed across the `hostIn` hosts.",
   properties: {
     avgRequestTime: {
       description:
@@ -8884,7 +8885,7 @@ export const TopUrlDTOSchema = {
     },
     host: {
       description:
-        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` has more than one value.",
+        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.",
       oneOf: [
         {
           type: "string",
@@ -8921,7 +8922,8 @@ export const TopUrlDTOSchema = {
 } as const;
 
 export const TopUrlsResponseSchema = {
-  description: "Host and path pairs ordered by hits, most first.",
+  description:
+    "URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.",
   properties: {
     endDate: {
       description: "The request's `endDate`, echoed as ISO 8601.",

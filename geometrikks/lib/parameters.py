@@ -227,7 +227,7 @@ HostIn = Annotated[
         name="hostIn",
         description=(
             "Keep only requests to these hosts, matched exactly against the logged Host value, such as "
-            f"`example.com`. {REPEAT_NOTE}"
+            f"`example.com`. {REPEAT_NOTE} Lines without a host are left out."
         ),
         required=False,
     ),
