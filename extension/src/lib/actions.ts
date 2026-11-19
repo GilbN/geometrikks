@@ -14,22 +14,25 @@ function failureMessage(verb: "Ban" | "Unban", ip: string, failure: FailureInput
   return `${verb} failed for ${ip}.`
 }
 
-/** Sent at once; the popup has no undo window. */
+/** Sent at once; the popup has no undo window. Only the documented 204
+ *  counts as banned. */
 export async function banIp(
   client: ExtensionClient,
   ip: string,
   duration: BanDuration,
 ): Promise<BanResult> {
-  const result = unwrap<unknown>(
-    await apiV1CrowdsecBanBan({ client, body: { ip, duration: duration.value } }),
-  )
+  const answer = await apiV1CrowdsecBanBan({ client, body: { ip, duration: duration.value } })
+  const result = unwrap<unknown>(answer)
+  const banned = result.ok && answer.response?.status === 204
   return {
-    ok: result.ok,
+    ok: banned,
     ip,
     durationLabel: duration.label,
-    message: result.ok
+    message: banned
       ? `Banned ${ip} ${forDuration(duration.label)}`
-      : failureMessage("Ban", ip, result.failure),
+      : result.ok
+        ? `Ban failed for ${ip}.`
+        : failureMessage("Ban", ip, result.failure),
   }
 }
 

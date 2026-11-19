@@ -46,6 +46,16 @@ describe("banIp", () => {
     )
   })
 
+  it("fails on a 2xx other than the documented 204", async () => {
+    for (const answer of [() => json({}), () => json({}, 201)]) {
+      const { client } = clientAnswering(answer)
+      expect(await banIp(client, "45.148.10.82", day)).toMatchObject({
+        ok: false,
+        message: "Ban failed for 45.148.10.82.",
+      })
+    }
+  })
+
   it("shows the server's detail on failure", async () => {
     const { client } = clientAnswering(() =>
       json(

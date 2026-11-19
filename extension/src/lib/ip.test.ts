@@ -23,6 +23,12 @@ describe("parseSingleIp", () => {
     expect(parseSingleIp(" ::1\n")).toBe("::1")
   })
 
+  it("keeps the dotted IPv4 tail of an IPv4-mapped address", () => {
+    expect(parseSingleIp("::ffff:1.2.3.4")).toBe("::ffff:1.2.3.4")
+    expect(parseSingleIp("::FFFF:102:304")).toBe("::ffff:1.2.3.4")
+    expect(parseSingleIp("0:0:0:0:0:ffff:203.0.113.255")).toBe("::ffff:203.0.113.255")
+  })
+
   it("refuses IPv6 ranges, brackets and zone IDs", () => {
     for (const text of ["2001:db8::/32", "[2001:db8::1]", "fe80::1%eth0", "2001:db8::1::2"])
       expect(parseSingleIp(text)).toBeNull()

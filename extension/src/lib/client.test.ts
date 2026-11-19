@@ -74,6 +74,16 @@ describe("createExtensionClient", () => {
     expect(first?.signal.aborted).toBe(true)
     expect(second?.signal.aborted).toBe(false)
   })
+
+  it("aborts the request when the caller's signal aborts", async () => {
+    const recorder = recordingFetch(() => json([]))
+    const client = createExtensionClient(target, { fetch: recorder.fetch })
+    const controller = new AbortController()
+    await apiV1AnalyticsTimeSeriesGetTimeSeries({ client, signal: controller.signal })
+    expect(recorder.requests[0]?.signal.aborted).toBe(false)
+    controller.abort()
+    expect(recorder.requests[0]?.signal.aborted).toBe(true)
+  })
 })
 
 describe("fetchConnection", () => {
@@ -129,6 +139,24 @@ describe("fetchConnection", () => {
     }
   })
 
+  it("refuses an apiKey answer without a valid scope, name or expiry", async () => {
+    const { scope: _scope, ...noScope } = apiKeyBody
+    const { expiresAt: _expiresAt, ...noExpiry } = apiKeyBody
+    for (const body of [
+      noScope,
+      noExpiry,
+      { ...apiKeyBody, scope: "admin" },
+      { ...apiKeyBody, name: 7 },
+      { ...apiKeyBody, expiresAt: 0 },
+    ]) {
+      const recorder = recordingFetch(() => json(body))
+      expect(await fetchConnection(target, { fetch: recorder.fetch })).toEqual({
+        ok: false,
+        failure: { status: 200, notJson: true },
+      })
+    }
+  })
+
   it("reports network errors and timeouts", async () => {
     const offline = recordingFetch(() => {
       throw new TypeError("Failed to fetch")
@@ -148,6 +176,37 @@ describe("fetchConnection", () => {
 })
 
 describe("unwrap", () => {
+  it("fails a 200 whose JSON body doesn't parse", async () => {
+    const recorder = recordingFetch(
+      () => new Response("{not json", { headers: { "Content-Type": "application/json" } }),
+    )
+    const client = createExtensionClient(target, { fetch: recorder.fetch })
+    expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({
+      ok: false,
+      failure: { status: 200, notJson: true },
+    })
+  })
+
+  it("reports a timeout while reading the body as timed out", async () => {
+    const recorder = recordingFetch(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("[1,"))
+              controller.error(new DOMException("The operation timed out.", "TimeoutError"))
+            },
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+    )
+    const client = createExtensionClient(target, { fetch: recorder.fetch })
+    expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({
+      ok: false,
+      failure: { timedOut: true },
+    })
+  })
+
   it("treats an empty 204 as success", () => {
     expect(unwrap({ data: {}, response: new Response(null, { status: 204 }) })).toEqual({
       ok: true,

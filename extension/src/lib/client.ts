@@ -22,15 +22,18 @@ export function createExtensionClient(target: ClientTarget, deps: ClientDeps = {
   const timeoutSignal = deps.timeoutSignal ?? ((ms: number) => AbortSignal.timeout(ms))
   // A signal per request: one shared signal would expire 10 s after the
   // client was made and fail every later request.
-  const guardedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
-    baseFetch(
+  const guardedFetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const callerSignal = init?.signal ?? (input instanceof Request ? input.signal : null)
+    const timeout = timeoutSignal(REQUEST_TIMEOUT_MS)
+    return baseFetch(
       new Request(input, {
         ...init,
         credentials: "omit",
         redirect: "error",
-        signal: timeoutSignal(REQUEST_TIMEOUT_MS),
+        signal: callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout,
       }),
     )
+  }
   return createClient(
     createConfig({
       baseUrl: target.origin,
@@ -59,8 +62,8 @@ function isTimeout(error: unknown): boolean {
 }
 
 /** Turns a generated SDK result into data or a failure. A body that isn't
- *  JSON (a proxy's login page, say) is a failure even with a 200; an empty
- *  204 is success. */
+ *  JSON (a proxy's login page, say) or couldn't be read is a failure even
+ *  with a 200; an empty 204 is success. */
 export function unwrap<T>(result: {
   data?: unknown
   error?: unknown
@@ -71,6 +74,15 @@ export function unwrap<T>(result: {
     return {
       ok: false,
       failure: isTimeout(error) ? { timedOut: true } : { networkError: true },
+    }
+  }
+  // The SDK also sets `error` after the headers arrived: a body that failed
+  // to parse as JSON, or a timeout while reading it.
+  const bodyFailed = response.ok ? error !== undefined : error instanceof Error
+  if (bodyFailed) {
+    return {
+      ok: false,
+      failure: isTimeout(error) ? { timedOut: true } : { status: response.status, notJson: true },
     }
   }
   if (!response.ok) {
@@ -97,6 +109,15 @@ export function unwrap<T>(result: {
 function isConnectionResponse(value: unknown): value is ConnectionResponse {
   if (typeof value !== "object" || value === null) return false
   const body = value as Record<string, unknown>
+  if (
+    body.mode === "apiKey" &&
+    !(
+      (body.scope === "read" || body.scope === "read_write") &&
+      typeof body.name === "string" &&
+      (typeof body.expiresAt === "string" || body.expiresAt === null)
+    )
+  )
+    return false
   return (
     (body.mode === "apiKey" || body.mode === "disabled") &&
     typeof body.appVersion === "string" &&

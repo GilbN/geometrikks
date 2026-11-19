@@ -11,6 +11,10 @@ describe("normalizeOrigin", () => {
     expect(normalizeOrigin("")).toEqual({ ok: false, reason: "invalid" })
   })
 
+  it("refuses a wildcard host", () => {
+    expect(normalizeOrigin("https://*.example.net")).toEqual({ ok: false, reason: "invalid" })
+  })
+
   it("keeps only the origin and names port 443 in the pattern", () => {
     expect(normalizeOrigin("https://geo.example.net/app")).toEqual({
       ok: true,

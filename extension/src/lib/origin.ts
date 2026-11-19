@@ -12,7 +12,7 @@ export function normalizeOrigin(input: string): NormalizedOrigin {
     return { ok: false, reason: "invalid" }
   }
   if (url.protocol !== "https:") return { ok: false, reason: "not-https" }
-  if (!url.hostname) return { ok: false, reason: "invalid" }
+  if (!url.hostname || url.hostname.includes("*")) return { ok: false, reason: "invalid" }
   return {
     ok: true,
     origin: url.origin,
