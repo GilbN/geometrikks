@@ -89,7 +89,7 @@ import {
   unclusteredZoom,
 } from "@/lib/map-clusters"
 import type { TopIPDTO } from "@/lib/api"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import { LocationPanel, MapPopup, type PopupInfo } from "./MapPopup"
 import { LiveRequestCard, LiveRequestPanel, LiveRequestPopup } from "./LiveRequestPopup"
 import { LiveVitalsPill } from "./LiveVitalsPill"

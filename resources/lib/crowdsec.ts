@@ -3,7 +3,6 @@
  * IP validation, used by the access-logs row actions, the map popup, and
  * the Security page's ban form.
  */
-import { isAxiosError } from "axios"
 
 /** Go duration strings the LAPI accepts; "Forever" is modeled as 10 years. */
 export const BAN_DURATIONS = [
@@ -115,22 +114,6 @@ export function crowdsecHubUrl(scenario: string): string | null {
 export function bgpAsUrl(asn: number | string | null | undefined): string | null {
   if (asn === null || asn === undefined || asn === "") return null
   return `https://bgp.he.net/AS${asn}`
-}
-
-/** Human-readable message for a failed CrowdSec API call: the backend's
- * `detail` (e.g. "CrowdSec LAPI is unreachable") when present, else the
- * caller's fallback. */
-export function crowdsecErrorMessage(err: unknown, fallback: string): string {
-  const detail = isAxiosError(err)
-    ? (err.response?.data as { detail?: string } | undefined)?.detail
-    : null
-  return detail ?? fallback
-}
-
-/** A 4xx answer, which a retry would only repeat. */
-export function isClientError(err: unknown): boolean {
-  const status = isAxiosError(err) ? err.response?.status : undefined
-  return status !== undefined && status >= 400 && status < 500
 }
 
 const DECISION_RANK = new Map<string, number>([

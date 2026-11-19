@@ -101,7 +101,23 @@ async def test_capabilities_describe_settings_without_contacting_upstreams(write
         key = await create_key(app)
         response = await client.get(PATH, headers=bearer(key))
     assert response.status_code == 200
-    assert response.json()["capabilities"] == (["crowdsec", "crowdsecWrite"] if write else ["crowdsec"])
+    assert response.json()["capabilities"] == (
+        ["crowdsec", "crowdsecWrite", "analyticsHostFilter"] if write else ["crowdsec", "analyticsHostFilter"]
+    )
+
+
+@pytest.mark.parametrize("mode", ["apiKey", "session", "disabled"])
+async def test_capabilities_always_include_analytics_host_filter(mode):
+    app = make_disabled_app() if mode == "disabled" else key_app()
+    async with AsyncTestClient(app=app) as client:
+        headers = {}
+        if mode == "apiKey":
+            headers = bearer(await create_key(app))
+        elif mode == "session":
+            assert (await client.post("/api/v1/auth/login", json=CREDS)).status_code == 200
+        response = await client.get(PATH, headers=headers)
+    assert response.json()["mode"] == mode
+    assert "analyticsHostFilter" in response.json()["capabilities"]
 
 
 async def test_connection_returns_a_coded_store_outage():

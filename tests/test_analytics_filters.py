@@ -70,8 +70,8 @@ class TestAsnFilters:
         assert AnalyticsFilters(asns_exclude=[13335]).is_active() is True
 
     def test_only_asn_filters_need_raw_rows(self) -> None:
-        # log_ip_*_stats carries IP, country and city but no ASN, so only an
-        # ASN filter forces the per-IP lists off the aggregates.
+        # log_ip_*_stats carries IP, country and city but no ASN or host, so
+        # only an ASN or host filter forces the per-IP lists off the aggregates.
         assert AnalyticsFilters(country_codes=["NO"], ip_exclude=["10.0.0.1"]).needs_raw_rows() is False
         assert AnalyticsFilters(asns=[13335]).needs_raw_rows() is True
         assert AnalyticsFilters(asns_exclude=[13335]).needs_raw_rows() is True
@@ -98,3 +98,23 @@ class TestAsnFilters:
         filters = _build_filters(None, None, None, None, asn_in=[], asn_not_in=[])
         assert filters.asns is None
         assert filters.asns_exclude is None
+
+
+class TestHostFilters:
+    def test_host_filter_is_active_and_needs_raw_rows(self) -> None:
+        filters = AnalyticsFilters(hosts=["a.example"])
+        assert filters.is_active() is True
+        assert filters.needs_raw_rows() is True
+
+    def test_host_filter_emits_any_clause(self) -> None:
+        clause, params = AnalyticsFilters(hosts=["a.example"]).sql_conditions()
+        assert clause == "AND host = ANY(:filter_hosts)"
+        assert params == {"filter_hosts": ["a.example"]}
+
+    def test_build_filters_passes_hosts(self) -> None:
+        assert _build_filters(None, None, None, host_in=["a.example"]).hosts == ["a.example"]
+        assert _build_filters(None, None, None, host_in=[]).hosts is None
+
+    def test_build_filters_dedupes_hosts_in_order(self) -> None:
+        filters = _build_filters(None, None, None, host_in=["b.example", "a.example", "b.example"])
+        assert filters.hosts == ["b.example", "a.example"]

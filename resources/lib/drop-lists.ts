@@ -1,5 +1,5 @@
 import type { DropFeedView, DropListsAboutView } from "@/generated/api/types.gen"
-import { formatNumber } from "@/lib/api"
+import { formatNumber } from "@/lib/format-number"
 import { forDuration } from "@/lib/crowdsec"
 import { formatTs } from "@/lib/datetime"
 

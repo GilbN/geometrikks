@@ -37,6 +37,37 @@ export default defineConfig({
       { files: ["**/*.test.ts"], rules: { "typescript/unbound-method": "off" } },
       // node:test runs top-level test() calls without awaiting them.
       { files: ["**/*.test.cjs"], rules: { "typescript/no-floating-promises": "off" } },
+      {
+        // These carry axios, the app's 401 redirect or its theme provider.
+        files: ["extension/**"],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              paths: [
+                "axios",
+                "@/lib/api",
+                "@/lib/client",
+                "@/lib/queries",
+                "@/components/theme-provider",
+                "@/components/ui/sonner",
+                "@/components/abuseipdb/abuseipdb-badge",
+              ].map((name) => ({ name, message: "Not available in the extension." })),
+              patterns: [
+                {
+                  group: [
+                    "@/lib/{api,client,queries}{.ts,.tsx,.js,.jsx,.mjs,/*}",
+                    "@/components/{theme-provider,ui/sonner,abuseipdb/abuseipdb-badge}{.ts,.tsx,.js,.jsx,.mjs,/*}",
+                    "**/resources/lib/{api,client,queries}{,.ts,.tsx,.js,.jsx,.mjs,/*}",
+                    "**/resources/components/{theme-provider,ui/sonner,abuseipdb/abuseipdb-badge}{,.ts,.tsx,.js,.jsx,.mjs,/*}",
+                  ],
+                  message: "Not available in the extension.",
+                },
+              ],
+            },
+          ],
+        },
+      },
     ],
     options: { typeAware: true, typeCheck: true },
   },

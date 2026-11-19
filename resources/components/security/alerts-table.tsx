@@ -22,7 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useCrowdsecAlertScenarios, useCrowdsecAlerts, useTrimCrowdsecAlerts } from "@/lib/queries"
 import type { AlertView } from "@/lib/api"
-import { crowdsecErrorMessage } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import {
   ALERT_KIND_OPTIONS,
   activeAlertFilters,

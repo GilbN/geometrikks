@@ -1368,9 +1368,15 @@ export const ApiKeyConnectionSchema = {
     },
     capabilities: {
       description:
-        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+        "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
       items: {
-        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        enum: [
+          "crowdsec",
+          "crowdsecWrite",
+          "asn",
+          "drop",
+          "analyticsHostFilter",
+        ],
         type: "string",
       },
       type: "array",
@@ -2868,9 +2874,15 @@ export const DisabledConnectionSchema = {
     },
     capabilities: {
       description:
-        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+        "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
       items: {
-        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        enum: [
+          "crowdsec",
+          "crowdsecWrite",
+          "asn",
+          "drop",
+          "analyticsHostFilter",
+        ],
         type: "string",
       },
       type: "array",
@@ -7555,9 +7567,15 @@ export const SessionConnectionSchema = {
     },
     capabilities: {
       description:
-        "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+        "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
       items: {
-        enum: ["crowdsec", "crowdsecWrite", "asn", "drop"],
+        enum: [
+          "crowdsec",
+          "crowdsecWrite",
+          "asn",
+          "drop",
+          "analyticsHostFilter",
+        ],
         type: "string",
       },
       type: "array",
@@ -8445,6 +8463,10 @@ export const TopCountryStatsDTOSchema = {
         },
       ],
     },
+    errorHits: {
+      description: "Hits with a status of 400 or higher.",
+      type: "integer",
+    },
     hits: {
       type: "integer",
     },
@@ -8453,7 +8475,7 @@ export const TopCountryStatsDTOSchema = {
       type: "integer",
     },
   },
-  required: ["countryCode", "countryName", "hits", "uniqueIps"],
+  required: ["countryCode", "countryName", "errorHits", "hits", "uniqueIps"],
   title: "TopCountryStatsDTO",
   type: "object",
 } as const;
@@ -8813,6 +8835,11 @@ export const TopIpDTOSchema = {
 export const TopIpsResponseSchema = {
   description: "Client IPs ordered by hits, most first.",
   properties: {
+    distinctIps: {
+      description:
+        "Distinct client IPs in the range after all filters, counting those beyond `limit`.",
+      type: "integer",
+    },
     endDate: {
       description: "The request's `endDate`, echoed as ISO 8601.",
       type: "string",
@@ -8828,13 +8855,14 @@ export const TopIpsResponseSchema = {
       type: "string",
     },
   },
-  required: ["endDate", "items", "startDate"],
+  required: ["distinctIps", "endDate", "items", "startDate"],
   title: "TopIpsResponse",
   type: "object",
 } as const;
 
 export const TopUrlDTOSchema = {
-  description: "One host and path with its hits.",
+  description:
+    "One URL with its hits, for one host or summed across the `hostIn` hosts.",
   properties: {
     avgRequestTime: {
       description:
@@ -8857,7 +8885,7 @@ export const TopUrlDTOSchema = {
     },
     host: {
       description:
-        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format.",
+        "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.",
       oneOf: [
         {
           type: "string",
@@ -8894,7 +8922,8 @@ export const TopUrlDTOSchema = {
 } as const;
 
 export const TopUrlsResponseSchema = {
-  description: "Host and path pairs ordered by hits, most first.",
+  description:
+    "URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.",
   properties: {
     endDate: {
       description: "The request's `endDate`, echoed as ISO 8601.",

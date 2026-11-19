@@ -25,7 +25,8 @@ import {
   useIpDecisions,
 } from "@/lib/queries"
 import { formatNumber } from "@/lib/api"
-import { crowdsecCtiUrl, crowdsecErrorMessage, winningDecision } from "@/lib/crowdsec"
+import { crowdsecCtiUrl, winningDecision } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import { decisionHasAlert, isBlocklistOrigin } from "@/lib/crowdsec-alerts"
 import type { BannedMapIp, DecisionView } from "@/generated/api/types.gen"
 import { IpBanControls } from "./IpBanControls"

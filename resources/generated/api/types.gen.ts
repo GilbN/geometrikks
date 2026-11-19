@@ -644,9 +644,11 @@ export type ApiKeyConnection = {
   apiVersion: string;
   appVersion: string;
   /**
-   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   * Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
    */
-  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  capabilities: Array<
+    "crowdsec" | "crowdsecWrite" | "asn" | "drop" | "analyticsHostFilter"
+  >;
   /**
    * The key's expiry, or null if it never expires.
    */
@@ -1474,9 +1476,11 @@ export type DisabledConnection = {
   apiVersion: string;
   appVersion: string;
   /**
-   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   * Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
    */
-  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  capabilities: Array<
+    "crowdsec" | "crowdsecWrite" | "asn" | "drop" | "analyticsHostFilter"
+  >;
   mode: "disabled";
 };
 
@@ -3684,9 +3688,11 @@ export type SessionConnection = {
   apiVersion: string;
   appVersion: string;
   /**
-   * Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
+   * Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.
    */
-  capabilities: Array<"crowdsec" | "crowdsecWrite" | "asn" | "drop">;
+  capabilities: Array<
+    "crowdsec" | "crowdsecWrite" | "asn" | "drop" | "analyticsHostFilter"
+  >;
   mode: "session";
 };
 
@@ -4157,6 +4163,10 @@ export type TopCountryDto = {
 export type TopCountryStatsDto = {
   countryCode: string;
   countryName: string | null;
+  /**
+   * Hits with a status of 400 or higher.
+   */
+  errorHits: number;
   hits: number;
   /**
    * Distinct client IPs from the country.
@@ -4341,6 +4351,10 @@ export type TopIpDto = {
  */
 export type TopIpsResponse = {
   /**
+   * Distinct client IPs in the range after all filters, counting those beyond `limit`.
+   */
+  distinctIps: number;
+  /**
    * The request's `endDate`, echoed as ISO 8601.
    */
   endDate: string;
@@ -4354,7 +4368,7 @@ export type TopIpsResponse = {
 /**
  * TopUrlDTO
  *
- * One host and path with its hits.
+ * One URL with its hits, for one host or summed across the `hostIn` hosts.
  */
 export type TopUrlDto = {
   /**
@@ -4367,7 +4381,7 @@ export type TopUrlDto = {
   errorHits: number;
   hits: number;
   /**
-   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format.
+   * The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` names more than one different host.
    */
   host: string | null;
   /**
@@ -4384,7 +4398,7 @@ export type TopUrlDto = {
 /**
  * TopUrlsResponse
  *
- * Host and path pairs ordered by hits, most first.
+ * URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts.
  */
 export type TopUrlsResponse = {
   /**
@@ -5310,6 +5324,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
      * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
@@ -5610,6 +5628,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -5691,6 +5713,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -5772,6 +5798,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };

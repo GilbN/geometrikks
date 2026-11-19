@@ -264,13 +264,14 @@ class CumulativeTimeSeriesResponse(msgspec.Struct, rename="camel"):
 
 
 class TopUrlDTO(msgspec.Struct, rename="camel"):
-    """One host and path with its hits."""
+    """One URL with its hits, for one host or summed across the `hostIn` hosts."""
 
     host: Annotated[
         str | None,
         msgspec.Meta(
             description=(
-                "The Host header of the requests. Null when the log line carries none, as in nginx's combined format."
+                "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. "
+                "Null for every row when `hostIn` names more than one different host."
             )
         ),
     ]
@@ -295,7 +296,7 @@ class TopUrlDTO(msgspec.Struct, rename="camel"):
 
 
 class TopUrlsResponse(msgspec.Struct, rename="camel"):
-    """Host and path pairs ordered by hits, most first."""
+    """URLs ordered by hits, most first, per host and path or summed across two or more `hostIn` hosts."""
 
     start_date: EchoedStart
     end_date: EchoedEnd
@@ -397,6 +398,10 @@ class TopIpsResponse(msgspec.Struct, rename="camel"):
     start_date: EchoedStart
     end_date: EchoedEnd
     items: list[TopIpDTO]
+    distinct_ips: Annotated[
+        int,
+        msgspec.Meta(description="Distinct client IPs in the range after all filters, counting those beyond `limit`."),
+    ]
 
 
 class TopCountryStatsDTO(msgspec.Struct, rename="camel"):
@@ -405,6 +410,7 @@ class TopCountryStatsDTO(msgspec.Struct, rename="camel"):
     country_code: str
     country_name: str | None
     hits: int
+    error_hits: ErrorHits
     unique_ips: Annotated[int, msgspec.Meta(description="Distinct client IPs from the country.")]
 
 

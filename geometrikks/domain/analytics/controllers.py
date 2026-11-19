@@ -66,6 +66,7 @@ from geometrikks.lib.parameters import (
     CityFilter,
     ComparePrevious,
     CountryCodeFilter,
+    HostIn,
     IpAddressExcludeFilter,
     IpAddressFilter,
     Timezone,
@@ -101,6 +102,7 @@ def _build_filters(
     *,
     asn_in: list[int] | None = None,
     asn_not_in: list[int] | None = None,
+    host_in: list[str] | None = None,
 ) -> AnalyticsFilters:
     """Validate filter params; bad IPs become a 400 instead of a DB error."""
     validate_ip_addresses((ip_address or []) + (ip_address_not_in or []))
@@ -111,6 +113,7 @@ def _build_filters(
         ip_exclude=ip_address_not_in or None,
         asns=asn_in or None,
         asns_exclude=asn_not_in or None,
+        hosts=list(dict.fromkeys(host_in)) if host_in else None,
     )
 
 
@@ -185,6 +188,10 @@ def _resolve_chart_granularity(
 RAW_RETENTION_NOTE = "which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default"
 FILTERED_RAW_NOTE = f"A country, city, IP or ASN filter makes it read the raw access log rows, {RAW_RETENTION_NOTE}."
 ASN_RAW_NOTE = f"An ASN filter makes it read the raw access log rows, {RAW_RETENTION_NOTE}."
+HOST_FILTERED_RAW_NOTE = (
+    f"A country, city, IP, ASN or host filter makes it read the raw access log rows, {RAW_RETENTION_NOTE}."
+)
+HOST_ASN_RAW_NOTE = f"An ASN or host filter makes it read the raw access log rows, {RAW_RETENTION_NOTE}."
 WHOLE_BUCKETS_NOTE = (
     "count whole hours or UTC days, from the one that holds `startDate` through the last one that starts "
     "before `endDate`"
@@ -432,7 +439,7 @@ class AnalyticsController(Controller):
             "Returns requests, bytes, status classes, error rate and latency for each bucket that has "
             "requests, oldest first. Without filters it reads the hourly or daily aggregates at any range "
             f"length, and those reads {WHOLE_BUCKETS_NOTE}. {local_days_edge_note('startDate', 'endDate')} "
-            f"{FILTERED_RAW_NOTE} On that filtered path `tz` sets local days at any range length. "
+            f"{HOST_FILTERED_RAW_NOTE} On that filtered path `tz` sets local days at any range length. "
             "`totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series."
         ),
     )
@@ -448,12 +455,13 @@ class AnalyticsController(Controller):
         ip_address_not_in: IpAddressExcludeFilter = None,
         asn_in: AsnIn = None,
         asn_not_in: AsnNotIn = None,
+        host_in: HostIn = None,
         tz: Timezone = None,
     ) -> TimeSeriesResponse:
         """Get per-bucket access-log metrics (requests, status, bytes, latency).
 
         Perf note: when any of country_code/city/ip_address/ip_address_not_in/
-        asn_in/asn_not_in is set, this scans raw access_logs instead of the CAGGs (which can't
+        asn_in/asn_not_in/host_in is set, this scans raw access_logs instead of the CAGGs (which can't
         be sliced by dimension). Filtered ranges are therefore bounded by
         raw_retention_days (default 180d) and slower than the unfiltered,
         CAGG-backed path - acceptable at homelab volume with chunk exclusion
@@ -461,7 +469,13 @@ class AnalyticsController(Controller):
         """
         start_date, end_date = time_range.start, time_range.end
         filters = _build_filters(
-            country_code, city, ip_address, ip_address_not_in, asn_in=asn_in, asn_not_in=asn_not_in
+            country_code,
+            city,
+            ip_address,
+            ip_address_not_in,
+            asn_in=asn_in,
+            asn_not_in=asn_not_in,
+            host_in=host_in,
         )
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
         if tz is not None:
@@ -545,8 +559,10 @@ class AnalyticsController(Controller):
         "/top-urls",
         summary="List the most requested URLs",
         description=(
-            "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. "
-            f"Lines without a path are left out. {FILTERED_RAW_NOTE}"
+            "Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` "
+            "host or none, each row is a host and path pair. With two or more different hosts, each row is one "
+            "URL (path plus query string) counted across those hosts, and `host` is null. "
+            f"Lines without a path are left out. {HOST_FILTERED_RAW_NOTE}"
         ),
     )
     async def get_top_urls(
@@ -563,6 +579,7 @@ class AnalyticsController(Controller):
         ip_address_not_in: IpAddressExcludeFilter = None,
         asn_in: AsnIn = None,
         asn_not_in: AsnNotIn = None,
+        host_in: HostIn = None,
     ) -> TopUrlsResponse:
         """Get the top URLs by hit count for a date range.
 
@@ -571,7 +588,13 @@ class AnalyticsController(Controller):
         """
         start_date, end_date = time_range.start, time_range.end
         filters = _build_filters(
-            country_code, city, ip_address, ip_address_not_in, asn_in=asn_in, asn_not_in=asn_not_in
+            country_code,
+            city,
+            ip_address,
+            ip_address_not_in,
+            asn_in=asn_in,
+            asn_not_in=asn_not_in,
+            host_in=host_in,
         )
         rows = await summary_stats_repo.get_top_urls(start_date, end_date, limit=limit, filters=filters)
         return TopUrlsResponse(
@@ -715,9 +738,10 @@ class AnalyticsController(Controller):
         "/top-ips",
         summary="List the client IPs with the most requests",
         description=(
-            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A "
-            "country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it "
-            f"reaches past ANALYTICS_RAW_RETENTION_DAYS. {ASN_RAW_NOTE}"
+            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus "
+            "the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host "
+            "filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent "
+            f"lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. {HOST_ASN_RAW_NOTE}"
         ),
     )
     async def get_top_ips(
@@ -734,25 +758,33 @@ class AnalyticsController(Controller):
         ip_address_not_in: IpAddressExcludeFilter = None,
         asn_in: AsnIn = None,
         asn_not_in: AsnNotIn = None,
+        host_in: HostIn = None,
     ) -> TopIpsResponse:
         """Get the top client IPs by hit count for a date range."""
         start_date, end_date = time_range.start, time_range.end
         filters = _build_filters(
-            country_code, city, ip_address, ip_address_not_in, asn_in=asn_in, asn_not_in=asn_not_in
+            country_code,
+            city,
+            ip_address,
+            ip_address_not_in,
+            asn_in=asn_in,
+            asn_not_in=asn_not_in,
+            host_in=host_in,
         )
-        rows = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
+        top_ips = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
         return TopIpsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
-            items=[TopIpDTO(**vars(r)) for r in rows],
+            items=[TopIpDTO(**vars(r)) for r in top_ips.rows],
+            distinct_ips=top_ips.distinct_ips,
         )
 
     @get(
         "/top-countries",
         summary="List the countries with the most requests",
         description=(
-            "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests "
-            f"without a country are left out. {ASN_RAW_NOTE}"
+            "Returns countries ordered by hits, with error hits and the number of distinct client IPs from "
+            f"each. Requests without a country are left out. {HOST_ASN_RAW_NOTE}"
         ),
     )
     async def get_top_countries(
@@ -769,11 +801,18 @@ class AnalyticsController(Controller):
         ip_address_not_in: IpAddressExcludeFilter = None,
         asn_in: AsnIn = None,
         asn_not_in: AsnNotIn = None,
+        host_in: HostIn = None,
     ) -> TopCountriesStatsResponse:
         """Get the top countries by hit count for a date range."""
         start_date, end_date = time_range.start, time_range.end
         filters = _build_filters(
-            country_code, city, ip_address, ip_address_not_in, asn_in=asn_in, asn_not_in=asn_not_in
+            country_code,
+            city,
+            ip_address,
+            ip_address_not_in,
+            asn_in=asn_in,
+            asn_not_in=asn_not_in,
+            host_in=host_in,
         )
         rows = await summary_stats_repo.get_top_countries(start_date, end_date, limit=limit, filters=filters)
         return TopCountriesStatsResponse(

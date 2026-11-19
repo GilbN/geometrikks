@@ -21,7 +21,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Skeleton } from "@/components/ui/skeleton"
 import type { AlertDetailView, AlertEventView, AlertView } from "@/generated/api/types.gen"
 import { copyText } from "@/lib/clipboard"
-import { bgpAsUrl, crowdsecCtiUrl, crowdsecErrorMessage, crowdsecHubUrl } from "@/lib/crowdsec"
+import { bgpAsUrl, crowdsecCtiUrl, crowdsecHubUrl } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import {
   CHALLENGE_EVENT_KEYS,
   HTTP_EVENT_KEYS,

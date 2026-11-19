@@ -8,6 +8,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+import structlog
+from litestar.testing import AsyncTestClient
 from sqlalchemy import text
 
 from geometrikks.domain.analytics.repositories import (
@@ -15,6 +17,7 @@ from geometrikks.domain.analytics.repositories import (
     LiveStatsRepository,
     SummaryStatsRepository,
 )
+from geometrikks.server.core import create_app
 
 pytestmark = pytest.mark.anyio
 
@@ -22,22 +25,33 @@ pytestmark = pytest.mark.anyio
 NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 
 
-async def _insert_log(
-    session, *, ts, url, user_agent, status=200, bytes_sent=100, rt=0.01,
-    ip="10.0.0.1", country=None, country_name=None, city=None, asn=None, asn_org=None
+# access_logs is an id-only base: no created_at/updated_at columns.
+_INSERT_LOG_SQL = text(
+    "INSERT INTO access_logs (timestamp, ip_address, method, url, "
+    "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city, "
+    "autonomous_system_number, autonomous_system_organization, host) "
+    "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, "
+    ":asn, :asn_org, :host)"
+)
+
+
+def _log_params(
+    *, ts, url, user_agent, status=200, bytes_sent=100, rt=0.01,
+    ip="10.0.0.1", country=None, country_name=None, city=None, asn=None, asn_org=None, host=None
 ):
-    # access_logs is an id-only base: no created_at/updated_at columns.
-    await session.execute(text(
-        "INSERT INTO access_logs (timestamp, ip_address, method, url, "
-        "status_code, bytes_sent, request_time, user_agent, country_code, country_name, city, "
-        "autonomous_system_number, autonomous_system_organization) "
-        "VALUES (:ts, :ip, 'GET', :url, :status, :bytes, :rt, :ua, :country, :country_name, :city, "
-        ":asn, :asn_org)"
-    ), {
+    return {
         "ts": ts, "url": url, "status": status, "bytes": bytes_sent, "rt": rt, "ua": user_agent,
         "ip": ip, "country": country, "country_name": country_name, "city": city, "asn": asn,
-        "asn_org": asn_org,
-    })
+        "asn_org": asn_org, "host": host,
+    }
+
+
+async def _insert_log(session, **kwargs):
+    await session.execute(_INSERT_LOG_SQL, _log_params(**kwargs))
+
+
+async def _insert_logs(session, rows):
+    await session.execute(_INSERT_LOG_SQL, [_log_params(**row) for row in rows])
 
 
 async def test_top_urls_ordering_and_math(pg_session_maker, clean_tables):
@@ -209,9 +223,9 @@ async def test_top_ips_ordering_and_math(pg_session_maker, clean_tables):
         await session.commit()
 
     async with pg_session_maker() as session:
-        rows = await LiveStatsRepository(session=session).get_top_ips(
+        rows = (await LiveStatsRepository(session=session).get_top_ips(
             NOW - timedelta(hours=2), NOW, limit=10
-        )
+        )).rows
 
     assert [r.ip_address for r in rows] == ["1.1.1.1", "2.2.2.2"]
     top = rows[0]
@@ -275,10 +289,10 @@ async def test_top_ips_honors_ip_exclude(pg_session_maker, clean_tables):
         await session.commit()
 
     async with pg_session_maker() as session:
-        rows = await LiveStatsRepository(session=session).get_top_ips(
+        rows = (await LiveStatsRepository(session=session).get_top_ips(
             NOW - timedelta(hours=2), NOW, limit=10,
             filters=AnalyticsFilters(ip_exclude=["10.0.0.1"]),
-        )
+        )).rows
 
     assert [(str(r.ip_address), r.hits) for r in rows] == [("10.0.0.2", 1)]
 
@@ -655,8 +669,8 @@ async def test_per_ip_lists_filter_by_asn_past_a_day(pg_session_maker, clean_tab
     exclude = AnalyticsFilters(asns_exclude=[13335])
     async with pg_session_maker() as session:
         repo = SummaryStatsRepository(session=session)
-        ips_in = await repo.get_top_ips(start, NOW, limit=10, filters=include)
-        ips_out = await repo.get_top_ips(start, NOW, limit=10, filters=exclude)
+        ips_in = (await repo.get_top_ips(start, NOW, limit=10, filters=include)).rows
+        ips_out = (await repo.get_top_ips(start, NOW, limit=10, filters=exclude)).rows
         countries = await repo.get_top_countries(start, NOW, limit=10, filters=exclude)
         cities = await repo.get_top_cities(start, NOW, limit=10, filters=include)
 
@@ -692,7 +706,9 @@ async def test_raw_top_ips_carry_each_ip_asn(pg_session_maker, clean_tables):
         await session.commit()
 
     async with pg_session_maker() as session:
-        rows = await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=2), NOW, limit=10)
+        rows = (
+            await LiveStatsRepository(session=session).get_top_ips(NOW - timedelta(hours=2), NOW, limit=10)
+        ).rows
 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [
         ("1.1.1.1", 13335, "Cloudflare, Inc."), ("9.9.9.9", None, None),
@@ -716,9 +732,9 @@ async def test_aggregated_top_ips_take_each_ip_asn_from_geo_events(pg_session_ma
         await session.commit()
 
     async with pg_session_maker() as session:
-        rows = await SummaryStatsRepository(session=session).get_top_ips(
+        rows = (await SummaryStatsRepository(session=session).get_top_ips(
             NOW - timedelta(days=days), NOW, limit=10
-        )
+        )).rows
 
     assert sorted((r.ip_address, r.asn, r.as_organization) for r in rows) == [
         ("1.1.1.1", 13335, "Cloudflare, Inc."), ("9.9.9.9", None, None),
@@ -737,9 +753,9 @@ async def test_aggregated_top_ips_fall_back_to_access_logs_for_ips_without_geo_e
         await session.commit()
 
     async with pg_session_maker() as session:
-        rows = await SummaryStatsRepository(session=session).get_top_ips(
+        rows = (await SummaryStatsRepository(session=session).get_top_ips(
             NOW - timedelta(days=7), NOW, limit=10
-        )
+        )).rows
 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("1.1.1.1", 13335, "Cloudflare, Inc.")]
 
@@ -760,9 +776,9 @@ async def test_aggregated_top_ips_ignore_asns_seen_after_the_window(pg_session_m
         await session.commit()
 
     async with pg_session_maker() as session:
-        rows = await SummaryStatsRepository(session=session).get_top_ips(
+        rows = (await SummaryStatsRepository(session=session).get_top_ips(
             end - timedelta(days=7), end, limit=10
-        )
+        )).rows
 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("1.1.1.1", 100, "Before")]
 
@@ -787,8 +803,234 @@ async def test_aggregated_top_ips_take_the_newest_bucket_with_an_asn(pg_engine, 
     assert failed == []
 
     async with pg_session_maker() as session:
-        rows = await SummaryStatsRepository(session=session).get_top_ips(
+        rows = (await SummaryStatsRepository(session=session).get_top_ips(
             NOW - timedelta(days=60), NOW, limit=10
-        )
+        )).rows
 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("2001:db8::1", 200, "Newer")]
+
+
+# (host, ip, country, hits)
+HOST_SEED = [
+    ("a.example", "1.1.1.1", "NO", 3),
+    ("a.example:8443", "2.2.2.2", "SE", 2),
+    ("b.example", "3.3.3.3", "DK", 4),
+    (None, "4.4.4.4", "FI", 5),
+]
+
+
+async def _seed_host_traffic(session_maker) -> None:
+    ts = NOW - timedelta(hours=1)
+    async with session_maker() as session:
+        for host, ip, country, hits in HOST_SEED:
+            for _ in range(hits):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=ip, country=country, host=host)
+        await session.commit()
+
+
+@pytest.mark.parametrize("hours", [24, 7 * 24], ids=["24h", "7d"])
+async def test_host_filter_on_repositories_at_24h_and_7d(pg_session_maker, clean_tables, hours):
+    # Above 24h the per-IP lists would read log_ip_*_stats, which has no host column.
+    await _seed_host_traffic(pg_session_maker)
+    start = NOW - timedelta(hours=hours)
+    filters = AnalyticsFilters(hosts=["a.example"])
+    async with pg_session_maker() as session:
+        summary = SummaryStatsRepository(session=session)
+        series = await LiveStatsRepository(session=session).get_time_series(
+            start, NOW, bucket_interval="1 hour", filters=filters
+        )
+        ips = (await summary.get_top_ips(start, NOW, limit=10, filters=filters)).rows
+        countries = await summary.get_top_countries(start, NOW, limit=10, filters=filters)
+        urls = await summary.get_top_urls(start, NOW, limit=10, filters=filters)
+
+    assert sum(r.total_requests for r in series) == 3
+    assert [(r.ip_address, r.hits) for r in ips] == [("1.1.1.1", 3)]
+    assert [(r.country_code, r.hits) for r in countries] == [("NO", 3)]
+    assert [(r.host, r.url, r.hits) for r in urls] == [("a.example", "/", 3)]
+
+
+async def test_top_urls_groups_paths_across_two_hosts(pg_session_maker, clean_tables):
+    ts = NOW - timedelta(hours=1)
+    rows = [
+        {"url": "/login", "host": host} for host in ("a.example", "a.example:8443") for _ in range(50)
+    ]
+    rows += [{"url": f"/p{i}", "host": "a.example"} for i in range(10) for _ in range(60)]
+    rows += [{"url": "/login?next=a", "host": "a.example"} for _ in range(5)]
+    rows += [{"url": "/login?next=b", "host": "a.example:8443"} for _ in range(5)]
+    async with pg_session_maker() as session:
+        await _insert_logs(session, [{**row, "ts": ts, "user_agent": "x"} for row in rows])
+        await session.commit()
+
+    start = NOW - timedelta(days=7)
+    both = AnalyticsFilters(hosts=["a.example", "a.example:8443"])
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        top = await repo.get_top_urls(start, NOW, limit=1, filters=both)
+        everything = await repo.get_top_urls(start, NOW, limit=20, filters=both)
+        one_host = await repo.get_top_urls(start, NOW, limit=20, filters=AnalyticsFilters(hosts=["a.example"]))
+        repeated = await repo.get_top_urls(
+            start, NOW, limit=20, filters=AnalyticsFilters(hosts=["a.example", "a.example"])
+        )
+
+    assert [(r.url, r.hits, r.host) for r in top] == [("/login", 100, None)]
+    assert len(everything) == 13
+    assert {r.host for r in everything} == {None}
+    assert ("/p0", 60) in [(r.url, r.hits) for r in everything]
+    assert [(r.url, r.hits) for r in everything if r.url.startswith("/login?")] == [
+        ("/login?next=a", 5),
+        ("/login?next=b", 5),
+    ]
+    assert {r.host for r in one_host} == {"a.example"}
+    assert ("/login", 50) in [(r.url, r.hits) for r in one_host]
+    assert [(r.host, r.url, r.hits) for r in repeated] == [(r.host, r.url, r.hits) for r in one_host]
+
+
+# Two days back lands in whole hourly buckets the rollup leg of a 7 d window reads.
+ROLLUP_TS = NOW - timedelta(days=2)
+
+
+async def test_top_ips_reports_distinct_ips_after_filters(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    async with pg_session_maker() as session:
+        for ts in (NOW - timedelta(hours=1), ROLLUP_TS):
+            for i in range(7):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=f"10.0.1.{i}", host="a.example")
+            for i in range(3):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=f"10.0.2.{i}", host="b.example")
+        await session.commit()
+    failed = await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=3), end=NOW, caggs=["log_ip_hourly_stats"]
+    )
+    assert failed == []
+
+    day = NOW - timedelta(hours=24)
+    week = NOW - timedelta(days=7)
+    filters = AnalyticsFilters(hosts=["a.example"])
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        filtered_day = await repo.get_top_ips(day, NOW, limit=2, filters=filters)
+        filtered_week = await repo.get_top_ips(week, NOW, limit=2, filters=filters)
+        unfiltered_day = await repo.get_top_ips(day, NOW, limit=2)
+        unfiltered_week = await repo.get_top_ips(week, NOW, limit=2)
+        # Whole hourly buckets from end to end, so the raw head and tail legs read nothing.
+        rollup_only = await repo.get_top_ips(week, NOW - timedelta(days=1), limit=2)
+
+    assert len(filtered_day.rows) == 2
+    assert filtered_day.distinct_ips == 7
+    assert filtered_week.distinct_ips == 7
+    assert unfiltered_day.distinct_ips == 10
+    assert unfiltered_week.distinct_ips == 10
+    assert rollup_only.distinct_ips == 10
+
+
+async def test_top_ips_reports_no_distinct_ips_for_an_empty_range(pg_session_maker, clean_tables):
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        raw = await repo.get_top_ips(NOW - timedelta(hours=24), NOW)
+        stitched = await repo.get_top_ips(NOW - timedelta(days=7), NOW)
+
+    assert (raw.rows, raw.distinct_ips) == ([], 0)
+    assert (stitched.rows, stitched.distinct_ips) == ([], 0)
+
+
+async def test_top_countries_error_hits_raw_and_rollup(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    async with pg_session_maker() as session:
+        for ts in (NOW - timedelta(hours=1), ROLLUP_TS):
+            for status in (200, 404, 503):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", status=status, country="NO")
+        await session.commit()
+    failed = await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=3), end=NOW, caggs=["log_ip_hourly_stats"]
+    )
+    assert failed == []
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        raw = await repo.get_top_countries(NOW - timedelta(hours=24), NOW)
+        rollup = await repo.get_top_countries(NOW - timedelta(days=7), NOW - timedelta(days=1))
+
+    assert [(r.country_code, r.hits, r.error_hits) for r in raw] == [("NO", 3, 2)]
+    assert [(r.country_code, r.hits, r.error_hits) for r in rollup] == [("NO", 3, 2)]
+
+
+@pytest.fixture()
+def _reset_structlog_after_app():
+    """Undo the StructlogPlugin's global configuration (see test_app_factory)."""
+    from geometrikks.server.logging import ensure_default_configuration
+
+    yield
+    structlog.reset_defaults()
+    ensure_default_configuration()
+
+
+async def test_distinct_ips_over_http_count_across_the_rollup_seam(
+    migrated_database_url, pg_engine, pg_session_maker, clean_tables, _reset_structlog_after_app
+):
+    from geometrikks.server.timescale import refresh_caggs_range
+    from tests.integration.test_drop_snapshot_pg import build_settings
+
+    # Off the hour at both ends: the rollup answers [a_start, a_end) and raw
+    # rows answer the partial hours before and after it.
+    start = NOW - timedelta(days=3) + timedelta(minutes=20)
+    end = NOW - timedelta(minutes=40)
+    a_start = NOW - timedelta(days=3) + timedelta(hours=1)
+    a_end = NOW - timedelta(hours=1)
+    seed = [
+        ("1.0.0.1", start + timedelta(minutes=10)),
+        ("1.0.0.1", NOW - timedelta(days=2)),
+        ("1.0.0.1", NOW - timedelta(days=2)),
+        ("2.0.0.2", end - timedelta(minutes=10)),
+        ("3.0.0.3", NOW - timedelta(days=1)),
+        ("9.9.9.9", start - timedelta(minutes=10)),
+        ("9.9.9.9", end + timedelta(minutes=5)),
+    ]
+    async with pg_session_maker() as session:
+        await _insert_logs(session, [{"ts": ts, "url": "/", "user_agent": "x", "ip": ip} for ip, ts in seed])
+        await session.commit()
+    failed = await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=4), end=NOW, caggs=["log_ip_hourly_stats"]
+    )
+    assert failed == []
+    # With the raw rows behind the rollup gone, only the rollup can still count them.
+    async with pg_session_maker() as session:
+        await session.execute(
+            text("DELETE FROM access_logs WHERE timestamp >= :a_start AND timestamp < :a_end"),
+            {"a_start": a_start, "a_end": a_end},
+        )
+        await session.commit()
+
+    params = {"startDate": start.isoformat(), "endDate": end.isoformat(), "limit": 1}
+    async with AsyncTestClient(app=create_app(settings=build_settings(migrated_database_url))) as client:
+        response = await client.get("/api/v1/analytics/top-ips", params=params)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [(i["ipAddress"], i["hits"]) for i in body["items"]] == [("1.0.0.1", 3)]
+    assert body["distinctIps"] == 3
+
+
+@pytest.mark.parametrize("window", ["24h", "7d"])
+async def test_host_in_over_http(
+    migrated_database_url, pg_session_maker, clean_tables, _reset_structlog_after_app, window
+):
+    # Imported here: test_drop_snapshot_pg imports this module at load time.
+    from tests.integration.test_drop_snapshot_pg import build_settings
+
+    await _seed_host_traffic(pg_session_maker)
+    params = {"hostIn": ["a.example", "a.example:8443"], "window": window}
+    async with AsyncTestClient(app=create_app(settings=build_settings(migrated_database_url))) as client:
+        responses = {
+            name: await client.get(f"/api/v1/analytics/{name}", params=params)
+            for name in ("time-series", "top-ips", "top-countries", "top-urls")
+        }
+
+    assert {name: r.status_code for name, r in responses.items()} == dict.fromkeys(responses, 200)
+    assert sum(p["totalRequests"] for p in responses["time-series"].json()["data"]) == 5
+    assert {i["ipAddress"]: i["hits"] for i in responses["top-ips"].json()["items"]} == {"1.1.1.1": 3, "2.2.2.2": 2}
+    assert responses["top-ips"].json()["distinctIps"] == 2
+    assert {i["countryCode"]: i["errorHits"] for i in responses["top-countries"].json()["items"]} == {"NO": 0, "SE": 0}
+    assert {i["countryCode"]: i["hits"] for i in responses["top-countries"].json()["items"]} == {"NO": 3, "SE": 2}
+    assert [(i["host"], i["url"], i["hits"]) for i in responses["top-urls"].json()["items"]] == [(None, "/", 5)]

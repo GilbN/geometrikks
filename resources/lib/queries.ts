@@ -150,7 +150,7 @@ import { useAnalyticsFilters } from "./analytics-filters-context"
 import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
-import { isClientError } from "./crowdsec"
+import { isClientError } from "./crowdsec-errors"
 
 // ============================================================================
 // Query Keys

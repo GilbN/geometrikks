@@ -1518,12 +1518,7 @@ export async function fetchAccessLogDebugStats(params: {
 // Utility Functions
 // ============================================================================
 
-/**
- * Format a number with locale-aware thousand separators.
- */
-export function formatNumber(value: number): string {
-  return new Intl.NumberFormat().format(value)
-}
+export { formatNumber } from "@/lib/format-number"
 
 /**
  * Format bytes to human-readable string (KB, MB, GB).
