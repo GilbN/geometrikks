@@ -50,7 +50,7 @@ function storedFor(origin: string, pattern: string): StoredConnection {
     verifiedScope: "read",
     connection: { ...apiKeyAnswer, scope: "read" },
     savedAt: 1,
-    generation: 4,
+    lifetime: "lifetime-old",
   }
 }
 
@@ -59,8 +59,8 @@ function connectedChrome(origin: string, pattern: string): FakeChrome {
     local: {
       connection: storedFor(origin, pattern),
       connectionRefresh: { origin, savedAt: 1, connection: apiKeyAnswer },
-      [`recent:${origin}`]: { generation: 4, items: [{ ip: "192.0.2.1" }] },
-      [`abuse:${origin}`]: { "192.0.2.1": { generation: 4, at: Date.now() } },
+      [`recent:${origin}:lifetime-old`]: [{ ip: "192.0.2.1" }],
+      [`abuse:${origin}:lifetime-old`]: { "192.0.2.1": { at: Date.now() } },
       dropLists: { origin, savedAt: 1 },
     },
   })
@@ -160,12 +160,30 @@ describe("connect", () => {
       { chrome: chromeApi, fetchConnection: answers(disabledAnswer) },
     )
 
-    expect(result).toEqual({ ok: false, field: "key", message: AUTH_OFF_WITH_KEY_MESSAGE })
+    expect(result).toEqual({
+      ok: false,
+      field: "key",
+      message: AUTH_OFF_WITH_KEY_MESSAGE,
+      reason: "auth-off-with-key",
+    })
     expect(AUTH_OFF_WITH_KEY_MESSAGE).toBe(
       "Authentication is off on this server. Clear the key field to connect without one.",
     )
     expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
     expect(chromeApi.storage.local.data).toEqual({})
+  })
+
+  it("gives no reason for a key the server rejects", async () => {
+    const result = await connect(
+      { address: A, key: "gmk_bad" },
+      {
+        chrome: fakeChrome(),
+        fetchConnection: failing(401, "api_key_invalid", AUTH_OFF_WITH_KEY_MESSAGE),
+      },
+    )
+
+    expect(result.ok === false && result.message).toBe(AUTH_OFF_WITH_KEY_MESSAGE)
+    expect(result).not.toHaveProperty("reason")
   })
 
   it("stores a keyless connection when the key is blank and authentication is off", async () => {
@@ -186,7 +204,7 @@ describe("connect", () => {
       verifiedScope: null,
       connection: disabledAnswer,
       savedAt: 42,
-      generation: 1,
+      lifetime: expect.any(String),
     }
     expect(result).toEqual({ ok: true, stored: expected })
     expect(chromeApi.storage.local.data.connection).toEqual(expected)
@@ -217,15 +235,9 @@ describe("connect", () => {
 
     expect(result.ok).toBe(true)
     expect([...chromeApi.granted]).toEqual([B_PATTERN])
-    expect(Object.keys(chromeApi.storage.local.data).sort()).toEqual([
-      "connection",
-      "generationCounter",
-    ])
-    expect(chromeApi.storage.local.data.connection).toMatchObject({
-      origin: B,
-      savedAt: 9,
-      generation: 5,
-    })
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
+    expect(chromeApi.storage.local.data.connection).toMatchObject({ origin: B, savedAt: 9 })
+    expect(result.ok && result.stored.lifetime).not.toBe("lifetime-old")
     expect(chromeApi.calls).toContainEqual({
       name: "runtime.sendMessage",
       arg: { type: "serverChanged" },
@@ -244,12 +256,15 @@ describe("connect", () => {
     expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
     expect(callNames(chromeApi)).not.toContain("permissions.remove")
     expect(callNames(chromeApi)).not.toContain("runtime.sendMessage")
-    expect(chromeApi.storage.local.data.connection).toMatchObject({ savedAt: 5, generation: 4 })
+    expect(chromeApi.storage.local.data.connection).toMatchObject({
+      savedAt: 5,
+      lifetime: "lifetime-old",
+    })
     const ips = (await getRecent({ origin: A, savedAt: 5 }, chromeApi)).map((item) => item.ip)
     expect(ips).toEqual(["192.0.2.1"])
   })
 
-  it("gives a server connected again after a disconnect a new generation", async () => {
+  it("gives a server connected again after a disconnect a new lifetime", async () => {
     const chromeApi = connectedChrome(A, A_PATTERN)
     await disconnect({ chrome: chromeApi })
 
@@ -257,13 +272,29 @@ describe("connect", () => {
       { address: A, key: "gmk_new" },
       { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
     )
-
-    expect(result.ok && result.stored.generation).toBe(6)
     const again = await connect(
       { address: B, key: "gmk_b" },
       { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
     )
-    expect(again.ok && again.stored.generation).toBe(7)
+
+    const lifetimes = [result, again].map((each) => each.ok && each.stored.lifetime)
+    expect(new Set(["lifetime-old", ...lifetimes]).size).toBe(3)
+  })
+
+  it("gives two Options tabs connecting at once different lifetimes", async () => {
+    const chromeApi = fakeChrome()
+    const [first, second] = await Promise.all([
+      connect(
+        { address: A, key: "gmk_a" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+      connect(
+        { address: B, key: "gmk_b" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+    ])
+    expect(first.ok && second.ok).toBe(true)
+    expect(first.ok && first.stored.lifetime).not.toBe(second.ok && second.stored.lifetime)
   })
 
   it("removes a permission it granted when saving the connection fails", async () => {
@@ -343,10 +374,7 @@ describe("connect", () => {
     )
 
     expect(result.ok).toBe(true)
-    expect(Object.keys(chromeApi.storage.local.data).sort()).toEqual([
-      "connection",
-      "generationCounter",
-    ])
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
     expect(callNames(chromeApi)).toContain("runtime.sendMessage")
     warn.mockRestore()
   })
@@ -415,10 +443,7 @@ describe("disconnect", () => {
     await disconnect({ chrome: chromeApi })
 
     expect(chromeApi.granted.size).toBe(0)
-    expect(chromeApi.storage.local.data).toEqual({
-      settings: { showSiteStats: false },
-      generationCounter: 5,
-    })
+    expect(chromeApi.storage.local.data).toEqual({ settings: { showSiteStats: false } })
     expect(chromeApi.calls).toContainEqual({
       name: "runtime.sendMessage",
       arg: { type: "serverChanged" },

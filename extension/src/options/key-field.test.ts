@@ -48,7 +48,7 @@ function storedFor(origin: string, key: string | null): StoredConnection {
       expiresAt: null,
     },
     savedAt: 1,
-    generation: 1,
+    lifetime: "lifetime-1",
   }
 }
 

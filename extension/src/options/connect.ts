@@ -7,7 +7,7 @@ import {
   clearLocalServerData,
   getConnection,
   getConnectionRefresh,
-  nextGeneration,
+  newLifetime,
   removeConnection,
   setConnection,
   type ConnectionResponse,
@@ -33,7 +33,13 @@ export interface ConnectDeps {
 
 export type ConnectResult =
   | { ok: true; stored: StoredConnection }
-  | { ok: false; field: "address" | "key" | null; message: string }
+  | {
+      ok: false
+      field: "address" | "key" | null
+      message: string
+      /** Connect sets it when it sent a key to a server with authentication off. */
+      reason?: "auth-off-with-key"
+    }
 
 export function addressError(address: string): string | null {
   if (!address.trim()) return MISSING_ADDRESS_MESSAGE
@@ -138,8 +144,8 @@ export async function connect(
     if (!verified.ok) return verified
     const previous = await getConnection(deps.chrome)
     const sameOrigin = previous?.origin === origin
-    const generation = sameOrigin ? (previous.generation ?? 0) : await nextGeneration(deps.chrome)
-    const stored: StoredConnection = { ...verified.stored, generation }
+    const lifetime = sameOrigin ? (previous.lifetime ?? newLifetime()) : newLifetime()
+    const stored: StoredConnection = { ...verified.stored, lifetime }
     await setConnection(stored, deps.chrome)
     saved = true
     if (previous && !sameOrigin) await forgetServer(deps.chrome, previous, pattern)
@@ -167,7 +173,12 @@ async function verify(
   if (!result.ok) return { ok: false, ...failureMessage(result.failure, host, key !== null) }
   const { connection } = result
   if (connection.mode === "disabled" && key !== null)
-    return { ok: false, field: "key", message: AUTH_OFF_WITH_KEY_MESSAGE }
+    return {
+      ok: false,
+      field: "key",
+      message: AUTH_OFF_WITH_KEY_MESSAGE,
+      reason: "auth-off-with-key",
+    }
   return {
     ok: true,
     stored: {
@@ -199,7 +210,6 @@ async function forgetServer(
 
 export async function disconnect(deps: { chrome: ChromeApi }): Promise<void> {
   const stored = await getConnection(deps.chrome)
-  await nextGeneration(deps.chrome)
   await removeConnection(deps.chrome)
   await clearLocalServerData(deps.chrome)
   if (stored) await deps.chrome.permissions.remove({ origins: [stored.pattern] })

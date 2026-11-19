@@ -35,7 +35,7 @@ export function storedFor(
     verifiedScope: "read_write",
     connection: writeAnswer,
     savedAt: 1,
-    generation: 1,
+    lifetime: "lifetime-1",
     ...overrides,
   }
 }

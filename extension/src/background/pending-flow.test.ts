@@ -39,7 +39,7 @@ async function stored(deps: TestDeps, overrides: Partial<PendingItem> = {}) {
 
 describe("enqueuePending", () => {
   it("stores nothing when the connection it was made under is gone", async () => {
-    const deps = testDeps(storedFor(B, { generation: 2 }))
+    const deps = testDeps(storedFor(B, { lifetime: "lifetime-2" }))
     expect(await enqueuePending(item(deps), storedFor(A), deps)).toBeNull()
     expect(pending(deps)).toEqual([])
   })

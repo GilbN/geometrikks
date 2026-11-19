@@ -62,7 +62,7 @@ export function sameIdentity(a: StoredConnection | null, b: StoredConnection | n
     a.origin === b.origin &&
     a.savedAt === b.savedAt &&
     a.key === b.key &&
-    (a.generation ?? 0) === (b.generation ?? 0)
+    a.lifetime === b.lifetime
   )
 }
 

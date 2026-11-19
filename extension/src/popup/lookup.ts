@@ -359,7 +359,8 @@ export function unbanToast(
   }
 }
 
-/** Worth a recent-lookups row: at least one of traffic, location or decisions came back. */
+/** True when at least one of traffic, location or decisions came back, so the
+ *  lookup earns a recent-lookups row. */
 export function worthRemembering(data: LookupData, access: Access): boolean {
   return (
     data.profileFailure === null ||

@@ -249,7 +249,7 @@ describe("handleMenuClick", () => {
   it("stores no item when the server changed while the ban was in flight", async () => {
     const deps = testDeps()
     deps.banIp.mockImplementation(async (_target, ip, duration) => {
-      deps.chrome.storage.local.data.connection = storedFor(B, { generation: 2 })
+      deps.chrome.storage.local.data.connection = storedFor(B, { lifetime: "lifetime-2" })
       return { ok: true, ip, durationLabel: duration.label, message: "Banned" }
     })
     expect(await handleMenuClick(ban24h("45.148.10.82"), tab, deps)).toBeNull()
@@ -259,7 +259,7 @@ describe("handleMenuClick", () => {
 
 describe("handleRefreshConnection", () => {
   it("keeps B's refresh when a late refresh for A arrives", async () => {
-    const deps = testDeps(storedFor(B, { savedAt: 5, generation: 2 }))
+    const deps = testDeps(storedFor(B, { savedAt: 5, lifetime: "lifetime-2" }))
     expect(await handleRefreshConnection(noWriteAnswer, { origin: B, savedAt: 5 }, deps)).toBe(true)
     expect(await handleRefreshConnection(writeAnswer, { origin: A, savedAt: 1 }, deps)).toBe(false)
     expect(await handleRefreshConnection(writeAnswer, { origin: B, savedAt: 4 }, deps)).toBe(false)

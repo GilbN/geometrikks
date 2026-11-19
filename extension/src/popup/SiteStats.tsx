@@ -316,7 +316,7 @@ export function SiteStats({
   hosts: string[]
   onLookup: (ip: string) => void
   onNoTraffic: () => void
-  /** Newer than the marks: what a lookup read after a ban or unban. */
+  /** Decision types a lookup read after a ban or unban. They are newer than the marks. */
   decisionTypes?: Record<string, string | null>
 }) {
   const [range, setRange] = useState<StatsRange>("24h")

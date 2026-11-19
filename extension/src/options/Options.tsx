@@ -38,7 +38,6 @@ import {
 import {
   addressError,
   apiKeysPageUrl,
-  AUTH_OFF_WITH_KEY_MESSAGE,
   connect,
   disconnect,
   grantAccess,
@@ -171,7 +170,7 @@ export function Options() {
   const [address, setAddress] = useState("")
   const [keyDraft, setKeyDraft] = useState("")
   const [showKey, setShowKey] = useState(false)
-  const [connectStatus, setConnectStatus] = useState("")
+  const [connectedTo, setConnectedTo] = useState<string | null>(null)
   const [errors, setErrors] = useState<FormErrors>(NO_ERRORS)
   const [busy, setBusy] = useState(false)
   const [recentCleared, setRecentCleared] = useState(false)
@@ -187,6 +186,8 @@ export function Options() {
     const next = await loadDisplayed(realChrome)
     if (run !== refreshes.current) return
     setDisplayed(next)
+    const storedOrigin = next.stored?.origin ?? null
+    setConnectedTo((origin) => (origin === storedOrigin ? origin : null))
     if (next.stored && !addressEditedRef.current) setAddress(next.stored.origin)
   }, [])
 
@@ -239,7 +240,7 @@ export function Options() {
     )
     setBusy(true)
     setErrors(NO_ERRORS)
-    setConnectStatus("")
+    setConnectedTo(null)
     const finish = async () => {
       try {
         const result = await attempt
@@ -250,11 +251,11 @@ export function Options() {
           setKeyDraft("")
           setShowKey(false)
           setRecentCleared(false)
-          setConnectStatus(`Connected to ${hostOf(result.stored.origin)}.`)
+          setConnectedTo(result.stored.origin)
           return
         }
         const message =
-          result.message === AUTH_OFF_WITH_KEY_MESSAGE && sent.reusesStoredKey
+          result.reason === "auth-off-with-key" && sent.reusesStoredKey
             ? AUTH_OFF_WITH_STORED_KEY_MESSAGE
             : result.message
         setErrors({ ...NO_ERRORS, [result.field ?? "form"]: message })
@@ -275,7 +276,7 @@ export function Options() {
     try {
       await disconnect({ chrome: realChrome })
       setDisplayed(NOT_CONNECTED)
-      setConnectStatus("")
+      setConnectedTo(null)
       setKeyDraft("")
       setShowKey(false)
       setErrors(NO_ERRORS)
@@ -455,7 +456,7 @@ export function Options() {
                 <ExternalLink aria-hidden />
               </Button>
               <p role="status" className={cn("m-0 self-center text-xs", successText)}>
-                {connectStatus}
+                {connectedTo && `Connected to ${hostOf(connectedTo)}.`}
               </p>
             </div>
             {errors.form && <FieldError>{errors.form}</FieldError>}

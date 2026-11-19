@@ -14,7 +14,7 @@ const recent: RecentLookup = {
 }
 
 function withRecent(deps: TestDeps, items: RecentLookup[]): TestDeps {
-  deps.chrome.storage.local.data[`recent:${A}`] = { generation: 1, items }
+  deps.chrome.storage.local.data[`recent:${A}:lifetime-1`] = items
   return deps
 }
 

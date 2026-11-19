@@ -17,9 +17,9 @@ export interface StoredConnection {
   verifiedScope: "read" | "read_write" | null
   connection: ConnectionResponse
   savedAt: number
-  /** Stays the same across a reconnect to this origin and changes on any
-   *  switch to another origin or a disconnect. Missing reads as 0. */
-  generation?: number
+  /** Stays the same across a reconnect to this origin. A switch to another
+   *  origin or a disconnect starts a new one. */
+  lifetime?: string
 }
 
 export interface Settings {
@@ -62,37 +62,30 @@ export const DROP_CACHE_MS = 6 * 60 * 60_000
 const KEYS = {
   connection: "connection",
   connectionRefresh: "connectionRefresh",
-  generationCounter: "generationCounter",
   settings: "settings",
   dropLists: "dropLists",
 } as const
 
-/** One key per server origin. chrome.storage has no compare-and-set, so a
- *  late write for a replaced server must land on that server's own key and
- *  never overwrite the next server's rows. */
+/** One key per connection lifetime. chrome.storage has no compare-and-set,
+ *  so a late write from an earlier lifetime, even one on the same origin,
+ *  must land on a key the current lifetime never reads. */
 const RECENT_PREFIX = "recent:"
 const ABUSE_PREFIX = "abuse:"
-const recentKey = (origin: string) => `${RECENT_PREFIX}${origin}`
-const abuseKey = (origin: string) => `${ABUSE_PREFIX}${origin}`
+const recentKey = (origin: string, lifetime: string) => `${RECENT_PREFIX}${origin}:${lifetime}`
+const abuseKey = (origin: string, lifetime: string) => `${ABUSE_PREFIX}${origin}:${lifetime}`
 
 const DEFAULT_SETTINGS: Settings = { showSiteStats: true }
 
-/** Which stored connection a cached value was fetched under. Without a
- *  `generation`, it is taken from the stored connection when that is still
- *  the one this identity names. */
+/** Names the stored connection a caller fetched a cached value under. A read or
+ *  write without a `lifetime` takes it from the stored connection when that
+ *  is still the one this identity names. */
 export interface ConnectionIdentity {
   origin: string
   savedAt: number
-  generation?: number
-}
-
-interface RecentEntry {
-  generation: number
-  items: RecentLookup[]
+  lifetime?: string
 }
 
 interface AbuseEntry {
-  generation: number
   result: CheckResponse
   at: number
 }
@@ -115,37 +108,30 @@ function sameIdentity(a: ConnectionIdentity, b: ConnectionIdentity): boolean {
   return a.origin === b.origin && a.savedAt === b.savedAt
 }
 
-/** The generation `identity` belongs to, or null when the stored connection
+/** The lifetime `identity` belongs to, or null when the stored connection
  *  is no longer the one it names. */
-async function currentGeneration(
+async function currentLifetime(
   identity: ConnectionIdentity,
   chromeApi: ChromeApi,
-): Promise<number | null> {
+): Promise<string | null> {
   const stored = await getConnection(chromeApi)
   if (!stored || !sameIdentity(stored, identity)) return null
-  const generation = stored.generation ?? 0
-  if (identity.generation !== undefined && identity.generation !== generation) return null
-  return generation
+  const lifetime = stored.lifetime ?? ""
+  if (identity.lifetime !== undefined && identity.lifetime !== lifetime) return null
+  return lifetime
 }
 
-/** The generation a read matches cached rows against. */
-async function readGeneration(
+async function readLifetime(
   identity: ConnectionIdentity,
   chromeApi: ChromeApi,
-): Promise<number | null> {
-  return identity.generation ?? (await currentGeneration(identity, chromeApi))
+): Promise<string | null> {
+  return identity.lifetime ?? (await currentLifetime(identity, chromeApi))
 }
 
-/** A generation that no stored connection has used yet. Options takes one
- *  on a switch to another origin and on a disconnect. */
-export async function nextGeneration(chromeApi: ChromeApi = realChrome): Promise<number> {
-  const [counter, stored] = await Promise.all([
-    read<number>(chromeApi, KEYS.generationCounter),
-    getConnection(chromeApi),
-  ])
-  const next = Math.max(counter ?? 0, stored?.generation ?? 0) + 1
-  await chromeApi.storage.local.set({ [KEYS.generationCounter]: next })
-  return next
+/** A lifetime no other connection has. Options starts one when it saves a
+ *  connection to a new origin, including the first one after a disconnect. */
+export function newLifetime(): string {
+  return crypto.randomUUID()
 }
 
 /** Options is the only writer of the connection. */
@@ -186,11 +172,10 @@ export async function setSettings(
 
 async function readRecent(
   origin: string,
-  generation: number,
+  lifetime: string,
   chromeApi: ChromeApi,
 ): Promise<RecentLookup[]> {
-  const entry = await read<RecentEntry>(chromeApi, recentKey(origin))
-  return entry?.generation === generation ? entry.items : []
+  return (await read<RecentLookup[]>(chromeApi, recentKey(origin, lifetime))) ?? []
 }
 
 /** Newest first, and only the lookups made on this server. A reconnect to
@@ -199,8 +184,8 @@ export async function getRecent(
   identity: ConnectionIdentity,
   chromeApi: ChromeApi = realChrome,
 ): Promise<RecentLookup[]> {
-  const generation = await readGeneration(identity, chromeApi)
-  return generation === null ? [] : readRecent(identity.origin, generation, chromeApi)
+  const lifetime = await readLifetime(identity, chromeApi)
+  return lifetime === null ? [] : readRecent(identity.origin, lifetime, chromeApi)
 }
 
 /** `identity` is the connection read when the lookup started. The write is
@@ -210,13 +195,12 @@ export async function pushRecent(
   lookup: RecentLookup,
   chromeApi: ChromeApi = realChrome,
 ): Promise<void> {
-  const generation = await currentGeneration(identity, chromeApi)
-  if (generation === null) return
-  const items = await readRecent(identity.origin, generation, chromeApi)
+  const lifetime = await currentLifetime(identity, chromeApi)
+  if (lifetime === null) return
+  const items = await readRecent(identity.origin, lifetime, chromeApi)
   const next = [lookup, ...items.filter((item) => item.ip !== lookup.ip)].slice(0, RECENT_LIMIT)
-  if ((await currentGeneration(identity, chromeApi)) !== generation) return
-  const entry: RecentEntry = { generation, items: next }
-  await chromeApi.storage.local.set({ [recentKey(identity.origin)]: entry })
+  if ((await currentLifetime(identity, chromeApi)) !== lifetime) return
+  await chromeApi.storage.local.set({ [recentKey(identity.origin, lifetime)]: next })
 }
 
 async function keysWithPrefix(chromeApi: ChromeApi, prefixes: string[]): Promise<string[]> {
@@ -233,11 +217,11 @@ export async function getAbuseCache(
   ip: string,
   chromeApi: ChromeApi = realChrome,
 ): Promise<CheckResponse | null> {
-  const generation = await readGeneration(identity, chromeApi)
-  if (generation === null) return null
-  const cache = (await read<Record<string, AbuseEntry>>(chromeApi, abuseKey(identity.origin))) ?? {}
-  const entry = cache[ip]
-  if (!entry || entry.generation !== generation) return null
+  const lifetime = await readLifetime(identity, chromeApi)
+  if (lifetime === null) return null
+  const key = abuseKey(identity.origin, lifetime)
+  const entry = ((await read<Record<string, AbuseEntry>>(chromeApi, key)) ?? {})[ip]
+  if (!entry) return null
   return Date.now() - entry.at < ABUSE_CACHE_MS ? entry.result : null
 }
 
@@ -249,18 +233,16 @@ export async function setAbuseCache(
   result: CheckResponse,
   chromeApi: ChromeApi = realChrome,
 ): Promise<void> {
-  const generation = await currentGeneration(identity, chromeApi)
-  if (generation === null) return
+  const lifetime = await currentLifetime(identity, chromeApi)
+  if (lifetime === null) return
   const now = Date.now()
-  const key = abuseKey(identity.origin)
+  const key = abuseKey(identity.origin, lifetime)
   const cache = (await read<Record<string, AbuseEntry>>(chromeApi, key)) ?? {}
   const kept = Object.fromEntries(
-    Object.entries(cache).filter(
-      ([, entry]) => entry.generation === generation && now - entry.at < ABUSE_CACHE_MS,
-    ),
+    Object.entries(cache).filter(([, entry]) => now - entry.at < ABUSE_CACHE_MS),
   )
-  if ((await currentGeneration(identity, chromeApi)) !== generation) return
-  const entry: AbuseEntry = { generation, result, at: now }
+  if ((await currentLifetime(identity, chromeApi)) !== lifetime) return
+  const entry: AbuseEntry = { result, at: now }
   await chromeApi.storage.local.set({ [key]: { ...kept, [ip]: entry } })
 }
 

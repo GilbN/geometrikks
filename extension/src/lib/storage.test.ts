@@ -10,6 +10,7 @@ import {
   getDropLists,
   getRecent,
   getSettings,
+  newLifetime,
   pushRecent,
   setAbuseCache,
   setConnection,
@@ -65,10 +66,22 @@ describe("settings", () => {
   })
 })
 
-const identityA = { origin: A, savedAt: 1, generation: 1 }
-const identityB = { origin: B, savedAt: 2, generation: 2 }
-/** A again after switching to B: a new connection with a new generation. */
-const identityAgainA = { origin: A, savedAt: 3, generation: 3 }
+const identityA = { origin: A, savedAt: 1, lifetime: "lifetime-a" }
+const identityB = { origin: B, savedAt: 2, lifetime: "lifetime-b" }
+/** A again after switching to B: a new connection with a new lifetime. */
+const identityAgainA = { origin: A, savedAt: 3, lifetime: "lifetime-a-again" }
+
+describe("newLifetime", () => {
+  it("never gives two allocations the same token, even concurrent ones", async () => {
+    const tokens = await Promise.all(
+      Array.from({ length: 50 }, async () => {
+        await Promise.resolve()
+        return newLifetime()
+      }),
+    )
+    expect(new Set(tokens).size).toBe(tokens.length)
+  })
+})
 
 function connectedTo(identity: ConnectionIdentity) {
   return fakeChrome({ local: { connection: identity } })
@@ -111,7 +124,7 @@ describe("recent lookups", () => {
     const chromeApi = connectedTo(identityA)
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
     expect(await getRecent(identityB, chromeApi)).toEqual([])
-    const reconnected = { origin: A, savedAt: 2, generation: identityA.generation }
+    const reconnected = { origin: A, savedAt: 2, lifetime: identityA.lifetime }
     await setConnection(reconnected as StoredConnection, chromeApi)
     expect((await getRecent(reconnected, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.1"])
     await setConnection(identityB as StoredConnection, chromeApi)
@@ -119,7 +132,7 @@ describe("recent lookups", () => {
     expect((await getRecent(identityB, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.2"])
   })
 
-  it("takes the generation from the stored connection when the caller has none", async () => {
+  it("takes the lifetime from the stored connection when the caller has none", async () => {
     const chromeApi = connectedTo(identityA)
     await pushRecent({ origin: A, savedAt: 1 }, lookup("10.0.0.1", 1), chromeApi)
     expect((await getRecent({ origin: A, savedAt: 1 }, chromeApi)).map((item) => item.ip)).toEqual([
@@ -131,7 +144,7 @@ describe("recent lookups", () => {
   it("never brings back rows cleared by a switch away and back", async () => {
     const chromeApi = connectedTo(identityA)
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
-    const gate = pauseWritesOf(chromeApi, `recent:${A}`)
+    const gate = pauseWritesOf(chromeApi, `recent:${A}:${identityA.lifetime}`)
 
     const late = pushRecent(identityA, lookup("10.0.0.2", 2), chromeApi)
     await gate.paused
@@ -148,6 +161,34 @@ describe("recent lookups", () => {
     ])
   })
 
+  it("keeps fresh rows when a write paused in A, then B, then A again lands late", async () => {
+    const chromeApi = connectedTo(identityA)
+    const check = chromeApi.storage.local.get
+    let checks = 0
+    // The write's last connection check still sees A. Switch away and back
+    // before the write itself lands.
+    chromeApi.storage.local.get = async (keys) => {
+      if (keys === "connection" && ++checks === 2) {
+        const answer = await check(keys)
+        await switchTo(identityB, chromeApi)
+        await switchTo(identityAgainA, chromeApi)
+        await pushRecent(identityAgainA, lookup("10.0.0.3", 3), chromeApi)
+        return answer
+      }
+      return check(keys)
+    }
+
+    await pushRecent(identityA, lookup("10.0.0.2", 2), chromeApi)
+    expect(chromeApi.storage.local.data).toHaveProperty([`recent:${A}:${identityA.lifetime}`])
+
+    expect((await getRecent(identityAgainA, chromeApi)).map((item) => item.ip)).toEqual([
+      "10.0.0.3",
+    ])
+    expect((await getRecent({ origin: A, savedAt: 3 }, chromeApi)).map((item) => item.ip)).toEqual([
+      "10.0.0.3",
+    ])
+  })
+
   it("drops a write from an older connection to the same server", async () => {
     const chromeApi = connectedTo({ origin: A, savedAt: 2 })
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
@@ -156,7 +197,7 @@ describe("recent lookups", () => {
 
   it("keeps the next server's rows when a replaced server's write lands late", async () => {
     const chromeApi = connectedTo(identityA)
-    const gate = pauseWritesOf(chromeApi, `recent:${A}`)
+    const gate = pauseWritesOf(chromeApi, `recent:${A}:${identityA.lifetime}`)
 
     const late = pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
     await gate.paused
@@ -206,14 +247,14 @@ describe("AbuseIPDB cache", () => {
     const chromeApi = connectedTo(identityA)
     await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
     expect(await getAbuseCache(identityB, "185.224.128.17", chromeApi)).toBeNull()
-    const reconnected = { origin: A, savedAt: 2, generation: identityA.generation }
+    const reconnected = { origin: A, savedAt: 2, lifetime: identityA.lifetime }
     await setConnection(reconnected as StoredConnection, chromeApi)
     expect(await getAbuseCache(reconnected, "185.224.128.17", chromeApi)).toEqual(abuse)
   })
 
   it("never brings back a result cleared by a switch away and back", async () => {
     const chromeApi = connectedTo(identityA)
-    const gate = pauseWritesOf(chromeApi, `abuse:${A}`)
+    const gate = pauseWritesOf(chromeApi, `abuse:${A}:${identityA.lifetime}`)
 
     const late = setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
     await gate.paused
@@ -226,6 +267,28 @@ describe("AbuseIPDB cache", () => {
     expect(await getAbuseCache({ origin: A, savedAt: 3 }, "185.224.128.17", chromeApi)).toBeNull()
   })
 
+  it("keeps a fresh result when a write paused in A, then B, then A again lands late", async () => {
+    const chromeApi = connectedTo(identityA)
+    const check = chromeApi.storage.local.get
+    const fresh = { ...abuse, abuseConfidenceScore: 5 }
+    let checks = 0
+    chromeApi.storage.local.get = async (keys) => {
+      if (keys === "connection" && ++checks === 2) {
+        const answer = await check(keys)
+        await switchTo(identityB, chromeApi)
+        await switchTo(identityAgainA, chromeApi)
+        await setAbuseCache(identityAgainA, "185.224.128.17", fresh, chromeApi)
+        return answer
+      }
+      return check(keys)
+    }
+
+    await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
+    expect(chromeApi.storage.local.data).toHaveProperty([`abuse:${A}:${identityA.lifetime}`])
+
+    expect(await getAbuseCache(identityAgainA, "185.224.128.17", chromeApi)).toEqual(fresh)
+  })
+
   it("drops a late write from a server that was replaced", async () => {
     const chromeApi = connectedTo(identityB)
     await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
@@ -235,7 +298,7 @@ describe("AbuseIPDB cache", () => {
 
   it("keeps the next server's results when a replaced server's write lands late", async () => {
     const chromeApi = connectedTo(identityA)
-    const gate = pauseWritesOf(chromeApi, `abuse:${A}`)
+    const gate = pauseWritesOf(chromeApi, `abuse:${A}:${identityA.lifetime}`)
     const other = { ...abuse, abuseConfidenceScore: 5 }
 
     const late = setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
@@ -273,8 +336,8 @@ describe("clearLocalServerData", () => {
       local: {
         connection: identityA,
         settings: { showSiteStats: false },
-        [`recent:${B}`]: { items: [lookup("10.0.0.9", 9)] },
-        [`abuse:${B}`]: {},
+        [`recent:${B}:lifetime-b`]: [lookup("10.0.0.9", 9)],
+        [`abuse:${B}:lifetime-b`]: {},
       },
     })
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)

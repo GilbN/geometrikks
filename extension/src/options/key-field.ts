@@ -24,8 +24,8 @@ function submittedOrigin(address: string): string | null {
   return normalized.ok ? normalized.origin : null
 }
 
-/** What Connect sends for this form: key and origin come from the same
- *  stored connection, as last loaded in this tab. */
+/** What Connect sends for this form. The reused key and its origin come from
+ *  the same stored connection, as last loaded in this tab. */
 export function submission(
   form: { address: string; typed: string },
   stored: StoredConnection | null,
@@ -39,8 +39,8 @@ export function submission(
   return { address: form.address, key, reusesStoredKey: !form.typed.trim() && key !== "" }
 }
 
-/** The placeholder of the empty key field: the stored key, masked unless
- *  shown, while an empty field would reuse it. */
+/** The placeholder of the empty key field. While an empty field would reuse
+ *  the stored key, it shows that key, masked unless the user shows it. */
 export function keyPlaceholder(
   form: { address: string; showKey: boolean },
   stored: StoredConnection | null,
