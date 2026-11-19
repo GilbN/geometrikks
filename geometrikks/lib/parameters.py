@@ -220,3 +220,15 @@ AsnNotIn = Annotated[
         required=False,
     ),
 ]
+
+HostIn = Annotated[
+    list[str] | None,
+    QueryParameter(
+        name="hostIn",
+        description=(
+            "Keep only requests to these hosts, matched exactly against the logged Host value, such as "
+            f"`example.com`. {REPEAT_NOTE}"
+        ),
+        required=False,
+    ),
+]

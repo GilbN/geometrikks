@@ -1013,7 +1013,7 @@ class SummaryStatsRepository:
 
         Country/city/IP filters apply on the CAGG path (its columns carry the
         dimensions), so filtered long ranges stay fast. The CAGG has no ASN
-        column, so an ASN filter reads raw rows at any range.
+        or host column, so an ASN or host filter reads raw rows at any range.
         """
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
@@ -1225,8 +1225,8 @@ class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
     Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP/ASN. An exclude-only filter counts as
-    active for exactly that reason.
+    cannot be sliced by country/city/IP/ASN/host. An exclude-only filter counts
+    as active for exactly that reason.
     """
 
     country_codes: Sequence[str] | None = None
@@ -1235,16 +1235,17 @@ class AnalyticsFilters:
     ip_exclude: Sequence[str] | None = None
     asns: Sequence[int] | None = None
     asns_exclude: Sequence[int] | None = None
+    hosts: Sequence[str] | None = None
 
     def is_active(self) -> bool:
         return bool(
             self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
-            or self.asns or self.asns_exclude
+            or self.asns or self.asns_exclude or self.hosts
         )
 
     def needs_raw_rows(self) -> bool:
         """True when a filter has no column on the per-IP log_ip CAGGs."""
-        return bool(self.asns or self.asns_exclude)
+        return bool(self.asns or self.asns_exclude or self.hosts)
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -1271,6 +1272,9 @@ class AnalyticsFilters:
                 "OR NOT (autonomous_system_number = ANY(CAST(:filter_asns_exclude AS bigint[]))))"
             )
             params["filter_asns_exclude"] = [int(asn) for asn in self.asns_exclude]
+        if self.hosts:
+            clauses.append("AND host = ANY(:filter_hosts)")
+            params["filter_hosts"] = list(self.hosts)
         return " ".join(clauses), params
 
 
@@ -1518,12 +1522,19 @@ class LiveStatsRepository:
         """Top host-and-path pairs by hit count from raw access_logs (time-bounded).
 
         Raw-table scan: this path serves ranges of 24h or less and every
-        filtered request, which the URL CAGGs cannot answer.
+        filtered request, which the URL CAGGs cannot answer. With more than
+        one host filter value, paths are ranked across those hosts and every
+        row has a null host.
         """
-        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        filters = filters or AnalyticsFilters()
+        filter_sql, filter_params = filters.sql_conditions()
+        merge_hosts = filters.hosts is not None and len(filters.hosts) > 1
+        host_select = "CAST(NULL AS TEXT) AS host" if merge_hosts else "host"
+        group_by = "url" if merge_hosts else "host, url"
+        order_by = "hits DESC, url" if merge_hosts else "hits DESC, host, url"
         stmt = text(f"""
             SELECT
-                host,
+                {host_select},
                 url,
                 CAST(COUNT(*) AS BIGINT) AS hits,
                 CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
@@ -1533,8 +1544,8 @@ class LiveStatsRepository:
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND url IS NOT NULL
             {filter_sql}
-            GROUP BY host, url
-            ORDER BY hits DESC, host, url
+            GROUP BY {group_by}
+            ORDER BY {order_by}
             LIMIT :limit
         """)
         await plan_for_wide_scan(self.session)

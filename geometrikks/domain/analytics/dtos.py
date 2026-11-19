@@ -270,7 +270,8 @@ class TopUrlDTO(msgspec.Struct, rename="camel"):
         str | None,
         msgspec.Meta(
             description=(
-                "The Host header of the requests. Null when the log line carries none, as in nginx's combined format."
+                "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. "
+                "Null for every row when `hostIn` has more than one value."
             )
         ),
     ]
