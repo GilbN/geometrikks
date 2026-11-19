@@ -1547,9 +1547,9 @@ class LiveStatsRepository:
         """Top host-and-path pairs by hit count from raw access_logs (time-bounded).
 
         Raw-table scan: this path serves ranges of 24h or less and every
-        filtered request, which the URL CAGGs cannot answer. With more than
-        one host filter value, paths are ranked across those hosts and every
-        row has a null host.
+        filtered request, which the URL CAGGs cannot answer. With two or
+        more different hosts in the filter, paths are ranked across those
+        hosts and every row has a null host.
         """
         filters = filters or AnalyticsFilters()
         filter_sql, filter_params = filters.sql_conditions()

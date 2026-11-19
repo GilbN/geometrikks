@@ -121,7 +121,7 @@ async def test_top_ips_count_distinct_ips_in_the_same_statement(start, filters, 
     [sql] = [statement for statement in session.statements if "GROUP BY ip_address" in statement]
     assert source in sql
     assert "COUNT(*) OVER ()" in sql
-    assert sql.index("COUNT(*) OVER ()") < sql.index("LIMIT :limit")
+    assert not any("COUNT(DISTINCT" in statement for statement in session.statements)
     if source == "FROM access_logs":
         assert "log_ip_" not in sql
     if filters.hosts:
