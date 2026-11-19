@@ -304,6 +304,15 @@ describe("loadLookup", () => {
     expect(data.shownRange).toBe("7d")
   })
 
+  it("skips the 7-day call once the lookup is cancelled", async () => {
+    const { client, requests } = lookupServer(0, 12)
+    await loadLookup(client, "185.224.128.17", "24h", access, null, NOW, {
+      cancelled: () => true,
+    })
+    const profiles = requests.filter((r) => r.url.pathname === "/api/v1/analytics/ip-profile")
+    expect(profiles).toHaveLength(1)
+  })
+
   it("returns the 7-day view the never-logged check fetched", async () => {
     const { client } = lookupServer(0, 12)
     const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW)

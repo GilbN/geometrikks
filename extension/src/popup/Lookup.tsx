@@ -457,6 +457,7 @@ export function Lookup({
     void (async () => {
       const loaded = await loadLookup(client, ip, range, access, dropIndex, new Date(), {
         knownWeek,
+        cancelled: () => cancelled,
       })
       if (cancelled) return
       setResults((previous) => ({

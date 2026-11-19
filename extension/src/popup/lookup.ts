@@ -137,7 +137,7 @@ export async function loadLookup(
   access: Access,
   dropIndexLoad: DropIndex | null | Promise<DropIndex | null>,
   now: Date,
-  options: { knownWeek?: LookupData | null } = {},
+  options: { knownWeek?: LookupData | null; cancelled?: () => boolean } = {},
 ): Promise<LookupData> {
   const asked = windowFor(range, now)
   const [profileResult, location, decisions, dropIndex] = await Promise.all([
@@ -191,6 +191,7 @@ export async function loadLookup(
     }
   }
 
+  if (options.cancelled?.()) return asAsked
   const week = windowFor("7d", now)
   const [weekResult, weekLocation] = await Promise.all([
     fetchProfile(client, ip, week),
