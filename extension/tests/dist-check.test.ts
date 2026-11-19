@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test"
-import { attributes, scriptProblem } from "./dist.check"
+import { attributes, pageProblems, scriptProblem } from "./dist.check"
 
 describe("attributes", () => {
   it("reads quoted, unquoted and bare attributes, lower-casing names", () => {
@@ -65,5 +65,31 @@ describe("scriptProblem", () => {
     expect(scriptProblem("popup.html", ` src="https://evil.example/x.js"`)).toBe(
       'popup.html has a <script src="https://evil.example/x.js"> that is not a file in dist/',
     )
+  })
+})
+
+describe("pageProblems", () => {
+  it("fails a remote src after a slash with no space", () => {
+    expect(pageProblems("popup.html", `<img/src="https://evil/x">`)).toEqual([
+      "popup.html loads a remote src: https://evil/x",
+    ])
+  })
+
+  it("fails a remote src after a quoted > in an earlier attribute", () => {
+    expect(pageProblems("popup.html", `<img alt=">" src="https://evil/x">`)).toEqual([
+      "popup.html loads a remote src: https://evil/x",
+    ])
+  })
+
+  it("fails an inline event handler after a slash", () => {
+    expect(pageProblems("popup.html", `<div/onclick="x()">`)).toEqual([
+      "popup.html has an inline event handler onclick",
+    ])
+  })
+
+  it("passes local, fragment and data references", () => {
+    expect(
+      pageProblems("popup.html", `<a href="#top"><img alt="a > b" src="data:image/png;base64,AA">`),
+    ).toEqual([])
   })
 })

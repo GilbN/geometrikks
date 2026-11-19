@@ -37,11 +37,11 @@ WHAT IT DOES
 
 HOW TO USE
 1. In GeoMetrikks, open Settings > API keys and create a key.
-2. Open the extension's options, enter your server's https:// address and the key, and click Connect.
+2. Open the extension's options, enter your server's https:// address and the key, and click Connect. A server with authentication off connects with the key field empty. If a key was saved for that server, disconnect first.
 3. Click the toolbar icon, select an IP on a page and right-click it, or type gmk in the address bar.
 
 PRIVACY
-The extension talks only to the GeoMetrikks server you connect it to. Nothing goes to the extension's authors. Your key, settings and last five lookups are stored on this device. The site you're on is sent to your server only when you open the popup and "Show stats for the site I'm on" is on. Selected text is sent only when you pick Look up or Ban.
+The extension talks only to the GeoMetrikks server you connect it to. Nothing goes to the extension's authors. Your key, settings and last five lookups are stored on this device, and the key is sent to your server only if you connected with one. The site you're on is sent to your server only when you open the popup and "Show stats for the site I'm on" is on. Selected text is sent only when you pick Look up or Ban.
 
 PERMISSIONS
 • Access to your GeoMetrikks server: asked for when you click Connect, for that one address only. The extension asks for no other site.
@@ -93,9 +93,9 @@ Take each one on a seeded test server with a Read/write key, the popup open over
 
 | Permission | Type | Justification |
 | --- | --- | --- |
-| `storage` | permissions | Keeps the user's GeoMetrikks server address, API key, the "Show stats for the site I'm on" setting and the last five IP lookups on the device. Also keeps AbuseIPDB results for 15 minutes so a second look at the same IP doesn't spend the user's daily AbuseIPDB quota again, the Spamhaus DROP lists for 6 hours, and a right-click result for up to 2 minutes until the popup shows it. Nothing is synced. |
-| `contextMenus` | permissions | Adds a GeoMetrikks item to the right-click menu for selected text, with "Look up" and "Ban" for the selected IP address. Ban has a submenu with the five ban lengths. With a Read key only Look up is added, and with no server connected nothing is added. |
-| `activeTab` | permissions | When the user clicks the toolbar icon, the popup reads the address of the tab they are on, so it can show that site's traffic from the user's GeoMetrikks server. Only the host name is used and sent, only to the user's own server, and only while the "Show stats for the site I'm on" switch is on. The extension doesn't read page content and asks for no access to other tabs. |
+| `storage` | permissions | Keeps the user's GeoMetrikks server address, the API key if the user connected with one, the "Show stats for the site I'm on" setting and the last five IP lookups on the device. Also keeps the last AbuseIPDB result for each IP, reused for up to 15 minutes so a second look at the same IP doesn't spend the user's daily AbuseIPDB quota again, and the server's Spamhaus DROP lists, reused for up to 6 hours. Those copies are removed on Disconnect, when the user switches servers, or when a newer answer overwrites them. A right-click Look up or Ban keeps the selected text and its result in session storage for up to 2 minutes, until the popup shows it. Nothing is synced. |
+| `contextMenus` | permissions | Adds a GeoMetrikks item to the right-click menu for selected text, with "Look up" and "Ban" for the selected IP address. Ban has a submenu with the five ban lengths. With a Read key, or a server without CrowdSec bans, only Look up is added. With no server connected nothing is added. |
+| `activeTab` | permissions | When the user clicks the toolbar icon, the popup reads the address of the tab they are on, so it can show that site's traffic from the user's GeoMetrikks server. Only the host name, and its port if the address has one, is used and sent, only to the user's own server, and only while the "Show stats for the site I'm on" switch is on. The extension doesn't read page content and asks for no access to other tabs. |
 | `https://*/*` | optional_host_permissions | The user's GeoMetrikks server can be at any https address, often on their own network. When the user clicks Connect, the extension asks for access to that one origin with its port (for example `https://geo.example.net:443/*`), and it calls only that server's API. Nothing is granted at install. On Disconnect, or when the user connects a different server, the extension removes the access it was given. |
 
 The address bar keyword (`omnibox`, keyword `gmk`) is a manifest entry, not a permission. Typing `gmk` and an IP suggests opening it in the GeoMetrikks IP inspector and lists a matching recent lookup.
@@ -113,12 +113,12 @@ Remote code: none. All code, fonts, flag images and icons are in the package. Th
 | Personally identifiable info | No | | | |
 | Health info | No | | | |
 | Financial and payment info | No | | | |
-| Authentication info | Yes | Sent only to the user's own server, as the `Authorization` header | The user's GeoMetrikks API key, stored on the device, proves the user to their server | No |
+| Authentication info | Yes | Sent only to the user's own server, as the `Authorization` header, and only when the user connected with a key | The user's GeoMetrikks API key, stored on the device, proves the user to their server. A server with authentication off is connected without one | No |
 | Personal communications | No | | | |
 | Location | No | | | |
 | Web history | Yes | Sent only to the user's own server | The host name of the tab the user is on, sent when the user opens the popup with "Show stats for the site I'm on" on, to show that site's traffic | No |
 | User activity | No | | | |
-| Website content | Yes | Sent only to the user's own server | Text the user selects and sends with Look up or Ban, to look up or ban that IP | No |
+| Website content | Yes | Sent only to the user's own server | Text the user selects and sends with Look up or Ban, to look up or ban that IP. The text and its result stay in session storage for up to 2 minutes, until the popup shows them | No |
 
 ### Data use certification
 
@@ -149,6 +149,15 @@ Check that it loads before each submission. Its content must match the table abo
 **Support URL:** https://github.com/GilbN/geometrikks/issues
 
 **Homepage URL:** https://geometrikks.dev/docs/features/chrome-extension
+
+## Submission checklist
+
+- [ ] The zip is the one attached to the GitHub release, or a fresh `bun run ext:build && bun run ext:zip` after `bun run ext:check-dist` passes.
+- [ ] `version` in `extension/manifest.json` is higher than the published one.
+- [ ] https://geometrikks.dev/chrome-extension/privacy loads and matches the data table above.
+- [ ] The screenshots in the table above are taken and uploaded.
+- [ ] The dashboard's test instructions give a test server's address and a Read/write key.
+- [ ] Once the listing exists, add its Chrome Web Store URL to this file, and change the install line in `site/content/docs/next/features/chrome-extension.mdx` to link it.
 
 ## Version history
 

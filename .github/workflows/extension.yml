@@ -7,6 +7,7 @@ on:
       - "resources/**"
       - "package.json"
       - "bun.lock"
+      - "tsconfig.json"
       - ".github/workflows/extension.yml"
   release:
     types: [published]
@@ -65,4 +66,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.event.release.tag_name }}
-        run: gh release upload "$TAG" dist-zip/geometrikks-chrome-*.zip
+        run: gh release upload "$TAG" dist-zip/geometrikks-chrome-*.zip --clobber

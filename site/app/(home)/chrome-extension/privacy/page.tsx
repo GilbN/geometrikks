@@ -77,7 +77,8 @@ export default function ChromeExtensionPrivacyPage() {
               <li>
                 <strong>Your server address and API key.</strong> The key is stored as you pasted it, with no encryption
                 beyond what Chrome and your operating system give the browser profile. Anyone with access to your
-                browser profile can read it.
+                browser profile can read it. A server with authentication off is connected with the key field empty,
+                and then no key is stored.
               </li>
               <li>
                 <strong>Your settings</strong>, such as whether &quot;Show stats for the site I&apos;m on&quot; is on.
@@ -87,21 +88,30 @@ export default function ChromeExtensionPrivacyPage() {
                 CrowdSec and Spamhaus DROP marks it had at the time.
               </li>
               <li>
-                <strong>Short-lived copies of server answers:</strong> AbuseIPDB results for 15 minutes, so looking at
-                the same IP again doesn&apos;t spend your AbuseIPDB quota, and your server&apos;s Spamhaus DROP lists
-                for 6 hours.
+                <strong>Copies of server answers.</strong> The last AbuseIPDB result for each IP, reused for up to 15
+                minutes so looking at the same IP again doesn&apos;t spend your AbuseIPDB quota, and your server&apos;s
+                Spamhaus DROP lists, reused for up to 6 hours. They are removed when you disconnect, when you switch
+                servers, or when a newer answer overwrites them.
               </li>
               <li>
-                <strong>The result of a right-click Look up or Ban</strong>, for up to 2 minutes, until the popup shows
-                it. Chrome deletes it when the browser closes.
+                <strong>A right-click Look up or Ban.</strong> The selected text and its result stay in Chrome&apos;s
+                session storage for up to 2 minutes, until the popup shows them. Chrome deletes session storage when
+                the browser closes.
               </li>
             </ul>
           </Section>
 
           <Section heading="What it sends to your server">
             <p>
-              Every request goes to the server address you entered, over https, with your API key in the{" "}
-              <code>Authorization</code> header. The extension never sends your browser&apos;s cookies.
+              Every request goes to the server address you entered, over https. The extension puts your API key in the{" "}
+              <code>Authorization</code> header only when you connected with one. A server with authentication off
+              connects with the key field empty and gets no key. If a key was saved for that server, disconnect
+              first.
+            </p>
+            <p>
+              The extension&apos;s own requests never carry your browser&apos;s cookies. Pages it opens on your server,
+              such as the IP inspector, Access logs, Open GeoMetrikks or a <code>gmk</code> search, are normal browser
+              visits, and Chrome sends your cookies for that site with them as it does in any tab.
             </p>
             <ul>
               <li>
@@ -185,7 +195,8 @@ export default function ChromeExtensionPrivacyPage() {
           <Section heading="Contact">
             <p>
               Ask privacy questions or report a problem in the{" "}
-              <a href="https://github.com/GilbN/geometrikks/issues">GeoMetrikks issue tracker on GitHub</a>.{" "}
+              <a href="https://github.com/GilbN/geometrikks/issues">GeoMetrikks issue tracker on GitHub</a>, or write
+              to the contact email shown on the extension&apos;s Chrome Web Store listing.{" "}
               <a href="https://geometrikks.dev/docs/features/chrome-extension/">GeoMetrikks for Chrome</a> in the docs
               explains how the extension works.
             </p>

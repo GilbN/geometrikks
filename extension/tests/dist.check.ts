@@ -176,38 +176,48 @@ export function scriptProblem(page: string, tag: string): string | null {
   return null
 }
 
+// Quote-aware like the <script> scan, and "/" ends a tag name as the tokenizer
+// has it, so `<img/src=...>` and `<img alt=">" src=...>` are read whole.
+const TAG = /<[a-z][^\s/>]*((?:[\s/](?:[^>"']|"[^"]*"|'[^']*')*)?)>/gi
+
+/** The problems in one built page's HTML. */
+export function pageProblems(page: string, html: string): string[] {
+  const problems: string[] = []
+  for (const match of html.matchAll(/<script\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi)) {
+    const problem = scriptProblem(page, match[1])
+    if (problem) problems.push(problem)
+  }
+  for (const match of html.matchAll(TAG)) {
+    const attrs = attributes(match[1]).values
+    for (const name of attrs.keys()) {
+      if (/^on[a-z]+$/.test(name)) problems.push(`${page} has an inline event handler ${name}`)
+    }
+    for (const name of ["src", "href"]) {
+      const reference = attrs.get(name)?.trim()
+      if (reference === undefined) continue
+      if (reference === "" || reference.startsWith("#") || /^data:/i.test(reference)) continue
+      if (/^(?:https?:)?\/\//i.test(reference)) {
+        problems.push(`${page} loads a remote ${name}: ${reference}`)
+        continue
+      }
+      if (/^[a-z][a-z0-9+.-]*:/i.test(reference)) {
+        problems.push(`${page} has a ${name} with an unexpected scheme: ${reference}`)
+        continue
+      }
+      if (!existsSync(resolveLocal(reference, DIST)))
+        problems.push(`${page} references ${reference}, which is not in dist/`)
+    }
+  }
+  return problems
+}
+
 function checkPages() {
   for (const page of ["popup.html", "options.html"]) {
     if (!existsSync(inDist(page))) {
       fail(`missing ${page}`)
       continue
     }
-    const html = readFileSync(inDist(page), "utf8")
-    for (const match of html.matchAll(/<script\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi)) {
-      const problem = scriptProblem(page, match[1])
-      if (problem) fail(problem)
-    }
-    for (const match of html.matchAll(/<[a-z][^\s/>]*((?:\s[^>]*)?)>/gi)) {
-      const attrs = attributes(match[1]).values
-      for (const name of attrs.keys()) {
-        if (/^on[a-z]+$/.test(name)) fail(`${page} has an inline event handler ${name}`)
-      }
-      for (const name of ["src", "href"]) {
-        const reference = attrs.get(name)?.trim()
-        if (reference === undefined) continue
-        if (reference === "" || reference.startsWith("#") || /^data:/i.test(reference)) continue
-        if (/^(?:https?:)?\/\//i.test(reference)) {
-          fail(`${page} loads a remote ${name}: ${reference}`)
-          continue
-        }
-        if (/^[a-z][a-z0-9+.-]*:/i.test(reference)) {
-          fail(`${page} has a ${name} with an unexpected scheme: ${reference}`)
-          continue
-        }
-        if (!existsSync(resolveLocal(reference, DIST)))
-          fail(`${page} references ${reference}, which is not in dist/`)
-      }
-    }
+    for (const problem of pageProblems(page, readFileSync(inDist(page), "utf8"))) fail(problem)
   }
 }
 

@@ -35,7 +35,7 @@ The extension holds one server at a time. Connecting a different one removes the
 
 The key's scope decides what the extension offers.
 
-- **Read** gives a read-only popup. The header shows a Read only chip, there is no Ban or Unban, and the right-click menu has only Look up.
+- **Read** gives a read-only popup. The header shows a Read only chip and there is no Ban or Unban. With a Read key, or a server without CrowdSec bans, only Look up is added to the right-click menu.
 - **Read/write** adds Ban and Unban, as long as the server has CrowdSec machine credentials. [Ban and unban](./crowdsec.mdx#ban-and-unban) explains those. Without them the popup stays read-only whatever the key.
 
 The extension checks the key each time the popup opens and before each ban from the right-click menu, so a key revoked or expired in GeoMetrikks stops working at once. The popup then says "This key no longer works" and links to Options.
@@ -75,26 +75,57 @@ Site stats need GeoMetrikks 0.26.0 or later. On an older server the popup says w
 
 ## Behind an authenticating proxy
 
-An authenticating proxy, such as Authelia or Authentik forward auth, sends a login page to every request without its session cookie. The extension sends a bearer key and never your browser's cookies, so the proxy blocks it, and Connect reports that the server didn't answer with GeoMetrikks JSON.
+An authenticating proxy, such as Authelia or Authentik forward auth, sends a login page to every request without its session cookie. The extension's own requests never carry your browser's cookies, so the proxy blocks them, and Connect reports that the server didn't answer with GeoMetrikks JSON.
 
-Let requests to `/api/` that carry an `Authorization` header past the proxy's login. GeoMetrikks still checks the key on every one of those requests, so a request without a valid key gets a 401. With Traefik, a second router for those requests, without the forward auth middleware, does it. In the file provider:
+Let only the extension's API calls past the proxy's login. These are the paths it calls:
+
+- `/api/v1/auth/connection`
+- `/api/v1/analytics/*`
+- `/api/v1/crowdsec/*`
+- `/api/v1/geo-events/logs`
+- `/api/v1/drop/lists`
+- `/api/v1/abuseipdb/*`
+
+GeoMetrikks checks the API key on every request to these paths, so one without a valid key gets a 401. Don't bypass all of `/api/`. The login and OIDC routes live under it too, they don't take API keys, and a bypass would let anyone reach them without passing the proxy first.
+
+With Traefik, a second router for those requests, without the forward auth middleware, does it. In the file provider:
 
 ```yaml
 http:
   routers:
     geometrikks-api-keys:
-      rule: Host(`geo.example.net`) && PathPrefix(`/api/`) && HeaderRegexp(`Authorization`, `^Bearer gmk_`)
+      rule: >-
+        Host(`geo.example.net`) && HeaderRegexp(`Authorization`, `^Bearer gmk_`) && (
+          Path(`/api/v1/auth/connection`) || PathPrefix(`/api/v1/analytics/`) ||
+          PathPrefix(`/api/v1/crowdsec/`) || Path(`/api/v1/geo-events/logs`) ||
+          Path(`/api/v1/drop/lists`) || PathPrefix(`/api/v1/abuseipdb/`))
       service: geometrikks
       tls: {}
 ```
 
-Authelia's access rules can't match a header. A path rule with `policy: bypass` for `^/api/` lets the extension through, but it also lets anyone reach the API's login endpoints without passing Authelia first.
+`HeaderRegexp` is the Traefik v3 name. On Traefik v2 the matcher is `HeadersRegexp`. If the `geometrikks` service is defined by Docker labels, the file provider refers to it as `geometrikks@docker`.
+
+Authelia's access rules can't match a header, so a bypass there lets every request to those paths through, with or without a key. GeoMetrikks still answers a request without a valid key with a 401. Put the rule above the one that protects the domain, since Authelia applies the first rule that matches:
+
+```yaml
+access_control:
+  rules:
+    - domain: geo.example.net
+      policy: bypass
+      resources:
+        - "^/api/v1/(analytics|crowdsec|abuseipdb)/"
+        - "^/api/v1/(auth/connection|geo-events/logs|drop/lists)([?]|$)"
+```
+
+Pages the extension opens on your server, such as Open in inspector, Access logs for this host, Open GeoMetrikks and the `gmk` keyword, are normal browser visits. They carry your cookies and pass through the proxy's login like any other tab.
 
 Only add a bypass while GeoMetrikks' own login is on. With `APP_AUTH_DISABLED=true` GeoMetrikks checks nothing, so a bypass opens every API action, ban and unban included, to anyone who can reach the address.
 
 ## Servers with authentication off
 
-A server with `APP_AUTH_DISABLED=true` can't make API keys. Leave the key field empty and click Connect. The Connected card then says "Authentication is off on this server, so no key is needed". If you type a key, Connect stops with "Authentication is off on this server. Clear the key field to connect without one.", because such a server never checks it.
+A server with `APP_AUTH_DISABLED=true` can't make API keys. Leave the key field empty and click Connect. The Connected card then says "Authentication is off on this server, so no key is needed", and the extension sends no `Authorization` header to that server. If you type a key, Connect stops with "Authentication is off on this server. Clear the key field to connect without one.", because such a server never checks it.
+
+If you connected to that server with a key before, an empty key field reuses the saved key, and Connect says "Authentication is off on this server. Disconnect, then connect again with the key field empty." Click Disconnect first, then connect with the field empty.
 
 A keyless connection can ban and unban whenever the server has CrowdSec machine credentials, because the server lets anyone who reaches it do the same in the web app. If the server turns its login back on later, the popup says "This server now needs an API key". Create one and connect again.
 
