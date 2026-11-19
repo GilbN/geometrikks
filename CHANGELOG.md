@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On the Security page, switching tabs no longer clears the other tabs' search, filters and page.
 - A link to the Security page's DROP section opens on DROP instead of showing Decisions first.
 - Searching AbuseIPDB reports for a whole IP finds only that address, not longer ones that start with it.
+- The Analytics API's top lists (`top-urls`, `top-user-agents`, `top-asns`, `top-ips`, `top-countries` and `top-cities`) count the right requests when `startDate` or `endDate` carries a non-UTC offset. Before, they could skip requests near the start of the range, count requests near the end twice, and count requests made shortly after the end. It happened on ranges longer than 30 days with any non-UTC offset, for example `+02:00`, and on ranges over 24 hours and up to 30 days with an offset that isn't a whole number of hours, for example `+05:30`. The web app sends UTC times, so its counts were right.
 
 ## [0.25.0] - 2026-11-14
 

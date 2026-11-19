@@ -22,6 +22,7 @@ from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from sqlalchemy import text
 
 from geometrikks.domain.geo.models import GeoEvent, GeoLocation
+from geometrikks.lib.time import ensure_utc
 from geometrikks.server.logging import get_logger
 
 logger = get_logger(__name__)
@@ -124,6 +125,7 @@ def stitch_params(
     constraints into join predicates, which TimescaleDB cannot use for chunk
     exclusion - the raw legs then decompress and scan the entire hypertable.
     """
+    start, end = ensure_utc(start), ensure_utc(end)
     if granularity == StatsGranularity.DAILY:
         floor_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
         floor_end = end.replace(hour=0, minute=0, second=0, microsecond=0)

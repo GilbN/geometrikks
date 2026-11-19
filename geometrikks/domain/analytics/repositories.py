@@ -26,13 +26,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from geometrikks.lib.time import ensure_utc
 from geometrikks.server.logging import get_logger
 from geometrikks.server.timescale import LATENCY_FILTER, latency_filter
 
@@ -153,25 +154,6 @@ _WIDE_SCAN_PLANNER_SQL = text("""
 async def plan_for_wide_scan(session: AsyncSession) -> None:
     """Let the next access_logs scan in this transaction run in parallel."""
     await session.execute(_WIDE_SCAN_PLANNER_SQL)
-
-
-def _floor_to_hour(dt: datetime) -> datetime:
-    """Truncate datetime to the start of its hour."""
-    result = dt.replace(minute=0, second=0, microsecond=0)
-    if result.tzinfo is None:
-        result = result.replace(tzinfo=UTC)
-    return result
-
-
-def _ceil_to_hour(dt: datetime) -> datetime:
-    """Round datetime up to the next hour (or same if already at hour boundary)."""
-    if dt.minute == 0 and dt.second == 0 and dt.microsecond == 0:
-        result = dt
-    else:
-        result = dt.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    if result.tzinfo is None:
-        result = result.replace(tzinfo=UTC)
-    return result
 
 
 @dataclass
@@ -1319,6 +1301,7 @@ def _stitch_params(
     constraints into join predicates, which TimescaleDB cannot use for chunk
     exclusion - the raw legs then decompress and scan the entire hypertable.
     """
+    start, end = ensure_utc(start), ensure_utc(end)
     if granularity == StatsGranularity.DAILY:
         floor_start = start.replace(hour=0, minute=0, second=0, microsecond=0)
         floor_end = end.replace(hour=0, minute=0, second=0, microsecond=0)
