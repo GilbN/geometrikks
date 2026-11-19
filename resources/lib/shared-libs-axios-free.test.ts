@@ -52,7 +52,7 @@ const CODE_EXTENSIONS = new Set(Object.keys(SCRIPT_KINDS).map((extension) => ext
 function loadsCode(specifier: string): boolean {
   const query = new URLSearchParams(specifier.split("?")[1] ?? "")
   const worker = query.has("worker") || query.has("sharedworker")
-  return !query.has("raw") && (worker || !query.has("url"))
+  return worker || (!query.has("raw") && !query.has("url"))
 }
 
 function globCanMatchCode(pattern: string): boolean {
@@ -305,6 +305,20 @@ describe("runtimeSpecifiers", () => {
     ].join("\n")
     expect(runtimeSpecifiers(source)).toEqual(["./worker?worker&url", "./shared?sharedworker&url"])
   })
+
+  it.each(["./worker?worker&raw&url", "./shared?sharedworker&raw&url", "./worker?raw&worker"])(
+    "counts %s, since a worker import bundles its code whatever else it asks for",
+    (specifier) => {
+      expect(runtimeSpecifiers(`import a from "${specifier}"`)).toEqual([specifier])
+    },
+  )
+
+  it.each(["./client.ts?raw", "./client.ts?url", "./client.ts?raw&url"])(
+    "skips %s",
+    (specifier) => {
+      expect(runtimeSpecifiers(`import a from "${specifier}"`)).toEqual([])
+    },
+  )
 
   it("throws on a dynamic import() of a non-literal", () => {
     expect(() => runtimeSpecifiers("const lazy = (name: string) => import(name)")).toThrow(

@@ -98,14 +98,19 @@ function checkIcons() {
   }
 }
 
-function attributes(tag: string): Map<string, string> {
-  const found = new Map<string, string>()
+export type Attributes = { values: Map<string, string>; repeated: Set<string> }
+/** Browsers keep the first of a repeated attribute and drop the rest. */
+export function attributes(tag: string): Attributes {
+  const values = new Map<string, string>()
+  const repeated = new Set<string>()
   for (const match of tag.matchAll(
     /(?:^|\s)([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g,
   )) {
-    found.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? "")
+    const name = match[1].toLowerCase()
+    if (values.has(name)) repeated.add(name)
+    else values.set(name, match[2] ?? match[3] ?? match[4] ?? "")
   }
-  return found
+  return { values, repeated }
 }
 
 const PAGE_BASE = "chrome-extension://extension/"
@@ -128,6 +133,16 @@ function packagedScript(page: string, src: string): string | null {
   return existsSync(file) && statSync(file).isFile() ? file : null
 }
 
+export function scriptProblem(page: string, tag: string): string | null {
+  const { values, repeated } = attributes(tag)
+  if (repeated.has("src")) return `${page} has a <script> with more than one src`
+  const src = values.get("src")?.trim()
+  if (src === undefined) return `${page} has an inline <script>`
+  if (!packagedScript(page, src))
+    return `${page} has a <script src="${src}"> that is not a file in dist/`
+  return null
+}
+
 function checkPages() {
   for (const page of ["popup.html", "options.html"]) {
     if (!existsSync(inDist(page))) {
@@ -136,13 +151,11 @@ function checkPages() {
     }
     const html = readFileSync(inDist(page), "utf8")
     for (const match of html.matchAll(/<script\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi)) {
-      const src = attributes(match[1]).get("src")?.trim()
-      if (src === undefined) fail(`${page} has an inline <script>`)
-      else if (!packagedScript(page, src))
-        fail(`${page} has a <script src="${src}"> that is not a file in dist/`)
+      const problem = scriptProblem(page, match[1])
+      if (problem) fail(problem)
     }
     for (const match of html.matchAll(/<[a-z][^\s/>]*((?:\s[^>]*)?)>/gi)) {
-      const attrs = attributes(match[1])
+      const attrs = attributes(match[1]).values
       for (const name of attrs.keys()) {
         if (/^on[a-z]+$/.test(name)) fail(`${page} has an inline event handler ${name}`)
       }
@@ -284,24 +297,28 @@ function checkModules(graph: ModuleGraph) {
     fail(`the worker's static graph has dynamic imports: ${workerDynamic.join(", ")}`)
 }
 
-if (!existsSync(DIST)) {
-  console.error("extension/dist is missing; run bun run ext:build first")
-  process.exit(1)
-}
-checkManifest()
-checkIcons()
-checkPages()
-checkStylesheets()
-checkFiles()
-const graph = readGraph()
-if (graph) {
-  checkModules(graph)
-  checkFlag(graph)
-  checkWorkerImports(graph)
+function main() {
+  if (!existsSync(DIST)) {
+    console.error("extension/dist is missing; run bun run ext:build first")
+    process.exit(1)
+  }
+  checkManifest()
+  checkIcons()
+  checkPages()
+  checkStylesheets()
+  checkFiles()
+  const graph = readGraph()
+  if (graph) {
+    checkModules(graph)
+    checkFlag(graph)
+    checkWorkerImports(graph)
+  }
+
+  if (failures.length > 0) {
+    for (const message of failures) console.error(`FAIL ${message}`)
+    process.exit(1)
+  }
+  console.log("extension dist OK")
 }
 
-if (failures.length > 0) {
-  for (const message of failures) console.error(`FAIL ${message}`)
-  process.exit(1)
-}
-console.log("extension dist OK")
+if (import.meta.main) main()
