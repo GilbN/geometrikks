@@ -2,8 +2,14 @@ import type { AbuseIpdbStatusResponse } from "@/generated/api/types.gen"
 import type { DropIndex } from "@/lib/drop-lists"
 import { realChrome, type ChromeApi } from "../lib/chrome-api"
 import type { ExtensionClient } from "../lib/client"
-import type { Access } from "../lib/connection"
-import type { ConnectionResponse, Settings, StoredConnection } from "../lib/storage"
+import { effectiveConnection, type Access, type ConnectionRefresh } from "../lib/connection"
+import {
+  getConnection,
+  getConnectionRefresh,
+  type ConnectionResponse,
+  type Settings,
+  type StoredConnection,
+} from "../lib/storage"
 
 export interface OpenContext {
   windowId: number
@@ -26,6 +32,22 @@ export async function readOpenContext(
   let tabUrl = activeTab?.url
   if (import.meta.env.MODE === "e2e") tabUrl = params.get("tabUrl") ?? tabUrl
   return { windowId: currentWindow.id ?? -1, tabUrl, pendingId: params.get("pending") }
+}
+
+/** The saved connection with its refresh applied. The refresh is optional: a
+ *  failed read of it keeps the saved connection as it is. */
+export async function readStoredConnection(
+  chromeApi: ChromeApi = realChrome,
+): Promise<StoredConnection | null> {
+  const saved = await getConnection(chromeApi)
+  if (!saved) return null
+  let refresh: ConnectionRefresh | null
+  try {
+    refresh = await getConnectionRefresh(chromeApi)
+  } catch {
+    refresh = null
+  }
+  return effectiveConnection(saved, refresh)
 }
 
 /** What one popup open knows once the connection check passed. */

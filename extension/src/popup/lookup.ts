@@ -22,6 +22,8 @@ import type { FailureInput } from "../lib/failures"
 import type { HourBucket } from "../lib/stats"
 import {
   getAbuseCache,
+  getRecent,
+  pushRecent,
   setAbuseCache,
   type ConnectionIdentity,
   type RecentLookup,
@@ -124,8 +126,8 @@ export async function fetchDecisions(
 }
 
 /** Profile, location, decisions and DROP match for one IP. An empty 24 h
- *  profile asks the 7-day profile once, unless `weekKnown` says the 7-day
- *  view already loaded; only a zero over 7 days means the IP was never logged. */
+ *  profile asks the 7-day profile once, unless `knownWeek` is a 7-day view
+ *  that already loaded; only a zero over 7 days means the IP was never logged. */
 export async function loadLookup(
   client: ExtensionClient,
   ip: string,
@@ -133,7 +135,7 @@ export async function loadLookup(
   access: Access,
   dropIndexLoad: DropIndex | null | Promise<DropIndex | null>,
   now: Date,
-  options: { weekKnown?: boolean } = {},
+  options: { knownWeek?: LookupData | null } = {},
 ): Promise<LookupData> {
   const asked = windowFor(range, now)
   const [profileResult, location, decisions, dropIndex] = await Promise.all([
@@ -171,7 +173,21 @@ export async function loadLookup(
     location,
     neverLogged: range === "7d" && profile.totalRequests === 0,
   }
-  if (range === "7d" || profile.totalRequests > 0 || options.weekKnown) return asAsked
+  if (range === "7d" || profile.totalRequests > 0) return asAsked
+  const known = options.knownWeek
+  if (known) {
+    if (!known.neverLogged) return asAsked
+    return {
+      ...base,
+      profile: known.profile,
+      profileFailure: null,
+      shownRange: "7d",
+      start: known.start,
+      end: known.end,
+      location: known.location ?? location,
+      neverLogged: true,
+    }
+  }
 
   const week = windowFor("7d", now)
   const [weekResult, weekLocation] = await Promise.all([
@@ -332,7 +348,8 @@ export async function unbanThenRefetch(
   return { result, decisions: await fetchDecisions(client, ip) }
 }
 
-/** "Unbanned" only when the refetch shows nothing left covering the IP. */
+/** "Unbanned" only when the refetch shows nothing left covering the IP, and a
+ *  range only when the refetch shows it still there. */
 export function unbanToast(
   ip: string,
   action: ActionRow,
@@ -346,16 +363,11 @@ export function unbanToast(
   if (action.kind === "unban" && remaining !== null && remaining.length === 0) {
     return { ok: true, message: `Unbanned ${ip}` }
   }
-  const range =
-    remaining !== null
-      ? rangeDecision(remaining)
-      : action.kind === "remove-ip"
-        ? { ip: action.rangeValue, type: action.rangeType }
-        : null
-  const removed = `Removed the IP decision on ${ip}`
+  const range = remaining !== null ? rangeDecision(remaining) : null
+  const removed = `Removed the IP decision on ${ip}.`
   return {
     ok: true,
-    message: range ? `${removed}. The ${range.type} decision on ${range.ip} stays.` : removed,
+    message: range ? `${removed} The ${range.type} decision on ${range.ip} stays.` : removed,
   }
 }
 
@@ -389,4 +401,28 @@ export function recentFrom(
     dropSblId: data.dropSblId,
     at,
   }
+}
+
+let recentWrites: Promise<void> = Promise.resolve()
+
+/** Writes the IP's recent-lookups row and hands `onRecent` the list. Every
+ *  Lookup in this popup shares one queue, so a slow write can't land over a
+ *  newer one; read, update and publish all run inside it. */
+export function queueRecent(
+  identity: ConnectionIdentity,
+  ip: string,
+  row: (previous: RecentLookup | undefined) => RecentLookup,
+  onRecent?: (items: RecentLookup[]) => void,
+  chromeApi: ChromeApi = realChrome,
+): Promise<void> {
+  recentWrites = recentWrites.then(async () => {
+    try {
+      const previous = (await getRecent(identity, chromeApi)).find((entry) => entry.ip === ip)
+      await pushRecent(identity, row(previous), chromeApi)
+      onRecent?.(await getRecent(identity, chromeApi))
+    } catch {
+      // The list keeps its last state.
+    }
+  })
+  return recentWrites
 }

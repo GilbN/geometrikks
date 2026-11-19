@@ -44,6 +44,8 @@ function point(timestamp: string, totalRequests: number, errors = 0): TimeSeries
 interface Answers {
   series?: (url: URL) => Response
   week?: Response
+  /** A top-list path that answers 500. */
+  failing?: string
 }
 
 function server(answers: Answers = {}) {
@@ -54,6 +56,9 @@ function server(answers: Answers = {}) {
     const window = {
       startDate: url.searchParams.get("startDate"),
       endDate: url.searchParams.get("endDate"),
+    }
+    if (url.pathname === answers.failing) {
+      return json({ status_code: 500, detail: "boom", code: "internal" }, 500)
     }
     switch (url.pathname) {
       case "/api/v1/analytics/time-series":
@@ -216,6 +221,20 @@ describe("loadSiteStats", () => {
     const { client, requests } = server({ series: zeroSeries })
     expect(await loadSiteStats(client, hosts, "7d", now)).toEqual({ kind: "no-traffic" })
     expect(requests).toHaveLength(4)
+  })
+
+  it("reports no traffic from an empty week even when a top list failed", async () => {
+    const failing = "/api/v1/analytics/top-ips"
+    const { client } = server({ series: zeroSeries, failing })
+    expect(await loadSiteStats(client, hosts, "7d", now)).toEqual({ kind: "no-traffic" })
+    const week = json({ startDate: "", endDate: "", granularity: "daily", data: [] })
+    const day = server({ series: zeroSeries, week, failing })
+    expect(await loadSiteStats(day.client, hosts, "24h", now)).toEqual({ kind: "no-traffic" })
+  })
+
+  it("reports a failed top list as an error when there is traffic", async () => {
+    const { client } = server({ failing: "/api/v1/analytics/top-urls" })
+    expect((await loadSiteStats(client, hosts, "24h", now)).kind).toBe("error")
   })
 
   it("reports a failed call as an error", async () => {

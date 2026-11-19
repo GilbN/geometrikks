@@ -4,13 +4,14 @@ import { buildDropIndex } from "@/lib/drop-lists"
 import { fakeChrome } from "../../tests/fake-chrome"
 import { createExtensionClient } from "../lib/client"
 import type { Access } from "../lib/connection"
-import { ABUSE_CACHE_MS, type StoredConnection } from "../lib/storage"
+import { ABUSE_CACHE_MS, getRecent, type StoredConnection } from "../lib/storage"
 import {
   actionRowFor,
   applyDecisions,
   checkAbuse,
   loadLookup,
   profileBuckets,
+  queueRecent,
   recentFrom,
   showAbuseCheck,
   unbanActionFor,
@@ -270,15 +271,31 @@ describe("loadLookup", () => {
   })
 
   it("shows the 24 h zeros without a 7-day call once the 7-day view is known", async () => {
-    const { client, requests } = lookupServer(0, 0)
+    const { client, requests } = lookupServer(0, 12)
+    const knownWeek = await loadLookup(client, "185.224.128.17", "7d", access, null, NOW)
+    requests.length = 0
     const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW, {
-      weekKnown: true,
+      knownWeek,
     })
     const profiles = requests.filter((r) => r.url.pathname === "/api/v1/analytics/ip-profile")
     expect(profiles).toHaveLength(1)
     expect(data.neverLogged).toBe(false)
     expect(data.shownRange).toBe("24h")
     expect(data.profile?.totalRequests).toBe(0)
+  })
+
+  it("keeps a known never-logged week on the 24 h view without a 7-day call", async () => {
+    const { client, requests } = lookupServer(0, 0)
+    const knownWeek = await loadLookup(client, "185.224.128.17", "7d", access, null, NOW)
+    expect(knownWeek.neverLogged).toBe(true)
+    requests.length = 0
+    const data = await loadLookup(client, "185.224.128.17", "24h", access, null, NOW, {
+      knownWeek,
+    })
+    const profiles = requests.filter((r) => r.url.pathname === "/api/v1/analytics/ip-profile")
+    expect(profiles).toHaveLength(1)
+    expect(data.neverLogged).toBe(true)
+    expect(data.shownRange).toBe("7d")
   })
 
   it("returns the 7-day view the never-logged check fetched", async () => {
@@ -532,16 +549,20 @@ describe("unbanToast", () => {
 
   it("never says Unbanned when the refetch failed", () => {
     expect(unbanToast(ip, { kind: "unban" }, { result: ok, decisions: null }).message).toBe(
-      `Removed the IP decision on ${ip}`,
+      `Removed the IP decision on ${ip}.`,
     )
+  })
+
+  it("claims no range stays when the refetch failed", () => {
     const action = {
       kind: "remove-ip" as const,
       rangeValue: "45.148.10.0/24",
       rangeType: "captcha",
     }
-    expect(unbanToast(ip, action, { result: ok, decisions: null }).message).toBe(
-      `Removed the IP decision on ${ip}. The captcha decision on 45.148.10.0/24 stays.`,
-    )
+    expect(unbanToast(ip, action, { result: ok, decisions: null })).toEqual({
+      ok: true,
+      message: `Removed the IP decision on ${ip}.`,
+    })
   })
 
   it("passes a failed unban through", () => {
@@ -626,6 +647,32 @@ describe("recent lookups", () => {
       asOrganization: "DMZHOST",
       countryCode: "DE",
     })
+  })
+
+  it("keeps both rows when two lookups' writes overlap", async () => {
+    const chromeApi = fakeChrome({ local: { connection: identity } })
+    const published: string[][] = []
+    const onRecent = (items: { ip: string }[]) => published.push(items.map((item) => item.ip))
+    const first = queueRecent(
+      identity,
+      "45.148.10.82",
+      (previous) => recentFrom("45.148.10.82", lookupData({}), 1, previous),
+      onRecent,
+      chromeApi,
+    )
+    const second = queueRecent(
+      identity,
+      "185.224.128.17",
+      (previous) => recentFrom("185.224.128.17", lookupData({}), 2, previous),
+      onRecent,
+      chromeApi,
+    )
+    await Promise.all([first, second])
+    expect((await getRecent(identity, chromeApi)).map((item) => item.ip)).toEqual([
+      "185.224.128.17",
+      "45.148.10.82",
+    ])
+    expect(published).toEqual([["45.148.10.82"], ["185.224.128.17", "45.148.10.82"]])
   })
 
   it("remembers a lookup whose traffic failed when decisions or location came back", () => {

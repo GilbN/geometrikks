@@ -34,6 +34,10 @@ function storedFor(identity: { origin: string; savedAt: number }): StoredConnect
   }
 }
 
+function connectedChrome(identity: { origin: string; savedAt: number }) {
+  return fakeChrome({ local: { connection: storedFor(identity) } })
+}
+
 async function identityOf(chromeApi: ReturnType<typeof fakeChrome>) {
   const stored = await getConnection(chromeApi)
   if (!stored) throw new Error("no stored connection")
@@ -88,7 +92,7 @@ describe("loadDropIndex", () => {
 
   it("builds the index from a fresh cache without a call", async () => {
     const { client, requests } = server(() => json(lists("10.0.0.0/8", "SBL9")))
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedChrome(serverA)
     await setDropLists(serverA, lists("45.148.10.0/24", "SBL1"), chromeApi)
     const index = await loadDropIndex(client, chromeApi, access, serverA)
     expect(requests).toHaveLength(0)
@@ -99,7 +103,7 @@ describe("loadDropIndex", () => {
   it("fetches once and rewrites the cache when it is stale", async () => {
     vi.useFakeTimers({ toFake: ["Date"] })
     vi.setSystemTime(new Date("2026-11-18T00:00:00Z"))
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedChrome(serverA)
     await setDropLists(serverA, lists("45.148.10.0/24", "SBL1"), chromeApi)
     vi.setSystemTime(Date.now() + DROP_CACHE_MS + 1)
     const { client, requests } = server(() => json(lists("185.224.128.0/24", "SBL2")))
@@ -111,14 +115,14 @@ describe("loadDropIndex", () => {
   })
 
   it("treats server A's cache as a miss for server B", async () => {
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedChrome(serverA)
     await setDropLists(serverA, lists("45.148.10.0/24", "SBL1"), chromeApi)
     const { client, requests } = server(() => json(lists("10.0.0.0/8", "SBL9")))
     await loadDropIndex(client, chromeApi, access, serverB)
     expect(requests).toHaveLength(1)
   })
 
-  it("tags a fetch started under A with A even when it lands after a switch to B", async () => {
+  it("keeps a fetch started under A out of the cache when it lands after a switch to B", async () => {
     const chromeApi = fakeChrome()
     await setConnection(storedFor(serverA), chromeApi)
     let release: (response: Response) => void = () => {}
@@ -134,7 +138,7 @@ describe("loadDropIndex", () => {
     const now = await identityOf(chromeApi)
     expect(now).toEqual(serverB)
     expect(await getDropLists(now, chromeApi)).toBeNull()
-    expect(await getDropLists(serverA, chromeApi)).not.toBeNull()
+    expect(await getDropLists(serverA, chromeApi)).toBeNull()
   })
 
   it("keeps the fetched index when the cache can't be read or written", async () => {
@@ -180,7 +184,7 @@ describe("ipMarks", () => {
 
   it("matches no DROP network without drop", async () => {
     const { client } = server(() => json([]))
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedChrome(serverA)
     await setDropLists(serverA, lists("45.148.10.0/24", "SBL1"), chromeApi)
     const index = await loadDropIndex(client, chromeApi, access, serverA)
     const marks = await ipMarks(client, ["45.148.10.82"], { ...access, drop: false }, index)

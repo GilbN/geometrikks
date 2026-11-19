@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils"
 import { banIp, type BanDuration } from "../lib/actions"
 import { inspectorUrl } from "../lib/links"
 import { toSixHour } from "../lib/stats"
-import { getRecent, pushRecent, type BanResult, type RecentLookup } from "../lib/storage"
+import type { BanResult, RecentLookup } from "../lib/storage"
 import { AbuseCheck } from "./AbuseCheck"
 import { BanMenu } from "./BanMenu"
 import { CopyIp } from "./CopyIp"
@@ -32,6 +32,7 @@ import {
   fetchDecisions,
   loadLookup,
   profileBuckets,
+  queueRecent,
   rangeDecision,
   recentFrom,
   showAbuseCheck,
@@ -406,11 +407,10 @@ export function Lookup({
   const snapshotRef = useRef<DecisionSnapshot | null>(null)
   const readSeq = useRef(0)
   const remembered = useRef(false)
-  const recentQueue = useRef<Promise<void>>(Promise.resolve())
   const headingRef = useRef<HTMLHeadingElement>(null)
-  const data = results[range]
+  const knownWeek = results["7d"]?.profileFailure === null ? results["7d"] : null
+  const data = range === "24h" && knownWeek?.neverLogged ? knownWeek : results[range]
   const missing = data === undefined
-  const weekKnown = results["7d"] !== undefined && results["7d"].profileFailure === null
   const { client, access, dropIndex, stored } = session
   // Shown while the other range loads, so the header doesn't flash.
   const shown = data ?? results["7d"] ?? results["24h"]
@@ -437,16 +437,12 @@ export function Lookup({
     const current = decisions
       ? { ...lookup, decisions: decisions.decisions, decisionsFailed: decisions.failed }
       : lookup
-    // In order, so a slow first write can't land over the row a ban wrote.
-    recentQueue.current = recentQueue.current.then(async () => {
-      try {
-        const previous = (await getRecent(stored)).find((entry) => entry.ip === ip)
-        await pushRecent(stored, recentFrom(ip, current, Date.now(), previous))
-        onRecent?.(await getRecent(stored))
-      } catch {
-        // The list keeps its last state.
-      }
-    })
+    void queueRecent(
+      stored,
+      ip,
+      (previous) => recentFrom(ip, current, Date.now(), previous),
+      onRecent,
+    )
   }
 
   useEffect(() => {
@@ -455,7 +451,7 @@ export function Lookup({
     let cancelled = false
     void (async () => {
       const loaded = await loadLookup(client, ip, range, access, dropIndex, new Date(), {
-        weekKnown,
+        knownWeek,
       })
       if (cancelled) return
       setResults((previous) => ({
@@ -476,7 +472,7 @@ export function Lookup({
     return () => {
       cancelled = true
     }
-  }, [range, missing, weekKnown, client, ip, access, dropIndex, stored])
+  }, [range, missing, knownWeek, client, ip, access, dropIndex, stored])
 
   const refreshDecisions = async (afterWrite: boolean) => {
     const seq = ++readSeq.current

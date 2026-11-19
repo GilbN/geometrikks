@@ -4,11 +4,9 @@ import type { AbuseIpdbStatusResponse, DecisionView } from "@/generated/api/type
 import { winningDecision } from "@/lib/crowdsec"
 import { realChrome } from "../lib/chrome-api"
 import { createExtensionClient, fetchConnection, unwrap } from "../lib/client"
-import { deriveAccess, effectiveConnection } from "../lib/connection"
+import { deriveAccess } from "../lib/connection"
 import { classifyFailure } from "../lib/failures"
 import {
-  getConnection,
-  getConnectionRefresh,
   getSettings,
   type PendingItem,
   type RecentLookup,
@@ -21,6 +19,7 @@ import { loadDropIndex } from "./marks"
 import {
   connectionChanged,
   readOpenContext,
+  readStoredConnection,
   refreshViaWorker,
   type OpenContext,
   type PopupSession,
@@ -108,8 +107,7 @@ async function openPopup(
   }
   let stored: StoredConnection | null = null
   try {
-    const saved = await getConnection()
-    stored = saved && effectiveConnection(saved, await getConnectionRefresh())
+    stored = await readStoredConnection()
   } catch {
     stored = null
   }
@@ -226,7 +224,7 @@ export function Popup({
     returning.current = false
     const target = opener.current?.isConnected ? opener.current : searchRef.current
     target?.focus()
-  }, [lookupIp])
+  }, [lookupIp, pendingDismissed])
   // After leaving a right-click result, Home shows recent lookups. A
   // menu-opened popup never queries the tab's host.
   const ready =

@@ -73,7 +73,8 @@ export function chooseHome(input: {
 
 /** All four calls share one start and end, so the figures add up. Only a
  *  successful 7-day series with zero requests means "no traffic": the 7 d
- *  view's own series, or one more call when the 24 h view has none. */
+ *  view's own series, or one more call when the 24 h view has none. It
+ *  holds even when a top list failed, since there is nothing to list. */
 export async function loadSiteStats(
   client: ExtensionClient,
   hosts: string[],
@@ -97,9 +98,6 @@ export async function loadSiteStats(
   const countriesResult = unwrap<TopCountriesStatsResponse>(countries)
   const urlsResult = unwrap<TopUrlsResponse>(urls)
   if (!seriesResult.ok) return { kind: "error", failure: seriesResult.failure }
-  if (!ipsResult.ok) return { kind: "error", failure: ipsResult.failure }
-  if (!countriesResult.ok) return { kind: "error", failure: countriesResult.failure }
-  if (!urlsResult.ok) return { kind: "error", failure: urlsResult.failure }
 
   const totals = summarize(seriesResult.data.data)
   if (totals.requests === 0 && range === "7d") return { kind: "no-traffic" }
@@ -119,6 +117,9 @@ export async function loadSiteStats(
     if (!week.ok) return { kind: "error", failure: week.failure }
     if (summarize(week.data.data).requests === 0) return { kind: "no-traffic" }
   }
+  if (!ipsResult.ok) return { kind: "error", failure: ipsResult.failure }
+  if (!countriesResult.ok) return { kind: "error", failure: countriesResult.failure }
+  if (!urlsResult.ok) return { kind: "error", failure: urlsResult.failure }
 
   const hourly = zeroFillHourly(seriesResult.data.data, start, end)
   return {

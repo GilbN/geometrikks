@@ -314,7 +314,7 @@ describe("AbuseIPDB cache", () => {
 
 describe("DROP lists cache", () => {
   it("serves the lists for 6 hours", async () => {
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedTo(identityA)
     await setDropLists(identityA, lists, chromeApi)
     vi.advanceTimersByTime(6 * 60 * 60_000 - 1)
     expect(await getDropLists(identityA, chromeApi)).toEqual(lists)
@@ -323,10 +323,24 @@ describe("DROP lists cache", () => {
   })
 
   it("misses for another server or another connection to the same one", async () => {
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedTo(identityA)
     await setDropLists(identityA, lists, chromeApi)
     expect(await getDropLists({ origin: B, savedAt: 1 }, chromeApi)).toBeNull()
     expect(await getDropLists({ origin: A, savedAt: 2 }, chromeApi)).toBeNull()
+  })
+
+  it("drops a write that lands after the switch cleared the old server's data", async () => {
+    const chromeApi = connectedTo(identityA)
+    await switchTo(identityB, chromeApi)
+    await setDropLists(identityA, lists, chromeApi)
+    expect(chromeApi.storage.local.data).not.toHaveProperty("dropLists")
+    expect(await getDropLists(identityA, chromeApi)).toBeNull()
+  })
+
+  it("drops a write after a disconnect", async () => {
+    const chromeApi = fakeChrome()
+    await setDropLists(identityA, lists, chromeApi)
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual([])
   })
 })
 

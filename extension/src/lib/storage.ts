@@ -256,13 +256,14 @@ export async function getDropLists(
   return Date.now() - entry.fetchedAt < DROP_CACHE_MS ? entry.lists : null
 }
 
-/** `identity` is the connection read before the fetch started, so lists
- *  fetched for one server are never served to the next. */
+/** `identity` is the connection read before the fetch started. The write is
+ *  skipped when Options replaced or removed that connection meanwhile. */
 export async function setDropLists(
   identity: ConnectionIdentity,
   lists: DropListsResponse,
   chromeApi: ChromeApi = realChrome,
 ): Promise<void> {
+  if ((await currentLifetime(identity, chromeApi)) === null) return
   const entry: DropEntry = {
     origin: identity.origin,
     savedAt: identity.savedAt,
