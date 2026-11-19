@@ -47,11 +47,12 @@ const TS_SOURCE_FOR_JS: Record<string, string[]> = {
   ".cjs": [".cts"],
 }
 
-const CODE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs"])
+const CODE_EXTENSIONS = new Set(Object.keys(SCRIPT_KINDS).map((extension) => extension.slice(1)))
 
 function loadsCode(specifier: string): boolean {
   const query = new URLSearchParams(specifier.split("?")[1] ?? "")
-  return !query.has("raw") && !query.has("url")
+  const worker = query.has("worker") || query.has("sharedworker")
+  return !query.has("raw") && (worker || !query.has("url"))
 }
 
 function globCanMatchCode(pattern: string): boolean {
@@ -152,6 +153,8 @@ function isFile(path: string): boolean {
 function resolveLocal(specifier: string, fromFile: string): string | null {
   const [path] = specifier.split("?")
   let base: string
+  if (path.startsWith("/"))
+    throw new Error(`Root-relative import "${specifier}" in ${relative(RESOURCES, fromFile)}`)
   if (path.startsWith("@/")) base = join(RESOURCES, path.slice(2))
   else if (path.startsWith(".")) base = join(dirname(fromFile), path)
   else return null
@@ -295,6 +298,14 @@ describe("runtimeSpecifiers", () => {
     expect(runtimeSpecifiers(source)).toEqual(["./worker?worker"])
   })
 
+  it("counts a worker imported as a URL, which still bundles its code", () => {
+    const source = [
+      'import a from "./worker?worker&url"',
+      'import b from "./shared?sharedworker&url"',
+    ].join("\n")
+    expect(runtimeSpecifiers(source)).toEqual(["./worker?worker&url", "./shared?sharedworker&url"])
+  })
+
   it("throws on a dynamic import() of a non-literal", () => {
     expect(() => runtimeSpecifiers("const lazy = (name: string) => import(name)")).toThrow(
       "Unanalysable dynamic import in source.ts",
@@ -306,6 +317,9 @@ describe("runtimeSpecifiers", () => {
     'import.meta.glob(["./*.svg", "./*.tsx"])',
     'import.meta.glob("./**/*")',
     'import.meta.glob("./*.{svg,js}")',
+    'import.meta.glob("./*.mts")',
+    'import.meta.glob("./*.{svg,mts}")',
+    'import.meta.glob("./*.cts")',
     "import.meta.glob(patterns)",
     'import.meta.globEager("./*.ts")',
   ])("throws on %s", (source) => {
@@ -333,6 +347,10 @@ describe("resolveLocal", () => {
     expect(resolveLocal("./crowdsec-errors.js", from)).toBe(
       join(RESOURCES, "lib/crowdsec-errors.ts"),
     )
+  })
+
+  it("throws on a root-relative path", () => {
+    expect(() => resolveLocal("/resources/lib/api.ts", from)).toThrow(/Root-relative import/)
   })
 
   it("throws on a missing local path", () => {
