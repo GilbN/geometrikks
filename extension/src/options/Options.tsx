@@ -245,6 +245,8 @@ export function Options() {
       try {
         const result = await attempt
         if (result.ok) {
+          // A refresh that started before the save would show the old server.
+          refreshes.current++
           setDisplayed({ stored: result.stored, effective: result.stored, hasAccess: true })
           setAddress(result.stored.origin)
           addressEditedRef.current = false
