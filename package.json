@@ -17,8 +17,10 @@
     "fmt": "vp fmt",
     "check": "vp check",
     "ext:build": "vp build --config extension/vite.config.ts",
+    "ext:build:e2e": "vp build --mode e2e --config extension/vite.config.ts",
     "ext:dev": "vp build --watch --config extension/vite.config.ts",
     "ext:test": "vp test run --config extension/vitest.config.ts",
+    "ext:test:e2e": "playwright test --config=playwright.extension.config.ts",
     "ext:check-dist": "bun extension/tests/dist.check.ts",
     "ext:typecheck": "tsc --noEmit -p extension/tsconfig.json",
     "ext:zip": "bun extension/scripts/zip.ts"

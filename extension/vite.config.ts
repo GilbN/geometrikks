@@ -9,7 +9,23 @@ const EXTENSION = path.join(ROOT, "extension")
 const MANIFEST = path.join(EXTENSION, "manifest.json")
 const PAGES = ["popup.html", "options.html"]
 
-function extensionFiles(): Plugin {
+/** The e2e build pre-grants its test server, since Playwright can't click Chrome's permission prompt. */
+function e2eHostPermissions(): string[] {
+  const origin = process.env.E2E_ORIGIN
+  if (!origin) throw new Error("The e2e build needs E2E_ORIGIN, such as https://192.168.1.10:8443")
+  const url = new URL(origin)
+  if (url.protocol !== "https:") throw new Error(`E2E_ORIGIN must be https://, not ${origin}`)
+  return [`https://${url.hostname}:${url.port || "443"}/*`]
+}
+
+function manifestSource(mode: string): string {
+  const source = readFileSync(MANIFEST, "utf8")
+  if (mode !== "e2e") return source
+  const manifest = JSON.parse(source) as Record<string, unknown>
+  return `${JSON.stringify({ ...manifest, host_permissions: e2eHostPermissions() }, null, 2)}\n`
+}
+
+function extensionFiles(mode: string): Plugin {
   return {
     name: "geometrikks-extension-files",
     // vite:build-html emits the pages in its own generateBundle; post runs after it.
@@ -21,7 +37,7 @@ function extensionFiles(): Plugin {
       this.emitFile({
         type: "asset",
         fileName: "manifest.json",
-        source: readFileSync(MANIFEST, "utf8"),
+        source: manifestSource(mode),
       })
       for (const page of PAGES) {
         const html = bundle[`extension/${page}`]
@@ -71,18 +87,24 @@ function moduleGraph(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // The repo root, so CountryFlag's /node_modules/flag-icons glob resolves.
   root: ROOT,
   base: "/",
   publicDir: "extension/public",
-  plugins: [tailwindcss(), react(), extensionFiles(), moduleGraph()],
+  // dist.check.ts reads the graph of the store build, so the e2e build leaves it alone.
+  plugins: [
+    tailwindcss(),
+    react(),
+    extensionFiles(mode),
+    ...(mode === "e2e" ? [] : [moduleGraph()]),
+  ],
   resolve: {
     alias: { "@": path.join(ROOT, "resources") },
     dedupe: ["react", "react-dom", "radix-ui", "sonner"],
   },
   build: {
-    outDir: "extension/dist",
+    outDir: mode === "e2e" ? "extension/dist-e2e" : "extension/dist",
     emptyOutDir: true,
     sourcemap: false,
     modulePreload: false,
@@ -101,4 +123,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

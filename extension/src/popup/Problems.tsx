@@ -54,7 +54,11 @@ function Body({ children, last = false }: { children: ReactNode; last?: boolean 
 
 function OpenOptions({ label = "Open Options" }: { label?: string }) {
   return (
-    <Button size="sm" onClick={() => void realChrome.runtime.openOptionsPage()}>
+    <Button
+      size="sm"
+      className="dark:border-transparent dark:bg-primary dark:text-primary-foreground dark:hover:bg-primary/80"
+      onClick={() => void realChrome.runtime.openOptionsPage()}
+    >
       {label}
     </Button>
   )

@@ -222,7 +222,7 @@ function Lists({
           IPs
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="countries" className="grid gap-1">
+      <TabsContent value="countries" className="grid grid-cols-[minmax(0,1fr)] gap-1">
         {stats.countries.length === 0 && <EmptyList />}
         {stats.countries.map((country) => (
           <ListRow key={country.countryCode} share={share(country.hits, countryHits)}>
@@ -233,7 +233,7 @@ function Lists({
           </ListRow>
         ))}
       </TabsContent>
-      <TabsContent value="paths" className="grid gap-1">
+      <TabsContent value="paths" className="grid grid-cols-[minmax(0,1fr)] gap-1">
         {stats.paths.length === 0 && <EmptyList />}
         {stats.paths.map((path) => (
           <ListRow key={path.url} share={share(path.hits, pathHits)}>
@@ -243,7 +243,7 @@ function Lists({
           </ListRow>
         ))}
       </TabsContent>
-      <TabsContent value="ips" className="grid gap-1">
+      <TabsContent value="ips" className="grid grid-cols-[minmax(0,1fr)] gap-1">
         {stats.ips.length === 0 && <EmptyList />}
         {stats.ips.map((row) => (
           <ListRow

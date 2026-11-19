@@ -34,8 +34,10 @@
     "vitest.config.ts",
     "playwright.config.ts",
     "playwright.screenshots.config.ts",
+    "playwright.extension.config.ts",
     "tests/browser/**/*",
-    "tests/screenshots/**/*"
+    "tests/screenshots/**/*",
+    "tests/extension/**/*"
   ],
   "exclude": ["resources/generated/**"]
 }
