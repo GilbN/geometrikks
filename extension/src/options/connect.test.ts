@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test"
 import { fakeChrome, type FakeChrome } from "../../tests/fake-chrome"
-import type { StoredConnection } from "../lib/storage"
+import { getRecent, type StoredConnection } from "../lib/storage"
 import {
   addressError,
   apiKeysPageUrl,
@@ -8,6 +8,7 @@ import {
   connect,
   disconnect,
   grantAccess,
+  loadDisplayed,
   NOT_HTTPS_MESSAGE,
   type FetchConnection,
 } from "./connect"
@@ -56,8 +57,9 @@ function connectedChrome(origin: string, pattern: string): FakeChrome {
   const chromeApi = fakeChrome({
     local: {
       connection: storedFor(origin, pattern),
-      recent: { origin, items: [{ ip: "192.0.2.1" }] },
-      abuseCache: { "192.0.2.1": { at: Date.now() } },
+      connectionRefresh: { origin, savedAt: 1, connection: apiKeyAnswer },
+      [`recent:${origin}`]: { items: [{ ip: "192.0.2.1" }] },
+      [`abuse:${origin}`]: { "192.0.2.1": { at: Date.now() } },
       dropLists: { origin, savedAt: 1 },
     },
   })
@@ -66,6 +68,10 @@ function connectedChrome(origin: string, pattern: string): FakeChrome {
 }
 
 const callNames = (chromeApi: FakeChrome) => chromeApi.calls.map((call) => call.name)
+
+const storageFailure = () => {
+  throw new Error("QUOTA_BYTES quota exceeded")
+}
 
 describe("connect", () => {
   it("refuses an http address before asking for any permission", async () => {
@@ -217,17 +223,102 @@ describe("connect", () => {
     })
   })
 
-  it("reconnecting to the same server keeps its permission and tells nobody", async () => {
+  it("reconnecting to the same server keeps its permission and recent lookups and tells nobody", async () => {
     const chromeApi = connectedChrome(A, A_PATTERN)
 
-    await connect(
+    const result = await connect(
       { address: A, key: "gmk_new" },
-      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer), now: () => 5 },
     )
 
+    expect(result.ok).toBe(true)
     expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
     expect(callNames(chromeApi)).not.toContain("permissions.remove")
     expect(callNames(chromeApi)).not.toContain("runtime.sendMessage")
+    const ips = (await getRecent({ origin: A, savedAt: 5 }, chromeApi)).map((item) => item.ip)
+    expect(ips).toEqual(["192.0.2.1"])
+  })
+
+  it("removes a permission it granted when saving the connection fails", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.storage.local.set = async () => storageFailure()
+
+    await expect(
+      connect(
+        { address: A, key: "gmk_x" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+    expect(chromeApi.storage.local.data).toEqual({})
+  })
+
+  it("removes a permission it granted when reading the current connection fails", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.storage.local.get = async () => storageFailure()
+
+    await expect(
+      connect(
+        { address: A, key: "gmk_x" },
+        { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+      ),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+  })
+
+  it("keeps a permission it couldn't check when the connect fails", async () => {
+    const chromeApi = fakeChrome()
+    chromeApi.granted.add(A_PATTERN)
+    chromeApi.permissions.contains = async () => {
+      throw new Error("Extension context invalidated")
+    }
+
+    const result = await connect(
+      { address: A, key: "gmk_bad" },
+      { chrome: chromeApi, fetchConnection: failing(401, "api_key_invalid", "Invalid API key") },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
+    expect(callNames(chromeApi)).not.toContain("permissions.remove")
+  })
+
+  it("still connects when clearing the old server's data fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.storage.local.remove = async () => storageFailure()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    const result = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(chromeApi.storage.local.data.connection).toMatchObject({ origin: B })
+    expect([...chromeApi.granted]).toEqual([B_PATTERN])
+    expect(callNames(chromeApi)).toContain("runtime.sendMessage")
+    expect(warn).toHaveBeenCalled()
+    warn.mockRestore()
+  })
+
+  it("still connects when removing the old server's permission fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.permissions.remove = async () => {
+      throw new Error("Permission removal failed")
+    }
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    const result = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
+    expect(callNames(chromeApi)).toContain("runtime.sendMessage")
+    warn.mockRestore()
   })
 
   it("asks for a key when a keyless connect is refused", async () => {
@@ -240,6 +331,19 @@ describe("connect", () => {
     )
 
     expect(result).toEqual({ ok: false, field: "key", message: "This server needs an API key." })
+  })
+
+  it("puts a refused key on the key field too", async () => {
+    const result = await connect(
+      { address: A, key: "gmk_x" },
+      {
+        chrome: fakeChrome(),
+        fetchConnection: failing(401, "not_authenticated", "Authentication required"),
+      },
+    )
+
+    expect(result.ok === false && result.field).toBe("key")
+    expect(result.ok === false && result.message).toContain("didn't receive the key")
   })
 
   it("names a login page as not GeoMetrikks JSON", async () => {
@@ -301,7 +405,8 @@ describe("disconnect", () => {
 
 describe("grantAccess", () => {
   it("requests the stored pattern first thing", async () => {
-    const chromeApi = fakeChrome()
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.granted.clear()
 
     const pending = grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })
 
@@ -309,6 +414,54 @@ describe("grantAccess", () => {
       { name: "permissions.request", arg: { origins: [A_PATTERN] } },
     ])
     expect(await pending).toBe(true)
+  })
+
+  it("takes the grant back when another tab replaced the connection meanwhile", async () => {
+    const chromeApi = connectedChrome(B, B_PATTERN)
+
+    const pending = grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })
+
+    expect(chromeApi.calls[0]).toEqual({
+      name: "permissions.request",
+      arg: { origins: [A_PATTERN] },
+    })
+    expect(await pending).toBe(false)
+    expect([...chromeApi.granted]).toEqual([B_PATTERN])
+  })
+
+  it("takes the grant back when another tab disconnected meanwhile", async () => {
+    const chromeApi = fakeChrome()
+
+    expect(await grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })).toBe(false)
+    expect(chromeApi.granted.size).toBe(0)
+  })
+})
+
+describe("loadDisplayed", () => {
+  it("keeps the saved key details and applies the refresh for the rest", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+
+    const shown = await loadDisplayed(chromeApi)
+
+    expect(shown.hasAccess).toBe(true)
+    expect(shown.stored?.connection).toMatchObject({ scope: "read" })
+    expect(shown.effective?.connection).toMatchObject({ scope: "read_write" })
+  })
+
+  it("reports missing access", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.granted.clear()
+
+    expect((await loadDisplayed(chromeApi)).hasAccess).toBe(false)
+  })
+
+  it("assumes access when Chrome can't answer the check", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.permissions.contains = async () => {
+      throw new Error("Extension context invalidated")
+    }
+
+    expect((await loadDisplayed(chromeApi)).hasAccess).toBe(true)
   })
 })
 

@@ -9,7 +9,7 @@ function fakeStorageArea(initial: Record<string, unknown> = {}): FakeStorageArea
   return {
     data,
     async get(keys) {
-      const wanted = typeof keys === "string" ? [keys] : keys
+      const wanted = keys === null ? Object.keys(data) : typeof keys === "string" ? [keys] : keys
       return Object.fromEntries(
         wanted.filter((key) => key in data).map((key) => [key, structuredClone(data[key])]),
       )

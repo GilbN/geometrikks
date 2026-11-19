@@ -60,10 +60,16 @@ const KEYS = {
   connection: "connection",
   connectionRefresh: "connectionRefresh",
   settings: "settings",
-  recent: "recent",
-  abuseCache: "abuseCache",
   dropLists: "dropLists",
 } as const
+
+/** One key per server origin. chrome.storage has no compare-and-set, so a
+ *  late write for a replaced server must land on that server's own key and
+ *  never overwrite the next server's rows. */
+const RECENT_PREFIX = "recent:"
+const ABUSE_PREFIX = "abuse:"
+const recentKey = (origin: string) => `${RECENT_PREFIX}${origin}`
+const abuseKey = (origin: string) => `${ABUSE_PREFIX}${origin}`
 
 const DEFAULT_SETTINGS: Settings = { showSiteStats: true }
 
@@ -73,11 +79,11 @@ export interface ConnectionIdentity {
   savedAt: number
 }
 
-interface RecentEntry extends ConnectionIdentity {
+interface RecentEntry {
   items: RecentLookup[]
 }
 
-interface AbuseEntry extends ConnectionIdentity {
+interface AbuseEntry {
   result: CheckResponse
   at: number
 }
@@ -141,13 +147,14 @@ export async function setSettings(
   await chromeApi.storage.local.set({ [KEYS.settings]: settings })
 }
 
-/** Newest first, and only the lookups made under this connection. */
+/** Newest first, and only the lookups made on this server. A reconnect to
+ *  the same origin, such as a key rotation, keeps them. */
 export async function getRecent(
   identity: ConnectionIdentity,
   chromeApi: ChromeApi = realChrome,
 ): Promise<RecentLookup[]> {
-  const entry = await read<RecentEntry>(chromeApi, KEYS.recent)
-  return entry && sameIdentity(entry, identity) ? entry.items : []
+  const entry = await read<RecentEntry>(chromeApi, recentKey(identity.origin))
+  return entry?.items ?? []
 }
 
 /** `identity` is the connection read when the lookup started. The write is
@@ -160,12 +167,17 @@ export async function pushRecent(
   const items = await getRecent(identity, chromeApi)
   const next = [lookup, ...items.filter((item) => item.ip !== lookup.ip)].slice(0, RECENT_LIMIT)
   if (!(await isCurrent(identity, chromeApi))) return
-  const entry: RecentEntry = { origin: identity.origin, savedAt: identity.savedAt, items: next }
-  await chromeApi.storage.local.set({ [KEYS.recent]: entry })
+  const entry: RecentEntry = { items: next }
+  await chromeApi.storage.local.set({ [recentKey(identity.origin)]: entry })
+}
+
+async function keysWithPrefix(chromeApi: ChromeApi, prefixes: string[]): Promise<string[]> {
+  const items = await chromeApi.storage.local.get(null)
+  return Object.keys(items).filter((key) => prefixes.some((prefix) => key.startsWith(prefix)))
 }
 
 export async function clearRecent(chromeApi: ChromeApi = realChrome): Promise<void> {
-  await chromeApi.storage.local.remove(KEYS.recent)
+  await chromeApi.storage.local.remove(await keysWithPrefix(chromeApi, [RECENT_PREFIX]))
 }
 
 export async function getAbuseCache(
@@ -173,9 +185,9 @@ export async function getAbuseCache(
   ip: string,
   chromeApi: ChromeApi = realChrome,
 ): Promise<CheckResponse | null> {
-  const cache = (await read<Record<string, AbuseEntry>>(chromeApi, KEYS.abuseCache)) ?? {}
+  const cache = (await read<Record<string, AbuseEntry>>(chromeApi, abuseKey(identity.origin))) ?? {}
   const entry = cache[ip]
-  if (!entry || !sameIdentity(entry, identity)) return null
+  if (!entry) return null
   return Date.now() - entry.at < ABUSE_CACHE_MS ? entry.result : null
 }
 
@@ -188,15 +200,14 @@ export async function setAbuseCache(
   chromeApi: ChromeApi = realChrome,
 ): Promise<void> {
   const now = Date.now()
-  const cache = (await read<Record<string, AbuseEntry>>(chromeApi, KEYS.abuseCache)) ?? {}
+  const key = abuseKey(identity.origin)
+  const cache = (await read<Record<string, AbuseEntry>>(chromeApi, key)) ?? {}
   const kept = Object.fromEntries(
-    Object.entries(cache).filter(
-      ([, entry]) => sameIdentity(entry, identity) && now - entry.at < ABUSE_CACHE_MS,
-    ),
+    Object.entries(cache).filter(([, entry]) => now - entry.at < ABUSE_CACHE_MS),
   )
   if (!(await isCurrent(identity, chromeApi))) return
-  const entry: AbuseEntry = { origin: identity.origin, savedAt: identity.savedAt, result, at: now }
-  await chromeApi.storage.local.set({ [KEYS.abuseCache]: { ...kept, [ip]: entry } })
+  const entry: AbuseEntry = { result, at: now }
+  await chromeApi.storage.local.set({ [key]: { ...kept, [ip]: entry } })
 }
 
 /** The cached lists, or null when stale or fetched for another connection. */
@@ -225,13 +236,9 @@ export async function setDropLists(
   await chromeApi.storage.local.set({ [KEYS.dropLists]: entry })
 }
 
-/** Everything kept for the current server except the connection itself.
+/** Everything kept for any server except the connection itself.
  *  Pending right-click items live in session storage; the worker clears those. */
 export async function clearLocalServerData(chromeApi: ChromeApi = realChrome): Promise<void> {
-  await chromeApi.storage.local.remove([
-    KEYS.recent,
-    KEYS.abuseCache,
-    KEYS.dropLists,
-    KEYS.connectionRefresh,
-  ])
+  const perServer = await keysWithPrefix(chromeApi, [RECENT_PREFIX, ABUSE_PREFIX])
+  await chromeApi.storage.local.remove([...perServer, KEYS.dropLists, KEYS.connectionRefresh])
 }

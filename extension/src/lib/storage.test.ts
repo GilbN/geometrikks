@@ -3,6 +3,7 @@ import type { CheckResponse, DropListsResponse } from "@/generated/api/types.gen
 import { fakeChrome } from "../../tests/fake-chrome"
 import {
   clearLocalServerData,
+  clearRecent,
   getAbuseCache,
   getConnection,
   getConnectionRefresh,
@@ -70,6 +71,23 @@ function connectedTo(identity: { origin: string; savedAt: number }) {
   return fakeChrome({ local: { connection: identity } })
 }
 
+/** Holds writes of `key` until `release`, so a test can interleave another write. */
+function pauseWritesOf(chromeApi: ReturnType<typeof fakeChrome>, key: string) {
+  const write = chromeApi.storage.local.set
+  let release!: () => void
+  let reached!: () => void
+  const released = new Promise<void>((resolve) => (release = resolve))
+  const paused = new Promise<void>((resolve) => (reached = resolve))
+  chromeApi.storage.local.set = async (items) => {
+    if (key in items) {
+      reached()
+      await released
+    }
+    await write(items)
+  }
+  return { paused, release }
+}
+
 describe("recent lookups", () => {
   it("keeps five, newest first, one row per IP", async () => {
     const chromeApi = connectedTo(identityA)
@@ -80,13 +98,34 @@ describe("recent lookups", () => {
     expect(ips).toEqual(["10.0.0.3", "10.0.0.6", "10.0.0.5", "10.0.0.4", "10.0.0.2"])
   })
 
-  it("belongs to one connection", async () => {
+  it("belongs to one server and survives a reconnect to it", async () => {
     const chromeApi = connectedTo(identityA)
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
     expect(await getRecent(identityB, chromeApi)).toEqual([])
-    expect(await getRecent({ origin: A, savedAt: 2 }, chromeApi)).toEqual([])
+    const reconnected = { origin: A, savedAt: 2 }
+    expect((await getRecent(reconnected, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.1"])
     await setConnection(identityB as StoredConnection, chromeApi)
     await pushRecent(identityB, lookup("10.0.0.2", 2), chromeApi)
+    expect((await getRecent(identityB, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.2"])
+  })
+
+  it("drops a write from an older connection to the same server", async () => {
+    const chromeApi = connectedTo({ origin: A, savedAt: 2 })
+    await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
+    expect(await getRecent({ origin: A, savedAt: 2 }, chromeApi)).toEqual([])
+  })
+
+  it("keeps the next server's rows when a replaced server's write lands late", async () => {
+    const chromeApi = connectedTo(identityA)
+    const gate = pauseWritesOf(chromeApi, `recent:${A}`)
+
+    const late = pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
+    await gate.paused
+    await setConnection(identityB as StoredConnection, chromeApi)
+    await pushRecent(identityB, lookup("10.0.0.2", 2), chromeApi)
+    gate.release()
+    await late
+
     expect((await getRecent(identityB, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.2"])
   })
 
@@ -101,7 +140,16 @@ describe("recent lookups", () => {
   it("drops a write after a disconnect", async () => {
     const chromeApi = fakeChrome()
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
-    expect(chromeApi.storage.local.data.recent).toBeUndefined()
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual([])
+  })
+
+  it("clears every server's rows", async () => {
+    const chromeApi = connectedTo(identityA)
+    await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
+    await setConnection(identityB as StoredConnection, chromeApi)
+    await pushRecent(identityB, lookup("10.0.0.2", 2), chromeApi)
+    await clearRecent(chromeApi)
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
   })
 })
 
@@ -115,18 +163,35 @@ describe("AbuseIPDB cache", () => {
     expect(await getAbuseCache(identityA, "185.224.128.17", chromeApi)).toBeNull()
   })
 
-  it("misses for another connection", async () => {
+  it("misses for another server and survives a reconnect to the same one", async () => {
     const chromeApi = connectedTo(identityA)
     await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
     expect(await getAbuseCache(identityB, "185.224.128.17", chromeApi)).toBeNull()
-    expect(await getAbuseCache({ origin: A, savedAt: 2 }, "185.224.128.17", chromeApi)).toBeNull()
+    expect(await getAbuseCache({ origin: A, savedAt: 2 }, "185.224.128.17", chromeApi)).toEqual(
+      abuse,
+    )
   })
 
   it("drops a late write from a server that was replaced", async () => {
     const chromeApi = connectedTo(identityB)
     await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
     expect(await getAbuseCache(identityB, "185.224.128.17", chromeApi)).toBeNull()
-    expect(chromeApi.storage.local.data.abuseCache).toBeUndefined()
+    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
+  })
+
+  it("keeps the next server's results when a replaced server's write lands late", async () => {
+    const chromeApi = connectedTo(identityA)
+    const gate = pauseWritesOf(chromeApi, `abuse:${A}`)
+    const other = { ...abuse, abuseConfidenceScore: 5 }
+
+    const late = setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
+    await gate.paused
+    await setConnection(identityB as StoredConnection, chromeApi)
+    await setAbuseCache(identityB, "185.224.128.17", other, chromeApi)
+    gate.release()
+    await late
+
+    expect(await getAbuseCache(identityB, "185.224.128.17", chromeApi)).toEqual(other)
   })
 })
 
@@ -151,7 +216,12 @@ describe("DROP lists cache", () => {
 describe("clearLocalServerData", () => {
   it("clears recent, AbuseIPDB, DROP and refresh data and keeps the connection and settings", async () => {
     const chromeApi = fakeChrome({
-      local: { connection: identityA, settings: { showSiteStats: false } },
+      local: {
+        connection: identityA,
+        settings: { showSiteStats: false },
+        [`recent:${B}`]: { items: [lookup("10.0.0.9", 9)] },
+        [`abuse:${B}`]: {},
+      },
     })
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
     await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
@@ -167,5 +237,6 @@ describe("clearLocalServerData", () => {
     expect(await getConnectionRefresh(chromeApi)).toBeNull()
     expect(await getConnection(chromeApi)).toEqual(identityA)
     expect(await getSettings(chromeApi)).toEqual({ showSiteStats: false })
+    expect(Object.keys(chromeApi.storage.local.data).sort()).toEqual(["connection", "settings"])
   })
 })

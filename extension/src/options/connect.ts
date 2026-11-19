@@ -2,9 +2,11 @@ import type { ChromeApi } from "../lib/chrome-api"
 import type { ClientTarget } from "../lib/client"
 import type { FailureInput } from "../lib/failures"
 import { normalizeOrigin } from "../lib/origin"
+import { effectiveConnection } from "../lib/connection"
 import {
   clearLocalServerData,
   getConnection,
+  getConnectionRefresh,
   removeConnection,
   setConnection,
   type ConnectionResponse,
@@ -16,6 +18,7 @@ export const INVALID_ADDRESS_MESSAGE = "Enter the full address, starting with ht
 export const MISSING_ADDRESS_MESSAGE = "Enter the address you open GeoMetrikks on."
 export const AUTH_OFF_WITH_KEY_MESSAGE =
   "Authentication is off on this server. Clear the key field to connect without one."
+export const UNEXPECTED_MESSAGE = "Something went wrong. Try again."
 
 export type FetchConnection = (
   target: ClientTarget,
@@ -59,18 +62,31 @@ function failureMessage(
       field: null,
       message: `${host} didn't answer with GeoMetrikks JSON. A login proxy in front of it has to let /api/ through.`,
     }
-  if (failure.code === "not_authenticated" && !keyed)
-    return { field: "key", message: "This server needs an API key." }
+  if (failure.code === "not_authenticated")
+    return {
+      field: "key",
+      message: keyed
+        ? `${host} didn't receive the key. A proxy in front of it may be dropping the Authorization header.`
+        : "This server needs an API key.",
+    }
   const keyField = failure.code === "api_key_invalid" || failure.code === "api_key_expired"
   if (failure.detail) return { field: keyField ? "key" : null, message: failure.detail }
   return { field: null, message: `${host} answered with status ${failure.status ?? "unknown"}.` }
 }
 
-async function settle(promise: Promise<boolean>): Promise<boolean> {
+async function settle(promise: Promise<boolean>, fallback: boolean): Promise<boolean> {
   try {
     return await promise
   } catch {
-    return false
+    return fallback
+  }
+}
+
+async function bestEffort(step: string, run: () => Promise<unknown>): Promise<void> {
+  try {
+    await run()
+  } catch (error) {
+    console.warn(`GeoMetrikks for Chrome: ${step} failed`, error)
   }
 }
 
@@ -98,8 +114,10 @@ export async function connect(
   }
   const { origin, pattern } = normalized
   const permissions = { origins: [pattern] }
-  const wasGrantedCheck = settle(deps.chrome.permissions.contains(permissions))
-  const grantRequest = settle(deps.chrome.permissions.request(permissions))
+  // A failed check counts as granted, so the rollback below never removes a
+  // permission that may have been working before this attempt.
+  const wasGrantedCheck = settle(deps.chrome.permissions.contains(permissions), true)
+  const grantRequest = settle(deps.chrome.permissions.request(permissions), false)
 
   const host = new URL(origin).host
   const wasGranted = await wasGrantedCheck
@@ -112,45 +130,67 @@ export async function connect(
     }
   }
 
-  const rollBack = async () => {
-    if (!wasGranted) await deps.chrome.permissions.remove(permissions)
+  let saved = false
+  try {
+    const key = input.key.trim() || null
+    const result = await verify(deps, { origin, pattern, key }, host)
+    if (!result.ok) return result
+    const previous = await getConnection(deps.chrome)
+    await setConnection(result.stored, deps.chrome)
+    saved = true
+    if (previous && previous.origin !== origin) await forgetServer(deps.chrome, previous, pattern)
+    return result
+  } finally {
+    if (!saved && !wasGranted)
+      await bestEffort("removing the new permission", () =>
+        deps.chrome.permissions.remove(permissions),
+      )
   }
+}
 
-  const key = input.key.trim() || null
+async function verify(
+  deps: ConnectDeps,
+  target: { origin: string; pattern: string; key: string | null },
+  host: string,
+): Promise<ConnectResult> {
+  const { origin, pattern, key } = target
   let result: Awaited<ReturnType<FetchConnection>>
   try {
     result = await deps.fetchConnection({ origin, key })
   } catch {
     result = { ok: false, failure: { networkError: true } }
   }
-  if (!result.ok) {
-    await rollBack()
-    return { ok: false, ...failureMessage(result.failure, host, key !== null) }
-  }
+  if (!result.ok) return { ok: false, ...failureMessage(result.failure, host, key !== null) }
   const { connection } = result
-  if (connection.mode === "disabled" && key !== null) {
-    await rollBack()
+  if (connection.mode === "disabled" && key !== null)
     return { ok: false, field: "key", message: AUTH_OFF_WITH_KEY_MESSAGE }
+  return {
+    ok: true,
+    stored: {
+      origin,
+      pattern,
+      key,
+      keyless: key === null,
+      verifiedScope: connection.mode === "apiKey" ? connection.scope : null,
+      connection,
+      savedAt: (deps.now ?? Date.now)(),
+    },
   }
+}
 
-  const previous = await getConnection(deps.chrome)
-  const stored: StoredConnection = {
-    origin,
-    pattern,
-    key,
-    keyless: key === null,
-    verifiedScope: connection.mode === "apiKey" ? connection.scope : null,
-    connection,
-    savedAt: (deps.now ?? Date.now)(),
-  }
-  await setConnection(stored, deps.chrome)
-  if (previous && previous.origin !== origin) {
-    await clearLocalServerData(deps.chrome)
-    if (previous.pattern !== pattern)
-      await deps.chrome.permissions.remove({ origins: [previous.pattern] })
-    await notifyServerChanged(deps.chrome)
-  }
-  return { ok: true, stored }
+/** The new connection is already saved, so a failing step is logged and
+ *  skipped instead of turning a working Connect into an error. */
+async function forgetServer(
+  chromeApi: ChromeApi,
+  previous: StoredConnection,
+  pattern: string,
+): Promise<void> {
+  await bestEffort("clearing the old server's data", () => clearLocalServerData(chromeApi))
+  if (previous.pattern !== pattern)
+    await bestEffort("removing the old server's permission", () =>
+      chromeApi.permissions.remove({ origins: [previous.pattern] }),
+    )
+  await notifyServerChanged(chromeApi)
 }
 
 export async function disconnect(deps: { chrome: ChromeApi }): Promise<void> {
@@ -161,10 +201,41 @@ export async function disconnect(deps: { chrome: ChromeApi }): Promise<void> {
   await notifyServerChanged(deps.chrome)
 }
 
-/** Like `connect`, call it straight from the click handler. */
+/** Like `connect`, call it straight from the click handler. Another Options
+ *  tab may have replaced or removed the connection meanwhile; then the grant
+ *  is taken back. */
 export async function grantAccess(deps: {
   chrome: ChromeApi
   stored: StoredConnection
 }): Promise<boolean> {
-  return settle(deps.chrome.permissions.request({ origins: [deps.stored.pattern] }))
+  const permissions = { origins: [deps.stored.pattern] }
+  const granted = await settle(deps.chrome.permissions.request(permissions), false)
+  if (!granted) return false
+  const current = await getConnection(deps.chrome)
+  if (current?.pattern === deps.stored.pattern) return true
+  await bestEffort("removing a grant for a replaced server", () =>
+    deps.chrome.permissions.remove(permissions),
+  )
+  return false
+}
+
+export interface DisplayedConnection {
+  /** As saved at Connect, with the verified key name and scope. */
+  stored: StoredConnection | null
+  /** `stored` with the latest refresh applied, for versions and features. */
+  effective: StoredConnection | null
+  hasAccess: boolean
+}
+
+export async function loadDisplayed(chromeApi: ChromeApi): Promise<DisplayedConnection> {
+  const [stored, refresh] = await Promise.all([
+    getConnection(chromeApi),
+    getConnectionRefresh(chromeApi),
+  ])
+  if (!stored) return { stored: null, effective: null, hasAccess: true }
+  const hasAccess = await settle(
+    chromeApi.permissions.contains({ origins: [stored.pattern] }),
+    true,
+  )
+  return { stored, effective: effectiveConnection(stored, refresh), hasAccess }
 }
