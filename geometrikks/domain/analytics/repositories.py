@@ -28,13 +28,16 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from geometrikks.server.logging import get_logger
 from geometrikks.server.timescale import LATENCY_FILTER, latency_filter
+
+if TYPE_CHECKING:
+    from sqlalchemy import Row
 
 logger = get_logger(__name__)
 
@@ -1008,7 +1011,7 @@ class SummaryStatsRepository:
 
     async def get_top_ips(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
-    ) -> list[TopIpRow]:
+    ) -> TopIps:
         """Top client IPs: stitched log_ip CAGG read above 24h, raw otherwise.
 
         Country/city/IP filters apply on the CAGG path (its columns carry the
@@ -1030,7 +1033,8 @@ class SummaryStatsRepository:
                 CAST(SUM(error_hits) AS BIGINT) AS error_hits,
                 CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
                 MAX(country_code) AS country_code,
-                MAX(city) AS city
+                MAX(city) AS city,
+                CAST(COUNT(*) OVER () AS BIGINT) AS distinct_ips
             FROM combined
             WHERE TRUE {filter_sql}
             GROUP BY ip_address
@@ -1040,27 +1044,9 @@ class SummaryStatsRepository:
         result = await self.session.execute(
             stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
-        top_ips = [TopIpRow(**row._mapping) for row in result.fetchall()]
-        await self._attach_asns(top_ips, start, end, granularity)
+        top_ips = _top_ips_page(result.fetchall())
+        await self._attach_asns(top_ips.rows, start, end, granularity)
         return top_ips
-
-    async def count_distinct_ips(
-        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
-    ) -> int:
-        """Distinct client IPs in the range after filters, routed like ``get_top_ips``."""
-        filters = filters or AnalyticsFilters()
-        granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
-            return await LiveStatsRepository(self.session).count_distinct_ips(start, end, filters=filters)
-        filter_sql, filter_params = filters.sql_conditions()
-        stmt = text(f"""
-            {self._log_ip_combined_cte(granularity)}
-            SELECT CAST(COUNT(DISTINCT ip_address) AS BIGINT)
-            FROM combined
-            WHERE TRUE {filter_sql}
-        """)
-        result = await self.session.execute(stmt, {**_stitch_params(start, end, granularity), **filter_params})
-        return int(result.scalar_one())
 
     async def _attach_asns(
         self, top_ips: list[TopIpRow], start: datetime, end: datetime, granularity: StatsGranularity
@@ -1217,6 +1203,25 @@ class TopIpRow:
     city: str | None
     asn: int | None = None
     as_organization: str | None = None
+
+
+@dataclass
+class TopIps:
+    """A page of top IPs and the distinct IP count across all pages."""
+
+    rows: list[TopIpRow]
+    distinct_ips: int
+
+
+def _top_ips_page(result_rows: Sequence[Row]) -> TopIps:
+    """Split the per-row ``COUNT(*) OVER ()`` column off the IP rows."""
+    return TopIps(
+        rows=[
+            TopIpRow(**{column: value for column, value in row._mapping.items() if column != "distinct_ips"})
+            for row in result_rows
+        ],
+        distinct_ips=int(result_rows[0].distinct_ips) if result_rows else 0,
+    )
 
 
 @dataclass
@@ -1638,7 +1643,7 @@ class LiveStatsRepository:
 
     async def get_top_ips(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
-    ) -> list[TopIpRow]:
+    ) -> TopIps:
         """Top client IPs by hit count from raw access_logs (time-bounded)."""
         filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
         stmt = text(f"""
@@ -1650,7 +1655,8 @@ class LiveStatsRepository:
                 MAX(country_code) AS country_code,
                 MAX(city) AS city,
                 MAX(autonomous_system_number) AS asn,
-                MAX(autonomous_system_organization) AS as_organization
+                MAX(autonomous_system_organization) AS as_organization,
+                CAST(COUNT(*) OVER () AS BIGINT) AS distinct_ips
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end
             {filter_sql}
@@ -1662,22 +1668,7 @@ class LiveStatsRepository:
         result = await self.session.execute(
             stmt, {"start": start, "end": end, "limit": limit, **filter_params}
         )
-        return [TopIpRow(**row._mapping) for row in result.fetchall()]
-
-    async def count_distinct_ips(
-        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
-    ) -> int:
-        """Distinct client IPs in the range after filters, from raw access_logs."""
-        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
-        stmt = text(f"""
-            SELECT CAST(COUNT(DISTINCT ip_address) AS BIGINT)
-            FROM access_logs
-            WHERE timestamp >= :start AND timestamp < :end
-            {filter_sql}
-        """)
-        await plan_for_wide_scan(self.session)
-        result = await self.session.execute(stmt, {"start": start, "end": end, **filter_params})
-        return int(result.scalar_one())
+        return _top_ips_page(result.fetchall())
 
     async def get_top_countries(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None

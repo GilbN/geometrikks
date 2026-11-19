@@ -104,6 +104,30 @@ async def test_top_ips_week_range_uses_hourly_cagg_even_filtered():
     assert "log_ip_hourly_stats" in session.statements[-1]
 
 
+@pytest.mark.parametrize(
+    ("start", "filters", "source"),
+    [
+        (SHORT_START, AnalyticsFilters(), "FROM access_logs"),
+        (WEEK_START, AnalyticsFilters(), "FROM log_ip_hourly_stats"),
+        (LONG_START, AnalyticsFilters(), "FROM log_ip_daily_stats"),
+        (WEEK_START, AnalyticsFilters(country_codes=["NO"]), "FROM log_ip_hourly_stats"),
+        (WEEK_START, AnalyticsFilters(hosts=["a.example"]), "FROM access_logs"),
+    ],
+    ids=["raw", "hourly", "daily", "hourly-country", "week-host"],
+)
+async def test_top_ips_count_distinct_ips_in_the_same_statement(start, filters, source):
+    session = _RecordingSession()
+    await _repo(session).get_top_ips(start, NOW, filters=filters)
+    [sql] = [statement for statement in session.statements if "GROUP BY ip_address" in statement]
+    assert source in sql
+    assert "COUNT(*) OVER ()" in sql
+    assert sql.index("COUNT(*) OVER ()") < sql.index("LIMIT :limit")
+    if source == "FROM access_logs":
+        assert "log_ip_" not in sql
+    if filters.hosts:
+        assert "host = ANY(:filter_hosts)" in sql
+
+
 async def test_top_countries_long_range_uses_daily_cagg():
     session = _RecordingSession()
     await _repo(session).get_top_countries(LONG_START, NOW)

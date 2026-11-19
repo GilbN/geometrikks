@@ -771,13 +771,12 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
         )
-        rows = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
-        distinct_ips = await summary_stats_repo.count_distinct_ips(start_date, end_date, filters=filters)
+        top_ips = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
         return TopIpsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
-            items=[TopIpDTO(**vars(r)) for r in rows],
-            distinct_ips=distinct_ips,
+            items=[TopIpDTO(**vars(r)) for r in top_ips.rows],
+            distinct_ips=top_ips.distinct_ips,
         )
 
     @get(
