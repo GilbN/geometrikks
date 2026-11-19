@@ -8,6 +8,11 @@ docs/superpowers/
 /logs
 /nginx_logs
 /smoke-artifacts/
+extension/dist/
+extension/dist-e2e/
+extension/*.zip
+extension/.build/
+tests/extension/__screens__/
 *.local.md
 
 # Byte-compiled / optimized / DLL files

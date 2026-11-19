@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "GeoMetrikks for Chrome",
+  "version": "0.1.0",
+  "minimum_chrome_version": "145",
+  "description": "Look up and ban IPs and see the current site's traffic on your own GeoMetrikks server, from the toolbar or right-click menu.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "GeoMetrikks",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "worker.js",
+    "type": "module"
+  },
+  "permissions": ["storage", "contextMenus", "activeTab"],
+  "optional_host_permissions": ["https://*/*"],
+  "omnibox": {
+    "keyword": "gmk"
+  }
+}

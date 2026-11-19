@@ -1,0 +1,12 @@
+@import "../../resources/main.css";
+
+@source "../../resources/components";
+@source "./";
+
+body {
+  width: 380px;
+}
+
+body[data-page="options"] {
+  width: auto;
+}
