@@ -30,13 +30,15 @@ function SearchField({
   autoFocus,
   inputRef,
   onLookup,
+  initialText = "",
 }: {
   autoFocus: boolean
   inputRef: Ref<HTMLInputElement>
   onLookup: (ip: string) => void
+  initialText?: string
 }) {
-  const [text, setText] = useState("")
-  const [invalid, setInvalid] = useState(false)
+  const [text, setText] = useState(initialText)
+  const [invalid, setInvalid] = useState(initialText !== "" && parseSingleIp(initialText) === null)
   const errorId = useId()
   return (
     <div className="grid gap-1">
@@ -111,6 +113,7 @@ export function Home({
   searchRef: givenSearchRef,
   recent = null,
   decisionTypes = {},
+  initialSearch,
 }: {
   session: PopupSession
   mode: HomeMode
@@ -121,6 +124,8 @@ export function Home({
   recent?: RecentLookup[] | null
   /** Decision types a lookup confirmed after the site stats marked their IPs. */
   decisionTypes?: Record<string, string | null>
+  /** Right-clicked text that isn't an IP, shown in the field to fix. */
+  initialSearch?: string
 }) {
   const [noTraffic, setNoTraffic] = useState(false)
   const hosts = useMemo(() => hostValuesFromUrl(session.ctx.tabUrl), [session.ctx.tabUrl])
@@ -147,7 +152,12 @@ export function Home({
   return (
     <>
       <main className="grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-3 overflow-auto p-3">
-        <SearchField autoFocus={!showStats} inputRef={searchRef} onLookup={onLookup} />
+        <SearchField
+          autoFocus={!showStats}
+          inputRef={searchRef}
+          onLookup={onLookup}
+          initialText={initialSearch}
+        />
         {showStats ? (
           <SiteStats
             session={session}

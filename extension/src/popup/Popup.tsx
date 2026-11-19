@@ -126,6 +126,14 @@ function hostOf(origin: string): string {
   return new URL(origin).host
 }
 
+/** What a right-click result renders with. While the check runs, or after
+ *  it failed, there is no session and only a summary can show. */
+export interface PendingView {
+  session: PopupSession | null
+  lookup: (ip: string) => ReactNode
+  home: (initialSearch: string) => ReactNode
+}
+
 const claimNothing = async (): Promise<PendingItem | null> => null
 const renderNothing = (): ReactNode => null
 
@@ -135,7 +143,7 @@ export function Popup({
 }: {
   /** Must keep its identity across renders: a new function claims again. */
   claim?: (ctx: OpenContext, origin: string) => Promise<PendingItem | null>
-  renderPending?: (item: PendingItem) => ReactNode
+  renderPending?: (item: PendingItem, view: PendingView) => ReactNode
 }) {
   const [opened, setOpened] = useState<Opened | null>(null)
   const [checked, setCheck] = useState<Check>({ kind: "checking" })
@@ -144,6 +152,7 @@ export function Popup({
   const [lookups, setLookups] = useState(0)
   const [recent, setRecent] = useState<RecentLookup[] | null>(null)
   const [decisionTypes, setDecisionTypes] = useState<Record<string, string | null>>({})
+  const [pendingDismissed, setPendingDismissed] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const opener = useRef<HTMLElement | null>(null)
   const returning = useRef(false)
@@ -184,7 +193,7 @@ export function Popup({
   }, [opened, attempt])
 
   const stored = opened?.stored ?? null
-  const claimed = opened?.claimed ?? null
+  const claimed = pendingDismissed ? null : (opened?.claimed ?? null)
   const check: Check =
     opened !== null && stored === null ? { kind: "problem", problem: "not-connected" } : checked
   const host = stored ? hostOf(stored.origin) : null
@@ -200,10 +209,12 @@ export function Popup({
     opener.current = active instanceof HTMLElement && active !== document.body ? active : null
     setLookupIp(ip)
     setLookups((count) => count + 1)
+    setPendingDismissed(true)
   }
   const onBack = () => {
     returning.current = true
     setLookupIp(null)
+    setPendingDismissed(true)
   }
   const onDecisions = useCallback((ip: string, decisions: DecisionView[]) => {
     const type = winningDecision(decisions)?.type ?? null
@@ -216,11 +227,15 @@ export function Popup({
     const target = opener.current?.isConnected ? opener.current : searchRef.current
     target?.focus()
   }, [lookupIp])
+  // After leaving a right-click result, Home shows recent lookups. A
+  // menu-opened popup never queries the tab's host.
   const ready =
-    check.kind === "ready" && check.home !== "pending"
-      ? { session: check.session, home: check.home }
+    check.kind === "ready" && claimed === null
+      ? { session: check.session, home: check.home === "pending" ? "recent" : check.home }
       : null
   const lookup = ready && lookupIp !== null ? lookupIp : null
+  const session = check.kind === "ready" ? check.session : null
+  const pendingLookup = claimed !== null && claimed.ip !== null && session !== null
 
   const problem =
     check.kind === "problem" ? (
@@ -239,12 +254,30 @@ export function Popup({
         host={host}
         health={health}
         readOnly={readOnly}
-        {...(lookup !== null ? { title: "Lookup", onBack } : {})}
+        {...(lookup !== null || pendingLookup ? { title: "Lookup", onBack } : {})}
       />
-      {claimed !== null ? (
+      {claimed !== null && session !== null ? (
+        renderPending(claimed, {
+          session,
+          lookup: (ip) => (
+            <Lookup session={session} ip={ip} onDecisions={onDecisions} onRecent={setRecent} />
+          ),
+          home: (initialSearch) => (
+            <Home
+              session={session}
+              mode="recent"
+              onLookup={onLookup}
+              searchRef={searchRef}
+              recent={recent}
+              decisionTypes={decisionTypes}
+              initialSearch={initialSearch}
+            />
+          ),
+        })
+      ) : claimed !== null ? (
         <main className="grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-3 overflow-auto p-3">
           {problem}
-          {renderPending(claimed)}
+          {renderPending(claimed, { session: null, lookup: () => null, home: () => null })}
         </main>
       ) : ready ? (
         <>
