@@ -150,8 +150,8 @@ export async function getRecent(
   return entry && sameIdentity(entry, identity) ? entry.items : []
 }
 
-/** `identity` is the connection read when the lookup started. Dropped when
- *  that connection was replaced or removed while the lookup ran. */
+/** `identity` is the connection read when the lookup started. The write is
+ *  skipped when Options replaced or removed that connection meanwhile. */
 export async function pushRecent(
   identity: ConnectionIdentity,
   lookup: RecentLookup,
@@ -179,8 +179,8 @@ export async function getAbuseCache(
   return Date.now() - entry.at < ABUSE_CACHE_MS ? entry.result : null
 }
 
-/** `identity` is the connection read when the check started. Dropped when
- *  that connection was replaced or removed while the check ran. */
+/** `identity` is the connection read when the check started. The write is
+ *  skipped when Options replaced or removed that connection meanwhile. */
 export async function setAbuseCache(
   identity: ConnectionIdentity,
   ip: string,
