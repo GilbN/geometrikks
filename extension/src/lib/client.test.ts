@@ -148,6 +148,7 @@ describe("fetchConnection", () => {
       { ...apiKeyBody, scope: "admin" },
       { ...apiKeyBody, name: 7 },
       { ...apiKeyBody, expiresAt: 0 },
+      { ...apiKeyBody, expiresAt: "tomorrow-ish" },
     ]) {
       const recorder = recordingFetch(() => json(body))
       expect(await fetchConnection(target, { fetch: recorder.fetch })).toEqual({
@@ -155,6 +156,15 @@ describe("fetchConnection", () => {
         failure: { status: 200, notJson: true },
       })
     }
+  })
+
+  it("accepts an apiKey answer with a dated expiry", async () => {
+    const body = { ...apiKeyBody, expiresAt: "2027-01-01T00:00:00Z" }
+    const recorder = recordingFetch(() => json(body))
+    expect(await fetchConnection(target, { fetch: recorder.fetch })).toEqual({
+      ok: true,
+      connection: body,
+    })
   })
 
   it("reports network errors and timeouts", async () => {
@@ -204,6 +214,31 @@ describe("unwrap", () => {
     expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({
       ok: false,
       failure: { timedOut: true },
+    })
+  })
+
+  it.each([
+    ["without", {}],
+    ["with", { "Content-Length": "0" }],
+  ])("fails an empty 200 JSON body %s Content-Length: 0", async (_label, headers) => {
+    const recorder = recordingFetch(
+      () => new Response("", { headers: { "Content-Type": "application/json", ...headers } }),
+    )
+    const client = createExtensionClient(target, { fetch: recorder.fetch })
+    expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({
+      ok: false,
+      failure: { status: 200, notJson: true },
+    })
+  })
+
+  it("treats an empty JSON 204 from the server as success", async () => {
+    const recorder = recordingFetch(
+      () => new Response(null, { status: 204, headers: { "Content-Type": "application/json" } }),
+    )
+    const client = createExtensionClient(target, { fetch: recorder.fetch })
+    expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({
+      ok: true,
+      data: {},
     })
   })
 
