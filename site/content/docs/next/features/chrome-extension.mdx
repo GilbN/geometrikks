@@ -1,0 +1,113 @@
+---
+title: GeoMetrikks for Chrome
+description: Look up and ban IPs and see the current site's traffic from Chrome's toolbar, right-click menu and address bar, with an API key from your own server.
+---
+
+GeoMetrikks for Chrome is a browser extension that talks to your own GeoMetrikks server. It does three things without opening the app:
+
+- **Look up an IP.** Type it in the popup's search field, select it on any page and pick GeoMetrikks > Look up from the right-click menu, or type `gmk` and the IP in the address bar. The lookup shows the IP's location and network, its requests to your sites in the last 24 hours or 7 days, the paths it asked for, and any CrowdSec decision, [Spamhaus DROP](./drop-lists.mdx) listing or [AbuseIPDB](./abuseipdb.mdx) score.
+- **Ban or unban it.** Ban from the lookup or straight from the right-click menu, for 1 hour, 4 hours, 24 hours, 7 days or for good. Unban from the lookup.
+- **See the site you're on.** Click the toolbar icon on one of your own sites and the popup shows that host's requests, unique IPs, error rate, bytes, a chart, and its top countries, paths and IPs, for the last 24 hours or 7 days.
+
+The extension sends nothing to anyone but your server. The [privacy policy](/chrome-extension/privacy/) lists what goes where.
+
+## Install
+
+Install GeoMetrikks for Chrome from the Chrome Web Store. It needs Chrome 145 or later.
+
+Edge users install it from the Chrome Web Store too. Edge asks once to allow extensions from other stores. There is no Edge Add-ons listing yet.
+
+Each [GitHub release](https://github.com/GilbN/geometrikks/releases) also carries the extension as `geometrikks-chrome-<version>.zip`. To run that build, unzip it, turn on Developer mode in `chrome://extensions` and click Load unpacked. An unpacked extension doesn't update itself.
+
+## Connect it to your server
+
+The options page opens when you install the extension. You can open it later from the extension's menu in the toolbar.
+
+1. In GeoMetrikks, open Settings > API keys and create a key. The options page links there once you've typed the address. [API keys](./authentication/api-keys.mdx) covers expiry and revoking.
+2. On the options page, enter the address you open GeoMetrikks on, such as `https://geo.example.net`, and paste the key.
+3. Click Connect. Chrome asks to let the extension reach that one address. Allow it.
+
+The Connected card then shows the key's name, scope and expiry, the server's version, and which of CrowdSec bans, ASN data and Spamhaus DROP the server has.
+
+The extension holds one server at a time. Connecting a different one removes the old server's access and clears what the extension kept for it. Disconnect does the same and forgets the key.
+
+### Read or Read/write
+
+The key's scope decides what the extension offers.
+
+- **Read** gives a read-only popup. The header shows a Read only chip, there is no Ban or Unban, and the right-click menu has only Look up.
+- **Read/write** adds Ban and Unban, as long as the server has CrowdSec machine credentials. [Ban and unban](./crowdsec.mdx#ban-and-unban) explains those. Without them the popup stays read-only whatever the key.
+
+The extension checks the key each time the popup opens and before each ban from the right-click menu, so a key revoked or expired in GeoMetrikks stops working at once. The popup then says "This key no longer works" and links to Options.
+
+### HTTPS only
+
+The address must start with `https://`. Connect refuses an `http://` address with "GeoMetrikks for Chrome needs an https:// address", and that includes `http://localhost` and LAN addresses. The key, the site you're on and the IPs you look up all travel to your server, and the Chrome Web Store requires that data to travel encrypted.
+
+A server on your own network works if it has a certificate Chrome trusts, for example `https://geometrikks.lan` behind a reverse proxy with a certificate from your own CA installed on the computer. [Reverse proxy](../operate/reverse-proxy.mdx) has the proxy settings GeoMetrikks needs.
+
+## The address bar
+
+Type `gmk`, a space and an IP. The first suggestion opens the IP in the [IP inspector](./ip-inspector.mdx) on your server. If you looked the IP up recently, a second row shows what that lookup found. Enter opens the inspector in the current tab, and Alt+Enter in a new one. Anything that isn't an IP opens the server's home page.
+
+## The right-click menu
+
+Select an IP on any page, right-click and open GeoMetrikks. Look up opens the popup with the lookup. Ban has a submenu with the five ban lengths and bans at once, then opens the popup with the result.
+
+Chrome can't show the menu only for IP addresses without reading the page, so the items show for any selected text. Selected text that isn't one IPv4 or IPv6 address sends nothing. The popup opens with "Not an IP address" instead.
+
+A ban from the right-click menu has no Undo, and neither does Ban in the popup. The popup closes as soon as it loses focus, which would lose a ban that was waiting on an Undo.
+
+## Site stats
+
+The popup shows site stats when you click the toolbar icon on an `http` or `https` page and "Show stats for the site I'm on" is on in Options. It's on by default. With it off, the extension never sends the site you're on to your server, and the popup shows your last five lookups instead.
+
+The popup asks your server for requests whose logged Host matches the tab's host name, and also `host:port` when the address has a port. When your server has no requests from that host in the last 7 days, the popup says "No requests logged for" the host and lists your recent lookups.
+
+Two things limit what it can show.
+
+- **nginx's `combined` format logs no Host.** Requests from those lines have no host, so a server that reads only `combined` logs has no site stats. [nginx](../sources/nginx.mdx) has a log format that includes the host.
+- **Host figures come from the raw rows.** GeoMetrikks keeps raw access log rows for `ANALYTICS_RAW_RETENTION_DAYS` days, 180 by default. The popup reaches back at most 7 days, so this matters only if you set the retention below 7.
+
+Site stats need GeoMetrikks 0.26.0 or later. On an older server the popup says which version it needs, and lookups and bans still work.
+
+"Access logs for this host" at the bottom of the popup opens Access Logs filtered to the same host.
+
+## Behind an authenticating proxy
+
+An authenticating proxy, such as Authelia or Authentik forward auth, sends a login page to every request without its session cookie. The extension sends a bearer key and never your browser's cookies, so the proxy blocks it, and Connect reports that the server didn't answer with GeoMetrikks JSON.
+
+Let requests to `/api/` that carry an `Authorization` header past the proxy's login. GeoMetrikks still checks the key on every one of those requests, so a request without a valid key gets a 401. With Traefik, a second router for those requests, without the forward auth middleware, does it. In the file provider:
+
+```yaml
+http:
+  routers:
+    geometrikks-api-keys:
+      rule: Host(`geo.example.net`) && PathPrefix(`/api/`) && HeaderRegexp(`Authorization`, `^Bearer gmk_`)
+      service: geometrikks
+      tls: {}
+```
+
+Authelia's access rules can't match a header. A path rule with `policy: bypass` for `^/api/` lets the extension through, but it also lets anyone reach the API's login endpoints without passing Authelia first.
+
+Only add a bypass while GeoMetrikks' own login is on. With `APP_AUTH_DISABLED=true` GeoMetrikks checks nothing, so a bypass opens every API action, ban and unban included, to anyone who can reach the address.
+
+## Servers with authentication off
+
+A server with `APP_AUTH_DISABLED=true` can't make API keys. Leave the key field empty and click Connect. The Connected card then says "Authentication is off on this server, so no key is needed". If you type a key, Connect stops with "Authentication is off on this server. Clear the key field to connect without one.", because such a server never checks it.
+
+A keyless connection can ban and unban whenever the server has CrowdSec machine credentials, because the server lets anyone who reaches it do the same in the web app. If the server turns its login back on later, the popup says "This server now needs an API key". Create one and connect again.
+
+Such a server usually sits behind an authenticating proxy, which blocks the extension. [Turning the login off](./authentication/index.mdx#turning-the-login-off) explains why the proxy has to stay.
+
+## When something goes wrong
+
+The dot beside the server name in the popup is green while the server answers and red when it doesn't.
+
+| The popup says | What happened | What to do |
+| --- | --- | --- |
+| This key no longer works | The key was revoked or expired. | Create a new key and paste it in Options. |
+| Can't reach your server's host name | The server didn't answer within 10 seconds, redirected, or answered with something that isn't GeoMetrikks JSON, such as a proxy's login page. | Check the address, then the proxy. Try again. |
+| GeoMetrikks for Chrome lost access to your server's host name | The site access for your server was removed in `chrome://extensions`. | Click Grant access and allow it in Options. |
+| GeoMetrikks can't check keys right now | The server couldn't reach its database, or the database didn't answer in time, so it couldn't check the key. | Try again in a moment. |
+| This server now needs an API key | A keyless connection, and the server's login is on again. | Create a key and connect again. |
