@@ -6,7 +6,9 @@ import { zipSync } from "fflate"
 
 const EXTENSION = path.resolve(import.meta.dirname, "..")
 const DIST = path.join(EXTENSION, "dist")
-const FIXED_MTIME = new Date("2026-01-01T00:00:00Z")
+// Local calendar fields: the zip stores local DOS time, so a UTC instant
+// would give a different archive in every timezone.
+const FIXED_MTIME = new Date(2026, 0, 1)
 
 function collect(directory: string, files: Record<string, Uint8Array>) {
   for (const name of readdirSync(directory).sort()) {

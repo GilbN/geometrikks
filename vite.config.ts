@@ -56,11 +56,10 @@ export default defineConfig({
               patterns: [
                 {
                   group: [
-                    "@/lib/{api,client,queries}/*",
-                    "**/resources/lib/{api,client,queries}",
-                    "**/resources/components/theme-provider",
-                    "**/resources/components/ui/sonner",
-                    "**/resources/components/abuseipdb/abuseipdb-badge",
+                    "@/lib/{api,client,queries}{.ts,.tsx,/*}",
+                    "@/components/{theme-provider,ui/sonner,abuseipdb/abuseipdb-badge}{.ts,.tsx,/*}",
+                    "**/resources/lib/{api,client,queries}{,.ts,.tsx,/*}",
+                    "**/resources/components/{theme-provider,ui/sonner,abuseipdb/abuseipdb-badge}{,.ts,.tsx,/*}",
                   ],
                   message: "Not available in the extension.",
                 },

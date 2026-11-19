@@ -1,5 +1,5 @@
 // Checks a fresh extension build. Usage: bun run ext:build && bun run ext:check-dist
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import ts from "typescript"
@@ -33,14 +33,20 @@ const failures: string[] = []
 const fail = (message: string) => failures.push(message)
 const inDist = (relative: string) => path.join(DIST, relative)
 const BANNED_MODULES = [
-  "resources/lib/api.ts",
+  "resources/lib/api",
   // The shared generated client carries the app's 401 redirect to /login.
-  "resources/lib/client.ts",
-  "resources/lib/queries.ts",
-  "resources/components/theme-provider.tsx",
-  "resources/components/ui/sonner.tsx",
-  "resources/components/abuseipdb/abuseipdb-badge.tsx",
+  "resources/lib/client",
+  "resources/lib/queries",
+  "resources/components/theme-provider",
+  "resources/components/ui/sonner",
+  "resources/components/abuseipdb/abuseipdb-badge",
 ]
+
+function isBannedModule(id: string): boolean {
+  return BANNED_MODULES.some((banned) =>
+    [".ts", ".tsx", "/index.ts", "/index.tsx"].some((suffix) => id === banned + suffix),
+  )
+}
 
 type ModuleGraph = {
   entries: Record<string, string[]>
@@ -102,6 +108,26 @@ function attributes(tag: string): Map<string, string> {
   return found
 }
 
+const PAGE_BASE = "chrome-extension://extension/"
+
+/** The dist file a <script src> loads, resolved the way the browser resolves
+ *  it against the page, or null when it isn't a packaged file. */
+function packagedScript(page: string, src: string): string | null {
+  if (src === "") return null
+  const base = new URL(page, PAGE_BASE)
+  let url: URL
+  try {
+    url = new URL(src, base)
+  } catch {
+    return null
+  }
+  if (url.protocol !== base.protocol || url.host !== base.host) return null
+  const file = path.join(DIST, decodeURIComponent(url.pathname))
+  const relative = path.relative(DIST, file)
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null
+  return existsSync(file) && statSync(file).isFile() ? file : null
+}
+
 function checkPages() {
   for (const page of ["popup.html", "options.html"]) {
     if (!existsSync(inDist(page))) {
@@ -109,8 +135,11 @@ function checkPages() {
       continue
     }
     const html = readFileSync(inDist(page), "utf8")
-    for (const match of html.matchAll(/<script\b([^>]*)>/gi)) {
-      if (!/(?:^|\s)src\s*=/i.test(match[1])) fail(`${page} has an inline <script>`)
+    for (const match of html.matchAll(/<script\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi)) {
+      const src = attributes(match[1]).get("src")?.trim()
+      if (src === undefined) fail(`${page} has an inline <script>`)
+      else if (!packagedScript(page, src))
+        fail(`${page} has a <script src="${src}"> that is not a file in dist/`)
     }
     for (const match of html.matchAll(/<[a-z][^\s/>]*((?:\s[^>]*)?)>/gi)) {
       const attrs = attributes(match[1])
@@ -247,7 +276,7 @@ function checkModules(graph: ModuleGraph) {
   if (slot.length !== 1)
     fail(`expected one @radix-ui/react-slot root, found ${slot.length}: ${slot.join(", ")}`)
   for (const id of ids) {
-    if (id.includes("node_modules/axios/") || BANNED_MODULES.includes(id))
+    if (id.includes("node_modules/axios/") || isBannedModule(id))
       fail(`banned module in the bundle: ${id}`)
   }
   const workerDynamic = graph.dynamicImports.worker ?? []
