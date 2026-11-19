@@ -868,6 +868,9 @@ async def test_top_urls_groups_paths_across_two_hosts(pg_session_maker, clean_ta
         top = await repo.get_top_urls(start, NOW, limit=1, filters=both)
         everything = await repo.get_top_urls(start, NOW, limit=20, filters=both)
         one_host = await repo.get_top_urls(start, NOW, limit=20, filters=AnalyticsFilters(hosts=["a.example"]))
+        repeated = await repo.get_top_urls(
+            start, NOW, limit=20, filters=AnalyticsFilters(hosts=["a.example", "a.example"])
+        )
 
     assert [(r.url, r.hits, r.host) for r in top] == [("/login", 100, None)]
     assert len(everything) == 13
@@ -879,6 +882,7 @@ async def test_top_urls_groups_paths_across_two_hosts(pg_session_maker, clean_ta
     ]
     assert {r.host for r in one_host} == {"a.example"}
     assert ("/login", 50) in [(r.url, r.hits) for r in one_host]
+    assert [(r.host, r.url, r.hits) for r in repeated] == [(r.host, r.url, r.hits) for r in one_host]
 
 
 # Two days back lands in whole hourly buckets the rollup leg of a 7 d window reads.

@@ -1553,7 +1553,7 @@ class LiveStatsRepository:
         """
         filters = filters or AnalyticsFilters()
         filter_sql, filter_params = filters.sql_conditions()
-        merge_hosts = filters.hosts is not None and len(filters.hosts) > 1
+        merge_hosts = filters.hosts is not None and len(set(filters.hosts)) > 1
         host_select = "CAST(NULL AS TEXT) AS host" if merge_hosts else "host"
         group_by = "url" if merge_hosts else "host, url"
         order_by = "hits DESC, url" if merge_hosts else "hits DESC, host, url"
