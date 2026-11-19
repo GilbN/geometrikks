@@ -22,7 +22,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { banIp, unbanIp, type DecisionView } from "@/lib/api"
-import { crowdsecErrorMessage, forDuration } from "@/lib/crowdsec"
+import { forDuration } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 
 export const UNDO_WINDOW_MS = 5000
 /** The lookup query's staleTime: an unban counts decisions only from an answer this fresh. */

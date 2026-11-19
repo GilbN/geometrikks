@@ -40,12 +40,12 @@ import { useBanIp } from "@/lib/queries"
 import {
   BAN_DURATIONS,
   DECISION_TYPES,
-  crowdsecErrorMessage,
   isValidBanDuration,
   isValidBanTarget,
   rangeSizeLabel,
   type BanDecisionType,
 } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 
 const CUSTOM_DURATION = "custom"
 

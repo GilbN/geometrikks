@@ -46,7 +46,8 @@ import type {
   DropNetworkTrafficView,
 } from "@/generated/api/types.gen"
 import { formatNumber } from "@/lib/api"
-import { BAN_DURATIONS, crowdsecErrorMessage } from "@/lib/crowdsec"
+import { BAN_DURATIONS } from "@/lib/crowdsec"
+import { crowdsecErrorMessage } from "@/lib/crowdsec-errors"
 import { dropBanReason, dropNetworkBannedText, dropNetworksLoaded } from "@/lib/drop-lists"
 import {
   DROP_NETWORK_RANGES,

@@ -3,20 +3,19 @@ import { describe, expect, it } from "vite-plus/test"
 import {
   bgpAsUrl,
   crowdsecCtiUrl,
-  crowdsecErrorMessage,
   crowdsecHubUrl,
   decisionLabel,
   decisionPopupColor,
   decisionWinner,
   distinctScenarioCount,
   forDuration,
-  isClientError,
   isValidBanDuration,
   isValidBanTarget,
   rangeSizeLabel,
   resolveDecision,
   winningDecision,
 } from "./crowdsec"
+import { crowdsecErrorMessage, isClientError } from "./crowdsec-errors"
 
 describe("crowdsecErrorMessage", () => {
   it("prefers the backend detail from an axios error", () => {
