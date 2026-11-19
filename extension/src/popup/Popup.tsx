@@ -5,7 +5,6 @@ import { realChrome } from "../lib/chrome-api"
 import { createExtensionClient, fetchConnection, unwrap } from "../lib/client"
 import { deriveAccess, effectiveConnection } from "../lib/connection"
 import { classifyFailure } from "../lib/failures"
-import { inspectorUrl } from "../lib/links"
 import {
   getConnection,
   getConnectionRefresh,
@@ -15,6 +14,7 @@ import {
 } from "../lib/storage"
 import { Header, type ServerHealth } from "./Header"
 import { Home } from "./Home"
+import { Lookup } from "./Lookup"
 import { loadDropIndex } from "./marks"
 import {
   connectionChanged,
@@ -114,6 +114,8 @@ export function Popup({
   const [opened, setOpened] = useState<Opened | null>(null)
   const [checked, setCheck] = useState<Check>({ kind: "checking" })
   const [attempt, setAttempt] = useState(0)
+  const [lookupIp, setLookupIp] = useState<string | null>(null)
+  const [lookups, setLookups] = useState(0)
 
   // A claim removes the item, so it runs once per open, before any host query.
   useEffect(() => {
@@ -162,8 +164,18 @@ export function Popup({
     setAttempt((value) => value + 1)
   }
   const onLookup = (ip: string) => {
-    if (stored) void realChrome.tabs.create({ url: inspectorUrl(stored.origin, ip) })
+    setLookupIp(ip)
+    setLookups((count) => count + 1)
   }
+  const onBack = () => {
+    setLookupIp(null)
+    setLookups((count) => count + 1)
+  }
+  const ready =
+    check.kind === "ready" && check.home !== "pending"
+      ? { session: check.session, home: check.home }
+      : null
+  const lookup = ready && lookupIp !== null ? lookupIp : null
 
   const problem =
     check.kind === "problem" ? (
@@ -178,14 +190,32 @@ export function Popup({
 
   return (
     <div className="flex max-h-[600px] flex-col bg-background text-[13px] text-foreground">
-      <Header host={host} health={health} readOnly={readOnly} />
+      <Header
+        host={host}
+        health={health}
+        readOnly={readOnly}
+        {...(lookup !== null ? { title: "Lookup", onBack } : {})}
+      />
       {claimed !== null ? (
         <main className="grid min-h-0 grid-cols-[minmax(0,1fr)] content-start gap-3 overflow-auto p-3">
           {problem}
           {renderPending(claimed)}
         </main>
-      ) : check.kind === "ready" && check.home !== "pending" ? (
-        <Home session={check.session} mode={check.home} onLookup={onLookup} />
+      ) : ready ? (
+        <>
+          {lookup !== null && (
+            <Lookup key={`${lookups}:${lookup}`} session={ready.session} ip={lookup} />
+          )}
+          {/* Hidden, not unmounted, so Back doesn't load the site stats again. */}
+          <div className={lookup !== null ? "hidden" : "contents"}>
+            <Home
+              session={ready.session}
+              mode={ready.home}
+              onLookup={onLookup}
+              recentVersion={lookups}
+            />
+          </div>
+        </>
       ) : problem ? (
         <main className="grid grid-cols-[minmax(0,1fr)] gap-3 p-3">{problem}</main>
       ) : (

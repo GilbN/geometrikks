@@ -51,8 +51,12 @@ function SearchField({
           onKeyDown={(event) => {
             if (event.key !== "Enter") return
             const ip = parseSingleIp(text)
-            if (ip === null) setInvalid(true)
-            else onLookup(ip)
+            if (ip === null) {
+              setInvalid(true)
+            } else {
+              setText("")
+              onLookup(ip)
+            }
           }}
         />
         <InputGroupAddon align="inline-end">
@@ -90,10 +94,13 @@ export function Home({
   session,
   mode,
   onLookup,
+  recentVersion = 0,
 }: {
   session: PopupSession
   mode: HomeMode
   onLookup: (ip: string) => void
+  /** A new value reads the recent list again. */
+  recentVersion?: number
 }) {
   const [noTraffic, setNoTraffic] = useState(false)
   const hosts = useMemo(() => hostValuesFromUrl(session.ctx.tabUrl), [session.ctx.tabUrl])
@@ -126,6 +133,7 @@ export function Home({
               session={session}
               noTrafficHost={noTraffic && hosts ? hosts[0] : null}
               onLookup={onLookup}
+              version={recentVersion}
             />
           </>
         )}

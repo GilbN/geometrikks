@@ -23,19 +23,27 @@ import {
 } from "./site-stats"
 
 const CHART_WIDTH = 336
-const CHART_HEIGHT = 58
 const BAR_GAP = 2
 
-function Chart({ buckets, label }: { buckets: HourBucket[]; label: string }) {
+export function Chart({
+  buckets,
+  label,
+  height = 58,
+}: {
+  buckets: HourBucket[]
+  label: string
+  height?: number
+}) {
   const count = buckets.length
   const barWidth = (CHART_WIDTH - BAR_GAP * (count - 1)) / count
   const max = Math.max(1, ...buckets.map((bucket) => bucket.requests))
-  const scale = (value: number) => (value / max) * (CHART_HEIGHT - 2)
+  const scale = (value: number) => (value / max) * (height - 2)
   return (
     <svg
-      viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+      viewBox={`0 0 ${CHART_WIDTH} ${height}`}
       preserveAspectRatio="none"
-      className="block h-[58px] w-full"
+      className="block w-full"
+      style={{ height }}
       role="img"
       aria-label={label}
     >
@@ -48,7 +56,7 @@ function Chart({ buckets, label }: { buckets: HourBucket[]; label: string }) {
             {total - errors > 0 && (
               <rect
                 x={x}
-                y={CHART_HEIGHT - total}
+                y={height - total}
                 width={barWidth}
                 height={total - errors}
                 rx={1.5}
@@ -59,7 +67,7 @@ function Chart({ buckets, label }: { buckets: HourBucket[]; label: string }) {
             {errors > 0 && (
               <rect
                 x={x}
-                y={CHART_HEIGHT - errors}
+                y={height - errors}
                 width={barWidth}
                 height={errors}
                 rx={1}
@@ -73,7 +81,15 @@ function Chart({ buckets, label }: { buckets: HourBucket[]; label: string }) {
   )
 }
 
-function Kpi({ value, label, alert = false }: { value: string; label: string; alert?: boolean }) {
+export function Kpi({
+  value,
+  label,
+  alert = false,
+}: {
+  value: string
+  label: string
+  alert?: boolean
+}) {
   return (
     <div>
       <div
@@ -89,7 +105,7 @@ function Kpi({ value, label, alert = false }: { value: string; label: string; al
   )
 }
 
-function ListRow({
+export function ListRow({
   share,
   onClick,
   title,
@@ -123,11 +139,11 @@ function ListRow({
   )
 }
 
-function Label({ children, className }: { children: ReactNode; className?: string }) {
+export function Label({ children, className }: { children: ReactNode; className?: string }) {
   return <span className={cn("relative min-w-0 flex-1 truncate", className)}>{children}</span>
 }
 
-function ErrorCount({ count }: { count: number }) {
+export function ErrorCount({ count }: { count: number }) {
   return (
     <span className="relative min-w-[34px] text-right text-[11.5px] text-destructive tabular-nums">
       {count > 0 ? (
@@ -140,7 +156,7 @@ function ErrorCount({ count }: { count: number }) {
   )
 }
 
-function Hits({ count }: { count: number }) {
+export function Hits({ count }: { count: number }) {
   return (
     <span className="relative text-muted-foreground tabular-nums">
       {formatNumber(count)}
@@ -235,7 +251,37 @@ function Lists({
   )
 }
 
-const cardClass = "gap-0 rounded-[10px] px-3 py-3"
+export const cardClass = "gap-0 rounded-[10px] px-3 py-3"
+
+export function RangeSwitch({
+  range,
+  onChange,
+}: {
+  range: StatsRange
+  onChange: (range: StatsRange) => void
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      value={range}
+      onValueChange={(value) => {
+        if (value === "24h" || value === "7d") onChange(value)
+      }}
+      aria-label="Range"
+      className="ml-auto rounded-[7px] bg-muted p-0.5"
+    >
+      {(["24h", "7d"] as const).map((value) => (
+        <ToggleGroupItem
+          key={value}
+          value={value}
+          className="h-auto min-w-0 rounded-[5px]! px-2.5 py-0.5 text-[11.5px] font-normal text-muted-foreground hover:bg-transparent data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-sm"
+        >
+          {value === "24h" ? "24 h" : "7 d"}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  )
+}
 
 /** Screen 2. Reports a 24 h "no traffic" answer up, so Home can show screen 3. */
 export function SiteStats({
@@ -298,25 +344,7 @@ export function SiteStats({
             <Globe aria-hidden className="size-3.5 shrink-0" />
             <span className="truncate">{hosts[0]}</span>
           </span>
-          <ToggleGroup
-            type="single"
-            value={range}
-            onValueChange={(value) => {
-              if (value === "24h" || value === "7d") setRange(value)
-            }}
-            aria-label="Range"
-            className="ml-auto rounded-[7px] bg-muted p-0.5"
-          >
-            {(["24h", "7d"] as const).map((value) => (
-              <ToggleGroupItem
-                key={value}
-                value={value}
-                className="h-auto min-w-0 rounded-[5px]! px-2.5 py-0.5 text-[11.5px] font-normal text-muted-foreground hover:bg-transparent data-[state=on]:bg-card data-[state=on]:text-foreground data-[state=on]:shadow-sm"
-              >
-                {value === "24h" ? "24 h" : "7 d"}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+          <RangeSwitch range={range} onChange={setRange} />
         </div>
         {result?.kind === "error" ? (
           <div className="grid justify-items-start gap-2 text-[12.5px] text-muted-foreground">

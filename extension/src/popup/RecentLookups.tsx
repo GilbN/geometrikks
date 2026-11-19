@@ -11,11 +11,14 @@ export function RecentLookups({
   session,
   noTrafficHost,
   onLookup,
+  version = 0,
 }: {
   session: PopupSession
   /** Set only after a successful 7-day check found no requests for the tab's host. */
   noTrafficHost: string | null
   onLookup: (ip: string) => void
+  /** A new value reads the list again. */
+  version?: number
 }) {
   const [recent, setRecent] = useState<RecentLookup[] | null>(null)
   const { origin, savedAt } = session.stored
@@ -29,7 +32,7 @@ export function RecentLookups({
     return () => {
       cancelled = true
     }
-  }, [origin, savedAt])
+  }, [origin, savedAt, version])
 
   const now = Date.now()
   return (
