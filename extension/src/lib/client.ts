@@ -20,15 +20,17 @@ export interface ClientDeps {
 // The SDK hands back `{}` for an empty 2xx JSON body, which would pass as data.
 const emptyJsonBodies = new WeakSet<Response>()
 
+/** Empty once decoded, with a byte order mark and whitespace trimmed. */
 async function hasEmptyBody(response: Response): Promise<boolean> {
   const body = response.clone().body
   if (!body) return true
   const reader = body.getReader()
+  const decoder = new TextDecoder()
   try {
     for (;;) {
       const { done, value } = await reader.read()
-      if (done) return true
-      if (value.byteLength > 0) return false
+      if (done) return decoder.decode().trim() === ""
+      if (decoder.decode(value, { stream: true }).trim() !== "") return false
     }
   } catch {
     return false
@@ -134,6 +136,37 @@ export function unwrap<T>(result: {
   return { ok: true, data: result.data as T }
 }
 
+const ISO_DATE =
+  /^(\d{4})-(\d{2})-(\d{2})([Tt]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?([Zz]|[+-]\d{2}:?\d{2})?$/
+
+function offsetMinutes(zone: string): number {
+  if (zone.toUpperCase() === "Z") return 0
+  const digits = zone.slice(1).replace(":", "")
+  const minutes = Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2))
+  return zone.startsWith("-") ? -minutes : minutes
+}
+
+/** Date.parse rolls an impossible day such as 2026-02-30 over into March,
+ *  so the parsed date has to give back the calendar date that was sent. */
+function isRealDate(value: string): boolean {
+  const parsed = Date.parse(value)
+  const match = ISO_DATE.exec(value)
+  if (Number.isNaN(parsed) || !match) return false
+  const [, year, month, day, time, zone] = match
+  const offset =
+    zone !== undefined
+      ? offsetMinutes(zone)
+      : time !== undefined
+        ? -new Date(parsed).getTimezoneOffset()
+        : 0
+  const wall = new Date(parsed + offset * 60_000)
+  return (
+    wall.getUTCFullYear() === Number(year) &&
+    wall.getUTCMonth() + 1 === Number(month) &&
+    wall.getUTCDate() === Number(day)
+  )
+}
+
 function isConnectionResponse(value: unknown): value is ConnectionResponse {
   if (typeof value !== "object" || value === null) return false
   const body = value as Record<string, unknown>
@@ -143,7 +176,7 @@ function isConnectionResponse(value: unknown): value is ConnectionResponse {
       (body.scope === "read" || body.scope === "read_write") &&
       typeof body.name === "string" &&
       (body.expiresAt === null ||
-        (typeof body.expiresAt === "string" && !Number.isNaN(Date.parse(body.expiresAt))))
+        (typeof body.expiresAt === "string" && isRealDate(body.expiresAt)))
     )
   )
     return false

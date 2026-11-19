@@ -149,6 +149,9 @@ describe("fetchConnection", () => {
       { ...apiKeyBody, name: 7 },
       { ...apiKeyBody, expiresAt: 0 },
       { ...apiKeyBody, expiresAt: "tomorrow-ish" },
+      { ...apiKeyBody, expiresAt: "2026-02-30T00:00:00Z" },
+      { ...apiKeyBody, expiresAt: "2026-04-31" },
+      { ...apiKeyBody, expiresAt: "2026-03-01T00:30:00+01:00x" },
     ]) {
       const recorder = recordingFetch(() => json(body))
       expect(await fetchConnection(target, { fetch: recorder.fetch })).toEqual({
@@ -158,8 +161,13 @@ describe("fetchConnection", () => {
     }
   })
 
-  it("accepts an apiKey answer with a dated expiry", async () => {
-    const body = { ...apiKeyBody, expiresAt: "2027-01-01T00:00:00Z" }
+  it.each([
+    "2027-01-01T00:00:00Z",
+    "2028-02-29T23:59:59.123456+00:00",
+    "2026-03-01T00:30:00+01:00",
+    "2026-02-28T23:30:00-05:00",
+  ])("accepts an apiKey answer that expires %s", async (expiresAt) => {
+    const body = { ...apiKeyBody, expiresAt }
     const recorder = recordingFetch(() => json(body))
     expect(await fetchConnection(target, { fetch: recorder.fetch })).toEqual({
       ok: true,
@@ -223,6 +231,20 @@ describe("unwrap", () => {
   ])("fails an empty 200 JSON body %s Content-Length: 0", async (_label, headers) => {
     const recorder = recordingFetch(
       () => new Response("", { headers: { "Content-Type": "application/json", ...headers } }),
+    )
+    const client = createExtensionClient(target, { fetch: recorder.fetch })
+    expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({
+      ok: false,
+      failure: { status: 200, notJson: true },
+    })
+  })
+
+  it.each([
+    ["a byte order mark", "\uFEFF"],
+    ["a byte order mark and whitespace", "\uFEFF \r\n\t"],
+  ])("fails a 200 JSON body of only %s", async (_label, text) => {
+    const recorder = recordingFetch(
+      () => new Response(text, { headers: { "Content-Type": "application/json" } }),
     )
     const client = createExtensionClient(target, { fetch: recorder.fetch })
     expect(unwrap(await apiV1AnalyticsTimeSeriesGetTimeSeries({ client }))).toEqual({

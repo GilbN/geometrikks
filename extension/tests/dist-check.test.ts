@@ -14,6 +14,29 @@ describe("attributes", () => {
     })
   })
 
+  it("splits attributes with no space between them, as the HTML tokenizer does", () => {
+    expect(attributes(` src="/a.js"SRC="/b.js"`)).toEqual({
+      values: new Map([["src", "/a.js"]]),
+      repeated: new Set(["src"]),
+    })
+    expect(attributes(` type='module'defer/src=/a.js`).values).toEqual(
+      new Map([
+        ["type", "module"],
+        ["defer", ""],
+        ["src", "/a.js"],
+      ]),
+    )
+  })
+
+  it("reads an attribute name that starts with = and spaces around =", () => {
+    expect(attributes(` =x src = "/a.js"`).values).toEqual(
+      new Map([
+        ["=x", ""],
+        ["src", "/a.js"],
+      ]),
+    )
+  })
+
   it("keeps the first of a repeated attribute, as browsers do", () => {
     const { values, repeated } = attributes(` src="/popup.js" SRC="https://evil.example/x.js"`)
     expect(values.get("src")).toBe("/popup.js")
@@ -24,6 +47,12 @@ describe("attributes", () => {
 describe("scriptProblem", () => {
   it("fails a script with two src attributes", () => {
     expect(scriptProblem("popup.html", ` src="/a.js" src="/b.js"`)).toBe(
+      "popup.html has a <script> with more than one src",
+    )
+  })
+
+  it("fails a script whose second src follows a quote with no space", () => {
+    expect(scriptProblem("popup.html", ` src="/a.js"SRC="/b.js"`)).toBe(
       "popup.html has a <script> with more than one src",
     )
   })

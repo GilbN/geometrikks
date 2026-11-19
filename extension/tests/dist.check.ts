@@ -99,16 +99,49 @@ function checkIcons() {
 }
 
 export type Attributes = { values: Map<string, string>; repeated: Set<string> }
-/** Browsers keep the first of a repeated attribute and drop the rest. */
+
+const isSpace = (char: string | undefined) =>
+  char === " " || char === "\t" || char === "\n" || char === "\f" || char === "\r"
+
+/** Reads the text after a tag name the way the HTML tokenizer does, so
+ *  `src="/a.js"SRC="/b.js"` is two attributes. Browsers keep the first of a
+ *  repeated attribute and drop the rest. */
 export function attributes(tag: string): Attributes {
   const values = new Map<string, string>()
   const repeated = new Set<string>()
-  for (const match of tag.matchAll(
-    /(?:^|\s)([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g,
-  )) {
-    const name = match[1].toLowerCase()
+  let index = 0
+  const skipSpaces = () => {
+    while (isSpace(tag[index])) index++
+  }
+  while (index < tag.length) {
+    if (isSpace(tag[index]) || tag[index] === "/") {
+      index++
+      continue
+    }
+    // A name may start with "=", and only space, "/" and "=" end it.
+    const nameStart = index++
+    while (index < tag.length && !isSpace(tag[index]) && tag[index] !== "/" && tag[index] !== "=")
+      index++
+    const name = tag.slice(nameStart, index).toLowerCase()
+    skipSpaces()
+    let value = ""
+    if (tag[index] === "=") {
+      index++
+      skipSpaces()
+      const quote = tag[index]
+      if (quote === '"' || quote === "'") {
+        const close = tag.indexOf(quote, index + 1)
+        const end = close === -1 ? tag.length : close
+        value = tag.slice(index + 1, end)
+        index = end + 1
+      } else {
+        const valueStart = index
+        while (index < tag.length && !isSpace(tag[index])) index++
+        value = tag.slice(valueStart, index)
+      }
+    }
     if (values.has(name)) repeated.add(name)
-    else values.set(name, match[2] ?? match[3] ?? match[4] ?? "")
+    else values.set(name, value)
   }
   return { values, repeated }
 }
