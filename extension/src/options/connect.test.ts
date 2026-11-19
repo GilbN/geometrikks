@@ -50,6 +50,7 @@ function storedFor(origin: string, pattern: string): StoredConnection {
     verifiedScope: "read",
     connection: { ...apiKeyAnswer, scope: "read" },
     savedAt: 1,
+    generation: 4,
   }
 }
 
@@ -58,8 +59,8 @@ function connectedChrome(origin: string, pattern: string): FakeChrome {
     local: {
       connection: storedFor(origin, pattern),
       connectionRefresh: { origin, savedAt: 1, connection: apiKeyAnswer },
-      [`recent:${origin}`]: { items: [{ ip: "192.0.2.1" }] },
-      [`abuse:${origin}`]: { "192.0.2.1": { at: Date.now() } },
+      [`recent:${origin}`]: { generation: 4, items: [{ ip: "192.0.2.1" }] },
+      [`abuse:${origin}`]: { "192.0.2.1": { generation: 4, at: Date.now() } },
       dropLists: { origin, savedAt: 1 },
     },
   })
@@ -185,6 +186,7 @@ describe("connect", () => {
       verifiedScope: null,
       connection: disabledAnswer,
       savedAt: 42,
+      generation: 1,
     }
     expect(result).toEqual({ ok: true, stored: expected })
     expect(chromeApi.storage.local.data.connection).toEqual(expected)
@@ -215,8 +217,15 @@ describe("connect", () => {
 
     expect(result.ok).toBe(true)
     expect([...chromeApi.granted]).toEqual([B_PATTERN])
-    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
-    expect(chromeApi.storage.local.data.connection).toMatchObject({ origin: B, savedAt: 9 })
+    expect(Object.keys(chromeApi.storage.local.data).sort()).toEqual([
+      "connection",
+      "generationCounter",
+    ])
+    expect(chromeApi.storage.local.data.connection).toMatchObject({
+      origin: B,
+      savedAt: 9,
+      generation: 5,
+    })
     expect(chromeApi.calls).toContainEqual({
       name: "runtime.sendMessage",
       arg: { type: "serverChanged" },
@@ -235,8 +244,26 @@ describe("connect", () => {
     expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
     expect(callNames(chromeApi)).not.toContain("permissions.remove")
     expect(callNames(chromeApi)).not.toContain("runtime.sendMessage")
+    expect(chromeApi.storage.local.data.connection).toMatchObject({ savedAt: 5, generation: 4 })
     const ips = (await getRecent({ origin: A, savedAt: 5 }, chromeApi)).map((item) => item.ip)
     expect(ips).toEqual(["192.0.2.1"])
+  })
+
+  it("gives a server connected again after a disconnect a new generation", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    await disconnect({ chrome: chromeApi })
+
+    const result = await connect(
+      { address: A, key: "gmk_new" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+
+    expect(result.ok && result.stored.generation).toBe(6)
+    const again = await connect(
+      { address: B, key: "gmk_b" },
+      { chrome: chromeApi, fetchConnection: answers(apiKeyAnswer) },
+    )
+    expect(again.ok && again.stored.generation).toBe(7)
   })
 
   it("removes a permission it granted when saving the connection fails", async () => {
@@ -316,7 +343,10 @@ describe("connect", () => {
     )
 
     expect(result.ok).toBe(true)
-    expect(Object.keys(chromeApi.storage.local.data)).toEqual(["connection"])
+    expect(Object.keys(chromeApi.storage.local.data).sort()).toEqual([
+      "connection",
+      "generationCounter",
+    ])
     expect(callNames(chromeApi)).toContain("runtime.sendMessage")
     warn.mockRestore()
   })
@@ -385,7 +415,10 @@ describe("disconnect", () => {
     await disconnect({ chrome: chromeApi })
 
     expect(chromeApi.granted.size).toBe(0)
-    expect(chromeApi.storage.local.data).toEqual({ settings: { showSiteStats: false } })
+    expect(chromeApi.storage.local.data).toEqual({
+      settings: { showSiteStats: false },
+      generationCounter: 5,
+    })
     expect(chromeApi.calls).toContainEqual({
       name: "runtime.sendMessage",
       arg: { type: "serverChanged" },
@@ -404,16 +437,41 @@ describe("disconnect", () => {
 })
 
 describe("grantAccess", () => {
-  it("requests the stored pattern first thing", async () => {
+  it("requests the stored pattern before awaiting anything", async () => {
     const chromeApi = connectedChrome(A, A_PATTERN)
     chromeApi.granted.clear()
 
     const pending = grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })
 
     expect(chromeApi.calls).toEqual([
+      { name: "permissions.contains", arg: { origins: [A_PATTERN] } },
       { name: "permissions.request", arg: { origins: [A_PATTERN] } },
     ])
     expect(await pending).toBe(true)
+  })
+
+  it("takes back a grant it added when reading the connection fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.granted.clear()
+    chromeApi.storage.local.get = async () => storageFailure()
+
+    await expect(
+      grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) }),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(false)
+  })
+
+  it("keeps a grant that was already there when reading the connection fails", async () => {
+    const chromeApi = connectedChrome(A, A_PATTERN)
+    chromeApi.storage.local.get = async () => storageFailure()
+
+    await expect(
+      grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) }),
+    ).rejects.toThrow("quota")
+
+    expect(chromeApi.granted.has(A_PATTERN)).toBe(true)
+    expect(callNames(chromeApi)).not.toContain("permissions.remove")
   })
 
   it("takes the grant back when another tab replaced the connection meanwhile", async () => {
@@ -421,7 +479,7 @@ describe("grantAccess", () => {
 
     const pending = grantAccess({ chrome: chromeApi, stored: storedFor(A, A_PATTERN) })
 
-    expect(chromeApi.calls[0]).toEqual({
+    expect(chromeApi.calls[1]).toEqual({
       name: "permissions.request",
       arg: { origins: [A_PATTERN] },
     })

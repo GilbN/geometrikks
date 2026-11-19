@@ -7,6 +7,7 @@ import {
   clearLocalServerData,
   getConnection,
   getConnectionRefresh,
+  nextGeneration,
   removeConnection,
   setConnection,
   type ConnectionResponse,
@@ -133,13 +134,16 @@ export async function connect(
   let saved = false
   try {
     const key = input.key.trim() || null
-    const result = await verify(deps, { origin, pattern, key }, host)
-    if (!result.ok) return result
+    const verified = await verify(deps, { origin, pattern, key }, host)
+    if (!verified.ok) return verified
     const previous = await getConnection(deps.chrome)
-    await setConnection(result.stored, deps.chrome)
+    const sameOrigin = previous?.origin === origin
+    const generation = sameOrigin ? (previous.generation ?? 0) : await nextGeneration(deps.chrome)
+    const stored: StoredConnection = { ...verified.stored, generation }
+    await setConnection(stored, deps.chrome)
     saved = true
-    if (previous && previous.origin !== origin) await forgetServer(deps.chrome, previous, pattern)
-    return result
+    if (previous && !sameOrigin) await forgetServer(deps.chrome, previous, pattern)
+    return { ok: true, stored }
   } finally {
     if (!saved && !wasGranted)
       await bestEffort("removing the new permission", () =>
@@ -195,6 +199,7 @@ async function forgetServer(
 
 export async function disconnect(deps: { chrome: ChromeApi }): Promise<void> {
   const stored = await getConnection(deps.chrome)
+  await nextGeneration(deps.chrome)
   await removeConnection(deps.chrome)
   await clearLocalServerData(deps.chrome)
   if (stored) await deps.chrome.permissions.remove({ origins: [stored.pattern] })
@@ -202,21 +207,28 @@ export async function disconnect(deps: { chrome: ChromeApi }): Promise<void> {
 }
 
 /** Like `connect`, call it straight from the click handler. Another Options
- *  tab may have replaced or removed the connection meanwhile; then the grant
- *  is taken back. */
+ *  tab may have replaced or removed the connection meanwhile, or the check
+ *  may fail; then a grant this click added is taken back. */
 export async function grantAccess(deps: {
   chrome: ChromeApi
   stored: StoredConnection
 }): Promise<boolean> {
   const permissions = { origins: [deps.stored.pattern] }
-  const granted = await settle(deps.chrome.permissions.request(permissions), false)
-  if (!granted) return false
-  const current = await getConnection(deps.chrome)
-  if (current?.pattern === deps.stored.pattern) return true
-  await bestEffort("removing a grant for a replaced server", () =>
-    deps.chrome.permissions.remove(permissions),
-  )
-  return false
+  const wasGrantedCheck = settle(deps.chrome.permissions.contains(permissions), true)
+  const grantRequest = settle(deps.chrome.permissions.request(permissions), false)
+  const wasGranted = await wasGrantedCheck
+  if (!(await grantRequest)) return false
+  let kept = false
+  try {
+    const current = await getConnection(deps.chrome)
+    kept = current?.pattern === deps.stored.pattern
+    return kept
+  } finally {
+    if (!kept && !wasGranted)
+      await bestEffort("removing a grant for a replaced server", () =>
+        deps.chrome.permissions.remove(permissions),
+      )
+  }
 }
 
 export interface DisplayedConnection {

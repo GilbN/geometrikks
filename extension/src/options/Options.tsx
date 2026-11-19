@@ -38,6 +38,7 @@ import {
 import {
   addressError,
   apiKeysPageUrl,
+  AUTH_OFF_WITH_KEY_MESSAGE,
   connect,
   disconnect,
   grantAccess,
@@ -45,28 +46,11 @@ import {
   UNEXPECTED_MESSAGE,
   type DisplayedConnection,
 } from "./connect"
+import { AUTH_OFF_WITH_STORED_KEY_MESSAGE, keyPlaceholder, submission } from "./key-field"
 
 type FormErrors = { address: string | null; key: string | null; form: string | null }
 const NO_ERRORS: FormErrors = { address: null, key: null, form: null }
 const NOT_CONNECTED: DisplayedConnection = { stored: null, effective: null, hasAccess: true }
-
-const KEY_PREFIX_LENGTH = 8
-const KEY_MASK = "•".repeat(24)
-
-/** What the user typed into the masked stored key, found by trimming the
- *  parts that still match the old value. */
-function insertedText(before: string, after: string): string {
-  let start = 0
-  while (start < before.length && start < after.length && before[start] === after[start]) start++
-  let end = 0
-  while (
-    end < before.length - start &&
-    end < after.length - start &&
-    before[before.length - 1 - end] === after[after.length - 1 - end]
-  )
-    end++
-  return after.slice(start, after.length - end)
-}
 
 const reportUnexpected = (action: string, error: unknown) =>
   console.warn(`GeoMetrikks for Chrome: ${action} failed`, error)
@@ -137,7 +121,7 @@ function ConnectedCard({
   return (
     <Card size="sm">
       <CardContent className="grid gap-3">
-        <p role="status" className={cn("m-0 flex items-center gap-2 font-semibold", successText)}>
+        <p className={cn("m-0 flex items-center gap-2 font-semibold", successText)}>
           <CircleCheck aria-hidden className="size-4" />
           Connected
         </p>
@@ -185,9 +169,9 @@ export function Options() {
   const [displayed, setDisplayed] = useState<DisplayedConnection>(NOT_CONNECTED)
   const [settings, setSettingsState] = useState<Settings>({ showSiteStats: true })
   const [address, setAddress] = useState("")
-  /** Null while the field shows the stored key; the typed key once edited. */
-  const [keyDraft, setKeyDraft] = useState<string | null>(null)
+  const [keyDraft, setKeyDraft] = useState("")
   const [showKey, setShowKey] = useState(false)
+  const [connectStatus, setConnectStatus] = useState("")
   const [errors, setErrors] = useState<FormErrors>(NO_ERRORS)
   const [busy, setBusy] = useState(false)
   const [recentCleared, setRecentCleared] = useState(false)
@@ -197,8 +181,6 @@ export function Options() {
   const refreshes = useRef(0)
 
   const { stored, effective, hasAccess } = displayed
-  const storedKey = stored?.key ?? null
-  const showingStoredKey = keyDraft === null && storedKey !== null
 
   const refresh = useCallback(async () => {
     const run = ++refreshes.current
@@ -248,14 +230,16 @@ export function Options() {
       addressRef.current?.focus()
       return
     }
+    const sent = submission({ address, typed: keyDraft }, stored)
     // connect() asks for the host permission before its first await, so it
     // has to start here, inside the gesture, with nothing awaited before it.
     const attempt = connect(
-      { address, key: keyDraft ?? storedKey ?? "" },
+      { address: sent.address, key: sent.key },
       { chrome: realChrome, fetchConnection },
     )
     setBusy(true)
     setErrors(NO_ERRORS)
+    setConnectStatus("")
     const finish = async () => {
       try {
         const result = await attempt
@@ -263,12 +247,17 @@ export function Options() {
           setDisplayed({ stored: result.stored, effective: result.stored, hasAccess: true })
           setAddress(result.stored.origin)
           addressEditedRef.current = false
-          setKeyDraft(null)
+          setKeyDraft("")
           setShowKey(false)
           setRecentCleared(false)
+          setConnectStatus(`Connected to ${hostOf(result.stored.origin)}.`)
           return
         }
-        setErrors({ ...NO_ERRORS, [result.field ?? "form"]: result.message })
+        const message =
+          result.message === AUTH_OFF_WITH_KEY_MESSAGE && sent.reusesStoredKey
+            ? AUTH_OFF_WITH_STORED_KEY_MESSAGE
+            : result.message
+        setErrors({ ...NO_ERRORS, [result.field ?? "form"]: message })
         if (result.field === "address") addressRef.current?.focus()
         if (result.field === "key") keyRef.current?.focus()
       } catch (error) {
@@ -286,7 +275,8 @@ export function Options() {
     try {
       await disconnect({ chrome: realChrome })
       setDisplayed(NOT_CONNECTED)
-      setKeyDraft(null)
+      setConnectStatus("")
+      setKeyDraft("")
       setShowKey(false)
       setErrors(NO_ERRORS)
     } catch (error) {
@@ -318,12 +308,8 @@ export function Options() {
 
   const onKeyChange = (value: string) => {
     if (errors.key) setErrors({ ...errors, key: null })
-    if (!showingStoredKey) return setKeyDraft(value)
-    if (showKey) return setKeyDraft(value)
-    setKeyDraft(insertedText(maskedStoredKey, value))
+    setKeyDraft(value)
   }
-
-  const maskedStoredKey = storedKey ? `${storedKey.slice(0, KEY_PREFIX_LENGTH)}${KEY_MASK}` : ""
 
   const onOpenApiKeys = () => {
     const url = apiKeysPageUrl(address)
@@ -421,8 +407,8 @@ export function Options() {
                   ref={keyRef}
                   id={keyId}
                   name="key"
-                  type={showKey || showingStoredKey ? "text" : "password"}
-                  placeholder="gmk_…"
+                  type={showKey ? "text" : "password"}
+                  placeholder={keyPlaceholder({ address, showKey }, stored)}
                   autoComplete="off"
                   data-1p-ignore
                   data-bwignore
@@ -432,9 +418,7 @@ export function Options() {
                   spellCheck={false}
                   enterKeyHint="go"
                   className="font-mono text-[13px] md:text-[13px]"
-                  value={
-                    showingStoredKey ? (showKey ? storedKey : maskedStoredKey) : (keyDraft ?? "")
-                  }
+                  value={keyDraft}
                   aria-invalid={errors.key ? true : undefined}
                   aria-describedby={`${keyId}-hint${errors.key ? ` ${keyId}-error` : ""}`}
                   onChange={(event) => onKeyChange(event.target.value)}
@@ -470,6 +454,9 @@ export function Options() {
                 Open API keys in GeoMetrikks
                 <ExternalLink aria-hidden />
               </Button>
+              <p role="status" className={cn("m-0 self-center text-xs", successText)}>
+                {connectStatus}
+              </p>
             </div>
             {errors.form && <FieldError>{errors.form}</FieldError>}
           </form>

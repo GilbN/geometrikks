@@ -16,6 +16,7 @@ import {
   setConnectionRefresh,
   setDropLists,
   setSettings,
+  type ConnectionIdentity,
   type RecentLookup,
   type StoredConnection,
 } from "./storage"
@@ -64,11 +65,19 @@ describe("settings", () => {
   })
 })
 
-const identityA = { origin: A, savedAt: 1 }
-const identityB = { origin: B, savedAt: 2 }
+const identityA = { origin: A, savedAt: 1, generation: 1 }
+const identityB = { origin: B, savedAt: 2, generation: 2 }
+/** A again after switching to B: a new connection with a new generation. */
+const identityAgainA = { origin: A, savedAt: 3, generation: 3 }
 
-function connectedTo(identity: { origin: string; savedAt: number }) {
+function connectedTo(identity: ConnectionIdentity) {
   return fakeChrome({ local: { connection: identity } })
+}
+
+/** Options' order for a switch: save the new server, then clear the old one's data. */
+async function switchTo(identity: ConnectionIdentity, chromeApi: ReturnType<typeof fakeChrome>) {
+  await setConnection(identity as StoredConnection, chromeApi)
+  await clearLocalServerData(chromeApi)
 }
 
 /** Holds writes of `key` until `release`, so a test can interleave another write. */
@@ -102,11 +111,41 @@ describe("recent lookups", () => {
     const chromeApi = connectedTo(identityA)
     await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
     expect(await getRecent(identityB, chromeApi)).toEqual([])
-    const reconnected = { origin: A, savedAt: 2 }
+    const reconnected = { origin: A, savedAt: 2, generation: identityA.generation }
+    await setConnection(reconnected as StoredConnection, chromeApi)
     expect((await getRecent(reconnected, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.1"])
     await setConnection(identityB as StoredConnection, chromeApi)
     await pushRecent(identityB, lookup("10.0.0.2", 2), chromeApi)
     expect((await getRecent(identityB, chromeApi)).map((item) => item.ip)).toEqual(["10.0.0.2"])
+  })
+
+  it("takes the generation from the stored connection when the caller has none", async () => {
+    const chromeApi = connectedTo(identityA)
+    await pushRecent({ origin: A, savedAt: 1 }, lookup("10.0.0.1", 1), chromeApi)
+    expect((await getRecent({ origin: A, savedAt: 1 }, chromeApi)).map((item) => item.ip)).toEqual([
+      "10.0.0.1",
+    ])
+    expect(await getRecent({ origin: A, savedAt: 9 }, chromeApi)).toEqual([])
+  })
+
+  it("never brings back rows cleared by a switch away and back", async () => {
+    const chromeApi = connectedTo(identityA)
+    await pushRecent(identityA, lookup("10.0.0.1", 1), chromeApi)
+    const gate = pauseWritesOf(chromeApi, `recent:${A}`)
+
+    const late = pushRecent(identityA, lookup("10.0.0.2", 2), chromeApi)
+    await gate.paused
+    await switchTo(identityB, chromeApi)
+    await switchTo(identityAgainA, chromeApi)
+    gate.release()
+    await late
+
+    expect(await getRecent(identityAgainA, chromeApi)).toEqual([])
+    expect(await getRecent({ origin: A, savedAt: 3 }, chromeApi)).toEqual([])
+    await pushRecent(identityAgainA, lookup("10.0.0.3", 3), chromeApi)
+    expect((await getRecent(identityAgainA, chromeApi)).map((item) => item.ip)).toEqual([
+      "10.0.0.3",
+    ])
   })
 
   it("drops a write from an older connection to the same server", async () => {
@@ -167,9 +206,24 @@ describe("AbuseIPDB cache", () => {
     const chromeApi = connectedTo(identityA)
     await setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
     expect(await getAbuseCache(identityB, "185.224.128.17", chromeApi)).toBeNull()
-    expect(await getAbuseCache({ origin: A, savedAt: 2 }, "185.224.128.17", chromeApi)).toEqual(
-      abuse,
-    )
+    const reconnected = { origin: A, savedAt: 2, generation: identityA.generation }
+    await setConnection(reconnected as StoredConnection, chromeApi)
+    expect(await getAbuseCache(reconnected, "185.224.128.17", chromeApi)).toEqual(abuse)
+  })
+
+  it("never brings back a result cleared by a switch away and back", async () => {
+    const chromeApi = connectedTo(identityA)
+    const gate = pauseWritesOf(chromeApi, `abuse:${A}`)
+
+    const late = setAbuseCache(identityA, "185.224.128.17", abuse, chromeApi)
+    await gate.paused
+    await switchTo(identityB, chromeApi)
+    await switchTo(identityAgainA, chromeApi)
+    gate.release()
+    await late
+
+    expect(await getAbuseCache(identityAgainA, "185.224.128.17", chromeApi)).toBeNull()
+    expect(await getAbuseCache({ origin: A, savedAt: 3 }, "185.224.128.17", chromeApi)).toBeNull()
   })
 
   it("drops a late write from a server that was replaced", async () => {
