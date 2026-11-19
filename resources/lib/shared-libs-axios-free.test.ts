@@ -5,7 +5,7 @@
  * reaches axios, the app's axios client modules or its theme provider.
  */
 import { existsSync, readFileSync, statSync } from "node:fs"
-import { dirname, extname, join, relative } from "node:path"
+import { dirname, extname, join, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import ts from "typescript"
 import { describe, expect, it } from "vite-plus/test"
@@ -45,6 +45,42 @@ const TS_SOURCE_FOR_JS: Record<string, string[]> = {
   ".jsx": [".tsx"],
   ".mjs": [".mts"],
   ".cjs": [".cts"],
+}
+
+const CODE_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "mjs", "cjs"])
+
+function loadsCode(specifier: string): boolean {
+  const query = new URLSearchParams(specifier.split("?")[1] ?? "")
+  return !query.has("raw") && !query.has("url")
+}
+
+function globCanMatchCode(pattern: string): boolean {
+  if (pattern.startsWith("!")) return false
+  const extension = /\.(\w+|\{[\w,]+\})$/.exec(pattern.split("/").pop() ?? "")?.[1]
+  if (!extension) return true
+  return extension
+    .replace(/[{}]/g, "")
+    .split(",")
+    .some((name) => CODE_EXTENSIONS.has(name))
+}
+
+function isImportMetaGlob(node: ts.CallExpression): boolean {
+  const callee = node.expression
+  return (
+    ts.isPropertyAccessExpression(callee) &&
+    ts.isMetaProperty(callee.expression) &&
+    callee.expression.keywordToken === ts.SyntaxKind.ImportKeyword &&
+    (callee.name.text === "glob" || callee.name.text === "globEager")
+  )
+}
+
+function globPatterns(argument: ts.Expression | undefined): string[] | null {
+  if (argument && ts.isStringLiteralLike(argument)) return [argument.text]
+  if (argument && ts.isArrayLiteralExpression(argument)) {
+    const patterns = argument.elements.filter(ts.isStringLiteralLike).map((pattern) => pattern.text)
+    return patterns.length === argument.elements.length ? patterns : null
+  }
+  return null
 }
 
 function allTypeOnly(elements: ts.NodeArray<ts.ImportSpecifier | ts.ExportSpecifier>): boolean {
@@ -92,13 +128,21 @@ function runtimeSpecifiers(source: string, fileName = "source.ts"): string[] {
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const [argument] = node.arguments
-      if (argument && ts.isStringLiteralLike(argument)) specifiers.push(argument.text)
+      if (!argument || !ts.isStringLiteralLike(argument)) {
+        throw new Error(`Unanalysable dynamic import in ${fileName}`)
+      }
+      specifiers.push(argument.text)
+    } else if (ts.isCallExpression(node) && isImportMetaGlob(node)) {
+      const patterns = globPatterns(node.arguments[0])
+      if (patterns === null || patterns.some(globCanMatchCode)) {
+        throw new Error(`Unanalysable import.meta.glob in ${fileName}`)
+      }
     }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
 
-  return specifiers
+  return specifiers.filter(loadsCode)
 }
 
 function isFile(path: string): boolean {
@@ -124,7 +168,11 @@ function resolveLocal(specifier: string, fromFile: string): string | null {
 }
 
 function moduleId(path: string): string {
-  return relative(RESOURCES, path).replace(/\.[cm]?[jt]sx?$/, "")
+  return relative(RESOURCES, path)
+    .split(sep)
+    .join("/")
+    .replace(/\.[cm]?[jt]sx?$/, "")
+    .replace(/\/index$/, "")
 }
 
 function packageName(specifier: string): string {
@@ -220,13 +268,63 @@ describe("runtimeSpecifiers", () => {
   it("counts a dynamic import() call", () => {
     expect(runtimeSpecifiers('async function load() { return import("axios") }')).toEqual(["axios"])
   })
+
+  it("counts a template literal dynamic import() call", () => {
+    expect(runtimeSpecifiers("const lazy = import(`axios`)")).toEqual(["axios"])
+  })
+
+  it.each([
+    'export * from "axios"',
+    'export * as ns from "axios"',
+    'import X, { type A } from "axios"',
+    'import "axios"',
+  ])("counts %s as a runtime import", (source) => {
+    expect(runtimeSpecifiers(source)).toEqual(["axios"])
+  })
+
+  it("skips a type-only default import", () => {
+    expect(runtimeSpecifiers('import type Default from "axios"')).toEqual([])
+  })
+
+  it("skips ?raw and ?url imports", () => {
+    const source = [
+      'import text from "./client.ts?raw"',
+      'import href from "@/lib/api?url"',
+      'import worker from "./worker?worker"',
+    ].join("\n")
+    expect(runtimeSpecifiers(source)).toEqual(["./worker?worker"])
+  })
+
+  it("throws on a dynamic import() of a non-literal", () => {
+    expect(() => runtimeSpecifiers("const lazy = (name: string) => import(name)")).toThrow(
+      "Unanalysable dynamic import in source.ts",
+    )
+  })
+
+  it.each([
+    'import.meta.glob("./*.ts")',
+    'import.meta.glob(["./*.svg", "./*.tsx"])',
+    'import.meta.glob("./**/*")',
+    'import.meta.glob("./*.{svg,js}")',
+    "import.meta.glob(patterns)",
+    'import.meta.globEager("./*.ts")',
+  ])("throws on %s", (source) => {
+    expect(() => runtimeSpecifiers(source)).toThrow("Unanalysable import.meta.glob in source.ts")
+  })
+
+  it.each(['import.meta.glob("./*.svg")', 'import.meta.glob(["./*.{svg,png}", "!./*.ts"])'])(
+    "allows %s",
+    (source) => {
+      expect(runtimeSpecifiers(source)).toEqual([])
+    },
+  )
 })
 
 describe("resolveLocal", () => {
   const from = join(RESOURCES, "lib/crowdsec.ts")
 
   it("strips a query suffix", () => {
-    expect(resolveLocal("./crowdsec-errors?url", from)).toBe(
+    expect(resolveLocal("./crowdsec-errors?worker", from)).toBe(
       join(RESOURCES, "lib/crowdsec-errors.ts"),
     )
   })
@@ -239,5 +337,24 @@ describe("resolveLocal", () => {
 
   it("throws on a missing local path", () => {
     expect(() => resolveLocal("./does-not-exist", from)).toThrow(/Cannot resolve/)
+  })
+
+  it("resolves a directory import to its index.ts", () => {
+    expect(resolveLocal("@/components/map", from)).toBe(join(RESOURCES, "components/map/index.ts"))
+  })
+
+  it("resolves a directory import to its index.tsx", () => {
+    expect(resolveLocal("@/routes", from)).toBe(join(RESOURCES, "routes/index.tsx"))
+  })
+})
+
+describe("bannedName", () => {
+  it.each(["index.ts", "index.tsx"])("matches a banned module through its %s", (index) => {
+    const resolved = join(RESOURCES, "components/theme-provider", index)
+    expect(bannedName("@/components/theme-provider", resolved)).toBe("@/components/theme-provider")
+  })
+
+  it("matches a banned module file", () => {
+    expect(bannedName("@/lib/api", join(RESOURCES, "lib/api.ts"))).toBe("@/lib/api")
   })
 })
