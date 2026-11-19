@@ -17,10 +17,10 @@ import { timeLeftText } from "@/lib/crowdsec-alerts"
 import { formatNumber } from "@/lib/format-number"
 import { scenarioText } from "@/lib/scenario-name"
 import { cn } from "@/lib/utils"
-import { banIp, type BanDuration } from "../lib/actions"
+import type { BanDuration } from "../lib/actions"
 import { inspectorUrl } from "../lib/links"
 import { toSixHour } from "../lib/stats"
-import type { BanResult, RecentLookup } from "../lib/storage"
+import type { RecentLookup } from "../lib/storage"
 import { AbuseCheck } from "./AbuseCheck"
 import { BanMenu } from "./BanMenu"
 import { CopyIp } from "./CopyIp"
@@ -28,6 +28,7 @@ import { IpChip } from "./IpChip"
 import {
   actionRowFor,
   applyDecisions,
+  banFromPopup,
   exactDecision,
   fetchDecisions,
   loadLookup,
@@ -36,7 +37,7 @@ import {
   rangeDecision,
   recentFrom,
   showAbuseCheck,
-  unbanThenRefetch,
+  unbanFromPopup,
   unbanToast,
   worthRemembering,
   type ActionRow,
@@ -44,7 +45,7 @@ import {
   type LookupData,
 } from "./lookup"
 import { CAPTCHA_TEXT_CLASS } from "./marks"
-import { SESSION_STALE_MESSAGE, sendWhileCurrent, type PopupSession } from "./open-context"
+import type { PopupSession } from "./open-context"
 import { formatErrorRate, type StatsRange } from "./site-stats"
 import { Chart, ErrorCount, Hits, Kpi, Label, ListRow, RangeSwitch, cardClass } from "./SiteStats"
 
@@ -389,8 +390,8 @@ function Actions({
 /** Screens 4 to 6: one IP, with Ban or Unban when the key may write.
  *  `onDecisions` gets each confirmed decisions read and `onRecent` the
  *  recent list after each write to it; both may run after unmount.
- *  `onStale` runs when a Ban or Unban found the connection changed since
- *  the session opened and sent nothing. */
+ *  `onStale` runs, in place of the rest, when a Ban or Unban found the
+ *  connection changed since the session opened and sent nothing. */
 export function Lookup({
   session,
   ip,
@@ -402,7 +403,7 @@ export function Lookup({
   ip: string
   onDecisions?: (ip: string, decisions: DecisionView[]) => void
   onRecent?: (items: RecentLookup[]) => void
-  onStale?: () => void
+  onStale: () => void
 }) {
   const [range, setRange] = useState<StatsRange>("7d")
   const [results, setResults] = useState<Partial<Record<StatsRange, LookupData>>>({})
@@ -487,27 +488,10 @@ export function Lookup({
 
   const action = actionRowFor(access, snapshot?.decisions ?? null, snapshot?.failed ?? false)
 
-  const staleSession = () => {
-    toast.error(SESSION_STALE_MESSAGE)
-    setBusy(false)
-    onStale?.()
-  }
-
   const ban = async (duration: BanDuration) => {
     setBusy(true)
-    const sent = await sendWhileCurrent(session, async (): Promise<BanResult> => {
-      try {
-        return await banIp(client, ip, duration)
-      } catch {
-        return {
-          ok: false,
-          ip,
-          durationLabel: duration.label,
-          message: `Ban failed for ${ip}; the server didn't answer.`,
-        }
-      }
-    })
-    if (sent.stale) return staleSession()
+    const sent = await banFromPopup(session, ip, duration)
+    if (sent.stale) return onStale()
     const result = sent.value
     if (result.ok) {
       toast.success(result.message)
@@ -522,12 +506,10 @@ export function Lookup({
     const before = action
     setBusy(true)
     let seq = 0
-    const sent = await sendWhileCurrent(session, () =>
-      unbanThenRefetch(client, ip, () => {
-        seq = ++readSeq.current
-      }),
-    )
-    if (sent.stale) return staleSession()
+    const sent = await unbanFromPopup(session, ip, () => {
+      seq = ++readSeq.current
+    })
+    if (sent.stale) return onStale()
     const outcome = sent.value
     const next = applyRead({ decisions: outcome.decisions, seq, afterWrite: true })
     const message = unbanToast(ip, before, outcome)

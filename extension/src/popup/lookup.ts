@@ -14,7 +14,7 @@ import type {
 import { isPublicIp } from "@/lib/abuseipdb"
 import { winningDecision } from "@/lib/crowdsec"
 import { matchDropNetwork, type DropIndex } from "@/lib/drop-lists"
-import { unbanIp } from "../lib/actions"
+import { banIp, unbanIp, type BanDuration } from "../lib/actions"
 import { realChrome, type ChromeApi } from "../lib/chrome-api"
 import { unwrap, type ExtensionClient } from "../lib/client"
 import type { Access } from "../lib/connection"
@@ -25,9 +25,11 @@ import {
   getRecent,
   pushRecent,
   setAbuseCache,
+  type BanResult,
   type ConnectionIdentity,
   type RecentLookup,
 } from "../lib/storage"
+import { sendWhileCurrent, type Guarded, type PopupSession } from "./open-context"
 import type { StatsRange } from "./site-stats"
 
 const HOUR_MS = 60 * 60_000
@@ -346,6 +348,42 @@ export async function unbanThenRefetch(
   }
   onRefetch?.()
   return { result, decisions: await fetchDecisions(client, ip) }
+}
+
+/** The popup's Ban: sent through the session's client only while the stored
+ *  connection is still the one the session opened with. */
+export function banFromPopup(
+  session: PopupSession,
+  ip: string,
+  duration: BanDuration,
+  chromeApi: ChromeApi = realChrome,
+): Promise<Guarded<BanResult>> {
+  return sendWhileCurrent(
+    session,
+    async () => {
+      try {
+        return await banIp(session.client, ip, duration)
+      } catch {
+        return {
+          ok: false,
+          ip,
+          durationLabel: duration.label,
+          message: `Ban failed for ${ip}; the server didn't answer.`,
+        }
+      }
+    },
+    chromeApi,
+  )
+}
+
+/** The popup's Unban, guarded the same way as `banFromPopup`. */
+export function unbanFromPopup(
+  session: PopupSession,
+  ip: string,
+  onRefetch?: () => void,
+  chromeApi: ChromeApi = realChrome,
+): Promise<Guarded<Awaited<ReturnType<typeof unbanThenRefetch>>>> {
+  return sendWhileCurrent(session, () => unbanThenRefetch(session.client, ip, onRefetch), chromeApi)
 }
 
 /** "Unbanned" only when the refetch shows nothing left covering the IP, and a

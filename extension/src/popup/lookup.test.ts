@@ -1,13 +1,17 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vite-plus/test"
 import type { CheckResponse, DecisionView, IpProfileResponse } from "@/generated/api/types.gen"
+import { BAN_DURATIONS } from "@/lib/crowdsec"
 import { buildDropIndex } from "@/lib/drop-lists"
 import { fakeChrome } from "../../tests/fake-chrome"
 import { createExtensionClient } from "../lib/client"
-import type { Access } from "../lib/connection"
+import { deriveAccess, type Access } from "../lib/connection"
 import { ABUSE_CACHE_MS, getRecent, type StoredConnection } from "../lib/storage"
 import {
   actionRowFor,
   applyDecisions,
+  banFromPopup,
   checkAbuse,
   loadLookup,
   profileBuckets,
@@ -15,11 +19,13 @@ import {
   recentFrom,
   showAbuseCheck,
   unbanActionFor,
+  unbanFromPopup,
   unbanThenRefetch,
   unbanToast,
   worthRemembering,
   type LookupData,
 } from "./lookup"
+import type { PopupSession } from "./open-context"
 
 const ORIGIN = "https://geo.example.net"
 const identity = { origin: ORIGIN, savedAt: 1 }
@@ -479,6 +485,72 @@ describe("unbanThenRefetch", () => {
     const outcome = await unbanThenRefetch(client, "45.148.10.82")
     expect(outcome.result.ok).toBe(false)
     expect(paths()).toContain("/api/v1/crowdsec/decisions/lookup")
+  })
+})
+
+describe("banFromPopup and unbanFromPopup", () => {
+  const writable = {
+    origin: ORIGIN,
+    pattern: `${ORIGIN}/*`,
+    key: "gmk_test",
+    keyless: false,
+    verifiedScope: "read_write",
+    connection: {
+      mode: "apiKey",
+      appVersion: "0.26.0",
+      apiVersion: "1",
+      capabilities: ["crowdsec", "crowdsecWrite"],
+    },
+    savedAt: 1,
+    lifetime: "lifetime-1",
+  } as unknown as StoredConnection
+
+  function opened(answer: Parameters<typeof server>[0]) {
+    const { client, paths } = server(answer)
+    const session = {
+      stored: writable,
+      connection: writable.connection,
+      client,
+      access: deriveAccess(writable, writable.connection),
+    } as unknown as PopupSession
+    const chromeApi = fakeChrome({ local: { connection: writable } })
+    return { session, chromeApi, paths }
+  }
+
+  const reconnectWithReadKey = (chromeApi: ReturnType<typeof fakeChrome>) => {
+    chromeApi.storage.local.data.connection = {
+      ...writable,
+      key: "gmk_read",
+      verifiedScope: "read",
+      savedAt: 2,
+      lifetime: "lifetime-2",
+    }
+  }
+
+  it("bans while the connection is the session's", async () => {
+    const { session, chromeApi, paths } = opened(() => new Response(null, { status: 204 }))
+    const sent = await banFromPopup(session, "45.148.10.82", BAN_DURATIONS[0], chromeApi)
+    expect(sent).toMatchObject({ stale: false, value: { ok: true } })
+    expect(paths()).toEqual(["/api/v1/crowdsec/ban"])
+  })
+
+  it("sends nothing after a same-origin reconnect with a Read key", async () => {
+    const { session, chromeApi, paths } = opened(() => new Response(null, { status: 204 }))
+    reconnectWithReadKey(chromeApi)
+    expect(await banFromPopup(session, "45.148.10.82", BAN_DURATIONS[0], chromeApi)).toEqual({
+      stale: true,
+    })
+    expect(await unbanFromPopup(session, "45.148.10.82", undefined, chromeApi)).toEqual({
+      stale: true,
+    })
+    expect(paths()).toEqual([])
+  })
+
+  it("are the only way Lookup bans or unbans", () => {
+    const source = readFileSync(path.join(import.meta.dirname, "Lookup.tsx"), "utf8")
+    expect(source).not.toMatch(/\b(banIp|unbanIp|unbanThenRefetch|sendWhileCurrent)\b/)
+    expect(source).toMatch(/\bbanFromPopup\(/)
+    expect(source).toMatch(/\bunbanFromPopup\(/)
   })
 })
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test"
 import { A, B, storedFor, testDeps, type TestDeps } from "../../tests/worker-deps"
 import type { PendingItem } from "../lib/storage"
+import { handleMenuClick, MENU_LOOKUP } from "./menus"
 import {
   claimPending,
   claimRequestFrom,
@@ -176,9 +177,13 @@ describe("clearPending", () => {
   it("keeps an item B queued before A's serverChanged arrived and drops A's", async () => {
     const deps = testDeps()
     await stored(deps)
-    const b = storedFor(B, { savedAt: 2, lifetime: "lifetime-2" })
-    deps.chrome.storage.local.data.connection = b
-    const queued = await enqueuePending(item(deps, { origin: B, lifetime: "lifetime-2" }), b, deps)
+    deps.chrome.storage.local.data.connection = storedFor(B, { savedAt: 2, lifetime: "lifetime-2" })
+    const queued = await handleMenuClick(
+      { menuItemId: MENU_LOOKUP, selectionText: "45.148.10.82" },
+      { windowId: 7 } as chrome.tabs.Tab,
+      deps,
+    )
+    expect(queued).toMatchObject({ origin: B, lifetime: "lifetime-2" })
     await clearPending(deps)
     expect(pending(deps).map((entry) => entry.id)).toEqual([queued?.id])
   })

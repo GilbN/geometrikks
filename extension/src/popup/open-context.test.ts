@@ -111,6 +111,26 @@ describe("sendWhileCurrent", () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  it("sends nothing when the connection changes during another read", async () => {
+    const chromeApi = fakeChrome({ local: { connection: writable } })
+    const read = chromeApi.storage.local.get
+    chromeApi.storage.local.get = async (keys) => {
+      const answer = await read(keys)
+      if (keys === "connectionRefresh") {
+        chromeApi.storage.local.data.connection = {
+          ...writable,
+          key: "gmk_read",
+          verifiedScope: "read",
+          savedAt: 2,
+        }
+      }
+      return answer
+    }
+    const send = vi.fn(async () => "banned")
+    expect(await sendWhileCurrent(sessionFor(writable), send, chromeApi)).toEqual({ stale: true })
+    expect(send).not.toHaveBeenCalled()
+  })
+
   it("sends nothing when the connection can't be read", async () => {
     const chromeApi = fakeChrome({ local: { connection: writable } })
     chromeApi.storage.local.get = async () => {

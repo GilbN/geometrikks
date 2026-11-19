@@ -81,19 +81,30 @@ export function sessionIsCurrent(session: PopupSession, latest: StoredConnection
   return deriveAccess(latest, session.connection).write === session.access.write
 }
 
+export type Guarded<T> = { stale: true } | { stale: false; value: T }
+
 /** Runs `send` only while the stored connection read right before it is
  *  still this session's. A failed read counts as changed. */
 export async function sendWhileCurrent<T>(
   session: PopupSession,
   send: () => Promise<T>,
   chromeApi: ChromeApi = realChrome,
-): Promise<{ stale: true } | { stale: false; value: T }> {
-  let latest: StoredConnection | null
+): Promise<Guarded<T>> {
+  let refresh: ConnectionRefresh | null
   try {
-    latest = await readStoredConnection(chromeApi)
+    refresh = await getConnectionRefresh(chromeApi)
+  } catch {
+    refresh = null
+  }
+  let saved: StoredConnection | null
+  try {
+    // Last await before `send`: a connection saved during any earlier read
+    // would otherwise go unseen.
+    saved = await getConnection(chromeApi)
   } catch {
     return { stale: true }
   }
+  const latest = saved && effectiveConnection(saved, refresh)
   if (!sessionIsCurrent(session, latest)) return { stale: true }
   return { stale: false, value: await send() }
 }

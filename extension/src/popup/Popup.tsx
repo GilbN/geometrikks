@@ -21,6 +21,7 @@ import {
   readOpenContext,
   readStoredConnection,
   refreshViaWorker,
+  SESSION_STALE_MESSAGE,
   type OpenContext,
   type PopupSession,
 } from "./open-context"
@@ -151,6 +152,7 @@ export function Popup({
   const [recent, setRecent] = useState<RecentLookup[] | null>(null)
   const [decisionTypes, setDecisionTypes] = useState<Record<string, string | null>>({})
   const [pendingDismissed, setPendingDismissed] = useState(false)
+  const [stale, setStale] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const opener = useRef<HTMLElement | null>(null)
   const returning = useRef(false)
@@ -214,22 +216,7 @@ export function Popup({
     setLookupIp(null)
     setPendingDismissed(true)
   }
-  const onStale = useCallback(() => {
-    setCheck({ kind: "checking" })
-    void (async () => {
-      let latest: StoredConnection | null
-      try {
-        latest = await readStoredConnection()
-      } catch {
-        latest = null
-      }
-      setOpened((previous) => {
-        if (previous === null) return previous
-        const claimed = previous.claimed?.origin === latest?.origin ? previous.claimed : null
-        return { ...previous, stored: latest, claimed }
-      })
-    })()
-  }, [])
+  const onStale = useCallback(() => setStale(true), [])
   const onDecisions = useCallback((ip: string, decisions: DecisionView[]) => {
     const type = winningDecision(decisions)?.type ?? null
     setDecisionTypes((previous) => ({ ...previous, [ip]: type }))
@@ -250,6 +237,18 @@ export function Popup({
   const lookup = ready && lookupIp !== null ? lookupIp : null
   const session = check.kind === "ready" ? check.session : null
   const pendingLookup = claimed !== null && claimed.ip !== null && session !== null
+
+  // Refreshing in place would keep the old server's data under the new header.
+  if (stale) {
+    return (
+      <div className="flex max-h-[600px] flex-col bg-background text-[13px] text-foreground">
+        <Header host={null} health="checking" />
+        <main className="p-3" role="status">
+          {SESSION_STALE_MESSAGE}
+        </main>
+      </div>
+    )
+  }
 
   const problem =
     check.kind === "problem" ? (
