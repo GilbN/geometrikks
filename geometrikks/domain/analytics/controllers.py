@@ -736,9 +736,10 @@ class AnalyticsController(Controller):
         "/top-ips",
         summary="List the client IPs with the most requests",
         description=(
-            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A "
-            "country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it "
-            f"reaches past ANALYTICS_RAW_RETENTION_DAYS. {HOST_ASN_RAW_NOTE}"
+            "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus "
+            "the number of distinct IPs in the range. A country, city or IP filter reads the per-IP "
+            "aggregates, so unlike the URL and user agent lists it reaches past "
+            f"ANALYTICS_RAW_RETENTION_DAYS. {HOST_ASN_RAW_NOTE}"
         ),
     )
     async def get_top_ips(
@@ -769,18 +770,20 @@ class AnalyticsController(Controller):
             host_in=host_in,
         )
         rows = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
+        distinct_ips = await summary_stats_repo.count_distinct_ips(start_date, end_date, filters=filters)
         return TopIpsResponse(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
             items=[TopIpDTO(**vars(r)) for r in rows],
+            distinct_ips=distinct_ips,
         )
 
     @get(
         "/top-countries",
         summary="List the countries with the most requests",
         description=(
-            "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests "
-            f"without a country are left out. {HOST_ASN_RAW_NOTE}"
+            "Returns countries ordered by hits, with error hits and the number of distinct client IPs from "
+            f"each. Requests without a country are left out. {HOST_ASN_RAW_NOTE}"
         ),
     )
     async def get_top_countries(

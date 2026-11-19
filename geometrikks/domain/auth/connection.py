@@ -11,7 +11,7 @@ from geometrikks.server.api_key_auth import ApiKeyPrincipal
 from geometrikks.server.api_version import API_VERSION
 from geometrikks.server.auth import AdminUser
 
-Capability = Literal["crowdsec", "crowdsecWrite", "asn", "drop"]
+Capability = Literal["crowdsec", "crowdsecWrite", "asn", "drop", "analyticsHostFilter"]
 
 
 class ConnectionInfo(msgspec.Struct, kw_only=True, rename="camel"):
@@ -22,7 +22,8 @@ class ConnectionInfo(msgspec.Struct, kw_only=True, rename="camel"):
     capabilities: Annotated[
         list[Capability],
         msgspec.Meta(description=(
-            "Configured server features, independent of key scope and current service availability. "
+            "Configured server features and API features this server supports, independent of key scope "
+            "and current service availability. "
             "crowdsecWrite also requires a read_write key or a browser session when auth is enabled."
         )),
     ]
@@ -58,6 +59,7 @@ def connection_info(settings: Settings, user: AdminUser | ApiKeyPrincipal | None
         capabilities.append("asn")
     if settings.drop.enabled:
         capabilities.append("drop")
+    capabilities.append("analyticsHostFilter")
     version = settings.version
     if settings.auth_disabled:
         return DisabledConnection(app_version=version, api_version=API_VERSION, capabilities=capabilities)

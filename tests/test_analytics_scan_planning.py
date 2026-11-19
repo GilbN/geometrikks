@@ -37,6 +37,7 @@ class CaptureSession:
         return SimpleNamespace(
             one_or_none=lambda: None,
             one=lambda: SimpleNamespace(hits=0, total_bytes=0),
+            scalar_one=lambda: 0,
             fetchall=list,
         )
 
@@ -53,6 +54,9 @@ WIDE_SCANS: dict[str, ScanCall] = {
     ),
     "raw top asns": lambda s: LiveStatsRepository(session=s).get_top_asns(HOURS_AGO, NOW, filters=EXCLUDE),
     "raw top ips": lambda s: LiveStatsRepository(session=s).get_top_ips(HOURS_AGO, NOW, filters=EXCLUDE),
+    "raw distinct ips": lambda s: LiveStatsRepository(session=s).count_distinct_ips(
+        HOURS_AGO, NOW, filters=EXCLUDE
+    ),
     "raw top countries": lambda s: LiveStatsRepository(session=s).get_top_countries(
         HOURS_AGO, NOW, filters=EXCLUDE
     ),

@@ -398,6 +398,10 @@ class TopIpsResponse(msgspec.Struct, rename="camel"):
     start_date: EchoedStart
     end_date: EchoedEnd
     items: list[TopIpDTO]
+    distinct_ips: Annotated[
+        int,
+        msgspec.Meta(description="Distinct client IPs in the range after all filters, counting those beyond `limit`."),
+    ]
 
 
 class TopCountryStatsDTO(msgspec.Struct, rename="camel"):
@@ -406,6 +410,7 @@ class TopCountryStatsDTO(msgspec.Struct, rename="camel"):
     country_code: str
     country_name: str | None
     hits: int
+    error_hits: ErrorHits
     unique_ips: Annotated[int, msgspec.Meta(description="Distinct client IPs from the country.")]
 
 

@@ -1346,13 +1346,14 @@
             "type": "string"
           },
           "capabilities": {
-            "description": "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+            "description": "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
             "items": {
               "enum": [
                 "crowdsec",
                 "crowdsecWrite",
                 "asn",
-                "drop"
+                "drop",
+                "analyticsHostFilter"
               ],
               "type": "string"
             },
@@ -2886,13 +2887,14 @@
             "type": "string"
           },
           "capabilities": {
-            "description": "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+            "description": "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
             "items": {
               "enum": [
                 "crowdsec",
                 "crowdsecWrite",
                 "asn",
-                "drop"
+                "drop",
+                "analyticsHostFilter"
               ],
               "type": "string"
             },
@@ -7641,13 +7643,14 @@
             "type": "string"
           },
           "capabilities": {
-            "description": "Configured server features, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
+            "description": "Configured server features and API features this server supports, independent of key scope and current service availability. crowdsecWrite also requires a read_write key or a browser session when auth is enabled.",
             "items": {
               "enum": [
                 "crowdsec",
                 "crowdsecWrite",
                 "asn",
-                "drop"
+                "drop",
+                "analyticsHostFilter"
               ],
               "type": "string"
             },
@@ -8566,6 +8569,10 @@
               }
             ]
           },
+          "errorHits": {
+            "description": "Hits with a status of 400 or higher.",
+            "type": "integer"
+          },
           "hits": {
             "type": "integer"
           },
@@ -8577,6 +8584,7 @@
         "required": [
           "countryCode",
           "countryName",
+          "errorHits",
           "hits",
           "uniqueIps"
         ],
@@ -8950,6 +8958,10 @@
       "TopIpsResponse": {
         "description": "Client IPs ordered by hits, most first.",
         "properties": {
+          "distinctIps": {
+            "description": "Distinct client IPs in the range after all filters, counting those beyond `limit`.",
+            "type": "integer"
+          },
           "endDate": {
             "description": "The request's `endDate`, echoed as ISO 8601.",
             "type": "string"
@@ -8966,6 +8978,7 @@
           }
         },
         "required": [
+          "distinctIps",
           "endDate",
           "items",
           "startDate"
@@ -8995,7 +9008,7 @@
             "type": "integer"
           },
           "host": {
-            "description": "The Host header of the requests. Null when the log line carries none, as in nginx's combined format.",
+            "description": "The Host header of the requests. Null when the log line carries none, as in nginx's combined format. Null for every row when `hostIn` has more than one value.",
             "oneOf": [
               {
                 "type": "string"
@@ -11448,7 +11461,7 @@
     "/api/v1/analytics/time-series": {
       "get": {
         "deprecated": false,
-        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
+        "description": "Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.",
         "operationId": "ApiV1AnalyticsTimeSeriesGetTimeSeries",
         "parameters": [
           {
@@ -11679,6 +11692,29 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },
@@ -12535,7 +12571,7 @@
     "/api/v1/analytics/top-countries": {
       "get": {
         "deprecated": false,
-        "description": "Returns countries ordered by hits, with the number of distinct client IPs from each. Requests without a country are left out. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns countries ordered by hits, with error hits and the number of distinct client IPs from each. Requests without a country are left out. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopCountriesGetTopCountries",
         "parameters": [
           {
@@ -12769,6 +12805,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -12837,7 +12896,7 @@
     "/api/v1/analytics/top-ips": {
       "get": {
         "deprecated": false,
-        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. A country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopIpsGetTopIps",
         "parameters": [
           {
@@ -13071,6 +13130,29 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         ],
         "responses": {
@@ -13139,7 +13221,7 @@
     "/api/v1/analytics/top-urls": {
       "get": {
         "deprecated": false,
-        "description": "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
+        "description": "Returns host and path pairs ordered by hits, with error hits, bytes and the average request time. Lines without a path are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.",
         "operationId": "ApiV1AnalyticsTopUrlsGetTopUrls",
         "parameters": [
           {
@@ -13365,6 +13447,29 @@
                 {
                   "items": {
                     "type": "integer"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+            "in": "query",
+            "name": "hostIn",
+            "required": false,
+            "schema": {
+              "description": "Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one.",
+              "oneOf": [
+                {
+                  "items": {
+                    "type": "string"
                   },
                   "type": "array"
                 },

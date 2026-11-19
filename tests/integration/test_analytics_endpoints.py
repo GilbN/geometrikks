@@ -863,6 +863,66 @@ async def test_top_urls_groups_paths_across_two_hosts(pg_session_maker, clean_ta
     assert ("/login", 50) in [(r.url, r.hits) for r in one_host]
 
 
+# Two days back lands in whole hourly buckets the rollup leg of a 7 d window reads.
+ROLLUP_TS = NOW - timedelta(days=2)
+
+
+async def test_top_ips_reports_distinct_ips_after_filters(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    async with pg_session_maker() as session:
+        for ts in (NOW - timedelta(hours=1), ROLLUP_TS):
+            for i in range(7):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=f"10.0.1.{i}", host="a.example")
+            for i in range(3):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=f"10.0.2.{i}", host="b.example")
+        await session.commit()
+    failed = await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=3), end=NOW, caggs=["log_ip_hourly_stats"]
+    )
+    assert failed == []
+
+    day = NOW - timedelta(hours=24)
+    week = NOW - timedelta(days=7)
+    filters = AnalyticsFilters(hosts=["a.example"])
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        page = await repo.get_top_ips(day, NOW, limit=2, filters=filters)
+        filtered = await repo.count_distinct_ips(day, NOW, filters=filters)
+        unfiltered_day = await repo.count_distinct_ips(day, NOW)
+        unfiltered_week = await repo.count_distinct_ips(week, NOW)
+        # Ends before the newer rows, so only the rollup leg answers it.
+        rollup_only = await repo.count_distinct_ips(week, NOW - timedelta(days=1))
+
+    assert len(page) == 2
+    assert filtered == 7
+    assert unfiltered_day == 10
+    assert unfiltered_week == 10
+    assert rollup_only == 10
+
+
+async def test_top_countries_error_hits_raw_and_rollup(pg_engine, pg_session_maker, clean_tables):
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    async with pg_session_maker() as session:
+        for ts in (NOW - timedelta(hours=1), ROLLUP_TS):
+            for status in (200, 404, 503):
+                await _insert_log(session, ts=ts, url="/", user_agent="x", status=status, country="NO")
+        await session.commit()
+    failed = await refresh_caggs_range(
+        pg_engine, start=NOW - timedelta(days=3), end=NOW, caggs=["log_ip_hourly_stats"]
+    )
+    assert failed == []
+
+    async with pg_session_maker() as session:
+        repo = SummaryStatsRepository(session=session)
+        raw = await repo.get_top_countries(NOW - timedelta(hours=24), NOW)
+        rollup = await repo.get_top_countries(NOW - timedelta(days=7), NOW - timedelta(days=1))
+
+    assert [(r.country_code, r.hits, r.error_hits) for r in raw] == [("NO", 3, 2)]
+    assert [(r.country_code, r.hits, r.error_hits) for r in rollup] == [("NO", 3, 2)]
+
+
 @pytest.fixture()
 def _reset_structlog_after_app():
     """Undo the StructlogPlugin's global configuration (see test_app_factory)."""
@@ -891,5 +951,7 @@ async def test_host_in_over_http(
     assert {name: r.status_code for name, r in responses.items()} == dict.fromkeys(responses, 200)
     assert sum(p["totalRequests"] for p in responses["time-series"].json()["data"]) == 5
     assert {i["ipAddress"]: i["hits"] for i in responses["top-ips"].json()["items"]} == {"1.1.1.1": 3, "2.2.2.2": 2}
+    assert responses["top-ips"].json()["distinctIps"] == 2
+    assert {i["countryCode"]: i["errorHits"] for i in responses["top-countries"].json()["items"]} == {"NO": 0, "SE": 0}
     assert {i["countryCode"]: i["hits"] for i in responses["top-countries"].json()["items"]} == {"NO": 3, "SE": 2}
     assert [(i["host"], i["url"], i["hits"]) for i in responses["top-urls"].json()["items"]] == [(None, "/", 5)]

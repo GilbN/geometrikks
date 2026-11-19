@@ -1044,6 +1044,24 @@ class SummaryStatsRepository:
         await self._attach_asns(top_ips, start, end, granularity)
         return top_ips
 
+    async def count_distinct_ips(
+        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
+    ) -> int:
+        """Distinct client IPs in the range after filters, routed like ``get_top_ips``."""
+        filters = filters or AnalyticsFilters()
+        granularity = get_stats_granularity(start, end)
+        if granularity == StatsGranularity.RAW or filters.needs_raw_rows():
+            return await LiveStatsRepository(self.session).count_distinct_ips(start, end, filters=filters)
+        filter_sql, filter_params = filters.sql_conditions()
+        stmt = text(f"""
+            {self._log_ip_combined_cte(granularity)}
+            SELECT CAST(COUNT(DISTINCT ip_address) AS BIGINT)
+            FROM combined
+            WHERE TRUE {filter_sql}
+        """)
+        result = await self.session.execute(stmt, {**_stitch_params(start, end, granularity), **filter_params})
+        return int(result.scalar_one())
+
     async def _attach_asns(
         self, top_ips: list[TopIpRow], start: datetime, end: datetime, granularity: StatsGranularity
     ) -> None:
@@ -1113,6 +1131,7 @@ class SummaryStatsRepository:
                 country_code,
                 MAX(country_name) AS country_name,
                 CAST(SUM(hits) AS BIGINT) AS hits,
+                CAST(SUM(error_hits) AS BIGINT) AS error_hits,
                 CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
             FROM combined
             WHERE country_code IS NOT NULL {filter_sql}
@@ -1207,6 +1226,7 @@ class TopCountryRow:
     country_code: str
     country_name: str | None
     hits: int
+    error_hits: int
     unique_ips: int
 
 
@@ -1644,6 +1664,21 @@ class LiveStatsRepository:
         )
         return [TopIpRow(**row._mapping) for row in result.fetchall()]
 
+    async def count_distinct_ips(
+        self, start: datetime, end: datetime, *, filters: AnalyticsFilters | None = None
+    ) -> int:
+        """Distinct client IPs in the range after filters, from raw access_logs."""
+        filter_sql, filter_params = (filters or AnalyticsFilters()).sql_conditions()
+        stmt = text(f"""
+            SELECT CAST(COUNT(DISTINCT ip_address) AS BIGINT)
+            FROM access_logs
+            WHERE timestamp >= :start AND timestamp < :end
+            {filter_sql}
+        """)
+        await plan_for_wide_scan(self.session)
+        result = await self.session.execute(stmt, {"start": start, "end": end, **filter_params})
+        return int(result.scalar_one())
+
     async def get_top_countries(
         self, start: datetime, end: datetime, limit: int = 25, *, filters: AnalyticsFilters | None = None
     ) -> list[TopCountryRow]:
@@ -1654,6 +1689,7 @@ class LiveStatsRepository:
                 country_code,
                 MAX(country_name) AS country_name,
                 CAST(COUNT(*) AS BIGINT) AS hits,
+                CAST(COUNT(*) FILTER (WHERE status_code >= 400) AS BIGINT) AS error_hits,
                 CAST(COUNT(DISTINCT ip_address) AS BIGINT) AS unique_ips
             FROM access_logs
             WHERE timestamp >= :start AND timestamp < :end AND country_code IS NOT NULL
