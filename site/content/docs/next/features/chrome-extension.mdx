@@ -86,7 +86,7 @@ Let only the extension's API calls past the proxy's login. These are the paths i
 - `/api/v1/drop/lists`
 - `/api/v1/abuseipdb/*`
 
-GeoMetrikks checks the API key on every request to these paths, so one without a valid key gets a 401. Don't bypass all of `/api/`. The login and OIDC routes live under it too, they don't take API keys, and a bypass would let anyone reach them without passing the proxy first.
+GeoMetrikks still checks every request to these paths. It answers one that carries a valid API key or a valid GeoMetrikks session cookie, and gives anything else a 401. Don't bypass all of `/api/`. The login and OIDC routes live under it too, they don't take API keys, and a bypass would let anyone reach them without passing the proxy first.
 
 With Traefik, a second router for those requests, without the forward auth middleware, does it. In the file provider:
 
@@ -105,7 +105,7 @@ http:
 
 `HeaderRegexp` is the Traefik v3 name. On Traefik v2 the matcher is `HeadersRegexp`. If the `geometrikks` service is defined by Docker labels, the file provider refers to it as `geometrikks@docker`.
 
-Authelia's access rules can't match a header, so a bypass there lets every request to those paths through, with or without a key. GeoMetrikks still answers a request without a valid key with a 401. Put the rule above the one that protects the domain, since Authelia applies the first rule that matches:
+Authelia's access rules can't match a header, so a bypass there lets every request to those paths through to GeoMetrikks, with or without a key. GeoMetrikks then wants a valid API key or a valid session cookie, and answers a request with neither with a 401. Put the rule above the one that protects the domain, since Authelia applies the first rule that matches:
 
 ```yaml
 access_control:

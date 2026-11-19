@@ -2,6 +2,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import path from "node:path"
 import { isDeepStrictEqual } from "node:util"
+import { type DefaultTreeAdapterTypes, ErrorCodes, parse } from "parse5"
 import ts from "typescript"
 
 const EXTENSION = path.resolve(import.meta.dirname, "..")
@@ -100,50 +101,59 @@ function checkIcons() {
 
 export type Attributes = { values: Map<string, string>; repeated: Set<string> }
 
+type StartTag = Attributes & { name: string }
+
 const isSpace = (char: string | undefined) =>
   char === " " || char === "\t" || char === "\n" || char === "\f" || char === "\r"
 
-/** Reads the text after a tag name the way the HTML tokenizer does, so
- *  `src="/a.js"SRC="/b.js"` is two attributes. Browsers keep the first of a
- *  repeated attribute and drop the rest. */
-export function attributes(tag: string): Attributes {
-  const values = new Map<string, string>()
-  const repeated = new Set<string>()
-  let index = 0
-  const skipSpaces = () => {
-    while (isSpace(tag[index])) index++
-  }
-  while (index < tag.length) {
-    if (isSpace(tag[index]) || tag[index] === "/") {
-      index++
-      continue
-    }
-    // A name may start with "=", and only space, "/" and "=" end it.
-    const nameStart = index++
-    while (index < tag.length && !isSpace(tag[index]) && tag[index] !== "/" && tag[index] !== "=")
-      index++
-    const name = tag.slice(nameStart, index).toLowerCase()
-    skipSpaces()
-    let value = ""
-    if (tag[index] === "=") {
-      index++
-      skipSpaces()
-      const quote = tag[index]
-      if (quote === '"' || quote === "'") {
-        const close = tag.indexOf(quote, index + 1)
-        const end = close === -1 ? tag.length : close
-        value = tag.slice(index + 1, end)
-        index = end + 1
-      } else {
-        const valueStart = index
-        while (index < tag.length && !isSpace(tag[index])) index++
-        value = tag.slice(valueStart, index)
+/** The name of an attribute parse5 dropped as a repeat, read back from the
+ *  error offset, which sits just past that name in the source. */
+function droppedName(html: string, end: number): string {
+  let start = end
+  while (start > 0 && !isSpace(html[start - 1]) && !`/"'`.includes(html[start - 1])) start--
+  return html.slice(start, end).toLowerCase()
+}
+
+/** Every start tag in `html` with its attributes as the browser keeps them:
+ *  the first of a repeated name wins, and the repeats are listed apart. */
+function startTags(html: string): StartTag[] {
+  const dropped: { offset: number; name: string }[] = []
+  const document = parse(html, {
+    sourceCodeLocationInfo: true,
+    // Read <noscript> content as markup, so tags inside it are checked too.
+    scriptingEnabled: false,
+    onParseError: (error) => {
+      if (error.code === ErrorCodes.duplicateAttribute)
+        dropped.push({ offset: error.startOffset, name: droppedName(html, error.startOffset) })
+    },
+  })
+  const tags: StartTag[] = []
+  const visit = (node: DefaultTreeAdapterTypes.ParentNode) => {
+    for (const child of node.childNodes) {
+      if (!("tagName" in child)) continue
+      const location = child.sourceCodeLocation?.startTag
+      if (location) {
+        const repeated = new Set(
+          dropped
+            .filter(({ offset }) => offset > location.startOffset && offset < location.endOffset)
+            .map(({ name }) => name),
+        )
+        const values = new Map(child.attrs.map((attr) => [attr.name, attr.value] as const))
+        tags.push({ name: child.tagName, values, repeated })
       }
+      visit(
+        child.tagName === "template" ? (child as DefaultTreeAdapterTypes.Template).content : child,
+      )
     }
-    if (values.has(name)) repeated.add(name)
-    else values.set(name, value)
   }
-  return { values, repeated }
+  visit(document)
+  return tags
+}
+
+/** The attributes of one start tag, given the text after its name. */
+export function attributes(tag: string): Attributes {
+  const [first] = startTags(`<div${tag}>`)
+  return { values: first?.values ?? new Map(), repeated: first?.repeated ?? new Set() }
 }
 
 const PAGE_BASE = "chrome-extension://extension/"
@@ -166,8 +176,7 @@ function packagedScript(page: string, src: string): string | null {
   return existsSync(file) && statSync(file).isFile() ? file : null
 }
 
-export function scriptProblem(page: string, tag: string): string | null {
-  const { values, repeated } = attributes(tag)
+function scriptTagProblem(page: string, { values, repeated }: Attributes): string | null {
   if (repeated.has("src")) return `${page} has a <script> with more than one src`
   const src = values.get("src")?.trim()
   if (src === undefined) return `${page} has an inline <script>`
@@ -176,24 +185,24 @@ export function scriptProblem(page: string, tag: string): string | null {
   return null
 }
 
-// Quote-aware like the <script> scan, and "/" ends a tag name as the tokenizer
-// has it, so `<img/src=...>` and `<img alt=">" src=...>` are read whole.
-const TAG = /<[a-z][^\s/>]*((?:[\s/](?:[^>"']|"[^"]*"|'[^']*')*)?)>/gi
+/** The problem with one <script>, given the text after its tag name. */
+export function scriptProblem(page: string, tag: string): string | null {
+  return scriptTagProblem(page, attributes(tag))
+}
 
 /** The problems in one built page's HTML. */
 export function pageProblems(page: string, html: string): string[] {
   const problems: string[] = []
-  for (const match of html.matchAll(/<script\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi)) {
-    const problem = scriptProblem(page, match[1])
-    if (problem) problems.push(problem)
-  }
-  for (const match of html.matchAll(TAG)) {
-    const attrs = attributes(match[1]).values
-    for (const name of attrs.keys()) {
+  for (const tag of startTags(html)) {
+    if (tag.name === "script") {
+      const problem = scriptTagProblem(page, tag)
+      if (problem) problems.push(problem)
+    }
+    for (const name of tag.values.keys()) {
       if (/^on[a-z]+$/.test(name)) problems.push(`${page} has an inline event handler ${name}`)
     }
     for (const name of ["src", "href"]) {
-      const reference = attrs.get(name)?.trim()
+      const reference = tag.values.get(name)?.trim()
       if (reference === undefined) continue
       if (reference === "" || reference.startsWith("#") || /^data:/i.test(reference)) continue
       if (/^(?:https?:)?\/\//i.test(reference)) {
@@ -249,6 +258,13 @@ function checkStylesheets() {
 function checkFiles() {
   for (const file of ["worker.js", "theme-boot.js"]) {
     if (!existsSync(inDist(file))) fail(`missing ${file}`)
+  }
+}
+
+function checkNoTestHooks(graph: ModuleGraph) {
+  for (const file of new Set(["worker.js", ...(graph.entryFiles.worker ?? [])])) {
+    if (existsSync(inDist(file)) && readFileSync(inDist(file), "utf8").includes("__gmk"))
+      fail(`${file} carries the e2e hooks (__gmk); build without the e2e mode`)
   }
 }
 
@@ -355,6 +371,7 @@ function main() {
     checkModules(graph)
     checkFlag(graph)
     checkWorkerImports(graph)
+    checkNoTestHooks(graph)
   }
 
   if (failures.length > 0) {

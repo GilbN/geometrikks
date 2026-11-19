@@ -2,7 +2,7 @@
 
 > Last updated: 2026-11-19
 
-What goes into the Chrome Developer Dashboard for each upload. The zip comes from `bun run ext:build && bun run ext:zip`, or from the GitHub release, which carries `geometrikks-chrome-<version>.zip`. This file is not in the zip.
+What goes into the Chrome Developer Dashboard for each upload. The zip comes from `bun run ext:build && bun run ext:check-dist && bun run ext:zip`, or from the GitHub release, which carries `geometrikks-chrome-<version>.zip`. This file is not in the zip.
 
 ## Store listing
 
@@ -93,7 +93,7 @@ Take each one on a seeded test server with a Read/write key, the popup open over
 
 | Permission | Type | Justification |
 | --- | --- | --- |
-| `storage` | permissions | Keeps the user's GeoMetrikks server address, the API key if the user connected with one, the "Show stats for the site I'm on" setting and the last five IP lookups on the device. Also keeps the last AbuseIPDB result for each IP, reused for up to 15 minutes so a second look at the same IP doesn't spend the user's daily AbuseIPDB quota again, and the server's Spamhaus DROP lists, reused for up to 6 hours. Those copies are removed on Disconnect, when the user switches servers, or when a newer answer overwrites them. A right-click Look up or Ban keeps the selected text and its result in session storage for up to 2 minutes, until the popup shows it. Nothing is synced. |
+| `storage` | permissions | Keeps the user's GeoMetrikks server address, the API key if the user connected with one, the "Show stats for the site I'm on" setting and the last five IP lookups on the device. Also keeps the last AbuseIPDB result for each IP, reused for up to 15 minutes so a second look at the same IP doesn't spend the user's daily AbuseIPDB quota again, and the server's Spamhaus DROP lists, reused for up to 6 hours. Those copies are removed on Disconnect, when the user switches servers, or when a newer answer overwrites them. Anything the extension was still saving for the old server at that moment can land afterwards. The extension never uses it again, and the next Disconnect or server switch removes it. A right-click Look up or Ban keeps the selected text and its result in session storage for up to 2 minutes, until the popup shows it. Nothing is synced. |
 | `contextMenus` | permissions | Adds a GeoMetrikks item to the right-click menu for selected text, with "Look up" and "Ban" for the selected IP address. Ban has a submenu with the five ban lengths. With a Read key, or a server without CrowdSec bans, only Look up is added. With no server connected nothing is added. |
 | `activeTab` | permissions | When the user clicks the toolbar icon, the popup reads the address of the tab they are on, so it can show that site's traffic from the user's GeoMetrikks server. Only the host name, and its port if the address has one, is used and sent, only to the user's own server, and only while the "Show stats for the site I'm on" switch is on. The extension doesn't read page content and asks for no access to other tabs. |
 | `https://*/*` | optional_host_permissions | The user's GeoMetrikks server can be at any https address, often on their own network. When the user clicks Connect, the extension asks for access to that one origin with its port (for example `https://geo.example.net:443/*`), and it calls only that server's API. Nothing is granted at install. On Disconnect, or when the user connects a different server, the extension removes the access it was given. |
@@ -152,7 +152,7 @@ Check that it loads before each submission. Its content must match the table abo
 
 ## Submission checklist
 
-- [ ] The zip is the one attached to the GitHub release, or a fresh `bun run ext:build && bun run ext:zip` after `bun run ext:check-dist` passes.
+- [ ] The zip is the one attached to the GitHub release, or a fresh one from `bun run ext:build && bun run ext:check-dist && bun run ext:zip`.
 - [ ] `version` in `extension/manifest.json` is higher than the published one.
 - [ ] https://geometrikks.dev/chrome-extension/privacy loads and matches the data table above.
 - [ ] The screenshots in the table above are taken and uploaded.

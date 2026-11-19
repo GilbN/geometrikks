@@ -87,6 +87,39 @@ describe("pageProblems", () => {
     ])
   })
 
+  it("fails a remote src after a quote inside an unquoted value", () => {
+    expect(pageProblems("popup.html", `<img alt=a"b src="https://evil/x"><p>`)).toEqual([
+      "popup.html loads a remote src: https://evil/x",
+    ])
+    expect(
+      pageProblems("popup.html", `<script type=a'b src="https://evil/x.js"></script>`),
+    ).toContain('popup.html has a <script src="https://evil/x.js"> that is not a file in dist/')
+  })
+
+  it("fails a script in a page with more than one src", () => {
+    expect(pageProblems("popup.html", `<script src="/a.js" SRC="/b.js"></script>`)).toContain(
+      "popup.html has a <script> with more than one src",
+    )
+  })
+
+  it("ignores tags inside comments and attribute values", () => {
+    expect(
+      pageProblems("popup.html", `<!-- <img src="https://evil/x"> --><p title="<img src=//x>">`),
+    ).toEqual([])
+  })
+
+  it("checks tags inside template and noscript", () => {
+    expect(
+      pageProblems(
+        "popup.html",
+        `<template><img src="https://evil/a"></template><noscript><img src="https://evil/b"></noscript>`,
+      ),
+    ).toEqual([
+      "popup.html loads a remote src: https://evil/a",
+      "popup.html loads a remote src: https://evil/b",
+    ])
+  })
+
   it("passes local, fragment and data references", () => {
     expect(
       pageProblems("popup.html", `<a href="#top"><img alt="a > b" src="data:image/png;base64,AA">`),

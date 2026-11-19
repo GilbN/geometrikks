@@ -179,7 +179,9 @@ export default function ChromeExtensionPrivacyPage() {
               <li>Clear recent lookups on the options page deletes the lookup list.</li>
               <li>
                 Disconnect on the options page deletes the key, the server address and everything kept for that server.
-                Connecting a different server does the same for the old one.
+                Connecting a different server does the same for the old one. Anything the extension was still saving
+                for the old server at that moment can land afterwards. The extension never uses it again, and the next
+                disconnect or server switch removes it.
               </li>
               <li>Removing the extension from Chrome deletes everything it stored.</li>
             </ul>
