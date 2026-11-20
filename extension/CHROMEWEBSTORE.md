@@ -1,6 +1,6 @@
 # Chrome Web Store listing: GeoMetrikks for Chrome
 
-> Last updated: 2026-11-19
+> Last updated: 2026-11-20
 
 What goes into the Chrome Developer Dashboard for each upload. The zip comes from `bun run ext:build && bun run ext:check-dist && bun run ext:zip`, or from the GitHub release, which carries `geometrikks-chrome-<version>.zip`. This file is not in the zip.
 
@@ -71,23 +71,21 @@ English
 | Asset | Size | Status | File |
 | --- | --- | --- | --- |
 | Store icon | 128×128 PNG | Ready | `extension/public/icons/icon-128.png` |
-| Screenshot 1: site stats | 1280×800 | Not taken | |
-| Screenshot 2: IP lookup | 1280×800 | Not taken | |
-| Screenshot 3: right-click menu | 1280×800 | Not taken | |
-| Screenshot 4: options page, connected | 1280×800 | Not taken | |
-| Screenshot 5: server too old for site stats | 1280×800 | Not taken | |
-| Small promo tile | 440×280 | Not made | |
-| Marquee promo tile | 1400×560 | Not made | |
+| Screenshot 1: site stats | 1280×800 | Ready | [screenshot-1-site-stats.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-1-site-stats.png) |
+| Screenshot 2: IP lookup | 1280×800 | Ready | [screenshot-2-ip-lookup.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-2-ip-lookup.png) |
+| Screenshot 3: right-click menu | 1280×800 | Ready | [screenshot-3-right-click.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-3-right-click.png) |
+| Screenshot 4: options page, connected | 1280×800 | Ready | [screenshot-4-options.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-4-options.png) |
+| Small promo tile | 440×280 | Ready | [promo-small-440x280.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/promo-small-440x280.png) |
+| Marquee promo tile | 1400×560 | Ready | [promo-marquee-1400x560.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/promo-marquee-1400x560.png) |
 
 ### Screenshot notes
 
-Take each one on a seeded test server with a Read/write key, the popup open over a real page, in the order below. The numbers are the screens on the mockup board.
+The popup and options page in these images are live captures from the e2e build against `scripts/extension-e2e-server.sh`, set in a drawn browser window with a caption beside it. The screen numbers below are the screens on the mockup board.
 
 1. Screen 2. The popup on one of your own sites with traffic: the 24 hour view, the chart, the Countries tab.
-2. Screen 4. A lookup of a public IP with a CrowdSec ban badge, a DROP badge and a checked AbuseIPDB score.
-3. Screen 7. The right-click menu on a selected IP with the Ban submenu open.
+2. Screen 4. A lookup with a CrowdSec ban badge and a DROP badge. The IP is `203.0.113.42` on a made-up network, so no real address appears banned. The extension hides the AbuseIPDB check for that documentation range, so this shot has no AbuseIPDB score.
+3. Screen 7. The right-click menu on a selected IP with the Ban submenu open. Headless Chrome can't capture its own menus, so this menu is HTML drawn with the extension's real items.
 4. Screen 1. The options page with the Connected card showing the key name, scope and features.
-5. Screen 9. The amber note a server too old for site stats gets, with a lookup still working.
 
 ## Permissions justification
 
@@ -157,7 +155,7 @@ Check that it loads before each submission. Its content must match the table abo
 - [ ] The zip is the one attached to the GitHub release, or a fresh one from `bun run ext:build && bun run ext:check-dist && bun run ext:zip`.
 - [ ] `version` in `extension/manifest.json` is higher than the published one.
 - [ ] https://geometrikks.dev/chrome-extension/privacy loads and matches the data table above.
-- [ ] The screenshots in the table above are taken and uploaded.
+- [ ] The screenshots and promo tiles in the table above are uploaded.
 - [ ] The dashboard's test instructions give a test server's address and a Read/write key.
 - [ ] Once the listing exists, add its Chrome Web Store URL to this file, and change the install line in `site/content/docs/next/features/chrome-extension.mdx` to link it.
 
