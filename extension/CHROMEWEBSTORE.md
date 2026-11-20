@@ -156,7 +156,7 @@ Check that it loads before each submission. Its content must match the table abo
 - [ ] `version` in `extension/manifest.json` is higher than the published one.
 - [ ] https://geometrikks.dev/chrome-extension/privacy loads and matches the data table above.
 - [ ] The screenshots and promo tiles in `extension/store/` are uploaded.
-- [ ] The dashboard's test instructions give a test server's address and a Read/write key.
+- [ ] The dashboard's test instructions hold the text under "Test instructions" below.
 - [ ] Once the listing exists, add its Chrome Web Store URL to this file, and change the install line in `site/content/docs/next/features/chrome-extension.mdx` to link it.
 
 ## Version history
@@ -183,7 +183,21 @@ Edge users install the extension from the Chrome Web Store for now. A listing on
 - The extension needs the user's own GeoMetrikks server over https. It refuses http addresses, local ones included.
 - Site stats need GeoMetrikks 0.26.0 or later. On older servers the popup says so, and lookups and bans still work.
 - Servers that log in nginx's `combined` format record no host, so they have no site stats.
-- The reviewer needs a GeoMetrikks server to test against. Give a test server's address and a Read/write key in the dashboard's test instructions, or explain that without one the options page shows the connect form and the popup asks to connect.
+- The reviewer has no GeoMetrikks server to test against. The test instructions say so and point to the install docs. If a review is rejected because the reviewer couldn't test it, the fix is a public demo server with a Read/write key and bans going to a test CrowdSec.
+
+### Test instructions
+
+The Additional instructions field takes 500 characters at most. Leave Username and Password empty, since the extension uses an API key and never logs in.
+
+```text
+Client for GeoMetrikks, a self-hosted access log dashboard. It works only with a server the user runs, so there is no shared account.
+
+Without a server, Options shows the connect form and the popup asks to connect. Nothing is sent until a server is connected.
+
+To test: run a server from https://geometrikks.dev/docs, create a key under Settings > API keys, then enter the https address and key in Options and click Connect.
+
+The screenshots show the connected popup.
+```
 
 ### Rejection history
 
