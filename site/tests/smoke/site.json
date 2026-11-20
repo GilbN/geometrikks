@@ -149,6 +149,12 @@
     "absent": ["clients on another worker would see nothing", "ingestion drains and stops first", "waits up to 5s for its tail tasks before cancelling", "returns 503 while degraded", "ownership yourself"]
   },
   {
+    "path": "/docs/next/operate/timescaledb-workers/",
+    "status": 200,
+    "scope": "article",
+    "contains": ["timescaledb.max_background_workers", "failed to start a background worker", "no available background worker slots"]
+  },
+  {
     "path": "/docs/next/operate/faq/",
     "status": 200,
     "scope": "article",
