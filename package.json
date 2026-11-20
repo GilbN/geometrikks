@@ -23,7 +23,9 @@
     "ext:test:e2e": "playwright test --config=playwright.extension.config.ts",
     "ext:check-dist": "bun extension/tests/dist.check.ts",
     "ext:typecheck": "tsc --noEmit -p extension/tsconfig.json",
-    "ext:zip": "bun extension/scripts/zip.ts"
+    "ext:zip": "bun extension/scripts/zip.ts",
+    "ext:store": "E2E_ORIGIN=https://geo.example.net vp build --mode e2e --config extension/vite.config.ts --outDir extension/dist-store/extension && node extension/scripts/store/capture.mjs && node extension/scripts/store/compose.mjs",
+    "ext:store:compose": "node extension/scripts/store/compose.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

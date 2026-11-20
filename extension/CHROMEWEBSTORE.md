@@ -71,16 +71,16 @@ English
 | Asset | Size | Status | File |
 | --- | --- | --- | --- |
 | Store icon | 128×128 PNG | Ready | `extension/public/icons/icon-128.png` |
-| Screenshot 1: site stats | 1280×800 | Ready | [screenshot-1-site-stats.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-1-site-stats.png) |
-| Screenshot 2: IP lookup | 1280×800 | Ready | [screenshot-2-ip-lookup.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-2-ip-lookup.png) |
-| Screenshot 3: right-click menu | 1280×800 | Ready | [screenshot-3-right-click.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-3-right-click.png) |
-| Screenshot 4: options page, connected | 1280×800 | Ready | [screenshot-4-options.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/screenshot-4-options.png) |
-| Small promo tile | 440×280 | Ready | [promo-small-440x280.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/promo-small-440x280.png) |
-| Marquee promo tile | 1400×560 | Ready | [promo-marquee-1400x560.png](https://raw.githubusercontent.com/GilbN/geometrikks/f866f7d9e5f42657b4591d46300452cab99cf359/chrome-store/promo-marquee-1400x560.png) |
+| Screenshot 1: site stats | 1280×800 | Ready | `extension/store/screenshot-1-site-stats.png` |
+| Screenshot 2: IP lookup | 1280×800 | Ready | `extension/store/screenshot-2-ip-lookup.png` |
+| Screenshot 3: right-click menu | 1280×800 | Ready | `extension/store/screenshot-3-right-click.png` |
+| Screenshot 4: options page, connected | 1280×800 | Ready | `extension/store/screenshot-4-options.png` |
+| Small promo tile | 440×280 | Ready | `extension/store/promo-small-440x280.png` |
+| Marquee promo tile | 1400×560 | Ready | `extension/store/promo-marquee-1400x560.png` |
 
 ### Screenshot notes
 
-The popup and options page in these images are live captures from the e2e build against `scripts/extension-e2e-server.sh`, set in a drawn browser window with a caption beside it. The screen numbers below are the screens on the mockup board.
+To make them again, start `scripts/extension-e2e-server.sh`, source the `keys.env` it prints, and run `bun run ext:store`. That captures the popup and options page live and lays them out in `extension/store/`. To change a caption or the layout later, edit `extension/scripts/store/compose.mjs` and run `bun run ext:store:compose`, which reuses the last run's captures. The screen numbers below are the screens on the mockup board.
 
 1. Screen 2. The popup on one of your own sites with traffic: the 24 hour view, the chart, the Countries tab.
 2. Screen 4. A lookup with a CrowdSec ban badge and a DROP badge. The IP is `203.0.113.42` on a made-up network, so no real address appears banned. The extension hides the AbuseIPDB check for that documentation range, so this shot has no AbuseIPDB score.
@@ -155,7 +155,7 @@ Check that it loads before each submission. Its content must match the table abo
 - [ ] The zip is the one attached to the GitHub release, or a fresh one from `bun run ext:build && bun run ext:check-dist && bun run ext:zip`.
 - [ ] `version` in `extension/manifest.json` is higher than the published one.
 - [ ] https://geometrikks.dev/chrome-extension/privacy loads and matches the data table above.
-- [ ] The screenshots and promo tiles in the table above are uploaded.
+- [ ] The screenshots and promo tiles in `extension/store/` are uploaded.
 - [ ] The dashboard's test instructions give a test server's address and a Read/write key.
 - [ ] Once the listing exists, add its Chrome Web Store URL to this file, and change the install line in `site/content/docs/next/features/chrome-extension.mdx` to link it.
 
