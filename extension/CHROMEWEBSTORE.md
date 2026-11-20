@@ -70,7 +70,7 @@ English
 
 | Asset | Size | Status | File |
 | --- | --- | --- | --- |
-| Store icon | 128×128 PNG | Ready | `extension/public/icons/icon-128.png` |
+| Store icon | 128×128 PNG, 96×96 artwork with 16 px transparent padding | Ready | `extension/store/store-icon-128.png` |
 | Screenshot 1: site stats | 1280×800 | Ready | `extension/store/screenshot-1-site-stats.png` |
 | Screenshot 2: IP lookup | 1280×800 | Ready | `extension/store/screenshot-2-ip-lookup.png` |
 | Screenshot 3: right-click menu | 1280×800 | Ready | `extension/store/screenshot-3-right-click.png` |

@@ -282,6 +282,9 @@ const wordmark = (size) => `
   </span>`
 
 const tiles = {
+  // The image guidelines want 96 px of artwork inside 16 px of transparent padding.
+  "store-icon-128": `<!doctype html><html><head><meta charset="utf-8"></head>
+    <body style="margin:0;background:transparent"><img src="${MARK}" style="display:block;width:96px;height:96px;margin:16px"></body></html>`,
   "promo-small-440x280": `<!doctype html><html><head><meta charset="utf-8"><style>${css}
     body::before { mask-image: none; }</style></head>
     <body style="--w:440px;--h:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
@@ -306,18 +309,23 @@ const tiles = {
 const browserApp = await chromium.launch({ channel: "chromium" })
 try {
   for (const [name, html] of Object.entries({ ...shots, ...tiles })) {
-    const [w, h] = name.startsWith("promo-small")
-      ? [440, 280]
-      : name.startsWith("promo-marquee")
-        ? [1400, 560]
-        : [1280, 800]
+    const [w, h] = name.startsWith("store-icon")
+      ? [128, 128]
+      : name.startsWith("promo-small")
+        ? [440, 280]
+        : name.startsWith("promo-marquee")
+          ? [1400, 560]
+          : [1280, 800]
     const htmlPath = path.join(PAGES, `${name}.html`)
     writeFileSync(htmlPath, html)
     const page = await browserApp.newPage({ viewport: { width: w, height: h } })
     await page.goto(file(htmlPath))
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(200)
-    await page.screenshot({ path: path.join(OUT, `${name}.png`) })
+    await page.screenshot({
+      path: path.join(OUT, `${name}.png`),
+      omitBackground: name.startsWith("store-icon"),
+    })
     await page.close()
     console.log(`Wrote extension/store/${name}.png`)
   }
