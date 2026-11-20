@@ -198,7 +198,7 @@ export default function ChromeExtensionPrivacyPage() {
             <p>
               Ask privacy questions or report a problem in the{" "}
               <a href="https://github.com/GilbN/geometrikks/issues">GeoMetrikks issue tracker on GitHub</a>, or write
-              to the contact email shown on the extension&apos;s Chrome Web Store listing.{" "}
+              to <a href="mailto:extension@geometrikks.dev">extension@geometrikks.dev</a>.{" "}
               <a href="https://geometrikks.dev/docs/features/chrome-extension/">GeoMetrikks for Chrome</a> in the docs
               explains how the extension works.
             </p>

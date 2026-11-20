@@ -144,7 +144,9 @@ Check that it loads before each submission. Its content must match the table abo
 
 **Publisher name:** GilbN
 
-**Contact email:** the address set in the developer dashboard. Google sends takedown and policy mail there, so it must be one that is read.
+**Contact email:** extension@geometrikks.dev, a Cloudflare Email Routing alias on geometrikks.dev that forwards to the maintainer. The store shows it publicly on the listing, so never put a personal address here. Takedown and policy mail goes to the developer account's own email, which stays private.
+
+**Trader status:** Non-Trader. A Trader also has a verified name, address and phone number published.
 
 **Support URL:** https://github.com/GilbN/geometrikks/issues
 
