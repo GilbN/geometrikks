@@ -36,7 +36,7 @@ docker compose exec timescale_db psql -U geouser -d geometrikks \
 
 ## Keep them in the compose file
 
-To keep the settings, add them to the `command:` block of the `timescale_db` service. The shipped block already sets the TimescaleDB worker pool: `timescaledb.max_background_workers=40`, `max_parallel_workers=8` and `max_worker_processes=51`. Keep those lines. With fewer background workers, the refresh jobs that fire together fail with `out of background workers`.
+To keep the settings, add them to the `command:` block of the `timescale_db` service. The shipped block already sets the TimescaleDB worker pool: `timescaledb.max_background_workers=40`, `max_parallel_workers=8` and `max_worker_processes=51`. Keep those lines. With fewer background workers, the refresh jobs that fire together fail with `out of background workers`. See [TimescaleDB background workers](../timescaledb-workers.mdx).
 
 ```yaml
 services:

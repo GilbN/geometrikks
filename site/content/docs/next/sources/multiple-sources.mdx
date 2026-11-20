@@ -194,7 +194,7 @@ services:
       - ./certs/server.key:/certs/server.key:ro
 ```
 
-Keep the entries already in the list. Without them, TimescaleDB loses its background-worker tuning and logs `out of background workers` when its jobs fire together.
+Keep the entries already in the list. Without them, TimescaleDB loses its background-worker tuning and logs `out of background workers` when its jobs fire together. See [TimescaleDB background workers](../operate/timescaledb-workers.mdx).
 
 Recreate the container and check that TLS is on:
 

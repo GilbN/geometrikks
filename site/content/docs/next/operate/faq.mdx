@@ -28,6 +28,10 @@ Check these in order:
 3. New lines have arrived since the app started. GeoMetrikks starts reading a file at its end, so lines written before that only show up after an [`import-logs`](./cli/import-logs.mdx) run.
 4. Your proxy logs the visitor's address, not a CDN, tunnel or upstream proxy. Settings > Status shows an advisory when it doesn't. See [Real client IP behind a proxy](../sources/proxy-setup.mdx).
 
+## The database log says out of background workers
+
+TimescaleDB has too few background workers for the jobs GeoMetrikks registers, so some aggregate refreshes start late. The shipped compose file raises the pool with a `command:` block on the database service. See [TimescaleDB background workers](./timescaledb-workers.mdx).
+
 ## The map says my browser could not start WebGL2
 
 The map draws with WebGL2, and the message adds the browser's own reason when it gives one. Usually graphics acceleration is off or blocked. Turn hardware acceleration back on in the browser settings, or try another browser or device. The rest of the app works without it. See [Map](../features/map.mdx).
