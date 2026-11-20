@@ -569,7 +569,9 @@ class AnalyticsController(Controller):
             "Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` "
             "host or none, each row is a host and path pair. With two or more different hosts, each row is one "
             "URL (path plus query string) counted across those hosts, and `host` is null. "
-            f"Lines without a path are left out. {HOST_FILTERED_RAW_NOTE}"
+            "Lines without a path are left out. Above 24 hours, a host filter on its own, include or exclude, "
+            "reads the URL aggregates as an unfiltered request does, so it reaches past "
+            f"ANALYTICS_RAW_RETENTION_DAYS. {FILTERED_RAW_NOTE}"
         ),
     )
     async def get_top_urls(
@@ -591,8 +593,10 @@ class AnalyticsController(Controller):
     ) -> TopUrlsResponse:
         """Get the top URLs by hit count for a date range.
 
-        Perf note: filtered queries scan raw access_logs and are bounded by
-        raw_retention_days (same trade-off as filtered /time-series).
+        Perf note: above 24h a host-only filter reads url_*_stats like an
+        unfiltered request. Country, city, IP and ASN filters scan raw
+        access_logs and are bounded by raw_retention_days (same trade-off as
+        filtered /time-series).
         """
         start_date, end_date = time_range.start, time_range.end
         filters = _build_filters(

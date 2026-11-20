@@ -16,6 +16,8 @@ from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
     LiveStatsRepository,
     SummaryStatsRepository,
+    _stitch_params,
+    get_stats_granularity,
 )
 from geometrikks.server.core import create_app
 
@@ -957,6 +959,87 @@ async def test_top_countries_error_hits_raw_and_rollup(pg_engine, pg_session_mak
 
     assert [(r.country_code, r.hits, r.error_hits) for r in raw] == [("NO", 3, 2)]
     assert [(r.country_code, r.hits, r.error_hits) for r in rollup] == [("NO", 3, 2)]
+
+
+# (host, url, status, bytes_sent, request_time); 101 is left out of the latency figures.
+URL_SEAM_ROWS = [
+    ("a.example", "/a", 200, 100, 0.010),
+    ("a.example", "/a", 404, 50, 0.020),
+    ("a.example", "/shared", 503, 300, 0.500),
+    ("a.example", "/shared", 101, 10, 30.0),
+    ("b.example", "/shared", 200, 120, 0.030),
+    ("b.example", "/b", 404, 70, 0.040),
+    (None, "/shared", 200, 80, 0.050),
+    (None, "/none", 101, 5, 60.0),
+]
+
+URL_SEAM_FILTERS = {
+    "include": AnalyticsFilters(hosts=["a.example"]),
+    "exclude": AnalyticsFilters(hosts_exclude=["a.example"]),
+    "merged": AnalyticsFilters(hosts=["a.example", "b.example"]),
+}
+
+
+def _url_figures(rows):
+    return [(r.host, r.url, r.hits, r.timed_hits, r.error_hits, r.total_bytes) for r in rows]
+
+
+@pytest.mark.parametrize(
+    ("days", "cagg"), [(3, "url_hourly_stats"), (40, "url_daily_stats")], ids=["hourly", "daily"]
+)
+async def test_top_urls_host_only_filter_reads_the_rollup(pg_engine, pg_session_maker, clean_tables, days, cagg):
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    # Off the hour at both ends, so the raw head and tail legs both read rows.
+    start = NOW - timedelta(days=days) + timedelta(minutes=20)
+    end = NOW - timedelta(minutes=40)
+    head_ts = start + timedelta(minutes=10)
+    middle_ts = NOW - timedelta(days=days / 2)
+    tail_ts = end - timedelta(minutes=10)
+    timestamps = [head_ts, middle_ts, middle_ts, tail_ts, start - timedelta(minutes=10), end + timedelta(minutes=5)]
+    async with pg_session_maker() as session:
+        await _insert_logs(session, [
+            {
+                "ts": ts, "url": url, "user_agent": "x", "host": host, "status": status,
+                "bytes_sent": bytes_sent, "rt": request_time, "country": "NO" if host == "a.example" else "SE",
+            }
+            for ts in timestamps
+            for host, url, status, bytes_sent, request_time in URL_SEAM_ROWS
+        ])
+        await session.commit()
+    failed = await refresh_caggs_range(pg_engine, start=NOW - timedelta(days=days + 1), end=NOW, caggs=[cagg])
+    assert failed == []
+
+    async with pg_session_maker() as session:
+        live = LiveStatsRepository(session=session)
+        expected = {
+            name: await live.get_top_urls(start, end, limit=50, filters=filters)
+            for name, filters in URL_SEAM_FILTERS.items()
+        }
+    assert {(r.host, r.url): r.hits for r in expected["include"]} == {("a.example", "/a"): 8, ("a.example", "/shared"): 8}
+    assert {r.host for r in expected["exclude"]} == {"b.example", None}
+    assert {r.host for r in expected["merged"]} == {None}
+
+    bounds = _stitch_params(start, end, get_stats_granularity(start, end))
+    async with pg_session_maker() as session:
+        await session.execute(
+            text("DELETE FROM access_logs WHERE timestamp >= :a_start AND timestamp < :a_end"),
+            {"a_start": bounds["a_start"], "a_end": bounds["a_end"]},
+        )
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        summary = SummaryStatsRepository(session=session)
+        for name, filters in URL_SEAM_FILTERS.items():
+            rows = await summary.get_top_urls(start, end, limit=50, filters=filters)
+            assert _url_figures(rows) == _url_figures(expected[name]), name
+            for row, expected_row in zip(rows, expected[name], strict=True):
+                assert row.avg_request_time == pytest.approx(expected_row.avg_request_time, abs=1e-6), name
+        raw_only = await summary.get_top_urls(
+            start, end, limit=50, filters=AnalyticsFilters(hosts=["a.example"], country_codes=["NO"])
+        )
+
+    assert {(r.host, r.url): r.hits for r in raw_only} == {("a.example", "/a"): 4, ("a.example", "/shared"): 4}
 
 
 @pytest.fixture()

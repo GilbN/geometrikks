@@ -133,3 +133,49 @@ class TestHostFilters:
         filters = _build_filters(None, None, None, host_not_in=["b.example", "a.example", "b.example"])
         assert filters.hosts_exclude == ["b.example", "a.example"]
         assert _build_filters(None, None, None, host_not_in=[]).hosts_exclude is None
+
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            AnalyticsFilters(hosts=["a.example"]),
+            AnalyticsFilters(hosts_exclude=["a.example"]),
+            AnalyticsFilters(hosts=["a.example"], hosts_exclude=["b.example"]),
+        ],
+        ids=["include", "exclude", "both"],
+    )
+    def test_only_hosts_is_true_for_host_filters_alone(self, filters: AnalyticsFilters) -> None:
+        assert filters.only_hosts() is True
+
+    def test_only_hosts_is_false_without_filters(self) -> None:
+        assert AnalyticsFilters().only_hosts() is False
+
+    @pytest.mark.parametrize(
+        "other_filter",
+        [
+            {"country_codes": ["NO"]},
+            {"cities": ["Oslo"]},
+            {"ip_addresses": ["10.0.0.1"]},
+            {"ip_exclude": ["10.0.0.1"]},
+            {"asns": [1]},
+            {"asns_exclude": [1]},
+        ],
+        ids=["country", "city", "ip", "ip-exclude", "asn", "asn-exclude"],
+    )
+    def test_only_hosts_is_false_with_another_filter(self, other_filter: dict) -> None:
+        assert AnalyticsFilters(hosts=["a.example"], **other_filter).only_hosts() is False
+
+    def test_merges_hosts_for_two_different_hosts(self) -> None:
+        assert AnalyticsFilters(hosts=["a", "b"]).merges_hosts() is True
+
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            AnalyticsFilters(hosts=["a"]),
+            AnalyticsFilters(hosts=["a", "a"]),
+            AnalyticsFilters(),
+            AnalyticsFilters(hosts_exclude=["a", "b"]),
+        ],
+        ids=["one", "repeated", "none", "exclude"],
+    )
+    def test_merges_hosts_is_false_otherwise(self, filters: AnalyticsFilters) -> None:
+        assert filters.merges_hosts() is False
