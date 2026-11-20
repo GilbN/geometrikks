@@ -24,9 +24,8 @@ For short ranges (≤1 hour), raw table queries provide exact time range results
 
 from __future__ import annotations
 
-import dataclasses
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, cast
@@ -1239,12 +1238,11 @@ class TopCityRow:
 class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
-    Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP/ASN/host. An exclude-only filter, host
-    exclude included, counts as active for exactly that reason. The one
-    exception is Top URLs above 24 hours: url_*_stats carries a host column,
-    so a filter on hosts alone still reads it (see ``only_hosts``). Country,
-    city, IP and ASN filters can't.
+    Filtered queries read raw access_logs, because most CAGGs have no
+    country, city, IP, ASN or host column; an exclude-only filter counts as
+    active for that reason. Top URLs above 24 hours is the exception for
+    hosts: url_*_stats has a host column, so a filter on hosts alone still
+    reads it (see ``only_hosts``).
     """
 
     country_codes: Sequence[str] | None = None
@@ -1268,7 +1266,7 @@ class AnalyticsFilters:
 
     def only_hosts(self) -> bool:
         """True when host include/exclude are the only active filters."""
-        return self.is_active() and not dataclasses.replace(self, hosts=None, hosts_exclude=None).is_active()
+        return self.is_active() and not replace(self, hosts=None, hosts_exclude=None).is_active()
 
     def merges_hosts(self) -> bool:
         """True when ``hosts`` names two or more different hosts."""

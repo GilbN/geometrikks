@@ -977,6 +977,7 @@ URL_SEAM_FILTERS = {
     "include": AnalyticsFilters(hosts=["a.example"]),
     "exclude": AnalyticsFilters(hosts_exclude=["a.example"]),
     "merged": AnalyticsFilters(hosts=["a.example", "b.example"]),
+    "include_and_exclude": AnalyticsFilters(hosts=["a.example", "b.example"], hosts_exclude=["b.example"]),
 }
 
 
@@ -1019,6 +1020,7 @@ async def test_top_urls_host_only_filter_reads_the_rollup(pg_engine, pg_session_
     assert {(r.host, r.url): r.hits for r in expected["include"]} == {("a.example", "/a"): 8, ("a.example", "/shared"): 8}
     assert {r.host for r in expected["exclude"]} == {"b.example", None}
     assert {r.host for r in expected["merged"]} == {None}
+    assert {r.host for r in expected["include_and_exclude"]} == {None}
 
     bounds = _stitch_params(start, end, get_stats_granularity(start, end))
     async with pg_session_maker() as session:

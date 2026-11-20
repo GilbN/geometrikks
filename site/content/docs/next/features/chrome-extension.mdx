@@ -67,7 +67,7 @@ The popup asks your server for requests whose logged Host matches the tab's host
 Two things limit what it can show.
 
 - **nginx's `combined` format logs no Host.** Requests from those lines have no host, so a server that reads only `combined` logs has no site stats. [nginx](../sources/nginx.mdx) has a log format that includes the host.
-- **Most host figures come from the raw rows.** GeoMetrikks keeps raw access log rows for `ANALYTICS_RAW_RETENTION_DAYS` days, 180 by default. The 7-day top paths read the hourly rollups instead, which keep each request's host. The popup reaches back at most 7 days, so this matters only if you set the retention below 7. Then the top paths cover the whole week, and the other figures stop where the raw rows do.
+- **Host figures need the raw rows.** GeoMetrikks keeps raw access log rows for `ANALYTICS_RAW_RETENTION_DAYS` days, 180 by default. The popup reaches back at most 7 days, so this matters only if you set the retention below 7.
 
 Site stats need GeoMetrikks 0.26.0 or later. On an older server the popup says which version it needs, and lookups and bans still work.
 
