@@ -134,7 +134,7 @@ Check that it loads before each submission. Its content must match the table abo
 
 ## Distribution
 
-**Visibility:** Public
+**Visibility:** Unlisted until GeoMetrikks 0.26.0 is released, since site stats need it. Then switch to Public.
 
 **Regions:** All regions
 
