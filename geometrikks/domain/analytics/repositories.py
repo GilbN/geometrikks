@@ -1232,8 +1232,8 @@ class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
     Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP/ASN/host. An exclude-only filter counts
-    as active for exactly that reason.
+    cannot be sliced by country/city/IP/ASN/host. An exclude-only filter, host
+    exclude included, counts as active for exactly that reason.
     """
 
     country_codes: Sequence[str] | None = None
@@ -1243,16 +1243,17 @@ class AnalyticsFilters:
     asns: Sequence[int] | None = None
     asns_exclude: Sequence[int] | None = None
     hosts: Sequence[str] | None = None
+    hosts_exclude: Sequence[str] | None = None
 
     def is_active(self) -> bool:
         return bool(
             self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
-            or self.asns or self.asns_exclude or self.hosts
+            or self.asns or self.asns_exclude or self.hosts or self.hosts_exclude
         )
 
     def needs_raw_rows(self) -> bool:
         """True when a filter has no column on the per-IP log_ip CAGGs."""
-        return bool(self.asns or self.asns_exclude or self.hosts)
+        return bool(self.asns or self.asns_exclude or self.hosts or self.hosts_exclude)
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -1282,6 +1283,9 @@ class AnalyticsFilters:
         if self.hosts:
             clauses.append("AND host = ANY(:filter_hosts)")
             params["filter_hosts"] = list(self.hosts)
+        if self.hosts_exclude:
+            clauses.append("AND (host IS NULL OR NOT (host = ANY(:filter_hosts_exclude)))")
+            params["filter_hosts_exclude"] = list(self.hosts_exclude)
         return " ".join(clauses), params
 
 

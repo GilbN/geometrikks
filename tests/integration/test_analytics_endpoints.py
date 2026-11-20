@@ -810,21 +810,24 @@ async def test_aggregated_top_ips_take_the_newest_bucket_with_an_asn(pg_engine, 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("2001:db8::1", 200, "Newer")]
 
 
-# (host, ip, country, hits)
+# (host, ip, country, city, asn, user_agent, hits)
 HOST_SEED = [
-    ("a.example", "1.1.1.1", "NO", 3),
-    ("a.example:8443", "2.2.2.2", "SE", 2),
-    ("b.example", "3.3.3.3", "DK", 4),
-    (None, "4.4.4.4", "FI", 5),
+    ("a.example", "1.1.1.1", "NO", "Oslo", 64501, "ua-a", 3),
+    ("a.example:8443", "2.2.2.2", "SE", "Stockholm", 64502, "ua-a8443", 2),
+    ("b.example", "3.3.3.3", "DK", "Copenhagen", 64503, "ua-b", 4),
+    (None, "4.4.4.4", "FI", "Helsinki", 64504, "ua-none", 5),
 ]
 
 
 async def _seed_host_traffic(session_maker) -> None:
     ts = NOW - timedelta(hours=1)
     async with session_maker() as session:
-        for host, ip, country, hits in HOST_SEED:
+        for host, ip, country, city, asn, user_agent, hits in HOST_SEED:
             for _ in range(hits):
-                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=ip, country=country, host=host)
+                await _insert_log(
+                    session, ts=ts, url="/", user_agent=user_agent, ip=ip, country=country, city=city,
+                    asn=asn, host=host,
+                )
         await session.commit()
 
 
@@ -1034,3 +1037,64 @@ async def test_host_in_over_http(
     assert {i["countryCode"]: i["errorHits"] for i in responses["top-countries"].json()["items"]} == {"NO": 0, "SE": 0}
     assert {i["countryCode"]: i["hits"] for i in responses["top-countries"].json()["items"]} == {"NO": 3, "SE": 2}
     assert [(i["host"], i["url"], i["hits"]) for i in responses["top-urls"].json()["items"]] == [(None, "/", 5)]
+
+
+ANALYTICS_ENDPOINTS = (
+    "time-series", "top-ips", "top-countries", "top-cities", "top-urls", "top-user-agents", "top-asns",
+)
+
+
+@pytest.mark.parametrize("window", ["24h", "7d"])
+async def test_host_filters_reach_every_analytics_endpoint(
+    migrated_database_url, pg_session_maker, clean_tables, _reset_structlog_after_app, window
+):
+    from tests.integration.test_drop_snapshot_pg import build_settings
+
+    await _seed_host_traffic(pg_session_maker)
+    async with AsyncTestClient(app=create_app(settings=build_settings(migrated_database_url))) as client:
+        bodies = {}
+        for host_param in ("hostIn", "hostNotIn"):
+            params = {host_param: ["a.example"], "window": window}
+            for endpoint in ANALYTICS_ENDPOINTS:
+                response = await client.get(f"/api/v1/analytics/{endpoint}", params=params)
+                assert response.status_code == 200, (host_param, endpoint, response.text)
+                bodies[host_param, endpoint] = response.json()
+
+    def summarize(host_param: str) -> dict:
+        asns_body = bodies[host_param, "top-asns"]
+        return {
+            "time-series": sum(p["totalRequests"] for p in bodies[host_param, "time-series"]["data"]),
+            "top-ips": {i["ipAddress"]: i["hits"] for i in bodies[host_param, "top-ips"]["items"]},
+            "top-countries": {i["countryCode"]: i["hits"] for i in bodies[host_param, "top-countries"]["items"]},
+            "top-cities": {i["city"]: i["hits"] for i in bodies[host_param, "top-cities"]["items"]},
+            "top-user-agents": {i["userAgent"]: i["hits"] for i in bodies[host_param, "top-user-agents"]["items"]},
+            "top-asns": {i["asn"]: i["hits"] for i in asns_body["items"]},
+            "asn-total-requests": asns_body["totalRequests"],
+            "asn-category-hits": sum(c["hits"] for c in asns_body["categories"]),
+        }
+
+    assert summarize("hostIn") == {
+        "time-series": 3,
+        "top-ips": {"1.1.1.1": 3},
+        "top-countries": {"NO": 3},
+        "top-cities": {"Oslo": 3},
+        "top-user-agents": {"ua-a": 3},
+        "top-asns": {64501: 3},
+        "asn-total-requests": 3,
+        "asn-category-hits": 3,
+    }
+    assert [(i["host"], i["url"], i["hits"]) for i in bodies["hostIn", "top-urls"]["items"]] == [("a.example", "/", 3)]
+
+    assert summarize("hostNotIn") == {
+        "time-series": 11,
+        "top-ips": {"2.2.2.2": 2, "3.3.3.3": 4, "4.4.4.4": 5},
+        "top-countries": {"SE": 2, "DK": 4, "FI": 5},
+        "top-cities": {"Stockholm": 2, "Copenhagen": 4, "Helsinki": 5},
+        "top-user-agents": {"ua-a8443": 2, "ua-b": 4, "ua-none": 5},
+        "top-asns": {64502: 2, 64503: 4, 64504: 5},
+        "asn-total-requests": 11,
+        "asn-category-hits": 11,
+    }
+    assert {i["host"]: i["hits"] for i in bodies["hostNotIn", "top-urls"]["items"]} == {
+        "a.example:8443": 2, "b.example": 4, None: 5,
+    }

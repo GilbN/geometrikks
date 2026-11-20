@@ -118,3 +118,18 @@ class TestHostFilters:
     def test_build_filters_dedupes_hosts_in_order(self) -> None:
         filters = _build_filters(None, None, None, host_in=["b.example", "a.example", "b.example"])
         assert filters.hosts == ["b.example", "a.example"]
+
+    def test_host_exclude_is_active_and_needs_raw_rows(self) -> None:
+        filters = AnalyticsFilters(hosts_exclude=["a.example"])
+        assert filters.is_active() is True
+        assert filters.needs_raw_rows() is True
+
+    def test_host_exclude_keeps_rows_without_host(self) -> None:
+        clause, params = AnalyticsFilters(hosts_exclude=["a.example"]).sql_conditions()
+        assert clause == "AND (host IS NULL OR NOT (host = ANY(:filter_hosts_exclude)))"
+        assert params == {"filter_hosts_exclude": ["a.example"]}
+
+    def test_build_filters_passes_and_dedupes_host_exclude(self) -> None:
+        filters = _build_filters(None, None, None, host_not_in=["b.example", "a.example", "b.example"])
+        assert filters.hosts_exclude == ["b.example", "a.example"]
+        assert _build_filters(None, None, None, host_not_in=[]).hosts_exclude is None
