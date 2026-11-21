@@ -5,8 +5,7 @@ import type { MutedIpView } from "@/generated/api/types.gen"
 import { useAddMutedIp, useMutedIpsList, useRemoveMutedIp } from "@/lib/queries"
 import {
   focusIdAfterRemoval,
-  mutedIpCodeOf,
-  mutedIpErrorMessage,
+  mutedIpAddErrorMessage,
   mutedIpsCountLine,
   runUnmute,
 } from "@/lib/muted-ips"
@@ -52,7 +51,7 @@ function AddMutedIpForm() {
               setNote("")
               toast.success(`Muted ${created.network}`)
             },
-            onError: (mutationError) => setError(mutedIpErrorMessage(mutedIpCodeOf(mutationError))),
+            onError: (mutationError) => setError(mutedIpAddErrorMessage(mutationError)),
           },
         )
       }}

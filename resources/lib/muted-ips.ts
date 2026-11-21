@@ -321,6 +321,21 @@ export function mutedIpErrorMessage(code: string | undefined): string {
     : "Couldn't save. Try again."
 }
 
+/** The server's `invalid_network` detail names the fix, such as the start of the range the user meant. */
+export function mutedIpAddErrorMessage(error: unknown): string {
+  const code = mutedIpCodeOf(error)
+  if (
+    code === "invalid_network" &&
+    error &&
+    typeof error === "object" &&
+    "detail" in error &&
+    typeof error.detail === "string" &&
+    error.detail
+  )
+    return error.detail
+  return mutedIpErrorMessage(code)
+}
+
 /** The generated client throws the parsed error envelope, so `code` sits on the error itself. */
 export function mutedIpCodeOf(error: unknown): string | undefined {
   if (error && typeof error === "object" && "code" in error && typeof error.code === "string")

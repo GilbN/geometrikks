@@ -2994,7 +2994,7 @@ export type MutedIpView = {
   createdAt: string;
   id: string;
   /**
-   * The IP or range in CIDR form. A single IP is stored as /32 or /128, host bits are cleared.
+   * The IP or range in CIDR form, with no host bits set. A single IP uses /32 or /128.
    */
   network: string;
   /**

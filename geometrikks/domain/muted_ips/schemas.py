@@ -18,7 +18,7 @@ class MutedIpView(msgspec.Struct, kw_only=True, rename="camel"):
     network: Annotated[
         str,
         msgspec.Meta(
-            description="The IP or range in CIDR form. A single IP is stored as /32 or /128, host bits are cleared."
+            description="The IP or range in CIDR form, with no host bits set. A single IP uses /32 or /128."
         ),
     ]
     note: Annotated[str | None, msgspec.Meta(description="Free text about why it is muted.")]

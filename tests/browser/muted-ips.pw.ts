@@ -46,3 +46,17 @@ test("the Muted IPs chip hides the list and a tap shows it again", async ({ page
   await expect.poll(() => logRequests.length).toBeGreaterThan(before)
   expect(logRequests[before]).not.toContain("excludeMutedIps")
 })
+
+test("Settings rejects a range that doesn't start its range and names both fixes", async ({
+  page,
+}) => {
+  await login(page)
+  await page.goto("/settings/muted-ips")
+  await page.getByRole("textbox", { name: "IP or CIDR" }).fill("10.0.0.5/8")
+  await page.getByRole("button", { name: "Mute", exact: true }).click()
+  await expect(
+    page.getByText(
+      "10.0.0.5/8 is not the start of a range. Enter 10.0.0.0/8 for the range, or 10.0.0.5 for one address",
+    ),
+  ).toBeVisible()
+})

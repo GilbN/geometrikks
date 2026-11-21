@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from ipaddress import IPv4Network, IPv6Network, ip_network
+from ipaddress import IPv4Network, IPv6Network, ip_interface, ip_network
 from typing import Final
 
 from geometrikks.domain.exceptions import DomainValidationError
@@ -19,13 +19,21 @@ type Network = IPv4Network | IPv6Network
 
 
 def normalize_network(raw: str) -> Network:
-    """Parse one address or CIDR, host bits cleared, IPv4-mapped IPv6 collapsed to IPv4."""
+    """Parse one address or CIDR with no host bits set, IPv4-mapped IPv6 collapsed to IPv4."""
     if "%" in raw:
         raise DomainValidationError("Remove the zone ID (the part after %) from the address", code="invalid_network")
+    value = raw.strip()
     try:
-        network = ip_network(raw.strip(), strict=False)
+        network = ip_network(value)
     except ValueError as error:
-        raise DomainValidationError("Enter an IP address or CIDR network, such as 203.0.113.7 or 10.0.0.0/8", code="invalid_network") from error
+        try:
+            interface = ip_interface(value)
+        except ValueError:
+            raise DomainValidationError("Enter an IP address or CIDR network, such as 203.0.113.7 or 10.0.0.0/8", code="invalid_network") from error
+        raise DomainValidationError(
+            f"{value} is not the start of a range. Enter {interface.network} for the range, or {interface.ip} for one address",
+            code="invalid_network",
+        ) from error
     if isinstance(network, IPv6Network) and network.prefixlen >= _MAPPED_PREFIX:
         mapped_block = IPv6Network((_MAPPED_BASE, _MAPPED_PREFIX))
         if network.subnet_of(mapped_block):

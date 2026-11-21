@@ -34,7 +34,7 @@ async def client(app_settings: Settings) -> AsyncIterator[AsyncTestClient]:
 
 
 async def test_post_returns_stored_form_and_lists_oldest_first(client, clean_muted_ips):
-    first = await client.post(URL, json={"network": "10.0.0.5/8", "note": " lab "})
+    first = await client.post(URL, json={"network": " 10.0.0.0/8", "note": " lab "})
     assert first.status_code == 201
     assert first.json()["network"] == "10.0.0.0/8"
     assert first.json()["note"] == "lab"
@@ -61,6 +61,11 @@ async def test_full_list_is_409_and_duplicate_still_wins(client, clean_muted_ips
 async def test_bad_input_codes(client, clean_muted_ips):
     bad_network = await client.post(URL, json={"network": "fe80::1%eth0"})
     assert (bad_network.status_code, bad_network.json()["code"]) == (400, "invalid_network")
+    host_bits = await client.post(URL, json={"network": "10.0.0.5/8"})
+    assert (host_bits.status_code, host_bits.json()["code"]) == (400, "invalid_network")
+    assert host_bits.json()["detail"] == (
+        "10.0.0.5/8 is not the start of a range. Enter 10.0.0.0/8 for the range, or 10.0.0.5 for one address"
+    )
     bad_note = await client.post(URL, json={"network": "192.0.2.1", "note": "x" * 101})
     assert (bad_note.status_code, bad_note.json()["code"]) == (400, "invalid_note")
     wrong_type = await client.post(URL, content="network=1.2.3.4", headers={"content-type": "text/plain"})
