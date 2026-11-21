@@ -30,6 +30,7 @@ import {
 } from "@/lib/analytics-filters-context"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { arrayParam } from "@/lib/url-filters"
+import { useMutedPage } from "@/lib/use-muted-page"
 
 // Absent keys mean "default"; navigate() writes undefined for defaults so
 // clean states produce clean URLs. Param names match the geo-logs page.
@@ -93,8 +94,15 @@ function AnalyticsPage() {
   // No pagination on this page, so nothing to reset on a filter change.
   const { filters, setFilters } = useUrlFilters({ search, navigate, decode, encode })
 
+  const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0)
+
   return (
-    <AnalyticsFiltersProvider filters={filters} setFilters={setFilters}>
+    <AnalyticsFiltersProvider
+      filters={filters}
+      setFilters={setFilters}
+      muted={muted}
+      toggleMuted={toggleMuted}
+    >
       <div className="p-4 space-y-4">
         <PageHeader
           title="Analytics"

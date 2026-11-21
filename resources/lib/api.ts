@@ -661,6 +661,7 @@ export interface GeoJSONParams {
   asns?: number[]
   /** ASNs to exclude (rows without ASN data are kept); forces a raw scan. */
   asnsExclude?: number[]
+  excludeMutedIps?: boolean
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -675,6 +676,7 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       serverIn: params.servers?.length ? params.servers : undefined,
       asnIn: params.asns?.length ? params.asns : undefined,
       asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+      excludeMutedIps: params.excludeMutedIps || undefined,
     },
   })
   return data
@@ -800,6 +802,7 @@ export interface AnalyticsFilterParams {
   ipsExclude?: string[]
   asns?: number[]
   asnsExclude?: number[]
+  excludeMutedIps?: boolean
 }
 
 function analyticsFilterQuery(params: AnalyticsFilterParams) {
@@ -1056,6 +1059,7 @@ export interface GeoLogFilterParams {
   servers?: string[]
   asns?: number[]
   asnsExclude?: number[]
+  excludeMutedIps?: boolean
 }
 
 /** Shared query fragment; empty arrays are dropped from the query string. */
@@ -1068,6 +1072,7 @@ function geoLogFilterQuery(params: GeoLogFilterParams) {
     serverIn: params.servers?.length ? params.servers : undefined,
     asnIn: params.asns?.length ? params.asns : undefined,
     asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+    excludeMutedIps: params.excludeMutedIps || undefined,
   }
 }
 
@@ -1347,6 +1352,7 @@ export interface AccessLogsParams {
   statusIn?: number[]
   sortField?: AccessLogSortField
   sortOrder?: SortOrder
+  excludeMutedIps?: boolean
 }
 
 export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
@@ -1372,6 +1378,7 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
       orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
       sortOrder: params.sortField ? (params.sortOrder ?? "desc") : undefined,
+      excludeMutedIps: params.excludeMutedIps || undefined,
     },
   })
   return data

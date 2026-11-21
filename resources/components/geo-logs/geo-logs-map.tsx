@@ -34,6 +34,7 @@ import {
   unclusteredPointLayer,
 } from "@/components/map/layers"
 import { MAPLIBRE_WORKER_URL } from "@/lib/maplibre-worker"
+import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { useGeoLogsGeoJSON } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 
@@ -53,6 +54,10 @@ export default function GeoLogsMap() {
   const { data: geojson, error, isLoading, isError, refetch } = useGeoLogsGeoJSON()
   const [viewState, setViewState] = useState(INITIAL_VIEW_STATE)
   const [popup, setPopup] = useState<PopupInfo | null>(null)
+  const { muted } = useGeoLogFilters()
+  useEffect(() => {
+    setPopup(null)
+  }, [muted.flag, muted.version])
   const phone = usePhoneLayout()
   const didFitRef = useRef(false)
 

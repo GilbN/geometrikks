@@ -23,6 +23,7 @@ import { GeoLogsTable } from "@/components/geo-logs/geo-logs-table"
 import { GeoLogFiltersProvider } from "@/lib/geo-log-filters-context"
 import { useUrlFilters } from "@/hooks/use-url-filters"
 import { dropDefault } from "@/lib/url-filters"
+import { useMutedPage } from "@/lib/use-muted-page"
 import {
   decodeGeoLogsSearch,
   encodeGeoLogFilters,
@@ -70,13 +71,20 @@ function GeoLogsPage() {
     resetOnChange: GEO_LOGS_RESET_ON_CHANGE,
   })
 
+  const { muted, toggleMuted } = useMutedPage(filters.ips.length > 0, patchSearch)
+
   const page = search.page ?? 1
   const pageSize = search.pageSize ?? 50
   const sortBy: GeoLogSortField = search.sortBy ?? "eventCount"
   const sort: GeoLogSortOrder = search.sort ?? "desc"
 
   return (
-    <GeoLogFiltersProvider filters={filters} setFilters={setFilters}>
+    <GeoLogFiltersProvider
+      filters={filters}
+      setFilters={setFilters}
+      muted={muted}
+      toggleMuted={toggleMuted}
+    >
       <div className="p-4 space-y-4">
         <PageHeader
           title="Geo Logs"

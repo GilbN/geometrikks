@@ -6,6 +6,7 @@
  * router.navigate, then mounts this provider as a plain conduit.
  */
 import { createContext, useContext } from "react"
+import { DEFAULT_MUTED_SCOPE, type MutedScope } from "./muted-ips"
 
 export interface AccessLogFilterState {
   /** Free-text search across url / referrer / user-agent. */
@@ -73,21 +74,29 @@ export function hasActiveAccessLogFilters(filters: AccessLogFilterState): boolea
 interface AccessLogFiltersValue {
   filters: AccessLogFilterState
   setFilters: (updater: (prev: AccessLogFilterState) => AccessLogFilterState) => void
+  /** The muted IPs scope for this page; the flag is off outside the provider. */
+  muted: MutedScope
+  /** Flips the per-browser switch. */
+  toggleMuted: () => void
 }
 
 // Default = empty filters: the table keeps working outside the provider.
 const AccessLogFiltersContext = createContext<AccessLogFiltersValue>({
   filters: EMPTY_ACCESS_LOG_FILTERS,
   setFilters: () => {},
+  muted: DEFAULT_MUTED_SCOPE,
+  toggleMuted: () => {},
 })
 
 export function AccessLogFiltersProvider({
   filters,
   setFilters,
+  muted,
+  toggleMuted,
   children,
 }: AccessLogFiltersValue & { children: React.ReactNode }) {
   return (
-    <AccessLogFiltersContext.Provider value={{ filters, setFilters }}>
+    <AccessLogFiltersContext.Provider value={{ filters, setFilters, muted, toggleMuted }}>
       {children}
     </AccessLogFiltersContext.Provider>
   )
@@ -95,4 +104,8 @@ export function AccessLogFiltersProvider({
 
 export function useAccessLogFilters() {
   return useContext(AccessLogFiltersContext)
+}
+
+export function useMutedScope(): MutedScope {
+  return useAccessLogFilters().muted
 }

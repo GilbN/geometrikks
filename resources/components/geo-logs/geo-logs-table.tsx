@@ -6,7 +6,7 @@
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
  */
-import { memo, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { Columns3 } from "lucide-react"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -206,7 +206,7 @@ export function GeoLogsTable({
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
   const { range, customRange } = useTimeRange()
-  const { filters, setFilters } = useGeoLogFilters()
+  const { filters, setFilters, muted } = useGeoLogFilters()
   const filterTargetsFor = useMemo(
     () => geoLogFilterTargets(filters, setFilters),
     [filters, setFilters],
@@ -227,6 +227,15 @@ export function GeoLogsTable({
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
+
+  useEffect(() => {
+    if (data && !isPlaceholderData && page > pageCount) onPageChange(pageCount)
+  }, [data, isPlaceholderData, page, pageCount, onPageChange])
+
+  // A changed hidden set can leave the open row off the list.
+  useEffect(() => {
+    setSelected(null)
+  }, [muted.flag, muted.version])
   const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: GeoLogSortField) {
@@ -315,6 +324,8 @@ export function GeoLogsTable({
               filters,
               range,
               customRange,
+              muted.flag,
+              muted.version,
             ])}
           >
             {!narrow && (

@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from "react"
-import type { Query } from "@tanstack/react-query"
 
 const HIDDEN_STORAGE_KEY = "mutedIpsHidden"
 const VERSION_STORAGE_KEY = "mutedIpsVersion"
@@ -27,6 +26,14 @@ export type MutedScope = {
   version: string
   count: number | null
   chip: MutedChip
+}
+
+/** Outside a page's provider, such as Overview's hooks: the flag stays off. */
+export const DEFAULT_MUTED_SCOPE: MutedScope = {
+  flag: false,
+  version: EMPTY_VERSION,
+  count: null,
+  chip: "none",
 }
 
 export function mutedScope(args: {
@@ -257,7 +264,10 @@ function findMutedFields(value: unknown, depth = 0): MutedKeyFields {
  * that started after that same write.
  */
 export function keepIfSameMuted(fields: MutedKeyFields) {
-  return <T>(previous: T | undefined, previousQuery?: Query): T | undefined => {
+  return <T>(
+    previous: T | undefined,
+    previousQuery?: { queryKey: readonly unknown[] },
+  ): T | undefined => {
     if (previous === undefined || previousQuery === undefined) return undefined
     const before = findMutedFields(previousQuery.queryKey)
     if (before.excludeMutedIps !== fields.excludeMutedIps) return undefined

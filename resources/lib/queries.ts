@@ -155,10 +155,15 @@ import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
 import { isClientError } from "./crowdsec-errors"
 import {
+  DEFAULT_MUTED_SCOPE,
   currentWriteSequence,
+  keepIfSameMuted,
   markUnconfirmed,
+  mutedKeyFields,
   noteFirstLoadFailed,
   noteListLoaded,
+  type MutedKeyFields,
+  type MutedScope,
 } from "./muted-ips"
 import type { CreateMutedIpPayload } from "@/generated/api/types.gen"
 
@@ -1237,12 +1242,12 @@ export interface UseTopListOptions extends UseAnalyticsQueryOptions {
 export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
   const { range, customRange, granularity, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
   const resolved = resolveChartGranularity(granularity, range, customRange)
 
   return useQuery({
     queryKey: queryKeys.analytics.timeSeries(
-      { range, customRange, granularity: resolved, filters },
+      { range, customRange, granularity: resolved, filters, ...mutedKeyFields(muted) },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1252,6 +1257,7 @@ export function useTimeSeries(options: UseAnalyticsQueryOptions = {}) {
         endDate,
         granularity: resolved,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1291,6 +1297,12 @@ export function useGeoTimeSeries(options: UseAnalyticsQueryOptions = {}) {
  * such as the page's filters; a new scope sweeps the lines in again, as a new
  * range does.
  */
+function mutedFieldsOf(scope: Record<string, unknown>): MutedKeyFields {
+  return scope.excludeMutedIps === true
+    ? { excludeMutedIps: true, mutedIpsVersion: String(scope.mutedIpsVersion) }
+    : {}
+}
+
 function useCardSparklines<Data, Lines>(
   enabled: boolean,
   queryKey: (params: Record<string, unknown>, refreshKey?: number) => readonly unknown[],
@@ -1321,7 +1333,8 @@ function useCardSparklines<Data, Lines>(
     select: toLines,
     enabled: shown,
     // Each refresh is a new key; keeping the last lines stops them blinking out.
-    placeholderData: keepPreviousData,
+    // Without muted fields on either side this keeps them as before.
+    placeholderData: keepIfSameMuted(mutedFieldsOf(scope)),
     staleTime: 60 * 1000,
     refetchInterval,
   })
@@ -1373,17 +1386,19 @@ function useCardChartGranularity(): "hourly" | "daily" {
 export function useGeoLogSparklines({
   enabled = true,
 }: { enabled?: boolean } = {}): CardSparklines<GeoLogSparklines> {
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
   return useCardSparklines(
     enabled,
     queryKeys.geoLogs.timeSeries,
-    { filters },
+    // The same fields at the same level as useGeoLogTimeSeries' key: the chart and these cards share one request.
+    { filters, ...mutedKeyFields(muted) },
     ({ startDate, endDate, granularity }) =>
       fetchGeoLogTimeSeries({
         fromTimestamp: startDate,
         toTimestamp: endDate,
         granularity,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       }),
     geoLogSparklinesFromSeries,
   )
@@ -1396,10 +1411,13 @@ export function useGeoLogSparklines({
 export function useTopUrls(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topUrls({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.topUrls(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopUrls({
@@ -1407,6 +1425,7 @@ export function useTopUrls(options: UseTopListOptions = {}) {
         endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1422,11 +1441,11 @@ export function useTopUrls(options: UseTopListOptions = {}) {
 export function useTopUserAgents(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
 
   return useQuery({
     queryKey: queryKeys.analytics.topUserAgents(
-      { range, customRange, limit, filters },
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1436,6 +1455,7 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
         endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1451,10 +1471,13 @@ export function useTopUserAgents(options: UseTopListOptions = {}) {
 export function useTopAsns(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topAsns({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.topAsns(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopAsns({
@@ -1462,6 +1485,7 @@ export function useTopAsns(options: UseTopListOptions = {}) {
         endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1477,10 +1501,13 @@ export function useTopAsns(options: UseTopListOptions = {}) {
 export function useTopIpStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topIps({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.topIps(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopIpStats({
@@ -1488,6 +1515,7 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
         endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1503,11 +1531,11 @@ export function useTopIpStats(options: UseTopListOptions = {}) {
 export function useTopCountryStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
 
   return useQuery({
     queryKey: queryKeys.analytics.topCountryStats(
-      { range, customRange, limit, filters },
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1517,6 +1545,7 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
         endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1532,10 +1561,13 @@ export function useTopCountryStats(options: UseTopListOptions = {}) {
 export function useTopCityStats(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 25 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useAnalyticsFilters()
+  const { filters, muted } = useAnalyticsFilters()
 
   return useQuery({
-    queryKey: queryKeys.analytics.topCityStats({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.analytics.topCityStats(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchTopCityStats({
@@ -1543,6 +1575,7 @@ export function useTopCityStats(options: UseTopListOptions = {}) {
         endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1575,6 +1608,8 @@ export interface UseAccessLogsOptions {
   statusIn?: number[]
   sortField?: AccessLogSortField
   sortOrder?: SortOrder
+  /** The page's muted IPs scope; omit it for a query that never hides muted IPs. */
+  muted?: MutedScope
 }
 
 /**
@@ -1602,6 +1637,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
     statusIn,
     sortField,
     sortOrder,
+    muted = DEFAULT_MUTED_SCOPE,
   } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
 
@@ -1628,6 +1664,7 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         statusIn,
         sortField,
         sortOrder,
+        ...mutedKeyFields(muted),
       },
       lastRefresh,
     ),
@@ -1654,10 +1691,12 @@ export function useAccessLogs(options: UseAccessLogsOptions = {}) {
         statusIn,
         sortField,
         sortOrder,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
-    placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
+    // Built inline so its identity changes only with the muted fields.
+    placeholderData: keepIfSameMuted(mutedKeyFields(muted)),
     staleTime: 15 * 1000,
     refetchInterval,
   })
@@ -1794,11 +1833,20 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
     enabled = true,
   } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
     queryKey: queryKeys.geoLogs.list(
-      { range, customRange, currentPage, pageSize, sortField, sortOrder, filters },
+      {
+        range,
+        customRange,
+        currentPage,
+        pageSize,
+        sortField,
+        sortOrder,
+        filters,
+        ...mutedKeyFields(muted),
+      },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1811,10 +1859,12 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
         sortField,
         sortOrder,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
-    placeholderData: (prev) => prev, // v5 keepPreviousData: no blank flash while paging
+    // Built inline so its identity changes only with the muted fields.
+    placeholderData: keepIfSameMuted(mutedKeyFields(muted)),
     staleTime: 15 * 1000,
     refetchInterval,
   })
@@ -1824,11 +1874,11 @@ export function useGeoLogs(options: UseGeoLogsOptions = {}) {
 export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?: boolean } = {}) {
   const { comparePrevious = true, enabled = true } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
     queryKey: queryKeys.geoLogs.summary(
-      { range, customRange, comparePrevious, filters },
+      { range, customRange, comparePrevious, filters, ...mutedKeyFields(muted) },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1838,6 +1888,7 @@ export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?:
         toTimestamp: endDate,
         comparePrevious,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1850,12 +1901,12 @@ export function useGeoLogSummary(options: { comparePrevious?: boolean; enabled?:
 export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
   const { enabled = true } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
   const resolved = useCardChartGranularity()
 
   return useQuery({
     queryKey: queryKeys.geoLogs.timeSeries(
-      { range, customRange, granularity: resolved, filters },
+      { range, customRange, granularity: resolved, filters, ...mutedKeyFields(muted) },
       lastRefresh,
     ),
     queryFn: () => {
@@ -1865,6 +1916,7 @@ export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
         toTimestamp: endDate,
         granularity: resolved,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1877,10 +1929,13 @@ export function useGeoLogTimeSeries(options: UseAnalyticsQueryOptions = {}) {
 export function useGeoLogTopIps(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.topIps({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.topIps(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogTopIps({
@@ -1888,6 +1943,7 @@ export function useGeoLogTopIps(options: UseTopListOptions = {}) {
         toTimestamp: endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1900,10 +1956,13 @@ export function useGeoLogTopIps(options: UseTopListOptions = {}) {
 export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.topCountries({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.topCountries(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogTopCountries({
@@ -1911,6 +1970,7 @@ export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
         toTimestamp: endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1923,10 +1983,13 @@ export function useGeoLogTopCountries(options: UseTopListOptions = {}) {
 export function useGeoLogTopCities(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.topCities({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.topCities(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogTopCities({
@@ -1934,6 +1997,7 @@ export function useGeoLogTopCities(options: UseTopListOptions = {}) {
         toTimestamp: endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1946,10 +2010,13 @@ export function useGeoLogTopCities(options: UseTopListOptions = {}) {
 export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
   const { enabled = true, limit = 10 } = options
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.topAsns({ range, customRange, limit, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.topAsns(
+      { range, customRange, limit, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoLogTopAsns({
@@ -1957,6 +2024,7 @@ export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
         toTimestamp: endDate,
         limit,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
@@ -1971,16 +2039,20 @@ export function useGeoLogTopAsns(options: UseTopListOptions = {}) {
  */
 export function useGeoLogsGeoJSON({ enabled = true }: { enabled?: boolean } = {}) {
   const { range, customRange, refetchInterval, lastRefresh } = useTimeRange()
-  const { filters } = useGeoLogFilters()
+  const { filters, muted } = useGeoLogFilters()
 
   return useQuery({
-    queryKey: queryKeys.geoLogs.geojson({ range, customRange, filters }, lastRefresh),
+    queryKey: queryKeys.geoLogs.geojson(
+      { range, customRange, filters, ...mutedKeyFields(muted) },
+      lastRefresh,
+    ),
     queryFn: () => {
       const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
       return fetchGeoJSON({
         fromTimestamp: startDate,
         toTimestamp: endDate,
         ...filters,
+        excludeMutedIps: muted.flag || undefined,
       })
     },
     enabled,
