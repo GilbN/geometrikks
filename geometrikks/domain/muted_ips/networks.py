@@ -25,7 +25,7 @@ def normalize_network(raw: str) -> Network:
     try:
         network = ip_network(raw.strip(), strict=False)
     except ValueError as error:
-        raise DomainValidationError(f"Not an IP address or network: {raw!r}", code="invalid_network") from error
+        raise DomainValidationError("Enter an IP address or CIDR network, such as 203.0.113.7 or 10.0.0.0/8", code="invalid_network") from error
     if isinstance(network, IPv6Network) and network.prefixlen >= _MAPPED_PREFIX:
         mapped_block = IPv6Network((_MAPPED_BASE, _MAPPED_PREFIX))
         if network.subnet_of(mapped_block):
@@ -39,8 +39,10 @@ def normalize_note(raw: str | None) -> str | None:
     note = raw.strip()
     if not note:
         return None
+    if "\x00" in note:
+        raise DomainValidationError("Remove the NUL character from the note", code="invalid_note")
     if len(note) > NOTE_MAX_LENGTH:
-        raise DomainValidationError(f"Note is longer than {NOTE_MAX_LENGTH} characters", code="invalid_note")
+        raise DomainValidationError(f"Shorten the note to {NOTE_MAX_LENGTH} characters or fewer", code="invalid_note")
     return note
 
 

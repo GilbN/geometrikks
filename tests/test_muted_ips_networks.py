@@ -55,3 +55,9 @@ def test_with_mapped_twins_adds_mapped_form_for_ipv4_only():
         "::ffff:192.0.2.0/120",
         "2001:db8::/64",
     }
+
+
+def test_normalize_note_rejects_nul_which_postgres_cannot_store():
+    with pytest.raises(DomainValidationError) as error:
+        normalize_note("home\x00fibre")
+    assert error.value.code == "invalid_note"
