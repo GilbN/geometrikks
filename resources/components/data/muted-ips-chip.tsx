@@ -16,7 +16,7 @@ export function MutedIpsChip({ scope, onToggle }: { scope: MutedScope; onToggle:
   const label = hiding && scope.count !== null ? `Muted IPs hidden · ${scope.count}` : null
   return (
     <FilterField label="Muted IPs" group>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-1">
         <Button
           type="button"
           variant="outline"
@@ -25,7 +25,7 @@ export function MutedIpsChip({ scope, onToggle }: { scope: MutedScope; onToggle:
           aria-describedby={greyed ? hintId : undefined}
           disabled={greyed}
           onClick={onToggle}
-          className={cn("h-8 text-xs", hiding && HIDING_BUTTON)}
+          className={cn("h-8 w-44 justify-start text-xs", hiding && HIDING_BUTTON)}
         >
           {scope.chip === "shown" ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
           {scope.chip === "shown" ? "Muted IPs shown" : (label ?? "Muted IPs hidden")}

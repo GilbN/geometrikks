@@ -283,6 +283,7 @@ export function FilterMutedIpsRow({
 }) {
   if (scope.chip === "none") return null
   const greyed = scope.chip === "greyed"
+  const detailId = useId()
   const detail = greyed
     ? "Off while filtering by IP"
     : scope.chip === "shown"
@@ -294,11 +295,14 @@ export function FilterMutedIpsRow({
     <div className={ROW}>
       <span className="shrink-0">Muted IPs</span>
       <span className="flex min-w-0 items-center gap-3">
-        <span className="truncate text-xs text-muted-foreground">{detail}</span>
+        <span id={detailId} className="truncate text-xs text-muted-foreground">
+          {detail}
+        </span>
         <Switch
           aria-label="Hide muted IPs"
           checked={scope.chip !== "shown"}
           disabled={greyed}
+          aria-describedby={greyed ? detailId : undefined}
           onCheckedChange={onToggle}
         />
       </span>

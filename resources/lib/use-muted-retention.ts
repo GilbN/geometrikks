@@ -11,7 +11,8 @@ export function useMutedRetention(scope: MutedScope): {
 } {
   const { range, customRange } = useTimeRange()
   const { data } = useRuntimeSettings()
-  const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)
+  const now = Date.now()
+  const { startDate, endDate } = parseTimeRange(range, now, customRange)
   const days = data?.analytics.rawRetentionDays ?? 0
   const start = new Date(startDate)
   const active =
@@ -19,7 +20,7 @@ export function useMutedRetention(scope: MutedScope): {
     retentionNoteFor({
       flag: scope.flag,
       rangeStart: start,
-      now: new Date(),
+      now: new Date(now),
       rawRetentionDays: days,
     })
   return { active, days, rangeMs: Date.parse(endDate) - start.getTime() }

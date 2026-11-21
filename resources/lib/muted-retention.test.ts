@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test"
+import { parseTimeRange } from "./api"
 import { mutedDrawerCounts, retentionNoteFor } from "./muted-ips"
 
 const NOW = new Date("2026-11-20T12:00:00Z")
@@ -32,5 +33,19 @@ describe("mutedDrawerCounts", () => {
 
   it("adds nothing when the switch is not in effect", () => {
     expect(mutedDrawerCounts(2, false)).toEqual({ activeCount: 2, clearCount: 2 })
+  })
+})
+
+describe("retentionNoteFor with a preset range", () => {
+  it("gives no note for a 180d preset against 180 day retention at one fixed instant", () => {
+    const { startDate } = parseTimeRange("180d", NOW.getTime())
+    expect(
+      retentionNoteFor({
+        flag: true,
+        rangeStart: new Date(startDate),
+        now: NOW,
+        rawRetentionDays: 180,
+      }),
+    ).toBe(false)
   })
 })
