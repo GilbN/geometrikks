@@ -175,6 +175,7 @@ def _app(repo: _FakeIpProfileRepo) -> Litestar:
             **ambient_settings_dependency(),
             # The other analytics providers need a session; nothing here calls them.
             "db_session": Provide(lambda: None, sync_to_thread=False),
+            "db_engine": Provide(lambda: None, sync_to_thread=False),
         },
         exception_handlers=EXCEPTION_HANDLERS,
     )

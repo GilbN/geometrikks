@@ -5330,6 +5330,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * `hourly` or `daily` buckets. Leave it out to get hourly buckets for ranges up to 30 days and daily buckets for longer ones.
      */
     granularity?: "hourly" | "daily" | null;
@@ -5473,6 +5477,10 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many ASNs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5554,6 +5562,10 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many cities to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5634,6 +5646,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
      */
     window?: string | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * How many countries to return, from 1 to 100. Defaults to 25.
      */
@@ -5720,6 +5736,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many IPs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5805,6 +5825,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      */
     window?: string | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * How many URLs to return, from 1 to 100. Defaults to 25.
      */
     limit?: number;
@@ -5889,6 +5913,10 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * A rolling window ending now, such as `15m`, `24h` or `7d`, up to 365 days. Use positive whole minutes, hours or days. Cannot be combined with explicit time bounds.
      */
     window?: string | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * How many user agents to return, from 1 to 100. Defaults to 25.
      */

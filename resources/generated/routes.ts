@@ -427,6 +427,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     granularity?: "hourly" | "daily";
     hostIn?: string[];
     ipAddress?: string[];
@@ -441,6 +442,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     ipAddress?: string[];
     ipAddressNotIn?: string[];
     limit?: number;
@@ -453,6 +455,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     ipAddress?: string[];
     ipAddressNotIn?: string[];
     limit?: number;
@@ -465,6 +468,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     hostIn?: string[];
     ipAddress?: string[];
     ipAddressNotIn?: string[];
@@ -483,6 +487,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     hostIn?: string[];
     ipAddress?: string[];
     ipAddressNotIn?: string[];
@@ -496,6 +501,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     hostIn?: string[];
     ipAddress?: string[];
     ipAddressNotIn?: string[];
@@ -509,6 +515,7 @@ export interface RouteQueryParams {
     city?: string[];
     countryCode?: string[];
     endDate?: DateTime;
+    excludeMutedIps?: boolean;
     ipAddress?: string[];
     ipAddressNotIn?: string[];
     limit?: number;
@@ -986,28 +993,28 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'granularity', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'startDate', 'tz', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'granularity', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'startDate', 'tz', 'window'] as const,
   },
   'get_top_asns': {
     path: '/api/v1/analytics/top-asns',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
   },
   'get_top_cities': {
     path: '/api/v1/analytics/top-cities',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
   },
   'get_top_countries': {
     path: '/api/v1/analytics/top-countries',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
   },
   'get_top_countries_api_v1_geo_locations_top_countries': {
     path: '/api/v1/geo-locations/top-countries',
@@ -1021,21 +1028,21 @@ export const routeDefinitions = {
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
   },
   'get_top_urls': {
     path: '/api/v1/analytics/top-urls',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'hostIn', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
   },
   'get_top_user_agents': {
     path: '/api/v1/analytics/top-user-agents',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,
-    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
+    queryParams: ['asnIn', 'asnNotIn', 'city', 'countryCode', 'endDate', 'excludeMutedIps', 'ipAddress', 'ipAddressNotIn', 'limit', 'startDate', 'window'] as const,
   },
   'health': {
     path: '/health',
