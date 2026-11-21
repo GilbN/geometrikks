@@ -74,6 +74,31 @@ async def test_top_urls_any_filter_forces_raw():
     assert "FROM access_logs" in session.statements[-1]
 
 
+async def test_top_urls_host_only_filter_uses_hourly_cagg():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(
+        WEEK_START, NOW, filters=AnalyticsFilters(hosts=["a.example"])
+    )
+    assert "url_hourly_stats" in session.statements[-1]
+
+
+async def test_top_urls_host_exclude_only_uses_daily_cagg():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(
+        LONG_START, NOW, filters=AnalyticsFilters(hosts_exclude=["a.example"])
+    )
+    assert "url_daily_stats" in session.statements[-1]
+
+
+async def test_top_urls_host_and_country_forces_raw():
+    session = _RecordingSession()
+    await _repo(session).get_top_urls(
+        WEEK_START, NOW, filters=AnalyticsFilters(hosts=["a.example"], country_codes=["NO"])
+    )
+    assert "url_hourly_stats" not in session.statements[-1]
+    assert "FROM access_logs" in session.statements[-1]
+
+
 async def test_top_user_agents_week_range_uses_hourly_cagg():
     session = _RecordingSession()
     await _repo(session).get_top_user_agents(WEEK_START, NOW)

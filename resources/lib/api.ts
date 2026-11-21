@@ -790,7 +790,7 @@ export async function fetchTopCountries(params: TopIPsParams): Promise<TopCountr
 // ============================================================================
 
 /**
- * Country/city/IP/ASN filters shared by the analytics page's seven filterable
+ * Country/city/IP/host/ASN filters shared by the analytics page's seven filterable
  * endpoints (not geo-time-series, which stays unfiltered). The generated
  * fetch client serializes arrays as repeated keys (?countryCode=NO&countryCode=SE)
  * by default, matching what Litestar expects.
@@ -800,6 +800,8 @@ export interface AnalyticsFilterParams {
   cities?: string[]
   ips?: string[]
   ipsExclude?: string[]
+  hosts?: string[]
+  hostsExclude?: string[]
   asns?: number[]
   asnsExclude?: number[]
   excludeMutedIps?: boolean
@@ -811,6 +813,8 @@ function analyticsFilterQuery(params: AnalyticsFilterParams) {
     city: params.cities?.length ? params.cities : undefined,
     ipAddress: params.ips?.length ? params.ips : undefined,
     ipAddressNotIn: params.ipsExclude?.length ? params.ipsExclude : undefined,
+    hostIn: params.hosts?.length ? params.hosts : undefined,
+    hostNotIn: params.hostsExclude?.length ? params.hostsExclude : undefined,
     asnIn: params.asns?.length ? params.asns : undefined,
     asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
     excludeMutedIps: params.excludeMutedIps || undefined,

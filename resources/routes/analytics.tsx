@@ -34,12 +34,15 @@ import { arrayParam } from "@/lib/url-filters"
 import { useMutedPage } from "@/lib/use-muted-page"
 
 // Absent keys mean "default"; navigate() writes undefined for defaults so
-// clean states produce clean URLs. Param names match the geo-logs page.
+// clean states produce clean URLs. Param names match the geo-logs and
+// access-logs pages.
 const analyticsSearchSchema = z.object({
   country: z.array(z.string()).optional().catch(undefined),
   city: z.array(z.string()).optional().catch(undefined),
   ip: z.array(z.string()).optional().catch(undefined),
   ipx: z.array(z.string()).optional().catch(undefined),
+  host: z.array(z.string()).optional().catch(undefined),
+  hostx: z.array(z.string()).optional().catch(undefined),
   asn: z.array(z.number().int()).optional().catch(undefined),
   asnx: z.array(z.number().int()).optional().catch(undefined),
 })
@@ -60,6 +63,8 @@ function decode(search: AnalyticsSearch): AnalyticsFilterState {
     cities: search.city ?? [],
     ips: search.ip ?? [],
     ipsExclude: search.ipx ?? [],
+    hosts: search.host ?? [],
+    hostsExclude: search.hostx ?? [],
     asns: search.asn ?? [],
     asnsExclude: search.asnx ?? [],
   }
@@ -71,6 +76,8 @@ function encode(filters: AnalyticsFilterState): Partial<AnalyticsSearch> {
     city: arrayParam(filters.cities),
     ip: arrayParam(filters.ips),
     ipx: arrayParam(filters.ipsExclude),
+    host: arrayParam(filters.hosts),
+    hostx: arrayParam(filters.hostsExclude),
     asn: arrayParam(filters.asns),
     asnx: arrayParam(filters.asnsExclude),
   }

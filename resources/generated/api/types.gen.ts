@@ -5370,6 +5370,10 @@ export type ApiV1AnalyticsTimeSeriesGetTimeSeriesData = {
      */
     hostIn?: Array<string> | null;
     /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
+    /**
      * An IANA timezone such as `Europe/Oslo`. Daily buckets then start at midnight in that zone for ranges of 30 days or less, and longer ranges keep UTC days unless the endpoint's description says otherwise. Hourly buckets ignore it, so on ranges that get hourly buckets it changes nothing. An unknown zone gets a 400. Defaults to UTC.
      */
     tz?: string | null;
@@ -5512,6 +5516,14 @@ export type ApiV1AnalyticsTopAsnsGetTopAsnsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-asns";
 };
@@ -5597,6 +5609,14 @@ export type ApiV1AnalyticsTopCitiesGetTopCitiesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-cities";
 };
@@ -5686,6 +5706,10 @@ export type ApiV1AnalyticsTopCountriesGetTopCountriesData = {
      * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-countries";
 };
@@ -5775,6 +5799,10 @@ export type ApiV1AnalyticsTopIpsGetTopIpsData = {
      * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-ips";
 };
@@ -5864,6 +5892,10 @@ export type ApiV1AnalyticsTopUrlsGetTopUrlsData = {
      * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
      */
     hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-urls";
 };
@@ -5949,6 +5981,14 @@ export type ApiV1AnalyticsTopUserAgentsGetTopUserAgentsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Keep only requests to these hosts, matched exactly against the logged Host value, such as `example.com`. Repeat the parameter to pass more than one. Lines without a host are left out.
+     */
+    hostIn?: Array<string> | null;
+    /**
+     * Leave out requests to these hosts, matched exactly against the logged Host value. Repeat the parameter to pass more than one. Lines without a host stay in.
+     */
+    hostNotIn?: Array<string> | null;
   };
   url: "/api/v1/analytics/top-user-agents";
 };

@@ -36,10 +36,15 @@ export function TopIpsTable() {
 
   return (
     <Card ref={layoutRef}>
-      <CardHeader>
+      <CardHeader className="flex flex-wrap items-baseline justify-between gap-x-3">
         <CardTitle className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
           Top IPs
         </CardTitle>
+        {!isLoading && data && data.distinctIps > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatNumber(data.distinctIps)} {data.distinctIps === 1 ? "unique IP" : "unique IPs"}
+          </span>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading || !data ? (

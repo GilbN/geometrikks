@@ -1,4 +1,6 @@
 import { CountryLabel } from "@/components/country-flag"
+import { useFitLayout } from "@/components/data/narrow-layout"
+import { RankedNarrowCell, RankedNarrowHeader } from "@/components/data/ranked-narrow"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table,
@@ -19,6 +21,9 @@ export function TopCountriesCities() {
   const { data: cityData, isLoading: isCityLoading } = useTopCityStats({ limit: 25 })
   const { pageItems: countryItems, ...countryPagination } = usePagedRows(countryData?.items)
   const { pageItems: cityItems, ...cityPagination } = usePagedRows(cityData?.items)
+  const [countryLayoutRef, countryNarrow] = useFitLayout<HTMLDivElement>(
+    countryItems.map((row) => row.countryCode).join(),
+  )
 
   return (
     <Card>
@@ -33,33 +38,62 @@ export function TopCountriesCities() {
             <TabsTrigger value="countries">Countries</TabsTrigger>
             <TabsTrigger value="cities">Cities</TabsTrigger>
           </TabsList>
-          <TabsContent value="countries">
+          <TabsContent value="countries" ref={countryLayoutRef}>
             {isCountryLoading || !countryData ? (
               <Skeleton className="h-48 w-full" />
             ) : (
               <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Country</TableHead>
-                      <TableHead className="text-right">Hits</TableHead>
-                      <TableHead className="text-right">Unique IPs</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {countryItems.map((row) => (
-                      <TableRow key={row.countryCode}>
-                        <TableCell>
-                          <CountryLabel code={row.countryCode} name={row.countryName} />
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatNumber(row.hits)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatNumber(row.uniqueIps)}
-                        </TableCell>
+                <Table className={countryNarrow ? "table-fixed" : undefined}>
+                  {countryNarrow ? (
+                    <RankedNarrowHeader label="Country" valueLabel="Hits" />
+                  ) : (
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Country</TableHead>
+                        <TableHead className="text-right">Hits</TableHead>
+                        <TableHead className="text-right">Errors</TableHead>
+                        <TableHead className="text-right">Unique IPs</TableHead>
                       </TableRow>
-                    ))}
+                    </TableHeader>
+                  )}
+                  <TableBody>
+                    {countryItems.map((row) =>
+                      countryNarrow ? (
+                        <TableRow key={row.countryCode}>
+                          <RankedNarrowCell
+                            primary={<CountryLabel code={row.countryCode} name={row.countryName} />}
+                            value={formatNumber(row.hits)}
+                            secondary={
+                              <>
+                                <span>
+                                  {formatNumber(row.errorHits)}{" "}
+                                  {row.errorHits === 1 ? "error" : "errors"}
+                                </span>
+                                <span>
+                                  {formatNumber(row.uniqueIps)}{" "}
+                                  {row.uniqueIps === 1 ? "unique IP" : "unique IPs"}
+                                </span>
+                              </>
+                            }
+                          />
+                        </TableRow>
+                      ) : (
+                        <TableRow key={row.countryCode}>
+                          <TableCell>
+                            <CountryLabel code={row.countryCode} name={row.countryName} />
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatNumber(row.hits)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatNumber(row.errorHits)}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {formatNumber(row.uniqueIps)}
+                          </TableCell>
+                        </TableRow>
+                      ),
+                    )}
                   </TableBody>
                 </Table>
                 <TablePaginationFooter
