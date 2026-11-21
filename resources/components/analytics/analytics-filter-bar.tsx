@@ -1,7 +1,7 @@
 /**
- * IP / country / city / ASN filter bar for the analytics page. Filters every
- * chart and top-list on the page via AnalyticsFiltersContext (not
- * geo-time-series, which stays unfiltered). Country/city/ASN options are
+ * IP / host / country / city / ASN filter bar for the analytics page. Filters
+ * every chart and top-list on the page via AnalyticsFiltersContext (not
+ * geo-time-series, which stays unfiltered). Host/country/city/ASN options are
  * lazy-loaded facets.
  * Renders in a FilterRail on desktop and inside a FiltersDrawer on phones.
  */
@@ -23,6 +23,7 @@ import {
 } from "@/lib/analytics-filters-context"
 
 type IpKey = "ips" | "ipsExclude"
+type HostKey = "hosts" | "hostsExclude"
 type AsnKey = "asns" | "asnsExclude"
 
 export function AnalyticsFilterBar() {
@@ -31,8 +32,18 @@ export function AnalyticsFilterBar() {
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   // Selected ASNs need the facets for their organization labels.
   const { data: facets } = useAccessLogFacets({
-    enabled: facetsEnabled || filters.asns.length > 0 || filters.asnsExclude.length > 0,
+    enabled:
+      facetsEnabled ||
+      filters.asns.length > 0 ||
+      filters.asnsExclude.length > 0 ||
+      filters.hosts.length > 0 ||
+      filters.hostsExclude.length > 0,
   })
+  // A host from a shared link may be missing from the facets; it still needs
+  // an option so it can be unselected.
+  const hostOptions = [
+    ...new Set([...(facets?.hosts ?? []), ...filters.hosts, ...filters.hostsExclude]),
+  ]
   const asnLabel = useAsnLabel(facets?.asns)
   const countryName = (code: string) => facets?.countries.find((c) => c.code === code)?.name
   const countryLabel = (code: string) => {
@@ -46,6 +57,14 @@ export function AnalyticsFilterBar() {
   }
   const removeIp = (key: IpKey, ip: string) =>
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
+  const setHosts = (key: HostKey) => (values: string[]) =>
+    setFilters((prev) => ({ ...prev, [key]: values }))
+  const addHostExclude = (host: string) => {
+    if (filters.hostsExclude.includes(host)) return
+    setFilters((prev) => ({ ...prev, hostsExclude: [...prev.hostsExclude, host] }))
+  }
+  const removeHostExclude = (host: string) =>
+    setFilters((prev) => ({ ...prev, hostsExclude: prev.hostsExclude.filter((v) => v !== host) }))
   const setAsns = (key: AsnKey) => (values: number[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
   const removeAsn = (key: AsnKey, asn: number) =>
@@ -64,6 +83,12 @@ export function AnalyticsFilterBar() {
       exclude: true,
       remove: () => removeIp("ipsExclude", v),
     })),
+    ...filters.hostsExclude.map((v) => ({
+      key: "hostsExclude" as const,
+      label: v,
+      exclude: true,
+      remove: () => removeHostExclude(v),
+    })),
     ...filters.asns.map((v) => ({
       key: "asns" as const,
       label: asnLabel(v),
@@ -77,7 +102,7 @@ export function AnalyticsFilterBar() {
       remove: () => removeAsn("asnsExclude", v),
     })),
   ]
-  const chipRow = (keys: (IpKey | AsnKey)[]) => {
+  const chipRow = (keys: (IpKey | "hostsExclude" | AsnKey)[]) => {
     const shown = chips.filter((c) => keys.includes(c.key))
     return (
       shown.length > 0 && (
@@ -114,6 +139,32 @@ export function AnalyticsFilterBar() {
           validate={isValidIp}
           placeholder="Exclude"
           className="w-32"
+        />
+      }
+    />
+  )
+  const hostPair = () => (
+    <FilterPair
+      label="Host"
+      excludeLabel="Exclude host"
+      include={
+        <FilterCombobox
+          label="Host"
+          options={hostOptions}
+          selected={filters.hosts}
+          onChange={setHosts("hosts")}
+          loading={!facets}
+          emptyText="No hosts"
+          onOpenChange={(open) => open && setFacetsEnabled(true)}
+        />
+      }
+      exclude={
+        <TagInput
+          exclude
+          onAdd={addHostExclude}
+          placeholder="Exclude"
+          aria-label="Exclude host"
+          className="w-36"
         />
       }
     />
@@ -196,6 +247,15 @@ export function AnalyticsFilterBar() {
           {chipRow(["ips"])}
           <FilterSection label="Show only">
             <FilterListRow
+              label="Host"
+              search
+              options={hostOptions}
+              selected={filters.hosts}
+              onChange={setHosts("hosts")}
+              loading={!facets}
+              emptyText="No hosts"
+            />
+            <FilterListRow
               label="Country"
               search
               iconFor={(code) => <CountryFlag code={code} />}
@@ -235,6 +295,16 @@ export function AnalyticsFilterBar() {
               onRemove={(ip) => removeIp("ipsExclude", ip)}
               validate={isValidIp}
             />
+            <FilterListRow
+              label="Host"
+              exclude
+              search
+              options={hostOptions}
+              selected={filters.hostsExclude}
+              onChange={setHosts("hostsExclude")}
+              loading={!facets}
+              emptyText="No hosts"
+            />
             <FilterListRow<number>
               label="ASN"
               exclude
@@ -257,11 +327,12 @@ export function AnalyticsFilterBar() {
     <FilterRail label="Traffic filters" activeCount={activeCount} onClear={clear}>
       <FilterRow>
         {ipPair()}
+        {hostPair()}
         {country()}
         {city()}
         {asnPair()}
       </FilterRow>
-      {chipRow(["ips", "ipsExclude", "asns", "asnsExclude"])}
+      {chipRow(["ips", "ipsExclude", "hostsExclude", "asns", "asnsExclude"])}
     </FilterRail>
   )
 }
