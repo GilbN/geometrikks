@@ -125,13 +125,8 @@ it("resets the page only on a user flip of the switch", () => {
   expect(patchSearch).toHaveBeenCalledWith({ page: undefined })
 })
 
-it("only clamps down to the last page when the list version changes", () => {
-  const patchSearch = vi.fn()
-  // A version change reaches the tables as a smaller page count; the table moves
-  // to the last page and never touches the switch's page-reset path.
-  const target = pageToClamp({ loaded: true, placeholder: false, page: 5, pageCount: 2 })
-  expect(target).toBe(2)
-  expect(patchSearch).not.toHaveBeenCalled()
+it("clamps down to the last page and never below it", () => {
+  expect(pageToClamp({ loaded: true, placeholder: false, page: 5, pageCount: 2 })).toBe(2)
   expect(pageToClamp({ loaded: true, placeholder: true, page: 5, pageCount: 2 })).toBeNull()
   expect(pageToClamp({ loaded: false, placeholder: false, page: 5, pageCount: 2 })).toBeNull()
   expect(pageToClamp({ loaded: true, placeholder: false, page: 2, pageCount: 2 })).toBeNull()
