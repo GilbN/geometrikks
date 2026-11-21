@@ -42,5 +42,3 @@ class CreateMutedIpPayload(msgspec.Struct, kw_only=True, rename="camel", forbid_
             description=f"Up to {NOTE_MAX_LENGTH} characters once surrounding whitespace is trimmed. Blank means none."
         ),
     ] = None
-
-

@@ -155,6 +155,13 @@ export function noteListLoaded(networks: string[], startedAtWrite: number = writ
   if (startedAtWrite !== writeSequence) return
   const version = listVersion(networks)
   const previous = getVersionStore()
+  if (
+    !previous.unconfirmed &&
+    previous.confirmed?.version === version &&
+    previous.confirmed.count === networks.length
+  ) {
+    return
+  }
   writeStoredVersion(version)
   updateStore({
     confirmedFromWrite: previous.unconfirmed
@@ -209,7 +216,7 @@ export function useMutedVersion(): { version: string; count: number | null } {
   return useSyncExternalStore(subscribeVersionStore, readVersionSnapshot, readVersionSnapshot)
 }
 
-// The switch is per browser and read by three pages plus Settings.
+// The switch is per browser.
 let hiddenCurrent: boolean | null = null
 const hiddenListeners = new Set<() => void>()
 

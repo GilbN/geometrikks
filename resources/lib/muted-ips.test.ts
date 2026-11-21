@@ -153,6 +153,17 @@ describe("resolveVersion", () => {
     noteListLoaded(["1.2.3.4/32"], currentWriteSequence())
     expect(current()).toBe(listVersion(["1.2.3.4/32"]))
   })
+
+  it("notifies once for identical polls and again when the list changes", () => {
+    const listener = vi.fn()
+    const unsubscribe = subscribeVersionStore(listener)
+    noteListLoaded(["1.2.3.4/32"])
+    noteListLoaded(["1.2.3.4/32"])
+    expect(listener).toHaveBeenCalledTimes(1)
+    noteListLoaded(["1.2.3.4/32", "5.6.7.8/32"])
+    expect(listener).toHaveBeenCalledTimes(2)
+    unsubscribe()
+  })
 })
 
 describe("storage that throws", () => {

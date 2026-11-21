@@ -273,11 +273,7 @@ async def provide_in_filters(
     base_in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
     muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
 ) -> list[FilterTypes]:
-    """Adds the muted list to the IN filters, unless the request names an IP to include.
-
-    A wrapper rather than a new parameter on ``provide_access_log_in_filters``: that provider
-    stays sync, and Litestar resolves ``muted_networks`` (async, own connection) beside it.
-    """
+    """Adds the muted list to the IN filters, unless the request names an IP to include."""
     if muted_networks is None or any(
         isinstance(item, CollectionFilter) and item.field_name == "ip_address" for item in base_in_filters
     ):

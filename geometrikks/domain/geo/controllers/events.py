@@ -176,11 +176,7 @@ async def provide_geo_filters(
     geo_base_filters: NamedDependency[SkipValidation[GeoEventFilters]],
     muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
 ) -> GeoEventFilters:
-    """Adds the muted list to the query filters.
-
-    A wrapper rather than a new parameter on ``provide_geo_event_filters``: that provider
-    stays sync, and Litestar resolves ``muted_networks`` (async, own connection) beside it.
-    """
+    """Adds the muted list to the query filters."""
     return replace(geo_base_filters, muted_networks=muted_networks)
 
 
