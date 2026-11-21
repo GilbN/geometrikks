@@ -3,6 +3,6 @@ export function inspectorUrl(origin: string, ip: string): string {
 }
 
 /** The app's router reads `host` as a JSON string array; a bare string is dropped. */
-export function accessLogsUrl(origin: string, hosts: string[]): string {
-  return `${origin}/access-logs?host=${encodeURIComponent(JSON.stringify(hosts))}`
+export function analyticsUrl(origin: string, hosts: string[]): string {
+  return `${origin}/analytics?host=${encodeURIComponent(JSON.stringify(hosts))}`
 }

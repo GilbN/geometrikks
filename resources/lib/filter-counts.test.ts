@@ -42,4 +42,14 @@ describe("active filter group counts", () => {
       }),
     ).toBe(2)
   })
+
+  it("analytics hosts count once per list", () => {
+    expect(
+      countActiveAnalyticsFilters({
+        ...EMPTY_FILTERS,
+        hosts: ["a.example", "b.example"],
+        hostsExclude: ["c.example"],
+      }),
+    ).toBe(2)
+  })
 })

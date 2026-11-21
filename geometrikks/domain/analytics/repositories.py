@@ -25,7 +25,7 @@ For short ranges (≤1 hour), raw table queries provide exact time range results
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, cast
@@ -745,16 +745,22 @@ class SummaryStatsRepository:
     ) -> list[TopUrlRow]:
         """Top host-and-path pairs by hits: stitched url CAGG read above 24h, raw otherwise.
 
-        Any active filter forces the raw path: the url CAGGs carry no
-        country/city/IP dimensions (adding them would multiply cardinality).
+        The url CAGGs carry a host column, so a filter on hosts alone, include
+        or exclude, stays on the stitched read. Country, city, IP and ASN
+        filters force the raw path: the url CAGGs carry none of those
+        dimensions (adding them would multiply cardinality). With two or more
+        different hosts in the filter, paths are ranked across those hosts and
+        every row has a null host.
         """
         filters = filters or AnalyticsFilters()
         granularity = get_stats_granularity(start, end)
-        if granularity == StatsGranularity.RAW or filters.is_active():
+        if granularity == StatsGranularity.RAW or (filters.is_active() and not filters.only_hosts()):
             return await LiveStatsRepository(self.session).get_top_urls(
                 start, end, limit, filters=filters
             )
         table = f"url_{granularity.value}_stats"
+        filter_sql, filter_params = filters.sql_conditions()
+        host_select, group_by, order_by = _top_url_grouping(filters)
         # URL_LATENCY_*: the fallback chain reads the older columns when a
         # bucket's latency count is NULL; see latency_col. The host rebuild
         # discarded every URL bucket older than the raw window, so today
@@ -784,7 +790,7 @@ class SummaryStatsRepository:
                   AND al.url IS NOT NULL
             )
             SELECT
-                host,
+                {host_select},
                 url,
                 CAST(SUM(hits) AS BIGINT) AS hits,
                 CAST(COALESCE(SUM(timed_hits), 0) AS BIGINT) AS timed_hits,
@@ -792,13 +798,14 @@ class SummaryStatsRepository:
                 CAST(COALESCE(SUM(total_bytes), 0) AS BIGINT) AS total_bytes,
                 SUM(total_request_time) / NULLIF(SUM(timed_hits), 0) AS avg_request_time
             FROM combined
-            GROUP BY host, url
-            ORDER BY hits DESC, host, url
+            WHERE true {filter_sql}
+            GROUP BY {group_by}
+            ORDER BY {order_by}
             LIMIT :limit
         """)
         await plan_for_wide_scan(self.session)
         result = await self.session.execute(
-            stmt, {**_stitch_params(start, end, granularity), "limit": limit}
+            stmt, {**_stitch_params(start, end, granularity), "limit": limit, **filter_params}
         )
         return [
             TopUrlRow(
@@ -1231,9 +1238,11 @@ class TopCityRow:
 class AnalyticsFilters:
     """Optional dimension filters for analytics queries.
 
-    Filtered queries must hit raw access_logs: CAGGs aggregate globally and
-    cannot be sliced by country/city/IP/ASN/host. An exclude-only filter counts
-    as active for exactly that reason.
+    Filtered queries read raw access_logs, because most CAGGs have no
+    country, city, IP, ASN or host column; an exclude-only filter counts as
+    active for that reason. Top URLs above 24 hours is the exception for
+    hosts: url_*_stats has a host column, so a filter on hosts alone still
+    reads it (see ``only_hosts``).
     """
 
     country_codes: Sequence[str] | None = None
@@ -1243,16 +1252,25 @@ class AnalyticsFilters:
     asns: Sequence[int] | None = None
     asns_exclude: Sequence[int] | None = None
     hosts: Sequence[str] | None = None
+    hosts_exclude: Sequence[str] | None = None
 
     def is_active(self) -> bool:
         return bool(
             self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
-            or self.asns or self.asns_exclude or self.hosts
+            or self.asns or self.asns_exclude or self.hosts or self.hosts_exclude
         )
 
     def needs_raw_rows(self) -> bool:
         """True when a filter has no column on the per-IP log_ip CAGGs."""
-        return bool(self.asns or self.asns_exclude or self.hosts)
+        return bool(self.asns or self.asns_exclude or self.hosts or self.hosts_exclude)
+
+    def only_hosts(self) -> bool:
+        """True when host include/exclude are the only active filters."""
+        return self.is_active() and not replace(self, hosts=None, hosts_exclude=None).is_active()
+
+    def merges_hosts(self) -> bool:
+        """True when ``hosts`` names two or more different hosts."""
+        return self.hosts is not None and len(set(self.hosts)) > 1
 
     def sql_conditions(self) -> tuple[str, dict]:
         """WHERE-clause fragment (leading ``AND``) plus bound params."""
@@ -1282,6 +1300,9 @@ class AnalyticsFilters:
         if self.hosts:
             clauses.append("AND host = ANY(:filter_hosts)")
             params["filter_hosts"] = list(self.hosts)
+        if self.hosts_exclude:
+            clauses.append("AND (host IS NULL OR NOT (host = ANY(:filter_hosts_exclude)))")
+            params["filter_hosts_exclude"] = list(self.hosts_exclude)
         return " ".join(clauses), params
 
 
@@ -1314,6 +1335,13 @@ def _stitch_params(
     a_start = min(a_start, end)
     a_end = max(floor_end, a_start)
     return {"start": start, "end": end, "a_start": a_start, "a_end": a_end}
+
+
+def _top_url_grouping(filters: AnalyticsFilters) -> tuple[str, str, str]:
+    """Top URLs host select, GROUP BY and ORDER BY, merged across hosts when asked."""
+    if filters.merges_hosts():
+        return "CAST(NULL AS TEXT) AS host", "url", "hits DESC, url"
+    return "host", "host, url", "hits DESC, host, url"
 
 
 class LiveStatsRepository:
@@ -1530,16 +1558,14 @@ class LiveStatsRepository:
         """Top host-and-path pairs by hit count from raw access_logs (time-bounded).
 
         Raw-table scan: this path serves ranges of 24h or less and every
-        filtered request, which the URL CAGGs cannot answer. With two or
-        more different hosts in the filter, paths are ranked across those
-        hosts and every row has a null host.
+        request filtered by country, city, IP or ASN, which the URL CAGGs
+        cannot answer. A filter on hosts alone reads the CAGGs above 24h.
+        With two or more different hosts in the filter, paths are ranked
+        across those hosts and every row has a null host.
         """
         filters = filters or AnalyticsFilters()
         filter_sql, filter_params = filters.sql_conditions()
-        merge_hosts = filters.hosts is not None and len(set(filters.hosts)) > 1
-        host_select = "CAST(NULL AS TEXT) AS host" if merge_hosts else "host"
-        group_by = "url" if merge_hosts else "host, url"
-        order_by = "hits DESC, url" if merge_hosts else "hits DESC, host, url"
+        host_select, group_by, order_by = _top_url_grouping(filters)
         stmt = text(f"""
             SELECT
                 {host_select},

@@ -28,7 +28,7 @@ import { formatNumber } from "@/lib/api"
 import { useGeoLogTopAsns, useGeoLogTopCities, useGeoLogTopCountries } from "@/lib/queries"
 import { useGeoLogFilters } from "@/lib/geo-log-filters-context"
 import { asnFilterTarget } from "@/lib/ip-filter-targets"
-import { AsnActionsMenu } from "@/components/ip-actions/asn-actions-menu"
+import { FilterActionsMenu } from "@/components/ip-actions/filter-actions-menu"
 import { TablePaginationFooter, usePagedRows } from "@/components/analytics/table-pagination"
 
 type View = "countries" | "cities" | "asns"
@@ -46,9 +46,12 @@ export function GeoTopCountriesCities() {
   const asnActions = (asn: number, organization: string | null | undefined) => (
     <span className="inline-flex items-center">
       <AsnReportButton asn={asn} organization={organization} onOpen={report.openFor} />
-      <AsnActionsMenu
-        asn={asn}
-        organization={organization}
+      <FilterActionsMenu
+        title={`AS${asn}`}
+        subtitle={organization}
+        drawerFallbackSubtitle="Unknown organization"
+        triggerTitle="ASN actions"
+        drawerKey="asn-actions"
         target={asnFilterTarget(asn, filters, setFilters)}
       />
     </span>

@@ -9,7 +9,7 @@ import {
   type Ref,
   type RefObject,
 } from "react"
-import { ExternalLink, FileText, Search } from "lucide-react"
+import { ChartColumn, ExternalLink, Search } from "lucide-react"
 import {
   InputGroup,
   InputGroupAddon,
@@ -19,7 +19,7 @@ import {
 import { hostValuesFromUrl } from "../lib/hosts"
 import type { RecentLookup } from "../lib/storage"
 import { parseSingleIp } from "../lib/ip"
-import { accessLogsUrl } from "../lib/links"
+import { analyticsUrl } from "../lib/links"
 import type { PopupSession } from "./open-context"
 import { SiteStatsNeedUpdate } from "./Problems"
 import { RecentLookups } from "./RecentLookups"
@@ -182,9 +182,9 @@ export function Home({
       </main>
       <footer className="flex items-center gap-2 border-t px-3 py-2 text-[11.5px]">
         {showStats && (
-          <FooterLink href={accessLogsUrl(origin, hosts)}>
-            <FileText aria-hidden />
-            Access logs for this host
+          <FooterLink href={analyticsUrl(origin, hosts)}>
+            <ChartColumn aria-hidden />
+            Analytics for this host
           </FooterLink>
         )}
         <span className="ml-auto" />

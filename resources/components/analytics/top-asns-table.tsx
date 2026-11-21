@@ -15,7 +15,7 @@ import { formatBytes, formatNumber } from "@/lib/api"
 import { useTopAsns } from "@/lib/queries"
 import { useAnalyticsFilters } from "@/lib/analytics-filters-context"
 import { asnFilterTarget } from "@/lib/ip-filter-targets"
-import { AsnActionsMenu } from "@/components/ip-actions/asn-actions-menu"
+import { FilterActionsMenu } from "@/components/ip-actions/filter-actions-menu"
 import {
   AsnReportButton,
   useAbuseReportDialog,
@@ -46,9 +46,12 @@ export function TopAsnsTable() {
   const actions = (asn: number, organization: string | null | undefined) => (
     <span className="inline-flex items-center">
       <AsnReportButton asn={asn} organization={organization} onOpen={report.openFor} />
-      <AsnActionsMenu
-        asn={asn}
-        organization={organization}
+      <FilterActionsMenu
+        title={`AS${asn}`}
+        subtitle={organization}
+        drawerFallbackSubtitle="Unknown organization"
+        triggerTitle="ASN actions"
+        drawerKey="asn-actions"
         target={asnFilterTarget(asn, filters, setFilters)}
       />
     </span>

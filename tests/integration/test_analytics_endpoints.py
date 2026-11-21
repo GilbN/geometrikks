@@ -16,6 +16,8 @@ from geometrikks.domain.analytics.repositories import (
     AnalyticsFilters,
     LiveStatsRepository,
     SummaryStatsRepository,
+    _stitch_params,
+    get_stats_granularity,
 )
 from geometrikks.server.core import create_app
 
@@ -810,21 +812,24 @@ async def test_aggregated_top_ips_take_the_newest_bucket_with_an_asn(pg_engine, 
     assert [(r.ip_address, r.asn, r.as_organization) for r in rows] == [("2001:db8::1", 200, "Newer")]
 
 
-# (host, ip, country, hits)
+# (host, ip, country, city, asn, user_agent, hits)
 HOST_SEED = [
-    ("a.example", "1.1.1.1", "NO", 3),
-    ("a.example:8443", "2.2.2.2", "SE", 2),
-    ("b.example", "3.3.3.3", "DK", 4),
-    (None, "4.4.4.4", "FI", 5),
+    ("a.example", "1.1.1.1", "NO", "Oslo", 64501, "ua-a", 3),
+    ("a.example:8443", "2.2.2.2", "SE", "Stockholm", 64502, "ua-a8443", 2),
+    ("b.example", "3.3.3.3", "DK", "Copenhagen", 64503, "ua-b", 4),
+    (None, "4.4.4.4", "FI", "Helsinki", 64504, "ua-none", 5),
 ]
 
 
 async def _seed_host_traffic(session_maker) -> None:
     ts = NOW - timedelta(hours=1)
     async with session_maker() as session:
-        for host, ip, country, hits in HOST_SEED:
+        for host, ip, country, city, asn, user_agent, hits in HOST_SEED:
             for _ in range(hits):
-                await _insert_log(session, ts=ts, url="/", user_agent="x", ip=ip, country=country, host=host)
+                await _insert_log(
+                    session, ts=ts, url="/", user_agent=user_agent, ip=ip, country=country, city=city,
+                    asn=asn, host=host,
+                )
         await session.commit()
 
 
@@ -956,6 +961,89 @@ async def test_top_countries_error_hits_raw_and_rollup(pg_engine, pg_session_mak
     assert [(r.country_code, r.hits, r.error_hits) for r in rollup] == [("NO", 3, 2)]
 
 
+# (host, url, status, bytes_sent, request_time); 101 is left out of the latency figures.
+URL_SEAM_ROWS = [
+    ("a.example", "/a", 200, 100, 0.010),
+    ("a.example", "/a", 404, 50, 0.020),
+    ("a.example", "/shared", 503, 300, 0.500),
+    ("a.example", "/shared", 101, 10, 30.0),
+    ("b.example", "/shared", 200, 120, 0.030),
+    ("b.example", "/b", 404, 70, 0.040),
+    (None, "/shared", 200, 80, 0.050),
+    (None, "/none", 101, 5, 60.0),
+]
+
+URL_SEAM_FILTERS = {
+    "include": AnalyticsFilters(hosts=["a.example"]),
+    "exclude": AnalyticsFilters(hosts_exclude=["a.example"]),
+    "merged": AnalyticsFilters(hosts=["a.example", "b.example"]),
+    "include_and_exclude": AnalyticsFilters(hosts=["a.example", "b.example"], hosts_exclude=["b.example"]),
+}
+
+
+def _url_figures(rows):
+    return [(r.host, r.url, r.hits, r.timed_hits, r.error_hits, r.total_bytes) for r in rows]
+
+
+@pytest.mark.parametrize(
+    ("days", "cagg"), [(3, "url_hourly_stats"), (40, "url_daily_stats")], ids=["hourly", "daily"]
+)
+async def test_top_urls_host_only_filter_reads_the_rollup(pg_engine, pg_session_maker, clean_tables, days, cagg):
+    from geometrikks.server.timescale import refresh_caggs_range
+
+    # Off the hour at both ends, so the raw head and tail legs both read rows.
+    start = NOW - timedelta(days=days) + timedelta(minutes=20)
+    end = NOW - timedelta(minutes=40)
+    head_ts = start + timedelta(minutes=10)
+    middle_ts = NOW - timedelta(days=days / 2)
+    tail_ts = end - timedelta(minutes=10)
+    timestamps = [head_ts, middle_ts, middle_ts, tail_ts, start - timedelta(minutes=10), end + timedelta(minutes=5)]
+    async with pg_session_maker() as session:
+        await _insert_logs(session, [
+            {
+                "ts": ts, "url": url, "user_agent": "x", "host": host, "status": status,
+                "bytes_sent": bytes_sent, "rt": request_time, "country": "NO" if host == "a.example" else "SE",
+            }
+            for ts in timestamps
+            for host, url, status, bytes_sent, request_time in URL_SEAM_ROWS
+        ])
+        await session.commit()
+    failed = await refresh_caggs_range(pg_engine, start=NOW - timedelta(days=days + 1), end=NOW, caggs=[cagg])
+    assert failed == []
+
+    async with pg_session_maker() as session:
+        live = LiveStatsRepository(session=session)
+        expected = {
+            name: await live.get_top_urls(start, end, limit=50, filters=filters)
+            for name, filters in URL_SEAM_FILTERS.items()
+        }
+    assert {(r.host, r.url): r.hits for r in expected["include"]} == {("a.example", "/a"): 8, ("a.example", "/shared"): 8}
+    assert {r.host for r in expected["exclude"]} == {"b.example", None}
+    assert {r.host for r in expected["merged"]} == {None}
+    assert {r.host for r in expected["include_and_exclude"]} == {None}
+
+    bounds = _stitch_params(start, end, get_stats_granularity(start, end))
+    async with pg_session_maker() as session:
+        await session.execute(
+            text("DELETE FROM access_logs WHERE timestamp >= :a_start AND timestamp < :a_end"),
+            {"a_start": bounds["a_start"], "a_end": bounds["a_end"]},
+        )
+        await session.commit()
+
+    async with pg_session_maker() as session:
+        summary = SummaryStatsRepository(session=session)
+        for name, filters in URL_SEAM_FILTERS.items():
+            rows = await summary.get_top_urls(start, end, limit=50, filters=filters)
+            assert _url_figures(rows) == _url_figures(expected[name]), name
+            for row, expected_row in zip(rows, expected[name], strict=True):
+                assert row.avg_request_time == pytest.approx(expected_row.avg_request_time, abs=1e-6), name
+        raw_only = await summary.get_top_urls(
+            start, end, limit=50, filters=AnalyticsFilters(hosts=["a.example"], country_codes=["NO"])
+        )
+
+    assert {(r.host, r.url): r.hits for r in raw_only} == {("a.example", "/a"): 4, ("a.example", "/shared"): 4}
+
+
 @pytest.fixture()
 def _reset_structlog_after_app():
     """Undo the StructlogPlugin's global configuration (see test_app_factory)."""
@@ -1034,3 +1122,64 @@ async def test_host_in_over_http(
     assert {i["countryCode"]: i["errorHits"] for i in responses["top-countries"].json()["items"]} == {"NO": 0, "SE": 0}
     assert {i["countryCode"]: i["hits"] for i in responses["top-countries"].json()["items"]} == {"NO": 3, "SE": 2}
     assert [(i["host"], i["url"], i["hits"]) for i in responses["top-urls"].json()["items"]] == [(None, "/", 5)]
+
+
+ANALYTICS_ENDPOINTS = (
+    "time-series", "top-ips", "top-countries", "top-cities", "top-urls", "top-user-agents", "top-asns",
+)
+
+
+@pytest.mark.parametrize("window", ["24h", "7d"])
+async def test_host_filters_reach_every_analytics_endpoint(
+    migrated_database_url, pg_session_maker, clean_tables, _reset_structlog_after_app, window
+):
+    from tests.integration.test_drop_snapshot_pg import build_settings
+
+    await _seed_host_traffic(pg_session_maker)
+    async with AsyncTestClient(app=create_app(settings=build_settings(migrated_database_url))) as client:
+        bodies = {}
+        for host_param in ("hostIn", "hostNotIn"):
+            params = {host_param: ["a.example"], "window": window}
+            for endpoint in ANALYTICS_ENDPOINTS:
+                response = await client.get(f"/api/v1/analytics/{endpoint}", params=params)
+                assert response.status_code == 200, (host_param, endpoint, response.text)
+                bodies[host_param, endpoint] = response.json()
+
+    def summarize(host_param: str) -> dict:
+        asns_body = bodies[host_param, "top-asns"]
+        return {
+            "time-series": sum(p["totalRequests"] for p in bodies[host_param, "time-series"]["data"]),
+            "top-ips": {i["ipAddress"]: i["hits"] for i in bodies[host_param, "top-ips"]["items"]},
+            "top-countries": {i["countryCode"]: i["hits"] for i in bodies[host_param, "top-countries"]["items"]},
+            "top-cities": {i["city"]: i["hits"] for i in bodies[host_param, "top-cities"]["items"]},
+            "top-user-agents": {i["userAgent"]: i["hits"] for i in bodies[host_param, "top-user-agents"]["items"]},
+            "top-asns": {i["asn"]: i["hits"] for i in asns_body["items"]},
+            "asn-total-requests": asns_body["totalRequests"],
+            "asn-category-hits": sum(c["hits"] for c in asns_body["categories"]),
+        }
+
+    assert summarize("hostIn") == {
+        "time-series": 3,
+        "top-ips": {"1.1.1.1": 3},
+        "top-countries": {"NO": 3},
+        "top-cities": {"Oslo": 3},
+        "top-user-agents": {"ua-a": 3},
+        "top-asns": {64501: 3},
+        "asn-total-requests": 3,
+        "asn-category-hits": 3,
+    }
+    assert [(i["host"], i["url"], i["hits"]) for i in bodies["hostIn", "top-urls"]["items"]] == [("a.example", "/", 3)]
+
+    assert summarize("hostNotIn") == {
+        "time-series": 11,
+        "top-ips": {"2.2.2.2": 2, "3.3.3.3": 4, "4.4.4.4": 5},
+        "top-countries": {"SE": 2, "DK": 4, "FI": 5},
+        "top-cities": {"Stockholm": 2, "Copenhagen": 4, "Helsinki": 5},
+        "top-user-agents": {"ua-a8443": 2, "ua-b": 4, "ua-none": 5},
+        "top-asns": {64502: 2, 64503: 4, 64504: 5},
+        "asn-total-requests": 11,
+        "asn-category-hits": 11,
+    }
+    assert {i["host"]: i["hits"] for i in bodies["hostNotIn", "top-urls"]["items"]} == {
+        "a.example:8443": 2, "b.example": 4, None: 5,
+    }

@@ -7,6 +7,7 @@ import {
   analyticsFilterTargets,
   asnFilterTarget,
   geoLogFilterTargets,
+  hostFilterTarget,
   listFilterTarget,
   singleFilterTarget,
 } from "./ip-filter-targets"
@@ -143,6 +144,28 @@ describe("page filter targets", () => {
     expect([target.noun, target.value, target.state]).toEqual(["ASN", "AS13335", "include"])
     target.remove()
     expect(filters.asns).toEqual([])
+  })
+
+  it("builds a host target that moves the host between the lists", () => {
+    let filters = { ...EMPTY_FILTERS, hosts: ["b.example"], hostsExclude: ["a.example"] }
+    const setFilters = (updater: (prev: typeof filters) => typeof filters) => {
+      filters = updater(filters)
+    }
+    const fresh = hostFilterTarget("a.example", EMPTY_FILTERS, setFilters)
+    expect([fresh.noun, fresh.value, fresh.state]).toEqual(["host", "a.example", null])
+    expect(hostFilterTarget("a.example", filters, setFilters).state).toBe("exclude")
+
+    hostFilterTarget("a.example", filters, setFilters).include?.()
+    expect(filters.hosts).toEqual(["b.example", "a.example"])
+    expect(filters.hostsExclude).toEqual([])
+
+    hostFilterTarget("a.example", filters, setFilters).exclude?.()
+    expect(filters.hosts).toEqual(["b.example"])
+    expect(filters.hostsExclude).toEqual(["a.example"])
+
+    hostFilterTarget("a.example", filters, setFilters).remove()
+    expect(filters.hosts).toEqual(["b.example"])
+    expect(filters.hostsExclude).toEqual([])
   })
 
   it("filters and excludes the row's ASN on Geo Logs as a number", () => {

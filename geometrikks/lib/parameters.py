@@ -232,3 +232,15 @@ HostIn = Annotated[
         required=False,
     ),
 ]
+
+HostNotIn = Annotated[
+    list[str] | None,
+    QueryParameter(
+        name="hostNotIn",
+        description=(
+            "Leave out requests to these hosts, matched exactly against the logged Host value. "
+            f"{REPEAT_NOTE} Lines without a host stay in."
+        ),
+        required=False,
+    ),
+]
