@@ -281,9 +281,9 @@ export function FilterMutedIpsRow({
   scope: MutedScope
   onToggle: () => void
 }) {
+  const detailId = useId()
   if (scope.chip === "none") return null
   const greyed = scope.chip === "greyed"
-  const detailId = useId()
   const detail = greyed
     ? "Off while filtering by IP"
     : scope.chip === "shown"
