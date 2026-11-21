@@ -312,8 +312,11 @@ def render_container_variables() -> str:
 
 def body() -> str:
     parts = [
-        "All settings are environment variables (or `.env` entries). The short",
-        "list most users need is in `.env.example`. This page lists every variable.",
+        "Settings that control how the server runs are environment variables or",
+        "`.env` entries. Lists you create in the app, such as API keys and",
+        "Muted IPs, live in the database instead. A setting never lives in both",
+        "places. The short list most users need is in `.env.example`. This page",
+        "lists every environment variable.",
         "",
         "The variables come in five groups:",
         "",
