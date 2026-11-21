@@ -23,6 +23,7 @@ import { TopAsnsTable } from "@/components/analytics/top-asns-table"
 import { TrafficOriginCard } from "@/components/analytics/traffic-origin-card"
 import { TopIpsTable } from "@/components/analytics/top-ips-table"
 import { TopCountriesCities } from "@/components/analytics/top-countries-cities"
+import { AnalyticsMutedNote } from "@/components/analytics/analytics-muted-note"
 import { AnalyticsFilterBar } from "@/components/analytics/analytics-filter-bar"
 import {
   AnalyticsFiltersProvider,
@@ -110,6 +111,7 @@ function AnalyticsPage() {
         />
         <JumpBar sections={SECTIONS} />
         <AnalyticsFilterBar />
+        <AnalyticsMutedNote scope={muted} />
         <SectionHeader>Traffic</SectionHeader>
         <div className="grid gap-4 md:grid-cols-2">
           <JumpTarget id="requests">

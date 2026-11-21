@@ -1369,7 +1369,7 @@ export function useOverviewSparklines({
 }
 
 /** Chart buckets for the card charts, and for Geo Logs' Over-time chart so that page sends one request. */
-function useCardChartGranularity(): "hourly" | "daily" {
+export function useCardChartGranularity(): "hourly" | "daily" {
   const { range, customRange, granularity } = useTimeRange()
   if (granularity !== "auto") return granularity
   const { startDate, endDate } = parseTimeRange(range, Date.now(), customRange)

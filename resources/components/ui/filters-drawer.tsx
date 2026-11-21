@@ -112,10 +112,13 @@ export function FilterPageHost({ state }: { state: FilterPageState }) {
 
 export function FiltersDrawer({
   activeCount,
+  clearCount = activeCount,
   onClear,
   children,
 }: {
   activeCount: number
+  /** What "Clear filters" can remove; less than activeCount when the badge counts a local switch. */
+  clearCount?: number
   onClear?: () => void
   children: ReactNode
 }) {
@@ -156,7 +159,7 @@ export function FiltersDrawer({
             <DrawerTitle>{page?.title ?? "Filters"}</DrawerTitle>
             <DrawerDescription className="sr-only">Adjust the table filters.</DrawerDescription>
           </div>
-          {!page && onClear && activeCount > 0 && (
+          {!page && onClear && clearCount > 0 && (
             <Button
               variant="ghost"
               size="sm"

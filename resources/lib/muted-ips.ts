@@ -52,6 +52,24 @@ export function mutedScope(args: {
   return { flag, version, count, chip }
 }
 
+export function retentionNoteFor(args: {
+  flag: boolean
+  rangeStart: Date
+  now: Date
+  rawRetentionDays: number
+}): boolean {
+  const { flag, rangeStart, now, rawRetentionDays } = args
+  return flag && rangeStart.getTime() < now.getTime() - rawRetentionDays * 86_400_000
+}
+
+/** The phone Filters badge counts the switch; "Clear filters" cannot clear it, so it does not. */
+export function mutedDrawerCounts(
+  urlCount: number,
+  flag: boolean,
+): { activeCount: number; clearCount: number } {
+  return { activeCount: urlCount + (flag ? 1 : 0), clearCount: urlCount }
+}
+
 export type VersionStoreState = {
   /** A local write happened and no GET that started after it has succeeded. */
   unconfirmed: boolean

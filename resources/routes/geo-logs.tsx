@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/page-header"
 import { CardChartsSwitch } from "@/components/dashboard/card-charts-switch"
 import { JumpBar, JumpTarget, type JumpSection } from "@/components/jump-bar"
 import { SignalPanel } from "@/components/data/signal-panel"
+import { GeoLogsMutedNote } from "@/components/geo-logs/geo-logs-muted-note"
 import { GeoLogsFilterBar } from "@/components/geo-logs/geo-logs-filter-bar"
 import { GeoLogsStats } from "@/components/geo-logs/geo-logs-stats"
 import { GeoLogsChart } from "@/components/geo-logs/geo-logs-chart"
@@ -99,6 +100,7 @@ function GeoLogsPage() {
         />
         <JumpBar sections={SECTIONS} />
         <GeoLogsFilterBar />
+        <GeoLogsMutedNote scope={muted} />
         <GeoLogsStats />
         <div className="grid gap-4 lg:grid-cols-2">
           <JumpTarget id="map">
