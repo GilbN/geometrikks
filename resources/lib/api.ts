@@ -38,11 +38,16 @@ import {
   apiV1AuthApiKeysListApiKeys,
   apiV1AuthApiKeysCreateApiKey,
   apiV1AuthApiKeysKeyIdRevokeApiKey,
+  apiV1MutedIpsListMutedIps,
+  apiV1MutedIpsCreateMutedIp,
+  apiV1MutedIpsEntryIdDeleteMutedIp,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
   AsnFacet,
+  CreateMutedIpPayload,
+  MutedIpView,
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
   SystemSettingsResponse,
@@ -179,6 +184,20 @@ export async function createApiKey(payload: CreateApiKeyPayload): Promise<Create
 
 export async function revokeApiKey(keyId: string): Promise<void> {
   await apiV1AuthApiKeysKeyIdRevokeApiKey({ path: { key_id: keyId }, throwOnError: true })
+}
+
+export async function fetchMutedIps(): Promise<MutedIpView[]> {
+  const { data } = await apiV1MutedIpsListMutedIps({ throwOnError: true })
+  return data
+}
+
+export async function addMutedIp(payload: CreateMutedIpPayload): Promise<MutedIpView> {
+  const { data } = await apiV1MutedIpsCreateMutedIp({ body: payload, throwOnError: true })
+  return data
+}
+
+export async function removeMutedIp(entryId: string): Promise<void> {
+  await apiV1MutedIpsEntryIdDeleteMutedIp({ path: { entry_id: entryId }, throwOnError: true })
 }
 
 // ============================================================================

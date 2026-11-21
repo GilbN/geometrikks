@@ -60,6 +60,9 @@ import {
   createApiKey,
   revokeApiKey,
   type CreateApiKeyPayload,
+  fetchMutedIps,
+  addMutedIp,
+  removeMutedIp,
   fetchStats,
   fetchCrowdsecStatus,
   fetchCrowdsecBannedIps,
@@ -151,6 +154,14 @@ import { useGeoLogFilters } from "./geo-log-filters-context"
 import { CLOSE_TRY_AGAIN_LATER } from "./websocket"
 import { ALERT_PAGE_SIZE } from "./crowdsec-alerts"
 import { isClientError } from "./crowdsec-errors"
+import {
+  currentWriteSequence,
+  markUnconfirmed,
+  noteFirstLoadFailed,
+  noteListLoaded,
+} from "./muted-ips"
+import { isAxiosError } from "axios"
+import type { CreateMutedIpPayload } from "@/generated/api/types.gen"
 
 // ============================================================================
 // Query Keys
@@ -158,6 +169,7 @@ import { isClientError } from "./crowdsec-errors"
 
 export const queryKeys = {
   settings: ["settings"] as const,
+  mutedIps: ["muted-ips"] as const,
   auth: {
     me: ["auth", "me"] as const,
     oidcStatus: ["auth", "oidc-status"] as const,
@@ -561,6 +573,79 @@ export function useRevokeApiKey() {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.auth.apiKeys })
     },
+  })
+}
+
+// ============================================================================
+// Muted IPs
+// ============================================================================
+
+async function fetchMutedIpsTracked() {
+  const startedAtWrite = currentWriteSequence()
+  try {
+    const entries = await fetchMutedIps()
+    noteListLoaded(
+      entries.map((entry) => entry.network),
+      startedAtWrite,
+    )
+    return entries
+  } catch (error) {
+    noteFirstLoadFailed()
+    throw error
+  }
+}
+
+export const mutedIpsQueryOptions = {
+  queryKey: queryKeys.mutedIps,
+  queryFn: fetchMutedIpsTracked,
+  // Dropping the list after the default five idle minutes would turn a confirmed version back into an unknown one.
+  gcTime: Infinity,
+}
+
+/** The page-level observer: the only one that refetches on mount and focus. */
+export function useMutedIpsList(refetchInterval: number | false) {
+  return useQuery({ ...mutedIpsQueryOptions, refetchInterval })
+}
+
+/** Row menus read the cached list so scrolling a table never sends GET /muted-ips. */
+export function useMutedIpsPassive(enabled: boolean) {
+  return useQuery({
+    ...mutedIpsQueryOptions,
+    enabled,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  })
+}
+
+/** A 409 or 404 means another device changed the list, so it settles like a success. */
+function changedTheList(error: unknown): boolean {
+  if (!isAxiosError(error)) return false
+  return error.response?.status === 409 || error.response?.status === 404
+}
+
+export async function settleMutedIpWrite(queryClient: QueryClient): Promise<void> {
+  // A GET already in flight carries the list from before the write.
+  await queryClient.cancelQueries({ queryKey: queryKeys.mutedIps, exact: true })
+  markUnconfirmed()
+  await queryClient.refetchQueries({ queryKey: queryKeys.mutedIps, exact: true })
+}
+
+export function useAddMutedIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: CreateMutedIpPayload) => addMutedIp(payload),
+    onSuccess: () => settleMutedIpWrite(queryClient),
+    onError: (error) => (changedTheList(error) ? settleMutedIpWrite(queryClient) : undefined),
+  })
+}
+
+export function useRemoveMutedIp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (entryId: string) => removeMutedIp(entryId),
+    onSuccess: () => settleMutedIpWrite(queryClient),
+    onError: (error) => (changedTheList(error) ? settleMutedIpWrite(queryClient) : undefined),
   })
 }
 
