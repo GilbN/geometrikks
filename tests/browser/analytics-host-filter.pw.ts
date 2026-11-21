@@ -457,13 +457,10 @@ test.describe("phone", () => {
     const unitedStatesRow = card.getByRole("row").filter({ hasText: "United States" })
     await expect(unitedStatesRow.getByText("3,412 errors", { exact: true })).toBeVisible()
     await expect(unitedStatesRow.getByText("1,934 unique IPs", { exact: true })).toBeVisible()
-    const tableWidth = await card
-      .locator('[data-slot="table"]')
-      .evaluate((table) => table.scrollWidth)
-    const contentWidth = await card
-      .locator('[data-slot="card-content"]')
-      .evaluate((content) => content.clientWidth)
-    expect(tableWidth).toBeLessThanOrEqual(contentWidth)
+    const overflow = await card
+      .locator('[data-slot="table-container"]:visible')
+      .evaluate((container) => container.scrollWidth - container.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(0)
   })
 
   test("a long Top URLs host opens a drawer whose title wraps", async ({ page }) => {
