@@ -30,10 +30,16 @@ def normalize_network(raw: str) -> Network:
             interface = ip_interface(value)
         except ValueError:
             raise DomainValidationError("Enter an IP address or CIDR network, such as 203.0.113.7 or 10.0.0.0/8", code="invalid_network") from error
+        suggested_range = _collapse_mapped(interface.network)
+        suggested_address = _collapse_mapped(ip_network(interface.ip)).network_address
         raise DomainValidationError(
-            f"{value} is not the start of a range. Enter {interface.network} for the range, or {interface.ip} for one address",
+            f"{value} is not the start of a range. Enter {suggested_range} for the range, or {suggested_address} for one address",
             code="invalid_network",
         ) from error
+    return _collapse_mapped(network)
+
+
+def _collapse_mapped(network: Network) -> Network:
     if isinstance(network, IPv6Network) and network.prefixlen >= _MAPPED_PREFIX:
         mapped_block = IPv6Network((_MAPPED_BASE, _MAPPED_PREFIX))
         if network.subnet_of(mapped_block):

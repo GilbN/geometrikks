@@ -17,6 +17,7 @@ from geometrikks.domain.muted_ips.networks import (
         (" 10.0.0.0/8 ", "10.0.0.0/8"),
         ("2001:DB8::5", "2001:db8::5/128"),
         ("::ffff:192.0.2.10", "192.0.2.10/32"),
+        ("::/64", "::/64"),
         ("::ffff:192.0.2.0/120", "192.0.2.0/24"),
         ("::ffff:0:0/96", "0.0.0.0/0"),
     ],
@@ -44,8 +45,12 @@ def test_normalize_network_rejects(raw):
             "2001:db8::5/64 is not the start of a range. Enter 2001:db8::/64 for the range, or 2001:db8::5 for one address",
         ),
         (
+            "::ffff:192.0.2.1/120",
+            "::ffff:192.0.2.1/120 is not the start of a range. Enter 192.0.2.0/24 for the range, or 192.0.2.1 for one address",
+        ),
+        (
             "::ffff:192.0.2.0/96",
-            "::ffff:192.0.2.0/96 is not the start of a range. Enter ::ffff:0.0.0.0/96 for the range, or ::ffff:192.0.2.0 for one address",
+            "::ffff:192.0.2.0/96 is not the start of a range. Enter 0.0.0.0/0 for the range, or 192.0.2.0 for one address",
         ),
     ],
 )

@@ -86,7 +86,7 @@ function AddMutedIpForm() {
         </Button>
       </div>
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="text-xs [overflow-wrap:anywhere] text-destructive">
           {error}
         </p>
       )}
