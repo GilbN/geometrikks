@@ -17,13 +17,14 @@ from litestar.status_codes import (
 
 from geometrikks.domain.auth.api_key_controllers import requires_json_body
 from geometrikks.domain.muted_ips.dependencies import provide_muted_ip_repository
+from geometrikks.domain.muted_ips.models import MutedIp
 from geometrikks.domain.muted_ips.repositories import MutedIpRepository
 from geometrikks.domain.muted_ips.schemas import CreateMutedIpPayload, MutedIpView
 from geometrikks.domain.muted_ips.service import add_muted_ip, remove_muted_ip
 from geometrikks.server.exceptions import ErrorEnvelope
 
 
-def _to_view(muted_ip) -> MutedIpView:
+def _to_view(muted_ip: MutedIp) -> MutedIpView:
     return MutedIpView(
         id=muted_ip.id, network=str(muted_ip.network), note=muted_ip.note, created_at=muted_ip.created_at
     )

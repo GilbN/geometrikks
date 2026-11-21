@@ -12,6 +12,7 @@ from sqlalchemy.pool import NullPool
 
 from geometrikks.config.settings import Settings
 from geometrikks.domain.auth.api_keys import generate_api_key
+from geometrikks.domain.muted_ips.repositories import MutedIpRepository
 from geometrikks.server.api_key_store import SqlApiKeyRepository
 from geometrikks.server.core import create_app
 from tests.integration.test_drop_snapshot_pg import build_settings
@@ -54,7 +55,7 @@ async def test_full_list_is_409_and_duplicate_still_wins(client, clean_muted_ips
     full = await client.post(URL, json={"network": "192.0.2.1"})
     assert (full.status_code, full.json()["code"]) == (409, "muted_ip_list_full")
     duplicate = await client.post(URL, json={"network": "198.51.100.0"})
-    assert duplicate.json()["code"] == "muted_ip_exists"
+    assert (duplicate.status_code, duplicate.json()["code"]) == (409, "muted_ip_exists")
 
 
 async def test_bad_input_codes(client, clean_muted_ips):
@@ -107,7 +108,7 @@ async def client_with_auth(app_settings: Settings) -> AsyncIterator[AsyncTestCli
         yield test_client
 
 
-async def test_read_key_can_list_but_not_write(client_with_auth, key_db_config, clean_muted_ips):
+async def test_read_key_can_list_but_not_write(client_with_auth, key_db_config, clean_muted_ips, clean_api_keys):
     client = client_with_auth
     material = generate_api_key()
     await SqlApiKeyRepository(key_db_config).insert(
@@ -124,3 +125,22 @@ async def test_read_key_can_list_but_not_write(client_with_auth, key_db_config, 
     assert (posted.status_code, posted.json()["code"]) == (403, "api_key_read_only")
     deleted = await client.delete(f"{URL}00000000-0000-0000-0000-000000000000", headers=headers)
     assert (deleted.status_code, deleted.json()["code"]) == (403, "api_key_read_only")
+
+
+async def test_insert_conflict_past_the_pre_check_is_409_and_rolls_back(
+    client, clean_muted_ips, monkeypatch
+):
+    await client.post(URL, json={"network": "203.0.113.7"})
+
+    async def never_exists(self, *args, **kwargs):
+        return False
+
+    monkeypatch.setattr(MutedIpRepository, "exists", never_exists)
+    with structlog.testing.capture_logs() as logs:
+        response = await client.post(URL, json={"network": "203.0.113.7"})
+    assert (response.status_code, response.json()["code"]) == (409, "muted_ip_exists")
+    assert not [log_event for log_event in logs if log_event["event"] == "muted_ip_added"]
+    listed = await client.get(URL)
+    assert [entry["network"] for entry in listed.json()] == ["203.0.113.7/32"]
+    monkeypatch.undo()
+    assert (await client.post(URL, json={"network": "203.0.113.8"})).status_code == 201

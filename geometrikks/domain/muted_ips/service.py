@@ -41,11 +41,9 @@ async def add_muted_ip(repo: MutedIpRepository, payload: CreateMutedIpPayload) -
 
 
 async def remove_muted_ip(repo: MutedIpRepository, entry_id: UUID) -> MutedIp:
-    muted_ip = await repo.get_one_or_none(id=entry_id)
+    muted_ip = await repo.delete_returning(entry_id)
+    await repo.session.commit()
     if muted_ip is None:
         raise DomainNotFoundError("The muted IP does not exist.")
-    network = str(muted_ip.network)
-    await repo.delete(entry_id)
-    await repo.session.commit()
-    logger.info("muted_ip_removed", network=network)
+    logger.info("muted_ip_removed", network=str(muted_ip.network))
     return muted_ip
