@@ -8,7 +8,7 @@ from typing import Final
 
 from geometrikks.domain.exceptions import DomainValidationError
 
-MUTED_IPS_CAP: Final = 50
+MUTED_IPS_CAP: Final = 20
 NOTE_MAX_LENGTH: Final = 100
 
 _MAPPED_PREFIX: Final = 96

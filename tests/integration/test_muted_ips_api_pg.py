@@ -50,7 +50,7 @@ async def test_duplicate_spelling_is_409_muted_ip_exists(client, clean_muted_ips
 
 
 async def test_full_list_is_409_and_duplicate_still_wins(client, clean_muted_ips):
-    for index in range(50):
+    for index in range(20):
         await client.post(URL, json={"network": f"198.51.100.{index}"})
     full = await client.post(URL, json={"network": "192.0.2.1"})
     assert (full.status_code, full.json()["code"]) == (409, "muted_ip_list_full")
