@@ -1,4 +1,10 @@
 import { expect, test, type Page } from "@playwright/test"
+import type {
+  TopAsnsResponse,
+  TopGeoAsnsResponse,
+  TopUrlDto,
+  TopUrlsResponse,
+} from "../../resources/generated/api/types.gen"
 
 test.use({ serviceWorkers: "block", viewport: { width: 1360, height: 900 } })
 
@@ -70,6 +76,68 @@ function analyticsQuery(params: Record<string, string[]>) {
     Object.entries(params).map(([key, values]) => [key, JSON.stringify(values)]),
   )
   return `?${query}`
+}
+
+const LONG_HOST = "nightlybackupreportsforeveryhomelabclusters.apps.example.com"
+
+function urlRow(host: string | null, url: string): TopUrlDto {
+  return {
+    host,
+    url,
+    hits: 120,
+    errorHits: 3,
+    totalBytes: 48_000,
+    timedHits: 120,
+    avgRequestTime: 0.042,
+  }
+}
+
+async function mockTopUrls(page: Page, items: TopUrlDto[]) {
+  const body: TopUrlsResponse = {
+    startDate: "2026-11-20T00:00:00Z",
+    endDate: "2026-11-21T00:00:00Z",
+    items,
+  }
+  await page.route("**/api/v1/analytics/top-urls*", (route) => route.fulfill({ json: body }))
+}
+
+async function mockTopAsns(page: Page) {
+  const analytics: TopAsnsResponse = {
+    startDate: "2026-11-20T00:00:00Z",
+    endDate: "2026-11-21T00:00:00Z",
+    items: [
+      {
+        asn: 15169,
+        organization: "Google LLC",
+        category: "hosting",
+        hits: 900,
+        totalBytes: 90_000,
+      },
+    ],
+    categories: [{ category: "hosting", hits: 900, totalBytes: 90_000 }],
+    totalRequests: 900,
+    totalBytes: 90_000,
+    dropAsnCount: 0,
+  }
+  const geoLogs: TopGeoAsnsResponse = {
+    items: [
+      {
+        asn: 15169,
+        organization: "Google LLC",
+        category: "hosting",
+        eventCount: 900,
+        uniqueIps: 12,
+      },
+    ],
+  }
+  await page.route("**/api/v1/analytics/top-asns*", (route) => route.fulfill({ json: analytics }))
+  await page.route("**/api/v1/geo-events/top-asns*", (route) => route.fulfill({ json: geoLogs }))
+}
+
+function topUrlsCard(page: Page) {
+  return page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.locator('[data-slot="card-title"]', { hasText: /^Top URLs$/ }) })
 }
 
 function hostCombobox(page: Page) {
@@ -174,8 +242,91 @@ test("a host param that is not a JSON list loads with no host filter", async ({ 
   expect(pageErrors).toEqual([])
 })
 
+test("a Top URLs row's host menu filters by that host", async ({ page }) => {
+  await mockTopUrls(page, [urlRow("cloud.example.com", "/login"), urlRow(null, "/healthz")])
+  await openAnalytics(page)
+  const card = topUrlsCard(page)
+  await expect(card.getByRole("cell", { name: "/healthz", exact: true })).toBeVisible()
+  await expect(card.getByRole("columnheader", { name: "Host", exact: true })).toBeVisible()
+
+  const nullHostRow = card.getByRole("row").filter({ hasText: "/healthz" })
+  await expect(nullHostRow.getByRole("button", { name: /^Actions for/ })).toHaveCount(0)
+
+  const trigger = card.getByRole("button", { name: "Actions for cloud.example.com", exact: true })
+  await trigger.click()
+  const menu = page.getByRole("menu")
+  await expect(menu.getByRole("menuitem", { name: "Exclude host", exact: true })).toBeVisible()
+  await menu.getByRole("menuitem", { name: "Filter by host", exact: true }).click()
+  await expect.poll(() => hostParam(page, "host")).toEqual(["cloud.example.com"])
+
+  await trigger.click()
+  await expect(
+    page.getByRole("menu").getByRole("menuitem", { name: "Stop filtering by host", exact: true }),
+  ).toBeVisible()
+})
+
+test("filtering two hosts hides the Top URLs Host column", async ({ page }) => {
+  await mockTopUrls(page, [urlRow(null, "/"), urlRow(null, "/api")])
+  await openAnalytics(page, analyticsQuery({ host: ["a.example", "b.example"] }))
+  const card = topUrlsCard(page)
+  await expect(card.getByRole("cell", { name: "/api", exact: true })).toBeVisible()
+  await expect(card.getByRole("columnheader", { name: "Avg time", exact: true })).toBeVisible()
+  await expect(card.getByRole("columnheader", { name: "Host", exact: true })).toHaveCount(0)
+})
+
+test("a long Top URLs host keeps its menu button", async ({ page }) => {
+  await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
+  await openAnalytics(page)
+  const trigger = topUrlsCard(page).getByRole("button", {
+    name: `Actions for ${LONG_HOST}`,
+    exact: true,
+  })
+  await expect(trigger).toBeVisible()
+  await trigger.click()
+  await expect(
+    page.getByRole("menu").getByRole("menuitem", { name: "Filter by host", exact: true }),
+  ).toBeVisible()
+})
+
+test("the Top ASNs row menu names the ASN and its organization", async ({ page }) => {
+  await mockTopAsns(page)
+  await openAnalytics(page)
+  await page.getByRole("button", { name: "Actions for AS15169", exact: true }).click()
+  const menu = page.getByRole("menu")
+  await expect(menu.getByText("AS15169", { exact: true })).toBeVisible()
+  await expect(menu.getByText("Google LLC", { exact: true })).toBeVisible()
+  await expect(menu.getByRole("menuitem", { name: "Filter by ASN", exact: true })).toBeVisible()
+})
+
+test("the Geo Logs ASN row menu filters by ASN", async ({ page }) => {
+  await login(page)
+  await mockTopAsns(page)
+  await page.goto("/geo-logs")
+  await page.getByRole("tab", { name: "ASNs", exact: true }).click()
+  await page.getByRole("button", { name: "Actions for AS15169", exact: true }).click()
+  await expect(
+    page.getByRole("menu").getByRole("menuitem", { name: "Filter by ASN", exact: true }),
+  ).toBeVisible()
+})
+
 test.describe("phone", () => {
   test.use({ viewport: { width: 393, height: 852 } })
+
+  test("a long Top URLs host opens a drawer whose title wraps", async ({ page }) => {
+    await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
+    await openAnalytics(page)
+    await topUrlsCard(page)
+      .getByRole("button", { name: `Actions for ${LONG_HOST}`, exact: true })
+      .click()
+    const drawer = page.locator('[data-slot="drawer-content"]')
+    const title = drawer.getByRole("heading", { name: LONG_HOST, exact: true })
+    await expect(title).toBeVisible()
+    await expect(drawer.getByRole("button", { name: "Filter by host", exact: true })).toBeVisible()
+    const viewportWidth = page.viewportSize()?.width ?? 0
+    const box = await title.boundingBox()
+    expect(box?.width ?? Infinity).toBeLessThanOrEqual(viewportWidth)
+    expect(await title.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  })
 
   for (const exclude of [false, true]) {
     test(`the drawer's ${exclude ? "Exclude" : "Show only"} section has a Host row`, async ({
