@@ -157,13 +157,16 @@ async function mockTopIps(page: Page, distinctIps: number) {
   await page.route("**/api/v1/analytics/top-ips*", (route) => route.fulfill({ json: body }))
 }
 
-async function mockTopCountries(page: Page) {
+async function mockTopCountries(
+  page: Page,
+  items: TopCountriesStatsResponse["items"] = [
+    { countryCode: "NO", countryName: "Norway", hits: 9_870, errorHits: 1204, uniqueIps: 87 },
+  ],
+) {
   const body: TopCountriesStatsResponse = {
     startDate: "2026-11-20T00:00:00Z",
     endDate: "2026-11-21T00:00:00Z",
-    items: [
-      { countryCode: "NO", countryName: "Norway", hits: 9_870, errorHits: 1204, uniqueIps: 87 },
-    ],
+    items,
   }
   await page.route("**/api/v1/analytics/top-countries*", (route) => route.fulfill({ json: body }))
 }
@@ -426,6 +429,41 @@ test.describe("phone", () => {
         return range.getClientRects().length
       }),
     ).toBe(1)
+  })
+
+  test("the Countries table stacks to fit a long country name", async ({ page }) => {
+    await mockTopCountries(page, [
+      {
+        countryCode: "US",
+        countryName: "United States",
+        hits: 48_210,
+        errorHits: 3_412,
+        uniqueIps: 1_934,
+      },
+      {
+        countryCode: "CD",
+        countryName: "Democratic Republic of the Congo",
+        hits: 2_604,
+        errorHits: 1,
+        uniqueIps: 1,
+      },
+    ])
+    await openAnalytics(page)
+    const card = cardTitled(page, "Top Countries / Cities")
+    await card.scrollIntoViewIfNeeded()
+    const congoRow = card.getByRole("row").filter({ hasText: "Democratic Republic of the Congo" })
+    await expect(congoRow.getByText("1 error", { exact: true })).toBeVisible()
+    await expect(congoRow.getByText("1 unique IP", { exact: true })).toBeVisible()
+    const unitedStatesRow = card.getByRole("row").filter({ hasText: "United States" })
+    await expect(unitedStatesRow.getByText("3,412 errors", { exact: true })).toBeVisible()
+    await expect(unitedStatesRow.getByText("1,934 unique IPs", { exact: true })).toBeVisible()
+    const tableWidth = await card
+      .locator('[data-slot="table"]')
+      .evaluate((table) => table.scrollWidth)
+    const contentWidth = await card
+      .locator('[data-slot="card-content"]')
+      .evaluate((content) => content.clientWidth)
+    expect(tableWidth).toBeLessThanOrEqual(contentWidth)
   })
 
   test("a long Top URLs host opens a drawer whose title wraps", async ({ page }) => {
