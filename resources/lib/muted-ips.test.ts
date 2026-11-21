@@ -6,6 +6,9 @@ import {
   listVersion,
   markUnconfirmed,
   muteAction,
+  mutedIpErrorMessage,
+  mutedListPending,
+  runUnmute,
   mutedKeyFields,
   mutedScope,
   noteFirstLoadFailed,
@@ -282,5 +285,46 @@ describe("muteAction", () => {
   it("mutes when the list is empty or the text is not an address", () => {
     expect(muteAction("198.51.100.1", [])).toEqual({ kind: "mute" })
     expect(muteAction("not-an-ip", [entry("198.51.100.1/32")])).toEqual({ kind: "mute" })
+  })
+})
+
+describe("runUnmute", () => {
+  it("counts a 404 envelope as unmuted", async () => {
+    const remove = vi.fn().mockRejectedValue({ status_code: 404, detail: "gone" })
+    expect(await runUnmute(remove, "id-1")).toEqual({ ok: true })
+    expect(remove).toHaveBeenCalledWith("id-1")
+  })
+
+  it("is ok when the delete succeeds", async () => {
+    expect(await runUnmute(vi.fn().mockResolvedValue(undefined), "id-1")).toEqual({ ok: true })
+  })
+
+  it("maps another error through mutedIpErrorMessage", async () => {
+    const remove = vi.fn().mockRejectedValue({ status_code: 500, code: "invalid_note" })
+    expect(await runUnmute(remove, "id-1")).toEqual({
+      ok: false,
+      message: mutedIpErrorMessage("invalid_note"),
+    })
+    const unknown = vi.fn().mockRejectedValue(new Error("network"))
+    expect(await runUnmute(unknown, "id-1")).toEqual({
+      ok: false,
+      message: mutedIpErrorMessage(undefined),
+    })
+  })
+})
+
+describe("mutedListPending", () => {
+  const entries = [
+    { id: "id-1", network: "1.2.3.4/32", note: null, createdAt: "2026-11-20T00:00:00Z" },
+  ]
+
+  it("is pending without entries or with an unknown version", () => {
+    expect(mutedListPending("abcd1234", undefined)).toBe(true)
+    expect(mutedListPending("unknown-3", entries)).toBe(true)
+  })
+
+  it("is settled with a confirmed version and entries", () => {
+    expect(mutedListPending("abcd1234", entries)).toBe(false)
+    expect(mutedListPending("empty", [])).toBe(false)
   })
 })

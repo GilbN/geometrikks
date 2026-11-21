@@ -644,7 +644,6 @@ export function IpActionsMenu({
       return
     }
     toast.success(`Muted ${ip}`)
-    onFilter?.()
   }
   const muteItem: IpAction | null = muteToggle
     ? {
