@@ -288,6 +288,29 @@ test("a long Top URLs host keeps its menu button", async ({ page }) => {
   ).toBeVisible()
 })
 
+test.describe("wide screen", () => {
+  test.use({ viewport: { width: 1920, height: 1080 } })
+
+  test("a long host stays in the wide table, truncated beside its menu", async ({ page }) => {
+    await mockTopUrls(page, [urlRow(LONG_HOST, "/reports/latest")])
+    await openAnalytics(page)
+    const card = topUrlsCard(page)
+    await expect(card.getByRole("columnheader", { name: "Avg time", exact: true })).toBeVisible()
+    await expect(card.getByRole("columnheader", { name: "Host", exact: true })).toBeVisible()
+    const trigger = card.getByRole("button", { name: `Actions for ${LONG_HOST}`, exact: true })
+    await trigger.scrollIntoViewIfNeeded()
+    const cardBox = await card.boundingBox()
+    const triggerBox = await trigger.boundingBox()
+    expect((triggerBox?.x ?? Infinity) + (triggerBox?.width ?? 0)).toBeLessThanOrEqual(
+      (cardBox?.x ?? 0) + (cardBox?.width ?? 0),
+    )
+    await trigger.click()
+    const hostLabel = page.getByRole("menu").getByText(LONG_HOST, { exact: true })
+    const labelBox = await hostLabel.boundingBox()
+    expect(labelBox?.width ?? Infinity).toBeLessThanOrEqual(320)
+  })
+})
+
 test("the Top ASNs row menu names the ASN and its organization", async ({ page }) => {
   await mockTopAsns(page)
   await openAnalytics(page)

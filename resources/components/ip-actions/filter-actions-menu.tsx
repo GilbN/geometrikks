@@ -116,7 +116,7 @@ export function FilterActionsMenu({
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-48">
         <DropdownMenuLabel className="flex flex-col items-start gap-0.5">
-          <span className="font-mono">{title}</span>
+          <span className="max-w-80 font-mono [overflow-wrap:anywhere]">{title}</span>
           {subtitle && (
             <span className="max-w-80 truncate font-normal text-muted-foreground" title={subtitle}>
               {subtitle}

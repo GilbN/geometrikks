@@ -33,7 +33,7 @@ export function TopUrlsTable() {
     />
   )
   const [layoutRef, narrow] = useFitLayout<HTMLDivElement>(
-    pageItems.map((row) => `${row.host ?? ""} ${row.url}`).join(),
+    `${showHost}:${pageItems.map((row) => `${row.host ?? ""} ${row.url}`).join()}`,
   )
 
   return (
