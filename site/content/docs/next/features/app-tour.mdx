@@ -59,10 +59,10 @@ With `LOGPARSER_STORE_DEBUG_LINES=true` the parser stores every line here as wel
 
 ## Analytics
 
-Charts and top lists for the range, all following one filter set: IP address, Exclude IP, host, Exclude host, country, city, ASN and Exclude ASN. Host picks from the hosts the server has logged, and Exclude host takes typed text. Both match the logged Host value exactly. Excluding a host keeps requests that have no host.
+Charts and top lists for the range, all following one filter set: IP address, Exclude IP, host, Exclude host, country, city, ASN and Exclude ASN. Host picks from the hosts the server has logged. On a wide screen, Exclude host takes typed text. In the phone Filters drawer it picks from the same list. Both match the logged Host value exactly. Excluding a host keeps requests that have no host.
 
 - **Traffic** has the Requests, Status classes, Bandwidth and Request latency charts.
-- **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents. Top IPs shows how many unique IPs the filtered view covers in its header, counting IPs beyond the ones listed. Top Countries has an Errors column for requests with status 400 or higher. Each Top URLs row that has a host has a menu that filters by that host or excludes it. With two or more hosts in the filter, Top URLs adds up each path across those hosts and drops its Host column.
+- **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents. Top IPs shows how many unique IPs the filtered view covers in its header, counting IPs beyond the ones listed. Top Countries counts each country's errors, the requests with status 400 or higher. Each Top URLs row that has a host has a menu that filters by that host or excludes it. When you pick two or more hosts in the Host filter, Top URLs adds up each path across those hosts and drops its Host column. Excluding hosts never merges paths.
 - **Traffic Origin** has the hosting and DROP split and Top ASNs. Each Top ASNs row has an abuse report button.
 
 Request latency and the other response-time figures leave out status 101 and status 0. Under 101, nginx and Traefik log a WebSocket's whole connection time, and 0 means the connection ended before any response, so neither time is a response time. Those rows stay in Access Logs with the time the proxy logged.
