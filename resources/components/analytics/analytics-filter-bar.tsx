@@ -30,7 +30,8 @@ export function AnalyticsFilterBar() {
   const phone = usePhoneLayout()
   const { filters, setFilters } = useAnalyticsFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
-  // Selected ASNs need the facets for their organization labels.
+  // Selected ASNs need the facets for their organization labels, and selected
+  // hosts for their options.
   const { data: facets } = useAccessLogFacets({
     enabled:
       facetsEnabled ||
@@ -59,10 +60,12 @@ export function AnalyticsFilterBar() {
     setFilters((prev) => ({ ...prev, [key]: prev[key].filter((v) => v !== ip) }))
   const setHosts = (key: HostKey) => (values: string[]) =>
     setFilters((prev) => ({ ...prev, [key]: values }))
-  const addHostExclude = (host: string) => {
-    if (filters.hostsExclude.includes(host)) return
-    setFilters((prev) => ({ ...prev, hostsExclude: [...prev.hostsExclude, host] }))
-  }
+  const addHostExclude = (host: string) =>
+    setFilters((prev) =>
+      prev.hostsExclude.includes(host)
+        ? prev
+        : { ...prev, hostsExclude: [...prev.hostsExclude, host] },
+    )
   const removeHostExclude = (host: string) =>
     setFilters((prev) => ({ ...prev, hostsExclude: prev.hostsExclude.filter((v) => v !== host) }))
   const setAsns = (key: AsnKey) => (values: number[]) =>

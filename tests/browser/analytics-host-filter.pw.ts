@@ -47,12 +47,15 @@ async function openAnalytics(page: Page, search = "") {
   return analyticsRequests
 }
 
-function endpointsCarrying(analyticsRequests: URL[], parameter: string, value: string) {
+/** Endpoints with at least one request carrying every given parameter at once. */
+function endpointsCarrying(analyticsRequests: URL[], expected: Record<string, string>) {
   return FILTERED_ENDPOINTS.filter((endpoint) =>
     analyticsRequests.some(
       (url) =>
         url.pathname === `/api/v1/analytics/${endpoint}` &&
-        url.searchParams.getAll(parameter).includes(value),
+        Object.entries(expected).every(([parameter, value]) =>
+          url.searchParams.getAll(parameter).includes(value),
+        ),
     ),
   )
 }
@@ -85,7 +88,7 @@ test("Host and Exclude host filter every Analytics request", async ({ page }) =>
   await page.keyboard.press("Escape")
   await expect.poll(() => hostParam(page, "host")).toEqual(["cloud.example.com"])
   await expect
-    .poll(() => endpointsCarrying(analyticsRequests, "hostIn", "cloud.example.com"))
+    .poll(() => endpointsCarrying(analyticsRequests, { hostIn: "cloud.example.com" }))
     .toEqual(FILTERED_ENDPOINTS)
 
   const excludeHost = rail.getByRole("textbox", { name: "Exclude host", exact: true })
@@ -96,7 +99,12 @@ test("Host and Exclude host filter every Analytics request", async ({ page }) =>
   ).toBeVisible()
   await expect.poll(() => hostParam(page, "hostx")).toEqual(["git.example.com"])
   await expect
-    .poll(() => endpointsCarrying(analyticsRequests, "hostNotIn", "git.example.com"))
+    .poll(() =>
+      endpointsCarrying(analyticsRequests, {
+        hostIn: "cloud.example.com",
+        hostNotIn: "git.example.com",
+      }),
+    )
     .toEqual(FILTERED_ENDPOINTS)
 
   await expect(rail.getByRole("button", { name: "Clear 2 filters", exact: true })).toBeVisible()
@@ -121,10 +129,12 @@ test("a shared link's host and excluded host survive the round trip and clear to
     rail.getByRole("button", { name: "Remove exclusion git.example.com", exact: true }),
   ).toBeVisible()
   await expect
-    .poll(() => endpointsCarrying(analyticsRequests, "hostIn", "cloud.example.com"))
-    .toEqual(FILTERED_ENDPOINTS)
-  await expect
-    .poll(() => endpointsCarrying(analyticsRequests, "hostNotIn", "git.example.com"))
+    .poll(() =>
+      endpointsCarrying(analyticsRequests, {
+        hostIn: "cloud.example.com",
+        hostNotIn: "git.example.com",
+      }),
+    )
     .toEqual(FILTERED_ENDPOINTS)
 
   await rail.getByRole("button", { name: "Clear 2 filters", exact: true }).click()
