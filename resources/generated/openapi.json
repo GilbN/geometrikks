@@ -2293,6 +2293,31 @@
         "title": "CreateApiKeyPayload",
         "type": "object"
       },
+      "CreateMutedIpPayload": {
+        "description": "The IP or range to mute and an optional note.",
+        "properties": {
+          "network": {
+            "description": "An IPv4 or IPv6 address, or a range in CIDR form. IPv4-mapped IPv6 addresses count as their IPv4 form.",
+            "type": "string"
+          },
+          "note": {
+            "description": "Up to 100 characters once surrounding whitespace is trimmed. Blank means none.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "network"
+        ],
+        "title": "CreateMutedIpPayload",
+        "type": "object"
+      },
       "CreatedApiKey": {
         "description": "A new API key. This response is the only place the full key ever appears.",
         "properties": {
@@ -6142,6 +6167,42 @@
           "serverLongitude"
         ],
         "title": "MapSettingsView",
+        "type": "object"
+      },
+      "MutedIpView": {
+        "description": "One muted IP or range.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "network": {
+            "description": "The IP or range in CIDR form. A single IP is stored as /32 or /128, host bits are cleared.",
+            "type": "string"
+          },
+          "note": {
+            "description": "Free text about why it is muted.",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "network",
+          "note"
+        ],
+        "title": "MutedIpView",
         "type": "object"
       },
       "OidcOption": {
@@ -19784,6 +19845,214 @@
         ]
       }
     },
+    "/api/v1/muted-ips": {
+      "get": {
+        "deprecated": false,
+        "description": "Returns every muted IP and range, oldest first.",
+        "operationId": "ApiV1MutedIpsListMutedIps",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MutedIpView"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "List muted IPs",
+        "tags": [
+          "Muted IPs"
+        ]
+      },
+      "post": {
+        "deprecated": false,
+        "description": "Adds an IP or CIDR range to the muted list. The network is stored in CIDR form with host bits cleared. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.",
+        "operationId": "ApiV1MutedIpsCreateMutedIp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMutedIpPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MutedIpView"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The network is already muted (`muted_ip_exists`) or the list is full (`muted_ip_list_full`)."
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "The body is not sent as application/json."
+          }
+        },
+        "summary": "Mute an IP or range",
+        "tags": [
+          "Muted IPs"
+        ]
+      }
+    },
+    "/api/v1/muted-ips/{entry_id}": {
+      "delete": {
+        "deprecated": false,
+        "description": "Removes one entry from the muted list.",
+        "operationId": "ApiV1MutedIpsEntryIdDeleteMutedIp",
+        "parameters": [
+          {
+            "deprecated": false,
+            "description": "The `id` of the entry, from the list.",
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "description": "The `id` of the entry, from the list.",
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "code": "validation_failed",
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "code": {
+                      "description": "A stable machine-readable error code.",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code",
+                    "code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No entry has this id."
+          }
+        },
+        "summary": "Unmute an IP or range",
+        "tags": [
+          "Muted IPs"
+        ]
+      }
+    },
     "/api/v1/reports/abuse": {
       "get": {
         "deprecated": false,
@@ -20449,6 +20718,10 @@
     {
       "description": "Log in and out of the web app, see who is logged in, and list, create and revoke API keys. Login, the login options and the OIDC login routes need no credentials. Everything else here needs a browser session.",
       "name": "Auth"
+    },
+    {
+      "description": "The saved list of IPs and CIDR ranges that the hide switch on the log pages filters out. Read keys can list it. Adding and removing entries needs a read_write key or a session.",
+      "name": "Muted IPs"
     },
     {
       "description": "Request counts, time series and top lists for a time range, and the profile of one IP.",

@@ -2263,6 +2263,32 @@ export const CreateApiKeyPayloadSchema = {
   type: "object",
 } as const;
 
+export const CreateMutedIpPayloadSchema = {
+  description: "The IP or range to mute and an optional note.",
+  properties: {
+    network: {
+      description:
+        "An IPv4 or IPv6 address, or a range in CIDR form. IPv4-mapped IPv6 addresses count as their IPv4 form.",
+      type: "string",
+    },
+    note: {
+      description:
+        "Up to 100 characters once surrounding whitespace is trimmed. Blank means none.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["network"],
+  title: "CreateMutedIpPayload",
+  type: "object",
+} as const;
+
 export const CreatedApiKeySchema = {
   description:
     "A new API key. This response is the only place the full key ever appears.",
@@ -6106,6 +6132,39 @@ export const MapSettingsViewSchema = {
     "serverLongitude",
   ],
   title: "MapSettingsView",
+  type: "object",
+} as const;
+
+export const MutedIpViewSchema = {
+  description: "One muted IP or range.",
+  properties: {
+    createdAt: {
+      format: "date-time",
+      type: "string",
+    },
+    id: {
+      format: "uuid",
+      type: "string",
+    },
+    network: {
+      description:
+        "The IP or range in CIDR form. A single IP is stored as /32 or /128, host bits are cleared.",
+      type: "string",
+    },
+    note: {
+      description: "Free text about why it is muted.",
+      oneOf: [
+        {
+          type: "string",
+        },
+        {
+          type: "null",
+        },
+      ],
+    },
+  },
+  required: ["createdAt", "id", "network", "note"],
+  title: "MutedIpView",
   type: "object",
 } as const;
 

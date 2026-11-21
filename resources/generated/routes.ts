@@ -26,8 +26,10 @@ export type RouteName =
   | 'check_ip'
   | 'connection'
   | 'create_api_key'
+  | 'create_muted_ip'
   | 'create_reports'
   | 'delete_instance'
+  | 'delete_muted_ip'
   | 'delete_server_location'
   | 'download'
   | 'get_about'
@@ -89,6 +91,7 @@ export type RouteName =
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'list_instances'
+  | 'list_muted_ips'
   | 'list_report_history'
   | 'list_reported_ips'
   | 'list_reports'
@@ -119,9 +122,13 @@ export interface RoutePathParams {
   'check_ip': Record<string, never>;
   'connection': Record<string, never>;
   'create_api_key': Record<string, never>;
+  'create_muted_ip': Record<string, never>;
   'create_reports': Record<string, never>;
   'delete_instance': {
     instance_name: string;
+  };
+  'delete_muted_ip': {
+    entry_id: UUID;
   };
   'delete_server_location': {
     server: string;
@@ -195,6 +202,7 @@ export interface RoutePathParams {
   'list_geo_events': Record<string, never>;
   'list_geo_locations': Record<string, never>;
   'list_instances': Record<string, never>;
+  'list_muted_ips': Record<string, never>;
   'list_report_history': Record<string, never>;
   'list_reported_ips': Record<string, never>;
   'list_reports': Record<string, never>;
@@ -232,8 +240,10 @@ export interface RouteQueryParams {
   };
   'connection': Record<string, never>;
   'create_api_key': Record<string, never>;
+  'create_muted_ip': Record<string, never>;
   'create_reports': Record<string, never>;
   'delete_instance': Record<string, never>;
+  'delete_muted_ip': Record<string, never>;
   'delete_server_location': Record<string, never>;
   'download': Record<string, never>;
   'get_about': Record<string, never>;
@@ -596,6 +606,7 @@ export interface RouteQueryParams {
     pageSize?: number;
   };
   'list_instances': Record<string, never>;
+  'list_muted_ips': Record<string, never>;
   'list_report_history': {
     categoryIn?: number[];
     currentPage?: number;
@@ -683,6 +694,13 @@ export const routeDefinitions = {
     pathParams: [] as const,
     queryParams: [] as const,
   },
+  'create_muted_ip': {
+    path: '/api/v1/muted-ips',
+    methods: ['POST'] as const,
+    method: 'post',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
   'create_reports': {
     path: '/api/v1/abuseipdb/reports',
     methods: ['POST'] as const,
@@ -695,6 +713,13 @@ export const routeDefinitions = {
     methods: ['DELETE'] as const,
     method: 'delete',
     pathParams: ['instance_name'] as const,
+    queryParams: [] as const,
+  },
+  'delete_muted_ip': {
+    path: '/api/v1/muted-ips/{entry_id}',
+    methods: ['DELETE'] as const,
+    method: 'delete',
+    pathParams: ['entry_id'] as const,
     queryParams: [] as const,
   },
   'delete_server_location': {
@@ -1119,6 +1144,13 @@ export const routeDefinitions = {
   },
   'list_instances': {
     path: '/api/v1/instances',
+    methods: ['GET'] as const,
+    method: 'get',
+    pathParams: [] as const,
+    queryParams: [] as const,
+  },
+  'list_muted_ips': {
+    path: '/api/v1/muted-ips',
     methods: ['GET'] as const,
     method: 'get',
     pathParams: [] as const,

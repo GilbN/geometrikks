@@ -39,6 +39,13 @@
       ],
       "uri": "/api/v1/auth/api-keys"
     },
+    "create_muted_ip": {
+      "method": "post",
+      "methods": [
+        "POST"
+      ],
+      "uri": "/api/v1/muted-ips"
+    },
     "create_reports": {
       "method": "post",
       "methods": [
@@ -58,6 +65,19 @@
         "instance_name"
       ],
       "uri": "/api/v1/instances/{instance_name}"
+    },
+    "delete_muted_ip": {
+      "method": "delete",
+      "methods": [
+        "DELETE"
+      ],
+      "parameterTypes": {
+        "entry_id": "UUID"
+      },
+      "parameters": [
+        "entry_id"
+      ],
+      "uri": "/api/v1/muted-ips/{entry_id}"
     },
     "delete_server_location": {
       "method": "delete",
@@ -854,6 +874,13 @@
         "GET"
       ],
       "uri": "/api/v1/instances"
+    },
+    "list_muted_ips": {
+      "method": "get",
+      "methods": [
+        "GET"
+      ],
+      "uri": "/api/v1/muted-ips"
     },
     "list_report_history": {
       "method": "get",

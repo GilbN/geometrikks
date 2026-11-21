@@ -206,6 +206,14 @@ import type {
   ApiV1LogsTailTailData,
   ApiV1LogsTailTailErrors,
   ApiV1LogsTailTailResponses,
+  ApiV1MutedIpsCreateMutedIpData,
+  ApiV1MutedIpsCreateMutedIpErrors,
+  ApiV1MutedIpsCreateMutedIpResponses,
+  ApiV1MutedIpsEntryIdDeleteMutedIpData,
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+  ApiV1MutedIpsListMutedIpsData,
+  ApiV1MutedIpsListMutedIpsResponses,
   ApiV1ReportsAbuseContactGetAbuseContactData,
   ApiV1ReportsAbuseContactGetAbuseContactErrors,
   ApiV1ReportsAbuseContactGetAbuseContactResponses,
@@ -260,8 +268,10 @@ export type OperationName =
   | 'check_ip'
   | 'connection'
   | 'create_api_key'
+  | 'create_muted_ip'
   | 'create_reports'
   | 'delete_instance'
+  | 'delete_muted_ip'
   | 'delete_server_location'
   | 'download'
   | 'get_about'
@@ -323,6 +333,7 @@ export type OperationName =
   | 'list_geo_events'
   | 'list_geo_locations'
   | 'list_instances'
+  | 'list_muted_ips'
   | 'list_report_history'
   | 'list_reported_ips'
   | 'list_reports'
@@ -352,8 +363,10 @@ export interface OperationDataTypes {
   'check_ip': ApiV1AbuseipdbCheckCheckIpData
   'connection': ApiV1AuthConnectionConnectionData
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyData
+  'create_muted_ip': ApiV1MutedIpsCreateMutedIpData
   'create_reports': ApiV1AbuseipdbReportsCreateReportsData
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceData
+  'delete_muted_ip': ApiV1MutedIpsEntryIdDeleteMutedIpData
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationData
   'download': ApiV1LogsFilesKindNameDownloadData
   'get_about': ApiV1SystemAboutGetAboutData
@@ -415,6 +428,7 @@ export interface OperationDataTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsData
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsData
   'list_instances': ApiV1InstancesListInstancesData
+  'list_muted_ips': ApiV1MutedIpsListMutedIpsData
   'list_report_history': ApiV1AbuseipdbReportsHistoryListReportHistoryData
   'list_reported_ips': ApiV1AbuseipdbReportedIpsListReportedIpsData
   'list_reports': ApiV1AbuseipdbReportsListReportsData
@@ -445,8 +459,10 @@ export interface OperationResponseTypes {
   'check_ip': ApiV1AbuseipdbCheckCheckIpResponses
   'connection': ApiV1AuthConnectionConnectionResponses
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyResponses
+  'create_muted_ip': ApiV1MutedIpsCreateMutedIpResponses
   'create_reports': ApiV1AbuseipdbReportsCreateReportsResponses
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceResponses
+  'delete_muted_ip': ApiV1MutedIpsEntryIdDeleteMutedIpResponses
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationResponses
   'download': ApiV1LogsFilesKindNameDownloadResponses
   'get_about': ApiV1SystemAboutGetAboutResponses
@@ -508,6 +524,7 @@ export interface OperationResponseTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsResponses
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsResponses
   'list_instances': ApiV1InstancesListInstancesResponses
+  'list_muted_ips': ApiV1MutedIpsListMutedIpsResponses
   'list_report_history': ApiV1AbuseipdbReportsHistoryListReportHistoryResponses
   'list_reported_ips': ApiV1AbuseipdbReportedIpsListReportedIpsResponses
   'list_reports': ApiV1AbuseipdbReportsListReportsResponses
@@ -538,8 +555,10 @@ export interface OperationErrorTypes {
   'check_ip': ApiV1AbuseipdbCheckCheckIpErrors
   'connection': ApiV1AuthConnectionConnectionErrors
   'create_api_key': ApiV1AuthApiKeysCreateApiKeyErrors
+  'create_muted_ip': ApiV1MutedIpsCreateMutedIpErrors
   'create_reports': ApiV1AbuseipdbReportsCreateReportsErrors
   'delete_instance': ApiV1InstancesInstanceNameDeleteInstanceErrors
+  'delete_muted_ip': ApiV1MutedIpsEntryIdDeleteMutedIpErrors
   'delete_server_location': ApiV1GeoLocationsServerLocationsDeleteServerLocationErrors
   'download': ApiV1LogsFilesKindNameDownloadErrors
   'get_about': never
@@ -601,6 +620,7 @@ export interface OperationErrorTypes {
   'list_geo_events': ApiV1GeoEventsListGeoEventsErrors
   'list_geo_locations': ApiV1GeoLocationsListGeoLocationsErrors
   'list_instances': ApiV1InstancesListInstancesErrors
+  'list_muted_ips': never
   'list_report_history': ApiV1AbuseipdbReportsHistoryListReportHistoryErrors
   'list_reported_ips': never
   'list_reports': ApiV1AbuseipdbReportsListReportsErrors

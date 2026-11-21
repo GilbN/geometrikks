@@ -158,6 +158,13 @@ API_TAGS: list[Tag] = [
         ),
     ),
     Tag(
+        name="Muted IPs",
+        description=(
+            "The saved list of IPs and CIDR ranges that the hide switch on the log pages filters out. "
+            "Read keys can list it. Adding and removing entries needs a read_write key or a session."
+        ),
+    ),
+    Tag(
         name="Analytics",
         description="Request counts, time series and top lists for a time range, and the profile of one IP.",
     ),

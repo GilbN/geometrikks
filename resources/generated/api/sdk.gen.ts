@@ -209,6 +209,14 @@ import type {
   ApiV1LogsTailTailData,
   ApiV1LogsTailTailErrors,
   ApiV1LogsTailTailResponses,
+  ApiV1MutedIpsCreateMutedIpData,
+  ApiV1MutedIpsCreateMutedIpErrors,
+  ApiV1MutedIpsCreateMutedIpResponses,
+  ApiV1MutedIpsEntryIdDeleteMutedIpData,
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+  ApiV1MutedIpsListMutedIpsData,
+  ApiV1MutedIpsListMutedIpsResponses,
   ApiV1ReportsAbuseContactGetAbuseContactData,
   ApiV1ReportsAbuseContactGetAbuseContactErrors,
   ApiV1ReportsAbuseContactGetAbuseContactResponses,
@@ -2472,6 +2480,97 @@ export const apiV1LogsTailTail = <ThrowOnError extends boolean = false>(
       { scheme: "bearer", type: "http" },
     ],
     url: "/api/v1/logs/tail",
+    ...options,
+  });
+
+/**
+ * List muted IPs
+ *
+ * Returns every muted IP and range, oldest first.
+ */
+export const apiV1MutedIpsListMutedIps = <ThrowOnError extends boolean = false>(
+  options?: Options<ApiV1MutedIpsListMutedIpsData, ThrowOnError>,
+): RequestResult<ApiV1MutedIpsListMutedIpsResponses, unknown, ThrowOnError> =>
+  (options?.client ?? client).get<
+    ApiV1MutedIpsListMutedIpsResponses,
+    unknown,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/muted-ips",
+    ...options,
+  });
+
+/**
+ * Mute an IP or range
+ *
+ * Adds an IP or CIDR range to the muted list. The network is stored in CIDR form with host bits cleared. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.
+ */
+export const apiV1MutedIpsCreateMutedIp = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1MutedIpsCreateMutedIpData, ThrowOnError>,
+): RequestResult<
+  ApiV1MutedIpsCreateMutedIpResponses,
+  ApiV1MutedIpsCreateMutedIpErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).post<
+    ApiV1MutedIpsCreateMutedIpResponses,
+    ApiV1MutedIpsCreateMutedIpErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/muted-ips",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+/**
+ * Unmute an IP or range
+ *
+ * Removes one entry from the muted list.
+ */
+export const apiV1MutedIpsEntryIdDeleteMutedIp = <
+  ThrowOnError extends boolean = false,
+>(
+  options: Options<ApiV1MutedIpsEntryIdDeleteMutedIpData, ThrowOnError>,
+): RequestResult<
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+  ThrowOnError
+> =>
+  (options.client ?? client).delete<
+    ApiV1MutedIpsEntryIdDeleteMutedIpResponses,
+    ApiV1MutedIpsEntryIdDeleteMutedIpErrors,
+    ThrowOnError
+  >({
+    security: [
+      {
+        in: "cookie",
+        name: "session",
+        type: "apiKey",
+      },
+      { scheme: "bearer", type: "http" },
+    ],
+    url: "/api/v1/muted-ips/{entry_id}",
     ...options,
   });
 

@@ -1149,6 +1149,22 @@ export type CreateApiKeyPayload = {
 };
 
 /**
+ * CreateMutedIpPayload
+ *
+ * The IP or range to mute and an optional note.
+ */
+export type CreateMutedIpPayload = {
+  /**
+   * An IPv4 or IPv6 address, or a range in CIDR form. IPv4-mapped IPv6 addresses count as their IPv4 form.
+   */
+  network: string;
+  /**
+   * Up to 100 characters once surrounding whitespace is trimmed. Blank means none.
+   */
+  note?: string | null;
+};
+
+/**
  * CreatedApiKey
  *
  * A new API key. This response is the only place the full key ever appears.
@@ -2967,6 +2983,24 @@ export type MapSettingsView = {
    * Where this server sits, in decimal degrees. Null when unknown.
    */
   serverLongitude: number | null;
+};
+
+/**
+ * MutedIpView
+ *
+ * One muted IP or range.
+ */
+export type MutedIpView = {
+  createdAt: string;
+  id: string;
+  /**
+   * The IP or range in CIDR form. A single IP is stored as /32 or /128, host bits are cleared.
+   */
+  network: string;
+  /**
+   * Free text about why it is muted.
+   */
+  note: string | null;
 };
 
 /**
@@ -8247,6 +8281,120 @@ export type ApiV1LogsTailTailResponses = {
 
 export type ApiV1LogsTailTailResponse =
   ApiV1LogsTailTailResponses[keyof ApiV1LogsTailTailResponses];
+
+export type ApiV1MutedIpsListMutedIpsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/v1/muted-ips";
+};
+
+export type ApiV1MutedIpsListMutedIpsResponses = {
+  /**
+   * Request fulfilled, document follows
+   */
+  200: Array<MutedIpView>;
+};
+
+export type ApiV1MutedIpsListMutedIpsResponse =
+  ApiV1MutedIpsListMutedIpsResponses[keyof ApiV1MutedIpsListMutedIpsResponses];
+
+export type ApiV1MutedIpsCreateMutedIpData = {
+  body: CreateMutedIpPayload;
+  path?: never;
+  query?: never;
+  url: "/api/v1/muted-ips";
+};
+
+export type ApiV1MutedIpsCreateMutedIpErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * The network is already muted (`muted_ip_exists`) or the list is full (`muted_ip_list_full`).
+   */
+  409: ErrorEnvelope;
+  /**
+   * The body is not sent as application/json.
+   */
+  415: ErrorEnvelope;
+};
+
+export type ApiV1MutedIpsCreateMutedIpError =
+  ApiV1MutedIpsCreateMutedIpErrors[keyof ApiV1MutedIpsCreateMutedIpErrors];
+
+export type ApiV1MutedIpsCreateMutedIpResponses = {
+  /**
+   * Document created, URL follows
+   */
+  201: MutedIpView;
+};
+
+export type ApiV1MutedIpsCreateMutedIpResponse =
+  ApiV1MutedIpsCreateMutedIpResponses[keyof ApiV1MutedIpsCreateMutedIpResponses];
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpData = {
+  body?: never;
+  path: {
+    /**
+     * The `id` of the entry, from the list.
+     */
+    entry_id: string;
+  };
+  query?: never;
+  url: "/api/v1/muted-ips/{entry_id}";
+};
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpErrors = {
+  /**
+   * Validation Exception
+   */
+  400: {
+    /**
+     * A stable machine-readable error code.
+     */
+    code: string;
+    detail: string;
+    extra?:
+      | null
+      | {
+          [key: string]: unknown;
+        }
+      | Array<unknown>;
+    status_code: number;
+  };
+  /**
+   * No entry has this id.
+   */
+  404: ErrorEnvelope;
+};
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpError =
+  ApiV1MutedIpsEntryIdDeleteMutedIpErrors[keyof ApiV1MutedIpsEntryIdDeleteMutedIpErrors];
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpResponses = {
+  /**
+   * Request fulfilled, nothing follows
+   */
+  204: void;
+};
+
+export type ApiV1MutedIpsEntryIdDeleteMutedIpResponse =
+  ApiV1MutedIpsEntryIdDeleteMutedIpResponses[keyof ApiV1MutedIpsEntryIdDeleteMutedIpResponses];
 
 export type ApiV1ReportsAbuseGetAbuseReportData = {
   body?: never;
