@@ -744,7 +744,7 @@ export const apiV1AnalyticsSummaryGetSummary = <
 /**
  * Get request metrics per hour or day
  *
- * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
+ * Returns requests, bytes, status classes, error rate and latency for each bucket that has requests, oldest first. Without filters it reads the hourly or daily aggregates at any range length, and those reads count whole hours or UTC days, from the one that holds `startDate` through the last one that starts before `endDate`. With `granularity=daily` and a `tz` other than UTC on a range of 30 days or less, those reads count local days instead. They start at the local midnight of the day holding `startDate` and run through the last hour that starts before `endDate`. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter. On that filtered path `tz` sets local days at any range length. `totalGeoEvents` is always 0 here, and `/api/v1/analytics/geo-time-series` has the geo series.
  */
 export const apiV1AnalyticsTimeSeriesGetTimeSeries = <
   ThrowOnError extends boolean = false,
@@ -809,7 +809,7 @@ export const apiV1AnalyticsTimeSeriesCumulativeGetCumulativeTimeSeries = <
 /**
  * List the networks that send the most requests
  *
- * Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns autonomous systems ordered by hits, each with a category. `categories` adds up every ASN in the range, not only the top `limit`. `totalRequests` and `totalBytes` count every request, so requests without ASN data count in them but in no category. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter.
  */
 export const apiV1AnalyticsTopAsnsGetTopAsns = <
   ThrowOnError extends boolean = false,
@@ -840,7 +840,7 @@ export const apiV1AnalyticsTopAsnsGetTopAsns = <
 /**
  * List the cities with the most requests
  *
- * Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns cities ordered by hits, with the number of distinct client IPs from each. Requests without a city are left out, and cities with the same name in different countries count as one. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopCitiesGetTopCities = <
   ThrowOnError extends boolean = false,
@@ -871,7 +871,7 @@ export const apiV1AnalyticsTopCitiesGetTopCities = <
 /**
  * List the countries with the most requests
  *
- * Returns countries ordered by hits, with error hits and the number of distinct client IPs from each. Requests without a country are left out. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns countries ordered by hits, with error hits and the number of distinct client IPs from each. Requests without a country are left out. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopCountriesGetTopCountries = <
   ThrowOnError extends boolean = false,
@@ -905,7 +905,7 @@ export const apiV1AnalyticsTopCountriesGetTopCountries = <
 /**
  * List the client IPs with the most requests
  *
- * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns client IPs ordered by hits, with error hits, bytes and the IP's country and city, plus the number of distinct IPs in the range. For ranges over 24 hours with neither an ASN nor a host filter, a country, city or IP filter reads the per-IP aggregates, so unlike the URL and user agent lists it reaches past ANALYTICS_RAW_RETENTION_DAYS. An ASN or host filter, include or exclude, makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopIpsGetTopIps = <
   ThrowOnError extends boolean = false,
@@ -936,7 +936,7 @@ export const apiV1AnalyticsTopIpsGetTopIps = <
 /**
  * List the most requested URLs
  *
- * Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` host or none, each row is a host and path pair. With two or more different hosts, each row is one URL (path plus query string) counted across those hosts, and `host` is null. Lines without a path are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns URLs ordered by hits, with error hits, bytes and the average request time. With one `hostIn` host or none, each row is a host and path pair. With two or more different hosts, each row is one URL (path plus query string) counted across those hosts, and `host` is null. Lines without a path are left out. Above 24 hours, a host filter on its own, include or exclude, reads the URL aggregates as an unfiltered request does, so it reaches past ANALYTICS_RAW_RETENTION_DAYS. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
  */
 export const apiV1AnalyticsTopUrlsGetTopUrls = <
   ThrowOnError extends boolean = false,
@@ -967,7 +967,7 @@ export const apiV1AnalyticsTopUrlsGetTopUrls = <
 /**
  * List the most common user agents
  *
- * Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP or ASN filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default.
+ * Returns user agent strings ordered by hits. Lines without a user agent are left out. A country, city, IP, ASN or host filter makes it read the raw access log rows, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. Excluding a host counts as a host filter.
  */
 export const apiV1AnalyticsTopUserAgentsGetTopUserAgents = <
   ThrowOnError extends boolean = false,

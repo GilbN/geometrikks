@@ -165,6 +165,22 @@ export function asnFilterTarget<F extends AsnFilterLists>(
   })
 }
 
+/** A target for one host, for a row keyed by host rather than by IP. */
+export function hostFilterTarget<F extends { hosts: string[]; hostsExclude: string[] }>(
+  host: string,
+  filters: F,
+  setFilters: SetFilters<F>,
+): FilterTarget {
+  return listFilterTarget<F>({
+    noun: "host",
+    value: host,
+    filters,
+    setFilters,
+    includeKey: "hosts" as ListKey<F, string>,
+    excludeKey: "hostsExclude" as ListKey<F, string>,
+  })
+}
+
 function asnTarget<F extends AsnFilterLists>(
   { asn }: IpRowValues,
   filters: F,
