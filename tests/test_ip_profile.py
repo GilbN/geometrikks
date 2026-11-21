@@ -173,7 +173,7 @@ def _app(repo: _FakeIpProfileRepo) -> Litestar:
         route_handlers=[create_api_v1_router([_TestController])],
         dependencies={
             **ambient_settings_dependency(),
-            # The other analytics providers need a session; nothing here calls them.
+            # Stubs for the session and engine the other analytics providers use; nothing here calls them.
             "db_session": Provide(lambda: None, sync_to_thread=False),
             "db_engine": Provide(lambda: None, sync_to_thread=False),
         },

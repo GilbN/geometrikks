@@ -17,7 +17,7 @@ pytestmark = pytest.mark.anyio
 
 NOW = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
 SEED_HOUR = NOW - timedelta(days=2)
-WEEK = {"startDate": (NOW - timedelta(days=5)).isoformat(), "endDate": NOW.isoformat()}
+WEEK = {"startDate": (NOW - timedelta(days=7)).isoformat(), "endDate": NOW.isoformat()}
 SEED_HOUR_ONLY = {"startDate": SEED_HOUR.isoformat(), "endDate": (SEED_HOUR + timedelta(minutes=30)).isoformat()}
 MUTED = "203.0.113.7"
 MAPPED = "::ffff:203.0.113.7"
@@ -88,7 +88,9 @@ async def test_every_list_drops_the_muted_ip_and_its_mapped_form(client, traffic
     assert [(item["url"], item["hits"]) for item in urls["items"]] == [("/a", 3), ("/b", 2)]
     asns = await get(client, "top-asns", window, **flag)
     assert [(item["asn"], item["hits"]) for item in asns["items"]] == [(64500, 3), (64501, 2)]
-    assert asns["totalRequests"] == 5
+    assert (asns["totalRequests"], asns["totalBytes"]) == (5, 500)
+    agents = await get(client, "top-user-agents", window, **flag)
+    assert [(item["userAgent"], item["hits"]) for item in agents["items"]] == [("ua/1.0", 5)]
     ips = await get(client, "top-ips", window, **flag)
     assert [(item["ipAddress"], item["hits"]) for item in ips["items"]] == [("198.51.100.1", 3), ("198.51.100.2", 2)]
     assert ips["distinctIps"] == 2
@@ -116,5 +118,5 @@ async def test_an_ip_include_filter_wins(client, traffic):
 
 
 async def test_an_empty_list_matches_the_flag_off_answer(client, traffic):
-    for endpoint in ("time-series", "top-urls", "top-asns", "top-ips", "top-countries", "top-cities"):
+    for endpoint in ("time-series", "top-urls", "top-user-agents", "top-asns", "top-ips", "top-countries", "top-cities"):
         assert await get(client, endpoint, WEEK, excludeMutedIps="true") == await get(client, endpoint, WEEK)
