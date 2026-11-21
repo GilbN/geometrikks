@@ -40,11 +40,11 @@ On desktop, the filter bar on Access Logs History, Geo Logs and Analytics shows 
 
 On a phone, the filter bar shows no chip. Instead, the Filters drawer includes a Muted IPs switch in its Exclude section whenever the list has entries, and the Filters button badge counts active muting as one filter. Clear filters only clears URL filters and leaves the Muted IPs switch alone.
 
-Flipping the switch resets Access Logs and Geo Logs back to page 1. Adding or removing an entry closes any open Geo Logs map popup, phone location panel or row detail sheet.
+Flipping the switch resets Access Logs and Geo Logs back to page 1. Flipping the switch, or adding or removing an entry, closes any open Geo Logs map popup, phone location panel or row detail sheet.
 
 ### Filtering by an explicit IP
 
-Whenever you filter by an IP address on Access Logs, Geo Logs or Analytics, muting turns off for that view so rows from that address still appear. On desktop, the chip disables and displays `Off while filtering by IP` beside it. On a phone, the drawer switch disables with the same message.
+Whenever you filter by an IP address on Access Logs, Geo Logs or Analytics, muting turns off for that view so rows from that address still appear. When the switch is on, the desktop chip disables and displays `Off while filtering by IP` under it, and the phone drawer switch disables with the same message. When the switch is already off, both controls stay enabled and read `Muted IPs shown` on desktop and `Shown` on a phone.
 
 ## Retention limits
 
@@ -57,7 +57,7 @@ On Analytics, these cards reach back only `ANALYTICS_RAW_RETENTION_DAYS` while m
 - user agents
 - Top ASNs and Traffic Origin
 
-Top IPs and Top Countries / Cities on Analytics keep reading per-IP aggregates and keep their full retention, unless another filter such as ASN or host forces raw rows.
+Muting keeps Top IPs and Top Countries / Cities on Analytics on their existing routing: per-IP aggregates for ranges longer than 24 hours, raw rows for 24 hours or less, and raw rows whenever an ASN or host filter is set.
 
 On Geo Logs, these items reach back only `ANALYTICS_RAW_RETENTION_DAYS` while muting is on:
 
@@ -85,9 +85,9 @@ Any other IPv6 CIDR keeps its IPv6 meaning. A wide range such as `::/64` contain
 Manage the list at `/api/v1/muted-ips`. Each entry has the shape `{id, network, note, createdAt}`, with `network` in canonical CIDR form.
 
 - `GET /api/v1/muted-ips` returns every entry, oldest first.
-- `POST /api/v1/muted-ips` takes an `application/json` body `{network, note?}` and returns `201` with the saved entry. Bad input returns `400` with code `invalid_network` or `invalid_note`. A duplicate entry or a full list returns `409` with code `muted_ip_exists` or `muted_ip_list_full`. A non-JSON body returns `415`.
+- `POST /api/v1/muted-ips` takes an `application/json` body `{network, note?}` and returns `201` with the saved entry. An invalid address or network returns `400` with code `invalid_network`, and an invalid note returns `400` with code `invalid_note`. A body that fails JSON schema validation, such as a missing `network` field, returns a `400` validation error without those codes. A duplicate entry or a full list returns `409` with code `muted_ip_exists` or `muted_ip_list_full`. A request whose `Content-Type` header is not `application/json` returns `415`.
 - `DELETE /api/v1/muted-ips/{id}` removes an entry and returns `204`, or `404` when no entry has that id.
 
-Read-only API keys can call `GET /api/v1/muted-ips` and get a `403` on `POST` and `DELETE`. Changing the list requires a browser session or a Read/write API key.
+Read-only API keys can call `GET /api/v1/muted-ips` and get a `403` on `POST` and `DELETE`. When app authentication is enabled, changing the list requires a browser session or a Read/write API key. With `APP_AUTH_DISABLED=true`, anyone who can reach the app can change the list without a session or key.
 
 To exclude muted IPs from log or analytics queries, pass `excludeMutedIps=true` to `GET /api/v1/access-logs/`, `GET /api/v1/geo-events/logs`, `GET /api/v1/geo-events/{summary,time-series,top-ips,top-countries,top-cities,top-asns}`, `GET /api/v1/geo-locations/geojson`, and `GET /api/v1/analytics/{time-series,top-urls,top-user-agents,top-asns,top-ips,top-countries,top-cities}`. Passing an IP include filter on the same request overrides `excludeMutedIps=true`.
