@@ -71,7 +71,7 @@ Two things limit what it can show.
 
 Site stats need GeoMetrikks 0.26.0 or later. On an older server the popup says which version it needs, and lookups and bans still work.
 
-"Access logs for this host" at the bottom of the popup opens Access Logs filtered to the same host.
+"Analytics for this host" at the bottom of the popup opens Analytics filtered to the same host, using whatever time range you last picked in the app.
 
 ## Behind an authenticating proxy
 
@@ -117,7 +117,7 @@ access_control:
         - "^/api/v1/(auth/connection|geo-events/logs|drop/lists)([?]|$)"
 ```
 
-Pages the extension opens on your server, such as Open in inspector, Access logs for this host, Open GeoMetrikks and the `gmk` keyword, are normal browser visits. They carry your cookies and pass through the proxy's login like any other tab.
+Pages the extension opens on your server, such as Open in inspector, Analytics for this host, Open GeoMetrikks and the `gmk` keyword, are normal browser visits. They carry your cookies and pass through the proxy's login like any other tab.
 
 Only add a bypass while GeoMetrikks' own login is on. With `APP_AUTH_DISABLED=true` GeoMetrikks checks nothing, so a bypass opens every API action, ban and unban included, to anyone who can reach the address.
 
