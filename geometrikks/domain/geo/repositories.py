@@ -14,9 +14,11 @@ to get exact time range results.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
+from ipaddress import IPv4Network, IPv6Network
 
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from sqlalchemy import text
@@ -246,6 +248,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         servers: list[str] | None = None,
         asns: list[int] | None = None,
         asns_exclude: list[int] | None = None,
+        muted_networks: Sequence[IPv4Network | IPv6Network] | None = None,
     ) -> list[LocationWithEventCount]:
         """Retrieve all GeoLocations with their associated event counts.
 
@@ -272,6 +275,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
             servers: Optional servers to filter to.
             asns: Optional autonomous system numbers to filter to.
             asns_exclude: Optional autonomous system numbers to exclude.
+            muted_networks: Networks to leave out, with their IPv4-mapped twins already added; forces RAW like an IP filter.
 
         Returns:
             list[LocationWithEventCount]: List containing location and event count.
@@ -287,7 +291,7 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         granularity = resolve_locations_granularity(
             from_timestamp,
             to_timestamp,
-            has_ip_filter=bool(ip_addresses or ip_addresses_exclude or asns or asns_exclude),
+            has_ip_filter=bool(ip_addresses or ip_addresses_exclude or asns or asns_exclude or muted_networks),
             has_server_filter=bool(servers),
         )
 
@@ -314,6 +318,9 @@ class GeoLocationRepository(SQLAlchemyAsyncRepository[GeoLocation]):
         if ip_addresses_exclude:
             filters_sql += " AND NOT (ge.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
             params["filter_ips_excl"] = list(ip_addresses_exclude)
+        if muted_networks:
+            filters_sql += " AND NOT (ge.ip_address <<= ANY(CAST(:muted_networks AS cidr[])))"
+            params["muted_networks"] = list(muted_networks)
         if asns:
             filters_sql += " AND ge.autonomous_system_number = ANY(CAST(:filter_asns AS bigint[]))"
             params["filter_asns"] = [int(a) for a in asns]

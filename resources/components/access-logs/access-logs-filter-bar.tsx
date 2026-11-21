@@ -9,6 +9,7 @@ import { CountryFlag } from "@/components/country-flag"
 import { useEffect, useRef, useState } from "react"
 import { Search } from "lucide-react"
 import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-my-ip"
+import { MutedIpsChip } from "@/components/data/muted-ips-chip"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { Input } from "@/components/ui/input"
@@ -16,6 +17,7 @@ import { FilterCombobox } from "@/components/ui/filter-combobox"
 import {
   FilterExcludedIpRows,
   FilterListRow,
+  FilterMutedIpsRow,
   FilterMyIpRow,
   FilterSection,
 } from "@/components/ui/filter-rows"
@@ -25,6 +27,7 @@ import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useDebouncedValue } from "@/hooks/use-debounced-value"
 import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
+import { mutedDrawerCounts } from "@/lib/muted-ips"
 import { isValidIp } from "@/lib/crowdsec"
 import { HTTP_METHODS } from "@/lib/http-methods"
 import {
@@ -45,7 +48,7 @@ type AsnKey = "asns" | "asnsExclude"
 
 export function AccessLogsFilterBar() {
   const phone = usePhoneLayout()
-  const { filters, setFilters } = useAccessLogFilters()
+  const { filters, setFilters, muted, toggleMuted } = useAccessLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   // Selected ASNs need the facets for their organization labels.
   const { data: facets } = useAccessLogFacets({
@@ -309,7 +312,8 @@ export function AccessLogsFilterBar() {
     </FilterField>
   )
 
-  const activeCount = countActiveAccessLogFilters(filters)
+  const urlCount = countActiveAccessLogFilters(filters)
+  const { activeCount, clearCount } = mutedDrawerCounts(urlCount, muted.flag)
   const clear = () => {
     setSearchInput("")
     setFilters(() => EMPTY_ACCESS_LOG_FILTERS)
@@ -319,7 +323,7 @@ export function AccessLogsFilterBar() {
     return (
       <div className="flex items-center gap-2" onClick={() => setFacetsEnabled(true)}>
         <ExcludeMyIpButton exclusion={myIp} />
-        <FiltersDrawer activeCount={activeCount} onClear={clear}>
+        <FiltersDrawer activeCount={activeCount} clearCount={clearCount} onClear={clear}>
           <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -407,6 +411,7 @@ export function AccessLogsFilterBar() {
           </FilterSection>
           <FilterSection label="Exclude">
             <FilterMyIpRow exclusion={myIp} />
+            <FilterMutedIpsRow scope={muted} onToggle={toggleMuted} />
             <FilterExcludedIpRows
               values={filters.ipsExclude}
               onAdd={add("ipsExclude")}
@@ -449,7 +454,7 @@ export function AccessLogsFilterBar() {
   }
 
   return (
-    <FilterRail label="Request filters" activeCount={activeCount} onClear={clear}>
+    <FilterRail label="Request filters" activeCount={urlCount} onClear={clear}>
       <FilterRow>
         {search()}
         {ipPair()}
@@ -464,6 +469,7 @@ export function AccessLogsFilterBar() {
         {city()}
         {asnPair()}
         <ExcludeMyIpField exclusion={myIp} />
+        <MutedIpsChip scope={muted} onToggle={toggleMuted} />
       </FilterRow>
       {chipRow(["ips", "ipsExclude", "hostsExclude", "serversExclude", "asns", "asnsExclude"])}
     </FilterRail>

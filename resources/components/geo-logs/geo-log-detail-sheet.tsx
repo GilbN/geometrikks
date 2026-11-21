@@ -39,6 +39,7 @@ export function GeoLogDetailSheet({
         entry && (
           <DetailIpActions
             values={ipValues(entry)}
+            muteToggle
             locationId={entry.locationId}
             onNavigate={() => onOpenChange(false)}
           />

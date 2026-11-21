@@ -41,7 +41,8 @@ async def test_window_bounds_can_be_reused_across_pages_and_polls(
 
     app = Litestar(
         route_handlers=[create_api_v1_router([AccessLogController])],
-        dependencies={"db_session": Provide(provide_session)}, exception_handlers=EXCEPTION_HANDLERS,
+        dependencies={"db_session": Provide(provide_session), "db_engine": Provide(lambda: engine, sync_to_thread=False)},
+        exception_handlers=EXCEPTION_HANDLERS,
         # Match the SQLAlchemy plugin namespace used by generated service providers.
         signature_namespace={"AsyncSession": AsyncSession},
     )

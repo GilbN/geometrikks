@@ -6,7 +6,7 @@
  * GeoLogFiltersContext like everything else on the page. Selecting a row
  * opens GeoLogDetailSheet.
  */
-import { memo, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { Columns3 } from "lucide-react"
 import { CountryFlag, CountryLabel } from "@/components/country-flag"
 import { TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -45,6 +45,7 @@ import { IpActionsMenu, IpFilterTargetsProvider } from "@/components/ip-actions/
 import { IpLabel } from "@/components/ip-actions/ip-label"
 import { geoLogFilterTargets } from "@/lib/ip-filter-targets"
 import { useGeoLogs } from "@/lib/queries"
+import { pageToClamp } from "@/lib/use-muted-page"
 import { cn } from "@/lib/utils"
 import { useColumnVisibility } from "@/lib/column-visibility"
 
@@ -105,6 +106,7 @@ const SORT_OPTIONS = sortOptions(GEO_LOG_COLUMNS)
 function GeoLogIpActions({ row }: { row: GeoLogEntry }) {
   return (
     <IpActionsMenu
+      muteToggle
       ip={row.ipAddress}
       locationId={row.locationId}
       countryCode={row.countryCode}
@@ -206,7 +208,7 @@ export function GeoLogsTable({
   const [layoutRef, narrow] = useNarrowLayout<HTMLDivElement>()
   const isMobile = useIsMobile()
   const { range, customRange } = useTimeRange()
-  const { filters, setFilters } = useGeoLogFilters()
+  const { filters, setFilters, muted } = useGeoLogFilters()
   const filterTargetsFor = useMemo(
     () => geoLogFilterTargets(filters, setFilters),
     [filters, setFilters],
@@ -227,6 +229,16 @@ export function GeoLogsTable({
   const rows = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
+
+  useEffect(() => {
+    const target = pageToClamp({ loaded: !!data, placeholder: isPlaceholderData, page, pageCount })
+    if (target !== null) onPageChange(target)
+  }, [data, isPlaceholderData, page, pageCount, onPageChange])
+
+  // A changed hidden set can leave the open row off the list.
+  useEffect(() => {
+    setSelected(null)
+  }, [muted.flag, muted.version])
   const state = dataState(isLoading, isError, rows.length)
 
   function toggleSort(field: GeoLogSortField) {
@@ -315,6 +327,8 @@ export function GeoLogsTable({
               filters,
               range,
               customRange,
+              muted.flag,
+              muted.version,
             ])}
           >
             {!narrow && (

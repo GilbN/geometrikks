@@ -35,6 +35,8 @@ async function openGeoLogs(
         JSON.stringify({ range, pollInterval, granularity }),
       )
       localStorage.setItem("geometrikks-geo-logs-charts", String(chartsOn))
+      // A returning browser with an empty muted list sends no flag.
+      localStorage.setItem("mutedIpsVersion", "empty")
     },
     { range, pollInterval, chartsOn, granularity },
   )

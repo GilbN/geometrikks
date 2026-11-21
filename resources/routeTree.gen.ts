@@ -28,6 +28,7 @@ import { Route as SettingsAppearanceRouteImport } from './routes/settings/appear
 import { Route as SettingsChangelogRouteImport } from './routes/settings/changelog'
 import { Route as SettingsEnvironmentRouteImport } from './routes/settings/environment'
 import { Route as SettingsLogsRouteImport } from './routes/settings/logs'
+import { Route as SettingsMutedIpsRouteImport } from './routes/settings/muted-ips'
 import { Route as SettingsSchedulerRouteImport } from './routes/settings/scheduler'
 import { Route as SettingsStatusRouteImport } from './routes/settings/status'
 
@@ -126,6 +127,11 @@ const SettingsLogsRoute = SettingsLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => SettingsRoute,
 } as any)
+const SettingsMutedIpsRoute = SettingsMutedIpsRouteImport.update({
+  id: '/muted-ips',
+  path: '/muted-ips',
+  getParentRoute: () => SettingsRoute,
+} as any)
 const SettingsSchedulerRoute = SettingsSchedulerRouteImport.update({
   id: '/scheduler',
   path: '/scheduler',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
+  '/settings/muted-ips': typeof SettingsMutedIpsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
   '/settings/status': typeof SettingsStatusRoute
   '/settings/': typeof SettingsIndexRoute
@@ -178,6 +185,7 @@ export interface FileRoutesByTo {
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
+  '/settings/muted-ips': typeof SettingsMutedIpsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
   '/settings/status': typeof SettingsStatusRoute
   '/settings': typeof SettingsIndexRoute
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/settings/changelog': typeof SettingsChangelogRoute
   '/settings/environment': typeof SettingsEnvironmentRoute
   '/settings/logs': typeof SettingsLogsRoute
+  '/settings/muted-ips': typeof SettingsMutedIpsRoute
   '/settings/scheduler': typeof SettingsSchedulerRoute
   '/settings/status': typeof SettingsStatusRoute
   '/settings/': typeof SettingsIndexRoute
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/settings/changelog'
     | '/settings/environment'
     | '/settings/logs'
+    | '/settings/muted-ips'
     | '/settings/scheduler'
     | '/settings/status'
     | '/settings/'
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/settings/changelog'
     | '/settings/environment'
     | '/settings/logs'
+    | '/settings/muted-ips'
     | '/settings/scheduler'
     | '/settings/status'
     | '/settings'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/settings/changelog'
     | '/settings/environment'
     | '/settings/logs'
+    | '/settings/muted-ips'
     | '/settings/scheduler'
     | '/settings/status'
     | '/settings/'
@@ -426,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsLogsRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/settings/muted-ips': {
+      id: '/settings/muted-ips'
+      path: '/muted-ips'
+      fullPath: '/settings/muted-ips'
+      preLoaderRoute: typeof SettingsMutedIpsRouteImport
+      parentRoute: typeof SettingsRoute
+    }
     '/settings/scheduler': {
       id: '/settings/scheduler'
       path: '/scheduler'
@@ -451,6 +470,7 @@ interface SettingsRouteChildren {
   SettingsChangelogRoute: typeof SettingsChangelogRoute
   SettingsEnvironmentRoute: typeof SettingsEnvironmentRoute
   SettingsLogsRoute: typeof SettingsLogsRoute
+  SettingsMutedIpsRoute: typeof SettingsMutedIpsRoute
   SettingsSchedulerRoute: typeof SettingsSchedulerRoute
   SettingsStatusRoute: typeof SettingsStatusRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -464,6 +484,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsChangelogRoute: SettingsChangelogRoute,
   SettingsEnvironmentRoute: SettingsEnvironmentRoute,
   SettingsLogsRoute: SettingsLogsRoute,
+  SettingsMutedIpsRoute: SettingsMutedIpsRoute,
   SettingsSchedulerRoute: SettingsSchedulerRoute,
   SettingsStatusRoute: SettingsStatusRoute,
   SettingsIndexRoute: SettingsIndexRoute,

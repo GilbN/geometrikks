@@ -89,6 +89,7 @@ import {
 } from "@/lib/drop-lists"
 import {
   useAbuseIpdbStatus,
+  useAddMutedIp,
   useBanIp,
   useBannedIps,
   useBannedRanges,
@@ -96,9 +97,19 @@ import {
   useAbuseIpdbBlacklisted,
   useDropNetwork,
   useIpDecisions,
+  useMutedIpsPassive,
+  useRemoveMutedIp,
   useReportedIps,
   useUnbanIp,
 } from "@/lib/queries"
+import {
+  muteAction,
+  mutedIpCodeOf,
+  mutedIpErrorMessage,
+  mutedListPending,
+  runUnmute,
+  useMutedVersion,
+} from "@/lib/muted-ips"
 import { undoIpAction, useIpActions, usePendingIpAction } from "@/lib/pending-ip-actions"
 import { cn } from "@/lib/utils"
 
@@ -130,6 +141,7 @@ export interface IpAction {
   run: (source: HTMLElement) => void
   /** Opens a sheet or dialog, so it waits for the menu or drawer to close. */
   opensDialog?: boolean
+  disabled?: boolean
 }
 
 /** `heading` is what the menu already names, so a target with that value
@@ -415,6 +427,7 @@ export function IpActionsMenu({
   className,
   footer = false,
   onFilter,
+  muteToggle = false,
   ...values
 }: IpRowValues & {
   /** Where Fly to lands; without it the map picks the IP's busiest location. */
@@ -425,6 +438,8 @@ export function IpActionsMenu({
   footer?: boolean
   /** Runs after a filter action, so a sheet can close over the filtered table. */
   onFilter?: () => void
+  /** Offers Mute IP or Unmute IP. Only the three pages that can hide muted IPs set it. */
+  muteToggle?: boolean
 }) {
   const { ip } = values
   const { open: inspect } = useIpInspectorActions()
@@ -450,6 +465,10 @@ export function IpActionsMenu({
     if (next) setReportClock(Date.now())
     setMenuOpen(next)
   }
+  const { data: mutedEntries } = useMutedIpsPassive()
+  const { version: mutedVersion } = useMutedVersion()
+  const addMutedIp = useAddMutedIp()
+  const removeMutedIp = useRemoveMutedIp()
   const { data: abuseStatus } = useAbuseIpdbStatus()
   const reportingEnabled = abuseStatus?.reportingEnabled === true
   // The dialog unmounts when reporting goes off, so close it rather than leave the polling hold on.
@@ -605,7 +624,39 @@ export function IpActionsMenu({
         },
       }
     })
-  const sections = [navigation, filters].filter((section) => section.length > 0)
+  const mutePending = mutedListPending(mutedVersion, mutedEntries)
+  const muteState = mutePending ? null : muteAction(ip, mutedEntries ?? [])
+  const unmuting = muteState?.kind === "unmute"
+  async function toggleMute() {
+    if (muteState?.kind === "unmute") {
+      const result = await runUnmute(removeMutedIp.mutateAsync, muteState.id)
+      if (!result.ok) {
+        toast.error(result.message)
+        return
+      }
+      toast.success(`Unmuted ${ip}`)
+      return
+    }
+    try {
+      await addMutedIp.mutateAsync({ network: ip, note: null })
+    } catch (error) {
+      toast.error(mutedIpErrorMessage(mutedIpCodeOf(error)))
+      return
+    }
+    toast.success(`Muted ${ip}`)
+  }
+  const muteItem: IpAction | null = muteToggle
+    ? {
+        key: unmuting ? "unmute" : "mute",
+        icon: unmuting ? <Eye /> : <EyeOff />,
+        label: unmuting ? "Unmute IP" : "Mute IP",
+        disabled: mutePending || addMutedIp.isPending || removeMutedIp.isPending,
+        run: () => void toggleMute(),
+      }
+    : null
+  const sections = [navigation, filters, muteItem ? [muteItem] : []].filter(
+    (section) => section.length > 0,
+  )
   if (footer && sections.length === 0 && !status?.writeEnabled && !reportingEnabled) return null
   // Report shares the ban rows' section, so it needs a separator only when they are gone.
   const reportSeparated = !status?.writeEnabled && sections.length > 0
@@ -745,6 +796,21 @@ export function IpActionsMenu({
               {targets.length > 0 && (
                 <IpFilterToggles heading={ip} targets={targets} onFilter={onFilter} />
               )}
+              {muteItem && (
+                <div className="px-2">
+                  <DrawerClose asChild>
+                    <Button
+                      variant="outline"
+                      className="h-11 w-full justify-start gap-2 px-3 [&_svg:not([class*='size-'])]:size-5"
+                      disabled={muteItem.disabled}
+                      onClick={(event) => select(muteItem, event.currentTarget)}
+                    >
+                      {muteItem.icon}
+                      {muteItem.label}
+                    </Button>
+                  </DrawerClose>
+                </div>
+              )}
               {reportingEnabled && (
                 <div className="px-2">
                   <DrawerClose asChild>
@@ -795,6 +861,7 @@ export function IpActionsMenu({
                 {section.map((action) => (
                   <DropdownMenuItem
                     key={action.key}
+                    disabled={action.disabled}
                     onSelect={(event) => select(action, event.target as HTMLElement)}
                   >
                     {action.icon}

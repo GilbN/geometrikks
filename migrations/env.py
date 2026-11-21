@@ -24,7 +24,8 @@ import geometrikks.domain.drop.models
 import geometrikks.domain.geo.models
 import geometrikks.domain.imports.models
 import geometrikks.domain.instances.models
-import geometrikks.domain.logs.models  # noqa: F401
+import geometrikks.domain.logs.models
+import geometrikks.domain.muted_ips.models  # noqa: F401
 
 # --- End local additions ------------------------------------------------------
 

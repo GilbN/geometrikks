@@ -9,6 +9,8 @@ import { UNTRUSTED_PROXY_HINT } from "@/components/data/exclude-my-ip"
 import { TagInput } from "@/components/data/tag-input"
 import { FilterComboboxBody } from "@/components/ui/filter-combobox"
 import { useFilterPages } from "@/components/ui/filters-drawer"
+import { Switch } from "@/components/ui/switch"
+import type { MutedScope } from "@/lib/muted-ips"
 import type { MyIpExclusion } from "@/lib/my-ip-exclusion"
 import { cn } from "@/lib/utils"
 
@@ -267,6 +269,42 @@ export function FilterMyIpRow({ exclusion }: { exclusion: MyIpExclusion }) {
         >
           {exclusion.excluded ? <Check aria-hidden className="size-4" /> : "Exclude"}
         </button>
+      </span>
+    </div>
+  )
+}
+
+export function FilterMutedIpsRow({
+  scope,
+  onToggle,
+}: {
+  scope: MutedScope
+  onToggle: () => void
+}) {
+  const detailId = useId()
+  if (scope.chip === "none") return null
+  const greyed = scope.chip === "greyed"
+  const detail = greyed
+    ? "Off while filtering by IP"
+    : scope.chip === "shown"
+      ? "Shown"
+      : scope.count !== null
+        ? `${scope.count} hidden`
+        : "Hidden"
+  return (
+    <div className={ROW}>
+      <span className="shrink-0">Muted IPs</span>
+      <span className="flex min-w-0 items-center gap-3">
+        <span id={detailId} className="truncate text-xs text-muted-foreground">
+          {detail}
+        </span>
+        <Switch
+          aria-label="Hide muted IPs"
+          checked={scope.chip !== "shown"}
+          disabled={greyed}
+          aria-describedby={greyed ? detailId : undefined}
+          onCheckedChange={onToggle}
+        />
       </span>
     </div>
   )

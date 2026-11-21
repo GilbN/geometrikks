@@ -161,6 +161,15 @@ IpAddressExcludeFilter = Annotated[
     ),
 ]
 
+ExcludeMutedIps = Annotated[
+    bool,
+    QueryParameter(
+        name="excludeMutedIps",
+        description="Leave out the muted IPs. An IP include filter on the same request wins.",
+        required=False,
+    ),
+]
+
 # camelCase-named variants used by the geo endpoints.
 IpAddressIn = Annotated[
     list[str] | None,

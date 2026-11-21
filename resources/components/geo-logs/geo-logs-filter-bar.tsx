@@ -9,12 +9,14 @@
 import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
 import { ExcludeMyIpButton, ExcludeMyIpField } from "@/components/data/exclude-my-ip"
+import { MutedIpsChip } from "@/components/data/muted-ips-chip"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
 import {
   FilterExcludedIpRows,
   FilterListRow,
+  FilterMutedIpsRow,
   FilterMyIpRow,
   FilterSection,
 } from "@/components/ui/filter-rows"
@@ -23,6 +25,7 @@ import { useAsnLabel } from "@/hooks/use-asn-label"
 import { useMyIpExclusion } from "@/hooks/use-my-ip-exclusion"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useGeoEventFacets } from "@/lib/queries"
+import { mutedDrawerCounts } from "@/lib/muted-ips"
 import { isValidIp } from "@/lib/crowdsec"
 import {
   countActiveGeoLogFilters,
@@ -34,7 +37,7 @@ type IpKey = "ips" | "ipsExclude"
 
 export function GeoLogsFilterBar() {
   const phone = usePhoneLayout()
-  const { filters, setFilters } = useGeoLogFilters()
+  const { filters, setFilters, muted, toggleMuted } = useGeoLogFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   const { data: facets } = useGeoEventFacets({
     enabled: facetsEnabled || filters.asns.length > 0 || filters.asnsExclude.length > 0,
@@ -205,14 +208,15 @@ export function GeoLogsFilterBar() {
     />
   )
 
-  const activeCount = countActiveGeoLogFilters(filters)
+  const urlCount = countActiveGeoLogFilters(filters)
+  const { activeCount, clearCount } = mutedDrawerCounts(urlCount, muted.flag)
   const clear = () => setFilters(() => EMPTY_GEO_LOG_FILTERS)
 
   if (phone) {
     return (
       <div className="flex items-center gap-2" onClick={() => setFacetsEnabled(true)}>
         <ExcludeMyIpButton exclusion={myIp} />
-        <FiltersDrawer activeCount={activeCount} onClear={clear}>
+        <FiltersDrawer activeCount={activeCount} clearCount={clearCount} onClear={clear}>
           <TagInput
             onAdd={addIp("ips")}
             validate={isValidIp}
@@ -266,6 +270,7 @@ export function GeoLogsFilterBar() {
           </FilterSection>
           <FilterSection label="Exclude">
             <FilterMyIpRow exclusion={myIp} />
+            <FilterMutedIpsRow scope={muted} onToggle={toggleMuted} />
             <FilterExcludedIpRows
               values={filters.ipsExclude}
               onAdd={addIp("ipsExclude")}
@@ -291,10 +296,11 @@ export function GeoLogsFilterBar() {
   }
 
   return (
-    <FilterRail label="Location filters" activeCount={activeCount} onClear={clear}>
+    <FilterRail label="Location filters" activeCount={urlCount} onClear={clear}>
       <FilterRow>
         {ipPair()}
         <ExcludeMyIpField exclusion={myIp} />
+        <MutedIpsChip scope={muted} onToggle={toggleMuted} />
         {country()}
         {city()}
         {server()}

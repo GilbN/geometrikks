@@ -23,6 +23,7 @@ from geometrikks.domain.logs.controllers.access_log_debug import (
     AccessLogDebugController,
 )
 from geometrikks.domain.logs.controllers.access_logs import AccessLogController
+from geometrikks.domain.muted_ips.controllers import MutedIpController
 from geometrikks.domain.realtime.controllers import crowdsec_feed, live_feed, logs_feed
 from geometrikks.domain.reports.controllers import ReportsController
 from geometrikks.domain.security.controllers import CrowdSecController
@@ -84,6 +85,7 @@ def get_route_handlers() -> list[ControllerRouterHandler]:
         SystemController,
         AuthController,
         ApiKeyController,
+        MutedIpController,
         read_settings,
         stats,
     ]

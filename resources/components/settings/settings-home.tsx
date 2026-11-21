@@ -1,5 +1,5 @@
 /**
- * /settings on a portrait phone: the nine sections in three groups, each
+ * /settings on a portrait phone: the ten sections in three groups, each
  * with one live line, instead of a dropdown above whichever page opened
  * first. Elsewhere /settings redirects to Status, and the side nav or, on a
  * phone held sideways, the chip row lists the sections.
@@ -10,6 +10,7 @@ import {
   Activity,
   CalendarClock,
   ChevronRight,
+  EyeOff,
   CircleArrowUp,
   FileClock,
   Info,
@@ -28,6 +29,7 @@ import {
   agentSummary,
 } from "@/components/settings/agents-logic"
 import { apiKeysSummary } from "@/components/settings/api-keys-logic"
+import { mutedIpsHomeLine } from "@/lib/muted-ips"
 import { envSettingCount, isOverridden } from "@/components/settings/environment-fields"
 import {
   advisoryCards,
@@ -39,6 +41,7 @@ import {
 import {
   useAbout,
   useApiKeys,
+  useMutedIpsList,
   useChangelogUnseen,
   useHealth,
   useInstances,
@@ -67,6 +70,7 @@ export function SettingsHome() {
   const { data: settings } = useSystemSettings()
   const { data: about } = useAbout()
   const { data: apiKeyList } = useApiKeys()
+  const { data: mutedIps } = useMutedIpsList(30_000)
   const changelogUnseen = useChangelogUnseen()
   const unseenRelease = useUnseenRelease()
   const { resolvedTheme, colorTheme } = useTheme()
@@ -142,6 +146,12 @@ export function SettingsHome() {
           label: "API keys",
           icon: KeyRound,
           line: apiKeysSummary(apiKeyList),
+        },
+        {
+          to: "/settings/muted-ips",
+          label: "Muted IPs",
+          icon: EyeOff,
+          line: mutedIpsHomeLine(mutedIps?.length),
         },
         {
           to: "/settings/appearance",

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated
+from ipaddress import IPv4Network, IPv6Network
+from typing import Annotated, cast
 
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import (
@@ -31,6 +32,8 @@ from geometrikks.domain.logs.window_headers import (
     RANGE_HEADERS_STATE_KEY,
     AccessLogRangeHeaders,
 )
+from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
+from geometrikks.domain.muted_ips.filters import MutedNetworksFilter
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
     MAX_LOG_PAGE_SIZE,
@@ -266,6 +269,18 @@ def provide_access_log_in_filters(
     return result
 
 
+async def provide_in_filters(
+    base_in_filters: NamedDependency[SkipValidation[list[FilterTypes]]],
+    muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
+) -> list[FilterTypes]:
+    """Adds the muted list to the IN filters, unless the request names an IP to include."""
+    if muted_networks is None or any(
+        isinstance(item, CollectionFilter) and item.field_name == "ip_address" for item in base_in_filters
+    ):
+        return base_in_filters
+    return cast(list[FilterTypes], [*base_in_filters, MutedNetworksFilter(muted_networks)])
+
+
 class AccessLogController(Controller):
     """Access log endpoints
 
@@ -299,7 +314,9 @@ class AccessLogController(Controller):
             note="A sort by `request_time` or `upstream_response_time` puts lines without a timing last.",
         ),
         "time_window": Provide(provide_access_log_time_window, sync_to_thread=False),
-        "in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
+        "base_in_filters": Provide(provide_access_log_in_filters, sync_to_thread=False),
+        "in_filters": Provide(provide_in_filters),
+        "muted_networks": Provide(provide_muted_networks),
     }
 
     @get(

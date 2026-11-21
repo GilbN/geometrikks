@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from ipaddress import IPv4Network, IPv6Network
 from typing import Annotated
 
 from litestar import Controller, get
@@ -59,6 +60,7 @@ from geometrikks.domain.analytics.repositories import (
 from geometrikks.domain.analytics.summary import period_summary
 from geometrikks.domain.drop.dependencies import provide_drop_snapshot
 from geometrikks.domain.drop.snapshot import DropSnapshot
+from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
 from geometrikks.lib.parameters import (
     AsnIn,
     AsnNotIn,
@@ -105,6 +107,7 @@ def _build_filters(
     asn_not_in: list[int] | None = None,
     host_in: list[str] | None = None,
     host_not_in: list[str] | None = None,
+    muted_networks: list[IPv4Network | IPv6Network] | None = None,
 ) -> AnalyticsFilters:
     """Validate filter params; bad IPs become a 400 instead of a DB error."""
     validate_ip_addresses((ip_address or []) + (ip_address_not_in or []))
@@ -117,6 +120,7 @@ def _build_filters(
         asns_exclude=asn_not_in or None,
         hosts=list(dict.fromkeys(host_in)) if host_in else None,
         hosts_exclude=list(dict.fromkeys(host_not_in)) if host_not_in else None,
+        muted_networks=muted_networks,
     )
 
 
@@ -219,6 +223,7 @@ class AnalyticsController(Controller):
         "summary_stats_repo": Provide(provide_summary_stats_repo),
         "ip_profile_repo": Provide(provide_ip_profile_repo),
         "drop_snapshot": Provide(provide_drop_snapshot),
+        "muted_networks": Provide(provide_muted_networks),
     }
 
     @get(
@@ -453,6 +458,7 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         live_stats_repo: NamedDependency[LiveStatsRepository],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         granularity: ChartGranularity = None,
         country_code: CountryCodeFilter = None,
         city: CityFilter = None,
@@ -483,6 +489,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         resolved = _resolve_chart_granularity(start_date, end_date, granularity)
         if tz is not None:
@@ -578,6 +585,7 @@ class AnalyticsController(Controller):
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         limit: Annotated[
             int,
             QueryParameter(description="How many URLs to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
@@ -608,6 +616,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         rows = await summary_stats_repo.get_top_urls(start_date, end_date, limit=limit, filters=filters)
         return TopUrlsResponse(
@@ -628,6 +637,7 @@ class AnalyticsController(Controller):
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         limit: Annotated[
             int,
             QueryParameter(description="How many user agents to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
@@ -656,6 +666,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         rows = await summary_stats_repo.get_top_user_agents(start_date, end_date, limit=limit, filters=filters)
         return TopUserAgentsResponse(
@@ -679,6 +690,7 @@ class AnalyticsController(Controller):
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         drop_snapshot: NamedDependency[SkipValidation[DropSnapshot]],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         limit: Annotated[
             int,
             QueryParameter(description="How many ASNs to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
@@ -708,6 +720,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         rows = await summary_stats_repo.get_top_asns(start_date, end_date, filters=filters)
         # The categories cover only rows with ASN data; the UI reports
@@ -779,6 +792,7 @@ class AnalyticsController(Controller):
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         limit: Annotated[
             int,
             QueryParameter(description="How many IPs to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
@@ -803,6 +817,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         top_ips = await summary_stats_repo.get_top_ips(start_date, end_date, limit=limit, filters=filters)
         return TopIpsResponse(
@@ -824,6 +839,7 @@ class AnalyticsController(Controller):
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         limit: Annotated[
             int,
             QueryParameter(description="How many countries to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
@@ -848,6 +864,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         rows = await summary_stats_repo.get_top_countries(start_date, end_date, limit=limit, filters=filters)
         return TopCountriesStatsResponse(
@@ -869,6 +886,7 @@ class AnalyticsController(Controller):
         self,
         summary_stats_repo: NamedDependency[SummaryStatsRepository],
         time_range: NamedDependency[SkipValidation[TimeRange]],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         limit: Annotated[
             int,
             QueryParameter(description="How many cities to return, from 1 to 100. Defaults to 25.", ge=1, le=100),
@@ -893,6 +911,7 @@ class AnalyticsController(Controller):
             asn_not_in=asn_not_in,
             host_in=host_in,
             host_not_in=host_not_in,
+            muted_networks=muted_networks,
         )
         rows = await summary_stats_repo.get_top_cities(start_date, end_date, limit=limit, filters=filters)
         return TopCitiesResponse(

@@ -7,14 +7,21 @@
  */
 import { CountryFlag } from "@/components/country-flag"
 import { useState } from "react"
+import { MutedIpsChip } from "@/components/data/muted-ips-chip"
 import { FilterField, FilterPair, FilterRail, FilterRow } from "@/components/data/filter-rail"
 import { FilterChip, TagInput } from "@/components/data/tag-input"
 import { FilterCombobox } from "@/components/ui/filter-combobox"
-import { FilterExcludedIpRows, FilterListRow, FilterSection } from "@/components/ui/filter-rows"
+import {
+  FilterExcludedIpRows,
+  FilterListRow,
+  FilterMutedIpsRow,
+  FilterSection,
+} from "@/components/ui/filter-rows"
 import { FiltersDrawer } from "@/components/ui/filters-drawer"
 import { useAsnLabel } from "@/hooks/use-asn-label"
 import { usePhoneLayout } from "@/hooks/use-phone-map"
 import { useAccessLogFacets } from "@/lib/queries"
+import { mutedDrawerCounts } from "@/lib/muted-ips"
 import { isValidIp } from "@/lib/crowdsec"
 import {
   countActiveAnalyticsFilters,
@@ -28,7 +35,7 @@ type AsnKey = "asns" | "asnsExclude"
 
 export function AnalyticsFilterBar() {
   const phone = usePhoneLayout()
-  const { filters, setFilters } = useAnalyticsFilters()
+  const { filters, setFilters, muted, toggleMuted } = useAnalyticsFilters()
   const [facetsEnabled, setFacetsEnabled] = useState(false)
   // Selected ASNs need the facets for their organization labels, and selected
   // hosts for their options.
@@ -232,13 +239,14 @@ export function AnalyticsFilterBar() {
     />
   )
 
-  const activeCount = countActiveAnalyticsFilters(filters)
+  const urlCount = countActiveAnalyticsFilters(filters)
+  const { activeCount, clearCount } = mutedDrawerCounts(urlCount, muted.flag)
   const clear = () => setFilters(() => EMPTY_FILTERS)
 
   if (phone) {
     return (
       <div onClick={() => setFacetsEnabled(true)}>
-        <FiltersDrawer activeCount={activeCount} onClear={clear}>
+        <FiltersDrawer activeCount={activeCount} clearCount={clearCount} onClear={clear}>
           <TagInput
             onAdd={addIp("ips")}
             validate={isValidIp}
@@ -292,6 +300,7 @@ export function AnalyticsFilterBar() {
             />
           </FilterSection>
           <FilterSection label="Exclude">
+            <FilterMutedIpsRow scope={muted} onToggle={toggleMuted} />
             <FilterExcludedIpRows
               values={filters.ipsExclude}
               onAdd={addIp("ipsExclude")}
@@ -327,13 +336,14 @@ export function AnalyticsFilterBar() {
   }
 
   return (
-    <FilterRail label="Traffic filters" activeCount={activeCount} onClear={clear}>
+    <FilterRail label="Traffic filters" activeCount={urlCount} onClear={clear}>
       <FilterRow>
         {ipPair()}
         {hostPair()}
         {country()}
         {city()}
         {asnPair()}
+        <MutedIpsChip scope={muted} onToggle={toggleMuted} />
       </FilterRow>
       {chipRow(["ips", "ipsExclude", "hostsExclude", "asns", "asnsExclude"])}
     </FilterRail>

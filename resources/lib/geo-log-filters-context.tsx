@@ -7,6 +7,7 @@
  * plain conduit.
  */
 import { createContext, useContext } from "react"
+import { DEFAULT_MUTED_SCOPE, type MutedScope } from "./muted-ips"
 
 export interface GeoLogFilterState {
   countryCodes: string[]
@@ -49,21 +50,29 @@ export function hasActiveGeoLogFilters(filters: GeoLogFilterState): boolean {
 interface GeoLogFiltersValue {
   filters: GeoLogFilterState
   setFilters: (updater: (prev: GeoLogFilterState) => GeoLogFilterState) => void
+  /** The muted IPs scope for this page; the flag is off outside the provider. */
+  muted: MutedScope
+  /** Flips the per-browser switch. */
+  toggleMuted: () => void
 }
 
 // Default = empty filters: hooks keep working outside the provider.
 const GeoLogFiltersContext = createContext<GeoLogFiltersValue>({
   filters: EMPTY_GEO_LOG_FILTERS,
   setFilters: () => {},
+  muted: DEFAULT_MUTED_SCOPE,
+  toggleMuted: () => {},
 })
 
 export function GeoLogFiltersProvider({
   filters,
   setFilters,
+  muted,
+  toggleMuted,
   children,
 }: GeoLogFiltersValue & { children: React.ReactNode }) {
   return (
-    <GeoLogFiltersContext.Provider value={{ filters, setFilters }}>
+    <GeoLogFiltersContext.Provider value={{ filters, setFilters, muted, toggleMuted }}>
       {children}
     </GeoLogFiltersContext.Provider>
   )
@@ -71,4 +80,8 @@ export function GeoLogFiltersProvider({
 
 export function useGeoLogFilters() {
   return useContext(GeoLogFiltersContext)
+}
+
+export function useMutedScope(): MutedScope {
+  return useGeoLogFilters().muted
 }

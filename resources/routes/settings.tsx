@@ -13,6 +13,7 @@ const tabs = [
   { to: "/settings/agents", label: "Agents" },
   { to: "/settings/environment", label: "Environment" },
   { to: "/settings/api-keys", label: "API keys" },
+  { to: "/settings/muted-ips", label: "Muted IPs" },
   { to: "/settings/scheduler", label: "Scheduler" },
   { to: "/settings/logs", label: "Logs" },
   { to: "/settings/appearance", label: "Appearance" },

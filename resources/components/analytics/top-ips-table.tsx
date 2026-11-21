@@ -76,6 +76,7 @@ export function TopIpsTable() {
                             <>
                               <IpLabel ip={row.ipAddress} className="truncate font-mono text-xs" />
                               <IpActionsMenu
+                                muteToggle
                                 ip={row.ipAddress}
                                 countryCode={row.countryCode}
                                 city={row.city}
@@ -107,6 +108,7 @@ export function TopIpsTable() {
                         <TableCell className="font-mono text-xs">
                           <IpLabel ip={row.ipAddress} />
                           <IpActionsMenu
+                            muteToggle
                             ip={row.ipAddress}
                             countryCode={row.countryCode}
                             city={row.city}

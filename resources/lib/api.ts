@@ -38,11 +38,16 @@ import {
   apiV1AuthApiKeysListApiKeys,
   apiV1AuthApiKeysCreateApiKey,
   apiV1AuthApiKeysKeyIdRevokeApiKey,
+  apiV1MutedIpsListMutedIps,
+  apiV1MutedIpsCreateMutedIp,
+  apiV1MutedIpsEntryIdDeleteMutedIp,
 } from "@/generated/api/sdk.gen"
 import { BROWSER_TZ } from "@/lib/datetime"
 import type { BanDecisionType } from "@/lib/crowdsec"
 import type {
   AsnFacet,
+  CreateMutedIpPayload,
+  MutedIpView,
   GeoJsonFeatureCollection as GeoJSONFeatureCollection,
   SafeSettingsResponse,
   SystemSettingsResponse,
@@ -179,6 +184,20 @@ export async function createApiKey(payload: CreateApiKeyPayload): Promise<Create
 
 export async function revokeApiKey(keyId: string): Promise<void> {
   await apiV1AuthApiKeysKeyIdRevokeApiKey({ path: { key_id: keyId }, throwOnError: true })
+}
+
+export async function fetchMutedIps(signal?: AbortSignal): Promise<MutedIpView[]> {
+  const { data } = await apiV1MutedIpsListMutedIps({ signal, throwOnError: true })
+  return data
+}
+
+export async function addMutedIp(payload: CreateMutedIpPayload): Promise<MutedIpView> {
+  const { data } = await apiV1MutedIpsCreateMutedIp({ body: payload, throwOnError: true })
+  return data
+}
+
+export async function removeMutedIp(entryId: string): Promise<void> {
+  await apiV1MutedIpsEntryIdDeleteMutedIp({ path: { entry_id: entryId }, throwOnError: true })
 }
 
 // ============================================================================
@@ -642,6 +661,7 @@ export interface GeoJSONParams {
   asns?: number[]
   /** ASNs to exclude (rows without ASN data are kept); forces a raw scan. */
   asnsExclude?: number[]
+  excludeMutedIps?: boolean
 }
 
 export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatureCollection> {
@@ -656,6 +676,7 @@ export async function fetchGeoJSON(params: GeoJSONParams): Promise<GeoJSONFeatur
       serverIn: params.servers?.length ? params.servers : undefined,
       asnIn: params.asns?.length ? params.asns : undefined,
       asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+      excludeMutedIps: params.excludeMutedIps || undefined,
     },
   })
   return data
@@ -783,6 +804,7 @@ export interface AnalyticsFilterParams {
   hostsExclude?: string[]
   asns?: number[]
   asnsExclude?: number[]
+  excludeMutedIps?: boolean
 }
 
 function analyticsFilterQuery(params: AnalyticsFilterParams) {
@@ -795,6 +817,7 @@ function analyticsFilterQuery(params: AnalyticsFilterParams) {
     hostNotIn: params.hostsExclude?.length ? params.hostsExclude : undefined,
     asnIn: params.asns?.length ? params.asns : undefined,
     asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+    excludeMutedIps: params.excludeMutedIps || undefined,
   }
 }
 
@@ -1041,6 +1064,7 @@ export interface GeoLogFilterParams {
   servers?: string[]
   asns?: number[]
   asnsExclude?: number[]
+  excludeMutedIps?: boolean
 }
 
 /** Shared query fragment; empty arrays are dropped from the query string. */
@@ -1053,6 +1077,7 @@ function geoLogFilterQuery(params: GeoLogFilterParams) {
     serverIn: params.servers?.length ? params.servers : undefined,
     asnIn: params.asns?.length ? params.asns : undefined,
     asnNotIn: params.asnsExclude?.length ? params.asnsExclude : undefined,
+    excludeMutedIps: params.excludeMutedIps || undefined,
   }
 }
 
@@ -1332,6 +1357,7 @@ export interface AccessLogsParams {
   statusIn?: number[]
   sortField?: AccessLogSortField
   sortOrder?: SortOrder
+  excludeMutedIps?: boolean
 }
 
 export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessLogsPage> {
@@ -1357,6 +1383,7 @@ export async function fetchAccessLogs(params: AccessLogsParams): Promise<AccessL
       statusIn: params.statusIn?.length ? params.statusIn : undefined,
       orderBy: params.sortField ? SORT_FIELD_TO_COLUMN[params.sortField] : undefined,
       sortOrder: params.sortField ? (params.sortOrder ?? "desc") : undefined,
+      excludeMutedIps: params.excludeMutedIps || undefined,
     },
   })
   return data

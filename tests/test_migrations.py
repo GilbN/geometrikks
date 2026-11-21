@@ -44,6 +44,8 @@ AUTH_SESSIONS_REVISION = "a41d7e6c2b95"
 DEBUG_LOG_FORMAT_REVISION = "c5e2a9f7d813"
 DROP_LISTS_REVISION = "d7b3e1a94c60"
 API_KEYS_REVISION = "47b5f6c769ad"
+MUTED_IPS_REVISION = "c3f9a2d17e58"
+ABUSEIPDB_BLACKLIST_REVISION = "b7e3d1f04a26"
 VERSIONS_DIR = REPO_ROOT / "migrations" / "versions"
 
 
@@ -179,6 +181,11 @@ def test_drop_lists_revision_is_rerun_safe() -> None:
 def test_api_keys_revision_follows_previous_head() -> None:
     revision = _script_directory().get_revision(API_KEYS_REVISION)
     assert revision.down_revision == DROP_LISTS_REVISION
+
+
+def test_muted_ips_revision_follows_previous_head() -> None:
+    revision = _script_directory().get_revision(MUTED_IPS_REVISION)
+    assert revision.down_revision == ABUSEIPDB_BLACKLIST_REVISION
 
 
 def test_revisions_parse_and_chain() -> None:

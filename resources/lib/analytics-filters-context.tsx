@@ -10,6 +10,7 @@
  * mounts this provider as a plain conduit.
  */
 import { createContext, useContext } from "react"
+import { DEFAULT_MUTED_SCOPE, type MutedScope } from "./muted-ips"
 
 export interface AnalyticsFilterState {
   countryCodes: string[]
@@ -55,6 +56,10 @@ export function hasActiveAnalyticsFilters(filters: AnalyticsFilterState): boolea
 interface AnalyticsFiltersValue {
   filters: AnalyticsFilterState
   setFilters: (updater: (prev: AnalyticsFilterState) => AnalyticsFilterState) => void
+  /** The muted IPs scope for this page; the flag is off outside the provider. */
+  muted: MutedScope
+  /** Flips the per-browser switch. */
+  toggleMuted: () => void
 }
 
 // Default = empty filters: hooks shared with the dashboard keep working
@@ -62,15 +67,19 @@ interface AnalyticsFiltersValue {
 const AnalyticsFiltersContext = createContext<AnalyticsFiltersValue>({
   filters: EMPTY_FILTERS,
   setFilters: () => {},
+  muted: DEFAULT_MUTED_SCOPE,
+  toggleMuted: () => {},
 })
 
 export function AnalyticsFiltersProvider({
   filters,
   setFilters,
+  muted,
+  toggleMuted,
   children,
 }: AnalyticsFiltersValue & { children: React.ReactNode }) {
   return (
-    <AnalyticsFiltersContext.Provider value={{ filters, setFilters }}>
+    <AnalyticsFiltersContext.Provider value={{ filters, setFilters, muted, toggleMuted }}>
       {children}
     </AnalyticsFiltersContext.Provider>
   )
@@ -78,4 +87,8 @@ export function AnalyticsFiltersProvider({
 
 export function useAnalyticsFilters() {
   return useContext(AnalyticsFiltersContext)
+}
+
+export function useMutedScope(): MutedScope {
+  return useAnalyticsFilters().muted
 }

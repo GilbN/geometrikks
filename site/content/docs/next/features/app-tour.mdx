@@ -31,7 +31,7 @@ Every stored request, newest first, in two tabs: History and Live tail.
 
 <Screenshot scene="access-logs" />
 
-History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. Exclude your IP drops your own address from the view. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. Bytes and Req time show by default, except on a phone. The column picker adds upstream response time, HTTP version, remote user, user agent, server, source format, ASN and AS organization.
+History is the searchable table. Search matches the URL, referrer and user agent. Filters cover IP address, host, server, method, status, source format, country, city and ASN, and IP address, host, server and ASN each have an exclude field next to them: Exclude IP, Exclude host, Exclude server and Exclude ASN. Exclude your IP drops your own address from the view, and [Muted IPs](./muted-ips.mdx) hides a saved list of addresses and ranges with one switch. On a phone the filters sit in a drawer, split into Show only and Exclude. Click a row for the full record. Bytes and Req time show by default, except on a phone. The column picker adds upstream response time, HTTP version, remote user, user agent, server, source format, ASN and AS organization.
 
 <Screenshot scene="filter-drawer" />
 
@@ -59,7 +59,7 @@ With `LOGPARSER_STORE_DEBUG_LINES=true` the parser stores every line here as wel
 
 ## Analytics
 
-Charts and top lists for the range, all following one filter set: IP address, Exclude IP, host, Exclude host, country, city, ASN and Exclude ASN. Host picks from the hosts the server has logged. On a wide screen, Exclude host takes typed text. In the phone Filters drawer it picks from the same list. Both match the logged Host value exactly. Excluding a host keeps requests that have no host.
+Charts and top lists for the range, all following one filter set: IP address, Exclude IP, host, Exclude host, country, city, ASN and Exclude ASN, plus the [Muted IPs](./muted-ips.mdx) switch when your list has entries. Host picks from the hosts the server has logged. On a wide screen, Exclude host takes typed text. In the phone Filters drawer it picks from the same list. Both match the logged Host value exactly. Excluding a host keeps requests that have no host.
 
 - **Traffic** has the Requests, Status classes, Bandwidth and Request latency charts.
 - **Top Lists** has Top IPs, Top Countries / Cities, Top URLs with one row per host and path, and Top user agents. Top IPs shows how many unique IPs the filtered view covers in its header, counting IPs beyond the ones listed. Top Countries counts each country's errors, the requests with status 400 or higher. Each Top URLs row that has a host has a menu that filters by that host or excludes it. When you pick two or more hosts in the Host filter, Top URLs adds up each path across those hosts and drops its Host column. Excluding hosts never merges paths.

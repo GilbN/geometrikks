@@ -28,6 +28,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
+from ipaddress import IPv4Network, IPv6Network
 from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import text
@@ -1253,15 +1254,26 @@ class AnalyticsFilters:
     asns_exclude: Sequence[int] | None = None
     hosts: Sequence[str] | None = None
     hosts_exclude: Sequence[str] | None = None
+    muted_networks: Sequence[IPv4Network | IPv6Network] | None = None
+
+    @property
+    def effective_muted_networks(self) -> Sequence[IPv4Network | IPv6Network] | None:
+        """The muted list, unless an IP include filter on the same request overrides it."""
+        return None if self.ip_addresses else (self.muted_networks or None)
 
     def is_active(self) -> bool:
         return bool(
             self.country_codes or self.cities or self.ip_addresses or self.ip_exclude
             or self.asns or self.asns_exclude or self.hosts or self.hosts_exclude
+            or self.effective_muted_networks
         )
 
     def needs_raw_rows(self) -> bool:
-        """True when a filter has no column on the per-IP log_ip CAGGs."""
+        """True when a filter has no column on the per-IP log_ip CAGGs.
+
+        The muted list is deliberately absent: it counts in is_active() but the
+        per-IP aggregates carry ip_address, so they apply it themselves.
+        """
         return bool(self.asns or self.asns_exclude or self.hosts or self.hosts_exclude)
 
     def only_hosts(self) -> bool:
@@ -1303,6 +1315,9 @@ class AnalyticsFilters:
         if self.hosts_exclude:
             clauses.append("AND (host IS NULL OR NOT (host = ANY(:filter_hosts_exclude)))")
             params["filter_hosts_exclude"] = list(self.hosts_exclude)
+        if self.effective_muted_networks:
+            clauses.append("AND NOT (ip_address <<= ANY(CAST(:muted_networks AS cidr[])))")
+            params["muted_networks"] = list(self.effective_muted_networks)
         return " ".join(clauses), params
 
 
