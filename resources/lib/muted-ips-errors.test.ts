@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test"
 import {
   focusIdAfterRemoval,
   MUTED_IPS_CAP,
+  mutedIpAddErrorMessage,
   mutedIpCodeOf,
   mutedIpErrorMessage,
   mutedIpsCountLine,
@@ -20,6 +21,25 @@ describe("mutedIpErrorMessage", () => {
     ["toString", "Couldn't save. Try again."],
   ])("maps %s", (code, message) => {
     expect(mutedIpErrorMessage(code)).toBe(message)
+  })
+})
+
+describe("mutedIpAddErrorMessage", () => {
+  it("shows the server detail for invalid_network", () => {
+    const detail =
+      "10.0.0.5/8 is not the start of a range. Enter 10.0.0.0/8 for the range, or 10.0.0.5 for one address"
+    expect(mutedIpAddErrorMessage({ status_code: 400, detail, code: "invalid_network" })).toBe(
+      detail,
+    )
+  })
+  it("falls back to the code message", () => {
+    expect(mutedIpAddErrorMessage({ status_code: 400, detail: "", code: "invalid_network" })).toBe(
+      "Enter an IP address or CIDR range.",
+    )
+    expect(mutedIpAddErrorMessage({ status_code: 409, detail: "x", code: "muted_ip_exists" })).toBe(
+      "That IP or range is already muted.",
+    )
+    expect(mutedIpAddErrorMessage(new Error("boom"))).toBe("Couldn't save. Try again.")
   })
 })
 

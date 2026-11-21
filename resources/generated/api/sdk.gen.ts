@@ -2511,7 +2511,7 @@ export const apiV1MutedIpsListMutedIps = <ThrowOnError extends boolean = false>(
 /**
  * Mute an IP or range
  *
- * Adds an IP or CIDR range to the muted list. The network is stored in CIDR form with host bits cleared. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.
+ * Adds an IP or CIDR range to the muted list. Stores the network in CIDR form and rejects CIDR ranges with host bits set. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.
  */
 export const apiV1MutedIpsCreateMutedIp = <
   ThrowOnError extends boolean = false,

@@ -49,9 +49,9 @@ class MutedIpController(Controller):
         guards=[requires_json_body],
         summary="Mute an IP or range",
         description=(
-            "Adds an IP or CIDR range to the muted list. The network is stored in CIDR form with host bits "
-            "cleared. An invalid network or a note over the length limit gets a 400. An entry already on the "
-            "list, or a full list, gets a 409. Send the body as `application/json`."
+            "Adds an IP or CIDR range to the muted list. Stores the network in CIDR form and rejects CIDR "
+            "ranges with host bits set. An invalid network or a note over the length limit gets a 400. An "
+            "entry already on the list, or a full list, gets a 409. Send the body as `application/json`."
         ),
         responses={
             HTTP_409_CONFLICT: ResponseSpec(

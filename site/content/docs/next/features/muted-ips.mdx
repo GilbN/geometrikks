@@ -24,7 +24,7 @@ You can manage the list in two places.
 - Open Settings > Muted IPs, enter an IPv4 address, an IPv6 address or a CIDR network such as `203.0.113.7` or `10.0.0.0/8`, add an optional note up to 100 characters, and click Mute. Click the `X` button on any row to remove it.
 - On Access Logs, Geo Logs and Analytics, open the [IP actions menu](./ip-inspector.mdx#the-ip-actions-menu) after an IP in a table, card or row detail sheet and choose Mute IP. When that exact address is already on the list, the menu shows Unmute IP instead and removes only that entry. If an address falls inside a muted CIDR range without having its own entry, the menu still shows Mute IP, because overlapping entries are allowed.
 
-GeoMetrikks stores a single address as `/32` or `/128` and clears host bits on ranges, so `10.0.0.5/8` is stored as `10.0.0.0/8`. Addresses with a zone ID after `%` are rejected, because stripping the zone would turn a link-local address into a wider network.
+GeoMetrikks stores a single address as `/32` or `/128`. A CIDR range must have no host bits set. GeoMetrikks accepts `10.0.0.0/8` and rejects `10.0.0.5/8`, so a typo cannot silently widen a range and hide real traffic. The error names both fixes: `10.0.0.0/8` for the range, or `10.0.0.5` for one address. GeoMetrikks also rejects addresses with a zone ID after `%`, because stripping the zone would turn a link-local address into a wider network.
 
 Security, Debug Logs and the IP inspector sheet don't show Mute IP in their IP actions menu.
 

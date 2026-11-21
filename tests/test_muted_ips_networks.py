@@ -14,13 +14,12 @@ from geometrikks.domain.muted_ips.networks import (
     ("raw", "stored"),
     [
         ("203.0.113.7", "203.0.113.7/32"),
-        (" 10.0.0.5/8 ", "10.0.0.0/8"),
+        (" 10.0.0.0/8 ", "10.0.0.0/8"),
         ("2001:DB8::5", "2001:db8::5/128"),
         ("::ffff:192.0.2.10", "192.0.2.10/32"),
+        ("::/64", "::/64"),
         ("::ffff:192.0.2.0/120", "192.0.2.0/24"),
         ("::ffff:0:0/96", "0.0.0.0/0"),
-        ("::ffff:192.0.2.0/96", "0.0.0.0/0"),
-        ("::ffff:192.0.2.10/64", "::/64"),
     ],
 )
 def test_normalize_network_stores_canonical_form(raw, stored):
@@ -32,6 +31,34 @@ def test_normalize_network_rejects(raw):
     with pytest.raises(DomainValidationError) as error:
         normalize_network(raw)
     assert error.value.code == "invalid_network"
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [
+        (
+            "10.0.0.5/8",
+            "10.0.0.5/8 is not the start of a range. Enter 10.0.0.0/8 for the range, or 10.0.0.5 for one address",
+        ),
+        (
+            "2001:db8::5/64",
+            "2001:db8::5/64 is not the start of a range. Enter 2001:db8::/64 for the range, or 2001:db8::5 for one address",
+        ),
+        (
+            "::ffff:192.0.2.1/120",
+            "::ffff:192.0.2.1/120 is not the start of a range. Enter 192.0.2.0/24 for the range, or 192.0.2.1 for one address",
+        ),
+        (
+            "::ffff:192.0.2.0/96",
+            "::ffff:192.0.2.0/96 is not the start of a range. Enter 0.0.0.0/0 for the range, or 192.0.2.0 for one address",
+        ),
+    ],
+)
+def test_normalize_network_rejects_host_bits_and_names_both_fixes(raw, message):
+    with pytest.raises(DomainValidationError) as error:
+        normalize_network(raw)
+    assert error.value.code == "invalid_network"
+    assert str(error.value) == message
 
 
 def test_normalize_note_strips_and_empties_to_none():

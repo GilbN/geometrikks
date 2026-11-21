@@ -6181,7 +6181,7 @@
             "type": "string"
           },
           "network": {
-            "description": "The IP or range in CIDR form. A single IP is stored as /32 or /128, host bits are cleared.",
+            "description": "The IP or range in CIDR form, with no host bits set. A single IP uses /32 or /128.",
             "type": "string"
           },
           "note": {
@@ -20327,7 +20327,7 @@
       },
       "post": {
         "deprecated": false,
-        "description": "Adds an IP or CIDR range to the muted list. The network is stored in CIDR form with host bits cleared. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.",
+        "description": "Adds an IP or CIDR range to the muted list. Stores the network in CIDR form and rejects CIDR ranges with host bits set. An invalid network or a note over the length limit gets a 400. An entry already on the list, or a full list, gets a 409. Send the body as `application/json`.",
         "operationId": "ApiV1MutedIpsCreateMutedIp",
         "requestBody": {
           "content": {
