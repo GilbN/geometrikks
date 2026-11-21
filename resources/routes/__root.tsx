@@ -67,6 +67,7 @@ const routeLabels: Record<string, string> = {
   "/settings/agents": "Agents",
   "/settings/environment": "Environment",
   "/settings/api-keys": "API keys",
+  "/settings/muted-ips": "Muted IPs",
   "/settings/scheduler": "Scheduler",
   "/settings/logs": "Logs",
   "/settings/appearance": "Appearance",

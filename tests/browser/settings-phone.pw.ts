@@ -125,7 +125,7 @@ test.describe("large phone held sideways", () => {
     await expect(page).toHaveURL(/\/settings\/status$/)
 
     const links = settingsNav(page).getByRole("link")
-    await expect(links).toHaveCount(9)
+    await expect(links).toHaveCount(10)
     for (const link of await links.all()) {
       expect((await link.boundingBox())!.height).toBe(44)
     }

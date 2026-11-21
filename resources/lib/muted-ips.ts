@@ -296,3 +296,31 @@ export function keepIfSameMuted(fields: MutedKeyFields) {
     return isWriteThenConfirm ? previous : undefined
   }
 }
+
+export const MUTED_IPS_CAP = 20
+
+const MUTED_IP_ERROR_MESSAGES: Record<string, string> = {
+  muted_ip_exists: "That IP or range is already muted.",
+  muted_ip_list_full: `The list is full (${MUTED_IPS_CAP} entries). Remove one first.`,
+  invalid_network: "Enter an IP address or CIDR range.",
+  invalid_note: "Keep the note to 100 characters.",
+}
+
+export function mutedIpErrorMessage(code: string | undefined): string {
+  return (code && MUTED_IP_ERROR_MESSAGES[code]) || "Couldn't save. Try again."
+}
+
+/** The generated client throws the parsed error envelope, so `code` sits on the error itself. */
+export function mutedIpCodeOf(error: unknown): string | undefined {
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string")
+    return error.code
+  return undefined
+}
+
+export function mutedIpsCountLine(count: number): string {
+  return `${count} of ${MUTED_IPS_CAP}`
+}
+
+export function mutedIpsHomeLine(count: number | undefined): string {
+  return count ? `${count} muted` : "None"
+}
