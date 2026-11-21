@@ -120,3 +120,49 @@ async def test_an_ip_include_filter_wins(client, traffic):
 async def test_an_empty_list_matches_the_flag_off_answer(client, traffic):
     for endpoint in ("time-series", "top-urls", "top-user-agents", "top-asns", "top-ips", "top-countries", "top-cities"):
         assert await get(client, endpoint, WEEK, excludeMutedIps="true") == await get(client, endpoint, WEEK)
+
+
+# (ip, host, url, hits)
+HOSTED_TRAFFIC = [
+    ("198.51.100.1", "a.example", "/a", 3),
+    ("198.51.100.2", "b.example", "/b", 2),
+    (MUTED, "a.example", "/a", 4),
+    (MUTED, "b.example", "/b", 1),
+]
+
+
+@pytest.fixture()
+async def hosted_traffic(pg_engine, pg_session_maker, clean_tables, clean_muted_ips):
+    async with pg_session_maker() as session:
+        for index, (ip, host, url, hits) in enumerate(HOSTED_TRAFFIC):
+            for hit in range(hits):
+                await session.execute(
+                    text(
+                        "INSERT INTO access_logs (timestamp, ip_address, host, method, url, status_code, bytes_sent, "
+                        "request_time, user_agent, country_code, country_name, city, autonomous_system_number, "
+                        "autonomous_system_organization) VALUES (:ts, :ip, :host, 'GET', :url, 200, 100, 0.25, "
+                        "'ua/1.0', 'NO', 'NO', 'Oslo', 64500, 'Org')"
+                    ),
+                    {"ts": SEED_HOUR + timedelta(minutes=index * 5 + hit), "ip": ip, "host": host, "url": url},
+                )
+        await session.commit()
+    failed = await refresh_caggs_range(pg_engine, start=NOW - timedelta(days=4), end=NOW)
+    assert failed == []
+
+
+# The week window would send a host-only Top URLs request to the URL rollups,
+# which have no ip_address column; muting has to keep it on the raw rows.
+@pytest.mark.parametrize("window", [WEEK, SEED_HOUR_ONLY], ids=["aggregate", "raw"])
+async def test_a_host_filter_and_muting_apply_together(client, hosted_traffic, window):
+    await mute(client)
+    flag = {"excludeMutedIps": "true"}
+
+    urls = await get(client, "top-urls", window, hostIn="a.example", **flag)
+    assert [(item["host"], item["url"], item["hits"]) for item in urls["items"]] == [("a.example", "/a", 3)]
+    ips = await get(client, "top-ips", window, hostIn="a.example", **flag)
+    assert [(item["ipAddress"], item["hits"]) for item in ips["items"]] == [("198.51.100.1", 3)]
+
+    urls = await get(client, "top-urls", window, hostNotIn="a.example", **flag)
+    assert [(item["host"], item["url"], item["hits"]) for item in urls["items"]] == [("b.example", "/b", 2)]
+    series = await get(client, "time-series", window, hostNotIn="a.example", **flag)
+    assert sum(point["totalRequests"] for point in series["data"]) == 2
