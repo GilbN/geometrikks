@@ -160,7 +160,6 @@ import {
   noteFirstLoadFailed,
   noteListLoaded,
 } from "./muted-ips"
-import { isAxiosError } from "axios"
 import type { CreateMutedIpPayload } from "@/generated/api/types.gen"
 
 // ============================================================================
@@ -580,17 +579,18 @@ export function useRevokeApiKey() {
 // Muted IPs
 // ============================================================================
 
-async function fetchMutedIpsTracked() {
+async function fetchMutedIpsTracked({ signal }: { signal: AbortSignal }) {
   const startedAtWrite = currentWriteSequence()
   try {
-    const entries = await fetchMutedIps()
+    const entries = await fetchMutedIps(signal)
     noteListLoaded(
       entries.map((entry) => entry.network),
       startedAtWrite,
     )
     return entries
   } catch (error) {
-    noteFirstLoadFailed()
+    // A cancel during a write is not a failed load.
+    if (!signal.aborted) noteFirstLoadFailed()
     throw error
   }
 }
@@ -607,21 +607,19 @@ export function useMutedIpsList(refetchInterval: number | false) {
   return useQuery({ ...mutedIpsQueryOptions, refetchInterval })
 }
 
+/** Cache only. The page-level observer and the refetch after a write keep the list fresh. */
+export const mutedIpsPassiveQueryOptions = { ...mutedIpsQueryOptions, enabled: false }
+
 /** Row menus read the cached list so scrolling a table never sends GET /muted-ips. */
-export function useMutedIpsPassive(enabled: boolean) {
-  return useQuery({
-    ...mutedIpsQueryOptions,
-    enabled,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
-  })
+export function useMutedIpsPassive() {
+  return useQuery(mutedIpsPassiveQueryOptions)
 }
 
-/** A 409 or 404 means another device changed the list, so it settles like a success. */
+/** The generated client throws the parsed error envelope, not an AxiosError. A 409
+ *  or 404 means another device changed the list, so it settles like a success. */
 function changedTheList(error: unknown): boolean {
-  if (!isAxiosError(error)) return false
-  return error.response?.status === 409 || error.response?.status === 404
+  if (error === null || typeof error !== "object" || !("status_code" in error)) return false
+  return error.status_code === 409 || error.status_code === 404
 }
 
 export async function settleMutedIpWrite(queryClient: QueryClient): Promise<void> {

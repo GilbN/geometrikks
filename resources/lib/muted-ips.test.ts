@@ -11,7 +11,9 @@ import {
   noteListLoaded,
   currentWriteSequence,
   resetMutedIpsStoreForTests,
+  readMutedIpsHiddenForTests,
   resolveVersion,
+  subscribeVersionStore,
   setMutedIpsHidden,
 } from "./muted-ips"
 
@@ -91,8 +93,18 @@ describe("resolveVersion", () => {
     const first = current()
     expect(first).toMatch(/^unknown-/)
     noteFirstLoadFailed()
-    expect(current()).toMatch(/^unknown-/)
+    expect(current()).toBe(first)
+    markUnconfirmed()
     expect(current()).not.toBe(first)
+  })
+
+  it("does not notify when a failure changes nothing", () => {
+    noteListLoaded(["1.2.3.4/32"])
+    const listener = vi.fn()
+    const unsubscribe = subscribeVersionStore(listener)
+    noteFirstLoadFailed()
+    unsubscribe()
+    expect(listener).not.toHaveBeenCalled()
   })
 
   it("gives each write a new unknown version", () => {
@@ -154,6 +166,7 @@ describe("storage that throws", () => {
     })
     resetMutedIpsStoreForTests()
     expect(current()).toMatch(/^unknown-/)
+    expect(readMutedIpsHiddenForTests()).toBe(true)
     expect(() => setMutedIpsHidden(false)).not.toThrow()
     expect(() => markUnconfirmed()).not.toThrow()
   })
@@ -201,15 +214,40 @@ describe("keepIfSameMuted", () => {
     expect(keepIfSameMuted({})(data, queryOf(before))).toBeUndefined()
   })
 
-  it("keeps the data from a write's unknown version to the confirmed one", () => {
-    const before = { excludeMutedIps: true, mutedIpsVersion: "unknown-2" }
-    const after = { excludeMutedIps: true, mutedIpsVersion: "abcd0123" } as const
-    expect(keepIfSameMuted(after)(data, queryOf(before))).toBe(data)
+  const fieldsFor = (version: string) =>
+    ({ excludeMutedIps: true, mutedIpsVersion: version }) as const
+
+  it("keeps the data from a write's unknown version to the version its GET confirmed", () => {
+    markUnconfirmed()
+    const from = current()
+    noteListLoaded(["1.2.3.4/32"], currentWriteSequence())
+    const to = current()
+    expect(keepIfSameMuted(fieldsFor(to))(data, queryOf(fieldsFor(from)))).toBe(data)
   })
 
   it("drops the data between two unknown versions", () => {
-    const before = { excludeMutedIps: true, mutedIpsVersion: "unknown-2" }
-    const after = { excludeMutedIps: true, mutedIpsVersion: "unknown-3" } as const
-    expect(keepIfSameMuted(after)(data, queryOf(before))).toBeUndefined()
+    expect(
+      keepIfSameMuted(fieldsFor("unknown-3"))(data, queryOf(fieldsFor("unknown-2"))),
+    ).toBeUndefined()
+  })
+
+  it("does not carry write 1's data into write 2's confirmed version", () => {
+    markUnconfirmed()
+    const firstUnknown = current()
+    noteListLoaded(["1.2.3.4/32"], currentWriteSequence())
+    markUnconfirmed()
+    noteListLoaded(["1.2.3.4/32", "5.6.7.8/32"], currentWriteSequence())
+    expect(
+      keepIfSameMuted(fieldsFor(current()))(data, queryOf(fieldsFor(firstUnknown))),
+    ).toBeUndefined()
+  })
+
+  it("does not carry a failed first load's data into the confirmed version", () => {
+    noteFirstLoadFailed()
+    const failedUnknown = current()
+    noteListLoaded(["1.2.3.4/32"])
+    expect(
+      keepIfSameMuted(fieldsFor(current()))(data, queryOf(fieldsFor(failedUnknown))),
+    ).toBeUndefined()
   })
 })

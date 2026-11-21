@@ -186,8 +186,8 @@ export async function revokeApiKey(keyId: string): Promise<void> {
   await apiV1AuthApiKeysKeyIdRevokeApiKey({ path: { key_id: keyId }, throwOnError: true })
 }
 
-export async function fetchMutedIps(): Promise<MutedIpView[]> {
-  const { data } = await apiV1MutedIpsListMutedIps({ throwOnError: true })
+export async function fetchMutedIps(signal?: AbortSignal): Promise<MutedIpView[]> {
+  const { data } = await apiV1MutedIpsListMutedIps({ signal, throwOnError: true })
   return data
 }
 

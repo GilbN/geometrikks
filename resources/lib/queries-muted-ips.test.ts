@@ -22,7 +22,6 @@ vi.mock("./api", async (importOriginal) => ({
   addMutedIp: mocks.addMutedIp,
   removeMutedIp: mocks.removeMutedIp,
 }))
-import { AxiosError, AxiosHeaders } from "axios"
 import { MutationObserver } from "@tanstack/react-query"
 import {
   getVersionStore,
@@ -30,27 +29,20 @@ import {
   resolveVersion,
   listVersion,
 } from "./muted-ips"
-import { mutedIpsQueryOptions, queryKeys, useAddMutedIp } from "./queries"
+import {
+  mutedIpsPassiveQueryOptions,
+  mutedIpsQueryOptions,
+  queryKeys,
+  useAddMutedIp,
+  useRemoveMutedIp,
+} from "./queries"
 
 function entry(network: string): MutedIpView {
   return { id: network, network, note: null, createdAt: "2026-11-20T10:00:00Z" }
 }
 
-function conflict() {
-  const config = { headers: new AxiosHeaders() }
-  return new AxiosError(
-    "conflict",
-    "ERR_BAD_REQUEST",
-    config,
-    {},
-    {
-      status: 409,
-      statusText: "Conflict",
-      data: {},
-      headers: {},
-      config,
-    },
-  )
+function envelope(statusCode: number, code: string) {
+  return { status_code: statusCode, detail: "changed elsewhere", code }
 }
 
 let queryClient: QueryClient
@@ -76,15 +68,24 @@ it("keeps the list forever once it has no observers", () => {
   expect(mutedIpsQueryOptions.queryKey).toEqual(["muted-ips"])
 })
 
-it("does not fetch for a passive observer that mounts on cached data", async () => {
+it("never fetches for a passive observer, with an empty, failed or seeded cache", async () => {
+  const observe = () => {
+    const observer = new QueryObserver(queryClient, mutedIpsPassiveQueryOptions)
+    unsubscribers.push(observer.subscribe(() => {}))
+  }
+  observe()
+  await Promise.resolve()
+  expect(mocks.fetchMutedIps).not.toHaveBeenCalled()
+
+  mocks.fetchMutedIps.mockRejectedValue(new Error("down"))
+  await queryClient.fetchQuery(mutedIpsQueryOptions).catch(() => {})
+  mocks.fetchMutedIps.mockClear()
+  observe()
+  await Promise.resolve()
+  expect(mocks.fetchMutedIps).not.toHaveBeenCalled()
+
   queryClient.setQueryData(queryKeys.mutedIps, [entry("1.2.3.4/32")])
-  const observer = new QueryObserver(queryClient, {
-    ...mutedIpsQueryOptions,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
-  })
-  unsubscribers.push(observer.subscribe(() => {}))
+  observe()
   await Promise.resolve()
   expect(mocks.fetchMutedIps).not.toHaveBeenCalled()
 })
@@ -101,29 +102,58 @@ it("takes an unknown version when the first load fails", async () => {
   expect(resolveVersion(getVersionStore())).toMatch(/^unknown-/)
 })
 
-it("marks the list unconfirmed and refetches after a 409", async () => {
-  mocks.fetchMutedIps.mockResolvedValue([entry("1.2.3.4/32")])
-  await queryClient.fetchQuery(mutedIpsQueryOptions)
-  mocks.fetchMutedIps.mockClear()
-  mocks.addMutedIp.mockRejectedValue(conflict())
-  useAddMutedIp()
-  const observer = new MutationObserver(
+function mutationFor(hook: () => void) {
+  hook()
+  return new MutationObserver(
     queryClient,
     mocks.mutationOptions as ConstructorParameters<typeof MutationObserver>[1],
   )
-  await observer.mutate({ network: "1.2.3.4" }).catch(() => {})
-  expect(mocks.fetchMutedIps).toHaveBeenCalledTimes(1)
-  expect(resolveVersion(getVersionStore())).toBe(listVersion(["1.2.3.4/32"]))
+}
+
+async function expectWriteSettlesList(
+  hook: () => void,
+  rejectWith: () => void,
+  variables: string | { network: string },
+) {
+  mocks.fetchMutedIps.mockResolvedValue([entry("1.2.3.4/32")])
+  await queryClient.fetchQuery(mutedIpsQueryOptions)
+  mocks.fetchMutedIps.mockClear()
+  rejectWith()
+  let releaseRefetch: (entries: MutedIpView[]) => void = () => {}
+  mocks.fetchMutedIps.mockImplementation(
+    () => new Promise<MutedIpView[]>((resolve) => (releaseRefetch = resolve)),
+  )
+  const settled = mutationFor(hook)
+    .mutate(variables as never)
+    .catch(() => {})
+  await vi.waitFor(() => expect(mocks.fetchMutedIps).toHaveBeenCalledTimes(1))
+  expect(resolveVersion(getVersionStore())).toMatch(/^unknown-/)
+  releaseRefetch([])
+  await settled
+  expect(resolveVersion(getVersionStore())).toBe("empty")
+}
+
+it("marks the list unconfirmed and refetches after a 409", async () => {
+  await expectWriteSettlesList(
+    useAddMutedIp,
+    () => mocks.addMutedIp.mockRejectedValue(envelope(409, "muted_ip_exists")),
+    { network: "1.2.3.4" },
+  )
+})
+
+it("marks the list unconfirmed and refetches after a 404 on remove", async () => {
+  await expectWriteSettlesList(
+    useRemoveMutedIp,
+    () => mocks.removeMutedIp.mockRejectedValue(envelope(404, "not_found")),
+    "entry-id",
+  )
 })
 
 it("does not refetch after an error that says nothing about the list", async () => {
   mocks.addMutedIp.mockRejectedValue(new Error("network down"))
-  useAddMutedIp()
-  const observer = new MutationObserver(
-    queryClient,
-    mocks.mutationOptions as ConstructorParameters<typeof MutationObserver>[1],
-  )
-  await observer.mutate({ network: "1.2.3.4" }).catch(() => {})
+  await mutationFor(useAddMutedIp)
+    .mutate({ network: "1.2.3.4" })
+    .catch(() => {})
   expect(mocks.fetchMutedIps).not.toHaveBeenCalled()
   expect(getVersionStore().unconfirmed).toBe(false)
 })

@@ -56,6 +56,8 @@ export type VersionStoreState = {
   stored: string | null
   /** The n of the current "unknown-<n>". */
   unknownCounter: number
+  /** The one write's unknown version and the confirmed version a post-write GET produced for it. */
+  confirmedFromWrite: { from: string; to: string } | null
 }
 
 export function resolveVersion(store: VersionStoreState): string {
@@ -95,6 +97,7 @@ export function getVersionStore(): VersionStoreState {
       attempted: false,
       stored: readStoredVersion(),
       unknownCounter: 0,
+      confirmedFromWrite: null,
     }
   }
   return store
@@ -124,8 +127,12 @@ export function currentWriteSequence(): number {
 export function noteListLoaded(networks: string[], startedAtWrite: number = writeSequence): void {
   if (startedAtWrite !== writeSequence) return
   const version = listVersion(networks)
+  const previous = getVersionStore()
   writeStoredVersion(version)
   updateStore({
+    confirmedFromWrite: previous.unconfirmed
+      ? { from: resolveVersion(previous), to: version }
+      : null,
     unconfirmed: false,
     confirmed: { version, count: networks.length },
     attempted: true,
@@ -135,10 +142,8 @@ export function noteListLoaded(networks: string[], startedAtWrite: number = writ
 
 export function noteFirstLoadFailed(): void {
   const current = getVersionStore()
-  if (current.confirmed || current.unconfirmed) {
-    updateStore({ attempted: true })
-    return
-  }
+  // Retries, polls and background errors keep the same unknown version: a new one re-keys every flagged query.
+  if (current.confirmed || current.unconfirmed || current.attempted) return
   updateStore({ attempted: true, unknownCounter: current.unknownCounter + 1 })
 }
 
@@ -148,6 +153,7 @@ export function markUnconfirmed(): void {
   updateStore({
     unconfirmed: true,
     stored: null,
+    confirmedFromWrite: null,
     unknownCounter: getVersionStore().unknownCounter + 1,
   })
 }
@@ -208,6 +214,11 @@ export function setMutedIpsHidden(on: boolean): void {
   hiddenListeners.forEach((listener) => listener())
 }
 
+/** The switch's current value without React, for tests. */
+export function readMutedIpsHiddenForTests(): boolean {
+  return readHidden()
+}
+
 export function useMutedIpsHidden(): [boolean, (on: boolean) => void] {
   const hidden = useSyncExternalStore(subscribeHidden, readHidden, () => true)
   return [hidden, setMutedIpsHidden]
@@ -242,7 +253,8 @@ function findMutedFields(value: unknown, depth = 0): MutedKeyFields {
 /**
  * The placeholderData callback for queries that keep previous results: it
  * returns them only when the flag and the list version match, except for the
- * move from a write's unknown version to the confirmed one that follows it.
+ * move from a write's unknown version to the confirmed version of the GET
+ * that started after that same write.
  */
 export function keepIfSameMuted(fields: MutedKeyFields) {
   return <T>(previous: T | undefined, previousQuery?: Query): T | undefined => {
@@ -250,8 +262,9 @@ export function keepIfSameMuted(fields: MutedKeyFields) {
     const before = findMutedFields(previousQuery.queryKey)
     if (before.excludeMutedIps !== fields.excludeMutedIps) return undefined
     if (before.mutedIpsVersion === fields.mutedIpsVersion) return previous
-    const wasUnknown = before.mutedIpsVersion?.startsWith(UNKNOWN_PREFIX) === true
-    const isConfirmed = fields.mutedIpsVersion?.startsWith(UNKNOWN_PREFIX) === false
-    return wasUnknown && isConfirmed ? previous : undefined
+    const pair = getVersionStore().confirmedFromWrite
+    const isWriteThenConfirm =
+      pair !== null && before.mutedIpsVersion === pair.from && fields.mutedIpsVersion === pair.to
+    return isWriteThenConfirm ? previous : undefined
   }
 }
