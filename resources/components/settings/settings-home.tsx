@@ -70,7 +70,7 @@ export function SettingsHome() {
   const { data: settings } = useSystemSettings()
   const { data: about } = useAbout()
   const { data: apiKeyList } = useApiKeys()
-  const { data: mutedIps } = useMutedIpsList(false)
+  const { data: mutedIps } = useMutedIpsList(30_000)
   const changelogUnseen = useChangelogUnseen()
   const unseenRelease = useUnseenRelease()
   const { resolvedTheme, colorTheme } = useTheme()

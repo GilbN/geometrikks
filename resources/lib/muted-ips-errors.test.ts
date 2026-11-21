@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test"
 import {
+  focusIdAfterRemoval,
   MUTED_IPS_CAP,
   mutedIpCodeOf,
   mutedIpErrorMessage,
@@ -15,6 +16,8 @@ describe("mutedIpErrorMessage", () => {
     ["invalid_note", "Keep the note to 100 characters."],
     ["something_else", "Couldn't save. Try again."],
     [undefined, "Couldn't save. Try again."],
+    ["constructor", "Couldn't save. Try again."],
+    ["toString", "Couldn't save. Try again."],
   ])("maps %s", (code, message) => {
     expect(mutedIpErrorMessage(code)).toBe(message)
   })
@@ -42,5 +45,16 @@ describe("count and home lines", () => {
     expect(mutedIpsHomeLine(undefined)).toBe("None")
     expect(mutedIpsHomeLine(0)).toBe("None")
     expect(mutedIpsHomeLine(3)).toBe("3 muted")
+  })
+})
+
+describe("focusIdAfterRemoval", () => {
+  it("prefers the next row, then the previous one", () => {
+    expect(focusIdAfterRemoval(["a", "b", "c"], "b")).toBe("c")
+    expect(focusIdAfterRemoval(["a", "b", "c"], "c")).toBe("b")
+  })
+  it("is null for the only row or an unknown id", () => {
+    expect(focusIdAfterRemoval(["a"], "a")).toBeNull()
+    expect(focusIdAfterRemoval(["a"], "z")).toBeNull()
   })
 })

@@ -307,7 +307,9 @@ const MUTED_IP_ERROR_MESSAGES: Record<string, string> = {
 }
 
 export function mutedIpErrorMessage(code: string | undefined): string {
-  return (code && MUTED_IP_ERROR_MESSAGES[code]) || "Couldn't save. Try again."
+  return code && Object.hasOwn(MUTED_IP_ERROR_MESSAGES, code)
+    ? MUTED_IP_ERROR_MESSAGES[code]
+    : "Couldn't save. Try again."
 }
 
 /** The generated client throws the parsed error envelope, so `code` sits on the error itself. */
@@ -323,4 +325,11 @@ export function mutedIpsCountLine(count: number): string {
 
 export function mutedIpsHomeLine(count: number | undefined): string {
   return count ? `${count} muted` : "None"
+}
+
+/** The entry that takes focus once `removedId` leaves the list: the one below it, else the one above. */
+export function focusIdAfterRemoval(ids: string[], removedId: string): string | null {
+  const index = ids.indexOf(removedId)
+  if (index === -1) return null
+  return ids[index + 1] ?? ids[index - 1] ?? null
 }
