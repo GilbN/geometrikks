@@ -1,13 +1,14 @@
 """GeoLocation API endpoints."""
 from __future__ import annotations
 
+from ipaddress import IPv4Network, IPv6Network
 from typing import Annotated, Literal, cast
 
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
 from advanced_alchemy.filters import FilterTypes
 from advanced_alchemy.service import OffsetPagination
 from litestar import Controller, Request, delete, get
-from litestar.di import NamedDependency
+from litestar.di import NamedDependency, Provide
 from litestar.openapi.datastructures import ResponseSpec
 from litestar.params import PathParameter, QueryParameter, SkipValidation
 from litestar.status_codes import HTTP_404_NOT_FOUND, HTTP_409_CONFLICT
@@ -33,6 +34,7 @@ from geometrikks.domain.geo.dtos import (
 )
 from geometrikks.domain.geo.models import GeoLocation
 from geometrikks.domain.geo.services import GeoLocationService
+from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
 from geometrikks.lib.pagination import LIMIT_OFFSET_KEY, limit_offset_provider
 from geometrikks.lib.parameters import (
     GEO_WHOLE_BUCKETS_NOTE,
@@ -76,7 +78,10 @@ class GeoLocationController(Controller):
         # Kept so the aggregate ``filters`` asks for the provider replaced
         # below, which caps pageSize.
         filters={"pagination_type": "limit_offset"},
-    ) | {LIMIT_OFFSET_KEY: limit_offset_provider(default_size=10)}
+    ) | {
+        LIMIT_OFFSET_KEY: limit_offset_provider(default_size=10),
+        "muted_networks": Provide(provide_muted_networks),
+    }
 
     @get(
         "/",
@@ -111,6 +116,7 @@ class GeoLocationController(Controller):
     async def get_geojson(
         self,
         geo_location_service: NamedDependency[GeoLocationService],
+        muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
         from_timestamp: FromTimestamp,
         to_timestamp: ToTimestamp,
         country_code: CountryCodeFilter = None,
@@ -146,6 +152,7 @@ class GeoLocationController(Controller):
             from_timestamp, to_timestamp, country_codes=country_code, cities=city,
             ip_addresses=ip_address_in, ip_addresses_exclude=ip_address_not_in,
             servers=server_in, asns=asn_in, asns_exclude=asn_not_in,
+            muted_networks=None if ip_address_in else muted_networks,
         )
         
         events: int = sum(loc.event_count for loc in locations_with_counts)

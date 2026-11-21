@@ -1,7 +1,9 @@
 """GeoEvent API endpoints (raw events + geo-logs page aggregates)."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
+from ipaddress import IPv4Network, IPv6Network
 from typing import Annotated, Literal
 
 from advanced_alchemy.extensions.litestar.providers import create_service_dependencies
@@ -34,6 +36,7 @@ from geometrikks.domain.geo.schemas import (
     TopGeoIpsResponse,
 )
 from geometrikks.domain.geo.services import GeoEventService
+from geometrikks.domain.muted_ips.dependencies import provide_muted_networks
 from geometrikks.lib.pagination import (
     LIMIT_OFFSET_KEY,
     MAX_PAGE_SIZE,
@@ -169,6 +172,18 @@ def provide_geo_event_filters(
     )
 
 
+async def provide_geo_filters(
+    geo_base_filters: NamedDependency[SkipValidation[GeoEventFilters]],
+    muted_networks: NamedDependency[SkipValidation[list[IPv4Network | IPv6Network] | None]],
+) -> GeoEventFilters:
+    """Adds the muted list to the query filters.
+
+    A wrapper rather than a new parameter on ``provide_geo_event_filters``: that provider
+    stays sync, and Litestar resolves ``muted_networks`` (async, own connection) beside it.
+    """
+    return replace(geo_base_filters, muted_networks=muted_networks)
+
+
 def _resolve_chart_granularity(
     start: datetime, end: datetime, override: str | None
 ) -> StatsGranularity:
@@ -218,7 +233,9 @@ class GeoEventController(Controller):
         ORDER_BY_KEY: order_by_provider(fields=GEO_EVENT_SORT_FIELDS, default="timestamp"),
         "time_window": Provide(provide_geo_event_time_window, sync_to_thread=False),
         "in_filters": Provide(provide_geo_event_in_filters, sync_to_thread=False),
-        "geo_filters": Provide(provide_geo_event_filters, sync_to_thread=False),
+        "geo_base_filters": Provide(provide_geo_event_filters, sync_to_thread=False),
+        "geo_filters": Provide(provide_geo_filters),
+        "muted_networks": Provide(provide_muted_networks),
         "drop_snapshot": Provide(provide_drop_snapshot),
     }
 

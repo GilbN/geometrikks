@@ -5009,6 +5009,10 @@ export type ApiV1AccessLogsListAccessLogsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
   };
   url: "/api/v1/access-logs";
 };
@@ -7111,6 +7115,10 @@ export type ApiV1GeoEventsLogsGetGeoLogsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
@@ -7218,6 +7226,10 @@ export type ApiV1GeoEventsSummaryGetGeoLogSummaryData = {
      */
     asnNotIn?: Array<number> | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
@@ -7298,6 +7310,10 @@ export type ApiV1GeoEventsTimeSeriesGetGeoLogTimeSeriesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7384,6 +7400,10 @@ export type ApiV1GeoEventsTopAsnsGetGeoLogTopAsnsData = {
      */
     asnNotIn?: Array<number> | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
@@ -7464,6 +7484,10 @@ export type ApiV1GeoEventsTopCitiesGetGeoLogTopCitiesData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7546,6 +7570,10 @@ export type ApiV1GeoEventsTopCountriesGetGeoLogTopCountriesData = {
      */
     asnNotIn?: Array<number> | null;
     /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
+    /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
     fromTimestamp: string;
@@ -7626,6 +7654,10 @@ export type ApiV1GeoEventsTopIpsGetGeoLogTopIpsData = {
      * Leave out these autonomous system numbers. Repeat the parameter to pass more than one. Rows without ASN data stay in.
      */
     asnNotIn?: Array<number> | null;
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */
@@ -7742,6 +7774,10 @@ export type ApiV1GeoLocationsGeojsonGetGeojsonData = {
   body?: never;
   path?: never;
   query: {
+    /**
+     * Leave out the muted IPs. An IP include filter on the same request wins.
+     */
+    excludeMutedIps?: boolean;
     /**
      * Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.
      */

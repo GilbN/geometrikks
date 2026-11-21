@@ -10681,6 +10681,20 @@
                 }
               ]
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -16555,6 +16569,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
@@ -16914,6 +16942,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
@@ -17197,6 +17239,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -17527,6 +17583,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
@@ -17812,6 +17882,20 @@
                   "type": "null"
                 }
               ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
             }
           },
           {
@@ -18109,6 +18193,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
@@ -18400,6 +18498,20 @@
             "allowEmptyValue": false,
             "allowReserved": false,
             "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
             "description": "Start of the range, inclusive, as ISO 8601 with a timezone, such as `2026-11-01T00:00:00Z`.",
             "examples": {
               "from_timestamp-example-1": {
@@ -18648,6 +18760,20 @@
         "description": "Returns a GeoJSON FeatureCollection with one point per location that had events in the range, busiest first, and totals in `stats`. Ranges over 24 hours read the location aggregates, which count whole hours or UTC days, from the one that holds `fromTimestamp` through the last one that starts before `toTimestamp`. An IP or ASN filter reads the raw rows instead, which go back only ANALYTICS_RAW_RETENTION_DAYS days, 180 by default. A server filter does the same on a database whose location aggregates predate server tracking.",
         "operationId": "ApiV1GeoLocationsGeojsonGetGeojson",
         "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+            "in": "query",
+            "name": "excludeMutedIps",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Leave out the muted IPs. An IP include filter on the same request wins.",
+              "type": "boolean"
+            }
+          },
           {
             "allowEmptyValue": false,
             "allowReserved": false,

@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from ipaddress import IPv4Network, IPv6Network
 from typing import Annotated
 
 import msgspec
@@ -237,6 +238,12 @@ class GeoEventFilters:
     servers: Sequence[str] | None = None
     asn_include: Sequence[int] | None = None
     asn_exclude: Sequence[int] | None = None
+    muted_networks: Sequence[IPv4Network | IPv6Network] | None = None
+
+    @property
+    def effective_muted_networks(self) -> Sequence[IPv4Network | IPv6Network] | None:
+        """The muted list, unless an IP include filter on the same request overrides it."""
+        return None if self.ip_include else (self.muted_networks or None)
 
     def is_active(self) -> bool:
         return bool(
@@ -247,6 +254,7 @@ class GeoEventFilters:
             or self.servers
             or self.asn_include
             or self.asn_exclude
+            or self.effective_muted_networks
         )
 
     @property
@@ -286,6 +294,9 @@ class GeoEventFilters:
                 f"AND NOT ({events_alias}.ip_address = ANY(CAST(:filter_ips_excl AS inet[])))"
             )
             params["filter_ips_excl"] = list(self.ip_exclude)
+        if self.effective_muted_networks:
+            clauses.append(f"AND NOT ({events_alias}.ip_address <<= ANY(CAST(:muted_networks AS cidr[])))")
+            params["muted_networks"] = list(self.effective_muted_networks)
         if self.servers:
             clauses.append(f"AND {events_alias}.server = ANY(:filter_servers)")
             params["filter_servers"] = list(self.servers)
