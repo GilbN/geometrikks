@@ -5,6 +5,7 @@ import {
   keepIfSameMuted,
   listVersion,
   markUnconfirmed,
+  muteAction,
   mutedKeyFields,
   mutedScope,
   noteFirstLoadFailed,
@@ -249,5 +250,37 @@ describe("keepIfSameMuted", () => {
     expect(
       keepIfSameMuted(fieldsFor(current()))(data, queryOf(fieldsFor(failedUnknown))),
     ).toBeUndefined()
+  })
+})
+
+describe("muteAction", () => {
+  const entry = (network: string, id = "id-1") => ({
+    id,
+    network,
+    note: null,
+    createdAt: "2026-11-20T00:00:00Z",
+  })
+
+  it("unmutes an uppercase, zero-padded IPv6 row against a stored /128", () => {
+    expect(muteAction("2001:DB8:0::5", [entry("2001:db8::5/128")])).toEqual({
+      kind: "unmute",
+      id: "id-1",
+    })
+  })
+
+  it("unmutes an IPv4-mapped row against a stored /32", () => {
+    expect(muteAction("::ffff:203.0.113.7", [entry("203.0.113.7/32", "id-2")])).toEqual({
+      kind: "unmute",
+      id: "id-2",
+    })
+  })
+
+  it("mutes an IP that only a range covers", () => {
+    expect(muteAction("192.0.2.9", [entry("192.0.2.0/24")])).toEqual({ kind: "mute" })
+  })
+
+  it("mutes when the list is empty or the text is not an address", () => {
+    expect(muteAction("198.51.100.1", [])).toEqual({ kind: "mute" })
+    expect(muteAction("not-an-ip", [entry("198.51.100.1/32")])).toEqual({ kind: "mute" })
   })
 })

@@ -8,6 +8,7 @@ import {
   mutedIpCodeOf,
   mutedIpErrorMessage,
   mutedIpsCountLine,
+  runUnmute,
 } from "@/lib/muted-ips"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -22,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { MonoChip } from "@/components/settings/status-led"
-import { isNotFoundError, timeAgo } from "@/components/settings/api-keys-logic"
+import { timeAgo } from "@/components/settings/api-keys-logic"
 import { MUTED_IPS_DOCS_URL } from "@/lib/docs-links"
 
 const NOTE_MAX_LENGTH = 100
@@ -212,24 +213,17 @@ export function MutedIpsOverview({ narrow }: { narrow: boolean }) {
     if (pendingIds.has(entry.id)) return
     const nextId = focusIdAfterRemoval(data?.map((row) => row.id) ?? [], entry.id)
     setPendingIds((ids) => new Set(ids).add(entry.id))
-    try {
-      await removeMutedIp.mutateAsync(entry.id)
-      toast.success(`Unmuted ${entry.network}`)
-    } catch (error) {
-      // Gone already, from another device or a second click.
-      if (isNotFoundError(error)) {
-        toast.success(`Unmuted ${entry.network}`)
-      } else {
-        toast.error(mutedIpErrorMessage(mutedIpCodeOf(error)))
-        return
-      }
-    } finally {
-      setPendingIds((ids) => {
-        const next = new Set(ids)
-        next.delete(entry.id)
-        return next
-      })
+    const result = await runUnmute(removeMutedIp.mutateAsync, entry.id)
+    setPendingIds((ids) => {
+      const next = new Set(ids)
+      next.delete(entry.id)
+      return next
+    })
+    if (!result.ok) {
+      toast.error(result.message)
+      return
     }
+    toast.success(`Unmuted ${entry.network}`)
     const target = nextId
       ? cardRef.current?.querySelector<HTMLElement>(`[data-unmute-id="${CSS.escape(nextId)}"]`)
       : null

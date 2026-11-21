@@ -155,6 +155,7 @@ const SORT_OPTIONS = sortOptions(ACCESS_LOG_COLUMNS)
 function AccessLogIpActions({ row }: { row: AccessLog }) {
   return (
     <IpActionsMenu
+      muteToggle
       ip={row.ipAddress}
       host={row.host}
       server={row.server}

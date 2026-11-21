@@ -106,6 +106,7 @@ const SORT_OPTIONS = sortOptions(GEO_LOG_COLUMNS)
 function GeoLogIpActions({ row }: { row: GeoLogEntry }) {
   return (
     <IpActionsMenu
+      muteToggle
       ip={row.ipAddress}
       locationId={row.locationId}
       countryCode={row.countryCode}

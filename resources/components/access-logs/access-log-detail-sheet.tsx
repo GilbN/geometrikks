@@ -44,7 +44,13 @@ export function AccessLogDetailSheet({
           : undefined
       }
       footer={
-        entry && <DetailIpActions values={ipValues(entry)} onNavigate={() => onOpenChange(false)} />
+        entry && (
+          <DetailIpActions
+            values={ipValues(entry)}
+            muteToggle
+            onNavigate={() => onOpenChange(false)}
+          />
+        )
       }
     >
       {entry && <DetailIpBlock values={ipValues(entry)} />}

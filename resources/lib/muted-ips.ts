@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from "react"
+import type { MutedIpView } from "@/generated/api/types.gen"
+import { canonicalIp } from "@/lib/abuseipdb"
 
 const HIDDEN_STORAGE_KEY = "mutedIpsHidden"
 const VERSION_STORAGE_KEY = "mutedIpsVersion"
@@ -332,4 +334,37 @@ export function focusIdAfterRemoval(ids: string[], removedId: string): string | 
   const index = ids.indexOf(removedId)
   if (index === -1) return null
   return ids[index + 1] ?? ids[index - 1] ?? null
+}
+
+export type MuteAction = { kind: "mute" } | { kind: "unmute"; id: string }
+
+/** Unmute only for an exact single-IP entry; an IP a range covers is muted by adding its own entry. */
+export function muteAction(ip: string, entries: MutedIpView[]): MuteAction {
+  const canonical = canonicalIp(ip)
+  if (canonical === null) return { kind: "mute" }
+  const network = `${canonical}/${canonical.includes(":") ? 128 : 32}`
+  const match = entries.find((entry) => entry.network === network)
+  return match ? { kind: "unmute", id: match.id } : { kind: "mute" }
+}
+
+/** True while the list is unread or a write is unconfirmed, so the menu cannot tell mute from unmute. */
+export function mutedListPending(version: string, entries: MutedIpView[] | undefined): boolean {
+  return entries === undefined || version.startsWith(UNKNOWN_PREFIX)
+}
+
+export type UnmuteResult = { ok: true } | { ok: false; message: string }
+
+/** A 404 means the entry is gone already, from another device or a second click, so it counts as unmuted. */
+export async function runUnmute(
+  remove: (id: string) => Promise<unknown>,
+  id: string,
+): Promise<UnmuteResult> {
+  try {
+    await remove(id)
+    return { ok: true }
+  } catch (error) {
+    if (error && typeof error === "object" && "status_code" in error && error.status_code === 404)
+      return { ok: true }
+    return { ok: false, message: mutedIpErrorMessage(mutedIpCodeOf(error)) }
+  }
 }

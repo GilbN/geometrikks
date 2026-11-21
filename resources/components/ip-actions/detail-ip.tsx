@@ -69,12 +69,15 @@ export function DetailIpActions({
   values,
   locationId,
   showOnMap = true,
+  muteToggle = false,
   onNavigate,
 }: {
   values: IpRowValues
   /** Where the inspector starts and where Show on map lands. */
   locationId?: number
   showOnMap?: boolean
+  /** Offers Mute IP in the menu. */
+  muteToggle?: boolean
   onNavigate: () => void
 }) {
   const { open: inspect } = useIpInspectorActions()
@@ -113,7 +116,13 @@ export function DetailIpActions({
           <span className="truncate">Show on map</span>
         </Button>
       )}
-      <IpActionsMenu {...values} locationId={locationId} footer onFilter={onNavigate} />
+      <IpActionsMenu
+        {...values}
+        locationId={locationId}
+        footer
+        muteToggle={muteToggle}
+        onFilter={onNavigate}
+      />
     </div>
   )
 }
