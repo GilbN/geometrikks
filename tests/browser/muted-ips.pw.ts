@@ -35,11 +35,14 @@ test("the Muted IPs chip hides the list and a tap shows it again", async ({ page
   await page.goto("/access-logs")
   const chip = page.getByRole("button", { name: "Muted IPs hidden · 1" })
   await expect(chip).toBeVisible()
-  await expect.poll(() => logRequests.at(-1) ?? "").toContain("excludeMutedIps=true")
+  // A cold load fetches twice with the flag: once before the list confirms, once after.
+  await page.waitForLoadState("networkidle")
+  expect(logRequests.length).toBeGreaterThan(0)
+  expect(logRequests.every((search) => search.includes("excludeMutedIps=true"))).toBe(true)
 
   const before = logRequests.length
   await chip.click()
   await expect(page.getByRole("button", { name: "Muted IPs shown" })).toBeVisible()
   await expect.poll(() => logRequests.length).toBeGreaterThan(before)
-  expect(logRequests.at(-1)).not.toContain("excludeMutedIps")
+  expect(logRequests[before]).not.toContain("excludeMutedIps")
 })
